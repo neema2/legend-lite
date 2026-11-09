@@ -60,7 +60,7 @@ PIN_LINE = re.compile(r"# snapped under pins.env: (\S+)$")
 # the stack an answer is computed on, each a distribution pins.env holds exactly (gs-quant declares only ranges:
 # numpy>1.17.0, pandas>=1.4, scipy>=1.2.0, statsmodels>=0.14.5), in requirements.txt's order; and Python's minor
 DISTRIBUTIONS = (("GS_QUANT_VERSION", "gs-quant"), ("PANDAS_VERSION", "pandas"), ("NUMPY_VERSION", "numpy"),
-                 ("SCIPY_VERSION", "scipy"), ("STATSMODELS_VERSION", "statsmodels"))
+                 ("SCIPY_VERSION", "scipy"), ("STATSMODELS_VERSION", "statsmodels"), ("TA_LIB_VERSION", "ta-lib"))
 
 
 def pins():
@@ -260,7 +260,8 @@ def tag_problems(m):
     tags = library_tags()
     out = []
     for w in m["words"]:
-        if "tag" in w:
+        if "tag" in w or "ref" in w:
+            # a word a reference answers (ref:) has no gs-quant function to hold to its tag: its tag is DataCube's
             continue
         named = {t for tag in tags.get(w["word"], set()) for t in tag.split(", ") if re.fullmatch(r"[a-z]+\.\w+", t)}
         if "skip" in w:
@@ -286,7 +287,7 @@ def lines(data, x_symbol=X, y_symbol=Y):
     import pandas as pd
     # The columns a case reads, by NAME: a price file may carry others (a fixture's trailing `seq`, its ingest order),
     # which gs-quant never sees.
-    px = pd.read_csv(io.StringIO(data["prices"]), usecols=lambda c: c in ("symbol", "date", "close", "seq"),
+    px = pd.read_csv(io.StringIO(data["prices"]), usecols=lambda c: c in ("symbol", "date", "seq") + PRICE_COLUMNS,
                      parse_dates=["date"])
     # SORTED BY (symbol, date) BEFORE gs-quant SEES IT: a fixture's prices.csv is in FILE order, not date order (its
     # late_print trap holds a row after a later date's, as a late print arrives), and gs-quant counts observations by
@@ -310,17 +311,28 @@ def lines(data, x_symbol=X, y_symbol=Y):
         if n > 1:
             dups.setdefault(symbol, []).append(date.date().isoformat())
 
-    def line(symbol):
+    def line(symbol, column="close"):
         rows = px[px["symbol"] == symbol]
-        return pd.Series(rows["close"].astype(float).values, index=pd.DatetimeIndex(rows["date"]), name=symbol)
+        return pd.Series(rows[column].astype(float).values, index=pd.DatetimeIndex(rows["date"]), name=symbol)
 
     env = {"x": line(x_symbol), "y": line(y_symbol), "px": px, "dups": dups}
+    # each price column of x's and y's symbols (a reference word reads a high, a low, a volume: item 14f, step 4)
+    env["cols"] = {(c, n): (env[n] if c == "close" else line(s, c)) for c in PRICE_COLUMNS if c in px.columns
+                   for n, s in (("x", x_symbol), ("y", y_symbol))}
     if "macro" in data:
         macro = pd.read_csv(io.StringIO(data["macro"]), parse_dates=["date"])
         rows = macro[macro["series"] == MACRO]
         rows = rows.sort_values("date", kind="mergesort")
         env["cpi"] = pd.Series(rows["value"].astype(float).values, index=pd.DatetimeIndex(rows["date"]), name=MACRO)
     return env
+
+
+def references():
+    """references.py, beside this tool (an isolated interpreter puts no script's directory on the path)."""
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
+    import references as refs
+    return refs
 
 
 def namespace():
@@ -336,6 +348,9 @@ def namespace():
     ns = {name: getattr(ts, name) for name in dir(ts) if not name.startswith("_")}
     # rebase(x, base) is index(x, base): rebase's tag, `DataCube (econometrics.index)`, ruled 2026-11-07 (mapping.yaml)
     ns["rebase"] = lambda x, base=100: ts.index(x, base)
+    # DataCube's own words, each by its reference (references.py: TA-Lib, statsmodels, pandas; item 14f, step 4) --
+    # over gs-quant's names, where gs-quant has one of no function over series (alpha: a Marquee report's read)
+    ns.update(references().WORDS)
     ns.update({"ts": ts, "Window": Window, "Returns": Returns, "Interpolate": Interpolate, "CurveType": CurveType,
                "LagMode": LagMode, "SignDirection": SignDirection, "ThresholdType": ThresholdType,
                "FilterOperator": FilterOperator, "RebalFreq": RebalFreq, "Frequency": Frequency,
@@ -343,27 +358,29 @@ def namespace():
     return ns
 
 
-#: Show Python's picks of the samples' close (calls.tsv prints {x} as close['NVDA'] and {y} as close['SPX']) and the
-#: lines they are in a run: x and y (over a fixture, its trap symbol and that symbol's y)
+#: Show Python's picks of the samples' prices (calls.tsv prints {x} as close['NVDA'], {x.high} as high['NVDA'], {y} as
+#: close['SPX']) and the lines they are in a run: x's and y's symbols (over a fixture, its trap symbol and that symbol's y)
 PICKS = {"NVDA": "x", "SPX": "y"}
+#: the prices' columns a case reads of its symbols: close its x and y themselves, the others a reference word's
+PRICE_COLUMNS = ("open", "high", "low", "close", "volume")
 
 
 def column_of(env):
-    """Show Python's column(name, pick) over a run's lines: close of NVDA the case's x, of SPX its y. Any other is this
-    tool's error (HARNESS: raised outside gs-quant), never gs-quant's."""
+    """Show Python's column(name, pick) over a run's lines: a price column of NVDA the case's x symbol's, of SPX its
+    y's. Any other is this tool's error (HARNESS: raised outside gs-quant), never gs-quant's."""
     def column(name, *picks):
-        if name != "close" or len(picks) != 1 or picks[0] not in PICKS:
+        if name not in PRICE_COLUMNS or len(picks) != 1 or picks[0] not in PICKS or (name, PICKS[picks[0]]) not in env["cols"]:
             raise ValueError("column(" + ", ".join(map(repr, (name,) + picks)) + ") is no line of the oracle's runs")
-        return env[PICKS[picks[0]]]
+        return env["cols"][(name, PICKS[picks[0]])]
     return column
 
 
 def reads(gs_text):
     """The lines a case's call reads, in the order its rows name them (cpi, x, y): a hand call's names, or Show
-    Python's column('close', 'NVDA') and column('close', 'SPX')."""
+    Python's column(<a price column>, 'NVDA') (x's symbol) and column(<a price column>, 'SPX') (y's)."""
     if "column(" in gs_text:
-        return [n for n in ("x", "y") if any("column('close', '" + p + "')" in gs_text
-                                             for p, line in PICKS.items() if line == n)]
+        picked = set(re.findall(r"column\('\w+', '(\w+)'\)", gs_text))
+        return [n for n in ("x", "y") if any(PICKS.get(p) == n for p in picked)]
     return [n for n in ("cpi", "x", "y") if re.search(r"\b" + n + r"\b", gs_text)]
 
 
@@ -462,7 +479,8 @@ def run_case(gs_text, column, env, ns):
         # the mapping's own texts and the printer's (calls.tsv), this repository's files
         got = eval(gs_text, {**ns, "column": column_of(env)}, dict(env))   # noqa: S307
     if isinstance(got, pd.DataFrame):
-        got = got.iloc[:, {"lower": 0, "upper": 1}[column]]
+        # a reference's frame names its columns (lower, upper, width; open ... close); gs-quant's, by position
+        got = got[column] if column in got.columns else got.iloc[:, {"lower": 0, "upper": 1}[column]]
     elif column is not None:
         raise ValueError("a column (" + column + ") of gs-quant's " + type(got).__name__)
     if isinstance(got, pd.Series):
@@ -482,9 +500,13 @@ def raised_at(e):
     """Where gs-quant raised: the innermost frame of its traceback inside gs_quant, as file:line under
     gs_quant/timeseries/ (econometrics.py:497 for 'multiple data points on same date' at the pin)."""
     import traceback
-    frames = [f for f in traceback.extract_tb(e.__traceback__) if os.sep + "gs_quant" + os.sep in f.filename]
+    tb = traceback.extract_tb(e.__traceback__)
+    frames = [f for f in tb if os.sep + "gs_quant" + os.sep in f.filename]
     if not frames:
-        return None
+        # a reference's own refusal (references.py and the library it calls: pandas on a line of two rows on one
+        # date), its GS_ERROR as gs-quant's is -- the innermost frame of references.py
+        own = [f for f in tb if os.path.basename(f.filename) == "references.py"]
+        return None if not own else "references.py:" + str(own[-1].lineno)
     f = frames[-1]
     path = f.filename.split(os.sep + "gs_quant" + os.sep, 1)[1]
     return (path[len("timeseries" + os.sep):] if path.startswith("timeseries" + os.sep) else path) + ":" + str(f.lineno)
@@ -797,12 +819,17 @@ def release_diff(m, other_python, values):
     probe = "import gs_quant, os; print(gs_quant.__version__); print(os.path.dirname(gs_quant.__file__))"
     other_version, other_root = subprocess.run([other_python, "-I", "-c", probe], capture_output=True, text=True,
                                                check=True).stdout.split("\n")[:2]
-    called = set()
-    for w in m["words"]:
-        for c in w.get("cases", []):
-            for f in re.findall(r"\bts\.(\w+)\(", c[2]):
-                called.add(f)
     import gs_quant.timeseries as ts
+    # every gs_quant.timeseries function a case's call makes: a hand call's ts.f(, or Show Python's own names (calls.tsv,
+    # each resolved by cases(); a reference's word is none of gs-quant's)
+    called = set()
+    refs = references().WORDS
+    for _, w, args, _, gs_text, _ in cases(m):
+        if args is None:
+            continue
+        called |= set(re.findall(r"\bts\.(\w+)\(", gs_text))
+        called |= {f for f in re.findall(r"(?<![\w.])(\w+)\(", gs_text) if f not in refs and callable(getattr(ts, f, None))
+                   and f not in ("Window",)}
     fns = sorted({inspect_module(ts, f) + "." + f for f in called})
     pin_defs, other_defs = definitions(here_root, fns), definitions(other_root, fns)
     lines = ["# THE MAPPED DEFINITIONS AT TWO RELEASES (snap.py --release-diff): every gs_quant.timeseries function a"

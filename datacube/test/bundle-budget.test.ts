@@ -972,8 +972,11 @@ const CHART_BUDGET = 303_500;
  *  145,200 -> 145,800 (2026-11-09, item 14f, the gs-quant oracle's catalog cases and what they found): the library's
  *  text with cov over a count ramped as gs-quant's Window(w, w), and lines spread refusing two of several rows on one
  *  date (the time model's D1, as meet's: each line's rows counted in spreadOn's groupBy) and their sentences. Measured
- *  145,501. */
-const TIMESERIES_BUDGET = 145_800;
+ *  145,501.
+ *  145,800 -> 146,100 (2026-11-09, item 14f, step 4, the references' cases and what they found): the library's text with
+ *  lead_lag's ramp full from x's (w + lag)-th point (helpers::ramp's full), and a calendar volatility's, Dickey-Fuller's
+ *  and half-life's lines of several rows a date refused (D8) and their sentences. Measured 145,861. */
+const TIMESERIES_BUDGET = 146_100;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

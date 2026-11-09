@@ -2446,10 +2446,18 @@ function timeseries::line::helpers::rampedBandPeriod<K,D>(x: Relation<(key:K, da
 // first, a CASE's WHEN, so a database evaluates it on every row whatever the rest answers.
 function timeseries::line::helpers::ramp<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], toDate: Relation<(key:K, date:D, value:Number)>[1], windowed: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], ramp: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
+  $x->timeseries::line::helpers::ramp($toDate, $windowed, $w, $w, $ramp)
+}
+
+// ... and of a word whose own points start after x's (lead_lag's lagged pairs, lag points later): its window of w full
+// from x's `full`-th point, the to-date form before it -- a window not yet full takes those it has, gs-quant's
+// rolling(w, 0) (the gs-quant oracle's references, item 14f, 2026-11-09: lead_lag w=20, r=10 was none at x's 21st point).
+function timeseries::line::helpers::ramp<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], toDate: Relation<(key:K, date:D, value:Number)>[1], windowed: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], full: Integer[1], ramp: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
   $x->extend(~line_src:row|0)->concatenate($toDate->extend(~line_src:row|1))->concatenate($windowed->extend(~line_src:row|2))
     ->extend(over(~[key], [~date->ascending(), ~line_src->ascending()], rows(unbounded(), 0)), ~line_at:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
     ->extend(over(~[key]), ~line_n:{p,f,row|if($row.line_src == 0, |1, |0)}:y|$y->sum())
-    ->filter(row|if(timeseries::line::helpers::rampFits($row.line_n, $ramp), |($row.line_at > $ramp) && ($row.line_n >= $w) && if($row.line_src == 1, |$row.line_at <= $w, |($row.line_src == 2) && ($row.line_at > $w)), |false))
+    ->filter(row|if(timeseries::line::helpers::rampFits($row.line_n, $ramp), |($row.line_at > $ramp) && ($row.line_n >= $w) && if($row.line_src == 1, |$row.line_at <= $full, |($row.line_src == 2) && ($row.line_at > $full)), |false))
     ->select(~[key, date, value])
 }
 
@@ -2779,18 +2787,20 @@ function timeseries::rows::vol_swap_volatility<T,K,D,V,P,O,Q>(t: Relation<T>[1],
 
 function timeseries::rows::dickey_fuller<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
-  $t->timeseries::dickeyFullerPeriod($key, $date, $value, $w, $unit, ~rows_m)
+  // its differences read the line by a lag: refused on a line of several rows on a date, as the count forms (D8)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::dickeyFullerPeriod($key, $date, $value, $w, $unit, ~rows_m)
     ->timeseries::rows::pointsPeriod($key, $date, $present, $w, $unit, ~rows_q)
-    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
-    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~[rows_m, rows_t])->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
 function timeseries::rows::half_life<T,K,D,V,P,O,Q>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], present: ColSpec<P⊆T>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1], points: ColSpec<Q>[1]): Relation<T+O+Q>[1]
 {
-  $t->timeseries::halfLifePeriod($key, $date, $value, $w, $unit, ~rows_m)
+  // as dickey_fuller's: refused on a line of several rows on a date (D8)
+  $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::halfLifePeriod($key, $date, $value, $w, $unit, ~rows_m)
     ->timeseries::rows::pointsPeriod($key, $date, $present, $w, $unit, ~rows_q)
-    ->extend(~rows_o:x|if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]))
-    ->without(~rows_m)->rename(~rows_o, $out)->rename(~rows_q, $points)
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_q->isNotEmpty(), |$x.rows_m, |[]), |[]))
+    ->without(~[rows_m, rows_t])->rename(~rows_o, $out)->rename(~rows_q, $points)
 }
 
 // ... and the capture ratios over a calendar span: the pairs both lines' returns have, as the line forms'.
@@ -3334,7 +3344,9 @@ function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Num
 {
   $x->timeseries::line::helpers::annualized($annualization_factor, $sample)
     ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::line::helpers::returnsType($type), ~r)
-    ->timeseries::volatilityPeriod(~key, ~date, ~value, ~r, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::rampedPeriod($w, $unit)}
+    ->timeseries::volatilityPeriod(~key, ~date, ~value, ~r, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    // its returns read the line by a lag: a line of several rows on a date refused, as the count form's (D8)
+    ->timeseries::lines::untied()->timeseries::line::helpers::rampedPeriod($w, $unit)}
 
 function {meta::pure::profiles::doc.doc = 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date (its default, and all), the whole line (whole), or each date\'s instruments (across: a cross-section, as rank).', timeseries::Words.label = 'Z-score', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.zscores', timeseries::Words.about = 'How many standard deviations from the mean: over the last w observations, or every one to date.', timeseries::Words.differs = 'no window: to date (gs-quant: the whole series; whole is gs-quant\'s)', timeseries::Words.param = 'w: observations in the window, all, whole, or across', timeseries::Words.search = 'zscore', timeseries::Words.search = 'z', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0', timeseries::Words.gsWhole = 'w: unsized'} timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
@@ -3515,7 +3527,8 @@ function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:
 
 function timeseries::line::dickey_fuller<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::dickeyFullerPeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::rampedPeriod($w, $unit)}
+  // its differences read the line by a lag: a line of several rows on a date refused, as the count form's (D8)
+  $x->timeseries::dickeyFullerPeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()->timeseries::line::helpers::rampedPeriod($w, $unit)}
 
 function {meta::pure::profiles::doc.doc = 'The half-life of mean reversion of x\'s values over a window -- w observations to date (a value once it holds three at least, and w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.', timeseries::Words.label = 'Half-life of mean reversion', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'DataCube (an Ornstein-Uhlenbeck half-life)', timeseries::Words.about = '−ln 2 / ln(1 + b), b the slope of Δx = a + b·x[-1] over the last w differences (w + 1 values; 0: every one to date): the observations a gap takes to halve; none where it does not revert (b at or above 0) or overshoots (b at or below −1).', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0'} timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
@@ -3534,7 +3547,8 @@ function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Numb
 
 function timeseries::line::half_life<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::halfLifePeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::rampedPeriod($w, $unit)}
+  // as dickey_fuller's: refused on a line of several rows on a date (D8)
+  $x->timeseries::halfLifePeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()->timeseries::line::helpers::rampedPeriod($w, $unit)}
 
 function {meta::pure::profiles::doc.doc = 'Each of x\'s values\' percentile among its window\'s -- w observations to date, a calendar period back, the line\'s start to date (its default).', timeseries::Words.label = 'Rolling percentile rank', timeseries::Words.family = 'Rolling statistics', timeseries::Words.unit = 'number', timeseries::Words.bounds = '0, 100', timeseries::Words.gsQuant = 'statistics.percentiles', timeseries::Words.about = 'Where each value ranks among those of its window, 0 to 100: the share below it, those equal to it counted half (scipy\'s percentileofscore, kind=mean).', timeseries::Words.differs = 'a series ranked in its own window (gs-quant also ranks a second series\' values in the first\'s)', timeseries::Words.param = 'w: observations in the window, or a calendar period (3m, 1y); 0 every one to it', timeseries::Words.search = 'percentile_rank', timeseries::Words.search = 'pctrank', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0'} timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
@@ -5065,7 +5079,8 @@ function timeseries::line::down_capture<K,D>(x: Relation<(key:K, date:D, value:N
 
 function timeseries::line::lead_lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], lag: Integer[1], w: Integer[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::ramp($x, timeseries::line::lead_lag($x, $y, $lag, timeseries::Scope.all, $sample), timeseries::line::lead_lag($x, $y, $lag, $w, $sample), $w, $r)
+  // its pairs lag points after x's returns: the window of w full from x's (w + lag)-th point (helpers::ramp's full)
+  timeseries::line::helpers::ramp($x, timeseries::line::lead_lag($x, $y, $lag, timeseries::Scope.all, $sample), timeseries::line::lead_lag($x, $y, $lag, $w, $sample), $w, $w + if($lag > 0, |$lag, |0), $r)
 }
 
 function timeseries::line::lead_lag<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], lag: Integer[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1], r: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]

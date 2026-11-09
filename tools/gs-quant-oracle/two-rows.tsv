@@ -170,3 +170,77 @@ exponential_spread_volatility default	raises-497	MqValueError at econometrics.py
 basket default	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR
 basket rebalance=monthly	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR
 basket rebalance=weekly	raises-two-rows	ValueError at backtesting.py:81	GS_ERROR
+alpha default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+alpha w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+alpha w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+alpha w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+information_ratio default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+information_ratio w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+information_ratio w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+information_ratio w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+r_squared default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+r_squared w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+r_squared w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+r_squared w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+tracking_error default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+tracking_error w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+tracking_error w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+tracking_error w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+hedge_ratio default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+hedge_ratio w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+hedge_ratio w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+hedge_ratio w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+residual default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+residual w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+residual w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+residual w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+up_capture default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+up_capture w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+up_capture w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+up_capture w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+down_capture default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+down_capture w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+down_capture w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+down_capture w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+lead_lag default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+lead_lag lag=2	raises-two-rows	ValueError at references.py:97	GS_ERROR
+lead_lag w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+lead_lag w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+lead_lag w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+atr default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+atr w=5	raises-two-rows	ValueError at references.py:97	GS_ERROR
+stochastic default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+stochastic w=5	raises-two-rows	ValueError at references.py:97	GS_ERROR
+keltner_channels default.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
+keltner_channels default.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
+keltner_channels default.width	raises-two-rows	ValueError at references.py:97	GS_ERROR
+keltner_channels w=10,a=5,k=1.5.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
+keltner_channels w=10,a=5,k=1.5.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
+donchian_channels default.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
+donchian_channels default.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
+donchian_channels default.width	raises-two-rows	ValueError at references.py:97	GS_ERROR
+donchian_channels w=3mo.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
+donchian_channels w=3mo.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
+donchian_channels w=all.lower	raises-two-rows	ValueError at references.py:97	GS_ERROR
+donchian_channels w=all.upper	raises-two-rows	ValueError at references.py:97	GS_ERROR
+obv default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+vwap default	raises-two-rows	ValueError at references.py:97	GS_ERROR
+vwap w=3mo	raises-two-rows	ValueError at references.py:97	GS_ERROR
+vwap w=all	raises-two-rows	ValueError at references.py:97	GS_ERROR
+vwap w=20,r=10	raises-two-rows	ValueError at references.py:97	GS_ERROR
+drawdown default	two-values	732 points, 2 values on 2025-02-05	REFUSED
+drawdown w=20	two-values	713 points, 2 values on 2025-02-05	REFUSED
+drawdown w=3mo	two-values	641 points, 2 values on 2025-02-05	PASS
+drawdown w=20,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
+dickey_fuller default	two-values	729 points, 2 values on 2025-02-05	REFUSED
+dickey_fuller w=30	two-values	702 points, 2 values on 2025-02-05	REFUSED
+dickey_fuller w=3mo	two-values	641 points, 2 values on 2025-02-05	REFUSED
+dickey_fuller w=30,r=10	two-values	722 points, 2 values on 2025-02-05	REFUSED
+half_life default	two-values	673 points, 2 values on 2025-02-05	REFUSED
+half_life w=30	two-values	641 points, 2 values on 2025-02-05	REFUSED
+half_life w=3mo	two-values	596 points, 2 values on 2025-02-05	REFUSED
+half_life w=30,r=10	two-values	661 points, 2 values on 2025-02-05	REFUSED
+ohlc default.open	raises-two-rows	ValueError at references.py:97	GS_ERROR
+ohlc default.high	raises-two-rows	ValueError at references.py:97	GS_ERROR
+ohlc default.low	raises-two-rows	ValueError at references.py:97	GS_ERROR
+ohlc default.close	raises-two-rows	ValueError at references.py:97	GS_ERROR

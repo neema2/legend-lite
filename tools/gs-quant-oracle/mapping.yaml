@@ -33,7 +33,9 @@
 # default against another.
 #
 # known: a docs/SEMANTICS_REGISTER.md row that predicts a DIFF on the cases it names (a ruled departure): the ledger
-# cites it, and the parity test holds the row to it.
+# cites it, and the parity test holds the row to it. A reference's word (`ref:`, below) may name `sentence` instead:
+# the word's own sentence departs from its outside reference (TA-Lib's OBV and Keltner middle line), as the first
+# oracle's review named them (2026-11-08) -- DataCube's word, no upstream's.
 #
 # THE CATALOG'S FORMS (item 14f, step 3, 2026-11-09): every form core's catalog declares of a MAPPED word -- each span's
 # count, calendar period, to date, `whole` and `across` where the library's overloads take it, a ramp `r`, each value
@@ -571,31 +573,169 @@ words:
       - [rebalance=monthly, "basket({x}, 0.6, {y}, 0.4, rebalance => 'monthly')", printed]
       - [rebalance=weekly, "basket({x}, 0.6, {y}, 0.4, rebalance => 'weekly')", printed]
 
-  # ---------------------------------------------------------------- SKIP: a service function (Marquee report APIs)
-  - {word: alpha,             skip: "gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)"}
-  - {word: information_ratio, skip: "measures_reports.py:1166, a Marquee report read (its tag: DataCube)"}
-  - {word: r_squared,         skip: "measures_reports.py:1527, a Marquee report read (its tag: DataCube)"}
-  - {word: tracking_error,    skip: "measures_reports.py:766, a Marquee report read (its tag: DataCube)"}
+  # ---------------------------------------------------------------- REFERENCES: DataCube's own words, no gs-quant
+  # function (alpha, information_ratio, r_squared and tracking_error are gs-quant's Marquee report reads, the others none
+  # in any 2.2.x), each answered by its pinned reference (references.py: TA-Lib, statsmodels, pandas; the first oracle's
+  # second half moved in, item 14f, step 4) -- a case's call Show Python's, as gs-quant's are
+  - word: alpha
+    ref: statsmodels
+    src: references.py
+    cases:
+      - [default, "alpha({x}, {y})", printed]
+      - [w=3mo, "alpha({x}, {y}, 3mo)", printed]
+      - [w=all, "alpha({x}, {y}, all)", printed]
+      - ["w=20,r=10", "alpha({x}, {y}, w => 20, r => 10)", printed]
+  - word: information_ratio
+    ref: pandas
+    src: references.py
+    cases:
+      - [default, "information_ratio({x}, {y})", printed]
+      - [w=3mo, "information_ratio({x}, {y}, 3mo)", printed]
+      - [w=all, "information_ratio({x}, {y}, all)", printed]
+      - ["w=20,r=10", "information_ratio({x}, {y}, w => 20, r => 10)", printed]
+  - word: r_squared
+    ref: statsmodels
+    src: references.py
+    cases:
+      - [default, "r_squared({x}, {y})", printed]
+      - [w=3mo, "r_squared({x}, {y}, 3mo)", printed]
+      - [w=all, "r_squared({x}, {y}, all)", printed]
+      - ["w=20,r=10", "r_squared({x}, {y}, w => 20, r => 10)", printed]
+  - word: tracking_error
+    ref: pandas
+    src: references.py
+    cases:
+      - [default, "tracking_error({x}, {y})", printed]
+      - [w=3mo, "tracking_error({x}, {y}, 3mo)", printed]
+      - [w=all, "tracking_error({x}, {y}, all)", printed]
+      - ["w=20,r=10", "tracking_error({x}, {y}, w => 20, r => 10)", printed]
+  - word: hedge_ratio
+    ref: statsmodels
+    src: references.py
+    cases:
+      - [default, "hedge_ratio({x}, {y})", printed]
+      - [w=3mo, "hedge_ratio({x}, {y}, 3mo)", printed]
+      - [w=all, "hedge_ratio({x}, {y}, all)", printed]
+      - ["w=20,r=10", "hedge_ratio({x}, {y}, w => 20, r => 10)", printed]
+  - word: residual
+    ref: statsmodels
+    src: references.py
+    cases:
+      - [default, "residual({x}, {y})", printed]
+      - [w=3mo, "residual({x}, {y}, 3mo)", printed]
+      - [w=all, "residual({x}, {y}, all)", printed]
+      - ["w=20,r=10", "residual({x}, {y}, w => 20, r => 10)", printed]
+  - word: up_capture
+    ref: pandas
+    src: references.py
+    cases:
+      - [default, "up_capture({x}, {y})", printed]
+      - [w=3mo, "up_capture({x}, {y}, 3mo)", printed]
+      - [w=all, "up_capture({x}, {y}, all)", printed]
+      - ["w=20,r=10", "up_capture({x}, {y}, w => 20, r => 10)", printed]
+  - word: down_capture
+    ref: pandas
+    src: references.py
+    cases:
+      - [default, "down_capture({x}, {y})", printed]
+      - [w=3mo, "down_capture({x}, {y}, 3mo)", printed]
+      - [w=all, "down_capture({x}, {y}, all)", printed]
+      - ["w=20,r=10", "down_capture({x}, {y}, w => 20, r => 10)", printed]
+  - word: lead_lag
+    ref: pandas
+    src: references.py
+    cases:
+      - [default, "lead_lag({x}, {y})", printed]
+      - [lag=2, "lead_lag({x}, {y}, 2)", printed]
+      - [w=3mo, "lead_lag({x}, {y}, 1, 3mo)", printed]
+      - [w=all, "lead_lag({x}, {y}, 1, all)", printed]
+      - ["w=20,r=10", "lead_lag({x}, {y}, lag => 1, w => 20, r => 10)", printed]
+  - word: atr
+    ref: TA-Lib
+    src: references.py
+    cases:
+      - [default, "atr({x.high}, {x.low}, {x})", printed]
+      - [w=5, "atr({x.high}, {x.low}, {x}, 5)", printed]
+  - word: stochastic
+    ref: TA-Lib
+    src: references.py
+    cases:
+      - [default, "stochastic({x.high}, {x.low}, {x})", printed]
+      - [w=5, "stochastic({x.high}, {x.low}, {x}, 5)", printed]
+  - word: keltner_channels
+    ref: TA-Lib
+    src: references.py
+    note: "the middle line is the close's exponential mean from the first close (the word's sentence); TA-Lib's EMA seeds with the first w closes' mean: lower and upper differ while the seed fades, width (TA-Lib's ATR) agrees"
+    known: {default.lower: sentence, default.upper: sentence, "w=10,a=5,k=1.5.lower": sentence, "w=10,a=5,k=1.5.upper": sentence}
+    cases:
+      - [default.lower, "keltner_channels({x.high}, {x.low}, {x})", printed, lower]
+      - [default.upper, "keltner_channels({x.high}, {x.low}, {x})", printed, upper]
+      - [default.width, "keltner_channels({x.high}, {x.low}, {x})", printed, width]
+      - ["w=10,a=5,k=1.5.lower", "keltner_channels({x.high}, {x.low}, {x}, 10, 5, 1.5)", printed, lower]
+      - ["w=10,a=5,k=1.5.upper", "keltner_channels({x.high}, {x.low}, {x}, 10, 5, 1.5)", printed, upper]
+  - word: donchian_channels
+    ref: TA-Lib
+    src: references.py
+    cases:
+      - [default.lower, "donchian_channels({x.high}, {x.low})", printed, lower]
+      - [default.upper, "donchian_channels({x.high}, {x.low})", printed, upper]
+      - [default.width, "donchian_channels({x.high}, {x.low})", printed, width]
+      - [w=3mo.lower, "donchian_channels({x.high}, {x.low}, 3mo)", printed, lower]
+      - [w=3mo.upper, "donchian_channels({x.high}, {x.low}, 3mo)", printed, upper]
+      - [w=all.lower, "donchian_channels({x.high}, {x.low}, all)", printed, lower]
+      - [w=all.upper, "donchian_channels({x.high}, {x.low}, all)", printed, upper]
+  - word: obv
+    ref: TA-Lib
+    src: references.py
+    note: "from 0 (StockCharts', the word's sentence); TA-Lib's OBV starts at the first volume: every date apart by it"
+    known: {default: sentence}
+    cases:
+      - [default, "obv({x}, {x.volume})", printed]
+  - word: vwap
+    ref: pandas
+    src: references.py
+    cases:
+      - [default, "vwap({x}, {x.volume})", printed]
+      - [w=3mo, "vwap({x}, {x.volume}, 3mo)", printed]
+      - [w=all, "vwap({x}, {x.volume}, all)", printed]
+      - ["w=20,r=10", "vwap({x}, {x.volume}, w => 20, r => 10)", printed]
+  - word: drawdown
+    ref: pandas
+    src: references.py
+    cases:
+      - [default, "drawdown({x})", printed]
+      - [w=20, "drawdown({x}, 20)", printed]
+      - [w=3mo, "drawdown({x}, 3mo)", printed]
+      - ["w=20,r=10", "drawdown({x}, w => 20, r => 10)", printed]
+  - word: dickey_fuller
+    ref: statsmodels
+    src: references.py
+    cases:
+      - [default, "dickey_fuller({x})", printed]
+      - [w=30, "dickey_fuller({x}, 30)", printed]
+      - [w=3mo, "dickey_fuller({x}, 3mo)", printed]
+      - ["w=30,r=10", "dickey_fuller({x}, w => 30, r => 10)", printed]
+  - word: half_life
+    ref: statsmodels
+    src: references.py
+    cases:
+      - [default, "half_life({x})", printed]
+      - [w=30, "half_life({x}, 30)", printed]
+      - [w=3mo, "half_life({x}, 3mo)", printed]
+      - ["w=30,r=10", "half_life({x}, w => 30, r => 10)", printed]
+  - word: ohlc
+    ref: pandas
+    src: references.py
+    cases:
+      - [default.open, "ohlc({x.open}, {x.high}, {x.low}, {x})", printed, open]
+      - [default.high, "ohlc({x.open}, {x.high}, {x.low}, {x})", printed, high]
+      - [default.low, "ohlc({x.open}, {x.high}, {x.low}, {x})", printed, low]
+      - [default.close, "ohlc({x.open}, {x.high}, {x.low}, {x})", printed, close]
 
-  # ---------------------------------------------------------------- SKIP: no gs-quant function (every 2.2.x release checked, the pin's among them)
-  - {word: atr,               skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:630's comment says \"gs-quant's and TA-Lib's atr\")"}
-  - {word: keltner_channels,  skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:645's comment says \"(gs-quant's)\")"}
-  - {word: donchian_channels, skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:656's comment says \"(gs-quant's)\")"}
-  - {word: obv,               skip: "no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:675's comment says \"(gs-quant's)\")"}
-  - {word: stochastic,        skip: "no gs-quant function (its tag: DataCube)"}
-  - {word: vwap,              skip: "no gs-quant function (its tag: DataCube)"}
-  - {word: drawdown,          skip: "no gs-quant function: max_drawdown's inner x / rolling_max - 1 is not exported (its tag: DataCube)"}
+  # ---------------------------------------------------------------- SKIP: no gs-quant function (every 2.2.x release checked, the pin's among them), and no reference here
   - {word: percent_change,    skip: "no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: \"match gsquant\"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)"}
   - {word: cash_index,        since: "23a007a3f (2026-11-08), after PR #86", skip: "no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)"}
   - {word: total_return,      skip: "no gs-quant function in gs_quant.timeseries (its tag: DataCube)"}
-  - {word: dickey_fuller,     skip: "no gs-quant function (its tag: DataCube, statsmodels' adfuller)"}
-  - {word: half_life,         skip: "no gs-quant function (its tag: DataCube)"}
-  - {word: hedge_ratio,       skip: "no gs-quant function (its tag: DataCube, statistics.cov over statistics.var)"}
-  - {word: residual,          skip: "no gs-quant function (its tag: DataCube)"}
-  - {word: lead_lag,          skip: "no gs-quant function (its tag: DataCube, econometrics.correlation of a lag)"}
-  - {word: up_capture,        skip: "no gs-quant function (its tag: DataCube)"}
-  - {word: down_capture,      skip: "no gs-quant function (its tag: DataCube)"}
-  - {word: ohlc,              skip: "no gs-quant function: a struct of four lines, no computation (its tag: DataCube)"}
   - {word: rank,              since: "5a4904a54 (2026-11-03), after PR #86", skip: "no gs-quant function: a cross-section over instruments; gs-quant's functions take one series (its tag: none)"}
   - {word: round_down,        since: "0cfd500fb (A4, 2026-11-06), after PR #86", skip: "no gs-quant twin: gs-quant's floor(x, v) is max(x, v), a clamp, not rounding (algebra.py; no tag)"}
   - {word: round_up,          since: "0cfd500fb (A4, 2026-11-06), after PR #86", skip: "no gs-quant twin: gs-quant's ceil(x, v) is min(x, v), a clamp (no tag)"}

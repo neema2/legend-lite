@@ -349,6 +349,13 @@ it('every gallery series and every word as Python\'s builder code, with its text
     'every series as Python\'s builder code as held (a change on purpose rewrites the fixture: the comment above says how)');
 });
 
+/** An oracle case's #TS item over the samples: {x} NVDA's close, {y} SPX's, {x.high} (any price column) NVDA's column
+ *  -- snap.py's PICKS, TsGsquantParityTest.statement's. */
+function oracleItem(ts: string): string {
+  return ts.replace(/\{x\.(\w+)\}/g, '$1[\'NVDA\']').replace(/\{y\.(\w+)\}/g, '$1[\'SPX\']')
+    .replaceAll('{x}', 'close[\'NVDA\']').replaceAll('{y}', 'close[\'SPX\']');
+}
+
 /** A span's value as a form of the word (the catalog's TsParamShape): a count, a calendar period, to date (`all`, 0),
  *  the whole line or across a date's instruments. */
 function spanForm(v: number | string): string {
@@ -443,7 +450,7 @@ async function uncoveredForms(): Promise<Record<string, string[]>> {
         for (const f of statementForms(fn, args)) covered.add(f);
         continue;
       }
-      const read = await readText(item.replaceAll('{x}', 'close[\'NVDA\']').replaceAll('{y}', 'close[\'SPX\']'));
+      const read = await readText(oracleItem(item));
       if (read.text === undefined) continue;
       try {
         for (const f of exercisedForms(told(seriesExpr(read.item.expr!, [])))) covered.add(f);
@@ -530,7 +537,7 @@ it('every case of the gs-quant oracle as Show Python prints it: the call gs-quan
       lines.push(`${key}\tSTATEMENT`);
       continue;
     }
-    const text = ts.replaceAll('{x}', 'close[\'NVDA\']').replaceAll('{y}', 'close[\'SPX\']');
+    const text = oracleItem(ts);
     const read = await readText(text);
     if (read.text === undefined) {
       lines.push(`${key}\tREFUSED: core reads none: ${read.error.message.split('\n')[0]}`);

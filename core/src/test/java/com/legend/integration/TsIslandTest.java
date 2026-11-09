@@ -1708,7 +1708,12 @@ class TsIslandTest {
                     "SELECT rebase(CLOSE) AS rb", "SELECT exponential_moving_average(CLOSE, 0.5) AS e",
                     // to date since A4 (S150): a z-score and a winsorized value of a line of several rows a date
                     // (the second review's finding 4, 2026-11-06)
-                    "SELECT zscores(CLOSE) AS z", "SELECT winsorize(CLOSE, 2.0) AS wz")) {
+                    "SELECT zscores(CLOSE) AS z", "SELECT winsorize(CLOSE, 2.0) AS wz",
+                    // a calendar window of a word that reads its line by a lag inside it -- a volatility's returns, a
+                    // Dickey-Fuller's or a half-life's differences (the gs-quant oracle's references, 2026-11-09:
+                    // BTCUSD's two rows on 2025-02-05 answered twice, the same value)
+                    "SELECT volatility(CLOSE, 3d) AS v", "SELECT dickey_fuller(CLOSE, 5d) AS df",
+                    "SELECT half_life(CLOSE, 5d) AS hl")) {
                 String query = "|#TS{" + q + " FROM PRICES ON DAY}#";
                 if (q.contains("['AAA']")) {
                     query = "|#TS{" + q.replace("CLOSE, CLOSE", "p.CLOSE, q.CLOSE") + " FROM PRICES p ON DAY,"

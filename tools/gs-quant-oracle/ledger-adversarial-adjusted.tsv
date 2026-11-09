@@ -3,7 +3,7 @@
 # DIFF, REFUSED, GS_ERROR, SKIP), the register row a DIFF is ruled by, gs-quant's series' sha256 (snap.py: --check
 # holds a live run to it), a note (dup-span: the series covers a date with two rows of one line), and why. A
 # verdict moves only with the test's -Dts.gsquant.update, never by hand.
-# snapped under pins.env: GS_QUANT_VERSION=2.2.3;NUMPY_VERSION=2.5.4;PANDAS_VERSION=3.1.1;PYTHON_VERSION=3.12;SCIPY_VERSION=1.18.1;STATSMODELS_VERSION=0.15.0
+# snapped under pins.env: GS_QUANT_VERSION=2.2.3;NUMPY_VERSION=2.5.4;PANDAS_VERSION=3.1.1;PYTHON_VERSION=3.12;SCIPY_VERSION=1.18.1;STATSMODELS_VERSION=0.15.0;TA_LIB_VERSION=0.6.8
 case	gsquant	duckdb	register	digest	note	why
 mean w=20 @ALPHA	OK	PASS	-	52db3233ea58987f99e262d0c4c0e71709002aba931adf31049fe8a5d7f32ba7	-	482 points
 mean w=3mo @ALPHA	OK	PASS	-	dcf1f479a7de9015677e991516c1a2396dc5887b6cb4c36cc21511d8abda0399	-	440 points
@@ -189,28 +189,83 @@ trend freq=quarter @ALPHA	SKIP	SKIP	-	-	-	a whole statement over the samples' ow
 basket default @ALPHA	OK	PASS	-	21eb3222031686da3b0903c3add4e1a6084566fcb500364c6c05b5ffa3f77b11	-	502 points
 basket rebalance=monthly @ALPHA	OK	PASS	-	7f222805dd64b46afbeb8296680b22b42e3e818c4b97d2def5809ab978e2af42	-	502 points
 basket rebalance=weekly @ALPHA	OK	PASS	-	403db173fc6bf2f4ecba484e8860b667e2d939da722aeba6a6126cc858884be2	-	502 points
-alpha @ALPHA	SKIP	SKIP	-	-	-	gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)
-information_ratio @ALPHA	SKIP	SKIP	-	-	-	measures_reports.py:1166, a Marquee report read (its tag: DataCube)
-r_squared @ALPHA	SKIP	SKIP	-	-	-	measures_reports.py:1527, a Marquee report read (its tag: DataCube)
-tracking_error @ALPHA	SKIP	SKIP	-	-	-	measures_reports.py:766, a Marquee report read (its tag: DataCube)
-atr @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:630's comment says "gs-quant's and TA-Lib's atr")
-keltner_channels @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:645's comment says "(gs-quant's)")
-donchian_channels @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:656's comment says "(gs-quant's)")
-obv @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:675's comment says "(gs-quant's)")
-stochastic @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-vwap @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-drawdown @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function: max_drawdown's inner x / rolling_max - 1 is not exported (its tag: DataCube)
+alpha default @ALPHA	OK	PASS	-	11cb3e033ecafc943b65b00cfc4e29480919a107d6b726840482dc2cdbd9da5c	-	439 points
+alpha w=3mo @ALPHA	OK	PASS	-	c640094a4df20c0a09cb2c4ee5681f28f9dd3cee1e966fa1bb5ed5f2856bde78	-	440 points
+alpha w=all @ALPHA	OK	PASS	-	a78e060c1e92a9cc8c6daf0a15267a2e9e8d01c460f293b24ecebb4986b7bc9c	-	500 points
+alpha w=20,r=10 @ALPHA	OK	PASS	-	634982ee8d61b6ed9df50449219032e6fe052a15d6d39d5a71160efa99a8cbd7	-	492 points
+information_ratio default @ALPHA	OK	PASS	-	343eabbc8730607d8b505ba9f65c533d57570c52b7f2a64f3ff6d1ee30378f10	-	439 points
+information_ratio w=3mo @ALPHA	OK	PASS	-	1efe06a264f3c244c4395fae3a5ac9ca95b255dce5b53589db05d42d14b9b050	-	440 points
+information_ratio w=all @ALPHA	OK	PASS	-	c3f381a76c05a6fb2f5c93d9c4c0382b5e30d64154f13191d2eba0b101f86f8f	-	500 points
+information_ratio w=20,r=10 @ALPHA	OK	PASS	-	6af51a685c18515141fb23e175bf51cac8198c4bacc3b90fba6f9710b7ab9289	-	492 points
+r_squared default @ALPHA	OK	PASS	-	387bcb8b6d2f622782a9807390b51c414b95db6d290a1f3c3bf77127ca652c7a	-	439 points
+r_squared w=3mo @ALPHA	OK	PASS	-	94ce355a04ce898a95981ad1b9273677b20865c73fb63e90862319ef4a358fdc	-	440 points
+r_squared w=all @ALPHA	OK	PASS	-	ffa0bfe86d325837c73e01a99c556e61496e7ce5647b263f513413ec30e33010	-	500 points
+r_squared w=20,r=10 @ALPHA	OK	PASS	-	70611100354544fa568aaf91736c20bce9fc68416aadf607a6789ad7aa6d21bc	-	492 points
+tracking_error default @ALPHA	OK	PASS	-	7b5265a2758bedba11bb4b67a3430554e49ceb1ad60bf88696b867ae593ce9d8	-	439 points
+tracking_error w=3mo @ALPHA	OK	PASS	-	1bbcff4ebb0e8538dedea19d59fe6e2e4adbd75f002fcdf567d70e7240c7bbe7	-	440 points
+tracking_error w=all @ALPHA	OK	PASS	-	b925af4d2ffa76f27230c4abee1cf8dedf25e4d282cca97b5cf1ae81f637f648	-	500 points
+tracking_error w=20,r=10 @ALPHA	OK	PASS	-	a2b6502f51fba81b82e996312a2e70d3fab2502e8070d9df42cd1bf8c2948d2f	-	492 points
+hedge_ratio default @ALPHA	OK	PASS	-	bdcd1189a750c61a700eabdcb6897cf440a00ed85065fcf48ad90ded275506fe	-	440 points
+hedge_ratio w=3mo @ALPHA	OK	PASS	-	f89d94a88b18d6d638fe91793604c9078d39601edfad12c06b7171599ffef525	-	440 points
+hedge_ratio w=all @ALPHA	OK	PASS	-	a154e8066b0affd4fc16be4f276270d52fda6755b440277146dfd486fee1a58c	-	501 points
+hedge_ratio w=20,r=10 @ALPHA	OK	PASS	-	8937421c582ce6f28867a01aa7e2b288eaf09e7da129077be38ab4e4ff46f0f2	-	492 points
+residual default @ALPHA	OK	PASS	-	598a85cb047567e6f95f1c413d72748e72060e9b567fe883065f6196519da5c6	-	440 points
+residual w=3mo @ALPHA	OK	PASS	-	609d526fce397d6c37e03c1df60db8e1cefb057d09fef75867906f86239380e4	-	440 points
+residual w=all @ALPHA	OK	PASS	-	461e7b31a2c087c2f8262c5595d1de4b4bb2883b64389ed62aa7988c7b87d44e	-	501 points
+residual w=20,r=10 @ALPHA	OK	PASS	-	9424c86b026041e07e09c0175fca58f5636637e40f282701facce686d4b297f1	-	492 points
+up_capture default @ALPHA	OK	PASS	-	0589cd3e9d5df253d298a9e071a4baba077e07faf1ce0607e47d78b6959d2c85	-	439 points
+up_capture w=3mo @ALPHA	OK	PASS	-	29d12f6ebe1ec6857259f935fedfa357d751b1b1bc0a6986776ef96db2fc9802	-	440 points
+up_capture w=all @ALPHA	OK	PASS	-	df92f4a27adc840c3b307982e23df2d9b89e4b3a7143117ba6458f434f70c6d8	-	500 points
+up_capture w=20,r=10 @ALPHA	OK	PASS	-	b141f802bd4a1564bc6b8ec6510220e2fce5aaaad8dbfc5e46afa87d48cf14b8	-	492 points
+down_capture default @ALPHA	OK	PASS	-	f1aee48616345fd21d4ac0f5fa0bc6fd72f11aeacc6b4dccfaaf6a79e6002cb9	-	439 points
+down_capture w=3mo @ALPHA	OK	PASS	-	21661182f0cf9efe21b70ea20aa644326399d5e46419176472715ea277985937	-	440 points
+down_capture w=all @ALPHA	OK	PASS	-	bb4d65ea761ddb3b684a7a109de7db957111f97dc9355865ba2c208efe5c7b0e	-	501 points
+down_capture w=20,r=10 @ALPHA	OK	PASS	-	a5d155c491bf848006b621188a5c4ed9afe44daca5ca8ee3762be89c96131513	-	492 points
+lead_lag default @ALPHA	OK	PASS	-	1fd8531b33119544016d04bebc0e2c876598f5aede48cc7dc1a2195f04ef2cda	-	438 points
+lead_lag lag=2 @ALPHA	OK	PASS	-	c3c590024b5660a7b96860dcf1b59775ee25e647d779a48c38471a5bf3654906	-	437 points
+lead_lag w=3mo @ALPHA	OK	PASS	-	84a3cb6fa4f085a957434fc12e1e0d93d909712dda81da58da88316a306001e7	-	440 points
+lead_lag w=all @ALPHA	OK	PASS	-	eb15fe0bd0d6d5c6b6ec550b57c1d7714cc2eb32536a40e74884a800c670753d	-	499 points
+lead_lag w=20,r=10 @ALPHA	OK	PASS	-	778f2bb370fcea26708ff79a4af5a71a66547028b7db077df2307bc7e4ea3fe2	-	492 points
+atr default @ALPHA	OK	PASS	-	f238d8c1bae890a8b04344d78efdf463b845b6b58fe0fcb41cfacdfd9b76ca00	-	488 points
+atr w=5 @ALPHA	OK	PASS	-	0b984cdf5aaca521b0a7a791a3e560db1b08455e51651c8122d3212ae714b9aa	-	497 points
+stochastic default @ALPHA	OK	PASS	-	d33a6acd09257cf0986dacfef772ee421f251dfac52a976fad1367a6c70c9b2d	-	489 points
+stochastic w=5 @ALPHA	OK	PASS	-	1bd21ab47ec551d5dd7652ef4b3603159b3005e7f3cfed8b640a612441c442dc	-	498 points
+keltner_channels default.lower @ALPHA	OK	DIFF	sentence	d1f8ad171680cdbebb4917de5749a5c1cf0c09c6baac14a4330a398039d602bc	-	483 points | lite: 483 gs-quant points, 483 lite's; 155 dates apart (worst absolute 1.0312258776937426), 0 gs-quant's alone, 0 lite's alone; 2024-01-30: gs-quant 178.001810558774, lite 176.97058468108025; 2024-01-31: gs-quant 177.71136045527754, lite 176.77834656593558; 2024-02-01: gs-quant 176.70864765238017, lite 175.86449222868984
+keltner_channels default.upper @ALPHA	OK	DIFF	sentence	5cff8de24f355e3d5a1965c3990aa881de631915acefcdc1ad418f20b7fa65e9	-	483 points | lite: 483 gs-quant points, 483 lite's; 154 dates apart (worst absolute 1.0312258776937426), 0 gs-quant's alone, 0 lite's alone; 2024-01-30: gs-quant 191.525189441226, lite 190.49396356353225; 2024-01-31: gs-quant 190.54640144948434, lite 189.61338756014237; 2024-02-01: gs-quant 189.97218454716628, lite 189.12802912347595
+keltner_channels default.width @ALPHA	OK	PASS	-	e7e2efa2cf50f85fd7b14387f54f0ed3a735f925ac3a2d320fd46777cc2ef11b	-	483 points
+keltner_channels w=10,a=5,k=1.5.lower @ALPHA	OK	DIFF	sentence	caec4a48300eedcb1751f187373299ab5a5d3683ee6131ba6cbed1913b86efa3	-	493 points | lite: 493 gs-quant points, 493 lite's; 79 dates apart (worst absolute 1.430808873896268), 0 gs-quant's alone, 0 lite's alone; 2024-01-16: gs-quant 179.8329472, lite 181.26375607389627; 2024-01-17: gs-quant 177.6262486690909, lite 178.79691047500597; 2024-01-18: gs-quant 177.6591824063471, lite 178.6169966111867
+keltner_channels w=10,a=5,k=1.5.upper @ALPHA	OK	DIFF	sentence	ec8659cbd171064472d14dc4610f93cd110e4a9b729c3fd2193b04b654769ecd	-	493 points | lite: 493 gs-quant points, 493 lite's; 79 dates apart (worst absolute 1.430808873896268), 0 gs-quant's alone, 0 lite's alone; 2024-01-16: gs-quant 192.7150528, lite 194.14586167389626; 2024-01-17: gs-quant 195.0839331490909, lite 196.25459495500598; 2024-01-18: gs-quant 193.9473299903471, lite 194.9051441951867
+donchian_channels default.lower @ALPHA	OK	PASS	-	f15fb0bade6b046710f68fab25666829af49a3fe344602a52c66848e1cc13e37	-	483 points
+donchian_channels default.upper @ALPHA	OK	PASS	-	1d7bf673d4c303bd42997590eb57f7c3faf5afd8146e6701610e2ad4fe62e20d	-	483 points
+donchian_channels default.width @ALPHA	OK	PASS	-	12297f1214d788a719a70988426d0ddc87a4b290fd4c13cc863fd4b7fe76d7c7	-	483 points
+donchian_channels w=3mo.lower @ALPHA	OK	PASS	-	02127ee755a56c08906c3a2d56fabb2b87a44199fab01c47de85ac990c7411f1	-	440 points
+donchian_channels w=3mo.upper @ALPHA	OK	PASS	-	23361992cda2ee8db7463a0848e5553c72a12e2b1102f7c0d862b8a14022302e	-	440 points
+donchian_channels w=all.lower @ALPHA	OK	PASS	-	49c67ad90711b1af7cdabf0254cf9fcd301ff81826e1ad3c5edda090f57281ed	-	502 points
+donchian_channels w=all.upper @ALPHA	OK	PASS	-	6737d05b9c020fae412f7d16edadf1dfa93fdf2c141078cf951aea2da8d22f74	-	502 points
+obv default @ALPHA	OK	DIFF	sentence	d8db8fc738bdd009e468943bf31cf0e2ba12dbf2e58183b92f797197484b02a0	-	502 points | lite: 502 gs-quant points, 502 lite's; 502 dates apart (worst absolute 4293365.0), 0 gs-quant's alone, 0 lite's alone; 2024-01-02: gs-quant 4293365.0, lite 0.0; 2024-01-03: gs-quant 182782.0, lite -4110583.0; 2024-01-04: gs-quant 4311473.0, lite 18108.0
+vwap default @ALPHA	OK	PASS	-	26bf506887c280dafef70585f11c533aa68d4be7f4ea7e60fe8cfb7fcfd526af	-	483 points
+vwap w=3mo @ALPHA	OK	PASS	-	47ebfa1ac1eaefd5b96288a2669edf0b83109df12bdb8ce9401aa1954e3711bc	-	440 points
+vwap w=all @ALPHA	OK	PASS	-	13116b18cc2d73093590686c1c889840f3f3b9ab9ad9abe50bebd648aed96a88	-	502 points
+vwap w=20,r=10 @ALPHA	OK	PASS	-	3b6aafbc6862868b8cf49234fe9979140d81dc3869215a38fc20520abd4ba820	-	492 points
+drawdown default @ALPHA	OK	PASS	-	e81d7b1fc11be57679c137d5095b2ce9856c3e78039cd98f7af18a385047e34b	-	502 points
+drawdown w=20 @ALPHA	OK	PASS	-	d01f1ea264908f3fa82b4ca924d399938aff398275849bf96e5c3ede2c2ba8a8	-	483 points
+drawdown w=3mo @ALPHA	OK	PASS	-	23162c48fd49e02c695e28dbcc9627c4b6e4f1ea4613951b0d67066325e123d3	-	440 points
+drawdown w=20,r=10 @ALPHA	OK	PASS	-	47c48f3711513358b03926e21cc286b5ad9555788253afea0ec2a81e66fdb31f	-	492 points
+dickey_fuller default @ALPHA	OK	PASS	-	3a0453932183694f60cc43bd3f83633867e3f3794318ae1119bffcd024e7d580	-	499 points
+dickey_fuller w=30 @ALPHA	OK	PASS	-	6054fe4bc01a27267cc6d31b70c5bc05f8f4db0fd18ae5e7ea9607d9943a7102	-	472 points
+dickey_fuller w=3mo @ALPHA	OK	PASS	-	972a0f2be6e6da9233c962e068d2b90b191e8c3d6b4ce370ea8cb00f5108ac64	-	440 points
+dickey_fuller w=30,r=10 @ALPHA	OK	PASS	-	00763c5a52e39cd2592c6d24c443298bae48eee0e711d30bcdce71e085b72631	-	492 points
+half_life default @ALPHA	OK	PASS	-	5a2c0954f6f9689e609b1d5b3056d0e5bc8214dccf7854be963300f7e408628a	-	490 points
+half_life w=30 @ALPHA	OK	PASS	-	509e1ebbe1a9c69286222f9baa2bf3851ea7bba83f8d5d45319e62efab3a6575	-	443 points
+half_life w=3mo @ALPHA	OK	PASS	-	bcc70c033c7aa8c31708929b3fed511b2a05f4c166160ee39718e8d179edc718	-	438 points
+half_life w=30,r=10 @ALPHA	OK	PASS	-	4efda89b7fdf52ead1363ae212f9104bd1021b682bdd6da488b322153f201ea8	-	463 points
+ohlc default.open @ALPHA	OK	PASS	-	5a3575370a06f300e735851b45897df40b56769da0ec0231d6eeed599223829a	-	502 points
+ohlc default.high @ALPHA	OK	PASS	-	a2862d8bbf0660bcfae7a5995c950d6a58638d8f1e06326c9aeda928e7f1bd53	-	502 points
+ohlc default.low @ALPHA	OK	PASS	-	f0184dadd37f1a7678dff7a061687034477c3b1c86a700d519dd4c42f1901863	-	502 points
+ohlc default.close @ALPHA	OK	PASS	-	316c40c957a11dfba81f5ee23aae3e415b015fb924ad9bc37d987cffe2b20892	-	502 points
 percent_change @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: "match gsquant"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)
 cash_index @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)
 total_return @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function in gs_quant.timeseries (its tag: DataCube)
-dickey_fuller @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statsmodels' adfuller)
-half_life @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-hedge_ratio @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statistics.cov over statistics.var)
-residual @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-lead_lag @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, econometrics.correlation of a lag)
-up_capture @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-down_capture @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-ohlc @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function: a struct of four lines, no computation (its tag: DataCube)
 rank @ALPHA	SKIP	SKIP	-	-	-	no gs-quant function: a cross-section over instruments; gs-quant's functions take one series (its tag: none)
 round_down @ALPHA	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's floor(x, v) is max(x, v), a clamp, not rounding (algebra.py; no tag)
 round_up @ALPHA	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's ceil(x, v) is min(x, v), a clamp (no tag)
@@ -400,28 +455,83 @@ trend freq=quarter @NEWCO	SKIP	SKIP	-	-	-	a whole statement over the samples' ow
 basket default @NEWCO	OK	PASS	-	53d02de8dc4a75c9ad8191e605d526ca8f4499748b7f55f2064d326a1882ef35	-	211 points
 basket rebalance=monthly @NEWCO	OK	PASS	-	bb795531ba1867bb776242bc7459d29cfd7af93a35d4778bbaa111687374cd87	-	211 points
 basket rebalance=weekly @NEWCO	OK	PASS	-	3970dbf6bbfa0c887c83a6d2bcbf5c8b7e882517e0a718684d3e7ca8f413ad0b	-	211 points
-alpha @NEWCO	SKIP	SKIP	-	-	-	gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)
-information_ratio @NEWCO	SKIP	SKIP	-	-	-	measures_reports.py:1166, a Marquee report read (its tag: DataCube)
-r_squared @NEWCO	SKIP	SKIP	-	-	-	measures_reports.py:1527, a Marquee report read (its tag: DataCube)
-tracking_error @NEWCO	SKIP	SKIP	-	-	-	measures_reports.py:766, a Marquee report read (its tag: DataCube)
-atr @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:630's comment says "gs-quant's and TA-Lib's atr")
-keltner_channels @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:645's comment says "(gs-quant's)")
-donchian_channels @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:656's comment says "(gs-quant's)")
-obv @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:675's comment says "(gs-quant's)")
-stochastic @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-vwap @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-drawdown @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function: max_drawdown's inner x / rolling_max - 1 is not exported (its tag: DataCube)
+alpha default @NEWCO	OK	PASS	-	60fec1ac816408873fd57a440e6391305637488a3f02a35a28f8655bbf06bae1	-	148 points
+alpha w=3mo @NEWCO	OK	PASS	-	ce0e1d9b1e407c00f4bce247c9d028070adc976c5e7fae3a686dfba8042253dc	-	147 points
+alpha w=all @NEWCO	OK	PASS	-	8fa82b76eb1c7b036a586b47c6042373447c5cabf88c68b4b9b99cabb00113ad	-	209 points
+alpha w=20,r=10 @NEWCO	OK	PASS	-	10d90aac457f86fecbff14aaf4009bef622b6ca43d2468e8a08ed825bd59e151	-	201 points
+information_ratio default @NEWCO	OK	PASS	-	ab5132ece5428d972f1c73d219afa5ea50c0cc43b539c98eed7c2f660773d011	-	148 points
+information_ratio w=3mo @NEWCO	OK	PASS	-	30a85fe01a7a9acdb0134d349e804ab18049304f0e20699acd36e17b09124cac	-	147 points
+information_ratio w=all @NEWCO	OK	PASS	-	d2dc8ac647d9645ed4a4ec4317ff14a39470400fb829c886d3ce94b8779d500a	-	209 points
+information_ratio w=20,r=10 @NEWCO	OK	PASS	-	c3e116a247c2849cbc4010fd0342372760cc6f9d7d7063e325c012d39ed1bee2	-	201 points
+r_squared default @NEWCO	OK	PASS	-	4c1724c966a8a2c7d5ef3d795fecce985f54b4253041863ecaed2b40f2158c9c	-	148 points
+r_squared w=3mo @NEWCO	OK	PASS	-	aaf7ff2468c0c69994ac9a4975169c46e58908a9eaf79332f7ccd65399ed5812	-	147 points
+r_squared w=all @NEWCO	OK	PASS	-	3b6dbb53d2c5c61bc2ec5236ee445b7c3e030685b8fe3890d344627fbf048d9b	-	209 points
+r_squared w=20,r=10 @NEWCO	OK	PASS	-	d1a8d575ad9af5901252d2c1e5e9fb826aa925c6405a14c9146dc579a6f48e3f	-	201 points
+tracking_error default @NEWCO	OK	PASS	-	7adcd4a6a51246be4d71a472363ab63f7a677b48621cfcd62d41bcafc7ed4d27	-	148 points
+tracking_error w=3mo @NEWCO	OK	PASS	-	2ef22cce259d495e51a779551a2153c73f32474f88c6d425543a7466fb468eb0	-	147 points
+tracking_error w=all @NEWCO	OK	PASS	-	84b3bc0fc318de45d694b34cfe36ef1298ac12a216899a5caa2800d522a1991a	-	209 points
+tracking_error w=20,r=10 @NEWCO	OK	PASS	-	75a0f13f7cbb10c506c7991b8b20c30c78b6e671c6ed2fc5f98ac0a2e0d3f380	-	201 points
+hedge_ratio default @NEWCO	OK	PASS	-	93faf9f012ac8008f12a94109cc82ebcea390cebd9a19f81a168b3f5d3b9bc2f	-	149 points
+hedge_ratio w=3mo @NEWCO	OK	PASS	-	c5624c7d3f6fc87cbe2fc2097a9850001f6b3b4d5d3e2431592bbb8a5f9edbba	-	147 points
+hedge_ratio w=all @NEWCO	OK	PASS	-	def8e8b17b2ed176e04a83c9c85b63a1dced2c07b4eee24374b7d7e596ac5f6d	-	210 points
+hedge_ratio w=20,r=10 @NEWCO	OK	PASS	-	88c1c55abd7dfdcc0c3527a8446c463038158cb69afe4faabf8d8e477cbd0b94	-	201 points
+residual default @NEWCO	OK	PASS	-	5979dc406c0e81067c492075670028beb18aa329c4bf1907b72ee6184259f853	-	149 points
+residual w=3mo @NEWCO	OK	PASS	-	54902c9b2a8c48adc175894d32f72e1c8c3fe8237dce16c179d2fe612d83d7a8	-	147 points
+residual w=all @NEWCO	OK	PASS	-	789c2109e31ee208c9a2c7013ddd1c3dedd59308d95031a9e17d0c81cbcc4fb1	-	210 points
+residual w=20,r=10 @NEWCO	OK	PASS	-	27cfbc7ef9ef82f4aee982c1fd9347d2e8650b283ac90729d2a0a7ee53d59984	-	201 points
+up_capture default @NEWCO	OK	PASS	-	2c35d068f1bd26ded208927c0808efb5d3d568e995b42219a6122b1b3ff16005	-	148 points
+up_capture w=3mo @NEWCO	OK	PASS	-	418d3e087d5ed8ac3322a56d42e1edb0b354d25d76d2fd3751dcea49bac4f526	-	147 points
+up_capture w=all @NEWCO	OK	PASS	-	a119929d52f6b11d133afc4750ad3a5ba7ae4e304a4bb1606a4ef644771f14a3	-	210 points
+up_capture w=20,r=10 @NEWCO	OK	PASS	-	0fdb5303271aeda82c160e5b3a6269307421eb1cd9ebaeb510c6843a80603963	-	201 points
+down_capture default @NEWCO	OK	PASS	-	4baf7dfc8a909f52ef820a28218dc5ac2e3c1628a29fa69814a760feb35d9b60	-	148 points
+down_capture w=3mo @NEWCO	OK	PASS	-	9b7c8586896abfa212e0d09e0b547d0d53a271fe17ed1fe8917b69f081c1b52d	-	147 points
+down_capture w=all @NEWCO	OK	PASS	-	abb4f6244b38207a16f7eb5abcabed4e60271fe82718b72acb5808c28d2e409c	-	208 points
+down_capture w=20,r=10 @NEWCO	OK	PASS	-	c69ef160b5bd0985592e995239bac17e87028cb64e116653eacbc9c90b9713d5	-	201 points
+lead_lag default @NEWCO	OK	PASS	-	61509f667766881d39766c277cbf12016bada75a0511a8839fa54220564c293b	-	148 points
+lead_lag lag=2 @NEWCO	OK	PASS	-	c31f7137796ee82a92cded68d9d49b799fb5f5b4062b5c3fa394de949b6a7004	-	148 points
+lead_lag w=3mo @NEWCO	OK	PASS	-	b9032f46e03a6b2dfca813c90b0d0c8e51f8d7ebc28e6ad51da418e36bd6763d	-	147 points
+lead_lag w=all @NEWCO	OK	PASS	-	8595a6caab47554e51fd472d8121d8ebae7a507baf86534f367607187bfa8abe	-	209 points
+lead_lag w=20,r=10 @NEWCO	OK	PASS	-	21fe42d34f083d7a8cba5a24cfd7857c1daadd8375a831332c14c855b65fe6f9	-	201 points
+atr default @NEWCO	OK	PASS	-	3dd4afd7060a6729cc3c99a9cac8207f23d9ef0e04481be2994026322d3418bb	-	197 points
+atr w=5 @NEWCO	OK	PASS	-	ba3c302d0289a4947c441d2cfbca53c36f940eb674ae38f676a0c169df9faa53	-	206 points
+stochastic default @NEWCO	OK	PASS	-	c33998fc963ed3d8c83169dbc06da9accd86f8def6732344a6b0a6eb96e55a37	-	198 points
+stochastic w=5 @NEWCO	OK	PASS	-	a6766d46d626d443f593b2ef2a26ddb9c4d1c041639c30a4905b9c801035e928	-	207 points
+keltner_channels default.lower @NEWCO	OK	DIFF	sentence	dc0ccc96da5093cfb3e65941e887a18448bcac23dcadaabf5c1982ec986945a8	-	192 points | lite: 192 gs-quant points, 192 lite's; 158 dates apart (worst absolute 0.16860312666331367), 0 gs-quant's alone, 0 lite's alone; 2025-03-28: gs-quant 21.673123756414004, lite 21.50452062975069; 2025-03-31: gs-quant 21.733630428391653, lite 21.58108474236294; 2025-04-01: gs-quant 21.71296080958877, lite 21.574943284134218
+keltner_channels default.upper @NEWCO	OK	DIFF	sentence	b363ce65283819f188f8b7767c98ac168d55cd3336eb8544f598ef3b9b30d34a	-	192 points | lite: 192 gs-quant points, 192 lite's; 157 dates apart (worst absolute 0.16860312666331367), 0 gs-quant's alone, 0 lite's alone; 2025-03-28: gs-quant 25.410876243586006, lite 25.242273116922693; 2025-03-31: gs-quant 25.35760766684645, lite 25.20506198081774; 2025-04-01: gs-quant 25.27054032419809, lite 25.13252279874354
+keltner_channels default.width @NEWCO	OK	PASS	-	0fd6ecd2bde72fa7537ebd4b34da7f09b96eccec3de69481fb62ff79cb972f85	-	192 points
+keltner_channels w=10,a=5,k=1.5.lower @NEWCO	OK	DIFF	sentence	bb76f22ed0f5a4a62b49ae18e53240f588fc8eb5b70f9840bdbe5a5c0b609c51	-	202 points | lite: 202 gs-quant points, 202 lite's; 81 dates apart (worst absolute 0.24799483740159545), 0 gs-quant's alone, 0 lite's alone; 2025-03-14: gs-quant 22.93308, lite 23.181074837401596; 2025-03-17: gs-quant 22.669627636363636, lite 22.87253250332857; 2025-03-18: gs-quant 22.439290538842975, lite 22.60530361181429
+keltner_channels w=10,a=5,k=1.5.upper @NEWCO	OK	DIFF	sentence	d1728f7dbbf939283a7961e7643fe066d56b9b0483f9545d01689138988d194a	-	202 points | lite: 202 gs-quant points, 202 lite's; 80 dates apart (worst absolute 0.24799483740159545), 0 gs-quant's alone, 0 lite's alone; 2025-03-14: gs-quant 25.62492, lite 25.872914837401595; 2025-03-17: gs-quant 25.64509963636364, lite 25.848004503328575; 2025-03-18: gs-quant 25.443668138842973, lite 25.609681211814287
+donchian_channels default.lower @NEWCO	OK	PASS	-	c5652fd88b8fed395f60e3d852d6359f691b05a962bf75a6c6fcd7a22b5f88b2	-	192 points
+donchian_channels default.upper @NEWCO	OK	PASS	-	8037ddd5e198a1909c16886aaa381d3751afa0cb359ec862053d58a0c2894c8b	-	192 points
+donchian_channels default.width @NEWCO	OK	PASS	-	b40f5be7eacc0f96c1d9991536086c7d34e47b0c6a84d4bc64e205ec3538773c	-	192 points
+donchian_channels w=3mo.lower @NEWCO	OK	PASS	-	6dffabeed7337be9038b34607df98495a57521c8358b7fe759468e6abe28105c	-	147 points
+donchian_channels w=3mo.upper @NEWCO	OK	PASS	-	e9258286f5a801d263de2ed3c1660def4004aae6e6b584097933c2e54f3e88da	-	147 points
+donchian_channels w=all.lower @NEWCO	OK	PASS	-	849df9bddcc74649b9ab3052d48496609eabe06aff8e5d348723b4228d7fbfc7	-	211 points
+donchian_channels w=all.upper @NEWCO	OK	PASS	-	53616530fe9469f9277b8802244ebccfe26fb68e2f105d06640a3965913f3fae	-	211 points
+obv default @NEWCO	OK	DIFF	sentence	2308f1d7b54956fceca20ff03ede36cf26f5af714da3ff7e9fe16777b6fa3b27	-	211 points | lite: 211 gs-quant points, 211 lite's; 211 dates apart (worst absolute 4626259.0), 0 gs-quant's alone, 0 lite's alone; 2025-03-03: gs-quant 4626259.0, lite 0.0; 2025-03-04: gs-quant -123631.0, lite -4749890.0; 2025-03-05: gs-quant -5267837.0, lite -9894096.0
+vwap default @NEWCO	OK	PASS	-	854033d1460da21c9a7177ed093fdd4f89d702916c40f50ecb556dac3342b103	-	192 points
+vwap w=3mo @NEWCO	OK	PASS	-	c7bda731f046ef79aa40313000f21e429b02b658126a0f8bc3229152d56ebb4f	-	147 points
+vwap w=all @NEWCO	OK	PASS	-	310fa08bad96548462775ab47e5d3621ee1d74d6dda457eff129bca2315beeee	-	211 points
+vwap w=20,r=10 @NEWCO	OK	PASS	-	a3fff485857f0baf154a270ca49bb60a5097eea427a44b0011e8203af41e8f0c	-	201 points
+drawdown default @NEWCO	OK	PASS	-	4d75c18e615415f244892da5cc926de26b51af09beeee9194bf083fb94310cd5	-	211 points
+drawdown w=20 @NEWCO	OK	PASS	-	bf6517ab15238cb6c144514bac22740e537c93565c44602e5be809782926b857	-	192 points
+drawdown w=3mo @NEWCO	OK	PASS	-	f73691be048a20c73e6ee09fe98d091269554d375ed58e22ac7743e51d8b8add	-	147 points
+drawdown w=20,r=10 @NEWCO	OK	PASS	-	a946525eeb393f2d712745874383511d83a0c2ffdda0148f7bc781dd713ccf66	-	201 points
+dickey_fuller default @NEWCO	OK	PASS	-	a94a27a942005c60bad2c95ceb239628dc5e2d0b20d837e13b90aec62efc4773	-	208 points
+dickey_fuller w=30 @NEWCO	OK	PASS	-	b8df8fa6bb3629c34b710e3bcbd36f8ba00bd92d3a97b4be4887159971af5cda	-	181 points
+dickey_fuller w=3mo @NEWCO	OK	PASS	-	ebf38376a203259ab1c9b2fa03cc9706f98c82c885b08763aa9cb7f58f665cae	-	147 points
+dickey_fuller w=30,r=10 @NEWCO	OK	PASS	-	c910cad26ffa588ded8da5b8d3e066c9b38d855a83b612495e5095a48c3a75a9	-	201 points
+half_life default @NEWCO	OK	PASS	-	d941639cab4f0b340015a80ca90a7e5623c0d8f3200a18383bc5933d8a5cb32b	-	207 points
+half_life w=30 @NEWCO	OK	PASS	-	b0387b7e29e8f0df95dd0f34e8590ea95d9df253348af65ebea8ffdfc8cc9d76	-	177 points
+half_life w=3mo @NEWCO	OK	PASS	-	1de3f8ef6d17c7b6a83815625d392d10ce1af2e09d586ac57a7e4234e03e6d2d	-	140 points
+half_life w=30,r=10 @NEWCO	OK	PASS	-	d1e9906c4084efec86f2b1c5a141dbc9327cfd94765e798c247fc5bb530c4a50	-	197 points
+ohlc default.open @NEWCO	OK	PASS	-	4cbee1c90130a440ef251adaa58626a83eb4f01b0b6ad00f3492a07d88ac3808	-	211 points
+ohlc default.high @NEWCO	OK	PASS	-	7dbf31af2a4bba89f863fa57f438a3482f53c689aae535354b3b11d3d7b9307c	-	211 points
+ohlc default.low @NEWCO	OK	PASS	-	de092dfdb8a4d190c490ff5caa3821546bee9701227d2837ca1f1a4db1e51a96	-	211 points
+ohlc default.close @NEWCO	OK	PASS	-	1d3c0222a274f13f1c193df190ff83ddbe7328789164464432bea34198e894e2	-	211 points
 percent_change @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: "match gsquant"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)
 cash_index @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)
 total_return @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function in gs_quant.timeseries (its tag: DataCube)
-dickey_fuller @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statsmodels' adfuller)
-half_life @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-hedge_ratio @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statistics.cov over statistics.var)
-residual @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-lead_lag @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, econometrics.correlation of a lag)
-up_capture @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-down_capture @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-ohlc @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function: a struct of four lines, no computation (its tag: DataCube)
 rank @NEWCO	SKIP	SKIP	-	-	-	no gs-quant function: a cross-section over instruments; gs-quant's functions take one series (its tag: none)
 round_down @NEWCO	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's floor(x, v) is max(x, v), a clamp, not rounding (algebra.py; no tag)
 round_up @NEWCO	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's ceil(x, v) is min(x, v), a clamp (no tag)
@@ -611,28 +721,83 @@ trend freq=quarter @BRAVO	SKIP	SKIP	-	-	-	a whole statement over the samples' ow
 basket default @BRAVO	OK	PASS	-	49d694fd2fd385ef70f419b8b4372c0aa63e4382b8be4846f776210b1a5ce2c1	-	502 points
 basket rebalance=monthly @BRAVO	OK	PASS	-	7fbc178466e8b9cc7425a9ecbf3e071262710abd7b85dfa49617fae9ddb2e0b3	-	502 points
 basket rebalance=weekly @BRAVO	OK	PASS	-	c205505bc58e4ff06eaa00aef4bcc6c83cf228d6d4e44d7ae711252facdae81f	-	502 points
-alpha @BRAVO	SKIP	SKIP	-	-	-	gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)
-information_ratio @BRAVO	SKIP	SKIP	-	-	-	measures_reports.py:1166, a Marquee report read (its tag: DataCube)
-r_squared @BRAVO	SKIP	SKIP	-	-	-	measures_reports.py:1527, a Marquee report read (its tag: DataCube)
-tracking_error @BRAVO	SKIP	SKIP	-	-	-	measures_reports.py:766, a Marquee report read (its tag: DataCube)
-atr @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:630's comment says "gs-quant's and TA-Lib's atr")
-keltner_channels @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:645's comment says "(gs-quant's)")
-donchian_channels @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:656's comment says "(gs-quant's)")
-obv @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:675's comment says "(gs-quant's)")
-stochastic @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-vwap @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-drawdown @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function: max_drawdown's inner x / rolling_max - 1 is not exported (its tag: DataCube)
+alpha default @BRAVO	OK	PASS	-	0eef1991767421428136d18b6b7d3525cf5453f7d27d2d69b4bb74c4e833ba2c	-	439 points
+alpha w=3mo @BRAVO	OK	PASS	-	7bd1ce5f94999bc350b02b3f96602e68935c974eaaa2d39ebee0c685776dedaa	-	440 points
+alpha w=all @BRAVO	OK	PASS	-	2aa517af6fde659e03be52d24b6d86fba8652a276b48435c0b8190a4edeeb506	-	500 points
+alpha w=20,r=10 @BRAVO	OK	PASS	-	81c80b7025c81b52ec754358468c931366bd64a52fc4532afd4d06aa97dfca8d	-	492 points
+information_ratio default @BRAVO	OK	PASS	-	f26342a88bb32976482f057c787602fd80d23856162a9aacd76b79aaf094c06d	-	439 points
+information_ratio w=3mo @BRAVO	OK	PASS	-	983391bf093bad6a05de057e7da7d3831df864923222edfbab3357fe6f7997db	-	440 points
+information_ratio w=all @BRAVO	OK	PASS	-	386bfefcc90e03ca449de5332ad83383530c5abf5950d30a363b34975d46204e	-	500 points
+information_ratio w=20,r=10 @BRAVO	OK	PASS	-	9cba9ea9aaccfd61cee528b7de5d9df30248f8c33efbf1e5682abf57f5b43833	-	492 points
+r_squared default @BRAVO	OK	PASS	-	84435902645b07e1d14d60de39b030e9e2f7a7aff737c0c167432405c7bf111a	-	439 points
+r_squared w=3mo @BRAVO	OK	PASS	-	66271b59322a05ac9ff1bdec3a113947c6ff02d85eb8a50e0c5feb50e74665a2	-	440 points
+r_squared w=all @BRAVO	OK	PASS	-	3655bf184a8f4270bd559a3af508239f874b354aa7ab142ebfabd8c05c44e272	-	500 points
+r_squared w=20,r=10 @BRAVO	OK	PASS	-	69c8f4209474a4add538317d3858a6414a03369e174992c52cd53629231c7ac1	-	492 points
+tracking_error default @BRAVO	OK	PASS	-	7b5265a2758bedba11bb4b67a3430554e49ceb1ad60bf88696b867ae593ce9d8	-	439 points
+tracking_error w=3mo @BRAVO	OK	PASS	-	1bbcff4ebb0e8538dedea19d59fe6e2e4adbd75f002fcdf567d70e7240c7bbe7	-	440 points
+tracking_error w=all @BRAVO	OK	PASS	-	b925af4d2ffa76f27230c4abee1cf8dedf25e4d282cca97b5cf1ae81f637f648	-	500 points
+tracking_error w=20,r=10 @BRAVO	OK	PASS	-	a2b6502f51fba81b82e996312a2e70d3fab2502e8070d9df42cd1bf8c2948d2f	-	492 points
+hedge_ratio default @BRAVO	OK	PASS	-	a55ef09cb7ee3e7790ed8f4c6fd05145a11595dd11274e7876e81b560def0802	-	440 points
+hedge_ratio w=3mo @BRAVO	OK	PASS	-	47964841c2d24dea60ebdb604f475a961b4ef45e3154accfb728f7fbdb3f15bb	-	440 points
+hedge_ratio w=all @BRAVO	OK	PASS	-	f8ace5cb47d5c4876858d5ffca3a0a4e3bdf14bee710e8fd3f1537cc8eb2e48d	-	501 points
+hedge_ratio w=20,r=10 @BRAVO	OK	PASS	-	f8b568757c16b6a9d4878debf02b24235b026a5f4ecfdc6e4df6b4c7e25f24a1	-	492 points
+residual default @BRAVO	OK	PASS	-	a23a605f0e1b5c9915a5c14a6eb92aae3fda6265c56a638100cd8b872972c065	-	440 points
+residual w=3mo @BRAVO	OK	PASS	-	d259aed0325938e16260bbd3e95c020be3192c4a6e3732b2f8cf2ce731018ff4	-	440 points
+residual w=all @BRAVO	OK	PASS	-	a783a6e83bcf4c14dd05aa53b2c6ce68a606b0bef0303c270d574c0808e8b883	-	501 points
+residual w=20,r=10 @BRAVO	OK	PASS	-	abcf91b235e03aff027f99e8edbfbedac82043fdd47dd61337933b7003819ce3	-	492 points
+up_capture default @BRAVO	OK	PASS	-	31ab667a9e90c4b4c120610791259c1feee62ad2d9058ce0ed764c050f668ade	-	439 points
+up_capture w=3mo @BRAVO	OK	PASS	-	20a5af2d2b73a03537c433f56c2c02221b728ddcf15baac1963a737f1e439693	-	440 points
+up_capture w=all @BRAVO	OK	PASS	-	70370c51ce361c8ec40cf1e86d10613422663d108d73ef4cbd8b66baed976229	-	500 points
+up_capture w=20,r=10 @BRAVO	OK	PASS	-	86ae23eee1eab10631949fa8437aba520c100227eb5bb18a318c024569a41eb1	-	492 points
+down_capture default @BRAVO	OK	PASS	-	e05a8ab4096754781045ae36ad7367de3265dd96cccc21aedc86b5e7f55ece6a	-	439 points
+down_capture w=3mo @BRAVO	OK	PASS	-	4386483ec1cbabac9558a6243fcc8ccee70ca096a7ad274229614ae85197cfee	-	440 points
+down_capture w=all @BRAVO	OK	PASS	-	17ee4a602bbe8fd010ae90f98f21f38f134d0b3132c4c0b8a3335b90be344324	-	501 points
+down_capture w=20,r=10 @BRAVO	OK	PASS	-	57a60df3037a9350c81fdb23375c5683bc9801cd43a338729117b3e1a8d511e2	-	492 points
+lead_lag default @BRAVO	OK	PASS	-	37bfb7e80df1ac1af7ccf3a57d492cf24fa19b37a311f68410ca934bbc5a860b	-	438 points
+lead_lag lag=2 @BRAVO	OK	PASS	-	c7de7f131d831afd733842d8d55b68baf9c01100e2dfa8ba2f3141288746a370	-	437 points
+lead_lag w=3mo @BRAVO	OK	PASS	-	ed21c775ba5d65194e8eb0de76fdde7ad6a145e9aeeb568ad2a10ee1f6562a24	-	440 points
+lead_lag w=all @BRAVO	OK	PASS	-	9b950d231710cbee91b1dff004bd6a84cffe0259e621e464cb130c23445349f4	-	499 points
+lead_lag w=20,r=10 @BRAVO	OK	PASS	-	2831995ce94189dd8a9bdae490fb71e438e71b729f805932a2ca10aa08ecd6e5	-	492 points
+atr default @BRAVO	OK	PASS	-	a369eff30b6770042a73c39c03630db7422cd6f6b887af7fee588ee7a8a23e65	-	488 points
+atr w=5 @BRAVO	OK	PASS	-	11523ba6e8e819e8498ab14611d2d5cbaaf5ce5f8e537b0b6ce137e58a85478b	-	497 points
+stochastic default @BRAVO	OK	PASS	-	4103c647ac7d0292b4a6eaadbc577b6dee29236a341517d1c9a54ec700236658	-	489 points
+stochastic w=5 @BRAVO	OK	PASS	-	bdfdec9685ab55d01f27adfdeaff01d1c2dc9e79e51e93e1df189553c1bc525c	-	498 points
+keltner_channels default.lower @BRAVO	OK	DIFF	sentence	87862ec39bac993e51a8ea3652e9ba1b7ed2ed181a58d8453c9c0aea419d9204	-	483 points | lite: 483 gs-quant points, 483 lite's; 151 dates apart (worst absolute 0.8860962407241004), 0 gs-quant's alone, 0 lite's alone; 2024-01-30: gs-quant 206.47967650786308, lite 205.59358026713898; 2024-01-31: gs-quant 205.76328385707677, lite 204.96157773451694; 2024-02-01: gs-quant 204.71895189994055, lite 203.993598741434
+keltner_channels default.upper @BRAVO	OK	DIFF	sentence	c34e5a446e06866fe572ae234a493e57c498ac0f7e2d00481e0a21da93b97575	-	483 points | lite: 483 gs-quant points, 483 lite's; 150 dates apart (worst absolute 0.8860962407240436), 0 gs-quant's alone, 0 lite's alone; 2024-01-30: gs-quant 227.84182349213705, lite 226.955727251413; 2024-01-31: gs-quant 227.19521614292336, lite 226.39351002036352; 2024-02-01: gs-quant 228.53969095720245, lite 227.81433779869596
+keltner_channels default.width @BRAVO	OK	PASS	-	6625a9ad0b6865f8ed94cd208a4a028fb2891cabba0e7b8d1abe7d0bcafc1f61	-	483 points
+keltner_channels w=10,a=5,k=1.5.lower @BRAVO	OK	DIFF	sentence	b6ae70b9bd19b4001dfe22b9806f64dafed4f9501114e2ce4777b46d4155bd9d	-	493 points | lite: 493 gs-quant points, 493 lite's; 75 dates apart (worst absolute 0.8865987626016079), 0 gs-quant's alone, 0 lite's alone; 2024-01-16: gs-quant 210.02187840000002, lite 210.90847716260163; 2024-01-17: gs-quant 211.26363908363638, lite 211.98903807121945; 2024-01-18: gs-quant 211.21884101897524, lite 211.8123492815432
+keltner_channels w=10,a=5,k=1.5.upper @BRAVO	OK	DIFF	sentence	619029773ab7bd0b1414bdf263b584aec9920affe3bf4bff849a8d0809bd64de	-	493 points | lite: 493 gs-quant points, 493 lite's; 75 dates apart (worst absolute 0.8865987626016079), 0 gs-quant's alone, 0 lite's alone; 2024-01-16: gs-quant 223.11812160000002, lite 224.00472036260163; 2024-01-17: gs-quant 224.6236336436364, lite 225.34903263121947; 2024-01-18: gs-quant 226.0798366669752, lite 226.67334492954316
+donchian_channels default.lower @BRAVO	OK	PASS	-	f5e8cc58f32119e227d0c7c2238fd769c45268c7d5ed4c76f3bddabd5c5f0c7e	-	483 points
+donchian_channels default.upper @BRAVO	OK	PASS	-	328dac8d45333112462a7baf6f857d36eb909fce8f9bc4ff7a0ca52e18a5034c	-	483 points
+donchian_channels default.width @BRAVO	OK	PASS	-	8209f3c00292585dab68fe923d3ddb375120306525a213ebb75d81552944479b	-	483 points
+donchian_channels w=3mo.lower @BRAVO	OK	PASS	-	d1dcf9418fca882c9cd7699c7e1afdaee00ae0f3aa1df689100c9e2b6d9f0b47	-	440 points
+donchian_channels w=3mo.upper @BRAVO	OK	PASS	-	599d44c0eb8fabf4eaa39823b113542799b7ec39ea5f8e35829262c939a03e28	-	440 points
+donchian_channels w=all.lower @BRAVO	OK	PASS	-	dd7d398e0b504074a34ec7e83aa9ef63a21dd85650351952857b94b04205d476	-	502 points
+donchian_channels w=all.upper @BRAVO	OK	PASS	-	323c6c9a0dea2a7d9eb3b6f36f6b119e2369d74e9ec9b8553e4935b78686a154	-	502 points
+obv default @BRAVO	OK	DIFF	sentence	398d2bfa7a831955921f18804d36764cac3dbe39004cebade537480c7663ae84	-	502 points | lite: 502 gs-quant points, 502 lite's; 502 dates apart (worst absolute 4504494.0), 0 gs-quant's alone, 0 lite's alone; 2024-01-02: gs-quant 4504494.0, lite 0.0; 2024-01-03: gs-quant -159718.0, lite -4664212.0; 2024-01-04: gs-quant 3438310.0, lite -1066184.0
+vwap default @BRAVO	OK	PASS	-	d62f81fae35ca186fd068e3963d89437aa0714ec4fe3d48750f12fd9507d649b	-	483 points
+vwap w=3mo @BRAVO	OK	PASS	-	d8800d02a385389eea4b6f1213f87a0a77c4ebc55f1f5dfddbc74a564c101a6f	-	440 points
+vwap w=all @BRAVO	OK	PASS	-	1016ba37b88dc80f444d7ca0a5d6a34b7ccaaf048d7930f3fd955767c590ddb2	-	502 points
+vwap w=20,r=10 @BRAVO	OK	PASS	-	0f157ffa3711cdcbc3d5cc6b96d86e86fb81a7ba50d959cfd1f3825a4db736b9	-	492 points
+drawdown default @BRAVO	OK	PASS	-	36acb499e4c8582034ec1574ee152cd4fa5e6569a9c29f394a9915d807b7cf09	-	502 points
+drawdown w=20 @BRAVO	OK	PASS	-	8bec56ab0431e71e38375787a5e495b2d226e353d8e1945da3ac36a502a741bd	-	483 points
+drawdown w=3mo @BRAVO	OK	PASS	-	570562f2572ef8fb5dcd6e5390c3fa7c489c132ef4d62f1929011bdf5c16fd15	-	440 points
+drawdown w=20,r=10 @BRAVO	OK	PASS	-	297f8bd8dfce72b4899eaa7bde924554acc7109f94b51ccfccddce9c10e2f264	-	492 points
+dickey_fuller default @BRAVO	OK	PASS	-	57e0b5f17f80d0ade6effd77ed1d7fe8e2aeaf2d789bad34b45e80f66490e22b	-	499 points
+dickey_fuller w=30 @BRAVO	OK	PASS	-	261790834a62e8f0aeb0cea953d407f12949b3c9b60d944203179e8cea345ead	-	472 points
+dickey_fuller w=3mo @BRAVO	OK	PASS	-	bb89d32ac974da1d5288724cb65250ef81f1fef5b77682885d4aa467f4ee3351	-	440 points
+dickey_fuller w=30,r=10 @BRAVO	OK	PASS	-	1622e37bca9d59bf11cba500bcd6cbc2562816fad846a1b22cfab5464805761b	-	492 points
+half_life default @BRAVO	OK	PASS	-	33e4e75413b80a47939e3d874f85289388a3bd946bcb1142675af4d9f7689589	-	498 points
+half_life w=30 @BRAVO	OK	PASS	-	bd0f683bbf936bbbe9511adda9e1fd113fde3d596783b57fbeeb36d297cad74a	-	435 points
+half_life w=3mo @BRAVO	OK	PASS	-	c15b29a3ede4ad8c4bc0f6c4994d6426025328b64adf3cb3c54385f48ed7fc67	-	434 points
+half_life w=30,r=10 @BRAVO	OK	PASS	-	79ab5c96eb6741ddffd816d7713757f063c40d0f8482ed91f4387864e8176f0e	-	455 points
+ohlc default.open @BRAVO	OK	PASS	-	b9fda95ee477466bc96e53bca0f94d158b01863d71950e43e6520c052fe7449b	-	502 points
+ohlc default.high @BRAVO	OK	PASS	-	d2e33abc6440e985a76e8ffe83b2cd497bd846ce5f383b774eefe52837be7a53	-	502 points
+ohlc default.low @BRAVO	OK	PASS	-	581f13fad462475a4425d23023bbdd5ebe44f429b06882e360af6b5001e05008	-	502 points
+ohlc default.close @BRAVO	OK	PASS	-	056c4241a3a10a7daa9560f05e2ca420a47262dd5616f70c1ca2c67afe88764b	-	502 points
 percent_change @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: "match gsquant"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)
 cash_index @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)
 total_return @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function in gs_quant.timeseries (its tag: DataCube)
-dickey_fuller @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statsmodels' adfuller)
-half_life @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-hedge_ratio @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statistics.cov over statistics.var)
-residual @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-lead_lag @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, econometrics.correlation of a lag)
-up_capture @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-down_capture @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-ohlc @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function: a struct of four lines, no computation (its tag: DataCube)
 rank @BRAVO	SKIP	SKIP	-	-	-	no gs-quant function: a cross-section over instruments; gs-quant's functions take one series (its tag: none)
 round_down @BRAVO	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's floor(x, v) is max(x, v), a clamp, not rounding (algebra.py; no tag)
 round_up @BRAVO	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's ceil(x, v) is min(x, v), a clamp (no tag)
@@ -822,28 +987,83 @@ trend freq=quarter @BTCUSD	SKIP	SKIP	-	-	-	a whole statement over the samples' o
 basket default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (backtesting.py:81)
 basket rebalance=monthly @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (backtesting.py:81)
 basket rebalance=weekly @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (backtesting.py:81)
-alpha @BTCUSD	SKIP	SKIP	-	-	-	gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)
-information_ratio @BTCUSD	SKIP	SKIP	-	-	-	measures_reports.py:1166, a Marquee report read (its tag: DataCube)
-r_squared @BTCUSD	SKIP	SKIP	-	-	-	measures_reports.py:1527, a Marquee report read (its tag: DataCube)
-tracking_error @BTCUSD	SKIP	SKIP	-	-	-	measures_reports.py:766, a Marquee report read (its tag: DataCube)
-atr @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:630's comment says "gs-quant's and TA-Lib's atr")
-keltner_channels @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:645's comment says "(gs-quant's)")
-donchian_channels @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:656's comment says "(gs-quant's)")
-obv @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:675's comment says "(gs-quant's)")
-stochastic @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-vwap @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-drawdown @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function: max_drawdown's inner x / rolling_max - 1 is not exported (its tag: DataCube)
+alpha default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+alpha w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+alpha w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+alpha w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+information_ratio default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+information_ratio w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+information_ratio w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+information_ratio w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+r_squared default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+r_squared w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+r_squared w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+r_squared w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+tracking_error default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+tracking_error w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+tracking_error w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+tracking_error w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+hedge_ratio default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+hedge_ratio w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+hedge_ratio w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+hedge_ratio w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+residual default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+residual w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+residual w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+residual w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+up_capture default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+up_capture w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+up_capture w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+up_capture w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+down_capture default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+down_capture w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+down_capture w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+down_capture w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+lead_lag default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+lead_lag lag=2 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+lead_lag w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+lead_lag w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+lead_lag w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+atr default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+atr w=5 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+stochastic default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+stochastic w=5 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+keltner_channels default.lower @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+keltner_channels default.upper @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+keltner_channels default.width @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+keltner_channels w=10,a=5,k=1.5.lower @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+keltner_channels w=10,a=5,k=1.5.upper @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+donchian_channels default.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+donchian_channels default.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+donchian_channels default.width @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+donchian_channels w=3mo.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+donchian_channels w=3mo.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+donchian_channels w=all.lower @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+donchian_channels w=all.upper @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+obv default @BTCUSD	GS_ERROR	GS_ERROR	sentence	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+vwap default @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+vwap w=3mo @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+vwap w=all @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+vwap w=20,r=10 @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+drawdown default @BTCUSD	OK	REFUSED	-	cd317c2796ce8a5b1aeba02c288baf88abbefaf513cc1b955610038d61dbd083	dup-span	732 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+drawdown w=20 @BTCUSD	OK	REFUSED	-	599b6a33cbfd2d6a4bebb18d4fb8705a310e46ccdbd1685413d8b1e933fa2b2b	dup-span	713 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+drawdown w=3mo @BTCUSD	OK	PASS	-	d587332bccd186d46b7ece635c1670025cf5593ea45d7d1105dd3395b2edb82a	dup-span	641 points, 2 values on 2025-02-05
+drawdown w=20,r=10 @BTCUSD	OK	REFUSED	-	0acc7a113e121b6b3134bf944ce5791034147f2862a1b464c583d51aa14b95cc	dup-span	722 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+dickey_fuller default @BTCUSD	OK	REFUSED	-	fdf09108243c4371af4a6e9ba10563a7980dc81f171ef4dd8a16f78511913220	dup-span	729 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+dickey_fuller w=30 @BTCUSD	OK	REFUSED	-	1fcda37f2dca2280f30c9b48b6af526bfcadc4571fc47d1a089204ee2d1744ca	dup-span	702 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+dickey_fuller w=3mo @BTCUSD	OK	REFUSED	-	b8c8d2a953b50f5c773906ea24a40c0b5be54ac302bc737fb620f752f4feac8a	dup-span	641 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+dickey_fuller w=30,r=10 @BTCUSD	OK	REFUSED	-	9a10a62a29d0d81258d38228b4cee0364437d375dcc54c032646eea35a617240	dup-span	722 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+half_life default @BTCUSD	OK	REFUSED	-	4e5f6f18cc4b0a9c8587cccc74656d46ee4bdd6fcbf5a279dbc7e32f1636da2c	dup-span	673 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+half_life w=30 @BTCUSD	OK	REFUSED	-	09f86c8c805e964a4ee9ab49e944f1b03bab5ac9f36593e307477af21aedc2f2	dup-span	641 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+half_life w=3mo @BTCUSD	OK	REFUSED	-	83ef456ce6f3549964502080c2e89e3f69d60afc70830811cddae368d52f50b5	dup-span	596 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+half_life w=30,r=10 @BTCUSD	OK	REFUSED	-	175e8b361b0469db4474ce07d9a4bf19a0e21990127aa5a31cc0379bf7bd8506	dup-span	661 points, 2 values on 2025-02-05 | lite: a word that reads its line in order met a line with several rows on one date, which have no order: add BY or a subscript, or SAMPLE BY 1d with last(x) (D8)
+ohlc default.open @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+ohlc default.high @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+ohlc default.low @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
+ohlc default.close @BTCUSD	GS_ERROR	GS_ERROR	-	-	-	ValueError: cannot reindex on an axis with duplicate labels (references.py:97)
 percent_change @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: "match gsquant"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)
 cash_index @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)
 total_return @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function in gs_quant.timeseries (its tag: DataCube)
-dickey_fuller @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statsmodels' adfuller)
-half_life @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-hedge_ratio @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statistics.cov over statistics.var)
-residual @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-lead_lag @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, econometrics.correlation of a lag)
-up_capture @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-down_capture @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-ohlc @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function: a struct of four lines, no computation (its tag: DataCube)
 rank @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant function: a cross-section over instruments; gs-quant's functions take one series (its tag: none)
 round_down @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's floor(x, v) is max(x, v), a clamp, not rounding (algebra.py; no tag)
 round_up @BTCUSD	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's ceil(x, v) is min(x, v), a clamp (no tag)

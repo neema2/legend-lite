@@ -245,7 +245,7 @@ class TsGsquantParityTest {
             }
         }
         for (String key : List.of("GS_QUANT_VERSION", "PANDAS_VERSION", "NUMPY_VERSION", "SCIPY_VERSION",
-                "STATSMODELS_VERSION", "PYTHON_VERSION")) {
+                "STATSMODELS_VERSION", "TA_LIB_VERSION", "PYTHON_VERSION")) {
             if (!pins.containsKey(key)) {
                 throw new IllegalStateException(file + " has no " + key);
             }
@@ -469,10 +469,11 @@ class TsGsquantParityTest {
         }
     }
 
-    /** A case's #TS statement: its item over the prices, {x} and {y} the two lines' closes; or its own whole
-     *  statement. */
+    /** A case's #TS statement: its item over the prices, {x} and {y} the two lines' closes, {x.high} (any price column)
+     *  x's symbol's column (a reference word's lines: item 14f, step 4); or its own whole statement. */
     static String statement(Case c, String x, String y) {
-        String ts = c.ts().replace("{x}", "close[symbol = '" + x + "']").replace("{y}", "close[symbol = '" + y + "']");
+        String ts = c.ts().replaceAll("\\{x\\.(\\w+)}", "$1[symbol = '" + x + "']").replaceAll("\\{y\\.(\\w+)}", "$1[symbol = '" + y + "']")
+                .replace("{x}", "close[symbol = '" + x + "']").replace("{y}", "close[symbol = '" + y + "']");
         return ts.startsWith("WITH ") ? ts
                 : "WITH px AS (SELECT * FROM local::DB.prices) SELECT " + ts + " AS ts_value FROM px ON date";
     }

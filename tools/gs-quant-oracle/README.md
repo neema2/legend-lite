@@ -2,7 +2,7 @@
 
 The timeseries library (`projects/timeseries/model.pure`) is gs-quant's functions written as Pure, and the `#TS{...}#`
 island is its language (`docs/timeseries/WORDS.md`). This tool holds each word to `gs_quant.timeseries` itself: every
-case of `mapping.yaml` is a `#TS` item and the gs-quant call that is its twin -- for 162 of its 184 cases the call Show
+case of `mapping.yaml` is a `#TS` item and the gs-quant call that is its twin -- for 236 of its 258 cases the call Show
 Python prints for the item (`calls.tsv`, the tile's own printer: the code the tile shows is the code gs-quant answers;
 docs/TS_DECISIONS_2026_11_07.md item 14f, step 2), for the rest a call written beside it; `snap.py` runs the twin over
 the gallery's samples and snaps each series into `answers.jsonl.gz`, and `//core:ts_gsquant_parity_test` runs the item
@@ -26,7 +26,7 @@ catches a tile that composes words wrongly, this one a word that departs from gs
 ## Prerequisites
 
 - **Python 3 on the pinned stack.** The stack is ONE set of facts, `pins.env` (KEY=VALUE, as `tools/oracle-pins.env`):
-  gs-quant, and pandas, numpy, scipy and statsmodels, each exactly (gs-quant declares only ranges for them:
+  gs-quant, and pandas, numpy, scipy and statsmodels, each exactly, and TA-Lib (the references' technicals) (gs-quant declares only ranges for them:
   `numpy>1.17.0`, `pandas>=1.4`, `scipy>=1.2.0`, `statsmodels>=0.14.5`, so an answer is reproducible only with each
   held), and Python's minor. `requirements.txt` reads each (`gs-quant==${GS_QUANT_VERSION}`, ...), `snap.sh` installs
   from `requirements.txt` into its interpreter when that holds another release, `snap.py` refuses any other installed
@@ -75,6 +75,15 @@ bazel run //tools/gs-quant-oracle:update_generated && bazel run //tools/gs-quant
   where lite's counts 14, 20, 22, 63 or 252. `known` names the register row that rules a case's DIFF. Each case is one line, so the parity test reads
   the file without a YAML library; `snap.py` holds its YAML reader to that line reader (READER) and each word's mapped
   function to the library's own `Words.gsQuant` tag (TAG).
+- **`references.py`**: DataCube's own words -- the ones gs-quant has no function for -- each as its pinned outside
+  reference computes it from the word's definition: TA-Lib (`atr`, `stochastic`, `obv`, Keltner's and Donchian's
+  channels), statsmodels (`alpha`, `r_squared`, `hedge_ratio`, `residual`, `dickey_fuller`, `half_life`) or pandas (the
+  captures, tracking error, information ratio, `lead_lag`, `vwap`, `drawdown`, `ohlc`), moved from `tools/ts-oracle`'s
+  second oracle (item 14f, step 4). `snap.py` binds each word's name to its function, so the word's case is `printed`
+  like gs-quant's, its mapping entry `ref:` instead of `gs:`; a window is read by the language's rule for the word (a
+  count once the window holds it, to date, a calendar period from the line's first date that period on, gs-quant's
+  `Window(w, r)` counted on x). A word's sentence that departs from its reference (TA-Lib's OBV from the first volume,
+  its EMA's seed in Keltner's middle line) is `known: sentence`. TA-Lib is pinned with the rest (`pins.env`).
 - **`calls.tsv`**: each case's `#TS` item as Show Python prints it (`{x}` as `column('close', 'NVDA')`, `{y}` as
   `column('close', 'SPX')`), STATEMENT (a whole statement: no series the printer prints) or `REFUSED: why` (the
   printer's own refusal, a form no call of gs-quant's says) -- written and held by `//datacube:timeseries_builder_test`

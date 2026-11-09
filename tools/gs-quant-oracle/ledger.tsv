@@ -3,7 +3,7 @@
 # DIFF, REFUSED, GS_ERROR, SKIP), the register row a DIFF is ruled by, gs-quant's series' sha256 (snap.py: --check
 # holds a live run to it), a note (dup-span: the series covers a date with two rows of one line), and why. A
 # verdict moves only with the test's -Dts.gsquant.update, never by hand.
-# snapped under pins.env: GS_QUANT_VERSION=2.2.3;NUMPY_VERSION=2.5.4;PANDAS_VERSION=3.1.1;PYTHON_VERSION=3.12;SCIPY_VERSION=1.18.1;STATSMODELS_VERSION=0.15.0
+# snapped under pins.env: GS_QUANT_VERSION=2.2.3;NUMPY_VERSION=2.5.4;PANDAS_VERSION=3.1.1;PYTHON_VERSION=3.12;SCIPY_VERSION=1.18.1;STATSMODELS_VERSION=0.15.0;TA_LIB_VERSION=0.6.8
 case	gsquant	duckdb	register	digest	note	why
 mean w=20	OK	PASS	-	fa9193532c670998a913f199d428bfa4c753fc41a516d058af09f1411a7d98a3	-	1284 points
 mean w=3mo	OK	PASS	-	312b4c0c2ec5c5f089f98682e00f2897d8b5c179cf76bf40c48ab43ca6e1ea6a	-	1239 points
@@ -189,28 +189,83 @@ trend freq=quarter	OK	PASS	-	29021bb0fd9bf9aaf4491b1bddfa5465603b7af79b0bd24cfda
 basket default	OK	PASS	-	36a64985204f40cbcd522b47bc2593e79e60ab915e8f39db28187a32346ffe2f	-	1304 points
 basket rebalance=monthly	OK	PASS	-	82b59b5fc6c3d9939fb5cd080208891186f61d14d811848aa8eabebfa5ae7635	-	1304 points
 basket rebalance=weekly	OK	PASS	-	0494722962cd9eb2487c580fe9d82b9f5bafa968077c85a5fb5e5b6c296e1aa1	-	1304 points
-alpha	SKIP	SKIP	-	-	-	gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)
-information_ratio	SKIP	SKIP	-	-	-	measures_reports.py:1166, a Marquee report read (its tag: DataCube)
-r_squared	SKIP	SKIP	-	-	-	measures_reports.py:1527, a Marquee report read (its tag: DataCube)
-tracking_error	SKIP	SKIP	-	-	-	measures_reports.py:766, a Marquee report read (its tag: DataCube)
-atr	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:630's comment says "gs-quant's and TA-Lib's atr")
-keltner_channels	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:645's comment says "(gs-quant's)")
-donchian_channels	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:656's comment says "(gs-quant's)")
-obv	SKIP	SKIP	-	-	-	no gs-quant function in any 2.2.x (its tag: DataCube; model.pure:675's comment says "(gs-quant's)")
-stochastic	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-vwap	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-drawdown	SKIP	SKIP	-	-	-	no gs-quant function: max_drawdown's inner x / rolling_max - 1 is not exported (its tag: DataCube)
+alpha default	OK	PASS	-	58c26bc640e3031ca9c919b4b8b667dbe6d3bdedc9969f204ca7f313c698f8e6	-	1241 points
+alpha w=3mo	OK	PASS	-	d075f33001e70c700d3a2ee06c368b76012eca99575a03a7a1ec2aa3c5479d99	-	1239 points
+alpha w=all	OK	PASS	-	ad9de2667b1e47d25823c9e1a322c5702e532949e9befd370f9898c34374227e	-	1302 points
+alpha w=20,r=10	OK	PASS	-	0f67ae48b87a166983910e79d3f7f4b31c3c9bd5114eb2595951f39cc950e3ba	-	1294 points
+information_ratio default	OK	PASS	-	b29039334addbdf8d944092186d34d679301c66739039c6e40ac9d87554e0928	-	1241 points
+information_ratio w=3mo	OK	PASS	-	987c614da87abc8cf0818959d576f721512deb62cbdfbbae19688c95d7128cb8	-	1239 points
+information_ratio w=all	OK	PASS	-	040dea1a381922b4d96bd70b1fe74985918811059736b0a1550bf7df373e9e4d	-	1302 points
+information_ratio w=20,r=10	OK	PASS	-	b6b0a5ef6babd2d4babdf8a8294049b43a05f99769a5b49c29f4c2735e23a06b	-	1294 points
+r_squared default	OK	PASS	-	1c286410d8fc2e6f4e9729fb1f0f559f2b9669e2f021f342acd18dc32803b5bc	-	1241 points
+r_squared w=3mo	OK	PASS	-	3d2eb69ed863aea607ac86ca888bc8fca40cd0209a0211426fbe71541683f83c	-	1239 points
+r_squared w=all	OK	PASS	-	1f973d5d8c3b4ff1e14953a4603f6c3cae8401c0ece16cb1e162b7774de7e492	-	1302 points
+r_squared w=20,r=10	OK	PASS	-	627c5f9aae71fddd06682fde9e9603fd003d5312e03fa6d148ef61ae13b37c77	-	1294 points
+tracking_error default	OK	PASS	-	a334af3ea36a2caebd2df904f8b8d2ba9bc60992b0a898a24a5c9c60d0943910	-	1241 points
+tracking_error w=3mo	OK	PASS	-	16d96a3836fcfd517b6316b098ae623a8d7c17f70554461d2d994c6aac905102	-	1239 points
+tracking_error w=all	OK	PASS	-	e0de51d93ce7c934fda3cb86a7b8fc9764ae6388ace523665f43d434d9f2a3de	-	1302 points
+tracking_error w=20,r=10	OK	PASS	-	d7bfdbb1e29e9a5262c704a47f935d66a5884447642a0f31a7032f088eec1ae6	-	1294 points
+hedge_ratio default	OK	PASS	-	24e5594afaa153a5943a1be9cb2e0b41f9296408344fe69fa879306711ae6e33	-	1242 points
+hedge_ratio w=3mo	OK	PASS	-	9c1890135aebb9f12679493fe20664fbd8f2889a1009d57a318a0ea89eed773e	-	1239 points
+hedge_ratio w=all	OK	PASS	-	73fa2ffe102facbf35d40e02d0defe6b33ad11c9b995d4ff6af3d68e1d1df4be	-	1303 points
+hedge_ratio w=20,r=10	OK	PASS	-	d1a227153e974e8c79ec9e23ab6a039f83248b1b7389b9ed642cd5af82f9ebab	-	1294 points
+residual default	OK	PASS	-	ed4b5c0ff8c01c2134c4645f3df472c8fdc5b68f9aabc916a5d4bbaa6467a0b1	-	1242 points
+residual w=3mo	OK	PASS	-	a687288dc31df8f1b3c133df0fde57e3b5ae765040bf725af0d192e740467ae7	-	1239 points
+residual w=all	OK	PASS	-	772ea9045c547ef335a706fbebfc086594555703807f3057e0840ea32a377aad	-	1303 points
+residual w=20,r=10	OK	PASS	-	b77faf5a1ef72dcb1a93bcdd35eba0f313f27125a3677b537842aa033766aeb1	-	1294 points
+up_capture default	OK	PASS	-	d94ce13ceb7b60a9e7ec72cb274f6d7d9b91ceaef79e618ae892dc1353bf6141	-	1241 points
+up_capture w=3mo	OK	PASS	-	753515e1e0b73860f0802faa42686ce5eafb24c4ca0281c5f1c6cae554da8823	-	1239 points
+up_capture w=all	OK	PASS	-	300d0b8089b01499900fb2791d112d6cc49f8f81c214e00d0fee453606fec08d	-	1299 points
+up_capture w=20,r=10	OK	PASS	-	d191375b1455000ead7de7826de91703f867d56df1a6610f1349477e4d262058	-	1294 points
+down_capture default	OK	PASS	-	59e34a4f1c1efea4a112ba843751e7cd0f9b630bc015ab5303250af1ba87bcec	-	1241 points
+down_capture w=3mo	OK	PASS	-	4e1a5bcf37ddeb0dca44daa528445c80583bf76e299cfbcd1b0d7fbdeda50cb9	-	1239 points
+down_capture w=all	OK	PASS	-	d8d3dfd3aa1a8e5313109f5af5ec55c349265d54b04279da1209c06634385aed	-	1303 points
+down_capture w=20,r=10	OK	PASS	-	c749ba72730014ba37b3a1a1c2896eb2f7d2d40228916c7ff81f332c9c08d212	-	1294 points
+lead_lag default	OK	PASS	-	a324840f6fc939f18396936dba9a820ceca3d5adbf7ff6458c49a5d2dfdae9f4	-	1240 points
+lead_lag lag=2	OK	PASS	-	2a7a5bdc3efcb247a183556c3c2630d651453c55e0ebcf3bccf65540af107984	-	1239 points
+lead_lag w=3mo	OK	PASS	-	4d718823df5d5215f9794b8ee35bc727396f0afbd028c61f587dfc5cf4afa47f	-	1239 points
+lead_lag w=all	OK	PASS	-	c0e21c9088a9778cdfbfb63211cbb670fc50d001f38474fa2920166b84e55b82	-	1301 points
+lead_lag w=20,r=10	OK	PASS	-	0ad35d7c25271a0c64cfd0bfafed3fb6d99a8cba2e3805f5ae6c0284bc0e20b9	-	1294 points
+atr default	OK	PASS	-	e489b5f708f4d348a577380fa9fc93b49b086df77591b1910dd0a9e8e3df93fc	-	1290 points
+atr w=5	OK	PASS	-	6e7e7fc37e90ca94a6ea702dd98547ad49dfc81d20456b1d3dfc94f31ff81f17	-	1299 points
+stochastic default	OK	PASS	-	f4dd4e9701fc277c486efb2051390a34b3f82c026d6d98d16c14f51ebfb47274	-	1291 points
+stochastic w=5	OK	PASS	-	b59a7613e7f5cb23ab5f676c190fa4569289119d0403cbfc9c1d0aebef521825	-	1300 points
+keltner_channels default.lower	OK	DIFF	sentence	3689c8976580586bdef4167b3941b300f7b53c20f86cc6ae0095f583f5396627	-	1285 points | lite: 1285 gs-quant points, 1285 lite's; 135 dates apart (worst absolute 0.043258837666177996), 0 gs-quant's alone, 0 lite's alone; 2020-01-29: gs-quant 4.435600157544001, lite 4.392341319877823; 2020-01-30: gs-quant 4.325111570361029, lite 4.285972621996393; 2020-01-31: gs-quant 4.275760277270504, lite 4.240348847797739
+keltner_channels default.upper	OK	DIFF	sentence	750ba9ce98d638750f217952b782716f78807cab894d8cb77db1edf13a523244	-	1285 points | lite: 1285 gs-quant points, 1285 lite's; 133 dates apart (worst absolute 0.043258837666177996), 0 gs-quant's alone, 0 lite's alone; 2020-01-29: gs-quant 5.4143998424560005, lite 5.3711410047898225; 2020-01-30: gs-quant 5.3620312867818285, lite 5.3228923384171924; 2020-01-31: gs-quant 5.284988022049224, lite 5.249576592576458
+keltner_channels default.width	OK	PASS	-	a9ace6b2d87612abf280e91b632787965b79474d0e759a1737ff6f8c08b0012b	-	1285 points
+keltner_channels w=10,a=5,k=1.5.lower	OK	DIFF	sentence	5586467832406569da14c81d730a750f60c32d368be91f242b5991e05831df4f	-	1295 points | lite: 1295 gs-quant points, 1295 lite's; 70 dates apart (worst absolute 0.07984876262507346), 0 gs-quant's alone, 0 lite's alone; 2020-01-15: gs-quant 4.908712, lite 4.828863237374927; 2020-01-16: gs-quant 4.774896872727274, lite 4.709566066943122; 2020-01-17: gs-quant 4.6537670849586785, lite 4.600314607498918
+keltner_channels w=10,a=5,k=1.5.upper	OK	DIFF	sentence	22592032c2cdadcddfe921914417e77b24f639d0b0f3d9eb2abdb9410c2283df	-	1295 points | lite: 1295 gs-quant points, 1295 lite's; 69 dates apart (worst absolute 0.07984876262507346), 0 gs-quant's alone, 0 lite's alone; 2020-01-15: gs-quant 5.653288000000001, lite 5.573439237374927; 2020-01-16: gs-quant 5.568557672727273, lite 5.5032268669431215; 2020-01-17: gs-quant 5.492695724958677, lite 5.439243247498917
+donchian_channels default.lower	OK	PASS	-	632c270d856c8e229527dedc7482e34e7e3e1677a6ab286e94740becd9634ccc	-	1285 points
+donchian_channels default.upper	OK	PASS	-	68f1edfe967907d0d0dbb22f6daa4a344dc349a4c825a082403930ee61c0469b	-	1285 points
+donchian_channels default.width	OK	PASS	-	739020e970cf0709a135f53812d3ccdc5aae2d7f3432a16d6332d8ee60bbc33e	-	1285 points
+donchian_channels w=3mo.lower	OK	PASS	-	52f30b71193ba13ed1ac7d166a0aad4d66e616812785d5fe8ef5b3782a25857c	-	1239 points
+donchian_channels w=3mo.upper	OK	PASS	-	a379eaa9d182226c1bfeef2ba3843a2f83f7a84008b417c39d6a6524b10622e0	-	1239 points
+donchian_channels w=all.lower	OK	PASS	-	7a071288316c3aa3fd338a84dee596ca5546fd2cdb8c470d79ac5cdeffe2970d	-	1304 points
+donchian_channels w=all.upper	OK	PASS	-	8db20f6af75b8039cf5155986478937006ac4f12aea2c833adb680220d9c6eaa	-	1304 points
+obv default	OK	DIFF	sentence	32295c0c25e0ff4dea87bc70321bc68a4ddfb1c7427c7912dc1979c359f3a8c4	-	1304 points | lite: 1304 gs-quant points, 1304 lite's; 1304 dates apart (worst absolute 3.33513572E8), 0 gs-quant's alone, 0 lite's alone; 2020-01-02: gs-quant 3.33513572E8, lite 0.0; 2020-01-03: gs-quant -3.1965365E7, lite -3.65478937E8; 2020-01-06: gs-quant -3.00847979E8, lite -6.34361551E8
+vwap default	OK	PASS	-	2378d793f73cf07541a1b271ca183e9b409e164855646a7ae5bfbac57d0b9b11	-	1285 points
+vwap w=3mo	OK	PASS	-	45e6cdd59f9cca1709197b5c8c44813759077f64b87de8a1611877fc3e337eee	-	1239 points
+vwap w=all	OK	PASS	-	04932c5426b88a78b1bcf9b3efccae14172f5931b040015eac8b4425e374de7a	-	1304 points
+vwap w=20,r=10	OK	PASS	-	66974ac869843d85d59faecb2ff4028cd7cd45396b0983abb145d85c2a62ab90	-	1294 points
+drawdown default	OK	PASS	-	aaad161a0c856ad6b2b24d93df99143f24fc24e827f9fa62608230f8fb196fec	-	1304 points
+drawdown w=20	OK	PASS	-	1f15785f26b3773f38a3e998055eb4bf11a3f54caf596a78e6b055fe7095bec5	-	1285 points
+drawdown w=3mo	OK	PASS	-	380477548004dddd46fe539926f5fae6f9416fd0d190af9bc49c9ce9a4907d0f	-	1239 points
+drawdown w=20,r=10	OK	PASS	-	a86edcd0066ec84046662a5fa18fb987feccc97ef5b6b4d9232102175741648f	-	1294 points
+dickey_fuller default	OK	PASS	-	121f5be4de25670a545de9164e2c70f4c494dc9bd680c0bce1825a2331850327	-	1301 points
+dickey_fuller w=30	OK	PASS	-	1ca768c396a19e997fec6a61e76448227d0e9be57cdb8944a873fbf34dcf4876	-	1274 points
+dickey_fuller w=3mo	OK	PASS	-	995cf9b1a341d08eff864b938b434c65502ea55465856d74934110f5d2fe75f6	-	1239 points
+dickey_fuller w=30,r=10	OK	PASS	-	546f5bec6177fc9465f1c9adae2f3affda0c392d8df09cc6b0debcb84bc4496f	-	1294 points
+half_life default	OK	PASS	-	0bdec4d4e22d2a6b8793bf01f558fef829dffc884f0ce4c4c14f5dcb7892e0fd	-	1100 points
+half_life w=30	OK	PASS	-	b0739bbd345e21a8385e5e53145bede31487004460e37323f765f104d3590444	-	1227 points
+half_life w=3mo	OK	PASS	-	504c4106ffc1b047c979d3d002306ee983b8859e70f8f085b21367394619825a	-	1184 points
+half_life w=30,r=10	OK	PASS	-	08a7b626352185cdc117fea6a34c298ac7a5f4d89f6106d637b4e24bff3b2282	-	1247 points
+ohlc default.open	OK	PASS	-	70ded2343c3f167151d6a25cc4a685e1bf522c7541af42aab91d4f42d41be772	-	1304 points
+ohlc default.high	OK	PASS	-	a49d8a4d53b506d5f25555c8d5bfd6d3d2c37b724cb778cef16e9c7808dea099	-	1304 points
+ohlc default.low	OK	PASS	-	761e02a129c64836ca252f5767d320d62ee8ba3f808c31ff5c4ccd28947324be	-	1304 points
+ohlc default.close	OK	PASS	-	d8a5b8d1c3883b7524592366864f2580d60ed56e6da37656ce73cc40571a3e66	-	1304 points
 percent_change	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube (econometrics.index - 1)). The identity that would check it: gs-quant's % change is x / x0 - 1 (PR #77, the user 2026-10-28: "match gsquant"), i.e. percent_change(x) = index(x) - 1, lite's body (x / first - 1, a share, shown in percent). For the owner to rule (SKIP, the user 2026-11-07)
 cash_index	SKIP	SKIP	-	-	-	no gs-quant function: gs-quant's cash is a currency's risk-free curve read from Marquee (econometrics.py excess_returns of a Currency); its tag: DataCube (a cash index of an overnight rate)
 total_return	SKIP	SKIP	-	-	-	no gs-quant function in gs_quant.timeseries (its tag: DataCube)
-dickey_fuller	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statsmodels' adfuller)
-half_life	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-hedge_ratio	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, statistics.cov over statistics.var)
-residual	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-lead_lag	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube, econometrics.correlation of a lag)
-up_capture	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-down_capture	SKIP	SKIP	-	-	-	no gs-quant function (its tag: DataCube)
-ohlc	SKIP	SKIP	-	-	-	no gs-quant function: a struct of four lines, no computation (its tag: DataCube)
 rank	SKIP	SKIP	-	-	-	no gs-quant function: a cross-section over instruments; gs-quant's functions take one series (its tag: none)
 round_down	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's floor(x, v) is max(x, v), a clamp, not rounding (algebra.py; no tag)
 round_up	SKIP	SKIP	-	-	-	no gs-quant twin: gs-quant's ceil(x, v) is min(x, v), a clamp (no tag)
