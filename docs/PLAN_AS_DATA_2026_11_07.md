@@ -1219,5 +1219,17 @@ exec` pin.
   - the startup registries sealed once built (`base.Sealed`); the shared dialect instances gone (a dialect keeps state
     while it writes); the statement observer and two dead censuses deleted; one measurement label;
     `staticStateIsConstantOrRegistered` holds every static field: constant, or registered by kind and private.
-- **Open:** D3 (a CSV load's local path in the plan), moved by the user into the data-in-the-plan design session
-  (homework in progress: the inventory, upstream's answer, how people will use the platform).
+  The guards' first Bazel run (`8aca1eea`) found what javac could not: the lexer stays JDK-only (its keywords an
+  unmodifiable JDK map), one measurement label in base (`Attribution`), the test runner names no planning type (its
+  judge mode as the door's options), the registered fields private, and the guard's own gap (an atomic counter is a
+  `Number`, so it read as a constant).
+- **A run takes data from its caller (`ea82b7bb`; the user's question: "why do we have any callbacks, esp dangerous
+  ones that can break our tenet?"):** where the answer goes is data (`result.Output`, a sealed set; the result library
+  makes the writer from the plan before any statement runs, where the run called the caller's factory with the plan;
+  pure/v1's envelope facts read from the query before the run); where a run's sessions come from is data
+  (`SessionSource`, `PlanSessions.Source`: sealed sets exec interprets; the PCT lanes' session rule is exec's). The
+  caller code a run still calls is named: the answer's and the verdicts' receivers (output only), the edge (G5), the
+  host's connection (a resource). Guard: `aRunTakesDataSealedSourcesAndNamedReceiversAlone`.
+- **Open:** D3 (a CSV load's local path in the plan; planning's resource resolver is a function the planner calls),
+  moved by the user into the data-in-the-plan design session (homework done: the inventory, upstream's answer, how
+  people will use the platform; the design next).
