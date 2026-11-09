@@ -192,7 +192,7 @@ public final class Execution {
         com.legend.executionplan.ExecutionPlan.Target target = com.legend.planner.PlanMaker.runtimeTarget(ctx,
                 java.util.Objects.requireNonNull(runtimeFqn, "a program's runtime"));
         try (com.legend.exec.Sessions.Session session = sessions.open(target)) {
-            runBody(planned, session, ctx, listener, referee, options, answer);
+            runBody(planned, session, listener, referee, options, answer);
         }
     }
 
@@ -236,17 +236,17 @@ public final class Execution {
      * is sent and judged; each verdict is told to {@code listener} at its turn -- the listener is the run's output and
      * is asked for nothing (hole 4, 2026-11-08: the fixtures a plan's appeals name, {@code PlannedAppeals.stores}, are
      * the caller's to provide before this); a held appeal is decided after the run by the {@code referee}; the last
-     * statement's answer, where wanted, streams to {@code answer}'s sink. {@code ctx} is the graph it was planned
-     * over: the run still reads it for the system store's sessions and an appeal's enum decode, until slice 4.
+     * statement's answer, where wanted, streams to {@code answer}'s sink. It takes no compiled model: the run reads
+     * its plan and the database's rows alone (holes 1, 2 and 7, slice 4).
      */
-    public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session, ModelContext ctx,
+    public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session,
             com.legend.judge.@com.legend.base.Nullable AssertListener listener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
             @com.legend.base.Nullable Answer answer) {
         // a plan naming an appeal it does not carry is refused before anything runs, whoever made it (the slice 3
         // invariant audit, 2026-11-08: the planning door checked it, a plan handed in did not)
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(planned.plan());
-        BodyRouter.run(planned.plan(), session, ctx, listener, referee, options, answer);
+        BodyRouter.run(planned.plan(), session, listener, referee, options, answer);
     }
 
     /** {@code typed} PLANNED NOW for a session of its runtime's database, to run later (zero exemptions, the

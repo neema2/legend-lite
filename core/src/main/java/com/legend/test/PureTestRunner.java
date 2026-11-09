@@ -304,7 +304,7 @@ public final class PureTestRunner implements AutoCloseable {
                     Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
             if (fixture != null) {
                 provideFixture(store, conn, ran, shared,
-                        (fqn, target) -> Execution.runBody(fixture, target, ctx, null, null, options, null));
+                        (fqn, target) -> Execution.runBody(fixture, target, null, null, options, null));
             }
         }
     }
@@ -541,7 +541,7 @@ public final class PureTestRunner implements AutoCloseable {
                         runtimeFqn, options);
                 provideFixtures(t, facts, conn, options,
                         com.legend.testexecutionplan.PlannedAppeals.stores(planned.plan()));
-                Execution.runBody(planned, conn, ctx,
+                Execution.runBody(planned, conn,
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {

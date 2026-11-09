@@ -1243,7 +1243,8 @@ final class ArchitectureTest {
      *  3: 14 mixed classes, 266 crossings; 281 the same day once the slice 3 invariant audit's fix keyed the run-only
      *  {@code Moved} by its own name and counted the frontend, the database owner and the root's planning doors as
      *  planning; 278, 13 mixed, once slice 4's hole 1 handed the referee the plan's enumerations, not the model --
-     *  the referee left the mixed classes, and the engine-text arms reach the planning facts that read them),
+     *  the referee left the mixed classes, and the engine-text arms reach the planning facts that read them; 276 once
+     *  slice 4's hole 2 found the system database by the plan's target: the router and the holder reach no model),
      *  shrink-only with a dated note, ZERO AT SLICE 5 (the package split; the user's rule of 2026-11-08:
      *  every pin goes to zero). A source line, then the planning classes it reaches. */
     private static final String R1_CROSSINGS = """
@@ -1290,7 +1291,7 @@ final class ArchitectureTest {
                 planner.EngineText planner.FramePlanner planner.PlanAllocations planner.PlanEnv planner.Prepared
                 planner.SidePlanner planner.SystemRoutes resolver.StagedRows testdatagen.TestDataGenerationNatives
             driver.BodyRouter ->
-                TypedQuery compiler.element.ModelContext compiler.spec.AssertLift compiler.spec.RelationCountAsserts
+                TypedQuery compiler.spec.AssertLift compiler.spec.RelationCountAsserts
                 driver.AgreementAsserts driver.AppealsByVerdict driver.BodyDriver driver.DatabaseAsserts driver.HostAsserts
                 driver.JudgePlans driver.SqlTextVerdicts driver.SystemDatabase testplan.BodyClass testplan.BodyKinds
                 testplan.TestDoor
@@ -1339,7 +1340,7 @@ final class ArchitectureTest {
                 judge.Failures judge.VerdictBatch lowering.LiteralSpelling lowering.VerdictSql planner.BodyPlanner
                 planner.SqlTextInputs
             driver.SystemDatabase ->
-                compiler.element.ModelContext planner.ConnectionPlans
+                planner.ConnectionPlans
             driver.VerdictArm ->
                 compiler.element.type.ExprType compiler.spec.SpecCompiler compiler.spec.typed.TypedLambda
                 compiler.spec.typed.TypedSpec driver.AssertVerdicts driver.BodyDriver
@@ -1387,9 +1388,8 @@ final class ArchitectureTest {
      * a virtual call reaching every override, a lambda's calls its enclosing unit's) takes a {@code ModelContext} or a
      * {@code TypedQuery}, calls a method that takes, returns or belongs to one, or reads a field of either type.
      * Reachability, not a list of run classes (the slice 3 invariant audit, 2026-11-08: the first version scanned named
-     * classes and methods and missed the run methods of the classes not yet split). Today's sites are holes 1, 2 and 7
-     * (the appeal's enum decode and the referee, the system database found by the model, the sessions opened from it),
-     * each pinned by name in {@link #MODEL_SITES}.
+     * classes and methods and missed the run methods of the classes not yet split). Holes 1, 2 and 7 closed it (slice 4,
+     * 2026-11-09): {@link #MODEL_SITES} is empty and the guard hard.
      */
     @Test
     void noCompiledModelReachesTheRun() {
@@ -1530,25 +1530,20 @@ final class ArchitectureTest {
     }
 
     /** {@link #noCompiledModelReachesTheRun}'s sites (the reachability measure, 2026-11-08, the slice 3 invariant
-     *  audit's fix), shrink-only with a dated note, ZERO AT SLICE 4: hole 1 (the appeal decision's enum decode and the
-     *  referee's SPI), hole 2 (the system database found through the model) and hole 7 (sessions opened from the
-     *  model, the product's door included). */
+     *  audit's fix): AT ZERO since slice 4, the guard hard -- a new site is a defect, carried as the plan's data. */
     private static final java.util.Set<String> MODEL_SITES = java.util.Set.of(
-            // hole 7: the run is handed the model, and a session source opens a session from it (test road and product)
-            "takes com.legend.Execution#runBody(ModelContext)",
-            "calls com.legend.Execution#runBody -> com.legend.driver.BodyRouter#run",
-            "takes com.legend.driver.BodyRouter#run(ModelContext)",
             // (gone 2026-11-08, hole 7 v1, the user's go: the server's session opened from the plan's target alone --
             // the project database's identity and its Data fill planned into the target (ExecutionPlan.Project), the
             // runner's PlanSessions.projectDatabase finding or making it; ConnectionResolver's keys and fill deleted,
             // and the session contract takes no model: 25 sites)
-            // hole 2: the system database's sessions found through the model, cached in it
-            "calls com.legend.driver.BodyRouter#run -> com.legend.driver.SystemDatabase#of",
-            "calls com.legend.driver.SystemDatabase#of -> com.legend.compiler.element.ModelContext#derived",
             // (gone 2026-11-08, slice 4's hole 1: the appeal is decided from the plan's data -- the enumerations the
             // referee decodes planned into Appeal.Rows.enums, the referee's SPI handed them, never the model: decideAppeal
             // and rowsLegNow take no model, and verify and verifyPlan take Appeal.Enums -- nine sites)
-            "takes com.legend.driver.SystemDatabase#of(ModelContext)");
+            // (gone 2026-11-09, slice 4's hole 2: the system database found by the plan's own target -- its engine and
+            // the graph's store key, Database.System.graphKey -- one current session per engine in SystemDatabase,
+            // replaced when another graph's key comes; SystemDatabase.of(ctx) deleted, and runBody and BodyRouter.run
+            // take no model: the last six sites)
+            );
 
     /**
      * <strong>THE RUN RE-READS NO RULE (the plan-as-data design's slice 3, hole 8, 2026-11-08; hard).</strong> The plan
@@ -2162,7 +2157,11 @@ final class ArchitectureTest {
                 "com.legend.compiler.BareNames.REFERENTS",
                 // the resolver's answers for built calls (L7 step 3, 2026-10-10): per (name, arity) under the
                 // sectionless-query scope, from the same static inputs; never cleared
-                "com.legend.compiler.NameResolver.BUILT");
+                "com.legend.compiler.NameResolver.BUILT",
+                // the current system database of each engine (the plan-as-data design's hole 2, 2026-11-09): found by
+                // the plan's own target, one per engine plus those a run still leases; under the class's lock, never
+                // read by a verdict -- it replaced the graph-keyed cache in the compiled model (ModelContext.derived)
+                "com.legend.driver.SystemDatabase.CURRENT");
         java.util.List<String> violations = new java.util.ArrayList<>();
         for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
             if (jc.getPackageName().startsWith("com.legend.cache")) {

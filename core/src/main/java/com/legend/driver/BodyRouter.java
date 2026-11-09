@@ -164,10 +164,10 @@ public final class BodyRouter {
      * data alone decides what is sent and judged, each verdict told to {@code callers} at its turn (the listener is the
      * run's output, never asked for anything: hole 4, 2026-11-08 -- the fixtures the plan's appeals name are the
      * caller's to provide before this, {@code PlannedAppeals.stores}); the appeals held are decided after the run by
-     * the {@code referee}. {@code ctx} is the compiled model the plan was planned over: the run still reads it for the
-     * system database's sessions and an appeal's enum decode (holes 1 and 2, slice 4, take it away).
+     * the {@code referee}. No compiled model: the system database's sessions are found by the plan's own targets
+     * (hole 2, 2026-11-08) and an appeal's enums are the plan's (hole 1).
      */
-    public static void run(TestPlan plan, Sessions.Session session, com.legend.compiler.element.ModelContext ctx,
+    public static void run(TestPlan plan, Sessions.Session session,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, ExecuteOptions options,
             Execution.@Nullable Answer answer) {
         // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
@@ -176,13 +176,13 @@ public final class BodyRouter {
         AssertListener listener = appeals.listener();
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
-        try {
-            // the graph's system database for a step that names it -- the body's own target when the body is
-            // system-routed, else the second, read-only session a statement reading the system store alone runs on
-            // (per-statement routing, 2026-11-03) -- one session per graph and engine (SystemDatabase), opened when a
-            // step first asks
+        // the graph's system database for a step that names it -- the body's own target when the body is
+        // system-routed, else the second, read-only session a statement reading the system store alone runs on
+        // (per-statement routing, 2026-11-03) -- found by the plan's target (SystemDatabase: the engine's current
+        // one, leased for the run), opened when a step first asks
+        try (SystemDatabase.Leases leases = SystemDatabase.leases(options.systemConnections())) {
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                    target -> SystemDatabase.of(ctx).sessionFor(target, options.systemConnections());
+                    leases::sessionFor;
             Moved moved = new Moved(plan, options.edge(), answer, early,
                     listener, sessionsByTarget(session, systemSessions));
             // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run

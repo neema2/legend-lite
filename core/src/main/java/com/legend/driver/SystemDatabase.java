@@ -1,6 +1,5 @@
 package com.legend.driver;
 
-import com.legend.compiler.element.ModelContext;
 import com.legend.exec.Sessions;
 
 import java.util.ArrayList;
@@ -9,15 +8,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE system database of a compiled graph (user ruling 2026-09-02; the driver's since D72, 2026-10-30 -- it is
- * keyed by the compiled graph; it holds its sessions through the seam's public doors): the
+ * THE system database of a graph (user ruling 2026-09-02; the driver's since D72, 2026-10-30 -- keyed by the
+ * graph's store key the plan names, never the compiled graph, since hole 2; it holds its sessions through the seam's
+ * public doors): the
  * metamodel rows live in a database of their own, SEPARATE from every user
  * connection &mdash; one per graph per database engine, written ONCE, by the
  * plan's own seed step the first time a plan of that graph reads the metamodel
  * ({@code SystemRoutes.seeds}, run by the plan runner and recorded on the session;
  * the walker-deletion program, 2026-11-03: until then this holder wrote it as it
- * opened the session, a send outside every plan), alive as long as
- * the graph ({@link ModelContext#derived}). Nothing is seeded per
+ * opened the session, a send outside every plan), the current
+ * one of its engine until a run names another graph's (hole 2, 2026-11-09). Nothing is seeded per
  * execution any more: the executor ROUTES a store-reading body to this
  * connection (the corpus re-seeded ~20 tables of a corpus-sized graph on
  * every store-reading test &mdash; docs/GATES.md, 2026-09-02 budget entry).
@@ -39,7 +39,7 @@ import java.util.Map;
  * runtime's connection ({@link Sessions.Opener}: the platform holds no
  * server credential; a test may give it the same credentials, a host need
  * not). It is checked to BE that engine, since the query is planned in the
- * runtime's dialect. The same lifecycle: opened once per graph, every
+ * runtime's dialect. The same lifecycle: opened once per current graph, every
  * table written then, read-only after. Each table is TEMPORARY, the
  * session's own (the private instance's guarantees on a shared server: no
  * other session sees it, two graphs or two runs never collide, and the
@@ -49,64 +49,89 @@ import java.util.Map;
  */
 public final class SystemDatabase {
 
-    private static final java.lang.ref.Cleaner CLEANER = java.lang.ref.Cleaner.create();
+    /** The CURRENT system database of each engine (the plan-as-data design's hole 2, 2026-11-09): the graph key it
+     *  holds, its session and the runs using it. A run naming another graph's store replaces it -- a fresh session
+     *  opened lazily, the old one closed when the last run using it ends -- so the process holds one per engine plus
+     *  those still in use, found by the plan's own target, never the compiled model (until hole 2 one per graph, kept in
+     *  the graph's derived cache: the run reached the model for it). */
+    private static final Map<com.legend.executionplan.DatabaseType, Held> CURRENT = new HashMap<>();
 
-    /** The Cleaner action: holds the open sessions, NEVER the store
-     * (a self-reference would keep the graph alive). */
-    private static final class Closer implements Runnable {
-        private final List<Sessions.Session> open =
-                java.util.Collections.synchronizedList(new ArrayList<>());
+    /** A system database's session and its leases; guarded by the class's lock. */
+    private static final class Held {
+        final String graphKey;
+        final Sessions.Session session;
+        int leases;
+        boolean replaced;
+
+        Held(String graphKey, Sessions.Session session) {
+            this.graphKey = graphKey;
+            this.session = session;
+        }
+    }
+
+    private SystemDatabase() {
+    }
+
+    /** A run's leases of the system databases its plan names, opened with the host's {@code systemConnections}
+     *  (a server engine's); closed when the run ends. */
+    public static Leases leases(Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
+        return new Leases(java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections)));
+    }
+
+    /** One run's leases: each system database its steps reach, held until {@link #close}. */
+    public static final class Leases implements AutoCloseable {
+        private final Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections;
+        private final List<Held> held = new ArrayList<>();
+
+        private Leases(Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
+            this.systemConnections = systemConnections;
+        }
+
+        /**
+         * The system database for {@code system} -- the engine and the graph's store key the plan names -- OPENED ON
+         * FIRST USE ({@link Sessions#lazy}): an in-process engine's private database, a server engine's the host's
+         * system connection for it (a server engine with none is refused by name when a run first reaches it, never
+         * routed to a user's session). The same session for the same key; another key replaces the engine's current
+         * one. The holder writes nothing: the store's tables and rows are the plan's own seed step
+         * ({@code SystemRoutes.seeds}), which the runner runs on a session once.
+         */
+        public Sessions.Session sessionFor(com.legend.executionplan.ExecutionPlan.Database.System system) {
+            synchronized (SystemDatabase.class) {
+                com.legend.executionplan.DatabaseType engine = system.type();
+                Held current = CURRENT.get(engine);
+                if (current == null || !current.graphKey.equals(system.graphKey())) {
+                    if (current != null) {
+                        current.replaced = true;
+                        if (current.leases == 0) {
+                            closeQuietly(current.session);
+                        }
+                    }
+                    Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> conns = systemConnections;
+                    current = new Held(system.graphKey(), Sessions.lazy(() -> Sessions.inProcess(engine)
+                            ? openPrivate(engine) : openSystem(engine, conns)));
+                    CURRENT.put(engine, current);
+                }
+                if (!held.contains(current)) {
+                    current.leases++;
+                    held.add(current);
+                }
+                return current.session;
+            }
+        }
 
         @Override
-        public void run() {
-            for (Sessions.Session s : open) {
-                try {
-                    s.close();
-                } catch (com.legend.error.DataError ignore) {
-                    // closing a dead in-memory session: nothing to report
+        public void close() {
+            synchronized (SystemDatabase.class) {
+                for (Held h : held) {
+                    h.leases--;
+                    if (h.replaced && h.leases == 0) {
+                        closeQuietly(h.session);
+                    }
                 }
+                held.clear();
             }
         }
     }
-
-    /** The open sessions, by the engine and the store's key the plan names (step 7, 2026-11-08). */
-    private final Map<String, Sessions.Session> sessions = new HashMap<>();
-    private final Closer closer = new Closer();
-
-    private SystemDatabase() {
-        CLEANER.register(this, closer);
-    }
-
-    /** The graph's system store (created on first ask). */
-    public static SystemDatabase of(ModelContext ctx) {
-        return ctx.derived(SystemDatabase.class, c -> new SystemDatabase());
-    }
-
-    /**
-     * The graph's system database for {@code engine}, OPENED ON FIRST USE ({@link Sessions#lazy}; THE WALL,
-     * 2026-11-06: until then the router opened it as it PLANNED a system-routed body's asserts, a database touched by
-     * planning): an in-process engine's private database, a server engine's the host's system connection for it, from
-     * {@code systemConnections} (a server engine with none is refused by name when a run first reaches it, never
-     * routed to a user's session). The same session object on every ask, so a planner may name it -- the target its
-     * statements carry -- and open nothing. The holder writes nothing: the store's tables and rows are the plan's own
-     * seed step ({@code SystemRoutes.seeds}), which the runner runs on this session once (the walker-deletion program,
-     * 2026-11-03: planning sends nothing).
-     */
-    public synchronized Sessions.Session sessionFor(com.legend.executionplan.ExecutionPlan.Database.System system,
-            Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
-        com.legend.executionplan.DatabaseType engine = system.type();
-        String key = engine + "/" + system.graphKey();
-        Sessions.Session s = sessions.get(key);
-        if (s == null) {
-            Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> conns =
-                    java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections));
-            s = Sessions.lazy(() -> Sessions.inProcess(engine) ? openPrivate(engine) : openSystem(engine, conns));
-            closer.open.add(s);
-            sessions.put(key, s);
-        }
-        return s;
-    }
-
 
     private static void closeQuietly(Sessions.Session c) {
         try {
