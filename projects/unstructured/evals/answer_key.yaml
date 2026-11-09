@@ -1,5 +1,5 @@
 # The unstructured study's answer key: 50 cases, written from the source files before any tuning.
-# Not frozen. Every case is unresolved until it is marked resolved; an unresolved case is never counted.
+# Frozen 2026-11-09 (DECISIONS.md entry 2)
 # resolved by ABS, 2026-11-09, each case read against its question
 #
 # Ids are those of CANDIDATES.md, kept for traceability; the gaps are the cases that were cut.
@@ -59,7 +59,7 @@ cases:
           - {path: "bodies/MSG-0021.txt", charStart: 8, charEnd: 173, sha256: a3344641ce350201b183c7e2af9786868f371b9da21ef0af10e2523db72b6a68, snippet: "I have to pause your order in Tarnwick 7.875% 2031s. Compliance has placed it on hold: the account is pending its annual sanctions re-screen, which"}
     why_hard: "Two compliance holds read alike (MSG-0021, MSG-0044), and only the greeting carries the first name Soren."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C03
     corpus: "SALES"
@@ -77,7 +77,7 @@ cases:
           rows: [[2850000000, 5250000]]
     why_hard: "Book and allocation are separate paragraphs; an earlier $1.95bn book update is a trap, and four other deals' notices have this wording with other figures."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C04
     corpus: "SALES"
@@ -116,7 +116,7 @@ cases:
           rows: [["2025-09-30", 4.0]]
     why_hard: "The last of four step-down rows; CA-009, the same borrower's restated agreement, has a near-identical clause with different levels."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C06
     corpus: "LENDING"
@@ -130,7 +130,7 @@ cases:
           - {path: "agreements/CA-003.txt", charStart: 8187, charEnd: 8876, sha256: 3b6cc8dd84e5ad3e55a44c9e0f817c41011891901a80bcd1e39a875cb580b60b, snippet: "The Cure Right may not be exercised in more than three of any four consecutive Fiscal Quarters or more than five times during the term"}
     why_hard: "The same sentence also gives 'three of any four' quarters, and eleven other agreements have near-identical cure clauses."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C07
     corpus: "LENDING"
@@ -148,7 +148,7 @@ cases:
           rows: [["CA-003", 70000000], ["CA-004", 130000000]]
     why_hard: "Clause (c) of Section 7.11 is a liquidity test or [Reserved] in most agreements: same reference, different content."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C08
     corpus: "LENDING"
@@ -176,7 +176,7 @@ cases:
           rows: [["CA-001", 70000000], ["CA-002", 60000000], ["CA-003", 65000000], ["CA-004", 75000000], ["CA-005", 25000000], ["CA-006", 65000000], ["CA-007", 45000000], ["CA-008", 45000000], ["CA-009", 75000000], ["CA-010", 80000000], ["CA-011", 85000000], ["CA-012", 80000000]]
     why_hard: "Twelve near-identical clauses that differ only in the figure, so a top-k cut will miss some: this is a recall test."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C09
     corpus: "EDGAR 13F"
@@ -209,7 +209,7 @@ cases:
           - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 6908, charEnd: 7682, sha256: ee33c2f1e9e36bf6c6a5ef9ec621aff736d21857c97725cc4d50cb1b40d9e3b6, snippet: "Services net sales increased during 2026 compared to 2025 primarily due to higher net sales from advertising and cloud services."}
     why_hard: "The Q2 10-Q gives a different list (it adds the App Store) in an almost identical sentence, and the Q3 10-Q repeats the 10-K's."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C11
     corpus: "EDGAR 13F"
@@ -224,7 +224,7 @@ cases:
       - {path: "13F-HR/1067983_0001193125-26-226661/holdings.csv", charStart: 2761, charEnd: 2816, sha256: 61f0819ecbf71ce73bc55508959e1f4f4bd7885e925b025ea0eb6ab71982408b, rows: [["DELTA AIR LINES INC", 39809456]]}
     why_hard: "The prior quarter's row is identical in shape, with 39,809,456 shares."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C14
     corpus: "EDGAR 13F"
@@ -250,7 +250,7 @@ cases:
           rows: [["NVIDIA CORPORATION", 1418869170]]
     why_hard: "A 3,140-row table in which Alphabet's combined value comes close; no passage states the ranking."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C16
     corpus: "EDGAR 13F"
@@ -267,7 +267,7 @@ cases:
           rows: [["NVIDIA CORPORATION", 1418869170]]
     why_hard: "Needs a table row and the cover page's total, which are in different files."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C17
     corpus: "EDGAR 13F"
@@ -280,7 +280,7 @@ cases:
           rows: [["UNITED THERAPEUTICS CORP DEL"]]
     why_hard: "An opaque identifier: nothing about it is semantic."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C20
     corpus: "EDGAR 13F"
@@ -294,7 +294,7 @@ cases:
           - {path: "13F-HR/1037389_0001037389-26-000059/cover.txt", charStart: 772, charEnd: 1524, sha256: 223bc93b2d8cdd9eb383ffea070596232cae2ebed36439e2c8499467eefea7b2, snippet: "formData.summaryPage.tableValueTotal: 72617871974"}
     why_hard: "An unformatted 11-digit field beside the 3,140 entry count."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C21
     corpus: "EDGAR 13F"
@@ -308,7 +308,7 @@ cases:
           - {path: "13F-HR/1067983_0001193125-26-352200/cover.txt", charStart: 792, charEnd: 1590, sha256: 3cc6a6b66f66317353689991ce9cb30be1293ace75a37f7e3e5de17aacd6ea7f, snippet: "formData.signatureBlock.signatureDate: 08-14-2026"}
     why_hard: "The earlier cover page has the same signature block with a different date."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C22
     corpus: "EDGAR 13F"
@@ -322,7 +322,7 @@ cases:
       answer: "nothing in the corpus"
     why_hard: "Renaissance's 13F has a Tesla row, so a retriever that blurs filers will return it."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C23
     corpus: "EDGAR 13F"
@@ -353,7 +353,7 @@ cases:
       - {path: "10-K/19617_0001628280-26-008131/item_7.txt", charStart: 10287, charEnd: 11028, sha256: 5686a1160a62165dd7478f93e53ad364acc01c71171cc6b1c937519ac6bc2f7d}
     why_hard: "A matching bullet in the 10-K says 5.8%, and the 10-Q's table row carries seven periods, of which the first is the latest."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C25
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -369,7 +369,7 @@ cases:
       - {path: "10-K/19617_0001628280-26-008131/item_7.txt", charStart: 10287, charEnd: 11028, sha256: 5686a1160a62165dd7478f93e53ad364acc01c71171cc6b1c937519ac6bc2f7d}
     why_hard: "A matching bullet in the 10-K gives 14.6%."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C27
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -383,7 +383,7 @@ cases:
           - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 6184, charEnd: 6906, sha256: 8946a0cedeaa4dc8726e89dfbed8aaf2022742b7dea5d98c25010f29e766a1fb, snippet: "Services (1)  123,301  13%  109,158  14%  96,169"}
     why_hard: "Quarterly and year-to-date figures for the same line sit in two 10-Qs, and 2025's is in the same row."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C29
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -397,7 +397,7 @@ cases:
           - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 9193, charEnd: 9864, sha256: 9f64f70f73aee03155b33fadecf3c7e1df499ddb75be716b7f204adfc411a661, snippet: "R&D expense increased during 2026 compared to 2025 primarily due to higher infrastructure-related costs, including investments in artificial intelligence, and headcount-related expenses."}
     why_hard: "The Risk Factors discuss artificial intelligence at length without giving this driver."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C31
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -428,7 +428,7 @@ cases:
           - {path: "10-Q/320193_0000320193-26-000020/item_2.txt", charStart: 4596, charEnd: 7246, sha256: 1fafd1ab3b3a7494002a07c8a85bf47efe7bb651ea491305a6127627b52bc176, snippet: "On January 14, 2026, initial results were published of the previously announced U.S. Department of Commerce investigation under Section 232 of the Trade Expansion Act"}
     why_hard: "A statute number that an embedding treats like any other; three filings state it, and all three are accepted."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C36
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -442,7 +442,7 @@ cases:
           - {path: "10-K/19617_0001628280-26-008131/item_7.txt", charStart: 10287, charEnd: 11028, sha256: 5686a1160a62165dd7478f93e53ad364acc01c71171cc6b1c937519ac6bc2f7d, snippet: "•As of December 31, 2025, the Firm had eligible end-of-period High Quality Liquid Assets (“HQLA”) of approximately $915 billion and unencumbered marketable securities with a"}
     why_hard: "An acronym; the 10-Q has its own HQLA figure for a later date."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C38
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -457,7 +457,7 @@ cases:
           - {path: "10-Q/19617_0001628280-26-069523/item_2.txt", charStart: 239839, charEnd: 240384, sha256: 918f7b22c0bec7c685664396bce14702fb16b79b805a2aebd0784c040d04446b, snippet: "Average total VaR for the three months ended September 30, 2026 decreased by $1 million, when compared with June 30, 2026, driven by the sale"}
     why_hard: "The next paragraph gives a different comparison (+$15 million against the prior year) in the same words."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C40
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -485,7 +485,7 @@ cases:
           - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 723, charEnd: 1368, sha256: 8a24a37762cdd95d1c2a20d7d8cbc5f2ccd2c19affc0991414cefabd7e6f703e, snippet: "•MacBook Neo, MacBook Air and MacBook Pro"}
     why_hard: "A product name in a bullet list; the quarter is a heading lines above."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C43
     corpus: "SALES"
@@ -502,7 +502,7 @@ cases:
       - {path: "bodies/MSG-0011.txt", charStart: 13, charEnd: 121, sha256: e2be1b9f11011858f70e3c943936baaaab16bf114e51b6f659faf71ade71e7b8}
     why_hard: "A confident $1.95bn update appears in two earlier emails; the final $2.85bn is one clause of an allocation notice."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C44
     corpus: "SALES"
@@ -519,7 +519,7 @@ cases:
       - {path: "bodies/MSG-0001.txt", charStart: 104, charEnd: 171, sha256: 629b797fd05f1a4f310c29a6332f24738ac82498db9e8d304af33db704685a74}
     why_hard: "The first pitch says T+135, and the two later emails word the update differently."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C45
     corpus: "SALES"
@@ -549,7 +549,7 @@ cases:
           - {path: "bodies/MSG-0010.txt", charStart: 111, charEnd: 216, sha256: 91b580be6ec10e4fa56f1ce32517a153d980495c1de611fa2d5394fd2bc11e9a, snippet: "The deal re-offered at 99.714, which is above your 99.65 hard limit, so the order dropped at the reprice."}
     why_hard: "The reason depends on a reprice the email only mentions; Quillon's order in the same deal survived it."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C49
     corpus: "SALES"
@@ -563,7 +563,7 @@ cases:
           - {path: "bodies/MSG-0035.txt", charStart: 102, charEnd: 269, sha256: 0501c7ecd3c3744c68e246ead80d2836f74af56711c04a74103c1a2f0ab1c9aa, snippet: "The institutional tranche is closed to private-bank accounts under the syndicate's allocation policy, and the priced level of $18.00 is through your limit in any"}
     why_hard: "Two reasons in one sentence, and Sorrelmead's scale-back is a near neighbour."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C51
     corpus: "SALES"
@@ -581,7 +581,7 @@ cases:
           rows: [[30000000, 99.5, 9700000]]
     why_hard: "A request and a fill in separate emails a day apart; Ostermark's order is in the same deal."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C53
     corpus: "SALES"
@@ -599,7 +599,7 @@ cases:
           rows: [[60000000, 99.9, 19350000]]
     why_hard: "Quillon's Ashgrove order was filled in full under a different rule."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C55
     corpus: "SALES"
@@ -613,7 +613,7 @@ cases:
           - {path: "bodies/MSG-0023.txt", charStart: 87, charEnd: 176, sha256: 69aeb1ce36a095a747c890ff64ac185982e6c5d38171f19668c7909a54ef96e2, snippet: "Tickets at or below $5mm were filled in full under the syndicate's minimum-ticket policy."}
     why_hard: "The same sentence with $2mm appears for Kestrelline and Ashgrove."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C56
     corpus: "SALES"
@@ -631,7 +631,7 @@ cases:
           rows: [["Portwain Semiconductor Corp."]]
     why_hard: "An invented token that embeddings cannot place; the issuer's name is in the previous paragraph."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C59
     corpus: "SALES"
@@ -646,7 +646,7 @@ cases:
           - {path: "bodies/MSG-0045.txt", charStart: 160, charEnd: 232, sha256: d9965d6901831b4d3324fba7c9a9f5370db1596a482c66009d5d24ea7ca00f04, snippet: "Talk is S+350 at 99 OID. Happy to walk you through the credit if useful."}
     why_hard: "Loan jargon that embeds poorly, and the issuer is in the previous paragraph."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C60
     corpus: "SALES"
@@ -679,7 +679,7 @@ cases:
       - {path: "agreements/CA-001.txt", charStart: 10247, charEnd: 10582, sha256: 1ce32b4187e2e06a90ec3ff0215d51ca790c5184e279b2a0bf481f94240b122f}
     why_hard: "CA-001 (2023) and CA-007 (2025) are one borrower's agreements, with a word-for-word clause and different figures."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C64
     corpus: "LENDING"
@@ -698,7 +698,7 @@ cases:
       - {path: "agreements/CA-002.txt", charStart: 6589, charEnd: 7216, sha256: 6fafd1d4ddc54d7a6fb5109178f32f043fe6d1fb76cbc74bb8361743fb5e1bc6}
     why_hard: "The 2023 agreement's first row is the same shape at 5.50; the restated one starts at 4.00."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C68
     corpus: "LENDING"
@@ -717,7 +717,7 @@ cases:
       - {path: "agreements/CA-006.txt", charStart: 6812, charEnd: 7629, sha256: 53269168646d906a44a216e4ed99e96cf5d5fded7764157a6c7e99efc69a2778}
     why_hard: "The restated agreement starts at 4.75, and the 2023 one at 5.50, in the same table shape."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C70
     corpus: "LENDING"
@@ -735,7 +735,7 @@ cases:
           rows: [["MaxSeniorSecuredLeverage", "Section 7.11(a)"]]
     why_hard: "The test and the cure are separate clauses joined only by a cross-reference."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C73
     corpus: "LENDING"
@@ -752,7 +752,7 @@ cases:
           rows: [[185000000]]
     why_hard: "A defined term in quotes, repeated in other agreements with other amounts."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C75
     corpus: "LENDING"
@@ -769,7 +769,7 @@ cases:
           rows: [["AssetSales", 60000000]]
     why_hard: "A clause reference, and the block's text does not contain it."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C76
     corpus: "LENDING"
@@ -783,7 +783,7 @@ cases:
           - {path: "agreements/CA-006.txt", charStart: 2606, charEnd: 2643, sha256: 278e82a0d346310251a64a237199d4f53d34b3ebe10daa1a70c86cf39758aed6, snippet: "“Threshold Amount” means $65,000,000."}
     why_hard: "One short definition among twelve with the same words."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C77
     corpus: "LENDING"
@@ -800,7 +800,7 @@ cases:
           rows: [["CA-012", 60]]
     why_hard: "Only one of twelve agreements has this clause, and clause (c) in the others is something else."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C78
     corpus: "LENDING"
@@ -814,7 +814,7 @@ cases:
       answer: "nothing in the corpus"
     why_hard: "It is the kind of covenant a credit agreement has; a retriever will offer the nearest financial test."
     author: ABS
-    reviewer: ""
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
     status: resolved
   - id: C80
     corpus: "LENDING"
