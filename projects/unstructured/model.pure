@@ -1,0 +1,1314 @@
+###Pure
+// The unstructured study's model. Four stores, because they are four businesses: store::Edgar (SEC filings), store::Sales
+// (salesperson and client allocation traffic), store::Lending (secured credit agreements) and store::Corpus (the passages
+// cut from all of them). One Mapping per store; one Runtime per backend, binding all four. A link between stores is by
+// value (a sha256 or an id held as a String), never by Join.
+//
+// Limits of today's Pure are in FINDINGS.md: there is no vector column, so Passage carries no embedding, and no long-text
+// column, so text is VARCHAR(1000000), above the corpus's longest section and within Postgres's limit for a sized VARCHAR.
+
+// ---- store::Edgar ----
+
+Class edgar::Filing
+{
+   cik: Integer[1];
+   form: String[1];
+   accession: String[1];
+   filedDate: StrictDate[1];
+   // The filing's primary document: the .htm, or a 13F's primary_doc.xml.
+   url: String[1];
+}
+
+// One extracted item of a 10-K, 10-Q or 8-K.
+Class edgar::Section
+{
+   // As the filing numbers it: a 10-Q's MD&A is item 2, where a 10-K's is item 7.
+   item: String[1];
+   text: String[1];
+}
+
+// One row of a 13F information table. Several rows may share a CUSIP (different discretion, or a put beside the shares).
+Class edgar::Holding
+{
+   issuer: String[1];
+   cusip: String[1];
+   // As filed.
+   value: Integer[1];
+   shares: Integer[1];
+   // PUT or CALL; absent for a plain position.
+   putCall: String[0..1];
+   discretion: String[1];
+}
+
+Association edgar::FilingSections
+{
+   filing: edgar::Filing[1];
+   sections: edgar::Section[*];
+}
+
+Association edgar::FilingHoldings
+{
+   filing: edgar::Filing[1];
+   holdings: edgar::Holding[*];
+}
+
+// ---- store::Corpus ----
+
+// Which corpus a passage was cut from.
+Enum corpus::CorpusSource
+{
+   EDGAR,
+   SALES,
+   LENDING
+}
+
+// A paragraph-bounded span of one text file, from any corpus. A hit is a pointer: source, path, charStart and charEnd
+// locate the exact characters. Other stores reach a passage by value, through its sha256, never by Join.
+Class corpus::Passage
+{
+   source: corpus::CorpusSource[1];
+   // The text file the offsets index into, relative to its corpus directory: for EDGAR, 10-K/320193_.../item_7.txt.
+   path: String[1];
+   // What a receipt cites as the section: item_7, an email messageId, a clause ref. Never a path.
+   sectionOrDoc: String[1];
+   // 0-based within path.
+   ordinal: Integer[1];
+   charStart: Integer[1];
+   charEnd: Integer[1];
+   // Of exactly the characters from charStart to charEnd.
+   sha256: String[1];
+   text: String[1];
+   // The date the passage speaks as of: for a filing, its filed date.
+   asOfDate: StrictDate[1];
+}
+
+// ---- store::Sales ----
+
+Enum sales::ClientType
+{
+   AssetManager,
+   HedgeFund,
+   Pension,
+   Insurer,
+   SovereignWealth,
+   PrivateBank,
+   Corporate
+}
+
+Enum sales::Tier
+{
+   Tier1,
+   Tier2,
+   Tier3
+}
+
+Enum sales::ContactRole
+{
+   PortfolioManager,
+   Trader,
+   Analyst,
+   Operations
+}
+
+Enum sales::Desk
+{
+   IGCredit,
+   HYCredit,
+   Rates,
+   EquitiesCash,
+   ECM,
+   DCM,
+   FX
+}
+
+Enum sales::Region
+{
+   Americas,
+   EMEA,
+   APAC
+}
+
+Enum sales::Product
+{
+   NewIssueBond,
+   IPO,
+   FollowOn,
+   BlockTrade,
+   SyndicatedLoan
+}
+
+Enum sales::Direction
+{
+   Inbound,
+   Outbound
+}
+
+Enum sales::EmailTopic
+{
+   AllocationRequest,
+   AllocationConfirmation,
+   IndicationOfInterest,
+   PricingUpdate,
+   BookUpdate,
+   Settlement,
+   ComplianceHold,
+   Other
+}
+
+Enum sales::PriceSensitivity
+{
+   Flexible,
+   Soft,
+   Hard
+}
+
+Enum sales::AllocationStatus
+{
+   Requested,
+   Partial,
+   Filled,
+   Declined
+}
+
+Class sales::Client
+{
+   clientId: String[1];
+   legalName: String[1];
+   clientType: sales::ClientType[1];
+   domicile: String[1];
+   tier: sales::Tier[1];
+   coverageDesk: sales::Desk[1];
+}
+
+Class sales::Contact
+{
+   contactId: String[1];
+   name: String[1];
+   role: sales::ContactRole[1];
+   email: String[1];
+}
+
+Class sales::Salesperson
+{
+   salesId: String[1];
+   name: String[1];
+   desk: sales::Desk[1];
+   region: sales::Region[1];
+}
+
+Class sales::Deal
+{
+   dealId: String[1];
+   issuer: String[1];
+   product: sales::Product[1];
+   // A CUSIP or an ISIN.
+   identifier: String[1];
+   // Absent for an equity deal.
+   coupon: Decimal[0..1];
+   // Absent for an equity deal.
+   maturityDate: StrictDate[0..1];
+   launchDate: StrictDate[1];
+   // Absent until the deal prices.
+   pricingDate: StrictDate[0..1];
+   sizeUsd: Decimal[1];
+   // Absent until the deal prices.
+   reofferPrice: Decimal[0..1];
+   // Absent until the book opens.
+   bookSizeUsd: Decimal[0..1];
+}
+
+Class sales::Email
+{
+   messageId: String[1];
+   threadId: String[1];
+   sentAt: DateTime[1];
+   fromAddress: String[1];
+   // Comma-separated, as in the header.
+   toAddresses: String[1];
+   // Comma-separated, as in the header.
+   ccAddresses: String[0..1];
+   subject: String[1];
+   body: String[1];
+   direction: sales::Direction[1];
+   topic: sales::EmailTopic[1];
+   // Identifies the whole body. A document identifier, not a passage's sha256: do not expect it to join to store::Corpus.
+   bodySha256: String[1];
+}
+
+// The ground truth the synthetic generator emits.
+Class sales::AllocationRequest
+{
+   requestId: String[1];
+   deal: sales::Deal[1];
+   client: sales::Client[1];
+   requestedQtyUsd: Decimal[1];
+   limitPrice: Decimal[0..1];
+   priceSensitivity: sales::PriceSensitivity[1];
+   // Absent until allocated.
+   allocatedQtyUsd: Decimal[0..1];
+   status: sales::AllocationStatus[1];
+   // Absent until the desk answers.
+   respondedAt: DateTime[0..1];
+   // A plain value: the sha256 of the passage in store::Corpus this came from.
+   passageSha256: String[1];
+}
+
+Association sales::ClientContacts
+{
+   client: sales::Client[1];
+   contacts: sales::Contact[*];
+}
+
+Association sales::ClientEmails
+{
+   client: sales::Client[1];
+   emails: sales::Email[*];
+}
+
+Association sales::DealEmails
+{
+   deal: sales::Deal[0..1];
+   emails: sales::Email[*];
+}
+
+Association sales::SalespersonEmails
+{
+   salesperson: sales::Salesperson[1];
+   emails: sales::Email[*];
+}
+
+Association sales::EmailAllocationRequests
+{
+   email: sales::Email[1];
+   allocationRequests: sales::AllocationRequest[*];
+}
+
+// A reply and the message it answers.
+Association sales::EmailThread
+{
+   parent: sales::Email[0..1];
+   replies: sales::Email[*];
+}
+
+// ---- store::Lending ----
+
+Enum lending::FacilityKind
+{
+   Revolver,
+   TermLoanA,
+   TermLoanB,
+   DelayedDrawTerm,
+   ABL
+}
+
+Enum lending::Benchmark
+{
+   SOFR,
+   Base
+}
+
+Enum lending::LienPriority
+{
+   FirstLien,
+   SecondLien,
+   Unsecured
+}
+
+Enum lending::CollateralKind
+{
+   AllAssets,
+   Receivables,
+   Inventory,
+   RealEstate,
+   Equipment,
+   EquityPledge
+}
+
+Enum lending::CovenantFamily
+{
+   Financial,
+   Negative,
+   Affirmative,
+   Reporting
+}
+
+Enum lending::CovenantKind
+{
+   MaxTotalLeverage,
+   MaxSeniorSecuredLeverage,
+   MinInterestCoverage,
+   MinFixedChargeCoverage,
+   MinLiquidity,
+   MaxCapex,
+   RestrictedPayments,
+   Indebtedness,
+   Liens,
+   AssetSales,
+   ChangeOfControl,
+   FinancialReporting
+}
+
+Enum lending::CovenantOperator
+{
+   AtMost,
+   AtLeast
+}
+
+Enum lending::CovenantUnit
+{
+   Multiple,
+   Usd,
+   Percent
+}
+
+Enum lending::TestFrequency
+{
+   Quarterly,
+   Annual,
+   Continuous
+}
+
+Enum lending::DefaultKind
+{
+   PaymentDefault,
+   FinancialCovenantBreach,
+   CrossDefault,
+   Insolvency,
+   ChangeOfControl
+}
+
+Class lending::Borrower
+{
+   borrowerId: String[1];
+   legalName: String[1];
+   sector: String[1];
+   jurisdiction: String[1];
+   internalRating: String[1];
+}
+
+Class lending::CreditAgreement
+{
+   agreementId: String[1];
+   title: String[1];
+   agreementDate: StrictDate[1];
+   administrativeAgent: String[1];
+   governingLaw: String[1];
+   pdfPath: String[1];
+   // Identifies the whole document. A document identifier, not a passage's sha256: do not expect it to join to store::Corpus.
+   textSha256: String[1];
+}
+
+Class lending::Facility
+{
+   facilityId: String[1];
+   kind: lending::FacilityKind[1];
+   commitmentUsd: Decimal[1];
+   currency: String[1];
+   maturityDate: StrictDate[1];
+   benchmark: lending::Benchmark[1];
+   marginBps: Integer[1];
+   floorBps: Integer[0..1];
+   // A commitment fee is a revolver's or a delayed draw's.
+   commitmentFeeBps: Integer[0..1];
+   // A revolver does not amortize.
+   amortizationPctPerYear: Decimal[0..1];
+   lienPriority: lending::LienPriority[1];
+}
+
+Class lending::Collateral
+{
+   collateralId: String[1];
+   kind: lending::CollateralKind[1];
+   description: String[1];
+}
+
+// A negative or reporting covenant has no number to test: operator, threshold, unit and firstTestDate are for the rest.
+Class lending::Covenant
+{
+   covenantId: String[1];
+   family: lending::CovenantFamily[1];
+   kind: lending::CovenantKind[1];
+   operator: lending::CovenantOperator[0..1];
+   threshold: Decimal[0..1];
+   unit: lending::CovenantUnit[0..1];
+   testFrequency: lending::TestFrequency[1];
+   firstTestDate: StrictDate[0..1];
+   equityCureAllowed: Boolean[1];
+   clauseRef: String[1];
+   // A plain value: the sha256 of the passage in store::Corpus this came from.
+   passageSha256: String[1];
+}
+
+// A step-down: the covenant's threshold from this date.
+Class lending::CovenantStep
+{
+   effectiveFrom: StrictDate[1];
+   threshold: Decimal[1];
+}
+
+// Its key is the agreement and the clause: an agreement may have two payment defaults, principal and interest.
+Class lending::EventOfDefault
+{
+   kind: lending::DefaultKind[1];
+   gracePeriodDays: Integer[0..1];
+   // A cross-default's alone.
+   crossDefaultThresholdUsd: Decimal[0..1];
+   clauseRef: String[1];
+   // A plain value: the sha256 of the passage in store::Corpus this came from.
+   passageSha256: String[1];
+}
+
+Association lending::BorrowerAgreements
+{
+   borrower: lending::Borrower[1];
+   agreements: lending::CreditAgreement[*];
+}
+
+Association lending::AgreementFacilities
+{
+   agreement: lending::CreditAgreement[1];
+   facilities: lending::Facility[*];
+}
+
+Association lending::FacilityCollateral
+{
+   facility: lending::Facility[1];
+   collateral: lending::Collateral[*];
+}
+
+Association lending::AgreementCovenants
+{
+   agreement: lending::CreditAgreement[1];
+   covenants: lending::Covenant[*];
+}
+
+Association lending::CovenantSteps
+{
+   covenant: lending::Covenant[1];
+   steps: lending::CovenantStep[*];
+}
+
+Association lending::AgreementEventsOfDefault
+{
+   agreement: lending::CreditAgreement[1];
+   eventsOfDefault: lending::EventOfDefault[*];
+}
+
+###Relational
+Database store::Edgar
+(
+   Table ED_FILING
+   (
+      ACCESSION VARCHAR(20) PRIMARY KEY,
+      CIK BIGINT NOT NULL,
+      FORM VARCHAR(10) NOT NULL,
+      FILED_DATE DATE NOT NULL,
+      URL VARCHAR(200) NOT NULL
+   )
+
+   Table ED_SECTION
+   (
+      ACCESSION VARCHAR(20) PRIMARY KEY,
+      ITEM VARCHAR(10) PRIMARY KEY,
+      SECTION_TEXT VARCHAR(1000000) NOT NULL
+   )
+
+   Table ED_HOLDING
+   (
+      ACCESSION VARCHAR(20) PRIMARY KEY,
+      ROW_ORDINAL BIGINT PRIMARY KEY,
+      ISSUER VARCHAR(200) NOT NULL,
+      CUSIP VARCHAR(9) NOT NULL,
+      REPORTED_VALUE BIGINT NOT NULL,
+      SHARES BIGINT NOT NULL,
+      PUT_CALL VARCHAR(4),
+      DISCRETION VARCHAR(10) NOT NULL
+   )
+
+   Join Ed_Filing_Section(ED_FILING.ACCESSION = ED_SECTION.ACCESSION)
+   Join Ed_Filing_Holding(ED_FILING.ACCESSION = ED_HOLDING.ACCESSION)
+)
+
+Database store::Sales
+(
+   Table SA_CLIENT
+   (
+      CLIENT_ID VARCHAR(40) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      CLIENT_TYPE VARCHAR(32) NOT NULL,
+      DOMICILE VARCHAR(32) NOT NULL,
+      TIER VARCHAR(32) NOT NULL,
+      COVERAGE_DESK VARCHAR(32) NOT NULL
+   )
+
+   Table SA_CONTACT
+   (
+      CONTACT_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(40) NOT NULL,
+      CONTACT_NAME VARCHAR(200) NOT NULL,
+      CONTACT_ROLE VARCHAR(32) NOT NULL,
+      EMAIL_ADDRESS VARCHAR(200) NOT NULL
+   )
+
+   Table SA_SALESPERSON
+   (
+      SALES_ID VARCHAR(40) PRIMARY KEY,
+      SALES_NAME VARCHAR(200) NOT NULL,
+      DESK VARCHAR(32) NOT NULL,
+      REGION VARCHAR(32) NOT NULL
+   )
+
+   Table SA_DEAL
+   (
+      DEAL_ID VARCHAR(40) PRIMARY KEY,
+      ISSUER VARCHAR(200) NOT NULL,
+      PRODUCT VARCHAR(32) NOT NULL,
+      IDENTIFIER VARCHAR(12) NOT NULL,
+      COUPON DECIMAL(9,4),
+      MATURITY_DATE DATE,
+      LAUNCH_DATE DATE NOT NULL,
+      PRICING_DATE DATE,
+      SIZE_USD DECIMAL(18,2) NOT NULL,
+      REOFFER_PRICE DECIMAL(9,4),
+      BOOK_SIZE_USD DECIMAL(18,2)
+   )
+
+   Table SA_EMAIL
+   (
+      MESSAGE_ID VARCHAR(40) PRIMARY KEY,
+      PARENT_MESSAGE_ID VARCHAR(40),
+      DEAL_ID VARCHAR(40),
+      CLIENT_ID VARCHAR(40) NOT NULL,
+      SALES_ID VARCHAR(40) NOT NULL,
+      THREAD_ID VARCHAR(40) NOT NULL,
+      SENT_AT TIMESTAMP NOT NULL,
+      FROM_ADDRESS VARCHAR(200) NOT NULL,
+      TO_ADDRESSES VARCHAR(2000) NOT NULL,
+      CC_ADDRESSES VARCHAR(2000),
+      SUBJECT VARCHAR(500) NOT NULL,
+      BODY VARCHAR(1000000) NOT NULL,
+      DIRECTION VARCHAR(32) NOT NULL,
+      TOPIC VARCHAR(32) NOT NULL,
+      BODY_SHA256 VARCHAR(64) NOT NULL
+   )
+
+   Table SA_ALLOCATION_REQUEST
+   (
+      REQUEST_ID VARCHAR(40) PRIMARY KEY,
+      EMAIL_MESSAGE_ID VARCHAR(40) NOT NULL,
+      DEAL_ID VARCHAR(40) NOT NULL,
+      CLIENT_ID VARCHAR(40) NOT NULL,
+      REQUESTED_QTY_USD DECIMAL(18,2) NOT NULL,
+      LIMIT_PRICE DECIMAL(9,4),
+      PRICE_SENSITIVITY VARCHAR(32) NOT NULL,
+      ALLOCATED_QTY_USD DECIMAL(18,2),
+      STATUS VARCHAR(32) NOT NULL,
+      RESPONDED_AT TIMESTAMP,
+      PASSAGE_SHA256 VARCHAR(64) NOT NULL
+   )
+
+   Join Sa_Client_Contact(SA_CLIENT.CLIENT_ID = SA_CONTACT.CLIENT_ID)
+   Join Sa_Client_Email(SA_CLIENT.CLIENT_ID = SA_EMAIL.CLIENT_ID)
+   Join Sa_Deal_Email(SA_DEAL.DEAL_ID = SA_EMAIL.DEAL_ID)
+   Join Sa_Salesperson_Email(SA_SALESPERSON.SALES_ID = SA_EMAIL.SALES_ID)
+   Join Sa_Email_Request(SA_EMAIL.MESSAGE_ID = SA_ALLOCATION_REQUEST.EMAIL_MESSAGE_ID)
+   Join Sa_Email_Parent(SA_EMAIL.PARENT_MESSAGE_ID = {target}.MESSAGE_ID)
+   Join Sa_Email_Replies(SA_EMAIL.MESSAGE_ID = {target}.PARENT_MESSAGE_ID)
+   Join Sa_Request_Deal(SA_ALLOCATION_REQUEST.DEAL_ID = SA_DEAL.DEAL_ID)
+   Join Sa_Request_Client(SA_ALLOCATION_REQUEST.CLIENT_ID = SA_CLIENT.CLIENT_ID)
+)
+
+Database store::Lending
+(
+   Table LN_BORROWER
+   (
+      BORROWER_ID VARCHAR(40) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      SECTOR VARCHAR(100) NOT NULL,
+      JURISDICTION VARCHAR(100) NOT NULL,
+      INTERNAL_RATING VARCHAR(10) NOT NULL
+   )
+
+   Table LN_CREDIT_AGREEMENT
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      BORROWER_ID VARCHAR(40) NOT NULL,
+      TITLE VARCHAR(500) NOT NULL,
+      AGREEMENT_DATE DATE NOT NULL,
+      ADMINISTRATIVE_AGENT VARCHAR(200) NOT NULL,
+      GOVERNING_LAW VARCHAR(100) NOT NULL,
+      PDF_PATH VARCHAR(500) NOT NULL,
+      TEXT_SHA256 VARCHAR(64) NOT NULL
+   )
+
+   Table LN_FACILITY
+   (
+      FACILITY_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      KIND VARCHAR(32) NOT NULL,
+      COMMITMENT_USD DECIMAL(18,2) NOT NULL,
+      CURRENCY VARCHAR(3) NOT NULL,
+      MATURITY_DATE DATE NOT NULL,
+      BENCHMARK VARCHAR(32) NOT NULL,
+      MARGIN_BPS BIGINT NOT NULL,
+      FLOOR_BPS BIGINT,
+      COMMITMENT_FEE_BPS BIGINT,
+      AMORTIZATION_PCT_PER_YEAR DECIMAL(9,4),
+      LIEN_PRIORITY VARCHAR(32) NOT NULL
+   )
+
+   Table LN_COLLATERAL
+   (
+      COLLATERAL_ID VARCHAR(40) PRIMARY KEY,
+      FACILITY_ID VARCHAR(40) NOT NULL,
+      KIND VARCHAR(32) NOT NULL,
+      DESCRIPTION VARCHAR(2000) NOT NULL
+   )
+
+   Table LN_COVENANT
+   (
+      COVENANT_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      FAMILY VARCHAR(32) NOT NULL,
+      KIND VARCHAR(32) NOT NULL,
+      COVENANT_OPERATOR VARCHAR(32),
+      THRESHOLD DECIMAL(18,4),
+      THRESHOLD_UNIT VARCHAR(32),
+      TEST_FREQUENCY VARCHAR(32) NOT NULL,
+      FIRST_TEST_DATE DATE,
+      EQUITY_CURE_ALLOWED BIT NOT NULL,
+      CLAUSE_REF VARCHAR(50) NOT NULL,
+      PASSAGE_SHA256 VARCHAR(64) NOT NULL
+   )
+
+   Table LN_COVENANT_STEP
+   (
+      COVENANT_ID VARCHAR(40) PRIMARY KEY,
+      EFFECTIVE_FROM DATE PRIMARY KEY,
+      THRESHOLD DECIMAL(18,4) NOT NULL
+   )
+
+   Table LN_EVENT_OF_DEFAULT
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      CLAUSE_REF VARCHAR(50) PRIMARY KEY,
+      KIND VARCHAR(32) NOT NULL,
+      GRACE_PERIOD_DAYS BIGINT,
+      CROSS_DEFAULT_THRESHOLD_USD DECIMAL(18,2),
+      PASSAGE_SHA256 VARCHAR(64) NOT NULL
+   )
+
+   Join Ln_Borrower_Agreement(LN_BORROWER.BORROWER_ID = LN_CREDIT_AGREEMENT.BORROWER_ID)
+   Join Ln_Agreement_Facility(LN_CREDIT_AGREEMENT.AGREEMENT_ID = LN_FACILITY.AGREEMENT_ID)
+   Join Ln_Facility_Collateral(LN_FACILITY.FACILITY_ID = LN_COLLATERAL.FACILITY_ID)
+   Join Ln_Agreement_Covenant(LN_CREDIT_AGREEMENT.AGREEMENT_ID = LN_COVENANT.AGREEMENT_ID)
+   Join Ln_Covenant_Step(LN_COVENANT.COVENANT_ID = LN_COVENANT_STEP.COVENANT_ID)
+   Join Ln_Agreement_EventOfDefault(LN_CREDIT_AGREEMENT.AGREEMENT_ID = LN_EVENT_OF_DEFAULT.AGREEMENT_ID)
+)
+
+Database store::Corpus
+(
+   Table CO_PASSAGE
+   (
+      SOURCE VARCHAR(32) PRIMARY KEY,
+      FILE_PATH VARCHAR(200) PRIMARY KEY,
+      ORDINAL BIGINT PRIMARY KEY,
+      SECTION_OR_DOC VARCHAR(200) NOT NULL,
+      CHAR_START BIGINT NOT NULL,
+      CHAR_END BIGINT NOT NULL,
+      SHA256 VARCHAR(64) NOT NULL,
+      PASSAGE_TEXT VARCHAR(1000000) NOT NULL,
+      AS_OF_DATE DATE NOT NULL
+   )
+
+)
+
+###Mapping
+Mapping mapping::Edgar
+(
+   edgar::Filing[edFiling]: Relational
+   {
+      ~primaryKey ( [store::Edgar]ED_FILING.ACCESSION )
+      ~mainTable [store::Edgar]ED_FILING
+      cik: [store::Edgar]ED_FILING.CIK,
+      form: [store::Edgar]ED_FILING.FORM,
+      accession: [store::Edgar]ED_FILING.ACCESSION,
+      filedDate: [store::Edgar]ED_FILING.FILED_DATE,
+      url: [store::Edgar]ED_FILING.URL
+   }
+
+   edgar::Section[edSection]: Relational
+   {
+      ~primaryKey ( [store::Edgar]ED_SECTION.ACCESSION, [store::Edgar]ED_SECTION.ITEM )
+      ~mainTable [store::Edgar]ED_SECTION
+      item: [store::Edgar]ED_SECTION.ITEM,
+      text: [store::Edgar]ED_SECTION.SECTION_TEXT
+   }
+
+   edgar::Holding[edHolding]: Relational
+   {
+      ~primaryKey ( [store::Edgar]ED_HOLDING.ACCESSION, [store::Edgar]ED_HOLDING.ROW_ORDINAL )
+      ~mainTable [store::Edgar]ED_HOLDING
+      issuer: [store::Edgar]ED_HOLDING.ISSUER,
+      cusip: [store::Edgar]ED_HOLDING.CUSIP,
+      value: [store::Edgar]ED_HOLDING.REPORTED_VALUE,
+      shares: [store::Edgar]ED_HOLDING.SHARES,
+      putCall: [store::Edgar]ED_HOLDING.PUT_CALL,
+      discretion: [store::Edgar]ED_HOLDING.DISCRETION
+   }
+
+   edgar::FilingSections: Relational
+   {
+      AssociationMapping
+      (
+         sections[edFiling, edSection]: [store::Edgar]@Ed_Filing_Section,
+         filing[edSection, edFiling]: [store::Edgar]@Ed_Filing_Section
+      )
+   }
+
+   edgar::FilingHoldings: Relational
+   {
+      AssociationMapping
+      (
+         holdings[edFiling, edHolding]: [store::Edgar]@Ed_Filing_Holding,
+         filing[edHolding, edFiling]: [store::Edgar]@Ed_Filing_Holding
+      )
+   }
+
+)
+
+Mapping mapping::Sales
+(
+   sales::ClientType: EnumerationMapping ClientTypeMap
+   {
+      AssetManager: ['AssetManager'],
+      HedgeFund: ['HedgeFund'],
+      Pension: ['Pension'],
+      Insurer: ['Insurer'],
+      SovereignWealth: ['SovereignWealth'],
+      PrivateBank: ['PrivateBank'],
+      Corporate: ['Corporate']
+   }
+
+   sales::Tier: EnumerationMapping TierMap
+   {
+      Tier1: ['Tier1'],
+      Tier2: ['Tier2'],
+      Tier3: ['Tier3']
+   }
+
+   sales::Desk: EnumerationMapping DeskMap
+   {
+      IGCredit: ['IGCredit'],
+      HYCredit: ['HYCredit'],
+      Rates: ['Rates'],
+      EquitiesCash: ['EquitiesCash'],
+      ECM: ['ECM'],
+      DCM: ['DCM'],
+      FX: ['FX']
+   }
+
+   sales::ContactRole: EnumerationMapping ContactRoleMap
+   {
+      PortfolioManager: ['PortfolioManager'],
+      Trader: ['Trader'],
+      Analyst: ['Analyst'],
+      Operations: ['Operations']
+   }
+
+   sales::Region: EnumerationMapping RegionMap
+   {
+      Americas: ['Americas'],
+      EMEA: ['EMEA'],
+      APAC: ['APAC']
+   }
+
+   sales::Product: EnumerationMapping ProductMap
+   {
+      NewIssueBond: ['NewIssueBond'],
+      IPO: ['IPO'],
+      FollowOn: ['FollowOn'],
+      BlockTrade: ['BlockTrade'],
+      SyndicatedLoan: ['SyndicatedLoan']
+   }
+
+   sales::Direction: EnumerationMapping DirectionMap
+   {
+      Inbound: ['Inbound'],
+      Outbound: ['Outbound']
+   }
+
+   sales::EmailTopic: EnumerationMapping EmailTopicMap
+   {
+      AllocationRequest: ['AllocationRequest'],
+      AllocationConfirmation: ['AllocationConfirmation'],
+      IndicationOfInterest: ['IndicationOfInterest'],
+      PricingUpdate: ['PricingUpdate'],
+      BookUpdate: ['BookUpdate'],
+      Settlement: ['Settlement'],
+      ComplianceHold: ['ComplianceHold'],
+      Other: ['Other']
+   }
+
+   sales::PriceSensitivity: EnumerationMapping PriceSensitivityMap
+   {
+      Flexible: ['Flexible'],
+      Soft: ['Soft'],
+      Hard: ['Hard']
+   }
+
+   sales::AllocationStatus: EnumerationMapping AllocationStatusMap
+   {
+      Requested: ['Requested'],
+      Partial: ['Partial'],
+      Filled: ['Filled'],
+      Declined: ['Declined']
+   }
+
+   sales::Client[saClient]: Relational
+   {
+      ~primaryKey ( [store::Sales]SA_CLIENT.CLIENT_ID )
+      ~mainTable [store::Sales]SA_CLIENT
+      clientId: [store::Sales]SA_CLIENT.CLIENT_ID,
+      legalName: [store::Sales]SA_CLIENT.LEGAL_NAME,
+      clientType: EnumerationMapping ClientTypeMap: [store::Sales]SA_CLIENT.CLIENT_TYPE,
+      domicile: [store::Sales]SA_CLIENT.DOMICILE,
+      tier: EnumerationMapping TierMap: [store::Sales]SA_CLIENT.TIER,
+      coverageDesk: EnumerationMapping DeskMap: [store::Sales]SA_CLIENT.COVERAGE_DESK
+   }
+
+   sales::Contact[saContact]: Relational
+   {
+      ~primaryKey ( [store::Sales]SA_CONTACT.CONTACT_ID )
+      ~mainTable [store::Sales]SA_CONTACT
+      contactId: [store::Sales]SA_CONTACT.CONTACT_ID,
+      name: [store::Sales]SA_CONTACT.CONTACT_NAME,
+      role: EnumerationMapping ContactRoleMap: [store::Sales]SA_CONTACT.CONTACT_ROLE,
+      email: [store::Sales]SA_CONTACT.EMAIL_ADDRESS
+   }
+
+   sales::Salesperson[saSalesperson]: Relational
+   {
+      ~primaryKey ( [store::Sales]SA_SALESPERSON.SALES_ID )
+      ~mainTable [store::Sales]SA_SALESPERSON
+      salesId: [store::Sales]SA_SALESPERSON.SALES_ID,
+      name: [store::Sales]SA_SALESPERSON.SALES_NAME,
+      desk: EnumerationMapping DeskMap: [store::Sales]SA_SALESPERSON.DESK,
+      region: EnumerationMapping RegionMap: [store::Sales]SA_SALESPERSON.REGION
+   }
+
+   sales::Deal[saDeal]: Relational
+   {
+      ~primaryKey ( [store::Sales]SA_DEAL.DEAL_ID )
+      ~mainTable [store::Sales]SA_DEAL
+      dealId: [store::Sales]SA_DEAL.DEAL_ID,
+      issuer: [store::Sales]SA_DEAL.ISSUER,
+      product: EnumerationMapping ProductMap: [store::Sales]SA_DEAL.PRODUCT,
+      identifier: [store::Sales]SA_DEAL.IDENTIFIER,
+      coupon: [store::Sales]SA_DEAL.COUPON,
+      maturityDate: [store::Sales]SA_DEAL.MATURITY_DATE,
+      launchDate: [store::Sales]SA_DEAL.LAUNCH_DATE,
+      pricingDate: [store::Sales]SA_DEAL.PRICING_DATE,
+      sizeUsd: [store::Sales]SA_DEAL.SIZE_USD,
+      reofferPrice: [store::Sales]SA_DEAL.REOFFER_PRICE,
+      bookSizeUsd: [store::Sales]SA_DEAL.BOOK_SIZE_USD
+   }
+
+   sales::Email[saEmail]: Relational
+   {
+      ~primaryKey ( [store::Sales]SA_EMAIL.MESSAGE_ID )
+      ~mainTable [store::Sales]SA_EMAIL
+      messageId: [store::Sales]SA_EMAIL.MESSAGE_ID,
+      threadId: [store::Sales]SA_EMAIL.THREAD_ID,
+      sentAt: [store::Sales]SA_EMAIL.SENT_AT,
+      fromAddress: [store::Sales]SA_EMAIL.FROM_ADDRESS,
+      toAddresses: [store::Sales]SA_EMAIL.TO_ADDRESSES,
+      ccAddresses: [store::Sales]SA_EMAIL.CC_ADDRESSES,
+      subject: [store::Sales]SA_EMAIL.SUBJECT,
+      body: [store::Sales]SA_EMAIL.BODY,
+      direction: EnumerationMapping DirectionMap: [store::Sales]SA_EMAIL.DIRECTION,
+      topic: EnumerationMapping EmailTopicMap: [store::Sales]SA_EMAIL.TOPIC,
+      bodySha256: [store::Sales]SA_EMAIL.BODY_SHA256
+   }
+
+   sales::AllocationRequest[saAllocationRequest]: Relational
+   {
+      ~primaryKey ( [store::Sales]SA_ALLOCATION_REQUEST.REQUEST_ID )
+      ~mainTable [store::Sales]SA_ALLOCATION_REQUEST
+      requestId: [store::Sales]SA_ALLOCATION_REQUEST.REQUEST_ID,
+      deal[saDeal]: [store::Sales]@Sa_Request_Deal,
+      client[saClient]: [store::Sales]@Sa_Request_Client,
+      requestedQtyUsd: [store::Sales]SA_ALLOCATION_REQUEST.REQUESTED_QTY_USD,
+      limitPrice: [store::Sales]SA_ALLOCATION_REQUEST.LIMIT_PRICE,
+      priceSensitivity: EnumerationMapping PriceSensitivityMap: [store::Sales]SA_ALLOCATION_REQUEST.PRICE_SENSITIVITY,
+      allocatedQtyUsd: [store::Sales]SA_ALLOCATION_REQUEST.ALLOCATED_QTY_USD,
+      status: EnumerationMapping AllocationStatusMap: [store::Sales]SA_ALLOCATION_REQUEST.STATUS,
+      respondedAt: [store::Sales]SA_ALLOCATION_REQUEST.RESPONDED_AT,
+      passageSha256: [store::Sales]SA_ALLOCATION_REQUEST.PASSAGE_SHA256
+   }
+
+   sales::ClientContacts: Relational
+   {
+      AssociationMapping
+      (
+         contacts[saClient, saContact]: [store::Sales]@Sa_Client_Contact,
+         client[saContact, saClient]: [store::Sales]@Sa_Client_Contact
+      )
+   }
+
+   sales::ClientEmails: Relational
+   {
+      AssociationMapping
+      (
+         emails[saClient, saEmail]: [store::Sales]@Sa_Client_Email,
+         client[saEmail, saClient]: [store::Sales]@Sa_Client_Email
+      )
+   }
+
+   sales::DealEmails: Relational
+   {
+      AssociationMapping
+      (
+         emails[saDeal, saEmail]: [store::Sales]@Sa_Deal_Email,
+         deal[saEmail, saDeal]: [store::Sales]@Sa_Deal_Email
+      )
+   }
+
+   sales::SalespersonEmails: Relational
+   {
+      AssociationMapping
+      (
+         emails[saSalesperson, saEmail]: [store::Sales]@Sa_Salesperson_Email,
+         salesperson[saEmail, saSalesperson]: [store::Sales]@Sa_Salesperson_Email
+      )
+   }
+
+   sales::EmailAllocationRequests: Relational
+   {
+      AssociationMapping
+      (
+         allocationRequests[saEmail, saAllocationRequest]: [store::Sales]@Sa_Email_Request,
+         email[saAllocationRequest, saEmail]: [store::Sales]@Sa_Email_Request
+      )
+   }
+
+   sales::EmailThread: Relational
+   {
+      AssociationMapping
+      (
+         parent[saEmail, saEmail]: [store::Sales]@Sa_Email_Parent,
+         replies[saEmail, saEmail]: [store::Sales]@Sa_Email_Replies
+      )
+   }
+
+)
+
+Mapping mapping::Lending
+(
+   lending::FacilityKind: EnumerationMapping FacilityKindMap
+   {
+      Revolver: ['Revolver'],
+      TermLoanA: ['TermLoanA'],
+      TermLoanB: ['TermLoanB'],
+      DelayedDrawTerm: ['DelayedDrawTerm'],
+      ABL: ['ABL']
+   }
+
+   lending::Benchmark: EnumerationMapping BenchmarkMap
+   {
+      SOFR: ['SOFR'],
+      Base: ['Base']
+   }
+
+   lending::LienPriority: EnumerationMapping LienPriorityMap
+   {
+      FirstLien: ['FirstLien'],
+      SecondLien: ['SecondLien'],
+      Unsecured: ['Unsecured']
+   }
+
+   lending::CollateralKind: EnumerationMapping CollateralKindMap
+   {
+      AllAssets: ['AllAssets'],
+      Receivables: ['Receivables'],
+      Inventory: ['Inventory'],
+      RealEstate: ['RealEstate'],
+      Equipment: ['Equipment'],
+      EquityPledge: ['EquityPledge']
+   }
+
+   lending::CovenantFamily: EnumerationMapping CovenantFamilyMap
+   {
+      Financial: ['Financial'],
+      Negative: ['Negative'],
+      Affirmative: ['Affirmative'],
+      Reporting: ['Reporting']
+   }
+
+   lending::CovenantKind: EnumerationMapping CovenantKindMap
+   {
+      MaxTotalLeverage: ['MaxTotalLeverage'],
+      MaxSeniorSecuredLeverage: ['MaxSeniorSecuredLeverage'],
+      MinInterestCoverage: ['MinInterestCoverage'],
+      MinFixedChargeCoverage: ['MinFixedChargeCoverage'],
+      MinLiquidity: ['MinLiquidity'],
+      MaxCapex: ['MaxCapex'],
+      RestrictedPayments: ['RestrictedPayments'],
+      Indebtedness: ['Indebtedness'],
+      Liens: ['Liens'],
+      AssetSales: ['AssetSales'],
+      ChangeOfControl: ['ChangeOfControl'],
+      FinancialReporting: ['FinancialReporting']
+   }
+
+   lending::CovenantOperator: EnumerationMapping CovenantOperatorMap
+   {
+      AtMost: ['AtMost'],
+      AtLeast: ['AtLeast']
+   }
+
+   lending::CovenantUnit: EnumerationMapping CovenantUnitMap
+   {
+      Multiple: ['Multiple'],
+      Usd: ['Usd'],
+      Percent: ['Percent']
+   }
+
+   lending::TestFrequency: EnumerationMapping TestFrequencyMap
+   {
+      Quarterly: ['Quarterly'],
+      Annual: ['Annual'],
+      Continuous: ['Continuous']
+   }
+
+   lending::DefaultKind: EnumerationMapping DefaultKindMap
+   {
+      PaymentDefault: ['PaymentDefault'],
+      FinancialCovenantBreach: ['FinancialCovenantBreach'],
+      CrossDefault: ['CrossDefault'],
+      Insolvency: ['Insolvency'],
+      ChangeOfControl: ['ChangeOfControl']
+   }
+
+   lending::Borrower[lnBorrower]: Relational
+   {
+      ~primaryKey ( [store::Lending]LN_BORROWER.BORROWER_ID )
+      ~mainTable [store::Lending]LN_BORROWER
+      borrowerId: [store::Lending]LN_BORROWER.BORROWER_ID,
+      legalName: [store::Lending]LN_BORROWER.LEGAL_NAME,
+      sector: [store::Lending]LN_BORROWER.SECTOR,
+      jurisdiction: [store::Lending]LN_BORROWER.JURISDICTION,
+      internalRating: [store::Lending]LN_BORROWER.INTERNAL_RATING
+   }
+
+   lending::CreditAgreement[lnCreditAgreement]: Relational
+   {
+      ~primaryKey ( [store::Lending]LN_CREDIT_AGREEMENT.AGREEMENT_ID )
+      ~mainTable [store::Lending]LN_CREDIT_AGREEMENT
+      agreementId: [store::Lending]LN_CREDIT_AGREEMENT.AGREEMENT_ID,
+      title: [store::Lending]LN_CREDIT_AGREEMENT.TITLE,
+      agreementDate: [store::Lending]LN_CREDIT_AGREEMENT.AGREEMENT_DATE,
+      administrativeAgent: [store::Lending]LN_CREDIT_AGREEMENT.ADMINISTRATIVE_AGENT,
+      governingLaw: [store::Lending]LN_CREDIT_AGREEMENT.GOVERNING_LAW,
+      pdfPath: [store::Lending]LN_CREDIT_AGREEMENT.PDF_PATH,
+      textSha256: [store::Lending]LN_CREDIT_AGREEMENT.TEXT_SHA256
+   }
+
+   lending::Facility[lnFacility]: Relational
+   {
+      ~primaryKey ( [store::Lending]LN_FACILITY.FACILITY_ID )
+      ~mainTable [store::Lending]LN_FACILITY
+      facilityId: [store::Lending]LN_FACILITY.FACILITY_ID,
+      kind: EnumerationMapping FacilityKindMap: [store::Lending]LN_FACILITY.KIND,
+      commitmentUsd: [store::Lending]LN_FACILITY.COMMITMENT_USD,
+      currency: [store::Lending]LN_FACILITY.CURRENCY,
+      maturityDate: [store::Lending]LN_FACILITY.MATURITY_DATE,
+      benchmark: EnumerationMapping BenchmarkMap: [store::Lending]LN_FACILITY.BENCHMARK,
+      marginBps: [store::Lending]LN_FACILITY.MARGIN_BPS,
+      floorBps: [store::Lending]LN_FACILITY.FLOOR_BPS,
+      commitmentFeeBps: [store::Lending]LN_FACILITY.COMMITMENT_FEE_BPS,
+      amortizationPctPerYear: [store::Lending]LN_FACILITY.AMORTIZATION_PCT_PER_YEAR,
+      lienPriority: EnumerationMapping LienPriorityMap: [store::Lending]LN_FACILITY.LIEN_PRIORITY
+   }
+
+   lending::Collateral[lnCollateral]: Relational
+   {
+      ~primaryKey ( [store::Lending]LN_COLLATERAL.COLLATERAL_ID )
+      ~mainTable [store::Lending]LN_COLLATERAL
+      collateralId: [store::Lending]LN_COLLATERAL.COLLATERAL_ID,
+      kind: EnumerationMapping CollateralKindMap: [store::Lending]LN_COLLATERAL.KIND,
+      description: [store::Lending]LN_COLLATERAL.DESCRIPTION
+   }
+
+   lending::Covenant[lnCovenant]: Relational
+   {
+      ~primaryKey ( [store::Lending]LN_COVENANT.COVENANT_ID )
+      ~mainTable [store::Lending]LN_COVENANT
+      covenantId: [store::Lending]LN_COVENANT.COVENANT_ID,
+      family: EnumerationMapping CovenantFamilyMap: [store::Lending]LN_COVENANT.FAMILY,
+      kind: EnumerationMapping CovenantKindMap: [store::Lending]LN_COVENANT.KIND,
+      operator: EnumerationMapping CovenantOperatorMap: [store::Lending]LN_COVENANT.COVENANT_OPERATOR,
+      threshold: [store::Lending]LN_COVENANT.THRESHOLD,
+      unit: EnumerationMapping CovenantUnitMap: [store::Lending]LN_COVENANT.THRESHOLD_UNIT,
+      testFrequency: EnumerationMapping TestFrequencyMap: [store::Lending]LN_COVENANT.TEST_FREQUENCY,
+      firstTestDate: [store::Lending]LN_COVENANT.FIRST_TEST_DATE,
+      equityCureAllowed: [store::Lending]LN_COVENANT.EQUITY_CURE_ALLOWED,
+      clauseRef: [store::Lending]LN_COVENANT.CLAUSE_REF,
+      passageSha256: [store::Lending]LN_COVENANT.PASSAGE_SHA256
+   }
+
+   lending::CovenantStep[lnCovenantStep]: Relational
+   {
+      ~primaryKey ( [store::Lending]LN_COVENANT_STEP.COVENANT_ID, [store::Lending]LN_COVENANT_STEP.EFFECTIVE_FROM )
+      ~mainTable [store::Lending]LN_COVENANT_STEP
+      effectiveFrom: [store::Lending]LN_COVENANT_STEP.EFFECTIVE_FROM,
+      threshold: [store::Lending]LN_COVENANT_STEP.THRESHOLD
+   }
+
+   lending::EventOfDefault[lnEventOfDefault]: Relational
+   {
+      ~primaryKey ( [store::Lending]LN_EVENT_OF_DEFAULT.AGREEMENT_ID, [store::Lending]LN_EVENT_OF_DEFAULT.CLAUSE_REF )
+      ~mainTable [store::Lending]LN_EVENT_OF_DEFAULT
+      kind: EnumerationMapping DefaultKindMap: [store::Lending]LN_EVENT_OF_DEFAULT.KIND,
+      gracePeriodDays: [store::Lending]LN_EVENT_OF_DEFAULT.GRACE_PERIOD_DAYS,
+      crossDefaultThresholdUsd: [store::Lending]LN_EVENT_OF_DEFAULT.CROSS_DEFAULT_THRESHOLD_USD,
+      clauseRef: [store::Lending]LN_EVENT_OF_DEFAULT.CLAUSE_REF,
+      passageSha256: [store::Lending]LN_EVENT_OF_DEFAULT.PASSAGE_SHA256
+   }
+
+   lending::BorrowerAgreements: Relational
+   {
+      AssociationMapping
+      (
+         agreements[lnBorrower, lnCreditAgreement]: [store::Lending]@Ln_Borrower_Agreement,
+         borrower[lnCreditAgreement, lnBorrower]: [store::Lending]@Ln_Borrower_Agreement
+      )
+   }
+
+   lending::AgreementFacilities: Relational
+   {
+      AssociationMapping
+      (
+         facilities[lnCreditAgreement, lnFacility]: [store::Lending]@Ln_Agreement_Facility,
+         agreement[lnFacility, lnCreditAgreement]: [store::Lending]@Ln_Agreement_Facility
+      )
+   }
+
+   lending::FacilityCollateral: Relational
+   {
+      AssociationMapping
+      (
+         collateral[lnFacility, lnCollateral]: [store::Lending]@Ln_Facility_Collateral,
+         facility[lnCollateral, lnFacility]: [store::Lending]@Ln_Facility_Collateral
+      )
+   }
+
+   lending::AgreementCovenants: Relational
+   {
+      AssociationMapping
+      (
+         covenants[lnCreditAgreement, lnCovenant]: [store::Lending]@Ln_Agreement_Covenant,
+         agreement[lnCovenant, lnCreditAgreement]: [store::Lending]@Ln_Agreement_Covenant
+      )
+   }
+
+   lending::CovenantSteps: Relational
+   {
+      AssociationMapping
+      (
+         steps[lnCovenant, lnCovenantStep]: [store::Lending]@Ln_Covenant_Step,
+         covenant[lnCovenantStep, lnCovenant]: [store::Lending]@Ln_Covenant_Step
+      )
+   }
+
+   lending::AgreementEventsOfDefault: Relational
+   {
+      AssociationMapping
+      (
+         eventsOfDefault[lnCreditAgreement, lnEventOfDefault]: [store::Lending]@Ln_Agreement_EventOfDefault,
+         agreement[lnEventOfDefault, lnCreditAgreement]: [store::Lending]@Ln_Agreement_EventOfDefault
+      )
+   }
+
+)
+
+Mapping mapping::Corpus
+(
+   corpus::CorpusSource: EnumerationMapping CorpusSourceMap
+   {
+      EDGAR: ['EDGAR'],
+      SALES: ['SALES'],
+      LENDING: ['LENDING']
+   }
+
+   corpus::Passage[coPassage]: Relational
+   {
+      ~primaryKey ( [store::Corpus]CO_PASSAGE.SOURCE, [store::Corpus]CO_PASSAGE.FILE_PATH, [store::Corpus]CO_PASSAGE.ORDINAL )
+      ~mainTable [store::Corpus]CO_PASSAGE
+      source: EnumerationMapping CorpusSourceMap: [store::Corpus]CO_PASSAGE.SOURCE,
+      path: [store::Corpus]CO_PASSAGE.FILE_PATH,
+      sectionOrDoc: [store::Corpus]CO_PASSAGE.SECTION_OR_DOC,
+      ordinal: [store::Corpus]CO_PASSAGE.ORDINAL,
+      charStart: [store::Corpus]CO_PASSAGE.CHAR_START,
+      charEnd: [store::Corpus]CO_PASSAGE.CHAR_END,
+      sha256: [store::Corpus]CO_PASSAGE.SHA256,
+      text: [store::Corpus]CO_PASSAGE.PASSAGE_TEXT,
+      asOfDate: [store::Corpus]CO_PASSAGE.AS_OF_DATE
+   }
+
+)
+
+###Connection
+// The path is relative to the repository root; tools/unstructured-corpus/load.py writes this file. All four stores live in it.
+RelationalDatabaseConnection connection::DuckDb
+{
+   type: DuckDB;
+   specification: DuckDB { path: 'projects/unstructured/corpus/unstructured.duckdb'; };
+   auth: Test;
+}
+
+// load.py takes its server from PG_URL. These coordinates are this runtime's, and lite's PostgresConnector opens them
+// without credentials.
+RelationalDatabaseConnection connection::Postgres
+{
+   type: Postgres;
+   specification: Static { name: 'unstructured'; host: 'localhost'; port: 5432; };
+   auth: Test;
+}
+
+###Runtime
+Runtime runtime::DuckDb
+{
+   mappings:
+   [
+      mapping::Edgar,
+      mapping::Sales,
+      mapping::Lending,
+      mapping::Corpus
+   ];
+   connections:
+   [
+      store::Edgar: [ environment: connection::DuckDb ],
+      store::Sales: [ environment: connection::DuckDb ],
+      store::Lending: [ environment: connection::DuckDb ],
+      store::Corpus: [ environment: connection::DuckDb ]
+   ];
+}
+
+Runtime runtime::Postgres
+{
+   mappings:
+   [
+      mapping::Edgar,
+      mapping::Sales,
+      mapping::Lending,
+      mapping::Corpus
+   ];
+   connections:
+   [
+      store::Edgar: [ environment: connection::Postgres ],
+      store::Sales: [ environment: connection::Postgres ],
+      store::Lending: [ environment: connection::Postgres ],
+      store::Corpus: [ environment: connection::Postgres ]
+   ];
+}
