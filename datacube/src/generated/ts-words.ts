@@ -204,7 +204,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'r', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['cov(x: Line, y: Line)', 'cov(x: Line, y: Line, w: Integer)', 'cov(x: Line, y: Line, w: Scope)', 'cov(x: Line, y: Line, w: Integer, unit: DurationUnit)', 'cov(x: Line, y: Line, w: Integer, r: Integer)', 'cov(x: Line, y: Line, w: Scope, r: Integer)'],
-    doc: 'The sample covariance of x\'s and y\'s values over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; to date unless given, as gs-quant\'s.',
+    doc: 'The sample covariance of x\'s and y\'s values over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; to date unless given, as gs-quant\'s.',
     aliases: [],
     facts: { label: ['Rolling covariance'], family: ['Relationships'], unit: ['number'], gsQuant: ['statistics.cov'], about: ['The sample covariance of the two series as they are, over the last w observations.'], differs: ['w defaults to 63 observations (gs-quant: every observation)'], given: ['w: all'], limit: ['w: >= 0'] },
     marks: [],

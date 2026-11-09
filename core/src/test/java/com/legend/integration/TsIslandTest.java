@@ -2068,7 +2068,9 @@ class TsIslandTest {
             assertClose(each(AAA.length - 2, i -> AAA[i + 2] - ((AAA[i] + AAA[i + 1] + AAA[i + 2]) / 3
                     - slope[i] * (BBB[i] + BBB[i + 1] + BBB[i + 2]) / 3 + slope[i] * BBB[i + 2])),
                     column(got, null, null, "r"), of + "the first less its fit");
-            assertClose(each(AAA.length - 2, i -> covariance(AAA, BBB, i, i + 2)), column(got, null, null, "c"),
+            // cov of levels as gs-quant's Window(3, 3): its first three points none, a value from the fourth pair
+            // (apply_ramp; the gs-quant oracle's catalog cases, 2026-11-09)
+            assertClose(each(AAA.length - 2, i -> i < 1 ? null : covariance(AAA, BBB, i, i + 2)), column(got, null, null, "c"),
                     of + "the covariance of three pairs");
         }
         // the two lines joined once, the answer that one table: one join, where each word's own meeting and its own
@@ -2275,7 +2277,8 @@ class TsIslandTest {
             for (int i = 0; i < AAA.length; i++) {
                 s[i] = AAA[i] - BBB[i];
             }
-            assertClose(each(AAA.length, i -> i < 2 ? null : covariance(s, AAA, i - 2, i)), column(pair, null, null, "c"),
+            // from the fourth day: gs-quant's Window(3, 3) drops its first three points (apply_ramp)
+            assertClose(each(AAA.length, i -> i < 3 ? null : covariance(s, AAA, i - 2, i)), column(pair, null, null, "c"),
                     backend + ": the covariance of s and AAA over three days");
         }
     }

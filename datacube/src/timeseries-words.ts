@@ -50,6 +50,12 @@ export interface TsParamShape {
   /** A window that takes each date's instruments, `across` (a cross-section's z-score, winsorized value, percentile:
    *  item 13c), as the tile holds it: 'across'. */
   readonly across?: true;
+  /** A span that takes no count of observations, no calendar period or no window to date (0): of the library's
+   *  overloads, none takes it (core's catalog's `takes`) -- count's window of observations holds its own count, first's
+   *  is to date alone, last's and winsorize's the whole line, a lag's obs no window to date (item 14f, 2026-11-09). */
+  readonly observations?: false;
+  readonly period?: false;
+  readonly all?: false;
   /** What a picked word begins it with, where every call gives it, the language has no default for it and gs-quant
    *  none either (the library's `timeseries::Words.begun`: a percentile's n 50). */
   readonly begin?: number | string;

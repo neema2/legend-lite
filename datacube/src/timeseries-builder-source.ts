@@ -243,6 +243,10 @@ class Printer {
       if (g.name === 'n_days' && v === 0) {
         throw new CodeRefusal(`${e.fn}'s ${g.name} to date is no call of gs-quant's: its None is one figure of the whole series, at its last date (write the language's #TS)`);
       }
+      // a count alone: gs-quant's Window(n_days, n_days - 1) raises on a calendar period (item 14f, 2026-11-09)
+      if (g.name === 'n_days' && typeof v === 'string') {
+        throw new CodeRefusal(`${e.fn}'s ${g.name} over a calendar period is no call of gs-quant's: its n_days is a whole number of observations (write the language's #TS)`);
+      }
       if (g.whole !== undefined) {
         // gs-quant's default here is the whole line: written as its call without it
         if (v === 'whole') {

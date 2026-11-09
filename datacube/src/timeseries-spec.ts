@@ -613,6 +613,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
             if (q.across !== true) return `${fn}'s ${name} takes no window across a date's instruments`;
           } else if (q.kind === 'span' && typeof v === 'string') {
             if (tenorOf(v) === undefined) return `${fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`;
+            if (q.period === false) return `${fn}'s ${name} takes no calendar period`;
           } else {
             if (typeof v !== 'number' || !Number.isFinite(v)) return `${fn}'s ${name} ${JSON.stringify(v)} is not a number`;
             if ((q.kind === 'whole' || q.kind === 'span') && !Number.isInteger(v)) return `${fn}'s ${name} ${v} is not a whole number`;
@@ -620,6 +621,8 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
             if (q.above !== undefined && v <= q.above) return `${fn}'s ${name} ${v} is not above ${q.above}`;
             if (q.below !== undefined && v >= q.below) return `${fn}'s ${name} ${v} is not below ${q.below}`;
             if (q.max !== undefined && v > q.max) return `${fn}'s ${name} ${v} is above ${q.max}`;
+            if (q.kind === 'span' && v === 0 && q.all === false) return `${fn}'s ${name} takes no window to date`;
+            if (q.kind === 'span' && v !== 0 && q.observations === false) return `${fn}'s ${name} takes no count of observations`;
           }
         }
       }

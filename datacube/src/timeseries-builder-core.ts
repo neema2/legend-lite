@@ -231,6 +231,11 @@ function gsWindow(fn: string, g: GsParam, gsFunction: string | null, v: WindowLi
   if (v instanceof Window && v.w === null && v.r === null) {
     throw new BuilderRefusal(`${fn}'s ${g.name}: Window() is gs-quant's whole series ramped by its whole length -- no point; Window(None, 0) is every observation to date`);
   }
+  // n_days is a count alone: gs-quant's Window(n_days, n_days - 1) subtracts from it (econometrics.py
+  // vol_swap_volatility: '3m' raises; the oracle's catalog cases, item 14f, 2026-11-09)
+  if (g.name === 'n_days' && typeof (v instanceof Window ? v.w : v) === 'string') {
+    throw new BuilderRefusal(`${fn}'s ${g.name} is a whole number of observations: gs-quant's raises on a calendar period (${JSON.stringify(v instanceof Window ? v.w : v)})`);
+  }
   if (g.name === 'n_days' && v instanceof Window) {
     if (typeof v.w !== 'number' || v.r !== v.w - 1) {
       throw new BuilderRefusal(`${fn}'s ${g.name}: gs-quant's ramp-up is the window's size less 1, Window(n, n - 1), not Window(${JSON.stringify(v.w)}, ${JSON.stringify(v.r)})`);

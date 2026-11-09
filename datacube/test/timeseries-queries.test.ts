@@ -628,7 +628,9 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(await spec({ A: "correlation(close['AAA'], close['BBB'], w => 8)" }))).values, corr, 'corr', 1e-7);
     const beta = pairs(ra, rb, 8, (p, q) => cov(p, q) / sd(q) ** 2);
     close((await line(await spec({ A: "beta(close['AAA'], close['BBB'], w => 8)" }))).values, beta, 'beta', 1e-7);
-    const c = pairs(AAA, BBB, 8, (p, q) => cov(p, q));
+    // of levels, gs-quant's Window(8, 8) drops its first 8 points (apply_ramp): none at the 8th, where the window is
+    // first full (the gs-quant oracle's catalog cases, 2026-11-09); the returns' words above ramp so already
+    const c = ramped(pairs(AAA, BBB, 8, (p, q) => cov(p, q)), 8);
     close((await line(await spec({ A: "cov(close['AAA'], close['BBB'], w => 8)" }))).values, c, 'cov', 1e-7);
   });
 

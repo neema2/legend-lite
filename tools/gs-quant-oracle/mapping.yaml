@@ -35,6 +35,12 @@
 # known: a docs/SEMANTICS_REGISTER.md row that predicts a DIFF on the cases it names (a ruled departure): the ledger
 # cites it, and the parity test holds the row to it.
 #
+# THE CATALOG'S FORMS (item 14f, step 3, 2026-11-09): every form core's catalog declares of a MAPPED word -- each span's
+# count, calendar period, to date, `whole` and `across` where the library's overloads take it, a ramp `r`, each value
+# of a parameter of words -- is exercised by one of its cases (a whole statement's by its args), or named under its
+# `uncovered:` with why none can be (a form no call of gs-quant's says: the references answer it, step 4).
+# //datacube:timeseries_builder_test fails on a form neither covers, or an `uncovered:` form a case covers after all.
+#
 # THE WORD COUNT: 87 on aad8e762a. PR #86 (merged 2026-11-02, head 69796cc5) shipped 81; six came after it,
 # each marked `since:` so this table audits against docs/timeseries/WORDS.md: rank (5a4904a54, 2026-11-03), round_down
 # and round_up (0cfd500fb, A4, 2026-11-06), floor and ceil (gs-quant's clamps, S161, 2026-11-08) and cash_index (the
@@ -66,6 +72,7 @@ words:
       - [w=20, "sum({x}, 20)", printed]
       - [w=3mo, "sum({x}, 3mo)", printed]
       - [w=all, "sum({x}, all)", printed]
+      - ["w=20,r=10", "sum({x}, w => 20, r => 10)", printed]
   - word: min
     gs: statistics.min_
     src: statistics.py:86
@@ -73,6 +80,7 @@ words:
       - [w=20, "min({x}, 20)", printed]
       - [w=3mo, "min({x}, 3mo)", printed]
       - [w=all, "min({x}, all)", printed]
+      - ["w=20,r=10", "min({x}, w => 20, r => 10)", printed]
   - word: max
     gs: statistics.max_
     src: statistics.py:158
@@ -80,6 +88,7 @@ words:
       - [w=20, "max({x}, 20)", printed]
       - [w=3mo, "max({x}, 3mo)", printed]
       - [w=all, "max({x}, all)", printed]
+      - ["w=20,r=10", "max({x}, w => 20, r => 10)", printed]
   - word: std
     gs: statistics.std
     src: statistics.py:535
@@ -88,6 +97,7 @@ words:
       - [w=20, "std({x}, 20)", printed]
       - [w=3mo, "std({x}, 3mo)", printed]
       - [w=all, "std({x}, all)", printed]
+      - ["w=20,r=10", "std({x}, w => 20, r => 10)", printed]
   - word: var
     gs: statistics.var
     src: statistics.py:628
@@ -95,6 +105,7 @@ words:
       - [w=20, "var({x}, 20)", printed]
       - [w=3mo, "var({x}, 3mo)", printed]
       - [w=all, "var({x}, all)", printed]
+      - ["w=20,r=10", "var({x}, w => 20, r => 10)", printed]
   - word: median
     gs: statistics.median
     src: statistics.py:346
@@ -102,6 +113,8 @@ words:
       - [default, "median({x})", printed]
       - [w=3mo, "median({x}, 3mo)", printed]
       - [w=all, "median({x}, all)", printed]
+      - [w=20, "median({x}, 20)", printed]
+      - ["w=20,r=10", "median({x}, w => 20, r => 10)", printed]
   - word: range
     gs: statistics.range_
     src: statistics.py:228
@@ -109,6 +122,8 @@ words:
       - [default, "range({x})", printed]
       - [w=3mo, "range({x}, 3mo)", printed]
       - [w=all, "range({x}, all)", printed]
+      - [w=20, "range({x}, 20)", printed]
+      - ["w=20,r=10", "range({x}, w => 20, r => 10)", printed]
   - word: product
     gs: statistics.product
     src: statistics.py:491
@@ -118,16 +133,20 @@ words:
       - [default, "product(1 + returns({x}))", printed]
       - [w=5, "product(1 + returns({x}), 5)", printed]
       - [w=3mo, "product(1 + returns({x}), 3mo)", printed]
+      - ["w=20,r=10", "product(1 + returns({x}), w => 20, r => 10)", printed]
   - word: percentile
     gs: statistics.percentile
     src: statistics.py:1035
     note: "n required on both sides; lite's default window is to date (all), gs-quant's w=None one number of the whole line, which lite asks for by name (whole, judged on every date)"
     known: {"n=90,w=3mo": S149}
+    uncovered:
+      "w:across": "a date's instruments (item 13c): gs-quant has no cross-section, the printer no call -- a reference answers it (item 14f, step 4)"
     cases:
       - [n=50, "percentile({x}, 50)", printed]
       - ["n=50,w=whole", "percentile({x}, 50, whole)", printed]
       - ["n=90,w=20", "percentile({x}, n => 90, w => 20)", printed]
       - ["n=90,w=3mo", "percentile({x}, n => 90, w => 3mo)", printed]
+      - ["n=90,w=20,r=10", "percentile({x}, n => 90, w => 20, r => 10)", printed]
   - word: percentiles
     gs: statistics.percentiles
     src: statistics.py:968
@@ -136,11 +155,14 @@ words:
       - [default, "percentiles({x})", printed]
       - [w=20, "percentiles({x}, 20)", printed]
       - [w=3mo, "percentiles({x}, 3mo)", printed]
+      - ["w=20,r=10", "percentiles({x}, w => 20, r => 10)", printed]
   - word: zscores
     gs: statistics.zscores
     src: statistics.py:733
     defaults: "w: lite's default is to date (all); gs-quant's is the whole series"
     known: {default: S150, w=3mo: S149}
+    uncovered:
+      "w:across": "a date's instruments (item 13c): gs-quant has no cross-section, the printer no call -- a reference answers it (item 14f, step 4)"
     cases:
       - [default, "zscores({x})", "ts.zscores(x)"]
       - [w=20, "zscores({x}, 20)", printed]
@@ -152,9 +174,12 @@ words:
     src: statistics.py:793
     note: "over returns(x); gs-quant reads the whole series whatever its w (mu = x.mean())"
     known: {default: S150}
+    uncovered:
+      "w:across": "a date's instruments (item 13c): gs-quant has no cross-section, the printer no call -- a reference answers it (item 14f, step 4)"
     cases:
       - [default, "winsorize(returns({x}))", "ts.winsorize(ts.returns(x))"]
       - ["limit=1.5,w=whole", "winsorize(returns({x}), 1.5, whole)", printed]
+      - ["limit=1.5,w=whole,r=20", "winsorize(returns({x}), limit => 1.5, w => whole, r => 20)", printed]
   - word: cov
     gs: statistics.cov
     src: statistics.py:678
@@ -162,6 +187,8 @@ words:
       - [default, "cov({x}, {y})", printed]
       - [w=3mo, "cov({x}, {y}, 3mo)", printed]
       - [w=all, "cov({x}, {y}, all)", printed]
+      - [w=20, "cov({x}, {y}, 20)", printed]
+      - ["w=20,r=10", "cov({x}, {y}, w => 20, r => 10)", printed]
   - word: exponential_std
     gs: statistics.exponential_std
     src: statistics.py:583
@@ -189,6 +216,7 @@ words:
       - [default, "prices(returns({x}))", printed]
       - [initial=100, "prices(returns({x}), 100)", printed]
       - [type=log, "prices(returns({x}, 1, 'log'), 1, 'log')", printed]
+      - [type=absolute, "prices(returns({x}, 1, 'absolute'), 1, 'absolute')", printed]
   - word: index
     gs: econometrics.index
     src: econometrics.py:422
@@ -229,6 +257,7 @@ words:
       - [type=log, "volatility({x}, 22, 'log')", printed]
       - ["w=63,r=10", "volatility({x}, w => 63, r => 10)", printed]
       - ["w=10,annualization_factor=252", "volatility({x}, 10, annualization_factor => 252)", printed]
+      - [type=absolute, "volatility({x}, 22, 'absolute')", printed]
   - word: correlation
     gs: econometrics.correlation
     src: econometrics.py:766
@@ -241,12 +270,13 @@ words:
   - word: beta
     gs: econometrics.beta
     src: econometrics.py:965
-    known: {w=2: S154, default: S166, w=all: S166}
+    known: {w=2: S154, default: S166, w=all: S166, "w=20,r=10": S166}
     cases:
       - [default, "beta({x}, {y})", printed]
       - [w=3mo, "beta({x}, {y}, 3mo)", printed]
       - [w=all, "beta({x}, {y}, all)", printed]
       - [w=2, "beta({x}, {y}, 2)", printed]
+      - ["w=20,r=10", "beta({x}, {y}, w => 20, r => 10)", printed]
   - word: max_drawdown
     gs: econometrics.max_drawdown
     src: econometrics.py:1058
@@ -254,11 +284,15 @@ words:
       - [default, "max_drawdown({x})", printed]
       - [w=63, "max_drawdown({x}, 63)", printed]
       - [w=3mo, "max_drawdown({x}, 3mo)", printed]
+      - ["w=20,r=10", "max_drawdown({x}, w => 20, r => 10)", printed]
   - word: vol_swap_volatility
     gs: econometrics.vol_swap_volatility
     src: econometrics.py:693
     defaults: "w: lite's default is to date; gs-quant's n_days=None is Window(len, len - 1), one value at the line's last date: the two defaults differ (a DIFF of every date but the last, where they agree)"
     note: "gs-quant's integer n_days is Window(n, n - 1), a ramp one shorter than O1's"
+    uncovered:
+      "w:all": "to date: no call of gs-quant's says it -- its n_days None is one figure of the whole series, at its last date (the printer refuses it); a reference answers it (item 14f, step 4)"
+      "w:calendar": "a calendar period: no call of gs-quant's says it -- its n_days is a count, Window(n, n - 1), and raises on '3m' (the printer refuses it; found by this case, 2026-11-09); a reference answers it (item 14f, step 4)"
     cases:
       - [default, "vol_swap_volatility({x})", printed]
       - [w=20, "vol_swap_volatility({x}, 20)", printed]
@@ -271,6 +305,7 @@ words:
       - [default, "sharpe_ratio({x})", printed]
       - [w=63, "sharpe_ratio({x}, 63)", printed]
       - [w=1y, "sharpe_ratio({x}, 1y)", printed]
+      - ["w=63,r=10", "sharpe_ratio({x}, w => 63, r => 10)", printed]
   - word: excess_returns
     gs: econometrics.excess_returns
     src: econometrics.py:81
@@ -318,11 +353,14 @@ words:
   - word: compare
     gs: analysis.compare
     src: analysis.py:361
-    known: {default: S145}
+    known: {default: S145, method=step: S145}
     cases:
       - [default, "compare({x}, mean({x}, 200))", "ts.compare(x, ts.mean(x, 200))"]
       - [method=intersect, "compare({x}, mean({x}, 200), 'intersect')", printed]
       - [y=number, "compare({x}, 100)", "ts.compare(x, 100.0)"]
+      - [method=nan, "compare({x}, mean({x}, 200), 'nan')", printed]
+      - [method=zero, "compare({x}, mean({x}, 200), 'zero')", printed]
+      - [method=step, "compare({x}, mean({x}, 200), 'step')", printed]
   - word: consecutive
     gs: analysis.consecutive
     src: analysis.py:495
@@ -345,6 +383,11 @@ words:
     cases:
       - [default, "filter(returns({x}))", printed]
       - ["operator=greater_than,value=0", "filter(returns({x}), 'greater_than', 0)", printed]
+      - ["operator=less_than,value=0", "filter(returns({x}), 'less_than', 0)", printed]
+      - ["operator=l_equals,value=0", "filter(returns({x}), 'l_equals', 0)", printed]
+      - ["operator=g_equals,value=0", "filter(returns({x}), 'g_equals', 0)", printed]
+      - ["operator=equals,value=0", "filter(returns({x}), 'equals', 0)", printed]
+      - ["operator=not_equals,value=0", "filter(returns({x}), 'not_equals', 0)", printed]
   - word: if
     gs: algebra.if_
     src: algebra.py:739
@@ -445,11 +488,16 @@ words:
     gs: technicals.bollinger_bands
     src: technicals.py:97
     note: "gs-quant answers [lower, upper]; lite's width (upper - lower) has no gs-quant column: lower and upper judged"
+    known: {w=3mo.lower: S149, w=3mo.upper: S149}
     cases:
       - [default.lower, "bollinger_bands({x})", printed, lower]
       - [default.upper, "bollinger_bands({x})", printed, upper]
       - ["w=50,k=1.5.lower", "bollinger_bands({x}, 50, 1.5)", printed, lower]
       - ["w=50,k=1.5.upper", "bollinger_bands({x}, 50, 1.5)", printed, upper]
+      - [w=3mo.lower, "bollinger_bands({x}, 3mo)", printed, lower]
+      - [w=3mo.upper, "bollinger_bands({x}, 3mo)", printed, upper]
+      - ["w=20,r=10.lower", "bollinger_bands({x}, w => 20, r => 10)", printed, lower]
+      - ["w=20,r=10.upper", "bollinger_bands({x}, w => 20, r => 10)", printed, upper]
   - word: smoothed_moving_average
     gs: technicals.smoothed_moving_average
     src: technicals.py:145
@@ -493,6 +541,9 @@ words:
     gs: technicals.seasonally_adjusted
     src: technicals.py:491
     note: "over macro's CPI under SAMPLE BY 1mo: gs-quant infers period 12 from monthly dates (technicals.py:413 _freq_to_period); over business days gs-quant re-samples to calendar days (period 365), which lite's SAMPLE BY count does not: not run"
+    uncovered:
+      "freq:week": "the samples' one seasonal line is monthly CPI, of which a weekly cycle is no season"
+      "freq:month": "the samples' one seasonal line is monthly CPI, of which a monthly cycle is no season"
     cases:
       - [default, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT seasonally_adjusted(last(value[series = 'CPI'])) AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.seasonally_adjusted(cpi)"]
       - [method=multiplicative, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT seasonally_adjusted(last(value[series = 'CPI']), method => 'multiplicative') AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.seasonally_adjusted(cpi, SeasonalModel.MULTIPLICATIVE)"]
@@ -501,8 +552,12 @@ words:
     gs: technicals.trend
     src: technicals.py:538
     note: "as seasonally_adjusted's"
+    uncovered:
+      "freq:week": "the samples' one seasonal line is monthly CPI, of which a weekly cycle is no season"
+      "freq:month": "the samples' one seasonal line is monthly CPI, of which a monthly cycle is no season"
     cases:
       - [default, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT trend(last(value[series = 'CPI'])) AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.trend(cpi)"]
+      - [method=multiplicative, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT trend(last(value[series = 'CPI']), method => 'multiplicative') AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.trend(cpi, SeasonalModel.MULTIPLICATIVE)"]
       - [freq=quarter, "WITH macro AS (SELECT * FROM local::DB.macro) SELECT trend(last(value[series = 'CPI']), freq => 'quarter') AS ts_value FROM macro ON date SAMPLE BY 1mo", "ts.trend(cpi, SeasonalModel.ADDITIVE, Frequency.QUARTER)"]
 
   # ---------------------------------------------------------------- backtesting (backtesting.py)
@@ -512,6 +567,7 @@ words:
     cases:
       - [default, "basket({x}, 0.6, {y}, 0.4)", printed]
       - [rebalance=monthly, "basket({x}, 0.6, {y}, 0.4, rebalance => 'monthly')", printed]
+      - [rebalance=weekly, "basket({x}, 0.6, {y}, 0.4, rebalance => 'weekly')", printed]
 
   # ---------------------------------------------------------------- SKIP: a service function (Marquee report APIs)
   - {word: alpha,             skip: "gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)"}

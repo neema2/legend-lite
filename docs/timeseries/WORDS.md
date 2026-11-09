@@ -177,7 +177,7 @@ Forms: `count(x: Line, w: Integer, unit: DurationUnit)`, `count(x: Line, w: Scop
 
 ## `cov`
 
-The sample covariance of x's and y's values over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; to date unless given, as gs-quant's.
+The sample covariance of x's and y's values over a window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; to date unless given, as gs-quant's.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|

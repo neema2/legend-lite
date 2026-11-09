@@ -523,8 +523,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  readText). Measured 432,159.
  *  432,400 -> 433,400 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b, the risk-free data model; the user: "keep
  *  going in order"): the cash sample's generator beside the others (samples.ts cashCsv, seven currencies' policy steps),
- *  as the macro sample's was. Measured 433,196. */
-const BUDGET = 433_400;
+ *  as the macro sample's was. Measured 433,196.
+ *  433,400 -> 433,700 (2026-11-09, docs/TS_DECISIONS_2026_11_07.md item 14f, step 3, the gs-quant oracle's cases from
+ *  the catalog; the user: "Merge #91, then unify"): each word's signature says what its span takes no form of
+ *  (observations, period, all: winsorize's, count's, first's, last's, a lag's), and the saved series' judge refuses
+ *  those forms as core does (timeseries-spec.ts) -- winsorize(x, 1.5, 20) was taken and refused only when it ran.
+ *  Measured 433,405. */
+const BUDGET = 433_700;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -742,8 +747,10 @@ const BUDGET = 433_400;
  *  419,700 -> 420,300 (2026-11-07, the order's step 1, the words' signatures generated -- the grid-only page's note of
  *  the same date). Measured 420,094.
  *  420,300 -> 421,300 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
- *  Measured 421,116. */
-const ENGINE_BUDGET = 421_300;
+ *  Measured 421,116.
+ *  421,300 -> 421,600 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
+ *  date). Measured 421,329. */
+const ENGINE_BUDGET = 421_600;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1222,8 +1229,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  its lines named by role (price and dividends, benchmark) and compare's method said -- the grid-only page's note of
  *  the same date). Measured 448,472.
  *  448,700 -> 449,700 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
- *  Measured 449,486. */
-const WIDGET_BUDGET = 449_700;
+ *  Measured 449,486.
+ *  449,700 -> 450,000 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
+ *  date). Measured 449,707. */
+const WIDGET_BUDGET = 450_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

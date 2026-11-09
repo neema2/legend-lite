@@ -2985,9 +2985,11 @@ function timeseries::rows::residual<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec
 
 function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
+  // its first w points none, as its line form's (gs-quant's apply_ramp of levels, item 14f)
   $t->timeseries::lines::perPeriod($key, $date, ~rows_t)->timeseries::covariance(over($key, [$date->ascending()], rows(-($w - 1), 0)), $x, $y, if($w < 2, |2, |$w), ~rows_v)
-    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |$x.rows_v, |[]))
-    ->without(~[rows_t, rows_v])->rename(~rows_o, $out)
+    ->extend(over($key, [$date->ascending()]), ~rows_n:{p,f,r|$p->rowNumber($r)})
+    ->extend(~rows_o:x|if(timeseries::lines::once($x.rows_t), |if($x.rows_n > $w, |$x.rows_v, |[]), |[]))
+    ->without(~[rows_t, rows_v, rows_n])->rename(~rows_o, $out)
 }
 
 function timeseries::rows::cov<T,K,D,X,Y,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], x: ColSpec<X⊆T>[1], y: ColSpec<Y⊆T>[1], w: timeseries::Scope[1], out: ColSpec<O>[1]): Relation<T+O>[1]
@@ -4043,15 +4045,18 @@ function timeseries::line::beta<K,D>(x: Relation<(key:K, date:D, value:Number)>[
   timeseries::line::helpers::meet($x->timeseries::line::returns(1, []), $y->timeseries::line::returns(1, []), $sample)
     ->timeseries::betaPeriod(~key, ~date, ~x, ~y, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::rampedPeriod($w, $unit)}
 
-function {meta::pure::profiles::doc.doc = 'The sample covariance of x\\'s and y\\'s values over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\\'s start to date; to date unless given, as gs-quant\\'s.', timeseries::Words.label = 'Rolling covariance', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.cov', timeseries::Words.about = 'The sample covariance of the two series as they are, over the last w observations.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0'} timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The sample covariance of x\\'s and y\\'s values over a window -- w observations to date (a value from the line\\'s (w + 1)-th, gs-quant\\'s ramp), a calendar period back, the line\\'s start to date; to date unless given, as gs-quant\\'s.', timeseries::Words.label = 'Rolling covariance', timeseries::Words.family = 'Relationships', timeseries::Words.unit = 'number', timeseries::Words.gsQuant = 'statistics.cov', timeseries::Words.about = 'The sample covariance of the two series as they are, over the last w observations.', timeseries::Words.differs = 'w defaults to 63 observations (gs-quant: every observation)', timeseries::Words.given = 'w: all', timeseries::Words.limit = 'w: >= 0'} timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::cov($x, $y, timeseries::Scope.all, $sample)
 }
 
 function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
+  // gs-quant's Window(w, w): its first w points dropped (apply_ramp, O1) -- of levels, its window full at the w-th, one
+  // point before (the oracle's catalog cases, item 14f, 2026-11-09: cov w=20 a point early); the pair words of
+  // returns ramp so already, their first return the line's second point
   timeseries::line::helpers::meet($x, $y, $sample)
-    ->timeseries::covariance(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::lines::untied()
+    ->timeseries::covariance(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~x, ~y, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::cov<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]

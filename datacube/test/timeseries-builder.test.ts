@@ -14,7 +14,7 @@ import {
   type Term, type WordShape,
 } from '../src/timeseries-builder.ts';
 import { termOf } from '../src/timeseries-builder-wire.ts';
-import { TS_FUNCTION_NAMES, TS_SIGNATURES, type TsExpr } from '../src/timeseries-spec.ts';
+import { TS_FUNCTION_NAMES, TS_SIGNATURES, type TsExpr, type TsFunctionName } from '../src/timeseries-spec.ts';
 import { SCALARS } from '../src/timeseries-words.ts';
 import { seriesExpr, seriesText, told, treeOf } from '../src/timeseries-text.ts';
 import { timeseriesGalleryPage } from '../src/examples/timeseries-gallery.ts';
@@ -347,6 +347,129 @@ it('every gallery series and every word as Python\'s builder code, with its text
   }
   assert.equal(readFileSync(runfileFromEnv('BUILDER_PYTHON'), 'utf8'), text,
     'every series as Python\'s builder code as held (a change on purpose rewrites the fixture: the comment above says how)');
+});
+
+/** A span's value as a form of the word (the catalog's TsParamShape): a count, a calendar period, to date (`all`, 0),
+ *  the whole line or across a date's instruments. */
+function spanForm(v: number | string): string {
+  if (typeof v === 'number') return v === 0 ? 'all' : 'count';
+  return v === 'whole' || v === 'across' || v === 'all' ? v : 'calendar';
+}
+
+/** The forms the catalog declares of a word (core's TS_SIGNATURES, generated from the library): each span parameter's
+ *  count, calendar period, to date (0), `whole` and `across`, each where the library's overloads take it; a ramp
+ *  (`r`); and each value of a parameter of words. */
+function declaredForms(fn: TsFunctionName): string[] {
+  const out: string[] = [];
+  for (const p of TS_SIGNATURES[fn].params) {
+    if (p.kind === 'span') {
+      if (p.observations !== false) out.push(`${p.name}:count`);
+      if (p.period !== false) out.push(`${p.name}:calendar`);
+      if (p.all !== false && (p.min ?? 0) === 0) out.push(`${p.name}:all`);
+      if (p.whole) out.push(`${p.name}:whole`);
+      if (p.across) out.push(`${p.name}:across`);
+    } else if (p.name === 'r') {
+      out.push('r');
+    } else if (p.kind === 'word') {
+      for (const w of p.words ?? []) out.push(`${p.name}:${w}`);
+    }
+  }
+  return out;
+}
+
+/** The forms a call exercises: its parameters' values, each left out its default's. */
+function exercisedForms(e: TsExpr): string[] {
+  const out: string[] = [];
+  if (e.kind !== 'call') return out;
+  for (const p of TS_SIGNATURES[e.fn].params) {
+    const v = e.params?.[p.name] ?? p.default;
+    if (v === undefined) continue;
+    if (p.kind === 'span') out.push(`${p.name}:${spanForm(v)}`);
+    else if (p.name === 'r') out.push('r');
+    else if (p.kind === 'word') out.push(`${p.name}:${v}`);
+  }
+  return out;
+}
+
+/** The oracle's mapping, each MAPPED word's cases ([args, #TS item]) and the forms it says no case can take, with why
+ *  (`uncovered:`). */
+function oracleWords(): Map<string, { cases: [string, string][]; uncovered: Map<string, string> }> {
+  const words = new Map<string, { cases: [string, string][]; uncovered: Map<string, string> }>();
+  let word: string | undefined;
+  for (const line of readFileSync(runfileFromEnv('GS_ORACLE_MAPPING'), 'utf8').split('\n')) {
+    const w = /^ {2}- word: (\S+)$/.exec(line);
+    if (w) {
+      word = w[1]!;
+      words.set(word, { cases: [], uncovered: new Map() });
+      continue;
+    }
+    if (/^ {2}- \{word: /.test(line)) {
+      word = undefined;
+      continue;
+    }
+    if (word === undefined) continue;
+    const c = /^ {6}- \[(.*)\]$/.exec(line);
+    if (c) {
+      const [args, ts] = flowScalars(c[1]!) as [string, string];
+      words.get(word)!.cases.push([args, ts]);
+    }
+    const u = /^ {6}"([^"]+)": "(.*)"$/.exec(line);
+    if (u) words.get(word)!.uncovered.set(u[1]!, u[2]!);
+  }
+  return words;
+}
+
+/** The forms a whole statement's case exercises, read from its args (`method=nan`, `freq=quarter`; `default` every
+ *  parameter's default): a statement is no item core reads alone. */
+function statementForms(fn: TsFunctionName, args: string): string[] {
+  const given = Object.fromEntries(args === 'default' ? [] : args.split(',').map((a) => a.split('=') as [string, string]));
+  return TS_SIGNATURES[fn].params.flatMap((p) => {
+    const v = given[p.name] ?? p.default;
+    return v === undefined || p.kind !== 'word' ? [] : [`${p.name}:${v}`];
+  });
+}
+
+/** Each mapped word of the oracle's mapping and the forms the catalog declares of it that none of its cases exercises
+ *  (a case's #TS item read by core; a whole statement's by its args) and its `uncovered:` does not name -- and each
+ *  form `uncovered:` names that a case exercises after all. */
+async function uncoveredForms(): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  for (const [w, { cases, uncovered }] of oracleWords()) {
+    if (!(w in TS_SIGNATURES)) continue;
+    const fn = w as TsFunctionName;
+    const covered = new Set<string>();
+    for (const [args, item] of cases) {
+      if (item.startsWith('WITH')) {
+        for (const f of statementForms(fn, args)) covered.add(f);
+        continue;
+      }
+      const read = await readText(item.replaceAll('{x}', 'close[\'NVDA\']').replaceAll('{y}', 'close[\'SPX\']'));
+      if (read.text === undefined) continue;
+      try {
+        for (const f of exercisedForms(told(seriesExpr(read.item.expr!, [])))) covered.add(f);
+      } catch {
+        // an item no tile draws (a CASE): it exercises no form a tile's call takes
+      }
+    }
+    const wrong = [
+      ...declaredForms(fn).filter((f) => !covered.has(f) && !uncovered.has(f)),
+      ...[...uncovered.keys()].filter((f) => covered.has(f)).map((f) => `${f} (uncovered: says no case takes it, and one does)`),
+      ...[...uncovered.keys()].filter((f) => !declaredForms(fn).includes(f)).map((f) => `${f} (uncovered: names no form of the word)`),
+    ];
+    if (wrong.length > 0) out[w] = wrong;
+  }
+  return out;
+}
+
+/**
+ * THE ORACLE'S CASES COVER THE CATALOG (item 14f, step 3): every form the catalog declares of a word the oracle maps --
+ * each span's count, calendar period, to date, `whole` and `across`, a ramp `r`, each value of a parameter of words --
+ * is exercised by a case of tools/gs-quant-oracle/mapping.yaml, or its word's `uncovered:` says why none can be (a form
+ * gs-quant has no call for, which the references answer). A word's new form fails here until it has a case: a line
+ * of `[args, "#TS item", printed]`, its gs-quant call Show Python's.
+ */
+it('every form the catalog declares of a word the gs-quant oracle maps has a case, or says why none', async () => {
+  assert.deepEqual(await uncoveredForms(), {});
 });
 
 /** A YAML flow sequence's scalars as the oracle's mapping writes them ("..." with \" and \\, or plain, split at ", "):

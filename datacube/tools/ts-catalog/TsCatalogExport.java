@@ -147,6 +147,16 @@ public final class TsCatalogExport {
                 if (p.kind().equals("span") && p.takes().contains("across")) {
                     b.append(", across: true");
                 }
+                // what a span takes no form of, of its overloads' (the catalog's takes; item 14f, 2026-11-09): count's
+                // window of observations holds its own count, first's is to date alone, last's and winsorize's the
+                // whole line (winsorize's to date is its call without one) -- a lag's obs no window to date
+                if (p.kind().equals("span")) {
+                    for (String form : List.of("observations", "period", "all")) {
+                        if (!p.takes().contains(form)) {
+                            b.append(", ").append(form).append(": false");
+                        }
+                    }
+                }
                 b.append(", required: ").append(p.required());
                 Object g = gs.get(p.name());
                 String gl = g == null ? "" : gsLiteral(p, g);

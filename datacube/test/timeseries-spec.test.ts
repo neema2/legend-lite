@@ -210,6 +210,10 @@ describe('the saved spec\'s reader', () => {
       [{ kind: 'column', source: 'fx', column: 'c' }, /reads fx.<column>, and fx is none of its sources \(px\)/],
       [{ kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: '3q' } }, /w "3q" is neither a whole number nor a calendar period/],
       [{ kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: 2.5 } }, /w 2.5 is not a whole number/],
+      // a span of the forms its overloads take alone (the catalog's takes, item 14f): core refuses the rest when it runs
+      [{ kind: 'call', fn: 'winsorize', args: [{ kind: 'column', column: 'c' }], params: { w: 20 } }, /winsorize's w takes no count of observations/],
+      [{ kind: 'call', fn: 'winsorize', args: [{ kind: 'column', column: 'c' }], params: { w: '3m' } }, /winsorize's w takes no calendar period/],
+      [{ kind: 'call', fn: 'winsorize', args: [{ kind: 'column', column: 'c' }], params: { w: 0 } }, /winsorize's w takes no window to date/],
     ];
     for (const [tree, said] of cases) assert.match(treeProblem(tree, 'series A', ['px']) ?? '', said, JSON.stringify(tree));
     assert.equal(treeProblem({ kind: 'column', source: 'px', column: 'c' }, 'series A', ['px']), null);
