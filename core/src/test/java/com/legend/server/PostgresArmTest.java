@@ -71,7 +71,8 @@ class PostgresArmTest {
         // check against the declared database proves, and on the arm's OWN server, as the port the session reports
         // through the seam's statements proves (the URL read from the raw connection until D70)
         try (com.legend.exec.Sessions.Session session =
-                ServerSessions.session(com.legend.Compiler.compileModel(model), "test::PgRuntime");
+                com.legend.exec.PlanSessions.PROJECT_DATABASES.open(com.legend.planner.PlanMaker.runtimeTarget(
+                        com.legend.Compiler.compileModel(model), "test::PgRuntime"));
                 var run = com.legend.base.RunScope.enter()) {
             // the session's check and its statements are a run's (THE WALL's rule 3, 2026-11-06)
             com.legend.exec.Sessions.check(session, com.legend.planner.ConnectionPlans.type(POSTGRES.type()));

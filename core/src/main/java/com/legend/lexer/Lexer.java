@@ -33,7 +33,8 @@ public final class Lexer {
 
     // ==================== Keyword Map ====================
 
-    private static final Map<String, TokenType> KEYWORDS = new HashMap<>(200);
+    private static final com.legend.base.Sealed.SealedMap<String, TokenType> KEYWORDS =
+            com.legend.base.Sealed.map(new HashMap<>(200));
 
     static {
         // M3
@@ -831,5 +832,10 @@ public final class Lexer {
         if (pos > start) {
             emit(TokenType.ISLAND_CONTENT, start, pos);
         }
+    }
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        KEYWORDS.seal();
     }
 }

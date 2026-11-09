@@ -752,14 +752,13 @@ public final class UserCallInliner {
         return walked;
     }
 
-    private static final Bindings NONE = new Bindings();
-
     private static TypedSpec resolveStamps(TypedSpec n, InferenceKernel kernel, Bindings b) {
         TypedSpec walked = n.mapChildren(k -> resolveStamps(k, kernel, b));
         com.legend.compiler.element.type.Type t = walked.info().type();
         // a stamp with no type variable is the body's own truth; one the
         // application left partly open (a variable it never bound) stays too
-        if (!kernel.hasFreeTypeVars(t, NONE) || kernel.hasFreeTypeVars(t, b)) {
+        // (a fresh, empty binding set: a shared static one is mutable state -- 2026-11-09)
+        if (!kernel.hasFreeTypeVars(t, new Bindings()) || kernel.hasFreeTypeVars(t, b)) {
             return walked;
         }
         com.legend.compiler.element.type.Type r = kernel.resolve(t, b);

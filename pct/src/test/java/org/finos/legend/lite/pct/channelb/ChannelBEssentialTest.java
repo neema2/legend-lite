@@ -273,7 +273,6 @@ class ChannelBEssentialTest {
         // 80 -> 75 (2026-08-23): hash UBIGINT family burned by the
         // dialect hashSigned conform (single owner; Lowerer's private
         // agg shift DELETED) — measured full-lane residue 74
-        System.out.println("[channelb-census] Essential: " + com.legend.testexec.SqlTypeCensus.summary());
         // 75 -> 0, and adopt-pending 103 -> 0 (2026-10-05, Bazel workplan P3-09): one JVM per class now, so the counts
         // are this class's own; measured 0 on every class's own target, HARDENED TO EQUALITY. The two wire pins
         // RETIRED 2026-10-29 (the doors' audit, D64): the wire census's arm lost its last caller when the plan runner
@@ -282,10 +281,7 @@ class ChannelBEssentialTest {
         // TYPED-IR pin on THIS lane too (the corpus-runner pins do
         // not cover this JVM); the judge-vs-node pins retired WITH the
         // judge (parity pinned zero on every lane first).
-        org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.testexec.SqlTypeCensus.mismatchCount(),
-                "a label lie escaped reconciliation (the flip): "
-                        + com.legend.testexec.SqlTypeCensus.summary());
+        // (the label-lie pin deleted 2026-11-09: SqlTypeCensus had no feeder, a dead gate; the census is deleted)
 
 
 

@@ -160,9 +160,7 @@ final class SqlTextRuns {
             return underivable(listener, name, unlisted.simpleName(), unlisted.message(), textEqual, golden, ours);
         }
         TypedSide rows;
-        boolean priorSuspend = com.legend.testexec.SqlTypeCensus.probeSuspended();
         try {
-            com.legend.testexec.SqlTypeCensus.probeSuspend(true);
             // our rows: counted under REFEREE_OURS, the mark on the reader's sessions (Appeals.decide)
             rows = read(r.rows(), reader);
         } catch (com.legend.base.RunScope.Refused e) {
@@ -172,8 +170,6 @@ final class SqlTextRuns {
             // the rows leg is underivable -- counted, text stays the contract (§3.7: a counted decline, visible, never
             // silent; DataError joined RuntimeException at the seam)
             return underivable(listener, name, e.getClass().getSimpleName(), e.getMessage(), textEqual, golden, ours);
-        } finally {
-            com.legend.testexec.SqlTypeCensus.probeSuspend(priorSuspend);
         }
         SqlReplayReferee.ReplayFacts facts = new SqlReplayReferee.ReplayFacts(r.extentSubset(), r.ordered(),
                 r.sortKeys());
@@ -183,14 +179,9 @@ final class SqlTextRuns {
                 // the PAGE-MEMBERSHIP verdict's population (batch 0.5b): our rows for the same chain without its tail
                 // page. No catch: the paged read just executed, so a failure here is a FAULT of ours and fails the
                 // test loudly -- never a decline that rescues the text
-                com.legend.testexec.SqlTypeCensus.probeSuspend(true);
-                try {
-                    TypedSide population = read(r.population(), reader);
-                    if (population != null) {
-                        facts = facts.withPopulation(population);
-                    }
-                } finally {
-                    com.legend.testexec.SqlTypeCensus.probeSuspend(priorSuspend);
+                TypedSide population = read(r.population(), reader);
+                if (population != null) {
+                    facts = facts.withPopulation(population);
                 }
             }
         }

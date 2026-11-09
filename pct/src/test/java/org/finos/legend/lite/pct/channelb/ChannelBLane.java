@@ -64,7 +64,7 @@ final class ChannelBLane {
         // let a failure change kind, or a body the closed walk refused, pass unseen): every failure a row of the lane's
         // ledger with its text, every row's test failing (ChannelBLedger, ledger.tsv)
         ChannelBLedger.judge(lane + " " + suite, out, ChannelBLedger.of(lane, suite));
-        assertEquals(0, com.legend.testexec.SqlTypeCensus.mismatchCount(),
-                "a label lie escaped reconciliation: " + com.legend.testexec.SqlTypeCensus.summary());
+        // (the label-lie pin, SqlTypeCensus.mismatchCount() == 0, deleted 2026-11-09: its census had no feeder -- probe()
+        // lost its last caller -- so it read zero by construction, a dead gate; the census is deleted)
     }
 }

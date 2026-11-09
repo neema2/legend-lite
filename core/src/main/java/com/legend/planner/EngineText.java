@@ -27,8 +27,12 @@ public final class EngineText {
     public static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
 
     /** The engine's golden DDL TEXT renderer: the text of the database legend-engine's test connections declare
-     *  (the body driver's until the seam program's S2g, 2026-10-31). */
-    public static final EngineTextDialect ENGINE_TEXT = engineText(ENGINE_TEST_DATABASE);
+     *  (the body driver's until the seam program's S2g, 2026-10-31). A fresh one per use (2026-11-09: a dialect keeps
+     *  state while it writes a statement -- its renames, its stacks -- so one shared by every request of the server
+     *  could mix two statements written at once; the static instance it was is gone). */
+    public static EngineTextDialect engineText() {
+        return engineText(ENGINE_TEST_DATABASE);
+    }
 
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). */

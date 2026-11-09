@@ -64,9 +64,6 @@ public final class CanonicalDivergence {
      * disregarded). */
     public static void probeEqual(String family, List<Object> e,
             List<Object> a, boolean held, boolean unordered) {
-        if (MUTED.get()) {
-            return;
-        }
         record(family, held, byteEqual(e, a, unordered));
     }
 
@@ -76,9 +73,6 @@ public final class CanonicalDivergence {
      * ORDER BY. */
     public static void probeSameElements(List<Object> e, List<Object> a,
             boolean held) {
-        if (MUTED.get()) {
-            return;
-        }
         record("assertSameElements", held, byteEqual(e, a, true));
     }
 
@@ -90,9 +84,6 @@ public final class CanonicalDivergence {
      * byte channel would refuse. */
     public static void probeGridText(String expected, String actual,
             boolean held, boolean sorted, String form) {
-        if (MUTED.get()) {
-            return;
-        }
         if (expected.equals(actual)) {
             record("gridText", held, "EQUAL");
             return;
@@ -214,38 +205,10 @@ public final class CanonicalDivergence {
         };
     }
 
-    /** V7 probe isolation for the R1 instrument family (probeEqual/
-     * probeSameElements/probeGridText → AGREE/DISAGREE/RESIDUE): the
-     * corpus dual channel re-runs the same asserts through the
-     * production path, and un-gated probes would double-count the
-     * HOST lane's pinned leniency census (disagree ≤ 27). The
-     * sql-verdict channel and the declared-policy counters stay LIVE
-     * during the probe — they are the probe's own instruments. */
-    private static final java.util.concurrent.atomic.AtomicBoolean
-            R1_SUSPENDED = new java.util.concurrent.atomic.AtomicBoolean();
-
-    /** FULL mute (harness-deletion flip probe): a DIAGNOSTIC duplicate
-     * execution is not a census fact for ANY channel here — unlike the
-     * V7 dual-channel probe (whose sql-verdict rows are its own
-     * instrument, see r1Suspend), the whole-test flip probe re-runs
-     * entire bodies and must leave every pinned counter untouched. */
-    private static final java.util.concurrent.atomic.AtomicBoolean
-            MUTED = new java.util.concurrent.atomic.AtomicBoolean();
-
-    public static void muteAll(boolean on) {
-        MUTED.set(on);
-        // the SQL-verdict census is the diagnostics' (slice 5, 2026-11-09): muted with the rest
-        com.legend.diagnostics.VerdictCensus.muteAll(on);
-    }
-
-    public static void r1Suspend(boolean on) {
-        R1_SUSPENDED.set(on);
-    }
+    // (the R1 probe isolation and the full mute, R1_SUSPENDED, MUTED, r1Suspend and muteAll, deleted 2026-11-09: no
+    // caller set either -- dead switches over the census)
 
     private static void record(String family, boolean held, String byteAns) {
-        if (R1_SUSPENDED.get()) {
-            return;
-        }
         if (byteAns.startsWith("residue:")) {
             Census.inc(Census.Key.DIVERGENCE_RESIDUE);
             sample(new Row(family, held, byteAns));
@@ -255,7 +218,7 @@ public final class CanonicalDivergence {
             Census.inc(Census.Key.DIVERGENCE_DISAGREE);
             DISAGREE_SAMPLES.add(new Row(family, held, "lattice=" + held
                     + " byte=" + byteAns.replaceFirst("^DIFFER", "false")
-                    + " [" + CONTEXT_SOURCE.get().get() + "]"));
+                    + " [" + com.legend.diagnostics.Census.attribution() + "]"));
         }
     }
 
@@ -282,12 +245,9 @@ public final class CanonicalDivergence {
      * scale-normalized canon — the D5 amendment's witness count. */
 
     public static void decimalScaleOnly() {
-        if (MUTED.get()) {
-            return;
-        }
         Census.inc(Census.Key.DECIMAL_SCALE_ONLY);
         sample(new Row("decimalScaleOnly", false,
-                "[" + CONTEXT_SOURCE.get().get() + "]"));
+                "[" + com.legend.diagnostics.Census.attribution() + "]"));
     }
 
     public static long decimalScaleOnlyCount() {
@@ -300,9 +260,6 @@ public final class CanonicalDivergence {
      * transcendentals). Counted so the R3 census can retire or ratify
      * the policy from its real witness set. */
     public static void sqlUlpPolicy(String detail) {
-        if (MUTED.get()) {
-            return;
-        }
         Census.inc(Census.Key.SQL_ULP_POLICY);
         sample(new Row("sqlUlpPolicy", true, detail));
     }
@@ -341,28 +298,11 @@ public final class CanonicalDivergence {
     private static final ConcurrentLinkedQueue<String>
             V7_DECLINE_WITNESSES = new ConcurrentLinkedQueue<>();
 
-    /** Attribution source for disagreement samples — the HARNESS wires
-     * its per-test context holder here through {@link #attributeTo}
-     * (invariant 6d: exec never depends on the middle-end, so the
-     * supplier is injected). A final holder, not an assignable static
-     * field (plan W0.2(d)): the static-final rule in ArchitectureTest
-     * now binds every static field of the product. */
-    private static final java.util.concurrent.atomic.AtomicReference<
-            java.util.function.Supplier<String>> CONTEXT_SOURCE =
-            new java.util.concurrent.atomic.AtomicReference<>(() -> "<unattributed>");
-
-    /** The harness's per-test attribution: every later disagreement
-     * sample names what {@code source} answers. */
-    public static void attributeTo(java.util.function.Supplier<String> source) {
-        CONTEXT_SOURCE.set(java.util.Objects.requireNonNull(source, "source"));
-    }
+    // (the per-test attribution is the diagnostics' one label, Census.attribution(): 2026-11-09)
 
     /** One dual-channel verdict pair: both adjudicators judged. */
     public static void v7Verdict(String form, boolean hostPass,
             boolean prodPass, String detail) {
-        if (MUTED.get()) {
-            return;
-        }
         long[] c = V7_FORMS.computeIfAbsent(form, k -> new long[2]);
         synchronized (c) {
             c[hostPass == prodPass ? 0 : 1]++;
@@ -371,7 +311,7 @@ public final class CanonicalDivergence {
             V7_SAMPLES.add(new Row(form, hostPass,
                     "host=" + (hostPass ? "pass" : "fail")
                             + " prod=" + (prodPass ? "pass" : "fail")
-                            + " [" + CONTEXT_SOURCE.get().get() + "] " + detail));
+                            + " [" + com.legend.diagnostics.Census.attribution() + "] " + detail));
         }
     }
 
@@ -379,9 +319,6 @@ public final class CanonicalDivergence {
      * partition, host-unsupported forms, and production walls. The
      * reason is a bounded classification key, not free prose. */
     public static void v7Declined(String form, String reason) {
-        if (MUTED.get()) {
-            return;
-        }
         String r = reason.length() > 200 ? reason.substring(0, 200) + "…"
                 : reason;
         String key = form + " :: " + r;
@@ -399,15 +336,12 @@ public final class CanonicalDivergence {
             String rw = reason.length() > 500
                     ? reason.substring(0, 500) + "…" : reason;
             V7_DECLINE_WITNESSES.add(
-                    CONTEXT_SOURCE.get().get() + " :: " + form + " :: " + rw);
+                    com.legend.diagnostics.Census.attribution() + " :: " + form + " :: " + rw);
         }
     }
 
     /** One assert side's fetched element count (histogram feed). */
     public static void v7SideRows(int n) {
-        if (MUTED.get()) {
-            return;
-        }
         int b = n <= 0 ? 0 : Math.min(64 - Long.numberOfLeadingZeros(n), 15);
         V7_SIDE_ROWS.incrementAndGet(b);
     }

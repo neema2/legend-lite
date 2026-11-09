@@ -54,15 +54,7 @@ import java.util.stream.Stream;
  */
 public final class Shadow implements DecisionProbe {
 
-    /** The test/query the harness is running -- named by the harness ({@link #test}) so a line names its witness; a
-     *  measurement label (an explicit label since slice 5, 2026-11-09: a thread-local until then). */
-    private static final java.util.concurrent.atomic.AtomicReference<String> TEST =
-            new java.util.concurrent.atomic.AtomicReference<>("<unattributed>");
-
-    /** The harness names the test it runs now. */
-    public static void test(String name) {
-        TEST.set(name);
-    }
+    // (the test label is the diagnostics' one, Census.attribution(): 2026-11-09, one label for every census)
 
     /** Every distinct line, written once. */
     static final Set<String> SEEN = ConcurrentHashMap.newKeySet();
@@ -260,7 +252,7 @@ public final class Shadow implements DecisionProbe {
     private static void write(String kind, String subject, String today, String table, String verdict) {
         String line = kind + "\t" + subject + "\t" + today + "\t" + table + "\t" + verdict;
         if (SEEN.add(line)) {
-            Sink.OUT.println(line + "\t" + TEST.get());
+            Sink.OUT.println(line + "\t" + com.legend.diagnostics.Census.attribution());
         }
     }
 }

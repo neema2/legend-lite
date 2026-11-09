@@ -159,4 +159,20 @@ public final class Census {
         KEYED.forEach((k, v) -> out.put(k, v.sum()));
         return out;
     }
+
+    /** The test the measurement is attributed to, named by the harness that runs it ({@link #attributeTo}): the label a
+     *  census's samples carry. Measurement only, never read by a decision (2026-11-09, no mutable static state but
+     *  measurement: the one label, where five censuses each held a hook of their own). */
+    private static final java.util.concurrent.atomic.AtomicReference<String> ATTRIBUTION =
+            new java.util.concurrent.atomic.AtomicReference<>("<unattributed>");
+
+    /** The harness names the test it runs now. */
+    public static void attributeTo(String test) {
+        ATTRIBUTION.set(java.util.Objects.requireNonNull(test, "test"));
+    }
+
+    /** The test the measurement is attributed to now. */
+    public static String attribution() {
+        return ATTRIBUTION.get();
+    }
 }

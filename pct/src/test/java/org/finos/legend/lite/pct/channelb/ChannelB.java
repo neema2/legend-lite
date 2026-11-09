@@ -225,9 +225,8 @@ public final class ChannelB {
     private static Outcome runOne(FunctionDefinition fd,
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
-        com.legend.lowering.StampCensus.test(fqn);
-        com.legend.probe.Shadow.test(fqn);
-        com.legend.testexec.SqlTypeCensus.test(fqn);
+        // the measurement's one attribution label (2026-11-09: five per-census hooks until then)
+        com.legend.diagnostics.Census.attributeTo(fqn);
         // (the dual-verdict and decline attribution prints went with the host judge's byte channel, 2026-11-07)
         return runOneInner(fd, module, ctx, fqn);
     }

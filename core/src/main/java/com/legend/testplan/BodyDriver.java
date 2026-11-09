@@ -48,9 +48,8 @@ public final class BodyDriver {
         return env;
     }
 
-    /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d): the text of the database
-     *  legend-engine's test connections declare. */
-    static final com.legend.sql.dialect.EngineTextDialect ENGINE_TEXT = com.legend.planner.EngineText.ENGINE_TEXT;
+    // (ENGINE_TEXT, the engine golden DDL text's dialect held statically here until 2026-11-09:
+    // com.legend.planner.EngineText.engineText(), one per use)
 
     /** The K-phase execution environment: the body's PLANNING half ({@link com.legend.planner.PlanEnv}: the model,
      * the runtime, the ONE dialect -- audit 17: recomputing it per arm invited a future mixed-dialect bug -- the
@@ -79,7 +78,7 @@ public final class BodyDriver {
             return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.features(),
                     // the generator's plan names the engine's test connection, as every engine test of it does (its
                     // runtime argument is not read)
-                    tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, ENGINE_TEXT,
+                    tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, com.legend.planner.EngineText.engineText(),
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, new ActivityComments(), null, null, null, null,

@@ -56,8 +56,10 @@ public final class EffectPlanner {
     }
 
     /** The replay ledger records DDL in its referee database's spelling on EVERY session. */
-    private static final SqlDialect REFEREE_DDL =
-            Databases.dialect(Databases.REPLAY_REFEREE);
+    private static SqlDialect refereeDdl() {
+        // one per use (2026-11-09): a dialect keeps state while it writes a statement, so none is shared statically
+        return Databases.dialect(Databases.REPLAY_REFEREE);
+    }
 
     /** The String arguments {@code call} needs, in the order {@link #statements} takes their values; a call this
      *  planner does not write is refused by name. */
@@ -172,7 +174,7 @@ public final class EffectPlanner {
                         + ref.dbFqn())).columns().stream().map(c -> c.name()).toList();
         SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, ref.table(), Ddl.quoting(def, schema), columns,
                 com.legend.setup.CsvSeed.quotedColumns(def), file);
-        return new Statement(env.writtenIn().render(load), REFEREE_DDL.render(load), false);
+        return new Statement(env.writtenIn().render(load), refereeDdl().render(load), false);
     }
 
     /** {@code n} with its lets chased and its {@code toOne()}s peeled (a store navigation's links). */
@@ -187,7 +189,7 @@ public final class EffectPlanner {
 
     /** A DDL statement: the session's dialect's text sent, the referee's recorded. */
     private static Statement ddl(SqlDdl ddl, PlanEnv env) {
-        return new Statement(env.writtenIn().render(ddl), REFEREE_DDL.render(ddl), true);
+        return new Statement(env.writtenIn().render(ddl), refereeDdl().render(ddl), true);
     }
 
     /** {@code dropAndCreateTableInDb}'s store: its first argument, a store reference, or refused by name. */

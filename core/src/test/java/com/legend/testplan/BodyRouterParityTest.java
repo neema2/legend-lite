@@ -1744,13 +1744,15 @@ class BodyRouterParityTest {
                     ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder), null)
                     : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
-            Sessions.Session session = Sessions.borrowed(c);
+            // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's
+            // process-wide observer is gone)
+            List<String> statements = new ArrayList<>();
+            Sessions.Session session = Sessions.borrowed(com.legend.testbackend.RecordingConnection.wrap(c, statements));
             com.legend.testexec.SqlReplayReferee referee = new StubReferee(c);
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
             String outcome = "ok";
-            List<String> statements = new ArrayList<>();
             List<String> verdicts = new ArrayList<>();
             com.legend.testexecutionplan.AssertListener listener = new com.legend.testexecutionplan.AssertListener() {
                 @Override
@@ -1775,7 +1777,7 @@ class BodyRouterParityTest {
             };
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.diagnostics.VerdictCensus.sqlCensus());
-            try (var observing = StatementOrigin.observing(statements)) {
+            try {
                 TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, referee, options,
                         capture::of);
             } catch (RuntimeException e) {

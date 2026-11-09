@@ -38,7 +38,7 @@ final class SeedSqlForms {
                 return new TypedSide.Collection(new java.util.ArrayList<>(
                         com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(
                                 records, seedDb,
-                                f -> env.ctx().findDatabase(f), BodyDriver.ENGINE_TEXT)),
+                                f -> env.ctx().findDatabase(f), com.legend.planner.EngineText.engineText())),
                         "String");
             }
         }
@@ -50,7 +50,7 @@ final class SeedSqlForms {
                 : env.ctx().findDatabase(dbFqn).orElse(null);
         return new TypedSide.Collection(new java.util.ArrayList<>(
                 dbDef != null ? com.legend.setup.Ddl.setUpDataSqlsText(csv,
-                        dbDef, f -> env.ctx().findDatabase(f), BodyDriver.ENGINE_TEXT)
+                        dbDef, f -> env.ctx().findDatabase(f), com.legend.planner.EngineText.engineText())
                         : com.legend.setup.CsvSeed.sqls(csv, dbFqn, env.ctx(), env.dialect())),
                 "String");
     }

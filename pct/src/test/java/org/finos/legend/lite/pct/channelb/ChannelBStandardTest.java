@@ -172,10 +172,7 @@ class ChannelBStandardTest {
         // TYPED-IR pin on THIS lane too (the corpus-runner pins do
         // not cover this JVM); the judge-vs-node pins retired WITH the
         // judge (parity pinned zero on every lane first).
-        org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.testexec.SqlTypeCensus.mismatchCount(),
-                "a label lie escaped reconciliation (the flip): "
-                        + com.legend.testexec.SqlTypeCensus.summary());
+        // (the label-lie pin deleted 2026-11-09: SqlTypeCensus had no feeder, a dead gate; the census is deleted)
 
 
 

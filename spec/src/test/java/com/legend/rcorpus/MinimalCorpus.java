@@ -552,11 +552,9 @@ public final class MinimalCorpus {
             // belong to (display attribution only, no verdict flows through it)
             currentTest = t.fqn();
             com.legend.harness.RefereeVerify.CURRENT_TEST.set(t.fqn());
-            // the byte-channel census attributes its disagreement samples
-            // (leg 3.0: database mode's bug list) to the running test
-            com.legend.testexec.CanonicalDivergence.attributeTo(t::fqn);
-            // the primitive census's per-test tally (measurement only, under -Dlegend.diagnostics=primitives=per-test)
-            com.legend.testexec.PrimitiveCensus.attributeTo(t::fqn);
+            // the measurement's one attribution label: the censuses' samples name the running test (leg 3.0: database
+            // mode's bug list); 2026-11-09, one label where each census held a hook of its own
+            com.legend.diagnostics.Census.attributeTo(t.fqn());
             if (com.legend.diagnostics.Diagnostics.on("progress")) {
                 System.err.println("[corpus2] > " + t.fqn());
             }

@@ -123,7 +123,8 @@ public final class Pure {
     // ================================================================
 
     /** Native classes in declaration order. Populated by {@link #nativeClass(String)}. */
-    private static final List<ClassDefinition> ALL_CLASSES = new ArrayList<>();
+    private static final com.legend.base.Sealed.SealedList<ClassDefinition> ALL_CLASSES =
+            com.legend.base.Sealed.list(new ArrayList<>());
 
     /** Snapshot of every native class declared by {@link Pure}, declaration order. */
     public static List<ClassDefinition> allNativeClasses() {
@@ -299,7 +300,8 @@ public final class Pure {
     // ================================================================
 
     /** Native enums in declaration order. Populated by {@link #nativeEnum(String)}. */
-    private static final List<EnumDefinition> ALL_ENUMS = new ArrayList<>();
+    private static final com.legend.base.Sealed.SealedList<EnumDefinition> ALL_ENUMS =
+            com.legend.base.Sealed.list(new ArrayList<>());
 
     /** Snapshot of every native enum declared by {@link Pure}, declaration order. */
     public static List<EnumDefinition> allNativeEnums() {
@@ -366,7 +368,8 @@ public final class Pure {
      * can change tie-breaks; the golden catalog file pins it) and NOT
      * constant name. Populated by {@link #signature(String)}.
      */
-    private static final List<NativeFunctionDefinition> ALL = new ArrayList<>();
+    private static final com.legend.base.Sealed.SealedList<NativeFunctionDefinition> ALL =
+            com.legend.base.Sealed.list(new ArrayList<>());
 
     /**
      * The lite-internal native package's vocabulary, as COMPILE-TIME
@@ -707,9 +710,12 @@ public final class Pure {
     // ====================================================================
 
     private static final class Index {
-        static final java.util.Map<String, ClassDefinition> CLASS_BY_FQN = new java.util.HashMap<>();
-        static final java.util.Map<String, EnumDefinition> ENUM_BY_FQN = new java.util.HashMap<>();
-        static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_FQN = new java.util.HashMap<>();
+        static final com.legend.base.Sealed.SealedMap<String, ClassDefinition> CLASS_BY_FQN =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
+        static final com.legend.base.Sealed.SealedMap<String, EnumDefinition> ENUM_BY_FQN =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
+        static final com.legend.base.Sealed.SealedMap<String, List<NativeFunctionDefinition>> FN_BY_FQN =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
         /** bare name -> the USER-RESOLVABLE overloads across packages, in
          *  catalog order — THE LOWERING'S REGISTRATION SURFACE ONLY
          *  (a rule table registers the catalog's generated overload GROUPS, every overload
@@ -719,11 +725,13 @@ public final class Pure {
          *  {@link Pure#nativeFunctionsAt} refuses a bare name. The lite
          *  partition: lite-internal defs are excluded, LITE_SURFACE names stay. */
         /** The FQNs a USER may name: every non-lite native and the lite product surface. */
-        static final java.util.Set<String> USER_RESOLVABLE_FQNS = new java.util.LinkedHashSet<>();
+        static final com.legend.base.Sealed.SealedSet<String> USER_RESOLVABLE_FQNS =
+                com.legend.base.Sealed.set(new java.util.LinkedHashSet<>());
         /** engine signature id -> the one overload that declares it (a function's
          *  element name upstream IS its id; the id is generated from the
          *  declaration, SignatureMangle.mangle) */
-        static final java.util.Map<String, NativeFunctionDefinition> FN_BY_ID = new java.util.HashMap<>();
+        static final com.legend.base.Sealed.SealedMap<String, NativeFunctionDefinition> FN_BY_ID =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
 
         static {
             for (ClassDefinition cd : ALL_CLASSES) {
@@ -733,7 +741,7 @@ public final class Pure {
                 ENUM_BY_FQN.put(ed.qualifiedName(), ed);
             }
             for (NativeFunctionDefinition nfd : ALL) {
-                FN_BY_FQN.computeIfAbsent(nfd.qualifiedName(), k -> new ArrayList<>()).add(nfd);
+                FN_BY_FQN.computeIfAbsent(nfd.qualifiedName(), k -> com.legend.base.Sealed.list(new ArrayList<>())).add(nfd);
                 FN_BY_ID.put(com.legend.model.SignatureMangle.mangle(nfd), nfd);
                 String bare = nfd.qualifiedName().contains("::")
                         ? nfd.qualifiedName().substring(nfd.qualifiedName().lastIndexOf("::") + 2)
@@ -744,6 +752,15 @@ public final class Pure {
                     USER_RESOLVABLE_FQNS.add(nfd.qualifiedName());
                 }
             }
+            // the index is a constant of the process from here on (2026-11-09, base.Sealed)
+            for (List<NativeFunctionDefinition> overloads : FN_BY_FQN.values()) {
+                ((com.legend.base.Sealed.Seal) overloads).seal();
+            }
+            CLASS_BY_FQN.seal();
+            ENUM_BY_FQN.seal();
+            FN_BY_FQN.seal();
+            USER_RESOLVABLE_FQNS.seal();
+            FN_BY_ID.seal();
         }
     }
 
@@ -3008,4 +3025,12 @@ public final class Pure {
     // SYSTEM_PRELUDE_DESIGN §10, PRELUDE_MODULE_HOMEWORK). It is not in
     // this catalog: this catalog is the native signatures, Lite, and the
     // hand shapes Java constructs before a model exists.
+
+    // the platform's registry is a constant of the process from here on: every native's constant above registered
+    // itself as it initialised (2026-11-09, base.Sealed: a registration after this is refused)
+    static {
+        ALL_CLASSES.seal();
+        ALL_ENUMS.seal();
+        ALL.seal();
+    }
 }
