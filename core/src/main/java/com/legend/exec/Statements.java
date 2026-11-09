@@ -49,6 +49,13 @@ public interface Statements {
      *  committed when it returns, rolled back when it throws. */
     <T> T inTransaction(java.util.function.Supplier<T> work);
 
+    /** Whether this session's database takes a transaction at all (its driver's fact, {@link
+     *  DatabaseConnector.Decoding#transactions}: ClickHouse's takes none). A runner that has nothing to bracket but a
+     *  session's own tables asks it; every other bracket is {@link #inTransaction}'s, which such a database refuses. */
+    default boolean takesTransactions() {
+        return true;
+    }
+
     /** Whether the session commits each statement itself, so a transaction is its holder's to open
      *  ({@link Sessions#ownsTransaction}): a caller that turned autocommit off holds it, and an effect script's bracket
      *  must not nest inside (the body driver asks through the seam, B1b, 2026-10-29). */

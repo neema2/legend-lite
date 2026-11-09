@@ -2884,24 +2884,38 @@ public final class Lowerer {
         List<SqlExpr> conjuncts = new ArrayList<>();
         conjunctsOf(on, conjuncts);
         List<SqlExpr> keys = new ArrayList<>();
+        // a conjunct of the right side alone (q.venue != 'DARK') filters its rows before the rank, so the row kept is
+        // one the ON takes; a conjunct of the left side alone chooses no right row; any other that reads both sides
+        // and is no equality or inequality of one side's operand with the other's (an OR, a function of both) leaves
+        // the side as it is -- the rank cannot keep the row it would take (the final review of PR #81, 2026-11-09: a
+        // tied row the ON then refused had been kept, its left row matching an older one or none)
+        List<SqlExpr> rightOnly = new ArrayList<>();
         boolean inequality = false;
         for (SqlExpr c : conjuncts) {
-            if (!(c instanceof SqlExpr.Call call) || call.args().size() != 2) {
+            if (!reads(c, ra)) {
                 continue;
+            }
+            if (readsOnly(c, ra)) {
+                rightOnly.add(c);
+                continue;
+            }
+            if (!(c instanceof SqlExpr.Call call) || call.args().size() != 2) {
+                return right;
             }
             boolean equality = call.fn() == SqlFn.EQUAL || call.fn() == SqlFn.NULL_SAFE_EQUAL;
             boolean ordering = call.fn() == SqlFn.GREATER || call.fn() == SqlFn.GREATER_EQUAL
                     || call.fn() == SqlFn.LESS || call.fn() == SqlFn.LESS_EQUAL;
             if (!equality && !ordering) {
-                continue;
+                return right;
             }
             SqlExpr a = call.args().get(0);
             SqlExpr b = call.args().get(1);
             SqlExpr own = readsOnly(a, ra) && !reads(b, ra) ? a : readsOnly(b, ra) && !reads(a, ra) ? b : null;
-            if (own != null) {
-                keys.add(own);
-                inequality |= ordering;
+            if (own == null) {
+                return right;
             }
+            keys.add(own);
+            inequality |= ordering;
         }
         if (!inequality) {
             return right;
@@ -2920,7 +2934,15 @@ public final class Lowerer {
         ranked.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
                 new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), keys, greatest, null), rankOut.name(), rankOut));
         String inner = nextAlias();
-        SqlSource rankedSource = new SqlSource.Subselect(SqlSelect.starOf(right).withProjections(ranked), inner, null);
+        SqlSelect rankedSelect = SqlSelect.starOf(right).withProjections(ranked);
+        if (!rightOnly.isEmpty()) {
+            SqlExpr filter = rightOnly.get(0);
+            for (SqlExpr c : rightOnly.subList(1, rightOnly.size())) {
+                filter = SqlExpr.Call.of(SqlFn.AND, filter, c);
+            }
+            rankedSelect = rankedSelect.withWhere(filter);
+        }
+        SqlSource rankedSource = new SqlSource.Subselect(rankedSelect, inner, null);
         List<SqlSelect.Projection> kept = new ArrayList<>();
         for (OutputCol oc : right.outputs()) {
             kept.add(new SqlSelect.Projection(SqlExpr.Column.of(inner, oc), oc.name(), oc));

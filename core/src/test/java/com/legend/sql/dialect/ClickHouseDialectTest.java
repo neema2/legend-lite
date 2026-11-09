@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -157,5 +158,34 @@ class ClickHouseDialectTest {
         String temp = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, loose,
                 true));
         assertFalse(temp.contains("ENGINE"), temp);
+    }
+
+    @Test
+    void aStagedTableIsDroppedAsTheSessionsOwn() {
+        // the plain drop of a name the session holds no temporary table of drops the database's table of that name
+        // (measured 2026-11-09 on 26.3 with clickhouse local; the final review of PR #81)
+        ClickHouse ch = new ClickHouse();
+        assertEquals("DROP TEMPORARY TABLE IF EXISTS \"__stage0__let0\";", ch.render(
+                new com.legend.sql.SqlDdl.DropTable(null, "__stage0__let0", com.legend.sql.NameQuoting.BARE, true)));
+        assertTrue(ch.render(new com.legend.sql.SqlDdl.DropTable(null, "t", com.legend.sql.NameQuoting.BARE))
+                .startsWith("Drop table if exists "));
+    }
+
+    @Test
+    void aComputedKeyIsGroupedByItsName() {
+        // each raise is written with a number of its own, so a key holding one (a date's range guard) written twice
+        // differed from itself and ClickHouse refused the select (measured 2026-11-09 on 26.3; the final review of PR
+        // #81): a computed key the select names is grouped by that name, a plain column as it is
+        SqlSource.Table t = table("t", "t0", "d", SqlType.Scalar.DATE);
+        SqlExpr d = col("t0", "d", SqlType.Scalar.DATE);
+        SqlExpr later = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(new SqlExpr.DatePartLit(com.legend.sql.DatePart.DAY),
+                new SqlExpr.IntLit(1), d));
+        SqlSelect grouped = new SqlSelect(List.of(new SqlSelect.Projection(later, "d2", null),
+                new SqlSelect.Projection(d, "d", null)), false, t, null, List.of(later, d), null, null, List.of(), null,
+                null, List.of());
+        String sql = render(grouped);
+        String keys = sql.substring(sql.indexOf("GROUP BY "));
+        assertTrue(keys.startsWith("GROUP BY \"d2\", \"t0\".\"d\""), sql);
+        assertEquals(1, sql.split("a date outside the years", -1).length - 1, "the guard written once: " + sql);
     }
 }

@@ -40,6 +40,7 @@ final class ProjectionWrapsFold extends SqlRewriter {
             }
         }
         List<SqlSelect.Projection> folded = new ArrayList<>(s.projections().size());
+        Map<String, Integer> reads = new HashMap<>();
         for (SqlSelect.Projection p : s.projections()) {
             String name = p.outputName();
             if (!(p.expr() instanceof SqlExpr.Column c) || !sub.alias().equals(c.table()) || name == null) {
@@ -49,8 +50,20 @@ final class ProjectionWrapsFold extends SqlRewriter {
             if (source == null) {
                 return s;
             }
+            // a value the subselect computes is computed once: read twice, it would be written twice (a random draw
+            // drawn twice, a raise raised twice) -- SelectMerge's rule (the final review of PR #81, 2026-11-09)
+            if (reads.merge(c.name(), 1, Integer::sum) > 1 && !(source.expr() instanceof SqlExpr.Column)) {
+                return s;
+            }
             boolean named = source.expr() instanceof SqlExpr.Column own && own.name().equals(name);
             folded.add(new SqlSelect.Projection(source.expr(), named ? null : name, p.out()));
+        }
+        // a column the wrap does not read is dropped only where it keeps the rows and raises nothing: no UNNEST (a
+        // row per element), aggregate (a row of all), raise or checked value (SqlExpr.raisesNothing)
+        for (Map.Entry<String, SqlSelect.Projection> e : byName.entrySet()) {
+            if (!reads.containsKey(e.getKey()) && !SqlExpr.raisesNothing(e.getValue().expr())) {
+                return s;
+            }
         }
         return new SqlSelect(folded, false, inner.from(), inner.where(), inner.groupBy(), inner.having(),
                 inner.qualify(), inner.orderBy(), inner.limit(), inner.offset(), s.outputs());

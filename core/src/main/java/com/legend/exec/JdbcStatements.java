@@ -237,16 +237,16 @@ final class JdbcStatements implements Statements {
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
         com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
-        if (!takesTransactions()) {
-            return work.get();   // a database that takes none (ClickHouse): each statement as sent
-        }
+        // a database that takes none (ClickHouse) refuses the bracket at setAutoCommit(false), loudly: a runner whose
+        // steps change nothing but its session's own tables asks takesTransactions first (the final review of PR #81,
+        // 2026-11-09: an unbracketed write had run here, a failure part-way keeping the writes before it)
         return Sessions.inTransaction(c, state, work);
     }
 
-    /** Whether this session's database takes a transaction: its driver's fact ({@link
-     *  DatabaseConnector.Decoding#transactions}), read from the target checked; a session no target was checked
-     *  against yet is JDBC's own, which takes one. */
-    private boolean takesTransactions() {
+    /** {@inheritDoc} Its driver's fact, read from the target checked; a session no target was checked against yet is
+     *  JDBC's own, which takes one. */
+    @Override
+    public boolean takesTransactions() {
         DatabaseConnector.Decoding d = this.driver;
         return d == null || d.transactions();
     }
@@ -363,7 +363,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE || !takesTransactions()) {
+        if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE) {
             work.run();
             return;
         }

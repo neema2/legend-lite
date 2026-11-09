@@ -285,7 +285,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (!s.groupBy().isEmpty()) {
             nl(writer, depth).append("GROUP BY ");
-            writer.list(s.groupBy());
+            groupByKeys(writer, s);
         }
         if (s.having() != null) {
             nl(writer, depth).append("HAVING ");
@@ -334,6 +334,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A column reference, qualified by its source's alias when it has one. */
     protected String columnRef(SqlExpr.Column c) {
         return c.table() == null ? columnName(c) : aliasIdent(c.table()) + "." + columnName(c);
+    }
+
+    /** {@code s}'s GROUP BY keys, written: each its expression here (a dialect whose one expression is written two
+     *  ways in a statement, ClickHouse's numbered raises, writes a key its select names by that name). */
+    protected SqlWriter groupByKeys(SqlWriter writer, SqlSelect s) {
+        return writer.list(s.groupBy());
     }
 
     protected SqlWriter projection(SqlWriter writer, SqlSelect.Projection p) {
@@ -1894,8 +1900,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 }
                 yield sb.append(")").append(ddlTableOptions(ct)).append(";").toString();
             }
-            case com.legend.sql.SqlDdl.DropTable dt ->
-                    "Drop table if exists " + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
+            case com.legend.sql.SqlDdl.DropTable dt -> (dt.temporary() ? dropTemporaryTable() : "Drop table if exists ")
+                    + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
             case com.legend.sql.SqlDdl.CreateSchema cs ->
                     "Create Schema if not exists " + storedName(cs.schema(), cs.quoted()) + ";";
             case com.legend.sql.SqlDdl.DropSchema ds ->
@@ -1907,6 +1913,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  table's engine or storage said, ClickHouse's, writes it). */
     protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
         return "";
+    }
+
+    /** The words that drop a session's own table ({@link com.legend.sql.SqlDdl.DropTable#temporary}), before its
+     *  name: the plain drop here (a session's temporary table hides the database's of its name, and the drop takes the
+     *  session's); a dialect whose plain drop falls through to the database's table (ClickHouse's) names it. */
+    protected String dropTemporaryTable() {
+        return "Drop table if exists ";
     }
 
     @Override

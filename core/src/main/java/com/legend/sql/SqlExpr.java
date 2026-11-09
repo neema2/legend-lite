@@ -56,7 +56,9 @@ public sealed interface SqlExpr
                     && (!(w.fn() instanceof SqlAgg.Reducer r) || r.orderBy().stream().allMatch(k -> raisesNothing(k.expr())))
                     && allRaiseNothing(w.partitionBy())
                     && w.orderBy().stream().allMatch(k -> raisesNothing(k.expr()))
-                    && (w.frame() == null || allRaiseNothing(w.frame().offsets()));
+                    // a bound the database computes is written inside its check, which raises (FrameGuard; the
+                    // final review of PR #81, 2026-11-09: such a window had been dropped unread, its check with it)
+                    && (w.frame() == null || !w.frame().computed() && allRaiseNothing(w.frame().offsets()));
             case CheckedOne c -> false;
             case CheckedDefects c -> false;
             case CheckedChildValue c -> false;
@@ -68,7 +70,9 @@ public sealed interface SqlExpr
             case StarExcept st -> false;
             case DeferredTdsString d -> false;
             case TempTableInSplice t -> false;
-            default -> !(e instanceof SqlAgg) && allRaiseNothing(e.children());
+            // an aggregate of any record (SqlAgg's, OrderedListAgg, JsonArrayAgg: SqlAgg.aggregatesSelect) keeps no row
+            // of its own: dropped unread, its select's rows would be its source's (the final review of PR #81)
+            default -> !(e instanceof SqlAgg) && !SqlAgg.aggregatesSelect(e) && allRaiseNothing(e.children());
         };
     }
 

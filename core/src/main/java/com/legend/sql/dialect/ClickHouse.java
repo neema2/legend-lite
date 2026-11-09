@@ -1850,6 +1850,32 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  back wherever the same raise stood twice in one WHERE (one shared expression, computed eagerly: the documents'
      *  {@code latest - 2y}, its date check nested in its month check, measured 2026-11-07 -- even throwIf raised
      *  there; distinct raises answer, as on 25.8). */
+    /** {@inheritDoc} A computed key its select names is written by that name. A raise is written with its own
+     *  {@code rand(n)} ({@link #error}), here and in the guards the writing adds (a date's range, {@code ADD_INTERVAL}),
+     *  so a key holding one is written two ways, and ClickHouse, which matches a select's values to its keys by their
+     *  text, refused the select ("Column 'x' is not under aggregate function and not in GROUP BY keys", measured
+     *  2026-11-09 on 26.3.60.2 with {@code clickhouse local}; by the alias it answers, an alias that shadows its own
+     *  column too). Found by the final review of PR #81: a date key's range guard (adjust under groupBy). */
+    @Override
+    protected SqlWriter groupByKeys(SqlWriter writer, SqlSelect s) {
+        String separator = "";
+        for (SqlExpr key : s.groupBy()) {
+            writer.append(separator);
+            separator = ", ";
+            String alias = key instanceof SqlExpr.Column ? null : s.projections().stream()
+                    .filter(p -> p.alias() != null && p.expr().equals(key) && (p.out() == null
+                            || p.out().origin() != com.legend.sql.OutputCol.Origin.PER_KEY))
+                    .map(SqlSelect.Projection::alias)
+                    .findFirst().orElse(null);
+            if (alias != null) {
+                writer.append(aliasIdent(alias));
+            } else {
+                writer.expr(key, 0);
+            }
+        }
+        return writer;
+    }
+
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         writer.append("toInt64(concat(char(31), ");
@@ -2988,6 +3014,14 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  with no ORDER BY ("ORDER BY or PRIMARY KEY clause is missing", measured 2026-11-07 on 25.8, the gallery's replay,
      *  docs/TS_DECISIONS_2026_11_07.md item 9). A keyed table sorts by its key: the engine's text is refused for one
      *  ("Primary key must be a prefix of the sorting key", measured that day; register S157, ruled "Sort by its key"). */
+    /** {@inheritDoc} {@code DROP TEMPORARY TABLE}: the plain drop of a name the session holds no temporary table of
+     *  drops the database's table of that name (measured 2026-11-09 on 26.3.60.2 with {@code clickhouse local}: a
+     *  staged table's drop after its session was lost; the final review of PR #81). */
+    @Override
+    protected String dropTemporaryTable() {
+        return "DROP TEMPORARY TABLE IF EXISTS ";
+    }
+
     @Override
     protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
         if (ct.temporary()) {

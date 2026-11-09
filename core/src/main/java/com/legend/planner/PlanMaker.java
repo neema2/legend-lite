@@ -624,8 +624,8 @@ public final class PlanMaker {
 
     /** The statement that drops {@code table} where it is ({@code DROP TABLE IF EXISTS}). */
     static ExecutionPlan.Sql dropping(SqlDialect dialect, String table, ExecutionPlan.Target target) {
-        return new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(),
-                target, null, List.of());
+        return new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null, table, NameQuoting.BARE, true)),
+                List.of(), target, null, List.of());
     }
 
     /** The statement that makes {@code table} of {@code staged}: a temporary table of the session holding its rows. */
@@ -673,7 +673,7 @@ public final class PlanMaker {
         SqlDialect dialect = state.dialect();
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
             steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(
-                    new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()),
+                    new SqlDdl.DropTable(null, table, NameQuoting.BARE, true)), List.of(), state.target(), null, List.of()),
                     null)));
         }
         return steps;

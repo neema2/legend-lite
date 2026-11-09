@@ -77,7 +77,9 @@ public record WindowFrame(Kind kind, Bound from, Bound to) {
          */
         static Bound of(TypedSpec arg, boolean fromSide) {
             TypedSpec inner = negated(arg);
-            if (inner != null && literal(inner) instanceof Number n) {
+            // a minus around a plain number (-0 included) is that many PRECEDING; a minus around a minus is read by its
+            // value's sign below (-(-2) is 2 FOLLOWING: the final review of PR #81, 2026-11-09, it had been -2 PRECEDING)
+            if (inner != null && negated(inner) == null && literal(inner) instanceof Number n) {
                 return new Preceding(n);
             }
             if (literal(arg) instanceof Number n) {
@@ -114,7 +116,7 @@ public record WindowFrame(Kind kind, Bound from, Bound to) {
         TypedSpec inner = negated(arg);
         if (inner != null) {
             Number n = literal(inner);
-            return n == null ? null : -n.doubleValue();
+            return n == null ? null : negate(n);   // an integer stays one: -(-2) is 2, not 2.0
         }
         return switch (arg) {
             case TypedCInteger c -> c.value().longValue();

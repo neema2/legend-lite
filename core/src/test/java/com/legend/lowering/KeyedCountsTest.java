@@ -91,6 +91,30 @@ class KeyedCountsTest {
     }
 
     @Test
+    void aCountOfTheWholeAnswerIsNeverFolded() {
+        // toOne()'s guard counts the whole answer (no partition): a key pinned by its WHERE says at most one row, but a
+        // database that does not enforce the key may hold two, and upstream checks the size whatever the store
+        // declares (the final review of PR #81, 2026-11-09)
+        SqlExpr pinned = SqlExpr.Call.of(SqlFn.AND, ko("t0"), SqlExpr.Call.of(SqlFn.EQUAL, col("t0", "date"),
+                new SqlExpr.StringLit("2024-01-02")));
+        assertEquals(false, folded(select(prices("t0"), pinned, col("t0", "close"), count())));
+    }
+
+    @Test
+    void aFlattenedSelectHasNoKey() {
+        // a select-list UNNEST (flatten) makes rows of each source row: a count over the source's key counts them
+        // (the final review of PR #81, 2026-11-09: it had folded to 1)
+        SqlExpr unnest = SqlExpr.Call.of(SqlFn.UNNEST, col("t0", "close"));
+        SqlSelect flat = select(prices("t0"), null, col("t0", "symbol"), col("t0", "date"), unnest);
+        SqlSource.Subselect t1 = new SqlSource.Subselect(flat, "t1", null);
+        assertEquals(false, folded(select(t1, null, col("t1", "c2"), count(col("t1", "c0"), col("t1", "c1")))));
+        // the same select without the UNNEST keeps the key
+        SqlSelect plain = select(prices("t0"), null, col("t0", "symbol"), col("t0", "date"), col("t0", "close"));
+        assertEquals(true, folded(select(new SqlSource.Subselect(plain, "t1", null), null, col("t1", "c2"),
+                count(col("t1", "c0"), col("t1", "c1")))));
+    }
+
+    @Test
     void aKeyIsCarriedThroughPlainColumnsUnderEachName() {
         // the date named twice, as a line's period and its date: a key under either name
         SqlSelect line = select(prices("t0"), ko("t0"), col("t0", "date"), col("t0", "date"), col("t0", "close"));

@@ -67,6 +67,23 @@ class ProjectionWrapsFoldTest {
     }
 
     @Test
+    void aComputedValueReadTwiceOrAnUnreadRowMakerIsKept() {
+        // the final review of PR #81 (2026-11-09): SelectMerge's rules -- a computed value read twice would be written
+        // twice (a random draw drawn twice), and an unread UNNEST dropped would leave its source's rows unexploded
+        SqlExpr drawn = SqlExpr.Call.of(SqlFn.RANDOM);
+        SqlSelect randomInner = SqlSelect.starOf(PRICES).withProjections(List.of(
+                new SqlSelect.Projection(drawn, "R", null), col("t0", "CLOSE", null)));
+        SqlSelect readTwice = SqlSelect.starOf(new SqlSource.Subselect(randomInner, "t1", null))
+                .withProjections(List.of(col("t1", "R", "R"), col("t1", "R", "R2")));
+        assertSame(readTwice, new ProjectionWrapsFold().rewriteRoot(readTwice), "a draw read twice");
+        SqlSelect flatInner = SqlSelect.starOf(PRICES).withProjections(List.of(col("t0", "SYMBOL", null),
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.UNNEST, ref("t0", "CLOSE")), "E", null)));
+        SqlSelect unread = SqlSelect.starOf(new SqlSource.Subselect(flatInner, "t1", null))
+                .withProjections(List.of(col("t1", "SYMBOL", null)));
+        assertSame(unread, new ProjectionWrapsFold().rewriteRoot(unread), "an unread UNNEST keeps its rows");
+    }
+
+    @Test
     void h2WritesTheWrapAsOneSelect() {
         String sql = new H2().render(wrap(inner()));
         assertEquals(1, sql.split("SELECT", -1).length - 1, sql);

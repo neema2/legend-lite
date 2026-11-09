@@ -134,7 +134,11 @@ final class KeyedCounts {
         private static boolean countOfOne(SqlExpr e, List<Set<Col>> keys, Map<Col, Set<Col>> same) {
             if (!(e instanceof SqlExpr.WindowCall w) || !(w.fn() instanceof SqlAgg.Reducer r)
                     || r.fn() != SqlAgg.Fn.COUNT || !r.args().isEmpty() || r.distinct() || !r.orderBy().isEmpty()
-                    || !holdsTheRow(w.frame())) {
+                    || !holdsTheRow(w.frame()) || w.partitionBy().isEmpty()) {
+                // a count of the whole answer (no partition) is a check of its size -- toOne()'s guard, ToOneGuard's
+                // COUNT(*) OVER () -- which upstream makes whatever the store declares: never folded, so a key the
+                // database does not enforce cannot let two rows through it (the final review of PR #81, 2026-11-09).
+                // The fold is the time model's D2, a line's rows on a period counted under its key and date
                 return false;
             }
             Set<Col> partition = new HashSet<>();
@@ -346,6 +350,11 @@ final class KeyedCounts {
 
         private List<Set<String>> selectKeys(SqlSelect s, Map<String, List<Set<String>>> ctes) {
             List<Set<String>> out = new ArrayList<>();
+            if (Fold.unnestInProjections(s)) {
+                // a set-returning projection (flatten's UNNEST) makes rows of a source row, a group's too: no key
+                // holds (the final review of PR #81, 2026-11-09: a count over a flattened line's key had folded to 1)
+                return List.of();
+            }
             if (!s.groupBy().isEmpty()) {
                 // the groups: unique on the group keys the select names
                 Set<String> named = new LinkedHashSet<>();

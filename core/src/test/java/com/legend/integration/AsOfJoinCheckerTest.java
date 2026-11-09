@@ -881,6 +881,31 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             assertEquals(3L, ((Number) byId.get(1L)).longValue(), "a at 20: of quotes 2 and 3 at 15, the greatest");
             assertEquals(6L, ((Number) byId.get(2L)).longValue(), "b at 20: of quotes 4, 5 and 6 at 18, the greatest");
         }
+
+        /** The final review of PR #81 (2026-11-09): a condition of the right side alone (a venue left out) filters the
+         *  quotes before the greatest is kept -- the kept quote had been one the ON then refused, its left row matching
+         *  an older quote. */
+        @Test
+        @DisplayName("a condition of the right side alone: the greatest of the quotes it keeps")
+        void aRightSideConditionFiltersBeforeTheGreatestIsKept() throws SQLException {
+            var result = executeRelation("""
+                    #TDS
+                        id, k, event_time
+                        1, a, 20
+                    #->asOfJoin(
+                        #TDS
+                            rk, ts, quote_id, venue
+                            a, 10, 1, ARCA
+                            a, 15, 2, ARCA
+                            a, 15, 3, DARK
+                        #,
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | ($l.k == $r.rk) && ($r.venue != 'DARK')}
+                    )""");
+            assertEquals(1, result.rowCount(), result.rows().toString());
+            var byId = CheckerResults.collect(result, "id", "quote_id");
+            assertEquals(2L, ((Number) byId.get(1L)).longValue(), "a at 20: the lit quote at 15, not the older one at 10");
+        }
     }
 
     // ==================== Utilities ====================
