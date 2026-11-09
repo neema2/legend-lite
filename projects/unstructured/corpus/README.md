@@ -20,7 +20,9 @@ reads vectors, it does not make them.** The DuckDB file keeps them in `CO_PASSAG
 passage's `sha256`), and `CO_EMBEDDING_PIN` records what made them. `load.py` replaces the file, so run it first.
 
 ```
-uv venv --python 3.12 <venv>; uv pip install --python <venv>/bin/python -r <requirements with pins.env's values>
+export $(grep -E '^[A-Z_]+_VERSION=' tools/unstructured-corpus/pins.env | xargs)     # the versions alone: pins.env's query instruction holds spaces, so the file cannot be sourced
+uv venv --python "$PYTHON_VERSION" <venv>
+<venv>/bin/python -c 'import os,sys; sys.stdout.write(os.path.expandvars(open(sys.argv[1]).read()))' tools/unstructured-corpus/requirements.txt | uv pip install --python <venv>/bin/python -r -     # uv does not expand ${VAR} in a version
 UNSTRUCTURED_MODEL_DIR=<an empty directory> <venv>/bin/python tools/unstructured-corpus/embed.py --fetch    # the one network step
 UNSTRUCTURED_MODEL_DIR=<that directory> <venv>/bin/python tools/unstructured-corpus/embed.py                # offline
 ```

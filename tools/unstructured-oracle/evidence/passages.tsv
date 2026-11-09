@@ -1,0 +1,4 @@
+source	rows	distinct_hashes	at_more_than_one_date	median_chars
+EDGAR	1499	1361	50	717.0
+LENDING	769	243	80	152.0
+SALES	327	165	41	58.0

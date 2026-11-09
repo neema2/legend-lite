@@ -57,6 +57,12 @@ an ERROR, never an empty result.
 
 ## Running it
 
+Before the first run, in this order:
+
+1. The pinned venv and the model: the commands under "Embeddings" in `projects/unstructured/corpus/README.md`.
+2. The EDGAR corpus, which is never committed: `fetch.py` and `extract.py`, as `projects/unstructured/corpus/edgar/README.md` gives them.
+3. Nothing for `SALES` and `LENDING`: they are committed. Regenerating the loan documents needs `reportlab` at the version `tools/synth-corpus/gen_loan_docs.py` enforces (`projects/unstructured/corpus/loans/README.md`); the judge does not.
+
 ```
 UNSTRUCTURED_ORACLE_PYTHON=<venv>/bin/python UNSTRUCTURED_MODEL_DIR=<model> tools/unstructured-oracle/run.sh --write
 ```
@@ -65,6 +71,9 @@ UNSTRUCTURED_ORACLE_PYTHON=<venv>/bin/python UNSTRUCTURED_MODEL_DIR=<model> tool
 and runs the judge. The judge stops, naming the cause, if the key is not the one `DECISIONS.md` last recorded, a pointer of
 the key does not match the corpus, the vectors were not made on the pins, or a hybrid statement has drifted from its arms.
 `--check` is a fresh run against the committed `ledger.tsv`; `judge.py --compare OLD NEW` is that gate over two files.
+
+`--write` also writes `evidence/ranks.tsv` and `evidence/passages.tsv`, the numbers a ledger row does not carry (`evidence/README.md`). A run is
+reproduced by running `--write` and then `git diff --exit-code tools/unstructured-oracle/ledger.tsv tools/unstructured-oracle/evidence`.
 
 ## The ledger
 

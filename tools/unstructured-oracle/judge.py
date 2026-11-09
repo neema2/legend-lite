@@ -41,8 +41,13 @@ HERE = Path(__file__).resolve().parent
 SQL = HERE / "sql"
 LEDGER = HERE / "ledger.tsv"
 SOURCE_OF_CORPUS = {"SALES": "SALES", "LENDING": "LENDING", "EDGAR 13F": "EDGAR", "EDGAR 10-K/10-Q/8-K": "EDGAR"}
+KEY_SHA256 = EVALS / "answer_key.sha256"
+EVIDENCE = HERE / "evidence"
 ARMS = ("keyword", "vector", "hybrid")
+ARM_ORDER = {"keyword": 0, "vector": 1, "hybrid": 2, "pure": 3}
 BACKENDS = ("duckdb", "postgres")
+EVERY_PASSAGE = 10_000_000  # hybrid's cut when the evidence reads its whole fused list
+EVIDENCE_ARMS = (("keyword", "duckdb"), ("keyword", "postgres"), ("vector", "duckdb"), ("hybrid", "duckdb"))
 NEGATIVE_ANSWER = "nothing in the corpus"
 # What a server without pgvector answers: undefined table, type and function or operator. Any other failure of those
 # statements, a syntax error above all, is an ERROR, never a refusal.
@@ -121,8 +126,11 @@ def load_embedder():
 
 
 def load_key() -> tuple[list[dict], str]:
-    """The cases, and the key's sha256, which must be the one DECISIONS.md last recorded."""
+    """The cases, and the key's sha256, which must be the one answer_key.sha256 holds and DECISIONS.md last recorded."""
     digest = hashlib.sha256(ANSWER_KEY.read_bytes()).hexdigest()
+    frozen = KEY_SHA256.read_text(encoding="utf-8").strip()
+    if frozen != digest:
+        raise SystemExit(f"answer_key.yaml has sha256 {digest}; answer_key.sha256 holds {frozen}")
     recorded = re.findall(r"^answer_key\.yaml sha256: ([0-9a-f]{64})$", DECISIONS.read_text(encoding="utf-8"), re.MULTILINE)
     if not recorded or recorded[-1] != digest:
         raise SystemExit(f"answer_key.yaml has sha256 {digest}; DECISIONS.md last records {recorded[-1] if recorded else 'nothing'}")
@@ -252,6 +260,65 @@ def judge_text(cases, duck, pg, vectors, refusal, failures) -> list[dict]:
     return ledger
 
 
+def once(text: str, old: str, new: str) -> str:
+    """A change to a production statement that fails if the statement no longer reads as expected."""
+    if text.count(old) != 1:
+        raise SystemExit(f"expected exactly one {old!r} in the statement")
+    return text.replace(old, new)
+
+
+def whole_list(arm: str, backend: str) -> str:
+    """An arm's statement with neither its floor nor its depth: every passage it can rank."""
+    depth = "    QUALIFY RANK <= 150\n" if backend == "duckdb" else "    LIMIT 150\n"
+    return once(logic.arm_list(statement(f"{arm}_{backend}.sql")), depth, "")
+
+
+def fused_list() -> str:
+    """hybrid_duckdb.sql with no floor and its fused relevance returned, the blend's ranks kept."""
+    text, floors = re.subn(r" AND \(SELECT MAX\(RELEVANCE\) FROM fused\) >= [0-9.]+", "", statement("hybrid_duckdb.sql"))
+    if floors != 1:
+        raise SystemExit(f"hybrid_duckdb.sql has {floors} floors, not one")
+    text = once(text, "CASE WHEN $time_aware THEN", "MAX(RELEVANCE) AS FUSED, CASE WHEN $time_aware THEN")
+    text = once(text, "SELECT SHA256, SCORE, LOCATIONS, row_number()", "SELECT SHA256, SCORE, FUSED, LOCATIONS, row_number()")
+    return once(text, "SELECT RANK, SHA256, SCORE, LOCATIONS\nFROM ranked", "SELECT RANK, SHA256, FUSED, LOCATIONS\nFROM ranked")
+
+
+def write_evidence(cases, duck, pg, vectors, header: list[str]) -> None:
+    """The numbers DECISIONS.md's floors and candidates are read from, which a ledger row does not carry (evidence/README.md)."""
+    lines = [f"# {line}" for line in header] + ["\t".join(("case", "arm", "backend", "kind", "path", "charStart", "rank", "score"))]
+    for case in cases:
+        if "text" not in routes_of(case) or case["status"] != "resolved":
+            continue
+        source = SOURCE_OF_CORPUS[case["corpus"]]
+        for arm, backend in EVIDENCE_ARMS:
+            if arm == "hybrid":
+                rows = duck.execute(fused_list(), {"question": case["question"], "vector": vectors[case["id"]],
+                                                   "time_aware": case["type"] == "time-aware", "cut": EVERY_PASSAGE}).fetchall()
+            else:
+                argument = {"question": case["question"]} if arm == "keyword" else {"vector": vectors[case["id"]]}
+                rows = (duck if backend == "duckdb" else pg).execute(whole_list(arm, backend), argument).fetchall()
+            where: dict = {}
+            for rank, _, score, locations in rows:
+                for location in locations:
+                    where.setdefault(logic.pointer(location["source"], location["path"], location["charStart"]), (rank, float(score)))
+            prefix = f"{case['id']}\t{arm}\t{backend}"
+            best = max(float(row[2]) for row in rows) if rows else None
+            lines.append(f"{prefix}\tbest\t-\t-\t-\t{'-' if best is None else format(best, '.6f')}")
+            for kind, entries in (("accepted", text_pointers(case)), ("superseded", superseded_text(case))):
+                for entry in entries:
+                    found = where.get(logic.pointer(source, entry["path"], entry["charStart"]))
+                    rank, score = (found[0], format(found[1], ".6f")) if found else ("-", "-")
+                    lines.append(f"{prefix}\t{kind}\t{entry['path']}\t{entry['charStart']}\t{rank}\t{score}")
+    (EVIDENCE / "ranks.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    passages = duck.execute("""
+        WITH dated AS (SELECT SOURCE, SHA256, count(DISTINCT AS_OF_DATE) AS DATES FROM CO_PASSAGE GROUP BY SOURCE, SHA256)
+        SELECT p.SOURCE, count(*), count(DISTINCT p.SHA256), (SELECT count(*) FROM dated d WHERE d.SOURCE = p.SOURCE AND d.DATES > 1),
+               median(p.CHAR_END - p.CHAR_START)
+        FROM CO_PASSAGE p GROUP BY p.SOURCE ORDER BY p.SOURCE""").fetchall()
+    table = ["source\trows\tdistinct_hashes\tat_more_than_one_date\tmedian_chars"] + ["\t".join(str(cell) for cell in row) for row in passages]
+    (EVIDENCE / "passages.tsv").write_text("\n".join(table) + "\n", encoding="utf-8")
+
+
 def judge_structured(cases, base: str, model: str, failures) -> list[dict]:
     ledger = []
     for case in cases:
@@ -297,13 +364,14 @@ def run(mode: str) -> int:
     with psycopg.connect(url, autocommit=True) as pg:
         refusal = embed.pgvector_refusal(pg)
         ledger = judge_text(cases, duck, pg, vectors, refusal, failures)
+        header = [f"answer_key.yaml sha256 {key_sha256}"] + [f"{k}={v}" for k, v in pins.items() if k != "EMBED_QUERY_INSTRUCTION"]
+        if mode == "--write":
+            write_evidence(cases, duck, pg, vectors, header)
     duck.close()  # the server opens this file: DuckDB allows one writer or many readers, never both across processes
     with Server() as server:
         ledger += judge_structured(cases, server.base, model_text(), failures)
     order = {case["id"]: index for index, case in enumerate(cases)}
-    ledger.sort(key=lambda row: (order[row["case"]], row["route"] == "structured", ARMS.index(row["arm"]) if row["arm"] in ARMS else 0,
-                                 BACKENDS.index(row["backend"])))
-    header = [f"answer_key.yaml sha256 {key_sha256}"] + [f"{k}={v}" for k, v in pins.items() if k != "EMBED_QUERY_INSTRUCTION"]
+    ledger.sort(key=lambda row: (order[row["case"]], row["route"] == "structured", ARM_ORDER[row["arm"]], BACKENDS.index(row["backend"])))
     if mode == "--write":
         logic.write_ledger(LEDGER, header, ledger)
         print(f"wrote {LEDGER.relative_to(REPO_ROOT)}: {len(ledger)} rows")

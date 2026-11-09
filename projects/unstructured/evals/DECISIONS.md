@@ -183,16 +183,42 @@ FALSE_HIT on keyword and hybrid, and all four on vector.
   re-read, not kept.
 - A real pgvector run where a PASS's best fused relevance is under 0.89 on Postgres.
 
+## Entry 6, 2026-11-09
+
+the independent review's findings; no label and no verdict changed
+
+answer_key.yaml sha256: a4dcdc340a4aa10911a123ff15cb81e28c93ffb36252bebd1dba8a59c0945e7e
+
+ledger.tsv sha256: 20afd1c988442254e0786d11d780eb1def0bd44e65bf2ec4bde3bfdd15c3decf
+
+**The evidence is committed.** `judge.py --write` now also writes `tools/unstructured-oracle/evidence/ranks.tsv` (sha256 adca41d8ce8872b687690f0918bd0b67f0a15aa1fd99ac004e249c6661dc79d3), each arm's
+floor-free best score and each pointer's rank and score in its whole list, and `evidence/passages.tsv` (sha256 51117dce369928f672c7e2920132fad8bf2fb5919a902dc8e11c5c03043b9664). They are what entry 5's
+best-score cells and the candidates below are read from. Three fresh runs wrote byte-identical ledgers, ranks and passages, and the ledger is
+byte-for-byte this entry's, so the run changed nothing the gate reads. Anyone with the corpus reproduces it: `run.sh --write`, then
+`git diff --exit-code` on `ledger.tsv` and `evidence/`. A run's identity is a measurement and has no other artifact.
+
+**The cut rule's effect is now on file.** `evidence/ledger_before_cut_rule.tsv` (sha256 a63c8a3c052b0725233a91545fa35192fb6b4952cf3e6a5e557c5b83a7e3860f) is the ledger before entry 3's rule. Between it and entry 3's
+ledger, C08 goes DROPPED to PASS on the four arms that ran, and C04's four rows change only in their detail, "top 5" to "top 6". The rule's commit, `d39699192`, carries no ledger, and the first one committed, `e42d8177a`, was
+already made under the rule, so this file was in no commit.
+
+**Two figures corrected, from the evidence.** In the candidates below, the median rank of the pointers beyond the cut is 28, not 30, and EDGAR's accepted
+passages on PASS rows have a median of 747 characters, not 772: both had been taken as the upper of the two middle values of an even list. The study also
+said "37 missed accepted pointers"; there are 37 accepted pointers on hybrid's DROPPED rows, of which 32 are missed and 5 found inside the cut.
+
+**The freeze is mechanical.** `answer_key.sha256` holds the frozen hash, and `//projects/unstructured:freeze_test`, in the `checks` lane with no corpus, holds the
+key to it. A test may not read this file (guard G17: prose must not change a verdict), which is why the record is a data file; `judge.py` refuses a run unless the key,
+that file and this file's last entry agree.
+
 ## Not tuned, candidates
 
-None of these has been run. Counts are from the ledger; ranks beyond the cut are from the same statements' full lists, before
-the floors, and are not in the ledger.
+None of these has been run. Counts are from the ledger; ranks and scores are from `tools/unstructured-oracle/evidence/ranks.tsv`, the
+statements' whole lists before the floors.
 
 - **Per-location recency (F-U6).** The ledger's support is thin. No accepted or superseded pointer of the 9 time-aware text
   cases sits in a hash held at more than one date. Such hashes do hold places in hybrid's cut on 3 of those 9: C63 (4 of its 5,
   hybrid DROPPED), C43 (1, STALE_HIT) and C64 (1, DROPPED). C63 is where to start; that they are the cause is not measured.
 - **Smaller EDGAR passages.** EDGAR's median passage is 717 characters, LENDING's 152, SALES's 58, and EDGAR is 7 PASS, 7
-  DROPPED on hybrid. The evidence is mixed and the weakest here: on hybrid, EDGAR's accepted passages have a median of 772
+  DROPPED on hybrid. The evidence is mixed and the weakest here: on hybrid, EDGAR's accepted passages have a median of 747
   characters on PASS rows and 752 on DROPPED ones, and SALES, the shortest passages, has the most DROPPED, 9 of 15.
 - **A larger embedder.** Vector has the fewest PASS (12, against 15 and 16 for keyword and 16 for hybrid) and the most DROPPED
   (24), and 1 PASS of the 15 SALES cases. The negatives' best cosines, 0.6537 to 0.7488, sit inside the PASS rows' range, 0.6314 to
@@ -201,6 +227,6 @@ the floors, and are not in the ledger.
   outside both top-150 lists. Six of those 8 share no term with their question on DuckDB, so a deeper keyword list cannot reach
   them. A deeper vector list would reach 5 of the 8 by rank 500 (C04 twice, C16, C24, C59); the other 3 are at rank 1,460 or deeper.
   Depth is not the first limit: keyword's deepest listed miss is rank 69 of 150 on DuckDB.
-- **A reranker outside the engine.** Of those 37 pointers, 24 are in the fused list but beyond the cut (median rank 30, deepest
+- **A reranker outside the engine.** Of those 37 pointers, 24 are in the fused list but beyond the cut (median rank 28, deepest
   141), which is what a reranker reorders; 5 are inside it, on rows missing others. C60 is the other motive: first in both
   lists and answering nothing, beyond any fused floor. It stays outside the engine (the boundary in the oracle's README).

@@ -22485,14 +22485,14 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
   static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
 
-## The unstructured study's judge -- 2026-11-09 (a hand tool; no lane runs it)
+## The unstructured study's judge -- 2026-11-09 (a hand tool; no lane runs it; PR #93)
 
 `tools/unstructured-oracle/run.sh --check` is the study's gate: a fresh run of the frozen answer key against the committed `ledger.tsv`,
 in which any row that was PASS and is not PASS now fails, even if the counts improve. It is a hand tool because it needs the EDGAR corpus,
 which is never committed, the pinned embedder, and a live `//core:server` (`tools/unstructured-oracle/README.md`). The study is
 `docs/UNSTRUCTURED_STUDY_2026_11_09.md`; every change to a ledger is a dated entry of `projects/unstructured/evals/DECISIONS.md`.
 
-What CI does see: `//tools/unstructured-oracle:update_generated_tests` through `//:generated` (the `checks` lane), which diff-tests
-`summary.tsv` against the ledger. What it does not: `//tools/unstructured-oracle:judge_logic_test`, `//projects/unstructured:corpus_test` and
-`//projects/unstructured:unstructured_test` are in no `//gates` lane and run only under `bazel test //...`; `OpenMappingGapsPinTest` runs in
-`//core:core_tests_compiler` (the `core` lane).
+What CI sees, in the `checks` lane: `//projects/unstructured:freeze_test`, the answer key against `answer_key.sha256`, needing no corpus;
+`//tools/unstructured-oracle:judge_logic_test`; `//projects/unstructured:unstructured_test`; and, through `//:generated`,
+`//tools/unstructured-oracle:update_generated_tests`, which diff-tests `summary.tsv` against the ledger. `OpenMappingGapsPinTest` runs in
+`//core:core_tests_compiler` (the `core` lane). `//projects/unstructured:corpus_test` is in `heavy`, manual, because it needs the EDGAR corpus.

@@ -3524,11 +3524,11 @@ oracle for #TS").
 ## A sixteenth line, 2026-11-09: the unstructured study (the owner's ask, rule 5)
 
 - **The study**: `docs/UNSTRUCTURED_STUDY_2026_11_09.md`. Nothing is scheduled from it; its §6 is a decision for the owner, on `textSearch` and
-  `vectorDistance`, and neither native exists. **Status: on branch `abs/unstructured-study`, not merged.**
+  `vectorDistance`, and neither native exists. **Status: on branch `abs/unstructured-study`, PR #93, not merged.**
 - **Files this line owns**: `projects/unstructured/`, `tools/unstructured-corpus/`, `tools/unstructured-oracle/`, `tools/edgar-corpus/`,
   `tools/synth-corpus/`, and the study.
 - **Cross-area edits it carries**: the root `BUILD.bazel` (`//:generated` and `update_generated` gain the summary's diff test); `core/BUILD.bazel` and
   `core/src/test/java/com/legend/compiler/OpenMappingGapsPinTest.java` (the pins for F-U1, F-U2 and F-U5; nothing in core's main sources changes);
-  `tools/legend/BUILD.bazel` and `UnstructuredCorpusTest.java`; the parser-equivalence ratchet; `.gitignore`.
+  `tools/legend/BUILD.bazel` and `UnstructuredCorpusTest.java`; `gates/BUILD.bazel` (this line's tests in `checks` and `heavy`); the parser-equivalence ratchet; `.gitignore`.
 - **`docs/SEMANTICS_REGISTER.md` is untouched.** The proposed rows are in the study's §6.2, in full, the number left to the owner.
 - **F-U1 and F-U2** (`projects/unstructured/FINDINGS.md`) are defects under the upstream-fidelity tenet, awaiting the owner's ruling, and any fix is a separate PR.

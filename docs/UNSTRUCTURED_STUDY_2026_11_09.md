@@ -17,6 +17,7 @@ evaluation discipline; §5 the results; §6 the decision; §7 the findings that 
 | `edgar/manifest.yaml`, `emails/README.md`, `loans/README.md` | `projects/unstructured/corpus/` |
 | `pins.env` | `tools/unstructured-corpus/` |
 | `sql/` | `tools/unstructured-oracle/sql/` |
+| `evidence/` | `tools/unstructured-oracle/evidence/`: `ranks.tsv`, `passages.tsv`, `ledger_before_cut_rule.tsv` |
 
 ---
 
@@ -27,8 +28,8 @@ evaluation discipline; §5 the results; §6 the decision; §7 the findings that 
    layer answering, not a measure of retrieval.
 2. **Over text, not yet well.** The best text arm passes 16 of the 40 answerable rows (`summary.tsv`, less
    the 4 text negatives of `answer_key.yaml`). keyword on Postgres and hybrid on DuckDB tie at it.
-3. **The misses are mostly ranking.** Of hybrid's 37 missed accepted pointers, 24 are in the fused list but beyond
-   the cut, and only 8 are outside both top-150 lists (`DECISIONS.md`, "Not tuned, candidates").
+3. **The misses are mostly ranking.** Of the 37 accepted pointers on hybrid's 22 DROPPED rows, 32 are missed: 24 are in
+   the fused list but beyond the cut, and only 8 are outside both top-150 lists (`evidence/ranks.tsv`).
 4. **The score floors are a small and fitted gain, reported as that** (§5.3).
 5. **The decision is the owner's** (§6): `textSearch` has no legend-engine twin, so it would be a lite extension and a register row.
 
@@ -157,9 +158,9 @@ pointer inside the cut, even with the accepted one there too) and `ERROR` (the s
 **The dedupe rule** (`FINDINGS.md`, the owner's ruling): the judge dedupes by sha256 before any cut, and a result is identified by
 `(path, charStart)`; sha256 is its fingerprint. A hash held at more than one date (171 of the 1,769) takes its newest, which is F-U6.
 
-**The one tuning entry** (`DECISIONS.md`, entry 5): a floor on a result set's best score. It cost 0 PASS, and one row found
-less: C04 on keyword DuckDB went from 1 of 6 to 0, still DROPPED. Entry 3 records what was decided
-after a ledger was seen: the BM25 rounding, which is determinism, and the cut rule below.
+**The one entry named tuning** (`DECISIONS.md`, entry 5): a floor on a result set's best score. It cost 0 PASS, and one row found
+less: C04 on keyword DuckDB went from 1 of 6 to 0, still DROPPED. **It is not the only change made after a ledger was seen.** The cut rule
+moved C08 from DROPPED to PASS on 4 arms (`DECISIONS.md`, entry 3; the ledger before it is `evidence/ledger_before_cut_rule.tsv`), and the BM25 rounding is determinism (entry 3).
 
 | Fact of the test | Design choice |
 |---|---|
@@ -187,7 +188,7 @@ after a ledger was seen: the BM25 rounding, which is determinism, and the cut ru
 | text | vector | duckdb | direct-sql | 44 | 12 | 24 | 4 | 0 | 4 | 0 | 0 | 0 |
 | text | vector | postgres | direct-sql | 44 | 0 | 0 | 0 | 0 | 0 | 44 | 0 | 0 |
 
-Three fresh runs wrote byte-identical ledgers (`DECISIONS.md`, entry 5).
+Three fresh runs wrote byte-identical ledgers (`DECISIONS.md`, entries 5 and 6). That is a measurement of runs, with no artifact of its own; with the corpus, `run.sh --write` and then `git diff --exit-code` on the ledger reproduces it.
 
 ### 5.2 The structured route: 24 of 24, through lite's server
 
@@ -215,17 +216,17 @@ PASS is unchanged since. The best arm passes 16 of 40, and hybrid does not beat 
 PASS's best score passes the gate by construction, so the gate passing here is not independent evidence** (`DECISIONS.md`, entry 5). Each floor is also
 tied to this corpus and these pins.
 
-**The ceiling. 24 of hybrid's 37 missed accepted pointers are in the fused list but beyond the cut, which is the ceiling a reranker outside
-the engine would address, against only 8 outside both top-150 lists** (median rank 30, deepest 141; the other 5
-are inside the cut, on rows missing others; `DECISIONS.md`, "Not tuned, candidates"). These are pointers, not rows. A `match: all` row passes only when all
+**The ceiling. 24 of hybrid's 32 missed accepted pointers are in the fused list but beyond the cut, which is the ceiling a reranker outside
+the engine would address, against only 8 outside both top-150 lists** (median rank 28, deepest 141; `evidence/ranks.tsv`). Hybrid's 22 DROPPED rows
+accept 37 pointers in all, and the other 5 are found inside the cut, on rows missing others. These are pointers, not rows. A `match: all` row passes only when all
 its pointers are in, and those 8 stay out whatever reorders the list. No row count for a reranker is claimed here.
 
-**The vector arm has no floor, because none exists that costs no PASS.** Every negative's best cosine is above the lowest PASS's (0.6314, C32),
+**The vector arm has no floor, because none exists that costs no PASS.** Every negative's best cosine is above the lowest PASS's (0.6314, C32; `evidence/ranks.tsv`),
 so any value that empties a negative costs a PASS, and any value that costs no PASS empties no negative (`DECISIONS.md`, entry 5). A negative on vector
 cannot be EMPTY_OK: all 4 are FALSE_HIT.
 
 A fused score has the same limit from another side. It is rank agreement and not relevance, so C60, first in both lists on a passage that answers nothing, scores
-1.0000 and no fused floor can reach it (`DECISIONS.md`, entry 5).
+1.0000 and no fused floor can reach it (`evidence/ranks.tsv`).
 
 ### 5.4 The hybrid's one job: STALE_HIT from 5 to 2
 
@@ -237,11 +238,11 @@ was pushed out of the cut and the current one did not come in. The ledger cannot
 
 ### 5.5 Why the retriever is weak, and what addresses which rows
 
-- **Ranking first.** 24 of 37, as above.
+- **Ranking first.** 24 of the 32 missed pointers, as above.
 - **A small general embedder.** `BAAI/bge-small-en-v1.5`, 384 dimensions (`pins.env`). Vector has the fewest PASS (12) and the most DROPPED (24)
   of the arms that ran (`summary.tsv`).
 - **Vector is weakest on SALES and 13F.** It passes 1 of the 15 SALES cases and 0 of the 4 `EDGAR 13F` text cases (`ledger.tsv`). SALES has the
-  shortest passages (median: EDGAR 717 characters, LENDING 152, SALES 58; `DECISIONS.md`), but that the length is the cause is not measured.
+  shortest passages (median: EDGAR 717 characters, LENDING 152, SALES 58; `evidence/passages.tsv`), but that the length is the cause is not measured.
 - **The noise is on purpose.** All corpora are searched for every question.
 
 By corpus, on the arms that ran on DuckDB (PASS per arm, `ledger.tsv` and `answer_key.yaml`):
@@ -253,7 +254,7 @@ By corpus, on the arms that ran on DuckDB (PASS per arm, `ledger.tsv` and `answe
 | `SALES` | 15 | 4 | 1 | 3 |
 | `LENDING` | 14 | 6 | 5 | 6 |
 
-Nothing below has been run (`DECISIONS.md`, "Not tuned, candidates"):
+Nothing below has been run (`DECISIONS.md`, "Not tuned, candidates"; ranks and scores from `evidence/ranks.tsv`):
 
 | Candidate | Rows it addresses | Strength of the evidence |
 |---|---|---|
@@ -261,7 +262,7 @@ Nothing below has been run (`DECISIONS.md`, "Not tuned, candidates"):
 | A larger embedder | vector's 24 DROPPED; SALES; the negatives' cosines, 0.6537 to 0.7488, inside the PASS rows' range, 0.6314 to 0.8449 | strong for vector alone |
 | k per arm | the 8 outside both lists; a deeper vector list reaches C04, C16, C24 and C59 | modest; keyword's deepest listed miss is rank 69 of 150 |
 | Per-location recency (F-U6) | C63, C43, C64 | thin: no accepted or superseded pointer of a time-aware case is in a repeated-date hash |
-| Smaller EDGAR passages | hybrid's EDGAR DROPPED: C09, C10, C16, C20, C24, C31, C36 | the weakest: accepted passages have a median of 772 characters on PASS rows and 752 on DROPPED |
+| Smaller EDGAR passages | hybrid's EDGAR DROPPED: C09, C10, C16, C20, C24, C31, C36 | the weakest: accepted passages have a median of 747 characters on PASS rows and 752 on DROPPED |
 
 ---
 
