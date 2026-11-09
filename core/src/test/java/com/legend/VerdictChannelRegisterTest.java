@@ -33,13 +33,14 @@ class VerdictChannelRegisterTest {
             // task #27 (2026-09-21): the HOST ARM of the verdict seam — the Java compare
             // over database rows moved out of the router verbatim; the router only
             // classifies and dispatches
-            "core/src/main/java/com/legend/driver/HostJudge.java",
+            // the test's run since slice 5 (2026-11-09: the host judge's run half, out of the driver)
+            "core/src/main/java/com/legend/testexec/HostJudgments.java",
             // message facades: the assert family's spellings, decided by the judge
-            "core/src/main/java/com/legend/judge/PureAsserts.java",
+            "core/src/main/java/com/legend/testexec/PureAsserts.java",
             // the grid compare policy (row order / multiset), cells by the judge —
             // and since 2026-09-20 its float cell rule is the judge's own
             // (Equality.withinTwoUlp; the printed-precision tolerance deleted)
-            "core/src/main/java/com/legend/judge/TdsCompare.java",
+            "core/src/main/java/com/legend/testexec/TdsCompare.java",
             // the service-test runner's EqualToJson routes to serviceJson
             "core/src/main/java/com/legend/test/TestAssertions.java",
             // 2026-09-20 (one float rule): the corpus REFEREE's float cell
@@ -47,13 +48,13 @@ class VerdictChannelRegisterTest {
             // calls the one home (the ten-digit normalization it replaced
             // was a second definition of "equal float"; deleted)
             "spec/src/test/java/com/legend/harness/RefereeVerify.java",
-            // the judges and their tests under com.legend.judge since 2026-10-30 (D71)
-            "core/src/test/java/com/legend/judge/EqualityJsonStrictTest.java",
+            // the judges and their tests under com.legend.judge since 2026-10-30 (D71), the test's run's since slice 5
+            "core/src/test/java/com/legend/testexec/EqualityJsonStrictTest.java",
             // 2026-11-03, the user's ruling "no sort can be multiset compare" restored: an unsorted chain's root
             // array a multiset again, its test back beside the strict object-vs-array one
-            "core/src/test/java/com/legend/judge/EqualityJsonUnorderedRootTest.java",
-            "core/src/test/java/com/legend/judge/EqualityWorldsConformanceTest.java",
-            "core/src/test/java/com/legend/judge/PureAssertsTest.java");
+            "core/src/test/java/com/legend/testexec/EqualityJsonUnorderedRootTest.java",
+            "core/src/test/java/com/legend/testexec/EqualityWorldsConformanceTest.java",
+            "core/src/test/java/com/legend/testexec/PureAssertsTest.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");

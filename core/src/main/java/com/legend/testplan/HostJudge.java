@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * THE HOST JUDGE (task #27, 2026-09-21 — split out of AssertVerdicts): both sides of an
- * assert EXECUTE in the database and Java compares the rows ({@code testexec.Equality},
+ * assert EXECUTE in the database and Java compares the rows ({@code testexec}'s equality,
  * {@code testexec.PureAsserts}, {@code testexec.TdsCompare}) — the verdict of
  * record in host mode; in agreement mode the database judge's peer. The router
  * ({@link AssertVerdicts}) classifies the assert and hands the sides over; the database

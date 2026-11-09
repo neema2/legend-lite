@@ -71,8 +71,8 @@ final class ArchitectureTest {
             java.util.Map.entry("door", "com.legend.door.ModelFromText"),
             java.util.Map.entry("builtin", "com.legend.builtin.Pure"),
             java.util.Map.entry("platform", "com.legend.platform.WalledBodies"),
-            // D71, 2026-10-30: the judge layer, out of exec
-            java.util.Map.entry("judge", "com.legend.testexec.Equality"),
+            // D71, 2026-10-30: the judge layer, out of exec; the test's run since slice 5 (2026-11-09)
+            java.util.Map.entry("testexec", "com.legend.testexec.TestRunner"),
             java.util.Map.entry("compiler_element_type", "com.legend.compiler.element.type.ExprType"),
             java.util.Map.entry("sql_dialect", "com.legend.sql.dialect.SqlDialect"),
             java.util.Map.entry("database", "com.legend.database.Databases"),
@@ -97,7 +97,8 @@ final class ArchitectureTest {
             java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
             // the test-planning library (the test-is-the-product plan's M3c, R17 C7, 2026-10-31)
             java.util.Map.entry("testplan", "com.legend.testplan.TestDoor"),
-            java.util.Map.entry("driver", "com.legend.Execution"),
+            // the door (the driver until slice 5, 2026-11-09)
+            java.util.Map.entry("execution", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
             java.util.Map.entry("server_lib", "com.legend.server.ConnectionResolver"),
@@ -218,7 +219,7 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackage("com.legend")
             // the top layer is three packages since step C (D73, 2026-10-30): the root's doors, the plan machinery
             // (com.legend.planner) and the execution side's machinery (com.legend.driver)
-            .and().resideOutsideOfPackages("com.legend.driver", "com.legend.planner")
+            .and().resideOutsideOfPackages("com.legend.testplan", "com.legend.planner")
             // the server shell is a driver CONSUMER (HTTP/LSP/diagram on top
             // of Compiler) — a top-layer sibling, not a phase
             .and().resideOutsideOfPackage("com.legend.server..")
@@ -229,8 +230,8 @@ final class ArchitectureTest {
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
                     com.legend.testplan.BodyDriver.class)
-            .as("Invariant 4c: the root's doors, the planner and the driver are the top"
-                    + " layer — audit 19; step C, D73")
+            .as("Invariant 4c: the root's doors, the planner and the test's planner are the top"
+                    + " layer — audit 19; step C, D73; slice 5 (the driver deleted, 2026-11-09)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -244,10 +245,9 @@ final class ArchitectureTest {
     @Test
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
-            // the root layer's execution side is com.legend.driver since step C (D73, 2026-10-30: EngineText, the
-            // engine-text registry, lives there); the root's doors reach no engine-style renderer, so the root's own
-            // exemption, which the rule carried since audit 19, named nothing and left (the D73 audit)
-            .that().resideOutsideOfPackage("com.legend.driver")
+            // the root layer's execution side was com.legend.driver from step C (D73, 2026-10-30) to slice 5
+            // (2026-11-09: deleted); its planning is the test's planner's now, which holds no engine-style renderer
+            .that().resideOutsideOfPackage("com.legend.testplan")
             .and().resideInAPackage("com.legend..")
             // 2026-10-31 (the seam program's S2g): the engine-text registry is planning work and left the driver for
             // the planner; it alone constructs the renderers, so it alone of the planner is exempt (a plan the runner
@@ -279,7 +279,7 @@ final class ArchitectureTest {
         noClasses()
             // com.legend.driver since step C (D73, 2026-10-30): the root layer's execution side; the root's own
             // exemption left the same day (no door holds the interface; the D73 audit)
-            .that().resideOutsideOfPackages("com.legend.driver", "com.legend.sql.dialect", "com.legend.testdatagen")
+            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend.sql.dialect", "com.legend.testdatagen")
             .and().resideInAPackage("com.legend..")
             // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
             // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
@@ -569,17 +569,24 @@ final class ArchitectureTest {
      */
     @Test
     void theDriverHasOneCaller() {
+        // slice 5 (2026-11-09): the driver package is deleted; the body driver's planning environment is the test
+        // planner's, its run the test's run's, each entry the door's alone
         noClasses()
-            .that().resideOutsideOfPackage("com.legend.driver")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyDriver(\\$.*)?")
-            .as("step C, M5: the body driver (its environment and the planning the judges share; the walk it ran is"
-                    + " deleted, 2026-11-06) is the driver package's alone")
+            .that().resideOutsideOfPackage("com.legend.testplan")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testplan\\.BodyDriver(\\$.*)?")
+            .as("step C, M5: the body driver's planning environment is the test planner's alone")
             .check(CORE_PROD_CLASSES);
         noClasses()
-            .that().resideOutsideOfPackage("com.legend.driver")
+            .that().resideOutsideOfPackage("com.legend.testplan")
             .and().doNotHaveFullyQualifiedName("com.legend.Execution")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.TestPlanner(\\$.*)?")
-            .as("M5: the body router is the execution door's alone (Execution.runProgram)")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testplan\\.TestPlanner(\\$.*)?")
+            .as("M5: the test planner is the execution door's alone (Execution.planBody, planProgram)")
+            .check(CORE_PROD_CLASSES);
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.testexec")
+            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testexec\\.TestRunner(\\$.*)?")
+            .as("slice 5: the test's run is the execution door's alone (Execution.runBody)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -597,8 +604,9 @@ final class ArchitectureTest {
             .or().haveFullyQualifiedName("com.legend.Compiler")
             .or().haveFullyQualifiedName("com.legend.TypedQuery")
             .or().haveFullyQualifiedName("com.legend.HeldModels")
-            .should().dependOnClassesThat().resideInAnyPackage("com.legend.driver", "com.legend.exec..", "com.legend.judge")
-            .as("step C: planning never touches the driver, the runtime or the judge")
+            .should().dependOnClassesThat().resideInAnyPackage("com.legend.testplan", "com.legend.exec..",
+                    "com.legend.testexec")
+            .as("step C: planning never touches the test's planner, the runtime or the test's run")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -615,9 +623,9 @@ final class ArchitectureTest {
     @Test
     void theTestPlanningLibraryIsTheDriversAlone() {
         noClasses()
-            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend.driver")
+            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend")
             .should().dependOnClassesThat().resideInAPackage("com.legend.testplan")
-            .as("B4, R17 C7: the test-planning library is the driver's alone")
+            .as("B4, R17 C7: the test-planning library is the door's alone (the driver's until slice 5)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -1141,245 +1149,70 @@ final class ArchitectureTest {
     }
 
     /**
-     * <strong>The plan/run split's rules R1, R2 and R4 in REPORT MODE (P1 of docs/GOALS_OF_RECORD_2026_11_07.md,
-     * 2026-11-07).</strong> Written before the split, as the runtime wall was built: every crossing listed, the counts
-     * pinned, each pin moving only DOWN with a dated note, until the package split makes them hard rules. R1: the run's
-     * own code (the body's sink, the run's reader, the held appeals) reaches no planning package and no planning class
-     * of the driver. R2: planning (the planner, the test door, the lowering, the compiler, the resolver, the driver's
-     * planning classes) holds no session and runs no plan. R4: the judge package holds no session. R3 (only the router
-     * sees both halves) is the split's own, measured once the halves are packages.
-     *
-     * <p>R1 MEASURES EVERY CLASS (the plan-as-data design's slice 3, docs/PLAN_AS_DATA_2026_11_07.md §11, 2026-11-08;
-     * until then it measured six run classes by name, and the MIXED ones -- a plan half and a run half in one class --
-     * were neither planning nor run, so their crossings went unmeasured): every class of the driver, the judges and the
-     * edge is measured as the run's, but the planning-only ones named in {@link #PLANNING_ONLY}; a measured class that
-     * reaches planning directly is MIXED, and is itself a planning target. A crossing is a measured class reaching a
-     * planning package, the compiler, a planning-only class or a mixed one ({@link #R1_CROSSINGS}, by source). Every
-     * path from the run to planning holds one such edge, so at zero no measured class reaches planning; the pins go to
-     * zero with the package split (slice 5), never by moving a class into {@link #PLANNING_ONLY} that holds run code.
+     * <strong>THE PLAN/RUN SPLIT, HARD (the plan-as-data design's slice 5, docs/PLAN_AS_DATA_2026_11_07.md section 11,
+     * 2026-11-09).</strong> Until slice 5 a report-mode test measured the crossings between the halves and pinned them,
+     * shrink-only (278 at its last measure); the package split took them to zero, and these rules keep them there. R1:
+     * the test's run ({@code com.legend.testexec}) reaches only the run's libraries and the plan's records -- an
+     * allow-list, so a planning library added later is refused too.
      */
     @Test
-    void thePlanRunSplitInReportMode() {
-        java.util.Set<String> planningPackages = java.util.Set.of("com.legend.planner", "com.legend.testplan",
-                "com.legend.lowering", "com.legend.resolver", "com.legend.testdatagen");
-        // R1's planning targets beyond those (the slice 3 invariant audit, 2026-11-08): the frontend and the plan
-        // side's database owner, and the root package's planning doors
-        java.util.Set<String> frontendPackages = java.util.Set.of("com.legend.builtin", "com.legend.parser",
-                "com.legend.normalizer", "com.legend.lineage", "com.legend.database");
-        java.util.Set<String> planningDoors = java.util.Set.of("com.legend.Compiler", "com.legend.TypedQuery",
-                "com.legend.HeldModels");
-        java.util.Set<String> drivePlanning = PLANNING_ONLY;
-        java.util.Set<String> measuredPackages = java.util.Set.of("com.legend.driver", "com.legend.judge",
-                "com.legend.edge");
-        java.util.function.Predicate<com.tngtech.archunit.core.domain.JavaClass> planningTarget = t ->
-                planningPackages.contains(t.getPackageName()) || t.getPackageName().startsWith("com.legend.compiler")
-                        || drivePlanning.contains(topLevel(t)) || frontendPackages.contains(t.getPackageName())
-                        || planningDoors.contains(topLevel(t));
-        java.util.function.Predicate<com.tngtech.archunit.core.domain.JavaClass> measured = c ->
-                measuredPackages.contains(c.getPackageName()) && !drivePlanning.contains(topLevel(c));
-        // the mixed classes: measured, and reaching planning directly
-        java.util.Set<String> mixed = new java.util.TreeSet<>();
+    void theRunReachesNoPlanning() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAPackage("com.legend.testexec")
+            .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "com.legend.base..",
+                    "com.legend.diagnostics", "com.legend.error", "com.legend.exec", "com.legend.executionplan",
+                    "com.legend.json..", "com.legend.result..", "com.legend.sql", "com.legend.testexecutionplan",
+                    "com.legend.testexec", "com.legend.values..")
+            .as("R1, slice 5: the test's run reaches no planning library")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** R2 (slice 5, 2026-11-09): planning -- the test's planner, the product's planner, the generator's planning, the
+     *  compiler, the middle end -- reaches no runtime class and not the door. */
+    @Test
+    void planningReachesNoRun() {
+        noClasses()
+            .that().resideInAnyPackage("com.legend.testplan..", "com.legend.planner..", "com.legend.testdatagen..",
+                    "com.legend.compiler..", "com.legend.lowering..", "com.legend.resolver..")
+            .should().dependOnClassesThat().resideInAnyPackage("com.legend.exec..", "com.legend.testexec..")
+            .orShould().dependOnClassesThat().belongToAnyOf(com.legend.Execution.class,
+                    com.legend.ExecuteOptions.class)
+            .as("R2, slice 5: planning reaches no runtime class and not the door")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** R3 (slice 5, 2026-11-09): only the door ({@code com.legend.Execution}) sees both halves -- no other class depends
+     *  on both the test's planner and the test's run. */
+    @Test
+    void onlyTheDoorSeesBothHalves() {
+        java.util.Set<String> both = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
-            if (measured.test(c) && c.getDirectDependenciesFromSelf().stream()
-                    .anyMatch(d -> planningTarget.test(d.getTargetClass().getBaseComponentType()))) {
-                mixed.add(topLevel(c));
-            }
-        }
-        java.util.Set<String> sessionTypes = java.util.Set.of("com.legend.exec.Sessions$Session",
-                "com.legend.exec.PlanSessions", "com.legend.exec.PlanSessions$Source", "com.legend.exec.PlanRunner");
-        java.util.Map<String, java.util.Set<String>> r1 = new java.util.TreeMap<>();
-        java.util.Map<String, java.util.Set<String>> r2 = new java.util.TreeMap<>();
-        java.util.Map<String, java.util.Set<String>> r4 = new java.util.TreeMap<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
-            String pkg = c.getPackageName();
-            String top = topLevel(c);
-            boolean planning = planningPackages.contains(pkg) || pkg.startsWith("com.legend.compiler")
-                    || drivePlanning.contains(top);
-            boolean run = measured.test(c);
+            boolean plans = false;
+            boolean runs = false;
             for (com.tngtech.archunit.core.domain.Dependency d : c.getDirectDependenciesFromSelf()) {
-                com.tngtech.archunit.core.domain.JavaClass t = d.getTargetClass().getBaseComponentType();
-                String tName = t.getName();
-                String tTop = topLevel(t);
-                // a run-only nested class keyed by its own name (the slice 3 invariant audit: Moved hid under
-                // TestPlanner's planning pins)
-                String key = runKey(c);
-                String tKey = runKey(t);
-                if (run && !tKey.equals(key) && (planningTarget.test(t) || tKey.equals(tTop) && mixed.contains(tTop))) {
-                    r1.computeIfAbsent(key, k -> new java.util.TreeSet<>()).add(tKey);
-                }
-                if (planning && sessionTypes.contains(tName)) {
-                    r2.computeIfAbsent(top, k -> new java.util.TreeSet<>()).add(tName);
-                }
-                if (pkg.equals("com.legend.judge") && sessionTypes.contains(tName)) {
-                    r4.computeIfAbsent(top, k -> new java.util.TreeSet<>()).add(tName);
-                }
+                String pkg = d.getTargetClass().getBaseComponentType().getPackageName();
+                plans |= pkg.equals("com.legend.testplan");
+                runs |= pkg.equals("com.legend.testexec");
+            }
+            if (plans && runs && !topLevel(c).equals("com.legend.Execution")) {
+                both.add(c.getName());
             }
         }
-        java.util.Set<String> crossings = new java.util.TreeSet<>();
-        r1.forEach((from, to) -> to.forEach(t -> crossings.add("R1 " + from + " -> " + t)));
-        java.util.Set<String> pinned = new java.util.TreeSet<>(SPLIT_CROSSINGS);
-        pinned.addAll(r1Crossings());
-        r2.forEach((from, to) -> to.forEach(t -> crossings.add("R2 " + from + " -> " + t)));
-        r4.forEach((from, to) -> to.forEach(t -> crossings.add("R4 " + from + " -> " + t)));
-        java.util.Set<String> grew = new java.util.TreeSet<>(crossings);
-        grew.removeAll(pinned);
-        java.util.Set<String> gone = new java.util.TreeSet<>(pinned);
-        gone.removeAll(crossings);
-        org.junit.jupiter.api.Assertions.assertTrue(grew.isEmpty(), "a NEW plan/run crossing (move the work to its side,"
-                + " or carry the fact in the plan's records): " + grew);
-        org.junit.jupiter.api.Assertions.assertTrue(gone.isEmpty(), "a crossing is gone: shrink SPLIT_CROSSINGS or"
-                + " R1_CROSSINGS, dated: " + gone);
+        org.junit.jupiter.api.Assertions.assertTrue(both.isEmpty(), "R3: a class other than the door depends on both"
+                + " the test's planner and the test's run: " + both);
     }
 
-    /** The driver's and the judges' classes that hold planning code alone, never measured as the run's (R1): the
-     *  judges' planners, the test door's helpers they call, the planning registries and the facts read at planning. A
-     *  class holding any run code is never listed here (it is MIXED until the split extracts its halves). */
-    private static final java.util.Set<String> PLANNING_ONLY = java.util.Set.of("com.legend.testplan.HostAsserts",
-            "com.legend.testplan.DatabaseAsserts", "com.legend.testplan.AgreementAsserts", "com.legend.testplan.AssertBranch",
-            "com.legend.testplan.SeedSqlForms", "com.legend.testplan.LiteralFold", "com.legend.testplan.EngineTextAppeals",
-            "com.legend.testplan.AppealsByVerdict", "com.legend.testplan.JudgmentFacts", "com.legend.testplan.VerdictIds");
-
-    /** R1's pinned crossings, by source (the first measure of every class, 2026-11-08, the plan-as-data design's slice
-     *  3: 14 mixed classes, 266 crossings; 281 the same day once the slice 3 invariant audit's fix keyed the run-only
-     *  {@code Moved} by its own name and counted the frontend, the database owner and the root's planning doors as
-     *  planning; 278, 13 mixed, once slice 4's hole 1 handed the referee the plan's enumerations, not the model --
-     *  the referee left the mixed classes, and the engine-text arms reach the planning facts that read them; 276 once
-     *  slice 4's hole 2 found the system database by the plan's target: the router and the holder reach no model),
-     *  shrink-only with a dated note, ZERO AT SLICE 5 (the package split; the user's rule of 2026-11-08:
-     *  every pin goes to zero). A source line, then the planning classes it reaches. */
-    private static final String R1_CROSSINGS = """
-            driver.AgreementRuns ->
-                driver.AssertVerdicts driver.DatabaseJudge driver.HostSides judge.VerdictBatch
-            driver.Appeals ->
-                driver.AssertVerdicts
-            driver.AssertErrorNative ->
-                compiler.spec.typed.Literals compiler.spec.typed.TypedCInteger compiler.spec.typed.TypedCString
-                compiler.spec.typed.TypedCollection compiler.spec.typed.TypedLambda compiler.spec.typed.TypedNativeCall
-                compiler.spec.typed.TypedSpec driver.HostJudge judge.Failures
-            driver.AssertVerdicts ->
-                builtin.NativeFn builtin.Pure compiler.element.EqualityKeys compiler.element.ModelContext
-                compiler.element.TypedFunction compiler.element.type.ExprType compiler.element.type.Multiplicity
-                compiler.element.type.PlatformTypes compiler.element.type.Type compiler.spec.AssertMessages
-                compiler.spec.ExecuteChainAssembly compiler.spec.LineageTreeLines compiler.spec.OrderView
-                compiler.spec.SpecCompiler compiler.spec.StatementEffects compiler.spec.UserCallInliner
-                compiler.spec.VerdictQueries compiler.spec.typed.Calls compiler.spec.typed.Lets
-                compiler.spec.typed.TypedCInteger compiler.spec.typed.TypedCString compiler.spec.typed.TypedCast
-                compiler.spec.typed.TypedCollection compiler.spec.typed.TypedDistinct compiler.spec.typed.TypedDrop
-                compiler.spec.typed.TypedFilter compiler.spec.typed.TypedFrom compiler.spec.typed.TypedIf
-                compiler.spec.typed.TypedLambda compiler.spec.typed.TypedLet compiler.spec.typed.TypedLimit
-                compiler.spec.typed.TypedMap compiler.spec.typed.TypedMilestonedAccess compiler.spec.typed.TypedNativeCall
-                compiler.spec.typed.TypedNavigate compiler.spec.typed.TypedNewInstance
-                compiler.spec.typed.TypedPackageableRef compiler.spec.typed.TypedProject
-                compiler.spec.typed.TypedPropertyAccess compiler.spec.typed.TypedRename compiler.spec.typed.TypedSelect
-                compiler.spec.typed.TypedSlice compiler.spec.typed.TypedSort compiler.spec.typed.TypedSortBy
-                compiler.spec.typed.TypedSpec compiler.spec.typed.TypedTypeRef compiler.spec.typed.TypedUserCall
-                compiler.spec.typed.TypedVariable driver.BodyDriver driver.DatabaseJudge driver.HostJudge driver.HostSides
-                driver.JudgmentFacts driver.SqlTextVerdicts driver.VerdictArm judge.Failures judge.VerdictBatch
-                lowering.CanonRider lowering.VerdictSql
-            driver.BodyDriver ->
-                Compiler TypedQuery builtin.NativeFn compiler.element.ModelContext compiler.element.TypedFunction
-                compiler.element.type.ExprType compiler.element.type.Type compiler.spec.AssertMessages
-                compiler.spec.CompiledFunction compiler.spec.NativeDispatch compiler.spec.ResultEnvelopeSplice
-                compiler.spec.SpecCompiler compiler.spec.StatementEffects compiler.spec.UserCallInliner
-                compiler.spec.VerdictRoutes compiler.spec.typed.ExecutionContext compiler.spec.typed.Lets
-                compiler.spec.typed.Literals compiler.spec.typed.TypedCBoolean compiler.spec.typed.TypedFrom
-                compiler.spec.typed.TypedJsonAccess compiler.spec.typed.TypedJsonResult compiler.spec.typed.TypedLet
-                compiler.spec.typed.TypedNativeCall compiler.spec.typed.TypedPropertyAccess compiler.spec.typed.TypedSpec
-                compiler.spec.typed.TypedUserCall database.Target driver.EngineTextAppeals driver.JudgePlans
-                driver.LiteralFold driver.SeedSqlForms driver.SqlTextVerdicts judge.VerdictBatch judge.VerdictIds
-                lowering.CanonRider lowering.VerdictSql planner.BodyPlanner planner.ConnectionPlans planner.EnginePlans
-                planner.EngineText planner.FramePlanner planner.PlanAllocations planner.PlanEnv planner.Prepared
-                planner.SidePlanner planner.SystemRoutes resolver.StagedRows testdatagen.TestDataGenerationNatives
-            driver.TestPlanner ->
-                TypedQuery compiler.spec.AssertLift compiler.spec.RelationCountAsserts
-                driver.AgreementAsserts driver.AppealsByVerdict driver.BodyDriver driver.DatabaseAsserts driver.HostAsserts
-                driver.JudgePlans driver.SqlTextVerdicts driver.SystemDatabase testplan.BodyClass testplan.BodyKinds
-                testplan.TestDoor
-            driver.TestPlanner$Moved ->
-                compiler.element.type.Multiplicity driver.AssertVerdicts driver.DatabaseJudge driver.HostSides
-                driver.JudgePlans driver.SqlTextVerdicts judge.VerdictBatch
-            driver.DatabaseJudge ->
-                builtin.NativeFn compiler.element.EqualityKeys compiler.element.ModelContext compiler.element.type.ExprType
-                compiler.element.type.PlatformTypes compiler.element.type.Type compiler.spec.OrderView
-                compiler.spec.SpecCompiler compiler.spec.VerdictQueries compiler.spec.typed.Calls
-                compiler.spec.typed.Literals compiler.spec.typed.TypedCBoolean compiler.spec.typed.TypedCDate
-                compiler.spec.typed.TypedLambda compiler.spec.typed.TypedSpec driver.AssertVerdicts driver.BodyDriver
-                driver.VerdictArm judge.VerdictBatch lowering.CanonRider lowering.CanonicalRenderSql lowering.VerdictSql
-                resolver.ChainNormalizer
-            driver.HostJudge ->
-                builtin.NativeFn compiler.element.EqualityKeys compiler.element.ModelContext compiler.element.TypedFunction
-                compiler.element.type.ExprType compiler.spec.AssertMessages compiler.spec.OrderView
-                compiler.spec.SpecCompiler compiler.spec.typed.Calls compiler.spec.typed.Lets
-                compiler.spec.typed.TypedCBoolean compiler.spec.typed.TypedCFloat compiler.spec.typed.TypedCInteger
-                compiler.spec.typed.TypedCString compiler.spec.typed.TypedCast compiler.spec.typed.TypedLambda
-                compiler.spec.typed.TypedNativeCall compiler.spec.typed.TypedPropertyAccess compiler.spec.typed.TypedSpec
-                compiler.spec.typed.TypedVariable driver.AssertErrorNative driver.AssertVerdicts driver.BodyDriver
-                driver.HostSides driver.JudgmentFacts driver.SqlTextVerdicts judge.Failures resolver.ChainNormalizer
-            driver.HostSides ->
-                compiler.spec.SpecCompiler compiler.spec.typed.TypedSpec driver.AssertVerdicts driver.BodyDriver
-                driver.JudgePlans
-            driver.JudgePlans ->
-                compiler.element.TypedFunction compiler.element.type.ExprType compiler.element.type.Multiplicity
-                compiler.element.type.PlatformTypes compiler.element.type.Type compiler.spec.SpecCompiler
-                compiler.spec.typed.TypedNativeCall compiler.spec.typed.TypedSpec compiler.spec.typed.TypedUserCall
-                database.Target driver.AssertVerdicts driver.BodyDriver driver.SqlTextVerdicts judge.VerdictBatch
-                lowering.KeyedPivot lowering.TypedRows lowering.VerdictSql planner.ConnectionPlans planner.PlanMaker
-            driver.SqlTextVerdicts ->
-                builtin.NativeFn builtin.Pure compiler.element.ModelContext compiler.element.TypedFunction
-                compiler.element.type.ExprType compiler.element.type.Multiplicity compiler.element.type.PlatformTypes
-                compiler.element.type.Type compiler.spec.ExecuteChainAssembly compiler.spec.NativeDispatch
-                compiler.spec.SpecCompiler compiler.spec.UserCallInliner compiler.spec.VerdictQueries
-                compiler.spec.typed.Calls compiler.spec.typed.ExecutionContext compiler.spec.typed.Lets
-                compiler.spec.typed.TypedCDate compiler.spec.typed.TypedCInteger compiler.spec.typed.TypedCString
-                compiler.spec.typed.TypedCollection compiler.spec.typed.TypedEnumValue compiler.spec.typed.TypedFrom
-                compiler.spec.typed.TypedLambda compiler.spec.typed.TypedLet compiler.spec.typed.TypedNativeCall
-                compiler.spec.typed.TypedPackageableRef compiler.spec.typed.TypedPropertyAccess
-                compiler.spec.typed.TypedSpec compiler.spec.typed.TypedTestDataGen compiler.spec.typed.TypedUserCall
-                compiler.spec.typed.TypedVariable database.Databases driver.AssertVerdicts driver.BodyDriver
-                driver.DatabaseJudge driver.EngineTextAppeals driver.HostSides driver.JudgePlans driver.JudgmentFacts
-                judge.Failures judge.VerdictBatch lowering.LiteralSpelling lowering.VerdictSql planner.BodyPlanner
-                planner.SqlTextInputs
-            driver.SystemDatabase ->
-                planner.ConnectionPlans
-            driver.VerdictArm ->
-                compiler.element.type.ExprType compiler.spec.SpecCompiler compiler.spec.typed.TypedLambda
-                compiler.spec.typed.TypedSpec driver.AssertVerdicts driver.BodyDriver
-            judge.Failures ->
-                compiler.spec.SchemaInvariantException compiler.spec.TypeInferenceException
-            judge.RootLoops ->
-                judge.Failures judge.VerdictBatch
-            judge.VerdictBatch ->
-                judge.Failures judge.VerdictIds
-            """;
-
-    private static java.util.Set<String> r1Crossings() {
-        java.util.Set<String> out = new java.util.TreeSet<>();
-        String from = null;
-        for (String line : R1_CROSSINGS.strip().split("\n")) {
-            String l = line.strip();
-            if (l.endsWith(" ->")) {
-                from = "com.legend." + l.substring(0, l.length() - 3);
-                continue;
-            }
-            for (String to : l.split(" +")) {
-                out.add("R1 " + java.util.Objects.requireNonNull(from, "a target with no source") + " -> com.legend."
-                        + to);
-            }
-        }
-        return out;
+    /** No thread-scoped state (the user's ruling of 2026-11-09, "remove all thread local"): every value a step needs is
+     *  handed to it. The one exception is base's {@code RunScope}, the run-time proof of the split the goals name
+     *  (G4: "proven at run time (RunScope) and at compile time (ArchUnit)") -- a guard, never a channel. */
+    @Test
+    void noThreadLocalState() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields()
+            .that().areDeclaredInClassesThat().doNotBelongToAnyOf(com.legend.base.RunScope.class)
+            .should().haveRawType(ThreadLocal.class)
+            .as("no thread-local state but the run-time wall's (RunScope)")
+            .check(CORE_PROD_CLASSES);
     }
-
-    /** {@link #thePlanRunSplitInReportMode}'s pinned R2 and R4 crossings, shrink-only (the first measure, 2026-11-07;
-     *  R1's are {@link #R1_CROSSINGS}). */
-    private static final java.util.Set<String> SPLIT_CROSSINGS = java.util.Set.of(
-            // R1's pins moved to R1_CROSSINGS (2026-11-08, slice 3: R1 measures every class, its crossings by top-level
-            // source: Moved's and AgreementRuns$Run's four pins are TestPlanner's and AgreementRuns' there)
-            // R2: the test-data generator's own run (generate(), kept for its one test and the generator's redesign,
-            // S143) runs plans while it plans
-            "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanRunner",
-            "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanSessions$Source",
-            // R4: the referee's SPI takes the body's session (the compatibility referee: the edge's, P2)
-            "R4 com.legend.testexec.SqlReplayReferee -> com.legend.exec.Sessions$Session");
 
     /**
      * <strong>NO COMPILED MODEL REACHES THE RUN (the plan-as-data design's slice 3, docs/PLAN_AS_DATA_2026_11_07.md
@@ -1428,34 +1261,19 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertTrue(gone.isEmpty(), "a site is gone: shrink MODEL_SITES, dated: " + gone);
     }
 
-    /** {@code c}'s name in R1: a run-only nested class's own (with its own nested classes), else its top level's. */
-    private static String runKey(com.tngtech.archunit.core.domain.JavaClass c) {
-        String name = c.getBaseComponentType().getName();
-        for (String r : RUN_ONLY_NESTED) {
-            if (name.equals(r) || name.startsWith(r + "$")) {
-                return r;
-            }
-        }
-        return topLevel(c);
-    }
-
     /** Where the run begins: the router's run half, the door's, and the session sources a door opens the run's
      *  session from (hole 7: each is handed the model) -- the contract's method and its implementations, the caller's
      *  own session's ({@code Source.given}) and the server's ({@code ConnectionResolver.open}): the contract is
      *  implemented by lambdas and method references, which no call site expands (the slice 3 follow-up audit,
      *  2026-11-08). */
-    private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#run",
-            "com.legend.Execution#runBody", "com.legend.Execution$Source#open", "com.legend.Execution$Source#given",
+    private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.testexec.TestRunner#run",
+            "com.legend.Execution#runBody", "com.legend.Execution#runPlan", "com.legend.Execution$Source#open", "com.legend.Execution$Source#given",
             "com.legend.exec.PlanSessions#projectDatabase");
 
     /** Where planning begins: the router's planning halves and the doors'. */
     private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#plan",
-            "com.legend.testplan.TestPlanner#planned", "com.legend.Execution#planBody", "com.legend.Execution#planProgram");
-
-    /** The run's own classes, whole: R1 keys a crossing from one of these by its own name, never folded into its
-     *  enclosing class's (the slice 3 invariant audit, 2026-11-08: {@code Moved} hid under {@code TestPlanner}'s
-     *  planning pins). */
-    private static final java.util.Set<String> RUN_ONLY_NESTED = java.util.Set.of("com.legend.testplan.TestPlanner$Moved");
+            "com.legend.testplan.TestPlanner#planned", "com.legend.testplan.TestPlanner#planAhead",
+            "com.legend.Execution#planBody", "com.legend.Execution#planProgram");
 
     /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
      *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's
@@ -1857,7 +1675,7 @@ final class ArchitectureTest {
     void theRunnerIsTheOneCallerOfTheSessionsStatements() {
         // ProgramRunner since 2026-11-08 (the plan-as-data design's step 3, the user's ruling): the runner's program half, its
         // own target -- the program's transaction bracket and snapshot, as the runner took them before the split
-        String seam = "com\\.legend\\.exec\\.(PlanRunner|ProgramRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements)(\\$.*)?";
+        String seam = "com\\.legend\\.exec\\.(PlanRunner|ProgramRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements|Statements)(\\$.*)?";
         noClasses()
             .that().haveNameNotMatching(seam)
             .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(

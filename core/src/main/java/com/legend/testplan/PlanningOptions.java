@@ -19,7 +19,7 @@ public record PlanningOptions(
         com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules) {
 
     public PlanningOptions {
-        features = java.util.Set.copyOf(features);
+        features = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(features));
     }
 
     /** The judge the body's asserts are planned for: the host's, the database's, or both and their agreement. */

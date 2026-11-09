@@ -157,6 +157,10 @@ class HarnessDisciplineTest {
             // and the row-multiset match moved here from PureAsserts /
             // TdsCompare; two-sided comparison policy, never a result order
             Map.entry("Equality.java", 4),
+            // 2026-11-09 (slice 5: the test's planner scanned in the driver's place): the body's kinds named in the
+            // program road's refusal message, sorted so the message reads the same each run -- a diagnostic's text,
+            // never a result's order
+            Map.entry("BodyKinds.java", 1),
             // TYPED-IR Slice 1: census-class DISPLAY ordering
             // (largest-first report lines) — reporting, never a result
             // reordering; two-sided by construction (both sides of no
@@ -282,11 +286,11 @@ class HarnessDisciplineTest {
                 // from the harness) — the discipline follows the code
                 "core/src/main/java/com/legend/exec",
                 // D71 (2026-10-30): the comparison policy moved on, out of exec into
-                // the judge layer (com.legend.judge) -- the discipline follows it
-                "core/src/main/java/com/legend/judge",
-                // step C (D73, 2026-10-30): the judges' arms, the body driver and the
-                // plan allocations in the driver package -- the discipline follows the code
-                "core/src/main/java/com/legend/driver",
+                // the judge layer, and with slice 5 (2026-11-09) into the test's run -- the discipline follows it
+                "core/src/main/java/com/legend/testexec",
+                // step C (D73, 2026-10-30): the judges' arms, the body driver and the plan allocations in the driver
+                // package, the test's planner's since slice 5 -- the discipline follows the code
+                "core/src/main/java/com/legend/testplan",
                 // the seam program's S2g (2026-10-31): the driver's planning helpers in the planner package
                 "core/src/main/java/com/legend/planner"}) {
             try (Stream<Path> files = SourceFiles.under(root).stream()) {

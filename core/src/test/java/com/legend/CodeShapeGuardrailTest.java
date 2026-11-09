@@ -106,16 +106,29 @@ class CodeShapeGuardrailTest {
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",
-            "ProgramFrames.ownStamp", "TestPlanner.opened",
+            "ProgramFrames.ownStamp", "TestRunner.opened",
             // (2026-11-01, the test-is-the-product plan's M6) the body router's last judged verdict: one moved body's
             // sink, one instance per run and never shared, set at each verdict step so a body ending on an assert
             // answers it (the walk's Segments.last beside it until the walk was deleted, 2026-11-06)
-            "TestPlanner.lastVerdict",
+            "TestRunner.lastVerdict",
             // (2026-11-04, the assert bar) the body router's reader: the running program's, handed by the runner before
             // its first step and taken back when its session closes (PlanRunner.ProgramSink#reader) -- one moved body's
             // sink, one instance per run and never shared; a verdict's caller's message is read through it only where
             // the verdict fails
-            "TestPlanner.reader",
+            "TestRunner.reader",
+            // (2026-11-09, slice 5: the run sink is the test's run's, TestRunner's; its three fields above moved with it)
+            // the run record (hole 6): how many messaged asserts are being judged -- one body's run, never shared, the
+            // thread-local CallerMessage.DEPTH it replaced made explicit
+            "BodyRun.messaged",
+            // the program's step mark for the reads a callback makes (slice 5: the thread-scoped statement origin made
+            // explicit) -- one program's run, set before each callback and restored after it
+            "ProgramRunner.stepMark",
+            // the activity comment reserved for a body's fused statement, minted once per body at planning (slice 5:
+            // planning's own, exec's execution trace until then)
+            "ActivityComments.reserved",
+            // the text collector's origin in force while an arm reads its texts (slice 5: the planning-time statement
+            // mark made explicit on the collector the planning environment carries)
+            "SqlTextVerdicts.originInForce",
             // (same date) regex artifact, NOT mutable: an interface's field, implicitly static final
             "DecisionProbe.INSTALLED",
             // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON
@@ -196,7 +209,7 @@ class CodeShapeGuardrailTest {
             "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
             // the streamed answer's cardinality sink (com.legend.testexec.SideShapes.Cardinality, the doors, door 1, 2026-10-29): the rows
             // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
-            "JudgePlans.rows",
+            "SideShapes.rows",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",

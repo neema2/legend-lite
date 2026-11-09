@@ -79,7 +79,10 @@ class ErrorShapeGuardrailTest {
             // 2 -> 3 (2026-11-05, zero exemptions on the runtime wall): sideAhead -- an appeal's side planned with its
             // assert keeps ANY planning failure and raises it where the appeal reads the side, as the side's evaluation
             // there raised it (the rows leg's decline, or a fault); nothing judged at the catch
-            Map.entry("SqlTextVerdicts.java", 3),
+            // 3 -> 2 + 1 (2026-11-09, slice 5: the rows leg's read of our rows, decided after the run, is the test's
+            // run's -- SqlTextRuns -- the planning's two catches stay here)
+            Map.entry("SqlTextVerdicts.java", 2),
+            Map.entry("SqlTextRuns.java", 1),
             // 2026-10-18 (the plan path program's step 6): the agreement gate turns ANY failure of the database
             // judge's arm -- a statement the database rejects, a dialect's refusal, a planner wall -- into the one
             // outcome Errored, raised as a failure naming both judges' verdicts (AgreementArm.agree); the class
@@ -159,7 +162,8 @@ class ErrorShapeGuardrailTest {
             // held -- the catch always rethrows: the run's own failure, the first held appeal's failure (which
             // precedes it, the run's suppressed in it), or a named refusal where the failed run wrote (its rollback
             // undid what the appeals read). An Error (the wall's refusal) is not caught. Nothing swallowed
-            Map.entry("TestPlanner.java", 1),
+            // (the router's until slice 5, 2026-11-09: the run's entry, TestRunner, holds it since)
+            Map.entry("TestRunner.java", 1),
             // M7 (2026-11-01): the database judge's planner -- AssertVerdicts.planDatabase records an arm's WALL as a
             // step raised at the root's turn (the walk discards the root and surfaces the wall after its flush;
             // nothing may run at planning, so the raise is planned, its exit counted there: 1 more); DatabaseAsserts
