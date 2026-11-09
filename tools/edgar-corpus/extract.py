@@ -30,7 +30,9 @@ from xml.etree import ElementTree
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fetch import CORPUS_ROOT, load_manifest, sha256_of, write_atomically, write_manifest  # noqa: E402
 
-SIZE_BUDGET_BYTES = 15_000_000
+# A limit on the local disk a rebuild takes, and on nothing else: the filings are never committed, so the corpus's size
+# does not reach the repository (the owner's ruling, 2026-11-08, replacing a 15 MB budget set when they were to be).
+DISK_LIMIT_BYTES = 60_000_000
 
 BLOCK_TAGS = {
     "address", "article", "blockquote", "center", "dd", "div", "dl", "dt", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -42,6 +44,7 @@ HIDDEN_STYLE = re.compile(r"display\s*:\s*none", re.I)
 SPACES = re.compile(r"\s+")
 INVISIBLE = re.compile(r"[\u200b\u200c\u200d\ufeff\u00ad]")
 PAGE_ONLY = re.compile(r"\d{1,3}")
+RUNNING_PART = re.compile(r"Parts? [IVX]+(?: and [IVX]+)?")
 
 
 @dataclass
@@ -158,9 +161,15 @@ def document_lines(path: Path) -> list[Line]:
 
 
 def without_page_furniture(lines: list[Line]) -> list[Line]:
-    """Drop running headers and footers: a line beside a page break whose digit-blind text recurs at many breaks."""
+    """Drop running headers and footers: a line beside a page break whose digit-blind text recurs at many breaks, or
+    that names only the Part of the report (those occur too few times to recur: "Parts I and II" on one page)."""
     def shape(text: str) -> str:
         return re.sub(r"\d+", "#", text)
+
+    def may_be_furniture(line: Line) -> bool:
+        # A table row only if it is a page number, alone or beside a form name (JPMorgan's footers); a data row never is.
+        cells = line.text.split("  ")
+        return not line.is_row or (len(cells) <= 2 and any(PAGE_ONLY.fullmatch(cell) for cell in cells))
 
     def beside_a_break():
         for index, line in enumerate(lines):
@@ -169,12 +178,12 @@ def without_page_furniture(lines: list[Line]) -> list[Line]:
             # up to two lines each side: a footer may be a page number and a form name on separate lines
             for offset in (-2, -1, 1, 2):
                 neighbour = index + offset
-                if 0 <= neighbour < len(lines) and lines[neighbour].text != PAGE_BREAK and not lines[neighbour].is_row:
+                if 0 <= neighbour < len(lines) and lines[neighbour].text != PAGE_BREAK and may_be_furniture(lines[neighbour]):
                     yield neighbour
 
     counts = Counter(shape(lines[i].text) for i in set(beside_a_break()) if len(lines[i].text) <= 100)
     furniture = {s for s, n in counts.items() if n >= 3}
-    drop = {i for i in set(beside_a_break()) if shape(lines[i].text) in furniture}
+    drop = {i for i in set(beside_a_break()) if shape(lines[i].text) in furniture or RUNNING_PART.fullmatch(lines[i].text)}
     return [line for i, line in enumerate(lines) if i not in drop and line.text != PAGE_BREAK]
 
 
@@ -207,6 +216,28 @@ WANTED = {
     ),
     "8-K": (Wanted("2.02", ANY, "item_2.02.txt"), Wanted("8.01", ANY, "item_8.01.txt")),
 }
+
+# JPMorgan files its MD&A as a named part of the report, and puts under Item 7 / Item 2 / Item 7A / Item 3 only a pointer
+# to it ("appears on pages 46-160"). These spans are those parts, by the headings the filing itself gives them. A span
+# ends where the heading after it begins. Matching is exact and case-sensitive, which passes over the table of contents
+# (it spells these in title case). The 10-Q has no Item 2 heading in its body at all, only the contents entry. Its Item
+# 1A points to the 10-K, outside the document: it stays a stub.
+POINTER = re.compile(r"(?i)\bappears on pages\b|^refer to the market risk management section\b")
+
+
+@dataclass(frozen=True)
+class Span:
+    start: str
+    end: str
+
+
+BY_REFERENCE = {
+    ("10-K", "7"): Span("INTRODUCTION", "Management\u2019s report on internal control over financial reporting"),
+    ("10-K", "7A"): Span("MARKET RISK MANAGEMENT", "COUNTRY RISK MANAGEMENT"),
+    ("10-Q", "2"): Span("Consolidated financial highlights (unaudited)", "Consolidated statements of income (unaudited)"),
+    ("10-Q", "3"): Span("MARKET RISK MANAGEMENT", "COUNTRY RISK MANAGEMENT"),
+}
+
 
 def boundaries(lines: list[Line]) -> list[int]:
     """Every line that opens a new item (or the signatures): where the section before it ends."""
@@ -255,6 +286,13 @@ def find_section(lines: list[Line], stops: list[int], wanted: Wanted) -> tuple[i
     return best
 
 
+def line_index(lines: list[Line], text: str, after: int, why: str) -> int:
+    for index in range(after, len(lines)):
+        if lines[index].text == text:
+            return index
+    raise SystemExit(f"{why}: the heading {text!r} was not found after line {after}")
+
+
 def render(lines: list[Line]) -> str:
     """Paragraphs separated by a blank line; a table's rows kept together."""
     out: list[str] = []
@@ -265,8 +303,8 @@ def render(lines: list[Line]) -> str:
     return "\n".join(out) + "\n"
 
 
-def extract_sections(raw: dict) -> list[tuple[Wanted, str, str]]:
-    """(wanted, heading, text) for each section this filing has."""
+def extract_sections(raw: dict) -> list[tuple[Wanted, str, str, bool]]:
+    """(wanted, heading, text, followed a pointer) for each section this filing has."""
     form, name = raw["form"], raw["path"]
     lines = document_lines(CORPUS_ROOT / raw["path"])
     stops = boundaries(lines)
@@ -276,13 +314,23 @@ def extract_sections(raw: dict) -> list[tuple[Wanted, str, str]]:
         if declared is not None and wanted.item not in declared:
             continue
         section = find_section(lines, stops, wanted)
-        if section is None:
+        span = BY_REFERENCE.get((form, wanted.item)) if raw["cik"] == 19617 else None
+        heading, body, followed = None, [], False
+        if section is not None:
+            heading = lines[section[0]].text
+            body = lines[section[0] + 1:section[1]]
+        if span is not None and (section is None or (body and POINTER.search(body[0].text))):
+            first = line_index(lines, span.start, 0, f"{name}: Item {wanted.item}")
+            last = line_index(lines, span.end, first + 1, f"{name}: Item {wanted.item}")
+            followed = True
+            if section is None:  # no Item heading to carry: the span's own heading opens the file
+                heading, first = lines[first].text, first + 1
+            body = body + lines[first:last]
+        if heading is None:
             raise SystemExit(f"{name}: no section found for Item {wanted.item}")
-        heading = lines[section[0]].text
-        body = lines[section[0] + 1:section[1]]
         if not body:
             raise SystemExit(f"{name}: Item {wanted.item} is empty")
-        out.append((wanted, heading, render([Line(heading), *body])))
+        out.append((wanted, heading, render([Line(heading), *body]), followed))
     return out
 
 
@@ -388,10 +436,12 @@ def main() -> int:
             sections = extract_sections(raw)
             if not sections:
                 without_items.append(raw)
-            for wanted, heading, text in sections:
+            for wanted, heading, text, followed in sections:
                 extra = {"section": f"item_{wanted.item}", "heading": heading}
                 if wanted.ten_k_item:
                     extra["ten_k_item"] = wanted.ten_k_item
+                if followed:
+                    extra["followed_pointer"] = True
                 extracted.append(write_output(raw, wanted.file_name, text.encode("utf-8"), **extra))
     previous = {row["path"] for row in rows if row["kind"] == "extracted"} - {row["path"] for row in extracted}
     for stale in sorted(previous):
@@ -403,9 +453,9 @@ def main() -> int:
     for raw in without_items:
         print(f"no target items in {raw['path']} (SEC-declared items: {raw['items']})")
     total = sum(row["bytes"] for row in raws + extracted)
-    print(f"total raw + extracted: {total:,} bytes; budget {SIZE_BUDGET_BYTES:,}: "
-          f"{'within budget' if total < SIZE_BUDGET_BYTES else 'OVER BUDGET'}")
-    return 0 if total < SIZE_BUDGET_BYTES else 1
+    print(f"total raw + extracted: {total:,} bytes; disk limit {DISK_LIMIT_BYTES:,}: "
+          f"{'within the limit' if total < DISK_LIMIT_BYTES else 'OVER THE LIMIT'}")
+    return 0 if total < DISK_LIMIT_BYTES else 1
 
 
 if __name__ == "__main__":
