@@ -3,6 +3,8 @@
 Runs the frozen answer key (`projects/unstructured/evals/answer_key.yaml`) and writes one ledger row per case, route, arm
 and backend. There is no headline score.
 
+The study this judge serves, its results and the decision they lead to: `docs/UNSTRUCTURED_STUDY_2026_11_09.md`.
+
 ## The arms are SQL
 
 `sql/` holds one file per arm and backend. These are the statements a future `textSearch` must render from Pure, so the

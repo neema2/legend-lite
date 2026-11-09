@@ -4,6 +4,8 @@ A **clean-sheet implementation** of the [FINOS Legend](https://legend.finos.org/
 
 **Start here:** [`AGENTS.md`](AGENTS.md) for the invariants, [`core/README.md`](core/README.md) for the per-package spec, [`docs/GATES.md`](docs/GATES.md) for what must be green.
 
+**Text search, studied:** [`docs/UNSTRUCTURED_STUDY_2026_11_09.md`](docs/UNSTRUCTURED_STUDY_2026_11_09.md): can the semantic layer answer over documents as it does over tables; a frozen answer key, its results, and a decision for the owner.
+
 ---
 
 ## Architecture

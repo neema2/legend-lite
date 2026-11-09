@@ -1,5 +1,7 @@
 # projects/unstructured/corpus: the study's three corpora
 
+The study: `docs/UNSTRUCTURED_STUDY_2026_11_09.md`. Its §1 says why these.
+
 | Source | Directory | What | In git |
 |---|---|---|---|
 | `EDGAR` | `edgar/` | Real SEC filings: a pointer corpus, rebuilt locally and verified by sha256 | the manifest and README only |

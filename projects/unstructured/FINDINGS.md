@@ -1,5 +1,7 @@
 # Open findings of the unstructured study
 
+The study these belong to is `docs/UNSTRUCTURED_STUDY_2026_11_09.md`; its §7 lists them with their tests.
+
 Found while modelling the study's corpora. Upstream's answer below was read from the pinned sources (legend-engine
 4.145.0) and asked of the engine runner (`//tools/engine-runner`, the recipe in `docs/result-boundary-homework/README.md`
 §7), on the same models the pins use, with an H2 connection.
