@@ -2,9 +2,11 @@
 
 The timeseries library (`projects/timeseries/model.pure`) is gs-quant's functions written as Pure, and the `#TS{...}#`
 island is its language (`docs/timeseries/WORDS.md`). This tool holds each word to `gs_quant.timeseries` itself: every
-case of `mapping.yaml` is a `#TS` item and the gs-quant call that is its twin, written side by side; `snap.py` runs the
-twin over the gallery's samples and snaps each series into `answers.jsonl.gz`, and `//core:ts_gsquant_parity_test` runs
-the item through the Pure library on DuckDB and judges it against them.
+case of `mapping.yaml` is a `#TS` item and the gs-quant call that is its twin -- for 129 of its 150 cases the call Show
+Python prints for the item (`calls.tsv`, the tile's own printer: the code the tile shows is the code gs-quant answers;
+docs/TS_DECISIONS_2026_11_07.md item 14f, step 2), for the rest a call written beside it; `snap.py` runs the twin over
+the gallery's samples and snaps each series into `answers.jsonl.gz`, and `//core:ts_gsquant_parity_test` runs the item
+through the Pure library on DuckDB and judges it against them.
 
 **CI never runs gs-quant.** It is not one of the repository's locked requirements. The parity lane judges each case
 against the committed answers, and fails a case with no answer (UNSNAPPED), one whose texts or samples moved since
@@ -64,11 +66,20 @@ bazel run //tools/gs-quant-oracle:update_generated && bazel run //tools/gs-quant
 - **`mapping.yaml`**: each of the 87 words (and `wavg`, `wsum`: ruled by R15, not yet words, SKIP), MAPPED (its gs-quant function, `src` the file and line in
   `gs_quant/timeseries/`, its cases) or SKIP (why). A case is `[args, ts, gs]` or `[args, ts, gs, column]`: its name
   within the word, the `#TS` item (`{x}` close of NVDA, `{y}` close of SPX; a case starting `WITH` is its own
-  statement), the gs-quant expression, and a struct word's field. A default that differs is passed explicitly
+  statement), the gs-quant expression -- `printed`, Show Python's call (`calls.tsv`), or where the printer prints none
+  (a statement; a form gs-quant has no call for) the call written here -- and a struct word's field. A default that
+  differs is passed explicitly
   (`defaults` says which): every gs-quant window defaults to `Window(None, 0)`, to date, where lite's counts 14, 20, 22,
   63 or 252. `known` names the register row that rules a case's DIFF. Each case is one line, so the parity test reads
   the file without a YAML library; `snap.py` holds its YAML reader to that line reader (READER) and each word's mapped
   function to the library's own `Words.gsQuant` tag (TAG).
+- **`calls.tsv`**: each case's `#TS` item as Show Python prints it (`{x}` as `column('close', 'NVDA')`, `{y}` as
+  `column('close', 'SPX')`), STATEMENT (a whole statement: no series the printer prints) or `REFUSED: why` (the
+  printer's own refusal, a form no call of gs-quant's says) -- written and held by `//datacube:timeseries_builder_test`
+  (`--test_env=GS_ORACLE_CALLS_UPDATE=$PWD/tools/gs-quant-oracle/calls.tsv` rewrites it). `snap.py` runs a `printed`
+  case's call with each of gs-quant's functions by its own name, `column(...)` bound to the run's x and y (over a
+  fixture, its trap symbol and that symbol's y), and DataCube's `rebase` as its ruled identity `index(x, base)`; the
+  parity test hashes the same call. Moving the printer moves a case's call, so its answer is STALE until re-snapped.
 - **`answers.jsonl.gz`**: one row per series, gzipped (written with mtime 0, so a re-snap of the same answers is the
   same bytes): `{word, args, symbol, dates, values}`. `values` is gs-quant's answer in date order along the case's
   SPINE -- the sorted union of the dates of the lines `symbol` names (`NVDA,SPX`, `CPI,SPX`, a fixture's `BRAVO,ALPHA`)

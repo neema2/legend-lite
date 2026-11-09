@@ -6,5 +6,5 @@ late_print	returns default @BRAVO	adversarial-raw	2025-03-13	-0.0002224694104561
 late_print	returns default @BRAVO	adversarial-adjusted	2025-03-13	-0.00022246941045611646	-0.00022246941045611646	yes
 split_2_for_1	returns default @BRAVO	adversarial-raw	2024-06-10	-0.48950811315945963	0.02098377368108073	NO
 split_2_for_1	returns default @BRAVO	adversarial-adjusted	2024-06-10	0.02098377368108073	0.02098377368108073	yes
-stale_price_5d	volatility w=10,annualization_factor=252 @BRAVO	adversarial-raw	2024-10-21	14.870221753433654	14.870221753433476	within 1e-8
-stale_price_5d	volatility w=10,annualization_factor=252 @BRAVO	adversarial-adjusted	2024-10-21	14.87022175343346	14.870221753433476	within 1e-8
+stale_price_5d	volatility w=10,annualization_factor=252 @BRAVO	adversarial-raw	2024-10-21	14.870221753433558	14.870221753433476	within 1e-8
+stale_price_5d	volatility w=10,annualization_factor=252 @BRAVO	adversarial-adjusted	2024-10-21	14.870221753433476	14.870221753433476	yes

@@ -115,9 +115,29 @@ def mapping():
         return yaml.safe_load(f)
 
 
-def cases(m):
+#: a case's gs text that is Show Python's call: its #TS item as the printer prints it, read from calls.tsv
+PRINTED = "printed"
+CALLS = os.path.join(HERE, "calls.tsv")
+
+
+def printed_calls(path=CALLS):
+    """calls.tsv (//datacube:timeseries_builder_test writes it, item 14f step 2): each case's key to its #TS item as
+    Show Python prints it -- the gs-quant call -- or STATEMENT (a whole statement, no series the printer prints) or
+    `REFUSED: why` (no call of gs-quant's says it)."""
+    out = {}
+    for line in open(path, encoding="utf-8").read().split("\n"):
+        if not line or line.startswith("#") or line.startswith("case\t"):
+            continue
+        key, call = line.split("\t", 1)
+        out[key] = call
+    return out
+
+
+def cases(m, calls=None):
     """Every case of the mapping, in its order: (key, word entry, args, ts, gs, column) -- a SKIP word one case
-    keyed by its word alone, with neither text."""
+    keyed by its word alone, with neither text. A case whose gs is `printed` takes Show Python's call (calls.tsv): the
+    oracle's gs-quant side the printer's, so the code the tile shows is the code gs-quant answers."""
+    calls = printed_calls() if calls is None else calls
     out = []
     for w in m["words"]:
         if "skip" in w:
@@ -126,7 +146,14 @@ def cases(m):
         for c in w["cases"]:
             args, ts_text, gs_text = str(c[0]), c[1], c[2]
             column = c[3] if len(c) > 3 else None
-            out.append((w["word"] + " " + args, w, args, ts_text, gs_text, column))
+            key = w["word"] + " " + args
+            if gs_text == PRINTED:
+                call = calls.get(key)
+                if call is None or call == "STATEMENT" or call.startswith("REFUSED"):
+                    raise SystemExit("PRINTED: " + key + " is `printed`, and calls.tsv holds " + (call or "no row for it")
+                                     + " (rewrite calls.tsv: //datacube:timeseries_builder_test says how; or write its call)")
+                gs_text = call
+            out.append((key, w, args, ts_text, gs_text, column))
     return out
 
 
@@ -297,30 +324,58 @@ def lines(data, x_symbol=X, y_symbol=Y):
 
 
 def namespace():
-    """What a case's gs text reads: gs_quant.timeseries as ts, its enums, Window, dt."""
+    """What a case's gs text reads: gs_quant.timeseries as ts, its enums, Window, dt -- and, for Show Python's calls,
+    each of gs_quant.timeseries' functions by its own name (the printer writes gs-quant's names: mean, sum_, if_) and
+    DataCube's own words that are a gs-quant call by identity (their library tag `DataCube (<the call>)`, ruled)."""
     import gs_quant.timeseries as ts
     from gs_quant.timeseries.algebra import FilterOperator
     from gs_quant.timeseries.analysis import LagMode, SignDirection, ThresholdType
     from gs_quant.timeseries.backtesting import RebalFreq
     from gs_quant.timeseries.helper import CurveType, Interpolate, Returns, Window
     from gs_quant.timeseries.technicals import Frequency, SeasonalModel
-    return {"ts": ts, "Window": Window, "Returns": Returns, "Interpolate": Interpolate, "CurveType": CurveType,
-            "LagMode": LagMode, "SignDirection": SignDirection, "ThresholdType": ThresholdType,
-            "FilterOperator": FilterOperator, "RebalFreq": RebalFreq, "Frequency": Frequency,
-            "SeasonalModel": SeasonalModel, "dt": dt}
+    ns = {name: getattr(ts, name) for name in dir(ts) if not name.startswith("_")}
+    # rebase(x, base) is index(x, base): rebase's tag, `DataCube (econometrics.index)`, ruled 2026-11-07 (mapping.yaml)
+    ns["rebase"] = lambda x, base=100: ts.index(x, base)
+    ns.update({"ts": ts, "Window": Window, "Returns": Returns, "Interpolate": Interpolate, "CurveType": CurveType,
+               "LagMode": LagMode, "SignDirection": SignDirection, "ThresholdType": ThresholdType,
+               "FilterOperator": FilterOperator, "RebalFreq": RebalFreq, "Frequency": Frequency,
+               "SeasonalModel": SeasonalModel, "dt": dt})
+    return ns
+
+
+#: Show Python's picks of the samples' close (calls.tsv prints {x} as close['NVDA'] and {y} as close['SPX']) and the
+#: lines they are in a run: x and y (over a fixture, its trap symbol and that symbol's y)
+PICKS = {"NVDA": "x", "SPX": "y"}
+
+
+def column_of(env):
+    """Show Python's column(name, pick) over a run's lines: close of NVDA the case's x, of SPX its y. Any other is this
+    tool's error (HARNESS: raised outside gs-quant), never gs-quant's."""
+    def column(name, *picks):
+        if name != "close" or len(picks) != 1 or picks[0] not in PICKS:
+            raise ValueError("column(" + ", ".join(map(repr, (name,) + picks)) + ") is no line of the oracle's runs")
+        return env[PICKS[picks[0]]]
+    return column
+
+
+def reads(gs_text):
+    """The lines a case's call reads, in the order its rows name them (cpi, x, y): a hand call's names, or Show
+    Python's column('close', 'NVDA') and column('close', 'SPX')."""
+    if "column(" in gs_text:
+        return [n for n in ("x", "y") if any("column('close', '" + p + "')" in gs_text
+                                             for p, line in PICKS.items() if line == n)]
+    return [n for n in ("cpi", "x", "y") if re.search(r"\b" + n + r"\b", gs_text)]
 
 
 def symbol_of(gs_text, env):
     """The lines a case reads, as its rows name them: x's symbol, then y's, or the macro series."""
-    names = [n for n in ("cpi", "x", "y") if re.search(r"\b" + n + r"\b", gs_text)]
-    return ",".join({"x": env["x"].name, "y": env["y"].name, "cpi": MACRO}[n] for n in names)
+    return ",".join({"x": env["x"].name, "y": env["y"].name, "cpi": MACRO}[n] for n in reads(gs_text))
 
 
 def spine(gs_text, env):
     """A case's spine: the dates of the lines it reads (x, y, cpi), their sorted union -- what a row's values are
     laid along (TsGsquantParityTest.spine computes the same from the samples)."""
-    names = [n for n in ("cpi", "x", "y") if re.search(r"\b" + n + r"\b", gs_text)]
-    return sorted({d.date().isoformat() for n in names for d in env[n].index})
+    return sorted({d.date().isoformat() for n in reads(gs_text) for d in env[n].index})
 
 
 def series(points, along):
@@ -347,7 +402,7 @@ def dup_span(gs_text, env, dates):
         return "-"
     last = dates[1] if len(dates) == 3 and isinstance(dates[2], int) else dates[-1]
     for n in ("x", "y"):
-        if re.search(r"\b" + n + r"\b", gs_text):
+        if n in reads(gs_text):
             line = env[n]
             first = line.index[0].date().isoformat() if len(line) else None
             if any(first is not None and first <= d <= last for d in env["dups"].get(line.name, [])):
@@ -404,7 +459,8 @@ def run_case(gs_text, column, env, ns):
     import pandas as pd
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        got = eval(gs_text, dict(ns), dict(env))   # noqa: S307 -- the mapping's own texts, this repository's file
+        # the mapping's own texts and the printer's (calls.tsv), this repository's files
+        got = eval(gs_text, {**ns, "column": column_of(env)}, dict(env))   # noqa: S307
     if isinstance(got, pd.DataFrame):
         got = got.iloc[:, {"lower": 0, "upper": 1}[column]]
     elif column is not None:
@@ -440,7 +496,7 @@ def value_counts(points, gs_text, env):
     moves a duplicate's date)."""
     dates = set(repeated(points))
     for n in ("x", "y"):
-        if re.search(r"\b" + n + r"\b", gs_text):
+        if n in reads(gs_text):
             dates |= set(env["dups"].get(env[n].name, []))
     counts = {}
     for d, _ in points:

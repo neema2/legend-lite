@@ -230,6 +230,9 @@ _EXTRA_ENV = {
     "timeseries-builder": {
         "GS_QUANT_SIGNATURES": "$(rlocationpath :gs_quant_signatures)",
         "BUILDER_PYTHON": "$(rlocationpath test/fixtures/timeseries/builder-python.json)",
+        # the gs-quant oracle's cases, and each as Show Python prints it: the call snap.py runs (item 14f, step 2)
+        "GS_ORACLE_MAPPING": "$(rlocationpath :gs_oracle_mapping)",
+        "GS_ORACLE_CALLS": "$(rlocationpath :gs_oracle_calls)",
     },
     # every gallery and markets series, its answer frozen (test/timeseries-frozen.ts)
     "timeseries-ts-parity": {
@@ -324,7 +327,12 @@ _EXTRA_DATA = {
         "test/fixtures/timeseries/markets-classes-answers.json",
         "test/timeseries-frozen.ts",
     ],
-    "timeseries-builder": [":gs_quant_signatures", "test/fixtures/timeseries/builder-python.json"],
+    "timeseries-builder": [
+        ":gs_quant_signatures",
+        "test/fixtures/timeseries/builder-python.json",
+        ":gs_oracle_mapping",
+        ":gs_oracle_calls",
+    ],
     "timeseries-ts-parity": [
         "test/fixtures/timeseries/gallery-answers.json",
         "test/fixtures/timeseries/show-ts.txt",
@@ -1104,6 +1112,20 @@ copy_file(
     name = "gs_quant_signatures",
     src = "//projects:timeseries/gs-quant-signatures.json",
     out = "gs-quant-signatures.json",
+)
+
+# the gs-quant oracle's cases and its held calls, copied into this package for //datacube:timeseries_builder_test, which
+# prints each case as Show Python and holds calls.tsv (item 14f, step 2; rules_js takes no data from another package)
+copy_file(
+    name = "gs_oracle_mapping",
+    src = "//tools/gs-quant-oracle:mapping.yaml",
+    out = "gs-oracle/mapping.yaml",
+)
+
+copy_file(
+    name = "gs_oracle_calls",
+    src = "//tools/gs-quant-oracle:calls.tsv",
+    out = "gs-oracle/calls.tsv",
 )
 
 js_run_binary(

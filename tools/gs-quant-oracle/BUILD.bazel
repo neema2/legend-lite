@@ -16,8 +16,15 @@ load("//tools/guards:defs.bzl", "guards_package")
 # the parity test's inputs: the cases, the pin, gs-quant's answers and the verdicts it holds, for the samples and for
 # each of the adversarial fixture's price files
 exports_files(
+    ["mapping.yaml"],
+    visibility = [
+        "//core:__pkg__",
+        "//datacube:__pkg__",
+    ],
+)
+
+exports_files(
     [
-        "mapping.yaml",
         "pins.env",
         "traps.tsv",
         "answers.jsonl.gz",
@@ -28,6 +35,16 @@ exports_files(
         "ledger-adversarial-adjusted.tsv",
     ],
     visibility = ["//core:__pkg__"],
+)
+
+# the cases, and each as Show Python prints it (calls.tsv, the call snap.py runs: item 14f, step 2), which
+# //datacube:timeseries_builder_test writes and holds
+exports_files(
+    ["calls.tsv"],
+    visibility = [
+        "//core:__pkg__",
+        "//datacube:__pkg__",
+    ],
 )
 
 # THE LEDGERS' REPORTS (two_rows.py), read from the three ledgers alone: two-rows.tsv (what gs-quant and lite answer

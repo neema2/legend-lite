@@ -18,12 +18,12 @@ min w=all	OK	PASS	-	f8e0d7d46faebd1fb2753933192301e1142f842a41d1c2e26db1a190e971
 max w=20	OK	PASS	-	12c1e57228f04f7db16cc55bc3ad45cdd641dd2c3a4f249bfb32dc9ddfbf180a	-	1284 points
 max w=3mo	OK	PASS	-	01356d76fd5abb87e380d4054ac8d36cae2f6b4eb769710d309474457c7e98ab	-	1239 points
 max w=all	OK	PASS	-	c31fa4006d0058f803602ffe56bd24367c430e57aecb6fadd9556a13bb4effc8	-	1304 points
-std w=20	OK	PASS	-	e32e9b07f9430ea068e4da8ebe06abbd7056e06af3d16409b1a648039b1487e1	-	1284 points
+std w=20	OK	PASS	-	c493360665cd96f1f37d3ecf5168b1bd5cf910e5f7ba18551d99dac63bf0cc9d	-	1284 points
 std w=3mo	OK	PASS	-	1f32e55447c3633c58beae282e2fb1572c7fd4b4284fd1d7e9f2dd069c3f0f13	-	1239 points
-std w=all	OK	PASS	-	1b913b1fdd2ce40f3aa35215e53be6e5c57d3753ec496c50fb4f6df0e9144f6e	-	1303 points
-var w=20	OK	PASS	-	50b75ffb0c5cff8a378ae673ed6d695cc19f363617cbafaa54077f81695a334d	-	1284 points
+std w=all	OK	PASS	-	05bb62a5e598cfd27f9eb6eec856b623d7b7f56980a70a947afc60d8372454a3	-	1303 points
+var w=20	OK	PASS	-	eea14d3bd5ee3bcab239c0c1a12141b99ecdcfcb0a73f1c3a5adb5fd9acd5c3f	-	1284 points
 var w=3mo	OK	PASS	-	a24462767a3d1f2fa07539d4896600c4226be241bed55b814b2cd1b8c6f7ba15	-	1239 points
-var w=all	OK	PASS	-	63783b04ac52d2b0a76159f3666b518a7213c10932abfc7f31c8588d30b19b53	-	1303 points
+var w=all	OK	PASS	-	c5a60274d1eb2e100e00533a3f842626f4c038498dda1c39b6187855282dfbfa	-	1303 points
 median default	OK	PASS	-	c71f8284c886deb1feb38548a1949c484e36b088b333556b99c42ba02d520de9	-	1304 points
 median w=3mo	OK	PASS	-	467818d79902299110a9794fafd4614cf893db9ad4af84183ae86fc30427a8dd	-	1239 points
 median w=all	OK	PASS	-	c71f8284c886deb1feb38548a1949c484e36b088b333556b99c42ba02d520de9	-	1304 points
@@ -47,11 +47,11 @@ zscores w=whole	OK	PASS	-	b64ddc4187b51e325a16c01fe52941dc0725d78cb0028066f7b33c
 zscores w=63,r=10	OK	PASS	-	f0bd87bdbc65dee9d4d3fb73789fae3b41b08f21161b949139726bfc834b08bc	-	1294 points
 winsorize default	OK	DIFF	S150	3cf2bac8f0e7d0ff2b04efaed2e866d6432849a9807cf08b568a5989918fee4b	-	1303 points | lite: 1303 gs-quant points, 1303 lite's; 26 dates apart (worst absolute 0.0781254082739817), 0 gs-quant's alone, 0 lite's alone; 2020-02-21: gs-quant -0.11317893955210526, lite -0.13967348444683556; 2020-03-02: gs-quant 0.11907420115214615, lite 0.1326611381024756; 2020-03-06: gs-quant 0.11907420115214615, lite 0.14666943546977118
 winsorize limit=1.5,w=whole	OK	PASS	-	6dec606fa15f273fec8f5fca6005f48a1713a3f4b495dd9deb6b8bea60da0385	-	1303 points
-cov default	OK	PASS	-	8c9f9195b21fba3d90a314e151b7165bd9b48d8fa3eda5c02595bbabf6485fb1	-	1303 points
+cov default	OK	PASS	-	c3c2c8bef79e88db6fea8585f2e30dc9c7c41353eea6115b48af1058888fd0c1	-	1303 points
 cov w=3mo	GS_ERROR	GS_ERROR	-	-	-	TypeError: Invalid comparison between dtype=datetime64[us] and date (statistics.py:720)
-cov w=all	OK	PASS	-	8c9f9195b21fba3d90a314e151b7165bd9b48d8fa3eda5c02595bbabf6485fb1	-	1303 points
-exponential_std default	OK	PASS	-	4e429644df427b637d72037a19d3ea62e8bcfeaaa8866cb6b2508fe84a22a249	-	1303 points
-exponential_std beta=0.9	OK	PASS	-	121d9feead85d3f93120f916e4106b468d8fe6a93efaaf43d2798a249be7f1f6	-	1303 points
+cov w=all	OK	PASS	-	c3c2c8bef79e88db6fea8585f2e30dc9c7c41353eea6115b48af1058888fd0c1	-	1303 points
+exponential_std default	OK	PASS	-	b259a3c079eeb8354cae79220d1c5934ec6e28c3c3142566f2e5778ac00e63e0	-	1303 points
+exponential_std beta=0.9	OK	PASS	-	894bbd893eb3a899a8fe6c0fe365578909dce0eee2ca6a38a9d8f6e86a28a200	-	1303 points
 returns default	OK	PASS	-	94f47ce28248278d9c9247f17a291f31a40c7183bcf791453636671a7083e0bc	-	1303 points
 returns obs=5	OK	PASS	-	0ea64c616046bd45d5a255ff0d3eeea8e79aaf3feea51864e9c4e2bba3698733	-	1299 points
 returns type=log	OK	PASS	-	5cd4aba6f9e2ea165f9f7e10c86732b64441b2e3937c9bcfdeb0546edd5a2e21	-	1303 points
@@ -65,30 +65,30 @@ index initial=100	OK	PASS	-	ed944b4daaec14e7e2721cfe9f864ff3ed21b7552b63d03a4c17
 rebase default	OK	PASS	-	ed944b4daaec14e7e2721cfe9f864ff3ed21b7552b63d03a4c17e6e0eb0ef95f	-	1304 points
 rebase base=1	OK	PASS	-	e85ff0e920debe0b00aebe249bf9df53ddc6636e1ea57607e1cf079ff7590c5c	-	1304 points
 change default	OK	PASS	-	04c1a3564441a2a1c7b8cc9f5a435ad768693159475d0e8f12881aea6bb94260	-	1304 points
-annualize default	OK	PASS	-	3882cbe0cf1ced9d67910116e935cf6d1914bb27bab2e2bf3ee81b5799fb1501	-	1283 points
-volatility default	OK	PASS	-	c8a72b4b662dc36a438abea2ca7c63581094df05bdc549561359d45e22d50075	-	1302 points
-volatility w=63	OK	PASS	-	fa5884c9f02c49ed27b5d3fce1d60e436d2520747a459fad72488d879dd784f8	-	1241 points
+annualize default	OK	PASS	-	c6b5ff50595984017de0a6ad196018ed31f72f6395eda3bb993bc71977a47335	-	1283 points
+volatility default	OK	PASS	-	4c5167a2c412a10378ebf6630f31f57bc56d6b27199a5cce53e64215427bea63	-	1302 points
+volatility w=63	OK	PASS	-	d68a94c4e398403b8b677bbe474e2ed6848f2433c83ea2ca1d1c103dfe48273c	-	1241 points
 volatility w=3mo	OK	PASS	-	0fb9e9387fa97ca014437697da0497ec66dd03776db277b6b0fab38d72dc9a08	-	1239 points
-volatility w=all	OK	PASS	-	c8a72b4b662dc36a438abea2ca7c63581094df05bdc549561359d45e22d50075	-	1302 points
-volatility type=log	OK	PASS	-	90e9ee819a83944e40174bfce308efcd94f6b1d184bb0b13dfea6c09a0382bb1	-	1282 points
-volatility w=63,r=10	OK	PASS	-	22650c1967aa4cf33cdb60ab4e9484729396284bea26ece0536e375cbe09fe9d	-	1294 points
-volatility w=10,annualization_factor=252	OK	PASS	-	626c8faa2a905d42579c9fb9cb5f25299738e8964a64499d378a0035de31510e	-	1294 points
-correlation default	OK	PASS	-	b15949f34d69a96fb6df3a359f816ecd21f01a68ad3254a82fc1cad0a9706ab9	-	1302 points
-correlation w=3mo	OK	PASS	-	709fe83ec886ca7d68ee28e6b06d5e444dfcb2406defdfd507c2ca85b85ed19a	-	1239 points
-correlation w=all	OK	PASS	-	b15949f34d69a96fb6df3a359f816ecd21f01a68ad3254a82fc1cad0a9706ab9	-	1302 points
-correlation w=63,r=10	OK	PASS	-	83e9d796801697a839f1d3b0415bfce3de1689e4306552b47438e61e9159174a	-	1294 points
-beta default	OK	PASS	-	277fc803498623f53c8e3611d669e55b6effc6aa6813ba7e47dd7a38f2856cf2	-	1301 points
+volatility w=all	OK	PASS	-	4c5167a2c412a10378ebf6630f31f57bc56d6b27199a5cce53e64215427bea63	-	1302 points
+volatility type=log	OK	PASS	-	fc00ebd455e028d4803fbab459f4ea080ff57979a49994da3abcd42c7df4124e	-	1282 points
+volatility w=63,r=10	OK	PASS	-	f53da6d263fb992e4ea5185bbc79ea524dee6001c6b9243bb1c41b61b65cbc21	-	1294 points
+volatility w=10,annualization_factor=252	OK	PASS	-	44b0d81694b78cbb09f9862daa242fd386bcb14284365ee156c5cc7b69f36a59	-	1294 points
+correlation default	OK	PASS	-	e4704c0beadd2c62409ed913fd04391730b7d0ed63f59805f75624783ec6e3eb	-	1302 points
+correlation w=3mo	OK	PASS	-	e2d1a9f284b16edb1b00117464bfb8c79c701711678703f7d927b7b3d41478e5	-	1239 points
+correlation w=all	OK	PASS	-	e4704c0beadd2c62409ed913fd04391730b7d0ed63f59805f75624783ec6e3eb	-	1302 points
+correlation w=63,r=10	OK	PASS	-	706e47b84433d1eb107266935d3d5b6f2b4e63b1c9810c246930c8e65573925e	-	1294 points
+beta default	OK	PASS	-	4cfe41dd184b1110ffbb90b612e047069a2b75b9e58ba27a2686ad46cd34d800	-	1301 points
 beta w=3mo	GS_ERROR	GS_ERROR	-	-	-	TypeError: Cannot compare Timestamp with datetime.date. Use ts == pd.Timestamp(date) or ts.date() == date instead. (econometrics.py:1040)
-beta w=all	OK	PASS	-	277fc803498623f53c8e3611d669e55b6effc6aa6813ba7e47dd7a38f2856cf2	-	1301 points
+beta w=all	OK	PASS	-	4cfe41dd184b1110ffbb90b612e047069a2b75b9e58ba27a2686ad46cd34d800	-	1301 points
 beta w=2	OK	DIFF	S154	988818837740ba50cd334ed1867184a0b3110a1aa44c861972ab502eef5ee198	-	1301 points | lite: 1301 gs-quant points, 1302 lite's; 0 dates apart (worst relative 0.0), 0 gs-quant's alone, 1 lite's alone from 2020-01-06
 max_drawdown default	OK	PASS	-	f1b518193ed5c198f854ff69d704fa42f22342ac6c0c8ebedfe75f68912fcbfe	-	1304 points
 max_drawdown w=63	OK	PASS	-	73a9afb1b1ff2cff8f665ec5c427d2d30543f5866cda4ad61e7194980461ab43	-	1241 points
 max_drawdown w=3mo	OK	PASS	-	55eb8d73e0dd68916f62bf8cc06a9ff70f829c7f71b5c878bedafe8ef0116e85	-	1239 points
 vol_swap_volatility default	OK	PASS	-	5f53068fc77cb1500502fceb0ae96cb25b1fb0baef5b38b9817af105ea147fff	-	1 points
 vol_swap_volatility w=20	OK	PASS	-	34ebdbb43c6ced29cd62ca5ae4121ba38285d9881d04c50a9132b4bd84f88194	-	1285 points
-sharpe_ratio default	OK	PASS	-	29eb5a8610d29f80bece6220472e956a71281eb7c042a871753cb84826ad5479	-	1302 points
-sharpe_ratio w=63	OK	PASS	-	dae43cb399d011085e0a0ebf7a6973dcd23c45edc8ff4495b1ee24e4e2d2aed8	-	1240 points
-sharpe_ratio w=1y	OK	DIFF	S162	75b96c1dc0b2527f5fa365221039b0f6f521ad7dbd36654447da47b899ca81a3	-	781 points | lite: 781 gs-quant points, 1041 lite's; 0 dates apart (worst absolute 0.0), 0 gs-quant's alone, 260 lite's alone from 2021-01-05
+sharpe_ratio default	OK	PASS	-	a64cb9f70ec3ba9f8ee04743faa5354f88d35222fed8502e0dc784658e4bdb04	-	1302 points
+sharpe_ratio w=63	OK	PASS	-	8b888cb5bb5b5a9bef5db110fd1159b8d32762f801e27c432052c94103745c07	-	1240 points
+sharpe_ratio w=1y	OK	DIFF	S162	eed71af89f905c0407a6f2f6ec1ba7dd175fdb197b4b72855e84dfdd976d8b36	-	781 points | lite: 781 gs-quant points, 1041 lite's; 0 dates apart (worst absolute 0.0), 0 gs-quant's alone, 260 lite's alone from 2021-01-05
 excess_returns y=0.05	OK	PASS	-	a829aad2a2efb683c7f53a27e51374c0b9637002592c08b2879bb365db97128f	-	1304 points
 excess_returns y=line	OK	PASS	-	4b377db0a1d0be176e36aedd3e350bc7ae486b2ba1a97a19d04e51b2fc121622	-	1304 points
 diff default	OK	PASS	-	a130496745640ba766adbf87a33237759d772cb6feea8c093b40ba6d967d9460	-	1303 points
@@ -132,29 +132,29 @@ interpolate method=zero,dates=series	OK	DIFF	-	837ef52db31db3e7db0352a229de3ee81
 interpolate method=step	OK	PASS	-	bde2f49a060dd961cc2925ab7a8233978970131575565b5f60c4be7550c67c3b	-	1304 points
 value_at date=2022-03-15	OK	PASS	-	80354344128b348f9e96a6706036b039d161b91c362857e5c0121a3b38b26db8	-	1304 points
 value_at date=2022-03-13	OK	PASS	-	cf2b0ddf38ce7cc4c7e6360e7a1faf356fab4afa1a59e138150d587461f7807d	-	1304 points
-bollinger_bands default.lower	OK	PASS	-	8164206fd1a2762c611dbd6e9f2e12841590be1601b94785c501a067fa511854	-	1303 points
-bollinger_bands default.upper	OK	PASS	-	ffd491abfe225da963f2fc08061994273daf95966cdd7e2518ba0147393e96ee	-	1303 points
-bollinger_bands w=50,k=1.5.lower	OK	PASS	-	b744daf5248704e7a3cc1ff949a6c39ac32035d23ec994a5671cd9ee7679de2c	-	1254 points
-bollinger_bands w=50,k=1.5.upper	OK	PASS	-	23fba6233139b13d36ae5c7ee3a2b553e20548e1eb5bc5ebf9da0a88e836d972	-	1254 points
+bollinger_bands default.lower	OK	PASS	-	6adcf3dece9a6051d1253550a21974d98e4dae153f96cdd37a919e70964576e2	-	1303 points
+bollinger_bands default.upper	OK	PASS	-	3b5aecead7cd8d24703f18e46f823b3b58425dc5e4910180379ae7aaab4ad7de	-	1303 points
+bollinger_bands w=50,k=1.5.lower	OK	PASS	-	66124f70c82077ba5425aac5b8d56cdb0b15194d958a018123ce28f0904d5136	-	1254 points
+bollinger_bands w=50,k=1.5.upper	OK	PASS	-	f7247cf89ab556c21a4d0e8bc8749d8f263968faedc4608bb64d7fdc4f8f2d9c	-	1254 points
 smoothed_moving_average default	OK	PASS	-	209439bfb3592b73ebbd27a2f22d0a2754ecb191c47e2ea7382a9ee78ff1e962	-	1290 points
 smoothed_moving_average w=30	OK	PASS	-	52bc5eb99c37aa1db8149a68891b8f859b93c85dca4f7a495fa25ae960ad697e	-	1274 points
 rsi default	OK	PASS	-	8e0ebbe3445461c7b5dc9b175b49c3dc729f12c56748f2730ed2c9b3f0f65c02	-	1289 points
 rsi w=30	OK	PASS	-	ef960a3b776b0f54f1af8fe086f11abfd2e95f5ea9b1153670b780fcd9ac188e	-	1273 points
-exponential_moving_average default	OK	PASS	-	b5cc09402495323e093fde3d7e7f3381d5638cf86b4bb93f3c63520402a7d865	-	1304 points
-exponential_moving_average beta=0.9	OK	PASS	-	4511bd282043687f8c45c4cbe482ab29f31e49d1b9d680fc2131a404636e13e7	-	1304 points
+exponential_moving_average default	OK	PASS	-	8973331e981b1b1710eeaf27c6faa87cc7256cfb33fed638868c1b7ed7b44be5	-	1304 points
+exponential_moving_average beta=0.9	OK	PASS	-	cc1e3e1ff363b23c2e1153e479fa2c9aae852680de7ff4eb9891ddc40312c427	-	1304 points
 exponential_moving_average beta=0	OK	PASS	-	d8a5b8d1c3883b7524592366864f2580d60ed56e6da37656ce73cc40571a3e66	-	1304 points
-macd default	OK	PASS	-	a0f4b13eebdb531e8bbbbb5720ec3e41a21fcfa222e191e86bcd9754383cbb90	-	1304 points
-macd m=5,n=35,s=5	OK	PASS	-	cfb875322c1c0fe2914435dc3aa6be45296f4345ac3cef1bcce9bcb3f2fe490f	-	1304 points
-exponential_volatility default	OK	PASS	-	a93c8ac5cb7e612f8d6341fbb8fd065dc89beb0d205142258d8083de17258c8f	-	1302 points
-exponential_volatility beta=0.9	OK	PASS	-	b0b0f0e21adc0ea943a06a2c87e9ce738a8e7aa6eb2e9391718df7c52f6dcf6a	-	1302 points
-exponential_spread_volatility default	OK	PASS	-	1e1a9ca2334e14f72b5d2d8a81c84dc724c36716d291025bc8c26fc6a5243cee	-	1302 points
-seasonally_adjusted default	OK	PASS	-	b1738a11067b8cff91f846ca805347147f1e4bab714363e1f40e4501f744a82e	-	108 points
-seasonally_adjusted method=multiplicative	OK	PASS	-	9448c3539f2ae7d5bb81d83771e71b114424b75b956412c63cf2ae7a805a4280	-	108 points
-seasonally_adjusted freq=quarter	OK	PASS	-	6a9af4b5778b3989875bb5580104e8efa3881c97ae10a95224557d8c938457b7	-	118 points
-trend default	OK	PASS	-	fbaf4f7ac37de98f8fa27b32e5872a9ef2a0615e6a11b9372c53b5415be4d68a	-	108 points
-trend freq=quarter	OK	PASS	-	4f10470d7dbf6c907cb523e50d872d429653e9c21c7eeb0a2b8163a3e624098d	-	118 points
-basket default	OK	PASS	-	72daba96b8f04aeac9366e6bf1104d9837d0d41d2682158ead64b0c6049ca955	-	1304 points
-basket rebalance=monthly	OK	PASS	-	3a95fd2469e349e1b079501ec33b36602960c1491201666647e0a325638a82ef	-	1304 points
+macd default	OK	PASS	-	434585617b8fad24b8e1e483c14bc12d6618b85a3ce9ce029a75456b10878d1e	-	1304 points
+macd m=5,n=35,s=5	OK	PASS	-	9899121843c446bf1e09a0c35789a0cc3303fe98e809d152a7398f37ff54221a	-	1304 points
+exponential_volatility default	OK	PASS	-	93d549b0f693172f259ae9123ab58ec6e108f845ea1bb0133d345b0c2b9a253f	-	1302 points
+exponential_volatility beta=0.9	OK	PASS	-	a1cd504a9db4dc4e6665c0f1eb7d27ccb018300dc36ac36424cde936f86537fa	-	1302 points
+exponential_spread_volatility default	OK	PASS	-	a5313f9d3e7afbcd502a1baaa102277f7d8bcef59697e5e91920201de0555455	-	1302 points
+seasonally_adjusted default	OK	PASS	-	1209e43267eb0a77d8107bf3ca2d63470bfd9b7561e3f3c2d349fc49d13e3b55	-	108 points
+seasonally_adjusted method=multiplicative	OK	PASS	-	295e25bb0ab861d2c956a04ad5e1d17321c96a42ab084ddff352ddd8f6a2d7de	-	108 points
+seasonally_adjusted freq=quarter	OK	PASS	-	05c5749de5b1fc9ed4f542be6e2a57ffd3bc4675c7b111076980de785f02c6c6	-	118 points
+trend default	OK	PASS	-	aacccfadd43d5ea25cea2dab447609e6b8508bb9060f3807650e401dc09001a1	-	108 points
+trend freq=quarter	OK	PASS	-	29021bb0fd9bf9aaf4491b1bddfa5465603b7af79b0bd24cfda4d49aa06a332a	-	118 points
+basket default	OK	PASS	-	36a64985204f40cbcd522b47bc2593e79e60ab915e8f39db28187a32346ffe2f	-	1304 points
+basket rebalance=monthly	OK	PASS	-	82b59b5fc6c3d9939fb5cd080208891186f61d14d811848aa8eabebfa5ae7635	-	1304 points
 alpha	SKIP	SKIP	-	-	-	gs_quant.timeseries.alpha is measures_reports.py:1381, alpha(report_id, benchmark_id, ...): a Marquee report read, no function over two series (its tag: DataCube)
 information_ratio	SKIP	SKIP	-	-	-	measures_reports.py:1166, a Marquee report read (its tag: DataCube)
 r_squared	SKIP	SKIP	-	-	-	measures_reports.py:1527, a Marquee report read (its tag: DataCube)

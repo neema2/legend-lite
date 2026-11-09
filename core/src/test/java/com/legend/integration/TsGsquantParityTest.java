@@ -165,6 +165,44 @@ class TsGsquantParityTest {
         return new Word(word, false, cases, false);
     }
 
+    /** A case's gs text that is Show Python's call: the case's #TS item as the printer prints it, read from calls.tsv. */
+    static final String PRINTED = "printed";
+
+    /**
+     * The mapping with each case's gs-quant call resolved: the mapping's own text, or where it writes {@code printed},
+     * Show Python's -- calls.tsv, which //datacube:timeseries_builder_test prints from the case's #TS item (item 14f,
+     * step 2: the oracle's gs-quant side the printer's; snap.py's {@code resolved}, the same rule). A {@code printed}
+     * case the printer prints no call for is this test's error, never a verdict.
+     */
+    static List<Word> printed(List<Word> words, Path callsFile) throws IOException {
+        Map<String, String> calls = new LinkedHashMap<>();
+        for (String line : Files.readAllLines(callsFile, StandardCharsets.UTF_8)) {
+            if (line.isBlank() || line.startsWith("#") || line.startsWith("case\t")) {
+                continue;
+            }
+            int tab = line.indexOf('\t');
+            calls.put(line.substring(0, tab), line.substring(tab + 1));
+        }
+        List<Word> out = new ArrayList<>();
+        for (Word w : words) {
+            List<Case> cases = new ArrayList<>();
+            for (Case c : w.cases()) {
+                if (!PRINTED.equals(c.gs())) {
+                    cases.add(c);
+                    continue;
+                }
+                String call = calls.get(c.key());
+                if (call == null || call.equals("STATEMENT") || call.startsWith("REFUSED")) {
+                    throw new IllegalStateException("PRINTED: " + c.key() + " is `printed`, and calls.tsv holds "
+                            + (call == null ? "no row for it" : call) + " (rewrite calls.tsv, or write its call)");
+                }
+                cases.add(new Case(c.word(), c.args(), c.ts(), call, c.column(), c.register(), c.src()));
+            }
+            out.add(new Word(w.word(), w.skip(), cases, w.ruled()));
+        }
+        return out;
+    }
+
     /** A YAML flow sequence's scalars as the mapping writes them: "..." (with \" and \\) or plain, split at ", ". */
     static List<String> flowScalars(String text) {
         List<String> out = new ArrayList<>();
@@ -804,7 +842,7 @@ class TsGsquantParityTest {
 
     @Test
     void everyMappedWordAnswersAsGsQuantsOwnFunction() throws Exception {
-        List<Word> words = mapping(Runfile.property("ts.gsquant.mapping"));
+        List<Word> words = printed(mapping(Runfile.property("ts.gsquant.mapping")), Runfile.property("ts.gsquant.calls"));
         String pin = pin(Runfile.property("ts.gsquant.pins"));
         // a development run over some of the cases (-Dts.gsquant.only=<a regex found in a case's key>): each verdict
         // printed, the ledgers not held

@@ -1241,6 +1241,7 @@ junit_test(
         "//tools/gs-quant-oracle:ledger-adversarial-adjusted.tsv",
         "//tools/gs-quant-oracle:ledger-adversarial-raw.tsv",
         "//tools/gs-quant-oracle:ledger.tsv",
+        "//tools/gs-quant-oracle:calls.tsv",
         "//tools/gs-quant-oracle:mapping.yaml",
         "//tools/gs-quant-oracle:pins.env",
     ],
@@ -1248,6 +1249,8 @@ junit_test(
         "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
         "-Dts.gsquant.pins=$(rlocationpath //tools/gs-quant-oracle:pins.env)",
         "-Dts.gsquant.mapping=$(rlocationpath //tools/gs-quant-oracle:mapping.yaml)",
+        # each case's #TS item as Show Python prints it: the gs-quant call of a case the mapping writes `printed` (14f)
+        "-Dts.gsquant.calls=$(rlocationpath //tools/gs-quant-oracle:calls.tsv)",
         "-Dts.gsquant.samples=$(rlocationpath //datacube:ts_replay_samples)",
         "-Dts.gsquant.answers=$(rlocationpath //tools/gs-quant-oracle:answers.jsonl.gz)",
         "-Dts.gsquant.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger.tsv)",
