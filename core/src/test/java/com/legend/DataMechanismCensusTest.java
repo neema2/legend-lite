@@ -90,7 +90,8 @@ class DataMechanismCensusTest {
             // data reaches a plan only as a load, which the guard proves
             new Row("M4", "service-suite data through a synthetic connection (the overlay kept; its data a load)",
                     new Bounded("L2", List.of(), "ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad")),
-            new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4")),
+            new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4 (a server"
+                    + " engine's whole store per graph: the catalog design's check 3)")),
             new Row("M6", "the system metamodel store on the product road", new Pending("L4")),
             // PENDING (the M1 correctness audit's C3, 2026-11-09): a seed form mapped over executeInDb was made a load
             // at L2 and put back the same day -- as a load it lost the effect script's transaction bracket and abort, its
@@ -134,8 +135,9 @@ class DataMechanismCensusTest {
                     "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup"),
             // L3: the project's own fill steps, carried and read; the project stripped to its key on every open
             "M1", List.of("project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly("),
-            // L4a: the system store's load named by a constant, and the walk's own seeding door
-            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore("));
+            // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
+            // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
+            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"));
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */

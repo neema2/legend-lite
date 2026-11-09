@@ -318,6 +318,18 @@ public final class Trino extends AnsiSqlRenderer {
         return sb.append(")").toString();
     }
 
+    /** A Date and a DateTime parameter: upstream's literal processor writes both {@code Timestamp'%s'}
+     *  (trinoExtension.pure), a timestamp of the value's own digits; the placeholder is a {@code TIMESTAMP(9)}, so no
+     *  digit of a DateTime's nine is lost (a plain {@code TIMESTAMP} is three), bound as its text (D1, P4; the re-audit's
+     *  B-1, 2026-11-09). A number is bound bare. */
+    @Override
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP(9)", new RenderedStatement.AsText(null));
+        };
+    }
+
     /** A timestamp literal keeps its digits (TIMESTAMP(p) by the literal's own precision, measured); its date and
      *  time are apart by a space (a {@code T} is refused, measured). */
     @Override

@@ -50,23 +50,31 @@ import java.util.Map;
  */
 public final class SystemDatabase {
 
-    /** The CURRENT system database of each engine (the plan-as-data design's hole 2, 2026-11-09): the graph key it
-     *  holds, its session and the runs using it. A run naming another graph's store replaces it -- a fresh session
-     *  opened lazily, the old one closed when the last run using it ends -- so the process holds one per engine plus
-     *  those still in use, found by the plan's own target, never the compiled model (until hole 2 one per graph, kept in
-     *  the graph's derived cache: the run reached the model for it). */
+    /** The CURRENT system database of each engine (the plan-as-data design's hole 2, 2026-11-09): the key it holds, its
+     *  session and the runs using it. On a database the platform runs in process it is the process's CATALOG (L4b,
+     *  2026-11-09), keyed by the platform's content, so it is made once and never replaced; on a server engine, the
+     *  graph's own, which a run naming another graph's store replaces -- a fresh session opened lazily, the old one
+     *  closed when the last run using it ends. Found by the plan's own target, never the compiled model. */
     private static final Map<com.legend.executionplan.DatabaseType, Held> CURRENT = new HashMap<>();
 
-    /** A system database's session and its leases; guarded by the class's lock. */
+    /** A system database's session and its leases; guarded by the class's lock. A catalog's (a target with loads) is
+     *  made with its target's ONCE loads -- the store's tables and the platform's rows -- and taken by one run at a time
+     *  ({@link #turn}), each run's registration inside a transaction rolled back when its leases close. */
     private static final class Held {
-        final String graphKey;
+        final String key;
         final Sessions.Session session;
+        final boolean catalog;
+        final java.util.concurrent.locks.ReentrantLock turn = new java.util.concurrent.locks.ReentrantLock();
         int leases;
         boolean replaced;
+        /** Guarded by {@link #turn}: the catalog's ONCE loads ran ({@code made}), or failed part-way ({@code broken}). */
+        boolean made;
+        boolean broken;
 
-        Held(String graphKey, Sessions.Session session) {
-            this.graphKey = graphKey;
+        Held(String key, Sessions.Session session, boolean catalog) {
+            this.key = key;
             this.session = session;
+            this.catalog = catalog;
         }
     }
 
@@ -79,49 +87,118 @@ public final class SystemDatabase {
         return new Leases(java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(systemConnections)));
     }
 
-    /** One run's leases: each system database its steps reach, held until {@link #close}. */
+    /** One run's leases: each system database its steps reach, held until {@link #close}, and its turns on the catalogs
+     *  it reached, rolled back then. */
     public static final class Leases implements AutoCloseable {
         private final Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections;
         private final List<Held> held = new ArrayList<>();
+        private final List<Held> turns = new ArrayList<>();
 
         private Leases(Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections) {
             this.systemConnections = systemConnections;
         }
 
         /**
-         * The system database for {@code system} -- the engine and the graph's store key the plan names -- OPENED ON
-         * FIRST USE ({@link Sessions#lazy}): an in-process engine's private database, a server engine's the host's
-         * system connection for it (a server engine with none is refused by name when a run first reaches it, never
-         * routed to a user's session). The same session for the same key; another key replaces the engine's current
-         * one. The holder writes nothing: the store's tables and rows are the plan's own seed step
-         * ({@code SystemRoutes.seeds}), which the runner runs on a session once.
+         * The system database {@code target} names -- the engine and the key of what it holds -- OPENED ON FIRST USE
+         * ({@link Sessions#lazy}): an in-process engine's private database, a server engine's the host's system
+         * connection for it (a server engine with none is refused by name when a run first reaches it, never routed to
+         * a user's session). The same session for the same target. A target with loads names the process's CATALOG:
+         * made once with its ONCE loads, then this run's turn taken on it -- one run at a time, inside a transaction
+         * rolled back when the run ends ({@link #close}; docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.5). The holder
+         * writes nothing of its own: every row is a load of the plan's.
          */
-        public Sessions.Session sessionFor(com.legend.executionplan.ExecutionPlan.Database.System system) {
+        public Sessions.Session sessionFor(com.legend.executionplan.ExecutionPlan.Target target) {
+            if (!(target.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System system)) {
+                throw new IllegalArgumentException("a system database's lease for " + target.database());
+            }
+            boolean catalog = !target.loads().isEmpty();
+            StringBuilder key = new StringBuilder(system.graphKey());
+            for (var load : target.loads()) {
+                key.append(' ').append(load.identity());
+            }
+            Held current;
             synchronized (SystemDatabase.class) {
                 com.legend.executionplan.DatabaseType engine = system.type();
-                Held current = CURRENT.get(engine);
-                if (current == null || !current.graphKey.equals(system.graphKey())) {
+                current = CURRENT.get(engine);
+                if (current == null || !current.key.equals(key.toString())) {
                     if (current != null) {
                         current.replaced = true;
                         if (current.leases == 0) {
                             closeQuietly(current.session);
                         }
                     }
+                    if (catalog && !Sessions.inProcess(engine)) {
+                        throw new IllegalStateException("a catalog's loads on " + engine + ": the process's catalog is"
+                                + " made on a database the platform runs in process");
+                    }
                     Map<com.legend.executionplan.DatabaseType, Sessions.Opener> conns = systemConnections;
-                    current = new Held(system.graphKey(), Sessions.lazy(() -> Sessions.inProcess(engine)
-                            ? openPrivate(engine) : openSystem(engine, conns)));
+                    current = new Held(key.toString(), Sessions.lazy(() -> Sessions.inProcess(engine)
+                            ? openPrivate(engine) : openSystem(engine, conns)), catalog);
                     CURRENT.put(engine, current);
                 }
                 if (!held.contains(current)) {
                     current.leases++;
                     held.add(current);
                 }
-                return current.session;
+            }
+            if (current.catalog && !turns.contains(current)) {
+                take(current, target);
+            }
+            return current.session;
+        }
+
+        /** This run's turn on {@code catalog}: one run at a time (a run nested in another on this thread refused by name:
+         *  its rollback would undo the outer's registration), the catalog made first if it is not, then a transaction
+         *  begun. */
+        private void take(Held catalog, com.legend.executionplan.ExecutionPlan.Target target) {
+            if (catalog.turn.isHeldByCurrentThread()) {
+                throw new IllegalStateException("a run on the system catalog inside another run's turn on it, on one"
+                        + " thread: its rollback would undo the other's registration");
+            }
+            catalog.turn.lock();
+            boolean taken = false;
+            try {
+                if (catalog.broken) {
+                    throw new IllegalStateException("the system catalog's loads failed when it was made, and are not run"
+                            + " again (some of their steps ran)");
+                }
+                if (!catalog.made) {
+                    catalog.broken = true;
+                    for (var load : target.loads()) {
+                        PlanRunner.establishOn(load, catalog.session);
+                    }
+                    catalog.broken = false;
+                    catalog.made = true;
+                }
+                Sessions.beginTurn(catalog.session);
+                turns.add(catalog);
+                taken = true;
+            } finally {
+                if (!taken) {
+                    catalog.turn.unlock();
+                }
             }
         }
 
         @Override
         public void close() {
+            com.legend.error.@com.legend.base.Nullable DataError failed = null;
+            for (Held h : turns) {
+                try {
+                    Sessions.endTurn(h.session);
+                } catch (com.legend.error.DataError e) {
+                    // a turn not rolled back leaves rows behind: the catalog is broken, never read again
+                    h.broken = true;
+                    if (failed == null) {
+                        failed = e;
+                    } else {
+                        failed.addSuppressed(e);
+                    }
+                } finally {
+                    h.turn.unlock();
+                }
+            }
+            turns.clear();
             synchronized (SystemDatabase.class) {
                 for (Held h : held) {
                     h.leases--;
@@ -130,6 +207,9 @@ public final class SystemDatabase {
                     }
                 }
                 held.clear();
+            }
+            if (failed != null) {
+                throw failed;
             }
         }
     }

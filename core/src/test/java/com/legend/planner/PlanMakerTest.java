@@ -137,6 +137,61 @@ class PlanMakerTest {
                 """.formatted(type);
     }
 
+    /** A DateTime parameter read where the connection's time zone applies is that zone's wall time, as its literal is
+     *  (the re-audit's B-2, 2026-11-09): upstream wraps the placeholder in {@code GMTtoTZ}
+     *  ({@code processDatePlaceHolder}), lite's lowering in the database's local-in conversion. A Date parameter there
+     *  is refused by name (upstream's conversion depends on the value's shape); on GMT, nothing is converted. */
+    @Test
+    void aDateTimeParameterInAZoneIsConvertedAsItsLiteral() {
+        TypedQuery dateTime = Compiler.query(Compiler.compileModel(""), "{t: DateTime[1]|$t}");
+        String est = lowered(dateTime, "EST");
+        assertTrue(est.contains("timezone('EST', timezone('UTC', CAST(? AS TIMESTAMP_NS)))"), est);
+        assertEquals("SELECT CAST(? AS TIMESTAMP_NS) AS value", lowered(dateTime, "GMT").strip());
+        TypedQuery date = Compiler.query(Compiler.compileModel(""), "{d: Date[1]|$d}");
+        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> lowered(date, "EST"));
+        assertTrue(String.valueOf(refused.getMessage()).contains("time zone is EST"), refused.getMessage());
+    }
+
+    /** {@code query}'s body lowered with its parameters as the statement's slots, in {@code zone}, written for the platform's database. */
+    private static String lowered(TypedQuery query, String zone) {
+        List<com.legend.sql.SqlExpr.PlanParam> slots = query.parameters().stream()
+                .map(QueryParameters.Declared::slot).toList();
+        com.legend.sql.SqlQuery q = query.lowerer(false, false, slots, java.util.Set.of()).withDbTimeZone(zone)
+                .lower(query.body());
+        return Databases.dialect(Databases.PLATFORM).renderStatement(q).sql();
+    }
+
+    /** Each database's placeholder of a Date and of a DateTime parameter, as its dialect writes it from upstream's
+     *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at nine
+     *  digits, ClickHouse lite's own naive UTC {@code DateTime64(6)}, Databricks' {@code to_date} and
+     *  {@code to_timestamp}, Snowflake's {@code '…'::timestamp} at nine digits; a dialect that writes none refuses by
+     *  name, never inheriting another's. */
+    @Test
+    void eachDatabaseWritesItsOwnDatePlaceholder() {
+        // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
+        java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
+        for (String line : """
+                Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
+                ClickHouse	CAST(? AS Nullable(DateTime64(6, 'UTC')))	CAST(? AS Nullable(DateTime64(6, 'UTC')))
+                Databricks	CAST(? AS DATE)	CAST(? AS TIMESTAMP)
+                Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
+                """.strip().split("\n")) {
+            String[] cells = line.split("\t");
+            spelled.put(cells[0], new String[] {cells[1], cells[2]});
+        }
+        for (var e : spelled.entrySet()) {
+            String model = model(e.getKey());
+            String[] kinds = {"d: Date[1]", "t: DateTime[1]"};
+            for (int i = 0; i < kinds.length; i++) {
+                String name = kinds[i].substring(0, 1);
+                ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), "{" + kinds[i]
+                        + "|#>{s::DB.T}#->extend(~v: r|$" + name + ")->select(~[ID, v])}").executionPlan("s::RT");
+                String sql = plan.answerSql().statement();
+                assertTrue(sql.contains(e.getValue()[i]), e.getKey() + " " + kinds[i] + ": " + sql);
+            }
+        }
+    }
+
     private static final String RELATION = "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())";
     private static final String NONE = "|#>{s::DB.T}#->filter(r|$r.ID > 99)->select(~[ID, NAME])";
     private static final String PROJECT = "|s::Item.all()->project(~[name: i|$i.name, price: i|$i.price])"

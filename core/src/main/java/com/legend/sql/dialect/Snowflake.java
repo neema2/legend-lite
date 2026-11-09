@@ -346,13 +346,14 @@ public final class Snowflake extends AnsiSqlRenderer {
         return "OBJECT";
     }
 
-    /** A Date and a DateTime parameter are a {@code TIMESTAMP_NTZ} ({@code '…'::timestamp}, upstream's), six digits of
-     *  a second as its literal (D1, P4). */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP_NTZ(9)} ({@code '…'::timestamp}, upstream's, which keeps
+     *  nine digits of a second), bound as its text whole (D1: the database's finest precision; the re-audit's B-2,
+     *  2026-11-09 -- until then cut to six, as lite's own literal is, {@link #timestampLit}). */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP_NTZ", new RenderedStatement.AsText(6));
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP_NTZ(9)", new RenderedStatement.AsText(null));
         };
     }
 

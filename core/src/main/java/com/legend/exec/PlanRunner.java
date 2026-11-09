@@ -137,12 +137,13 @@ public final class PlanRunner {
         }
     }
 
-    /** A load on the graph's system database is the system store's own seeds (the planner's {@code SystemRoutes.seeds}):
-     *  a seed ({@code BEFORE_STEP}) of statements and rows, never a file nor a program's own load -- the database holds
-     *  the graph's metamodel and nothing else; refused by name otherwise. Its identity is its content's, as every load's
-     *  (L4a, 2026-11-09). */
+    /** A load on the graph's system database is the system store's own (the planner's {@code SystemRoutes.seeds}): the
+     *  catalog's registration ({@code PER_TRANSACTION}, L4b) or a server engine's whole store ({@code BEFORE_STEP}), of
+     *  statements and rows, never a file nor a program's own load -- the database holds the metamodel and nothing else;
+     *  refused by name otherwise. Its identity is its content's, as every load's (L4a, 2026-11-09). */
     static void systemStore(ExecutionPlan.Load seeds) {
-        if (seeds.cadence() != ExecutionPlan.Load.Cadence.BEFORE_STEP
+        if ((seeds.cadence() != ExecutionPlan.Load.Cadence.BEFORE_STEP
+                && seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION)
                 || seeds.steps().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.File)) {
             throw new IllegalStateException("a load on the graph's system database that is not the system store's"
                     + " seeds (" + seeds.cadence() + "): the database holds the graph's metamodel and nothing else");
@@ -555,9 +556,15 @@ public final class PlanRunner {
      *  its holder sent it; every other under SEED. */
     static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
             com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
-        // a seed (BEFORE_STEP) is memoed; a program's own load and a target's (AT_STEP, PER_ACQUISITION) write
-        boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        // a seed (BEFORE_STEP) and a registration (PER_TRANSACTION) are memoed; a program's own load and a target's
+        // (AT_STEP, PER_ACQUISITION, ONCE) write
+        boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP
+                || seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION;
         verifyIdentity(seeds);
+        if (seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION && session.ownsTransaction()) {
+            throw new IllegalStateException("a registration (" + seeds.identity() + ") on a session that holds no"
+                    + " transaction for the run: it would be committed, and seen by every other run");
+        }
         SeedKey key = new SeedKey(seeds.identity());
         if (memo && session.state().established(key)) {
             return;

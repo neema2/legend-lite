@@ -377,6 +377,31 @@ public final class Lowerer {
     }
 
     /**
+     * {@code bound}, a DateTime parameter read on a connection with a time zone, as that zone's wall time: upstream's
+     * {@code processDatePlaceHolder} wraps such a placeholder in {@code GMTtoTZ} (dbExtension.pure, a value converted
+     * from GMT to the connection's zone, as a literal is: {@link MatchFold#dateLit}) -- here the database converts it
+     * ({@code TIMEZONE(zone, TIMEZONE('UTC', p))}, the local-in rule), planned once (the re-audit's B-2, 2026-11-09). A
+     * Date parameter there is refused by name: upstream converts a date-time value and leaves a date-only one
+     * ({@code PlanDateParameterDateFormat}: the value's shape decides), which one placeholder of a declared type cannot
+     * tell apart. Any other expression, and every parameter on a GMT or UTC connection, as it is.
+     */
+    private @com.legend.base.Nullable SqlExpr zoned(@com.legend.base.Nullable SqlExpr bound) {
+        String zone = dbTimeZone;
+        if (!(bound instanceof SqlExpr.PlanParam p) || p.declared() == null || zone == null || zone.equals("GMT")
+                || zone.equals("UTC")) {
+            return bound;
+        }
+        return switch (p.declared()) {
+            case FLOAT, DECIMAL, NUMBER -> bound;
+            case DATE -> throw new com.legend.error.NotImplementedException("the Date parameter '" + p.name()
+                    + "' on a connection whose time zone is " + zone + ": upstream converts a date-time value to it and"
+                    + " leaves a date-only one, which a placeholder of the declared type cannot tell apart");
+            case DATE_TIME -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit(zone),
+                    new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), bound))));
+        };
+    }
+
+    /**
      * Lower a typed QUERY BODY: leading {@code let} statements bind their
      * lowered values into query scope (substitution — the lean output has no
      * trace of the lets); the final statement is the query.
@@ -2605,7 +2630,7 @@ public final class Lowerer {
                 String parameter = tds.parameterAt(r, i);
                 if (parameter != null) {
                     // a cell bound when the plan runs (an activity's trace stamp, M3f): the statement's own parameter
-                    SqlExpr bound = letBindings.get(parameter);
+                    SqlExpr bound = zoned(letBindings.get(parameter));
                     if (bound == null) {
                         throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
                                 + " the statement's lowering does not bind (bindPlanParam)");
@@ -3562,7 +3587,7 @@ public final class Lowerer {
             // A bare variable: a query-level let binding substitutes; else a
             // lambda variable (a list element inside exists/forAll etc.).
             case TypedVariable v -> {
-                SqlExpr bound = letBindings.get(v.name());
+                SqlExpr bound = zoned(letBindings.get(v.name()));
                 yield bound != null ? bound
                         : Objects.requireNonNull(columns.resolve(v.name(), null),
                                 () -> "unresolvable variable '$" + v.name() + "'");

@@ -585,16 +585,14 @@ public final class BodyDriver {
         if (route == null) {
             return env;
         }
-        return env.withTarget(systemTarget(route, env.dialect()));
+        return env.withTarget(systemTarget(env.ctx(), route, env.dialect()));
     }
 
     /** The target naming the graph's system database for {@code route}'s engine, in {@code dialect}'s session setup. */
-    static com.legend.executionplan.ExecutionPlan.Target systemTarget(com.legend.planner.SystemRoutes.Route route,
-            com.legend.sql.dialect.SqlDialect dialect) {
-        return new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.System(
-                        com.legend.planner.ConnectionPlans.type(route.engine()), route.graphKey()), dialect.sessionSetup(),
-                java.util.List.of());
+    static com.legend.executionplan.ExecutionPlan.Target systemTarget(ModelContext ctx,
+            com.legend.planner.SystemRoutes.Route route, com.legend.sql.dialect.SqlDialect dialect) {
+        return com.legend.planner.SystemCatalog.target(ctx, com.legend.planner.ConnectionPlans.type(route.engine()),
+                dialect.sessionSetup());
     }
 
     /** The system store's route for a body the class rule found system-routed ({@code BodyClass.systemRouted}):
@@ -602,8 +600,7 @@ public final class BodyDriver {
     static com.legend.planner.SystemRoutes.Route systemRouteOf(ModelContext ctx, String runtimeFqn) {
         var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
                 new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
-        return new com.legend.planner.SystemRoutes.Route(com.legend.Compiler.executesOn(ctx, runtimeFqn).type(), store,
-                com.legend.planner.SystemRoutes.graphKey(ctx));
+        return new com.legend.planner.SystemRoutes.Route(com.legend.Compiler.executesOn(ctx, runtimeFqn).type(), store);
     }
 
     /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */

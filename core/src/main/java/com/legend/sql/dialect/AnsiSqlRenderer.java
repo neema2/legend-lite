@@ -1592,12 +1592,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** The SQL type a placeholder of a parameter declared {@code kind} is cast to, and whether its value is bound as its
-     *  text; null where the value is bound bare. Here (DuckDB's and Postgres's base): a number bare; a Date and a DateTime
-     *  a {@code TIMESTAMP}, upstream's (D1), bound as text -- each dialect its own finest timestamp. */
+     *  text; null where the value is bound bare. Here: a number bare; a Date and a DateTime REFUSED by name -- each
+     *  dialect writes its own, read from upstream's literal processor for the type (D1), and a dialect that has not is
+     *  refused, never given another's spelling (the re-audit's B-1, 2026-11-09: until then a base {@code TIMESTAMP}
+     *  every dialect without its own inherited -- Trino's of three digits, ClickHouse's of seconds). */
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(null));
+            case DATE, DATE_TIME -> throw new DialectCapability("a " + kind + " parameter: " + getClass().getSimpleName()
+                    + " writes no placeholder for its declared type");
         };
     }
 

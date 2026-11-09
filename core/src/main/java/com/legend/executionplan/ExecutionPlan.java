@@ -356,8 +356,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  one; a program node of this cadence is refused. */
             PER_ACQUISITION,
             /** A project's Data rows (L3, S171): made once, when the platform makes the project's database the target
-             *  names, and kept with it for the process; never run on a database the plan does not make. */
-            ONCE
+             *  names, and kept with it for the process; never run on a database the plan does not make. The system
+             *  catalog's tables and the platform's rows alike (L4b): made once per engine per process. */
+            ONCE,
+            /** A model's registration in the process's system catalog (L4b, docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.5):
+             *  a program's node, run inside the run's own transaction on the catalog -- which is rolled back when the
+             *  run ends, so no other run sees it -- once per run (the seeds' memo, which the rollback clears); refused
+             *  by name on a session that holds no such transaction. */
+            PER_TRANSACTION
         }
     }
 

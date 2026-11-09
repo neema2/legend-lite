@@ -93,8 +93,10 @@ public final class PlanJson {
      *  alone, its Data rows the target's ONCE load (L3); a placeholder's
      *  type is its declared type's, written when the plan is made: a binding's {@code typeHole} is gone, a date or
      *  date-time bound as its text {@code asText} (P4, D1). A planned parameter's {@code byValue} is its
-     *  {@code declared} kind. */
-    public static final int VERSION = 32;
+     *  {@code declared} kind. 33 since 2026-11-09: a load's cadence may be {@code PER_TRANSACTION} (a model's
+     *  registration in the process's system catalog, rolled back with its run) and a system database's target names the
+     *  catalog's {@code ONCE} load (the store's tables and the platform's rows), named by the platform's key (L4b). */
+    public static final int VERSION = 33;
 
     private PlanJson() {
     }

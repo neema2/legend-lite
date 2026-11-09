@@ -342,11 +342,13 @@ final class JdbcStatements implements Statements {
     }
 
     /** {@inheritDoc} JDBC: auto-commit off for the work, at the snapshot's isolation (the database's own kept for
-     *  {@code TRANSACTION}), committed after it, rolled back if it fails, the connection's settings restored. */
+     *  {@code TRANSACTION}), committed after it, rolled back if it fails, the connection's settings restored. A
+     *  transaction a caller holds (a run's turn on the system catalog, L4b; a harness's attempt) is joined as it is,
+     *  and is the snapshot then -- never committed here (the runners' rule, {@code PlanRunner}'s sequence). */
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE) {
+        if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE || !ownsTransaction()) {
             work.run();
             return;
         }

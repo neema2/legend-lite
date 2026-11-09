@@ -100,7 +100,7 @@ public final class TestPlanner {
                 // named, never opened at planning: the run opens the system database's session, and the program's
                 // seed step writes the store (a server engine is refused by the class rule before this, so the tables
                 // keep their names)
-                env = on.withTarget(BodyDriver.systemTarget(route, dialect));
+                env = on.withTarget(BodyDriver.systemTarget(typed.context(), route, dialect));
             }
             if (assertsPlanned) {
                 // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM

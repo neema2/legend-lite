@@ -69,8 +69,7 @@ final class ProgramRunnerTest {
             // the run's leases of the system databases (2026-11-09: the leases themselves, where a function was handed)
             try (SystemDatabase.Leases leases = SystemDatabase.leases(java.util.Map.of())) {
                 PlanSessions.Source source = PlanSessions.of(body, null, leases);
-                assertEquals(Sessions.identity(leases.sessionFor(
-                                (ExecutionPlan.Database.System) systemTarget.database())),
+                assertEquals(Sessions.identity(leases.sessionFor(systemTarget)),
                         Sessions.identity(source.open(systemTarget)), "the System target opens the leased session");
                 assertEquals(Sessions.identity(body), Sessions.identity(source.open(target)),
                         "any other target the caller's own");

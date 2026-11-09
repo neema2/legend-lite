@@ -129,7 +129,7 @@ public final class TestRunner {
     private static java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessionsByTarget(
             Sessions.Session session,
             SystemDatabase.Leases systemSessions) {
-        return target -> target.database() instanceof ExecutionPlan.Database.System s ? systemSessions.sessionFor(s)
+        return target -> target.database() instanceof ExecutionPlan.Database.System ? systemSessions.sessionFor(target)
                 : session;
     }
 

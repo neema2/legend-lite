@@ -150,8 +150,8 @@ public final class PlanSessions {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
             var sys = system;
-            return target.database() instanceof ExecutionPlan.Database.System s && sys != null
-                    ? Sessions.view(sys.sessionFor(s), trace)
+            return target.database() instanceof ExecutionPlan.Database.System && sys != null
+                    ? Sessions.view(sys.sessionFor(target), trace)
                     : Sessions.view(session, trace);
         }
     }

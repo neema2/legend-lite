@@ -426,6 +426,32 @@ public final class Sessions {
         return out;
     }
 
+    /** A run's turn on the process's system CATALOG begins (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.5, L4b,
+     *  2026-11-09): autocommit off, so what the run registers there -- its model's rows -- stays inside one transaction
+     *  that {@link #endTurn} rolls back. Its holder's act ({@code SystemDatabase}), refused while this thread plans. */
+    static void beginTurn(Session session) {
+        com.legend.base.RunScope.opening("a catalog's turn");
+        try {
+            session.connection().setAutoCommit(false);
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /** A run's turn on the catalog ends: its transaction rolled back -- whatever the run registered or read -- and
+     *  autocommit restored; the session's memo forgets what ran inside it (a registration, a session statement). */
+    static void endTurn(Session session) {
+        com.legend.base.RunScope.opening("a catalog's turn");
+        session.state().rolledBack();
+        try {
+            Connection c = session.connection();
+            c.rollback();
+            c.setAutoCommit(true);
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
+
     /** The transaction rolled back and autocommit restored after {@code failure}; a failure of either is suppressed
      *  into it, so the work's own failure is the one reported. */
     private static void unwind(Connection session, SessionState state, Throwable failure) {

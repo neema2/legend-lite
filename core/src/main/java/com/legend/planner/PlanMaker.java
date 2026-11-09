@@ -324,11 +324,11 @@ public final class PlanMaker {
         // metamodel store (M10a: the system tables keep their names in process; the program's own seed step writes
         // them, once per graph, below)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
-                ? new ExecutionPlan.Target(systemRouted
-                        ? new ExecutionPlan.Database.System(ConnectionPlans.type(decided.target().type()),
-                                SystemRoutes.graphKey(query.context()))
-                        : database(decided.target(), null),
-                        decided.dialect().sessionSetup(), List.of())
+                ? systemRouted
+                        ? SystemCatalog.target(query.context(), ConnectionPlans.type(decided.target().type()),
+                                decided.dialect().sessionSetup())
+                        : new ExecutionPlan.Target(database(decided.target(), null), decided.dialect().sessionSetup(),
+                                List.of())
                 : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
                         Metamodel.NONE, projectDatabase);
         List<TypedSpec> body = query.body();
@@ -345,7 +345,7 @@ public final class PlanMaker {
         // database beside it (per-statement routing); the runner runs it once per system session
         boolean systemSeeded = false;
         if (target.database() instanceof ExecutionPlan.Database.System) {
-            state.add(SystemRoutes.seeds(query.context(), target, decided.dialect()));
+            addSeeds(state, SystemCatalog.seeds(query.context(), target, decided.dialect()));
             systemSeeded = true;
         } else {
             // a step planned ahead of the program that reads the store -- an assert's side, its message, a branch's
@@ -353,7 +353,7 @@ public final class PlanMaker {
             ExecutionPlan.Target ahead = systemTargetOf(kinds.plannedAhead().stream()
                     .<PlannedStep>map(PlannedStep.Product::new).toList());
             if (ahead != null) {
-                state.add(SystemRoutes.seeds(query.context(), ahead, decided.dialect()));
+                addSeeds(state, SystemCatalog.seeds(query.context(), ahead, decided.dialect()));
                 systemSeeded = true;
             }
         }
@@ -369,7 +369,7 @@ public final class PlanMaker {
             } else {
                 ExecutionPlan.Target on = kinds.targetOf(state, i, stmt);
                 if (!systemSeeded && on != null && on.database() instanceof ExecutionPlan.Database.System) {
-                    state.add(SystemRoutes.seeds(query.context(), on, decided.dialect()));
+                    addSeeds(state, SystemCatalog.seeds(query.context(), on, decided.dialect()));
                     systemSeeded = true;
                 }
                 planStatement(state, i, stmt, last, door, on);
@@ -552,14 +552,23 @@ public final class PlanMaker {
 
     /** The graph's SYSTEM database beside {@code home} (a program's own target): a statement reading the system
      *  metamodel store alone runs there (per-statement routing, 2026-11-03) -- the engine and the session statements
-     *  {@code home}'s, as the system database is the runtime's engine in this process. */
-    public static ExecutionPlan.Target systemBeside(ExecutionPlan.Target home, String graphKey) {
+     *  {@code home}'s, as the system database is the runtime's engine in this process ({@link SystemRoutes#target}). */
+    public static ExecutionPlan.Target systemBeside(ExecutionPlan.Target home,
+            com.legend.compiler.element.ModelContext ctx) {
         com.legend.executionplan.DatabaseType type = switch (home.database()) {
             case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
             case ExecutionPlan.Database.Platform p -> p.type();
             case ExecutionPlan.Database.System s -> s.type();
         };
-        return new ExecutionPlan.Target(new ExecutionPlan.Database.System(type, graphKey), home.session(), List.of());
+        return SystemCatalog.target(ctx, type, home.session());
+    }
+
+    /** The system store's load, where the model has one: the catalog's registration is none for a model of no row of
+     *  its own (L4b). */
+    private static void addSeeds(ProgramState state, ExecutionPlan.@Nullable Load seeds) {
+        if (seeds != null) {
+            state.add(seeds);
+        }
     }
 
     /** The program's steps, finished: a frame's run binds its stamp only where a later statement reads it (the M3

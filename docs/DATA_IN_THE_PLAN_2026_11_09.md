@@ -243,6 +243,32 @@ that cannot delete what it replaces is not done.
   a load's identity (its cadence and its steps' canonical content, `Load.canonical`) is recomputed by exec before a load
   runs, a mismatch refused; the header record is dropped unread, as upstream drops it.
 
+### L4 as built, the test half (2026-11-09, branch `claude/total-wall`)
+
+- **L4a, the system store's load is the load planner's:** `SystemRoutes.seeds` makes it through `LoadPlanner`, named by
+  its content as every load is; `Load.SYSTEM_STORE` (the constant it was named by), exec's exception in
+  `verifyIdentity`, P2's dated exception (`onlyTheLoadPlannerMakesALoad`) and the walk's own seeding door
+  (`PlanRunner.seedSystemStore`, no caller) are deleted. Exec tells the system store's load by its target (the system
+  database) and refuses any other load there: a seed or a registration, of statements and rows, never a file.
+- **L4b, the catalog's test half (`docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md` 4.1-4.5, the implementation plan of
+  `docs/PLAN_AS_DATA_2026_11_07.md`, hole 2):**
+  - **One catalog per in-process engine per process** (DuckDB, H2, SQLite): the system target is
+    `Database.System(type, platform key)` with one `ONCE` load, the store's tables and the platform's rows
+    (`SystemRoutes.target`, the one maker of a system target). The platform's rows are a constant of the platform, the
+    rows of a model of no element of its own (`SystemRoutes.Platform`), derived once per process.
+  - **A model's registration** is a `PER_TRANSACTION` load (plan JSON v33): its own rows -- its rows less the
+    platform's, as multisets (a model that would change a platform row is refused by name: a registration of inserts
+    cannot express it) -- inserts with no DDL (`Ddl.metamodelRowSteps`; on DuckDB the staged `INSERT ... SELECT`).
+    None for a model of no row of its own.
+  - **Exec:** `SystemDatabase.Leases.sessionFor(target)` makes the catalog once with its `ONCE` load, then takes the
+    run's TURN on it -- one run at a time, a run nested in another's turn on one thread refused by name -- and begins a
+    transaction (`Sessions.beginTurn`); the run's leases roll it back when the run ends (`Sessions.endTurn`), whatever
+    the outcome. A `PER_TRANSACTION` load on a session that holds no such transaction is refused by name; a keyed
+    step's snapshot joins the transaction a caller holds, never commits it (`JdbcStatements.inSnapshot`).
+  - **`Class.all()` in a test is unchanged:** the platform plus its model (no register row). A server engine's system
+    database keeps the whole store per graph in its session's temporary tables until the design's check 3 (census row
+    M5 stays PENDING for it). The product's metamodel (M6, the catalog's product half) waits on the user's ruling.
+
 ## 5. Upstream
 
 lite's choices here are its own design. Where one differs observably from legend-pure or legend-engine (for example a

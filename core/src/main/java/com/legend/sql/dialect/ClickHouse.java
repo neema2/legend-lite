@@ -675,6 +675,20 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return iso;
     }
 
+    /** A Date and a DateTime parameter: lite's own literal's type, a naive UTC {@code DateTime64(6, 'UTC')}
+     *  ({@link #timestampLit}), its value bound as its text cut to six digits, nullable as every column of lite's is
+     *  (D1, P4; the re-audit's B-1, 2026-11-09). Upstream's literal processor writes {@code '%s'::DateTime} for a Date
+     *  and {@code '%s'::DateTime64} (three digits) for a DateTime (clickHouseExtension.pure), each read in the server's
+     *  time zone: lite's literal differs from it alike (its row). A number is bound bare. */
+    @Override
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("Nullable(DateTime64(6, 'UTC'))",
+                    new RenderedStatement.AsText(6));
+        };
+    }
+
     /** A naive UTC date-time of six digits (finer ones cut, as DuckDB's TIMESTAMP does); a {@code T} is a space. */
     @Override
     protected String timestampLit(String iso) {

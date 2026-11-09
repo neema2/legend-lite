@@ -440,12 +440,23 @@ public final class Ddl {
         for (String statement : metamodelSeed(def, schema, dialect)) {
             out.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(statement));
         }
-        if (!rows.isEmpty()) {
-            RowLoad load = metamodelRows(def, schema, rows);
-            out.add(dialect.loadsRowsInBulk() ? load.staged(dialect)
-                    : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(dialect.render(load.values())));
-        }
+        out.addAll(metamodelRowSteps(def, schema, rows, dialect));
         return out;
+    }
+
+    /** {@link #metamodelSteps}' rows alone, no DDL: a model's registration in the process's catalog, whose tables are
+     *  made once with the platform's rows (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.3, L4b) -- inserts only, so a
+     *  registration stays inside its transaction (H2 commits on DDL; DuckDB's staged load, an INSERT ... SELECT from a
+     *  session-private staging table, keeps the rows in it, the probe's CatalogCheck); none for no row. */
+    public static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> metamodelRowSteps(
+            DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        if (rows.isEmpty()) {
+            return java.util.List.of();
+        }
+        RowLoad load = metamodelRows(def, schema, rows);
+        return java.util.List.of(dialect.loadsRowsInBulk() ? load.staged(dialect)
+                : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(dialect.render(load.values())));
     }
 
     /** A store table's name in a SERVER engine's system database (SystemDatabase): {@code schema_table}, one

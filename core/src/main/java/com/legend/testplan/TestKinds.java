@@ -114,8 +114,7 @@ final class TestKinds implements ProgramKinds {
                 || BodyClass.storesOf(statement, body, index) != BodyClass.Stores.SYSTEM) {
             return null;
         }
-        return com.legend.planner.PlanMaker.systemBeside(program.target(),
-                com.legend.planner.SystemRoutes.graphKey(body.context()));
+        return com.legend.planner.PlanMaker.systemBeside(program.target(), body.context());
     }
 
     /** The statements of the asserts' steps, as their judge planned them before the program (the statements' in
