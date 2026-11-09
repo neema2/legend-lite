@@ -90,6 +90,24 @@ public final class PlanCases {
             new Parameterised("d: Date[1]", "let d = %2024-01-02T10:30:00;",
                     "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
                     java.util.Map.of("d", java.time.LocalDateTime.of(2024, 1, 2, 10, 30))),
+            // dates at the ends of the calendar (the correctness re-audit's 1, 2026-11-09: a milestoned table's
+            // 9999-12-31 and the year 1, each a parameter's value, and a value compared with one): every database holds
+            // them, as its literal does
+            new Parameterised("t: DateTime[1]", "let t = %9999-12-31T23:59:59;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
+                    java.util.Map.of("t", java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59))),
+            new Parameterised("t: DateTime[1]", "let t = %0001-01-01T00:00:00;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
+                    java.util.Map.of("t", java.time.LocalDateTime.of(1, 1, 1, 0, 0, 0))),
+            new Parameterised("d: StrictDate[1]", "let d = %9999-12-31;",
+                    "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
+                    java.util.Map.of("d", java.time.LocalDate.of(9999, 12, 31))),
+            new Parameterised("d: Date[1]", "let d = %9999-12-31->cast(@Date);",
+                    "#>{s::DB." + table + "}#->filter(r|$d > %2024-01-02T10:30:00)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("d", java.time.LocalDate.of(9999, 12, 31))),
+            new Parameterised("t: DateTime[1]", "let t = %2024-01-02T10:30:00;",
+                    "#>{s::DB." + table + "}#->filter(r|$t < %9999-12-31T00:00:00)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("t", java.time.LocalDateTime.of(2024, 1, 2, 10, 30))),
             // a Number: a whole one, and a decimal one (a Float's literal)
             new Parameterised("n: Number[1]", "let n = 1;",
                     "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",

@@ -114,6 +114,13 @@ class PlanRunnerTest {
         assertEquals(invalid("parameter 't' (DateTime[1]): +10000-01-01T00:00 is outside the years 1 to 9999: no"
                 + " date-time text a database reads stands for it"),
                 refusal(declared("t", "DateTime", 1, 1), LocalDateTime.of(10000, 1, 1, 0, 0)));
+        // and a date alike, whether a StrictDate's or a Date's (the correctness re-audit's 4, 2026-11-09)
+        assertEquals(invalid("parameter 'd' (StrictDate[1]): +10000-01-01 is outside the years 1 to 9999: no date text"
+                + " a database reads stands for it"),
+                refusal(declared("d", "StrictDate", 1, 1), java.time.LocalDate.of(10000, 1, 1)));
+        assertEquals(invalid("parameter 'd' (Date[1]): -0001-01-01 is outside the years 1 to 9999: no date text a"
+                + " database reads stands for it"),
+                refusal(declared("d", "Date", 1, 1), java.time.LocalDate.of(-1, 1, 1)));
         // what no plan binds yet (the planner refuses it first; PARK-21)
         assertEquals(invalid("parameter 'b' (Byte[1]): a Byte value is not bound by a plan (PARK-21)"),
                 refusal(declared("b", "Byte", 1, 1), 1L));

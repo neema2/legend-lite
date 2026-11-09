@@ -42,10 +42,11 @@ class PlanMakerDuckDbTest {
                 duck.slots());
     }
 
-    /** A DateTime parameter is DuckDB's finest timestamp, a TIMESTAMP_NS, whatever the value (D1, P4: until then the
-     *  type of the value's literal, TIMESTAMP_NS only for a value finer than a microsecond). */
+    /** A DateTime parameter is upstream's own type, DuckDB's microsecond TIMESTAMP, whatever the value, bound as its
+     *  whole text (the user's ruling, 2026-11-09: "Duckdb timestamp is fine"; until then TIMESTAMP_NS, which holds 1677
+     *  to 2262 only and refused every milestoned table's 9999-12-31). */
     @Test
-    void aDateTimeParameterIsCastToTimestampNs() {
-        assertEquals("CAST(? AS TIMESTAMP_NS) text:null", PlanMakerTest.dateTimeCast(DUCKDB));
+    void aDateTimeParameterIsCastToTimestamp() {
+        assertEquals("CAST(? AS TIMESTAMP) text:null", PlanMakerTest.dateTimeCast(DUCKDB));
     }
 }

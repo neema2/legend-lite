@@ -78,17 +78,21 @@ class PlanRunnerH2Test {
      *  statement for every value; a date or date-time is bound as its text, a StrictDate value a midnight timestamp. */
     @Test
     void aDeclaredKindsPlaceholderAnswersAsTheFixedTypesCast() throws Exception {
-        Map<Object, String> numbers = new java.util.LinkedHashMap<>();
-        numbers.put(1.1d, "1.1");
-        numbers.put(new BigDecimal("2.50"), "2.50");
-        numbers.put(1e-6d, "0.000001");
-        numbers.put(1.5e15d, "1.5E15");
-        numbers.put(7L, "7");
+        // each value, its literal as upstream writes it bare (H2 types it by its digits), and lite's answer where it is
+        // not upstream's: the DECFLOAT placeholder's, PENDING THE USER'S RULING (S175; the correctness re-audit's 3,
+        // 2026-11-09: until then this compared the plan with H2's own DECFLOAT cast, which proved nothing)
+        record Number(Object value, String literal, @com.legend.base.Nullable String pending) {
+        }
+        List<Number> numbers = List.of(new Number(1.1d, "1.1", null), new Number(new BigDecimal("2.50"), "2.50", "2.5"),
+                new Number(1e-6d, "0.000001", null), new Number(7L, "7", null), new Number(100L, "100", "1E+2"),
+                new Number(new BigDecimal("1000"), "1000", "1E+3"));
         try (Connection h2 = TestBackends.of(H2).open()) {
-            for (var e : numbers.entrySet()) {
-                assertEquals(literalText(h2, "CAST(" + e.getValue() + " AS DECFLOAT)"), PlanRunnerTest.run(
-                        declaredCast("Number", "DECFLOAT", null), Map.of("v", e.getKey()),
-                        PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
+            for (Number n : numbers) {
+                String upstream = literalText(h2, n.literal());
+                String lite = PlanRunnerTest.run(declaredCast("Number", "DECFLOAT", null), Map.of("v", n.value()),
+                        PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)));
+                assertEquals(n.pending() == null ? upstream : n.pending(), lite, n.literal() + " (upstream: " + upstream
+                        + ")");
             }
             Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "2024-01-02 00:00:00",
                     LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "2024-01-02 10:30:00.123456789");

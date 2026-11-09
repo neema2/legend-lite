@@ -290,24 +290,10 @@ public final class Snowflake extends AnsiSqlRenderer {
         return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'";
     }
 
-    /** {@code TIMESTAMP '...'} is TIMESTAMP_NTZ under the session's mapping ({@code TIMESTAMP_NTZ '...'} is a syntax
-     *  error, measured). Snowflake keeps nanoseconds; DuckDB and the platform keep microseconds: finer digits are cut. */
-    @Override
-    protected String timestampLit(String iso) {
-        return super.timestampLit(microseconds(iso));
-    }
-
-    private static String microseconds(String iso) {
-        int dot = iso.lastIndexOf('.');
-        if (dot < 0) {
-            return iso;
-        }
-        int end = dot + 1;
-        while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
-            end++;
-        }
-        return end - dot - 1 > 6 ? iso.substring(0, dot + 7) + iso.substring(end) : iso;
-    }
+    // A timestamp literal is the base's TIMESTAMP '...', TIMESTAMP_NTZ under the session's mapping (TIMESTAMP_NTZ '...' is
+    // a syntax error, measured), every digit written: Snowflake keeps nanoseconds, as upstream's '…'::timestamp does (the
+    // orchestrator's note, 2026-11-09, upstream fidelity: until then the finer digits were cut to a microsecond, and a
+    // literal and its parameter answered apart).
 
     /** A Float literal's plain spelling; NaN and the infinities as FLOAT text (a bare {@code NaN} is no literal). */
     @Override
@@ -348,7 +334,7 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     /** A Date and a DateTime parameter are a {@code TIMESTAMP_NTZ(9)} ({@code '…'::timestamp}, upstream's, which keeps
      *  nine digits of a second), bound as its text whole (D1: the database's finest precision; the re-audit's B-2,
-     *  2026-11-09 -- until then cut to six, as lite's own literal is, {@link #timestampLit}). */
+     *  2026-11-09 -- until then cut to six, as lite's own literal was). */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {

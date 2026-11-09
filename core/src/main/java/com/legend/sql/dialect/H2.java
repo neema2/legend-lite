@@ -1132,7 +1132,29 @@ public class H2 extends AnsiSqlRenderer {
             return writer.append("CASE WHEN ").expr(c.value(), 0).append(" THEN 'true' WHEN NOT ").expr(c.value(), 0)
                     .append(" THEN 'false' END");
         }
+        if (c.target() == com.legend.sql.SqlType.Scalar.VARCHAR && decfloatShaped(c.value())) {
+            // a DECFLOAT's text in plain digits, as upstream prints the number (the user's ruling of 2026-11-09, S175:
+            // "use decfloat ... h2 has a string printer"): H2's own number printer, TO_CHAR, whose leading zero before
+            // a fraction is written back (measured on 2.5.252: 100, 1000, 2.5, 0.000001, -0.5, 1E+40 plain), where its
+            // VARCHAR cast writes 1E+2
+            return writer.append("REGEXP_REPLACE(TO_CHAR(").expr(c.value(), 0).append("), '^(-?)\\.', '$10.')");
+        }
         return super.variantAwareCast(writer, c);
+    }
+
+    /** Whether {@code x} is a DECFLOAT value: a Decimal or a Number parameter ({@link #parameterType}), or arithmetic
+     *  over one (H2's DECFLOAT absorbs every other number it meets); by node shape, never a guessed column type. */
+    private static boolean decfloatShaped(SqlExpr x) {
+        if (x instanceof SqlExpr.PlanParam p) {
+            return p.declared() == com.legend.sql.DeclaredKind.DECIMAL || p.declared() == com.legend.sql.DeclaredKind.NUMBER;
+        }
+        if (x instanceof SqlExpr.Call call) {
+            return switch (call.fn()) {
+                case PLUS, MINUS, TIMES, DIVIDE, NEGATE, ABS -> call.args().stream().anyMatch(H2::decfloatShaped);
+                default -> false;
+            };
+        }
+        return false;
     }
 
     /** {@code JSON_TYPE}: H2 has no {@code json_type} (2026-11-05: the database judge's canon reached it once H2's JSON

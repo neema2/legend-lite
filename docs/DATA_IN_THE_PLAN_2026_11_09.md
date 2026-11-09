@@ -278,6 +278,11 @@ that cannot delete what it replaces is not done.
     transaction (`Sessions.beginTurn`); the run's leases roll it back when the run ends (`Sessions.endTurn`), whatever
     the outcome. A `PER_TRANSACTION` load on a session that holds no such transaction is refused by name; a keyed
     step's snapshot joins the transaction a caller holds, never commits it (`JdbcStatements.inSnapshot`).
+  - **Open, dated 2026-11-09 (the correctness re-audit's 7):** a load's identity is its cadence and steps, not its
+    target, so a plan whose two targets each need an equal load writes it once in the load section and the reader's
+    hoist refuses the second as a duplicate (`PlanJson.hoistLoads`); no plan has such a pair today (the catalog's ONCE
+    load sits on the system target alone, a project's fill on its own). Predates the branch; fixed when a plan needs it
+    by naming a load by its identity and its target.
   - **`Class.all()` in a test is unchanged:** the platform plus its model (no register row). A server engine's system
     database keeps the whole store per graph in its session's temporary tables until the design's check 3 (census row
     M5 stays PENDING for it). The product's metamodel (M6, the catalog's product half) waits on the user's ruling.
@@ -373,6 +378,16 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
    - **A cell's value:** upstream converts an `Integer` column's cell in Java (`Long.valueOf`) and refuses a bad one
      with its own message; lite binds the text and the database casts. The outcome is the same refusal, the message
      differs: posted to the user with L2, a register row if ruled.
+
+## 8a. Later (the user's word, 2026-11-09)
+
+- **A nanosecond Pure type.** "Duckdb timestamp is fine, later we need a nanosecond pure type but that's for later": a
+  Date or DateTime parameter on DuckDB is upstream's microsecond `TIMESTAMP` (no row); a value's nanosecond digit is the
+  database's to cut, as upstream's literal is.
+- **A connection's time zone outside an `execute(...)` frame** (row S183, a known gap): "Timezone agree we can do later".
+  Scope, measured 2026-11-09: in upstream's relational test sources two tests name a non-GMT connection time zone
+  outside an execute frame (`executionPlanTest.pure`'s US/Arizona plan tests and one Israel runtime); lite's own tests
+  name `timezone:` in `CypherToPureTest` and `PlanMakerTest`.
 
 ## 9. Measurements to take (L1 and L3)
 

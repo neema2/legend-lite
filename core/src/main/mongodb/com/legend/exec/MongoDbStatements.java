@@ -132,21 +132,21 @@ final class MongoDbStatements implements Statements {
                 + " MongoDB session: a raw grid is an authored SQL text, which a MongoDB database does not run");
     }
 
-    /** A MongoDB database is its connector's own and a plan sets none up ({@code PlanSessions.refuseSetup}): a bulk
-     *  load of a plan's rows is refused by name. */
+    /** A MongoDB database is its connector's own and has no bulk loader: false, as the contract says, and the caller
+     *  refuses the load by name (the correctness re-audit's 6, 2026-11-09: until then it threw, against the contract;
+     *  a plan loads nothing into a connector's own database, {@code PlanSessions.refuseLoads}). */
     @Override
     public boolean load(ExecutionPlan.LoadStep.Rows rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        throw new com.legend.error.NotImplementedException("a bulk load of a plan's rows asked of a MongoDB session: its"
-                + " databases are the connector's own, and a plan sets none up");
+        return false;
     }
 
+    /** No bulk loader: false, as the contract says ({@link #load}). */
     @Override
     public boolean bulk(String stagingTable, String createStaging, String copy, String dropStaging,
             List<List<String>> rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"
-                + " the connector's own, and a plan loads none");
+        return false;
     }
 
     @Override

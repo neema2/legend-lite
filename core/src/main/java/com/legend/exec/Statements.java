@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * What a session does with a plan's text (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): the runner holds
- * the plan -- it checks the caller's values, fills the type holes, writes the result's punctuation -- and the session's
+ * the plan -- it checks the caller's values, binds each as its slot says, writes the result's punctuation -- and the session's
  * statements carry text in and text out. JDBC's are {@link JdbcStatements}, over the session's connection; a database
  * that speaks no JDBC gives its own through its connector ({@link DatabaseConnector}), and the runner never knows
  * which it holds. Since the plan path program's step 7 (2026-10-18) a session answers typed rows too

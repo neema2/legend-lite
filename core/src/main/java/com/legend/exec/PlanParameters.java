@@ -157,10 +157,10 @@ public final class PlanParameters {
             };
             case "Boolean" -> v instanceof Boolean ? new Converted(v) : notA(v, "a Boolean is a Boolean");
             case "String" -> v instanceof String ? new Converted(v) : notA(v, "a String is a String");
-            case "StrictDate" -> v instanceof LocalDate ? new Converted(v) : notA(v, "a StrictDate is a LocalDate");
+            case "StrictDate" -> v instanceof LocalDate d ? date(d) : notA(v, "a StrictDate is a LocalDate");
             case "DateTime" -> v instanceof LocalDateTime t ? dateTime(t)
                     : notA(v, "a DateTime is a LocalDateTime (in UTC)");
-            case "Date" -> v instanceof LocalDate ? new Converted(v) : v instanceof LocalDateTime t ? dateTime(t)
+            case "Date" -> v instanceof LocalDate d ? date(d) : v instanceof LocalDateTime t ? dateTime(t)
                     : notA(v, "a Date is a LocalDate or a LocalDateTime (in UTC)");
             default -> new Refused("a " + p.type() + " value is not bound by a plan (PARK-21)");
         };
@@ -182,6 +182,14 @@ public final class PlanParameters {
         }
         BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(d);
         return new Converted(plain != null ? plain : (Object) d);
+    }
+
+    /** A date, which a slot passes as its text: a year outside 1 to 9999 has none a database's cast reads (the correctness
+     *  re-audit's 4, 2026-11-09: until then a year 0 or 10000 was sent as {@code -0001-01-01} or {@code +10000-01-01}, and
+     *  each database refused it in its own words). */
+    private static Conversion date(LocalDate d) {
+        return d.getYear() >= 1 && d.getYear() <= 9999 ? new Converted(d)
+                : new Refused(d + " is outside the years 1 to 9999: no date text a database reads stands for it");
     }
 
     /** A date-time, which a slot passes as its text: a year outside 1 to 9999 has none a database's cast reads. */

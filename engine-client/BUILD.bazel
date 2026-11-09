@@ -70,6 +70,14 @@ esbuild_bundle(
     ],
 )
 
+# The host's plan runner as a source the census reads (P7 of docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09: its plan
+# version equals the Java planner's, PlanVersionsAgreeTest)
+filegroup(
+    name = "plan_runner_src",
+    srcs = ["src/plan-runner.ts"],
+    visibility = ["//core:__pkg__"],
+)
+
 # THE BUNDLES ENGINE-CLIENT SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the planner's worker, which
 # Query and Studio copy into their sites
 filegroup(

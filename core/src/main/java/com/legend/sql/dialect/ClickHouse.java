@@ -675,17 +675,17 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return iso;
     }
 
-    /** A Date and a DateTime parameter: lite's own literal's type, a naive UTC {@code DateTime64(6, 'UTC')}
-     *  ({@link #timestampLit}), its value bound as its text cut to six digits, nullable as every column of lite's is
-     *  (D1, P4; the re-audit's B-1, 2026-11-09). Upstream's literal processor writes {@code '%s'::DateTime} for a Date
-     *  and {@code '%s'::DateTime64} (three digits) for a DateTime (clickHouseExtension.pure), each read in the server's
-     *  time zone: lite's literal differs from it alike (its row). A number is bound bare. */
+    /** A Date and a DateTime parameter are REFUSED by name (the correctness re-audit's 2, 2026-11-09): ClickHouse's
+     *  date-time types hold 1900 to 2299 and clamp a value outside it in silence (measured on 25.x: 9999-12-31 reads
+     *  2299-12-31, 1800-01-01 reads 1900-01-01), which lite's literal refuses at planning ({@link #inRange}) and a
+     *  placeholder could only refuse at the run, in SQL of its own. No door passes run-time values yet; designed when
+     *  one does. A number is bound bare. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> new ParameterType("Nullable(DateTime64(6, 'UTC'))",
-                    new RenderedStatement.AsText(6));
+            case DATE, DATE_TIME -> throw new DialectCapability("a " + kind + " parameter on ClickHouse: its date-time"
+                    + " types clamp a value outside 1900 to 2299 in silence, which a placeholder cannot refuse");
         };
     }
 

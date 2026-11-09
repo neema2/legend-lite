@@ -87,8 +87,11 @@ class PlanMakerTest {
      *  PCT writes Pure's TDS text from typed rows -- and SQLite's eight list-parameter refusals under it with it (-8).
      *  18 -> 26 (2026-11-09, the total wall's M2, P4 under D1 as ruled 2026-11-07: a run-time parameter typed by its
      *  declared type, the type hole deleted -- H2's Float parameter a FLOAT, its Decimal a DECFLOAT, a Date parameter a
-     *  timestamp on H2 and DuckDB: each case's CSV and JSON, +8; each posted to the user for a register row). */
-    private static final int MAX_DIFFERENCES = 26;
+     *  timestamp on H2 and DuckDB: each case's CSV and JSON, +8; each posted to the user for a register row). 26 -> 28
+     *  (2026-11-09, the correctness re-audit's 1, the user's ruling "Duckdb timestamp is fine": DuckDB's Date and
+     *  DateTime parameter upstream's microsecond TIMESTAMP, so a nanosecond DateTime value's digit is cut where lite's
+     *  literal keeps it -- its CSV and JSON, +2, until the nanosecond Pure type the user named for later). */
+    private static final int MAX_DIFFERENCES = 28;
 
     /** The test methods run in this class, so that unreached rows are judged on a whole run only. */
     private static final java.util.concurrent.atomic.AtomicInteger RAN = new java.util.concurrent.atomic.AtomicInteger();
@@ -145,8 +148,8 @@ class PlanMakerTest {
     void aDateTimeParameterInAZoneIsConvertedAsItsLiteral() {
         TypedQuery dateTime = Compiler.query(Compiler.compileModel(""), "{t: DateTime[1]|$t}");
         String est = lowered(dateTime, "EST");
-        assertTrue(est.contains("timezone('EST', timezone('UTC', CAST(? AS TIMESTAMP_NS)))"), est);
-        assertEquals("SELECT CAST(? AS TIMESTAMP_NS) AS value", lowered(dateTime, "GMT").strip());
+        assertTrue(est.contains("timezone('EST', timezone('UTC', CAST(? AS TIMESTAMP)))"), est);
+        assertEquals("SELECT CAST(? AS TIMESTAMP) AS value", lowered(dateTime, "GMT").strip());
         TypedQuery date = Compiler.query(Compiler.compileModel(""), "{d: Date[1]|$d}");
         var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> lowered(date, "EST"));
         assertTrue(String.valueOf(refused.getMessage()).contains("time zone is EST"), refused.getMessage());
@@ -172,9 +175,9 @@ class PlanMakerTest {
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
                 Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
-                ClickHouse	CAST(? AS Nullable(DateTime64(6, 'UTC')))	CAST(? AS Nullable(DateTime64(6, 'UTC')))
                 Databricks	CAST(? AS DATE)	CAST(? AS TIMESTAMP)
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
+                ClickHouse	REFUSED	REFUSED
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
             spelled.put(cells[0], new String[] {cells[1], cells[2]});
@@ -184,8 +187,16 @@ class PlanMakerTest {
             String[] kinds = {"d: Date[1]", "t: DateTime[1]"};
             for (int i = 0; i < kinds.length; i++) {
                 String name = kinds[i].substring(0, 1);
-                ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), "{" + kinds[i]
-                        + "|#>{s::DB.T}#->extend(~v: r|$" + name + ")->select(~[ID, v])}").executionPlan("s::RT");
+                String query = "{" + kinds[i] + "|#>{s::DB.T}#->extend(~v: r|$" + name + ")->select(~[ID, v])}";
+                if (e.getValue()[i].equals("REFUSED")) {
+                    // a database whose date-time types clamp an out-of-range value in silence refuses the parameter
+                    // by name (the correctness re-audit's 2, 2026-11-09)
+                    var refused = assertThrows(RuntimeException.class,
+                            () -> Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT"));
+                    assertTrue(String.valueOf(refused.getMessage()).contains("clamp"), refused.getMessage());
+                    continue;
+                }
+                ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT");
                 String sql = plan.answerSql().statement();
                 assertTrue(sql.contains(e.getValue()[i]), e.getKey() + " " + kinds[i] + ": " + sql);
             }

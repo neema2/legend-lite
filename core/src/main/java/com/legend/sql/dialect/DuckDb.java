@@ -237,13 +237,16 @@ public final class DuckDb extends AnsiSqlRenderer {
         return c.materialized() ? " AS MATERIALIZED (" : " AS (";
     }
 
-    /** A Date and a DateTime parameter are DuckDB's finest timestamp, {@code TIMESTAMP_NS} (D1, P4: the declared type
-     *  decides, never the value); a number is bound bare, typed as its literal is. */
+    /** A Date and a DateTime parameter are upstream's own type, DuckDB's microsecond {@code TIMESTAMP}
+     *  (duckdbExtension.pure: {@code TIMESTAMP '%s'} for both), bound as its whole text, which DuckDB reads as upstream's
+     *  literal does -- a nanosecond digit the database's to cut (D1, P4; the correctness re-audit's 1, 2026-11-09: until
+     *  then {@code TIMESTAMP_NS}, which holds 1677 to 2262 only and so refused every milestoned table's 9999-12-31). A
+     *  number is bound bare, typed as its literal is. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP_NS", new RenderedStatement.AsText(null));
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(null));
         };
     }
 

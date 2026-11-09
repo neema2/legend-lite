@@ -49,9 +49,6 @@ class PlanMakerH2Test {
         assertEquals(List.of(new ExecutionPlan.Slot("ns", new ExecutionPlan.Binding.Array("BIGINT"))), sql.slots());
     }
 
-    /** H2 types a parameter when it prepares the statement, and a Float's, a Decimal's, a Date's or a Number's type is
-     *  its value's: H2's plan casts it to a TYPE HOLE the runner fills with the type H2 gives that value's literal
-     *  (probes/value-typed-cast-results.txt). Every scalar case of {@link PlanMakerTest} answers through it on H2. */
     /** A Float parameter is cast to its declared type's fixed type, upstream's own FLOAT (D1, P4), bound bare. */
     @Test
     void aFloatParameterIsCastToFloat() {
@@ -79,5 +76,26 @@ class PlanMakerH2Test {
         ExecutionPlan.Slot n = new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null));
         assertEquals(List.of(n, n), sql.slots());
         assertEquals(2, sql.statement().chars().filter(ch -> ch == '?').count(), sql.statement());
+    }
+
+    /** A Decimal or Number parameter's text is plain digits, as upstream prints the number (the user's ruling of
+     *  2026-11-09, S175: DECFLOAT on H2, its text through H2's own number printer): 100, 120 and 1000D, never
+     *  {@code 1E+2}; 2.50D's scale is DECFLOAT's, {@code 2.5} (S175, ruled). */
+    @Test
+    void aDecimalOrNumberParametersTextIsPlainDigits() throws Exception {
+        record Case(String parameter, Object value, String text) {
+        }
+        for (Case c : List.of(new Case("n: Number[1]", 100L, "100"), new Case("n: Number[1]", 120L, "120"),
+                new Case("n: Decimal[1]", new java.math.BigDecimal("1000"), "1000"),
+                new Case("n: Decimal[1]", new java.math.BigDecimal("2.50"), "2.5"),
+                new Case("n: Number[1]", 1.5d, "1.5"), new Case("n: Decimal[1]", new java.math.BigDecimal("0.000001"),
+                        "0.000001"))) {
+            ExecutionPlan plan = plan(H2, "{" + c.parameter() + "|#>{s::DB.T}#->filter(r|$r.ID == 1)"
+                    + "->extend(~s: r|$n->toString())->select(~[s])}", PlanCases.Written.JSON);
+            try (java.sql.Connection conn = com.legend.testbackend.TestBackends.of(H2).open()) {
+                String json = PlanCases.write(plan, conn, java.util.Map.of("n", c.value()), PlanCases.Written.JSON::writer);
+                assertTrue(json.contains("\"" + c.text() + "\""), c + ": " + json);
+            }
+        }
     }
 }

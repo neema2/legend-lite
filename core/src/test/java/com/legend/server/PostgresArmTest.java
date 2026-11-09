@@ -173,7 +173,9 @@ class PostgresArmTest {
             // Date parameter given a StrictDate value, which answers a midnight date-time as upstream's TIMESTAMP'${d}'
             // does, where the StrictDate literal answers the date (both paths upstream's: the total wall's M2, R3)
             for (com.legend.testcases.PlanCases.Parameterised q : com.legend.testcases.PlanCases.scalars("PLAN_T")) {
-                if (q.parameters().equals("d: Date[1]") && q.values().get("d") instanceof java.time.LocalDate) {
+                // (a Date parameter only compared, never answered, answers as its query does: the calendar's end)
+                if (q.parameters().equals("d: Date[1]") && q.values().get("d") instanceof java.time.LocalDate
+                        && q.body().contains("~d: r|$d")) {
                     for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
                         String written = com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
                                 output::writer);

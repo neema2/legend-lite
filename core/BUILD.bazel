@@ -514,6 +514,8 @@ _CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 _CENSUS_READS = _CORE_READS + [
     # base's CSV split, registered by name in JavaEvalLedgerTest (the total wall's M1 audit, 2026-11-09)
     "//base:csv_cells_src",
+    # the host's plan runner, whose plan version the census holds equal to the planner's (P7, 2026-11-09)
+    "//engine-client:plan_runner_src",
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",
