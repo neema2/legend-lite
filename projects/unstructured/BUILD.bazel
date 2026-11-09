@@ -1,0 +1,11 @@
+# The unstructured study's model. Its own package, outside //projects' PROJECT_DEPS graph: it is a study, not one of the
+# firm-model projects CONTRACT.md governs, and it links nothing from them.
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/legend:defs.bzl", "legend_library")
+
+legend_library(
+    name = "unstructured",
+    srcs = ["model.pure"],
+)
+
+guards_package()
