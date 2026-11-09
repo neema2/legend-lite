@@ -336,6 +336,20 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
 - First-load time: `Streamed` against `DatabaseReads` on DuckDB for the stress data.
 - The stress lane's memory by load identity.
 
+### Measured 2026-11-09 (the M1 tenets audit's finding 6)
+
+- **A server product plan's JSON with a project's Data** (`projectPlan`, the demo's trading model on DuckDB, one
+  `Firm.all()->project(...)`): 7,511 bytes, of which the ONCE fill's statements are 4,216. The same model with its
+  `TRADING.FIRM` table grown to 1.42 MB of model text: 1,476,331 bytes, of which the fill is 1,473,036 -- the plan is
+  the fill. Planning 154-339 ms, writing the JSON 2 ms. So decision 1's reference is needed: a Data element above the
+  threshold must travel as a `content` reference, not inline.
+- **First-load time, streamed against bulk** (DuckDB, 50,000 rows of a file, `DataLoadsTest`): one row's insert per row
+  12,908 ms; the appender 158 ms. A file load on DuckDB takes the bulk loader since 2026-11-09.
+- **OPEN, dated 2026-11-09:** the `content` namespace (a store keyed by digest, the fill's rows referenced above the
+  threshold, resolved and verified by exec's stores) is not built; M1 stays PENDING until it is. It lands with L4,
+  which needs the same reference for the system catalog's rows (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md), unless the
+  user orders it sooner.
+
 ## 10. Brief for the next session: L2 and L3
 
 Start from `main` (PR #92 merged; the follow-up branch's database-judge message fix). This session's disk allowance is
