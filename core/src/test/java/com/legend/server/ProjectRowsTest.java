@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A project's query on legend-lite's server answers its own Data rows (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5):
@@ -85,6 +86,39 @@ class ProjectRowsTest {
                 refused.getMessage());
     }
 
+    /** A project whose connection declares test data making a table U (statements of its own, the declared test data's
+     *  form), and the same project once that data is gone: two databases, never the first's table answering the second
+     *  (the M1 correctness audit's C1, 2026-11-09: since L2 the connection no longer carried the test data, and the
+     *  server's key named the project alone). */
+    private static final String WITH_U = """
+            RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: H2; specification: LocalH2 { testDataSetupSqls: ['create table if not exists PARTY.U(ID INT)', 'delete from PARTY.U', 'insert into PARTY.U values (7)']; }; auth: DefaultH2; }
+            """;
+
+    @Test
+    void twoEditionsWhoseTestDataDifferAreTwoDatabases() throws Exception {
+        String withU = PARTY.replace(HELD.strip(), WITH_U.strip()).replace(
+                "Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200)) ) )",
+                "Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))"
+                        + " Table U (ID INTEGER PRIMARY KEY) ) )");
+        org.junit.jupiter.api.Assertions.assertNotEquals(PARTY, withU);
+        String withoutU = withU.replace(WITH_U.strip(), OPENER_NAMED.strip());
+        org.junit.jupiter.api.Assertions.assertNotEquals(withU, withoutU);
+        String readU = "|#>{proj::PartyDB.PARTY.U}#->select(~[ID])";
+        // the two editions' project databases are named apart: the key is the whole target as a plan writes it, its
+        // loads by identity
+        String keyWith = com.legend.executionplan.PlanJson.writeTarget(com.legend.Compiler.query(
+                com.legend.Compiler.compileModel(withU), readU).projectPlan("proj::RT").answerSql().target());
+        String keyWithout = com.legend.executionplan.PlanJson.writeTarget(com.legend.Compiler.query(
+                com.legend.Compiler.compileModel(withoutU), readU).projectPlan("proj::RT").answerSql().target());
+        org.junit.jupiter.api.Assertions.assertNotEquals(keyWith, keyWithout);
+        assertEquals(List.of(7L), com.legend.testing.Lean.service(withU, readU, "proj::RT").rows().stream()
+                .map(r -> r.get(0)).toList());
+        // the edition with no declared test data never made U: its own database refuses the read
+        RuntimeException notMade = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> com.legend.testing.Lean.service(withoutU, readU, "proj::RT"));
+        assertTrue(String.valueOf(notMade.getMessage()).contains("\"U\" not found"), String.valueOf(notMade));
+    }
+
     /** A project's Data rows are the plan's one ONCE load (docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S145): named by
      *  its target, written once in the plan's load section, and read back as written. */
     @Test
@@ -98,8 +132,9 @@ class ProjectRowsTest {
         String json = com.legend.executionplan.PlanJson.write(plan);
         String fill = ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) once.get(0).steps().get(
                 once.get(0).steps().size() - 1)).sql();
-        assertEquals(json.indexOf(com.legend.json.Json.toCompact(fill)), json.lastIndexOf(com.legend.json.Json.toCompact(
-                fill)), "the fill is written once");
+        String written = com.legend.json.Json.toCompact(fill);
+        assertTrue(json.indexOf(written) >= 0, "the fill is written");
+        assertEquals(json.indexOf(written), json.lastIndexOf(written), "the fill is written once");
         assertEquals(json, com.legend.executionplan.PlanJson.write(com.legend.executionplan.PlanJson.read(json)));
     }
 

@@ -165,4 +165,41 @@ class PlanJsonTest {
                     refused.getMessage());
         }
     }
+
+    /** The load section (the M1 correctness audit's C2, 2026-11-09): several targets naming one load write it once and
+     *  read back as one; a section naming an identity twice, a target naming an identity the section lacks, and two
+     *  contents under one identity are each refused by name. */
+    @Test
+    void theLoadSectionWritesEachLoadOnce_andRefusesWhatIsNotOneLoadPerIdentity() {
+        Target bare = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM),
+                null), List.of(), List.of());
+        Target t = com.legend.planner.LoadPlanner.withLoads(bare, List.of(new LoadStep.Statement("create table T(ID INT)")));
+        String identity = t.loads().get(0).identity();
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new Sequence(List.of(
+                new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)),
+                new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 2", List.of(), t, null)))));
+        String json = PlanJson.write(plan);
+        assertEquals(json.indexOf("create table T(ID INT)"), json.lastIndexOf("create table T(ID INT)"), json);
+        assertTrue(json.contains("create table T(ID INT)"), json);
+        assertEquals(plan, PlanJson.read(json));
+        // the section naming one identity twice
+        String section = json.substring(json.indexOf("\"loads\":[{"));
+        String twice = json.replace("\"loads\":[{", "\"loads\":[" + section.substring("\"loads\":[".length(),
+                section.length() - 2) + ",{");
+        IllegalArgumentException dup = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(twice));
+        assertTrue(dup.getMessage().contains("names a load twice"), dup.getMessage());
+        // a target naming a load the section lacks
+        String dangling = json.replace("\"loads\":[\"" + identity + "\"]", "\"loads\":[\"load:absent\"]");
+        IllegalArgumentException missing = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(dangling));
+        assertTrue(missing.getMessage().contains("does not hold"), missing.getMessage());
+        // two contents under one identity, when the plan is written
+        ExecutionPlan.Load other = new ExecutionPlan.Load(identity, ExecutionPlan.Load.Cadence.PER_ACQUISITION,
+                List.of(new LoadStep.Statement("create table U(ID INT)")), bare);
+        ExecutionPlan clash = ExecutionPlan.reading(List.of(), new Sequence(List.of(
+                new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)),
+                new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 2", List.of(),
+                        new Target(bare.database(), bare.session(), List.of(other)), null)))));
+        IllegalStateException differ = assertThrows(IllegalStateException.class, () -> PlanJson.write(clash));
+        assertTrue(differ.getMessage().contains("two loads of one identity differ"), differ.getMessage());
+    }
 }

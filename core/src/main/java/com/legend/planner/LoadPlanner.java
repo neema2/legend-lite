@@ -27,6 +27,13 @@ public final class LoadPlanner {
         return new ExecutionPlan.Load(identity(cadence, steps), cadence, steps, target);
     }
 
+    /** {@code steps} as a load of {@code cadence} into {@code target} whose identity was digested already
+     *  ({@link #identity}, memoized by its caller: a project's fill, per model). */
+    static ExecutionPlan.Load load(String identity, ExecutionPlan.Load.Cadence cadence,
+            List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target) {
+        return new ExecutionPlan.Load(identity, cadence, steps, target);
+    }
+
     /** {@code steps} as the loads a target establishes on acquisition: none for no step, else one load into
      *  {@code target}'s own database and session. */
     public static List<ExecutionPlan.Load> targetLoads(List<ExecutionPlan.LoadStep> steps,

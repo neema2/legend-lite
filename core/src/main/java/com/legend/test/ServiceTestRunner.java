@@ -238,6 +238,11 @@ public final class ServiceTestRunner implements AutoCloseable {
     /** The TEST PLAN {@code svc}'s test {@code testId} of suite {@code suiteId} runs, as JSON, planned and never run
      *  (the data-in-the-plan design's M4 guard, 2026-11-09: a suite's data reaches the plan only as a load). */
     public String planJson(ServiceDefinition svc, String suiteId, String testId) {
+        return planJson(svc, suiteId, testId, com.legend.ExecuteOptions.NONE);
+    }
+
+    /** {@link #planJson(ServiceDefinition, String, String)} planned under {@code options} (an edge's, for one). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId, com.legend.ExecuteOptions options) {
         for (Protocol.PServiceTestSuite suite : java.util.Objects.requireNonNull(svc.testSuites())) {
             for (Protocol.PServiceTestSuite.PSuiteTest test : suite.tests()) {
                 if (suite.id().equals(suiteId) && test.id().equals(testId)) {
@@ -245,8 +250,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                     ValueSpecification resolved = Compiler.resolveQuery(p.statements(), new ImportScope(List.of()),
                             p.rt().ctx());
                     return com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
-                            Compiler.queryResolved(p.rt().ctx(), resolved), p.rt().runtimeFqn(),
-                            com.legend.ExecuteOptions.NONE));
+                            Compiler.queryResolved(p.rt().ctx(), resolved), p.rt().runtimeFqn(), options));
                 }
             }
         }

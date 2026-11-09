@@ -205,6 +205,28 @@ class ServiceTestProvisionKeyTest {
                 .filter(w -> !w.startsWith("load:")).toList(), "the suite's row outside a load: " + json);
     }
 
+    /** The same guard under the compatibility edge (the M1 correctness audit's C2, 2026-11-09): the suite's data reaches
+     *  the plan as a load and, by name, in the edge's own record of a seed's statements -- {@code SeedTexts}, the
+     *  referee's copy, census row M15 (PENDING until L8 replays the plan's loads) -- and nowhere else. */
+    @org.junit.jupiter.api.Test
+    void underTheEdgeTheSuitesDataIsALoadAndTheRefereesSeedTextsAlone() {
+        String json;
+        try (ServiceTestRunner r = runner(Compiler.compileModel(MODEL))) {
+            json = r.planJson(service("local::ServiceA"), "suiteA", "readsA", com.legend.ExecuteOptions.recording(
+                    new com.legend.edge.CompatEdge(new com.legend.sql.dialect.RawSqlBoundary.Recorder()),
+                    com.legend.executionplan.DataStores.none()));
+        }
+        com.legend.json.Json.Obj plan = (com.legend.json.Json.Obj) com.legend.json.Json.parse(json,
+                new com.legend.json.Json.Config(com.legend.executionplan.PlanJson.MAX_DEPTH));
+        java.util.List<String> where = new java.util.ArrayList<>();
+        find(plan, "", false, where);
+        org.junit.jupiter.api.Assertions.assertTrue(where.stream().anyMatch(w -> w.startsWith("load:")), json);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), where.stream()
+                .filter(w -> !w.startsWith("load:") && !w.startsWith("outside:/extensions/")).toList(),
+                "the suite's row outside a load and the edge's seed texts: " + json);
+        org.junit.jupiter.api.Assertions.assertTrue(json.contains("\"seedTexts\""), "the edge's seed texts: " + json);
+    }
+
     /** Every string holding the suite's value ('Aa'), each named by whether it sits inside a load node's steps. */
     private static void find(com.legend.json.Json.Node n, String path, boolean inLoad, java.util.List<String> where) {
         if (n instanceof com.legend.json.Json.Obj o) {

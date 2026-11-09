@@ -453,12 +453,6 @@ final class TestKinds implements ProgramKinds {
                     + " door writes (item 7c); any other effectful map is the T9 kind the test-is-the-product plan's M9"
                     + " plans");
         }
-        // a seed FORM's statements are a LOAD at its place, never the effect script's (L2, M7-seed, 2026-11-09): the
-        // texts the platform spelled from the form's data, each as the lambda's executeInDb would send it, run AT_STEP.
-        // A DDL text collection mapped over executeInDb is the author's own SQL (M7-authored): it stays an effect
-        // (the M1 tenets audit's finding 5, 2026-11-09)
-        boolean formLoad = form != null && !(st.prepared() instanceof Prepared.Effect);
-        List<EffectPlanner.Statement> loaded = new ArrayList<>();
         NativeFn.Effect effect = null;
         for (Prepared.Effect e : effects) {
             TypedNativeCall call = e.call();
@@ -480,24 +474,11 @@ final class TestKinds implements ProgramKinds {
                 load(program, e, resource(values.get(0)));
                 continue;
             }
-            List<EffectPlanner.Statement> planned = EffectPlanner.statements(e.call(), values, e.body(),
-                    e.env().withDialect(program.dialect()));
-            if (formLoad) {
-                loaded.addAll(planned);
-            } else {
-                script.addAll(planned);
-            }
-        }
-        if (formLoad) {
-            close(program);
-            if (!loaded.isEmpty()) {
-                ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
-                        loaded.stream().<ExecutionPlan.LoadStep>map(s -> new ExecutionPlan.LoadStep.Statement(
-                                s.executed())).toList(), program.target());
-                program.add(load);
-                List<String> recorded = loaded.stream().map(EffectPlanner.Statement::recorded).toList();
-                seeds.put(load, () -> recorded);
-            }
+            // a seed form's statements stay the effect script's (the M1 correctness audit's C3, 2026-11-09: as a load
+            // they lost the script's transaction bracket and abort, its ledger on failure and the B8 refusal; their
+            // move to a load is designed with M7-seed)
+            script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
+                    e.env().withDialect(program.dialect())));
         }
         if (last) {
             close(program);

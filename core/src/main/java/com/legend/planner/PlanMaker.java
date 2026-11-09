@@ -842,7 +842,7 @@ public final class PlanMaker {
         List<ExecutionPlan.Load> loads = new ArrayList<>();
         // a project's Data rows: one ONCE load, made with its database and kept (L3, S145)
         if (filled && project != null && !project.data().isEmpty()) {
-            loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.ONCE, project.data(), bare));
+            loads.add(LoadPlanner.load(project.dataIdentity(), ExecutionPlan.Load.Cadence.ONCE, project.data(), bare));
         }
         loads.addAll(LoadPlanner.targetLoads(setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect), bare));
         loads.addAll(LoadPlanner.targetLoads(metamodel.setup(), bare));
@@ -886,13 +886,16 @@ public final class PlanMaker {
                             data.add(new ExecutionPlan.LoadStep.Statement(sql));
                         }
                     }
-                    return new ProjectPlan(new ExecutionPlan.Project(key, refused), List.copyOf(data));
+                    // the fill's identity digested once per model and kind (knowledge, eager): never per query (the M1
+                    // correctness audit's note, 2026-11-09)
+                    return new ProjectPlan(new ExecutionPlan.Project(key, refused), List.copyOf(data),
+                            data.isEmpty() ? "" : LoadPlanner.identity(ExecutionPlan.Load.Cadence.ONCE, data));
                 });
     }
 
     /** A project's database as a plan names it, and the statements that fill it from the Data rows (the target's ONCE
      *  load: L3). */
-    private record ProjectPlan(ExecutionPlan.Project project, List<ExecutionPlan.LoadStep> data) {
+    private record ProjectPlan(ExecutionPlan.Project project, List<ExecutionPlan.LoadStep> data, String dataIdentity) {
     }
 
     /** {@link #project}'s memo on the compiled model, by database kind and dialect. */

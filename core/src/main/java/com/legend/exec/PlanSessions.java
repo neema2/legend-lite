@@ -322,11 +322,12 @@ public final class PlanSessions {
             throw new IllegalArgumentException("the server's project databases run a plan the server planned "
                     + "(TypedQuery.projectPlan); this plan's target names no project: " + target.database());
         }
-        // the database's identity: its connection and its project's key -- never the statements that make it, which
-        // the key already names (the full audit, 2026-11-09: the whole fill was serialized and hashed on every open)
-        ExecutionPlan.Target identity = new ExecutionPlan.Target(target.database(), java.util.List.of(),
-                java.util.List.of());
-        Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(identity));
+        // the database's identity: its connection, its project's key, its session statements and its loads BY IDENTITY
+        // (their content's digests: never the statements themselves, which the full audit of 2026-11-09 found serialized
+        // and hashed on every open) -- so two models whose declared test data differ never share one (the M1
+        // correctness audit's C1, 2026-11-09: since L2 the connection no longer carried the test data that told them
+        // apart)
+        Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
         return switch (target.database()) {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not a project's");

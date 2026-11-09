@@ -191,8 +191,8 @@ class DataLoadsTest {
         for (TestBackend b : loading()) {
             DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
                     load(b, file(b.dialect(), "big.csv", bytes, 1))), b.name());
-            assertTrue(e.getMessage().startsWith("Unable to read the CSV file '/big.csv' File is too large, file"
-                    + " was 1.00 Mb, limit is 1 Mb"), e.getMessage());
+            assertEquals("Unable to read the CSV file '/big.csv' Execution error at ??, \"File is too large, file was"
+                    + " 1.00 Mb, limit is 1 Mb\"", e.getMessage());
         }
     }
 

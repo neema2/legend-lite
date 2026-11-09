@@ -92,12 +92,10 @@ class DataMechanismCensusTest {
                     new Bounded("L2", List.of(), "ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad")),
             new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4")),
             new Row("M6", "the system metamodel store on the product road", new Pending("L4")),
-            // L2, 2026-11-09: a seed form mapped over executeInDb is a LOAD at its place (AT_STEP, made by LoadPlanner,
-            // its statements as the lambda's executeInDb sends them), never the program's effect script
-            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed", new Deleted("L2",
-                    List.of(
-                            // a form's statements added to the open effect script
-                            "script.addAll(EffectPlanner.statements("))),
+            // PENDING (the M1 correctness audit's C3, 2026-11-09): a seed form mapped over executeInDb was made a load
+            // at L2 and put back the same day -- as a load it lost the effect script's transaction bracket and abort, its
+            // ledger on failure and the B8 refusal. Its move is designed with the runner's transaction for loads
+            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed", new Pending("L5")),
             // L1, 2026-11-09: loadCsvToDbTable is a File load by reference; the path it put in a statement is gone
             new Row("M8", "loadCsvToDbTable: the planning machine's path in a statement (D3)", new Deleted("L1", List.of(
                     // the dialects' reader over a path written into the statement
@@ -193,10 +191,10 @@ class DataMechanismCensusTest {
 
     @Test
     void theDeletedRowsOnlyGrow() {
-        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8; 2026-11-09, L2: M2 and M7-seed -- M1, M3
-        // and M4 counted deleted until the M1 tenets audit's finding 2 the same day: M1 and M3 PENDING, M4 BOUNDED by
-        // its ruling). A row leaves PENDING with its slice and this count rises with it, in the same change, with its date and slice
+        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8; 2026-11-09, L2: M2 -- M1, M3, M4 and
+        // M7-seed counted deleted until the M1 audits the same day: M1, M3 and M7-seed PENDING, M4 BOUNDED by its
+        // ruling). A row leaves PENDING with its slice and this count rises with it, in the same change, with its date and slice
         long deleted = ROWS.stream().filter(r -> r.state() instanceof Deleted).count();
-        assertEquals(3, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        assertEquals(2, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

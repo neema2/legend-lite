@@ -57,9 +57,12 @@ public final class CsvCells {
         long megabyte = 1024 * 1024L;
         if (bytes.length > limitMegabytes * megabyte) {
             int length = new String(bytes, java.nio.charset.StandardCharsets.UTF_8).length();
-            throw new TooLarge("Unable to read the CSV file '" + path + "' File is too large, file was "
-                    + String.format(java.util.Locale.ROOT, "%.2f", length * 1.0 / megabyte) + " Mb, limit is "
-                    + limitMegabytes + " Mb");
+            // upstream's outer exception's info: its "Unable to read the CSV file" wrapping the inner exception's
+            // message, which carries no source information ("Execution error at ??, " and the info quoted:
+            // legend-pure's PureException.printMessage; the M1 correctness audit's C4, 2026-11-09)
+            throw new TooLarge("Unable to read the CSV file '" + path + "' Execution error at ??, \"File is too large,"
+                    + " file was " + String.format(java.util.Locale.ROOT, "%.2f", length * 1.0 / megabyte)
+                    + " Mb, limit is " + limitMegabytes + " Mb\"");
         }
     }
 

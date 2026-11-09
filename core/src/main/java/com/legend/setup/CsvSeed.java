@@ -15,7 +15,7 @@ import java.util.List;
  * stays with the caller's executeInDb loop (the corpus's own
  * {@code setupTestData} body maps the strings through executeInDb;
  * audit 19d B5 moved this synthesis out of the harness so that body runs
- * through the platform) or with {@code exec.PlanRunner.setUp}, which runs the steps
+ * through the platform) or as a plan's load ({@code planner.LoadPlanner}; exec runs it, {@code PlanRunner.seed}), which runs the steps
  * on a session. Plan side since 2026-10-08 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): text only, no
  * connection, so that the planner and the browser planner can write the same setup the server runs.
  */
