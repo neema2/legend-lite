@@ -27,3 +27,9 @@ __pycache__/
 
 # Bazel
 /bazel-*
+
+# The EDGAR corpus is a pointer corpus: filings are rebuilt locally by tools/edgar-corpus and never committed or
+# redistributed. The manifest is the repository's record (2026-11-08).
+projects/unstructured/corpus/edgar/**
+!projects/unstructured/corpus/edgar/manifest.yaml
+!projects/unstructured/corpus/edgar/README.md
