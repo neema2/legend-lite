@@ -272,13 +272,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * ({@code Setup}), the seeds' cadence alone.
      */
     public record Load(String identity, Cadence cadence, List<LoadStep> steps, Target target) implements Node {
-        /** The identity of the graph's SYSTEM metamodel store's load (the planner's {@code SystemRoutes.seeds}, the
-         *  walker-deletion program, 2026-11-03: planning sends nothing, the plan seeds the store): the one load a plan
-         *  may name the graph's system database for. That database holds the store and nothing else, one per graph per
-         *  engine, so the one identity names its rows unambiguously; the runner refuses any other load there. */
-        public static final String SYSTEM_STORE = "the graph's system metamodel store";
-
-        /** The prefix every load identity but the system store's carries. */
+        /** The prefix every load identity carries (the system store's too since L4a, 2026-11-09). */
         public static final String IDENTITY_PREFIX = "load:";
 
         /** A load's CANONICAL content, the text its identity digests (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2: one

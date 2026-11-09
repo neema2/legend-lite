@@ -2538,9 +2538,9 @@ final class ArchitectureTest {
     /**
      * <strong>P2, one constructor (docs/DATA_IN_THE_PLAN_2026_11_09.md 6; turned on 2026-11-09 after the M1 tenets
      * audit's finding 3).</strong> A plan's {@code ExecutionPlan.Load} is made by {@code planner.LoadPlanner} alone, with
-     * its one identity scheme; the plan's JSON reader rebuilds what a writer wrote. One dated exception:
-     * {@code planner.SystemRoutes}' system store load, its identity the constant {@code Load.SYSTEM_STORE}, closed by
-     * the design's L4 (the catalog on loads). Its steps ({@code LoadStep}) are made by the planner's makers of statements
+     * its one identity scheme; the plan's JSON reader rebuilds what a writer wrote. (Until L4a, 2026-11-09,
+     * {@code planner.SystemRoutes}' system store load was a dated exception, named by a constant; it is the load
+     * planner's now, named by its content.) Its steps ({@code LoadStep}) are made by the planner's makers of statements
      * and rows -- {@code setup.CsvSeed}, {@code setup.Ddl}, {@code setup.RowLoad}, {@code planner.PlanMaker},
      * {@code planner.SystemRoutes}, {@code testplan.EffectPlanner}, {@code testplan.TestKinds} -- and the JSON reader:
      * never exec (an exec class makes no load and no step: {@link #execMakesNoLoad}).
@@ -2551,14 +2551,11 @@ final class ArchitectureTest {
             .that().resideInAPackage("com.legend..")
             .and().doNotHaveFullyQualifiedName("com.legend.planner.LoadPlanner")
             .and().doNotHaveFullyQualifiedName("com.legend.executionplan.PlanJson")
-            // 2026-11-09, dated exception: the system store's load, closed by L4 (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md)
-            .and().doNotHaveFullyQualifiedName("com.legend.planner.SystemRoutes")
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
                                     .name("com.legend.executionplan.ExecutionPlan$Load"))))
-            .as("P2: a plan's load is made by the load planner alone (one identity scheme); the JSON reader rebuilds,"
-                    + " SystemRoutes' system store load excepted until L4")
+            .as("P2: a plan's load is made by the load planner alone (one identity scheme); the JSON reader rebuilds")
             .check(CORE_PROD_CLASSES);
     }
 

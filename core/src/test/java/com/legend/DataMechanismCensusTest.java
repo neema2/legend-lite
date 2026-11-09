@@ -133,7 +133,9 @@ class DataMechanismCensusTest {
                     "o.optionalString(\"testDataSetupCsv\")", "o.put(\"testDataSetupSqls\"",
                     "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup"),
             // L3: the project's own fill steps, carried and read; the project stripped to its key on every open
-            "M1", List.of("project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly("));
+            "M1", List.of("project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly("),
+            // L4a: the system store's load named by a constant, and the walk's own seeding door
+            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore("));
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */

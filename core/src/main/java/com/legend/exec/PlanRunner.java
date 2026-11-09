@@ -137,12 +137,15 @@ public final class PlanRunner {
         }
     }
 
-    /** A seed step on the graph's system database is the system store's own ({@link ExecutionPlan.Load#SYSTEM_STORE},
-     *  the planner's), never a body's test data: refused by name otherwise. */
+    /** A load on the graph's system database is the system store's own seeds (the planner's {@code SystemRoutes.seeds}):
+     *  a seed ({@code BEFORE_STEP}) of statements and rows, never a file nor a program's own load -- the database holds
+     *  the graph's metamodel and nothing else; refused by name otherwise. Its identity is its content's, as every load's
+     *  (L4a, 2026-11-09). */
     static void systemStore(ExecutionPlan.Load seeds) {
-        if (!seeds.identity().equals(ExecutionPlan.Load.SYSTEM_STORE)) {
-            throw new IllegalStateException("a seed step on the graph's system database that is not the system store's"
-                    + " own: the database holds the graph's metamodel and nothing else");
+        if (seeds.cadence() != ExecutionPlan.Load.Cadence.BEFORE_STEP
+                || seeds.steps().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.File)) {
+            throw new IllegalStateException("a load on the graph's system database that is not the system store's"
+                    + " seeds (" + seeds.cadence() + "): the database holds the graph's metamodel and nothing else");
         }
     }
 
@@ -541,22 +544,6 @@ public final class PlanRunner {
     static void sendStatement(String statement, Statements st) {
         StatementOrigin.sent(st.mark(), statement);
         st.execute(statement);
-    }
-
-    /** The graph's system store's seed step ({@link ExecutionPlan.Load#SYSTEM_STORE}) on {@code system}, the graph's
-     *  system database's session, once (the seeds' memo): the body driver's walk reaching that session runs the program
-     *  road's own step through here, so whichever road comes first writes the store, once. Deleted with the walk. */
-    public static void seedSystemStore(ExecutionPlan.Load seeds, Sessions.Session system) {
-        if (!(seeds.target().database() instanceof ExecutionPlan.Database.System)) {
-            throw new IllegalStateException("the system store's seeds name the graph's system database");
-        }
-        systemStore(seeds);
-        // a run of the seed step (THE WALL, 2026-11-06)
-        try (var run = com.legend.base.RunScope.enter()) {
-            // the system store's load holds rows and statements, never a file: it is given no store
-            seed(seeds, system, opened(system, seeds.target()), com.legend.executionplan.DataStores.none(),
-                    answered -> { });
-        }
     }
 
     /** A program's load (B12; docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2): a {@code BEFORE_STEP} load (the seeds) skipped
@@ -1011,12 +998,9 @@ public final class PlanRunner {
     }
 
     /** {@code load} refused by name unless its identity is its content's digest (ExecutionPlan.Load.canonical): the
-     *  seeds' memo and a shared database's key trust it (the M1 tenets audit's note, 2026-11-09). The system store's load
-     *  is named by its constant until the design's L4. */
+     *  seeds' memo and a shared database's key trust it (the M1 tenets audit's note, 2026-11-09); the system store's load
+     *  too since L4a. */
     static void verifyIdentity(ExecutionPlan.Load load) {
-        if (load.identity().equals(ExecutionPlan.Load.SYSTEM_STORE)) {
-            return;
-        }
         String content = ExecutionPlan.Load.IDENTITY_PREFIX + com.legend.cache.Hash.ofUtf8(
                 ExecutionPlan.Load.canonical(load.cadence(), load.steps())).hex();
         if (!content.equals(load.identity())) {

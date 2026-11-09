@@ -398,7 +398,8 @@ public final class TestRunner {
         /** Whether the program's step {@code step} is the graph's system store's seed step (the planner's). */
         private boolean systemStore(int step) {
             return planned.steps().get(step) instanceof TestPlan.Run r
-                    && r.node() instanceof ExecutionPlan.Load u && u.identity().equals(ExecutionPlan.Load.SYSTEM_STORE);
+                    && r.node() instanceof ExecutionPlan.Load u
+                    && u.target().database() instanceof ExecutionPlan.Database.System;
         }
 
         @Override

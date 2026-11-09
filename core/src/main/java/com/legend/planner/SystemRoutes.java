@@ -78,6 +78,7 @@ public final class SystemRoutes {
      *  process ({@code Ddl.metamodelSteps}), else as the session's temporary table read by its system name
      *  ({@code Ddl.metamodelTemporary}, {@link #renames}). The runner runs it on the system database's session and
      *  records its key there (the seeds' memo), so the session holds the store once, whichever plan reaches it first.
+     *  Made by the load planner, named by its content as every load is (L4a, 2026-11-09: until then by a constant).
      *  Knowledge, derived once per graph and engine. */
     public static com.legend.executionplan.ExecutionPlan.Load seeds(com.legend.compiler.element.ModelContext ctx,
             com.legend.executionplan.ExecutionPlan.Target system, com.legend.sql.dialect.SqlDialect dialect) {
@@ -85,11 +86,16 @@ public final class SystemRoutes {
             throw new IllegalArgumentException("the system store's seeds go to the graph's system database, not "
                     + system.database());
         }
-        java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> steps = ctx.derived(SeedMemo.class,
-                c -> new SeedMemo()).steps.computeIfAbsent(s.type(), engine -> seedSteps(ctx, dialect));
-        return new com.legend.executionplan.ExecutionPlan.Load(
-                com.legend.executionplan.ExecutionPlan.Load.SYSTEM_STORE,
-                com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, steps, system);
+        var seed = com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        Seeded seeded = ctx.derived(SeedMemo.class, c -> new SeedMemo()).steps.computeIfAbsent(s.type(), engine -> {
+            var steps = seedSteps(ctx, dialect);
+            return new Seeded(LoadPlanner.identity(seed, steps), steps);
+        });
+        return LoadPlanner.load(seeded.identity(), seed, seeded.steps(), system);
+    }
+
+    /** One engine's seed steps and their load's identity ({@link LoadPlanner#identity}), digested once per graph. */
+    private record Seeded(String identity, java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> steps) {
     }
 
     /** The graph's system store's KEY (the plan-as-data design's step 7, 2026-11-08, 2.6): a hash of its content -- each
@@ -143,10 +149,9 @@ public final class SystemRoutes {
         return hex.toString();
     }
 
-    /** The store's seed steps, per engine, of one graph ({@code ModelContext.derived}). */
+    /** The store's seed steps and their identity, per engine, of one graph ({@code ModelContext.derived}). */
     private static final class SeedMemo {
-        private final java.util.Map<com.legend.executionplan.DatabaseType,
-                java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep>> steps =
+        private final java.util.Map<com.legend.executionplan.DatabaseType, Seeded> steps =
                 new java.util.concurrent.ConcurrentHashMap<>();
     }
 
