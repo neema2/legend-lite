@@ -203,14 +203,20 @@ class PlanMakerTest {
                     class: m::Raw; url: 'data:application/json,[{"name":"b"},{"name":"a"}]'; } }# ] ]; }
                 """;
         String query = "|m::P.all()->project(~[name: p|$p.name])->sort(~name->ascending())";
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("m::RT");
+        com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(model), query);
+        ExecutionPlan plan = typed.executionPlan("m::RT");
         ExecutionPlan.Target t = target(plan);
-        // the platform's own engine, a project's database (hole 7, 2026-11-08): keyed by the model's stores, filled
-        // with nothing -- the run finds it from the plan alone
+        // the platform's own engine (hole 7, 2026-11-08); a product plan names the engine alone -- the project's
+        // database, its key and its fill, is the server's road's (the full audit, 2026-11-09: TypedQuery.projectPlan)
         assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
                 && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
-                && p.project() != null && p.project().made().isEmpty(), String.valueOf(t.database()));
+                && p.project() == null, String.valueOf(t.database()));
         assertEquals(List.of(), t.setup());
+        // the server's plan: the project's database, keyed by the model's stores, filled with nothing -- the run
+        // finds it from the plan alone
+        ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
+        assertTrue(served.database() instanceof ExecutionPlan.Database.Platform q
+                && q.project() != null && q.project().made().isEmpty(), String.valueOf(served.database()));
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {
             StringWriter out = new StringWriter();

@@ -77,7 +77,7 @@ public final class Sealed {
         }
 
         @Override
-        public V get(Object key) {
+        public @Nullable V get(Object key) {
             return delegate.get(key);
         }
 
@@ -92,13 +92,13 @@ public final class Sealed {
         }
 
         @Override
-        public V put(K key, V value) {
+        public @Nullable V put(K key, V value) {
             refuse(sealed);
             return delegate.put(key, value);
         }
 
         @Override
-        public V remove(Object key) {
+        public @Nullable V remove(Object key) {
             refuse(sealed);
             return delegate.remove(key);
         }

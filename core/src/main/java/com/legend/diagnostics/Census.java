@@ -69,15 +69,29 @@ public final class Census {
     /** The fused statement's fallback reasons, appended by the batch's split rung AT PLANNING (a fused statement the
      * dialect cannot spell, each member planned its own statement; P1.2, 2026-11-07) -- a named list beside the
      * counts (the lanes attribute them per test). */
-    public static final List<String> FALLBACK_REASONS =
+    private static final List<String> FALLBACK_REASONS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+    /** The fallback reasons counted so far, a copy (the lanes read the ones a test added). */
+    public static List<String> fallbackReasons() {
+        synchronized (FALLBACK_REASONS) {
+            return List.copyOf(FALLBACK_REASONS);
+        }
+    }
 
     /** The asserts the host planner declined to plan for the program road, each by the shape it declined (the
      * test-is-the-product plan's M10c, 2026-11-02): a named list (the lanes attribute them per test and histogram
      * them, so the remaining assert shapes are named by count). Measurement, deciding nothing: a body whose assert
      * no judge planned is refused by name whatever is written here (the walk it stayed on is deleted, 2026-11-06). */
-    public static final List<String> UNPLANNED_ASSERTS =
+    private static final List<String> UNPLANNED_ASSERTS =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+    /** The declined asserts counted so far, a copy (the lanes read the ones a test added). */
+    public static List<String> unplannedAsserts() {
+        synchronized (UNPLANNED_ASSERTS) {
+            return List.copyOf(UNPLANNED_ASSERTS);
+        }
+    }
 
     /** A fused verdict group the database rejected, falling back to its rows one by one (the batch's split rung, at
      *  planning or at its turn): counted, with the reason's head and the frames the message names (moved here from
@@ -158,21 +172,5 @@ public final class Census {
         }
         KEYED.forEach((k, v) -> out.put(k, v.sum()));
         return out;
-    }
-
-    /** The test the measurement is attributed to, named by the harness that runs it ({@link #attributeTo}): the label a
-     *  census's samples carry. Measurement only, never read by a decision (2026-11-09, no mutable static state but
-     *  measurement: the one label, where five censuses each held a hook of their own). */
-    private static final java.util.concurrent.atomic.AtomicReference<String> ATTRIBUTION =
-            new java.util.concurrent.atomic.AtomicReference<>("<unattributed>");
-
-    /** The harness names the test it runs now. */
-    public static void attributeTo(String test) {
-        ATTRIBUTION.set(java.util.Objects.requireNonNull(test, "test"));
-    }
-
-    /** The test the measurement is attributed to now. */
-    public static String attribution() {
-        return ATTRIBUTION.get();
     }
 }

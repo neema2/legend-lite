@@ -55,6 +55,11 @@ public record ExecuteOptions(
         return planning.judgeMode();
     }
 
+    /** These options judged as {@code run}'s are: its judge mode (a caller above the door names no planning type). */
+    public ExecuteOptions judgedAs(ExecuteOptions run) {
+        return withJudgeMode(run.judgeMode());
+    }
+
     public ExecuteOptions withJudgeMode(PlanningOptions.JudgeMode mode) {
         return new ExecuteOptions(planning.withJudgeMode(mode), systemConnections);
     }

@@ -13,7 +13,7 @@ import java.util.function.Supplier;
 
 /**
  * THE AGREEMENT GATE (the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6, 2026-10-18): under
- * {@link com.legend.testplan.PlanningOptions.JudgeMode#BOTH} every statement-root assert is judged by both arms -- the host judge over each
+ * {@code JudgeMode.BOTH} every statement-root assert is judged by both arms -- the host judge over each
  * side's plan result, the database judge over its verdict plan -- and the verdict of record is the host's, which the
  * database's must match. A disagreement FAILS the assert naming both verdicts: a finding on a named test (a verdict
  * statement's composition, a decode misreading a carrier), never a quiet pass. The routing is the host's: a shape the

@@ -226,7 +226,7 @@ public final class ChannelB {
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
         // the measurement's one attribution label (2026-11-09: five per-census hooks until then)
-        com.legend.diagnostics.Census.attributeTo(fqn);
+        com.legend.base.Attribution.to(fqn);
         // (the dual-verdict and decline attribution prints went with the host judge's byte channel, 2026-11-07)
         return runOneInner(fd, module, ctx, fqn);
     }

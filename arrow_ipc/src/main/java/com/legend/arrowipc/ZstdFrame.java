@@ -18,7 +18,7 @@ public final class ZstdFrame {
     }
 
     /** The frame's first four bytes, little-endian 0xFD2FB528. */
-    public static final byte[] MAGIC = {0x28, (byte) 0xB5, 0x2F, (byte) 0xFD};
+    private static final byte[] MAGIC = {0x28, (byte) 0xB5, 0x2F, (byte) 0xFD};
 
     private static final int BLOCK = 128 * 1024;
 

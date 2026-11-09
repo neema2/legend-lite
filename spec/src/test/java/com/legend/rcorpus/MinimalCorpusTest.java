@@ -213,8 +213,8 @@ public class MinimalCorpusTest {
         List<String> artifactRows = new ArrayList<>();
         List<String> hostComparedRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
-        /** the kinds of each body the router left on the walk, per test (the test-is-the-product plan's M9) */
         List<String> unplannedRows = new ArrayList<>();
+        /** the kinds of each body the router left on the walk, per test (the test-is-the-product plan's M9) */
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
         try {
@@ -229,8 +229,8 @@ public class MinimalCorpusTest {
                 long tStart = System.nanoTime();
                 long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
-                int fallbacksBefore = com.legend.diagnostics.Census.FALLBACK_REASONS.size();
-                int unplannedBefore = com.legend.diagnostics.Census.UNPLANNED_ASSERTS.size();
+                int fallbacksBefore = com.legend.diagnostics.Census.fallbackReasons().size();
+                int unplannedBefore = com.legend.diagnostics.Census.unplannedAsserts().size();
                 long flushesBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_HOST_DECIDED);
                 long movedBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED);
@@ -303,14 +303,16 @@ public class MinimalCorpusTest {
                     hostComparedRows.add(r.fqn() + " ||| host-decided=" + hostDecided);
                 }
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
-                for (int fi = fallbacksBefore; fi < com.legend.diagnostics.Census.FALLBACK_REASONS.size(); fi++) {
-                    fallbackRows.add(r.fqn() + "\t" + com.legend.diagnostics.Census.FALLBACK_REASONS.get(fi));
+                List<String> reasons = com.legend.diagnostics.Census.fallbackReasons();
+                for (int fi = fallbacksBefore; fi < reasons.size(); fi++) {
+                    fallbackRows.add(r.fqn() + "\t" + reasons.get(fi));
                 }
-                // one row per label per body: the router plans a body before the walk runs it, and the walk asks the
-                // host planner again about the assert the program road refused -- the same refusal, counted once
+                // one row per label per body: a body's planning may ask the host planner about the same assert twice
+                // -- the same refusal, counted once
                 java.util.Set<String> bodyLabels = new java.util.LinkedHashSet<>();
-                for (int ui = unplannedBefore; ui < com.legend.diagnostics.Census.UNPLANNED_ASSERTS.size(); ui++) {
-                    bodyLabels.add(com.legend.diagnostics.Census.UNPLANNED_ASSERTS.get(ui));
+                List<String> unplanned = com.legend.diagnostics.Census.unplannedAsserts();
+                for (int ui = unplannedBefore; ui < unplanned.size(); ui++) {
+                    bodyLabels.add(unplanned.get(ui));
                 }
                 for (String label : bodyLabels) {
                     unplannedRows.add(r.fqn() + "\t" + r.status() + "\t" + label);

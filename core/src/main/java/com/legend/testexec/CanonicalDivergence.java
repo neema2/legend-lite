@@ -218,7 +218,7 @@ public final class CanonicalDivergence {
             Census.inc(Census.Key.DIVERGENCE_DISAGREE);
             DISAGREE_SAMPLES.add(new Row(family, held, "lattice=" + held
                     + " byte=" + byteAns.replaceFirst("^DIFFER", "false")
-                    + " [" + com.legend.diagnostics.Census.attribution() + "]"));
+                    + " [" + com.legend.base.Attribution.now() + "]"));
         }
     }
 
@@ -247,7 +247,7 @@ public final class CanonicalDivergence {
     public static void decimalScaleOnly() {
         Census.inc(Census.Key.DECIMAL_SCALE_ONLY);
         sample(new Row("decimalScaleOnly", false,
-                "[" + com.legend.diagnostics.Census.attribution() + "]"));
+                "[" + com.legend.base.Attribution.now() + "]"));
     }
 
     public static long decimalScaleOnlyCount() {
@@ -298,7 +298,7 @@ public final class CanonicalDivergence {
     private static final ConcurrentLinkedQueue<String>
             V7_DECLINE_WITNESSES = new ConcurrentLinkedQueue<>();
 
-    // (the per-test attribution is the diagnostics' one label, Census.attribution(): 2026-11-09)
+    // (the per-test attribution is base's one label, Attribution.now(): 2026-11-09)
 
     /** One dual-channel verdict pair: both adjudicators judged. */
     public static void v7Verdict(String form, boolean hostPass,
@@ -311,7 +311,7 @@ public final class CanonicalDivergence {
             V7_SAMPLES.add(new Row(form, hostPass,
                     "host=" + (hostPass ? "pass" : "fail")
                             + " prod=" + (prodPass ? "pass" : "fail")
-                            + " [" + com.legend.diagnostics.Census.attribution() + "] " + detail));
+                            + " [" + com.legend.base.Attribution.now() + "] " + detail));
         }
     }
 
@@ -336,7 +336,7 @@ public final class CanonicalDivergence {
             String rw = reason.length() > 500
                     ? reason.substring(0, 500) + "…" : reason;
             V7_DECLINE_WITNESSES.add(
-                    com.legend.diagnostics.Census.attribution() + " :: " + form + " :: " + rw);
+                    com.legend.base.Attribution.now() + " :: " + form + " :: " + rw);
         }
     }
 

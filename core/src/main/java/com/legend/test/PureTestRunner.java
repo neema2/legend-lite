@@ -132,25 +132,24 @@ public final class PureTestRunner implements AutoCloseable {
      */
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer) {
-        this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer,
-                com.legend.testplan.PlanningOptions.JudgeMode.HOST);
+        this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer, ExecuteOptions.NONE);
     }
 
-    /** @param judgeMode the run's assert judge (one mode per run, on every
-     *                   test's options — {@link com.legend.testplan.PlanningOptions.JudgeMode}) */
+    /** @param judging the run's assert judge, as the door's options carry it: every test's own options take its judge
+     *                 mode (one mode per run; the runner names no planning type, B4: 2026-11-09) */
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer,
-            com.legend.testplan.PlanningOptions.JudgeMode judgeMode) {
+            ExecuteOptions judging) {
         this.ctx = ctx;
         this.runtimeFqn = runtimeFqn;
         this.sessions = sessions;
         this.sharedSetups = List.copyOf(sharedSetups);
         this.setupsByPackage = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(setupsByPackage));
         this.observer = observer;
-        this.judgeMode = judgeMode;
+        this.judging = judging;
     }
 
-    private final com.legend.testplan.PlanningOptions.JudgeMode judgeMode;
+    private final ExecuteOptions judging;
 
     /** The setups the platform derived as INERT (no statement effects) and
      *  so never ran — a caller pins the count: an effect analysis that wrongly
@@ -495,7 +494,7 @@ public final class PureTestRunner implements AutoCloseable {
         boolean shared = !facts.seedsInlineCsv();
         observer.privateWorkspace(!shared);
         com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
-        ExecuteOptions options = observer.options(t, shared).withJudgeMode(judgeMode);
+        ExecuteOptions options = observer.options(t, shared).judgedAs(judging);
         SqlReplayReferee referee = observer.referee(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's

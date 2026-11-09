@@ -33,76 +33,78 @@ public final class Lexer {
 
     // ==================== Keyword Map ====================
 
-    private static final com.legend.base.Sealed.SealedMap<String, TokenType> KEYWORDS =
-            com.legend.base.Sealed.map(new HashMap<>(200));
+    // a constant of the process: built once, then an immutable copy (2026-11-09; the lexer is JDK-only, invariant 7a)
+    private static final Map<String, TokenType> KEYWORDS;
 
     static {
+        Map<String, TokenType> keywords = new HashMap<>(200);
         // M3
-        KEYWORDS.put("all", TokenType.ALL);
-        KEYWORDS.put("let", TokenType.LET);
-        KEYWORDS.put("allVersions", TokenType.ALL_VERSIONS);
-        KEYWORDS.put("allVersionsInRange", TokenType.ALL_VERSIONS_IN_RANGE);
+        keywords.put("all", TokenType.ALL);
+        keywords.put("let", TokenType.LET);
+        keywords.put("allVersions", TokenType.ALL_VERSIONS);
+        keywords.put("allVersionsInRange", TokenType.ALL_VERSIONS_IN_RANGE);
         // Domain
-        KEYWORDS.put("import", TokenType.IMPORT);
-        KEYWORDS.put("Class", TokenType.CLASS);
-        KEYWORDS.put("Association", TokenType.ASSOCIATION);
-        KEYWORDS.put("Profile", TokenType.PROFILE);
-        KEYWORDS.put("Enum", TokenType.ENUM);
-        KEYWORDS.put("function", TokenType.FUNCTION);
-        KEYWORDS.put("extends", TokenType.EXTENDS);
-        KEYWORDS.put("stereotypes", TokenType.STEREOTYPES);
-        KEYWORDS.put("tags", TokenType.TAGS);
-        KEYWORDS.put("native", TokenType.NATIVE);
-        KEYWORDS.put("as", TokenType.AS);
+        keywords.put("import", TokenType.IMPORT);
+        keywords.put("Class", TokenType.CLASS);
+        keywords.put("Association", TokenType.ASSOCIATION);
+        keywords.put("Profile", TokenType.PROFILE);
+        keywords.put("Enum", TokenType.ENUM);
+        keywords.put("function", TokenType.FUNCTION);
+        keywords.put("extends", TokenType.EXTENDS);
+        keywords.put("stereotypes", TokenType.STEREOTYPES);
+        keywords.put("tags", TokenType.TAGS);
+        keywords.put("native", TokenType.NATIVE);
+        keywords.put("as", TokenType.AS);
         // Boolean literals
-        KEYWORDS.put("true", TokenType.TRUE);
-        KEYWORDS.put("false", TokenType.FALSE);
+        keywords.put("true", TokenType.TRUE);
+        keywords.put("false", TokenType.FALSE);
         // Mapping
-        KEYWORDS.put("Mapping", TokenType.MAPPING);
-        KEYWORDS.put("include", TokenType.INCLUDE);
-        KEYWORDS.put("testSuites", TokenType.MAPPING_TESTABLE_SUITES);
-        KEYWORDS.put("query", TokenType.MAPPING_TESTS_QUERY);
+        keywords.put("Mapping", TokenType.MAPPING);
+        keywords.put("include", TokenType.INCLUDE);
+        keywords.put("testSuites", TokenType.MAPPING_TESTABLE_SUITES);
+        keywords.put("query", TokenType.MAPPING_TESTS_QUERY);
         // Service
-        KEYWORDS.put("Service", TokenType.SERVICE);
-        KEYWORDS.put("pattern", TokenType.SERVICE_PATTERN);
-        KEYWORDS.put("owners", TokenType.SERVICE_OWNERS);
-        KEYWORDS.put("documentation", TokenType.SERVICE_DOCUMENTATION);
-        KEYWORDS.put("autoActivateUpdates", TokenType.SERVICE_AUTO_ACTIVATE_UPDATES);
-        KEYWORDS.put("execution", TokenType.SERVICE_EXEC);
-        KEYWORDS.put("Single", TokenType.SERVICE_SINGLE);
-        KEYWORDS.put("mapping", TokenType.SERVICE_MAPPING);
-        KEYWORDS.put("runtime", TokenType.SERVICE_RUNTIME);
+        keywords.put("Service", TokenType.SERVICE);
+        keywords.put("pattern", TokenType.SERVICE_PATTERN);
+        keywords.put("owners", TokenType.SERVICE_OWNERS);
+        keywords.put("documentation", TokenType.SERVICE_DOCUMENTATION);
+        keywords.put("autoActivateUpdates", TokenType.SERVICE_AUTO_ACTIVATE_UPDATES);
+        keywords.put("execution", TokenType.SERVICE_EXEC);
+        keywords.put("Single", TokenType.SERVICE_SINGLE);
+        keywords.put("mapping", TokenType.SERVICE_MAPPING);
+        keywords.put("runtime", TokenType.SERVICE_RUNTIME);
         // Runtime
-        KEYWORDS.put("Runtime", TokenType.RUNTIME);
-        KEYWORDS.put("SingleConnectionRuntime", TokenType.SINGLE_CONNECTION_RUNTIME);
-        KEYWORDS.put("mappings", TokenType.MAPPINGS);
-        KEYWORDS.put("connections", TokenType.CONNECTIONS);
-        KEYWORDS.put("connection", TokenType.CONNECTION);
+        keywords.put("Runtime", TokenType.RUNTIME);
+        keywords.put("SingleConnectionRuntime", TokenType.SINGLE_CONNECTION_RUNTIME);
+        keywords.put("mappings", TokenType.MAPPINGS);
+        keywords.put("connections", TokenType.CONNECTIONS);
+        keywords.put("connection", TokenType.CONNECTION);
         // Database / Relational
-        KEYWORDS.put("Database", TokenType.DATABASE);
-        KEYWORDS.put("Table", TokenType.TABLE);
-        KEYWORDS.put("Schema", TokenType.SCHEMA);
-        KEYWORDS.put("View", TokenType.VIEW);
-        KEYWORDS.put("Filter", TokenType.FILTER);
-        KEYWORDS.put("MultiGrainFilter", TokenType.MULTIGRAIN_FILTER);
-        KEYWORDS.put("Join", TokenType.JOIN);
-        KEYWORDS.put("and", TokenType.RELATIONAL_AND);
-        KEYWORDS.put("or", TokenType.RELATIONAL_OR);
-        KEYWORDS.put("Relational", TokenType.RELATIONAL);
-        KEYWORDS.put("Pure", TokenType.PURE_MAPPING);
+        keywords.put("Database", TokenType.DATABASE);
+        keywords.put("Table", TokenType.TABLE);
+        keywords.put("Schema", TokenType.SCHEMA);
+        keywords.put("View", TokenType.VIEW);
+        keywords.put("Filter", TokenType.FILTER);
+        keywords.put("MultiGrainFilter", TokenType.MULTIGRAIN_FILTER);
+        keywords.put("Join", TokenType.JOIN);
+        keywords.put("and", TokenType.RELATIONAL_AND);
+        keywords.put("or", TokenType.RELATIONAL_OR);
+        keywords.put("Relational", TokenType.RELATIONAL);
+        keywords.put("Pure", TokenType.PURE_MAPPING);
         // Milestoning
         // Mapping modifiers
-        KEYWORDS.put("AssociationMapping", TokenType.ASSOCIATION_MAPPING);
-        KEYWORDS.put("EnumerationMapping", TokenType.ENUMERATION_MAPPING);
-        KEYWORDS.put("Otherwise", TokenType.OTHERWISE);
-        KEYWORDS.put("Inline", TokenType.INLINE);
+        keywords.put("AssociationMapping", TokenType.ASSOCIATION_MAPPING);
+        keywords.put("EnumerationMapping", TokenType.ENUMERATION_MAPPING);
+        keywords.put("Otherwise", TokenType.OTHERWISE);
+        keywords.put("Inline", TokenType.INLINE);
         // Connection
-        KEYWORDS.put("RelationalDatabaseConnection", TokenType.RELATIONAL_DATABASE_CONNECTION);
-        KEYWORDS.put("store", TokenType.STORE);
-        KEYWORDS.put("type", TokenType.TYPE);
-        KEYWORDS.put("specification", TokenType.RELATIONAL_DATASOURCE_SPEC);
-        KEYWORDS.put("auth", TokenType.RELATIONAL_AUTH_STRATEGY);
-        KEYWORDS.put("H2", TokenType.H2);
+        keywords.put("RelationalDatabaseConnection", TokenType.RELATIONAL_DATABASE_CONNECTION);
+        keywords.put("store", TokenType.STORE);
+        keywords.put("type", TokenType.TYPE);
+        keywords.put("specification", TokenType.RELATIONAL_DATASOURCE_SPEC);
+        keywords.put("auth", TokenType.RELATIONAL_AUTH_STRATEGY);
+        keywords.put("H2", TokenType.H2);
+        KEYWORDS = java.util.Collections.unmodifiableMap(keywords);
     }
 
     // ==================== Tilde Command Map ====================
@@ -834,8 +836,4 @@ public final class Lexer {
         }
     }
 
-    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
-    static {
-        KEYWORDS.seal();
-    }
 }

@@ -761,6 +761,17 @@ final class ArchitectureTest {
                             .or(com.tngtech.archunit.core.domain.JavaClass
                                     .Predicates.type(
                                             com.legend.base.RunScope.class))
+                            // a rule table is a constant of the process once its class is initialised (2026-11-09,
+                            // the user's "fix all of it", mutable static state): Sealed, JDK-only in base, the
+                            // registry's seal -- staticStateIsConstantOrRegistered reads a sealed map as constant
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.belongToAnyOf(
+                                            com.legend.base.Sealed.class))
+                            // the one measurement label a census line carries (2026-11-09: the stamp census's own
+                            // label folded into base's, Attribution, JDK-only), never read by a decision
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.type(
+                                            com.legend.base.Attribution.class))
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
               + "nothing else, ever (plus the SourceInfo span component and the declaration identity)")
@@ -2068,7 +2079,7 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.diagnostics.Census.KEYED", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.Census.FALLBACK_REASONS", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
-            java.util.Map.entry("com.legend.diagnostics.Census.ATTRIBUTION", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.base.Attribution.LABEL", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.SQL_CENSUS", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CHANNEL_SEEN", StaticKind.MEASUREMENT),
@@ -2090,8 +2101,6 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_K", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_S", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.SHA256_K", StaticKind.CONSTANT_ARRAY),
-            java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
-            java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.cache.Sha256.K", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.cache.Sha256.H0", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.protocol.sql.iq.IqFunctions.MONTHS", StaticKind.CONSTANT_ARRAY),
@@ -2175,6 +2184,11 @@ final class ArchitectureTest {
         if (k.isArray()) {
             return java.lang.reflect.Array.getLength(v) == 0 ? null : "an array " + k.getComponentType().getName();
         }
+        // a holder first: an atomic counter is a Number (the guard's own gap, found on its first Bazel run, 2026-11-09)
+        if (n.startsWith("java.util.concurrent.atomic.") || v instanceof ThreadLocal<?>
+                || v instanceof StringBuilder) {
+            return "a holder " + n;
+        }
         if (k.isEnum() || k.isRecord() || v instanceof String || v instanceof Number || v instanceof Boolean
                 || v instanceof Character || v instanceof Class || k.isHidden() || k.isSynthetic()) {
             return null;
@@ -2183,10 +2197,6 @@ final class ArchitectureTest {
             return n.startsWith("java.util.ImmutableCollections") || n.startsWith("java.util.Collections$Unmodifiable")
                     || n.startsWith("java.util.Collections$Empty") || n.startsWith("java.util.Collections$Singleton")
                     ? null : "a collection " + n;
-        }
-        if (n.startsWith("java.util.concurrent.atomic.") || v instanceof ThreadLocal<?>
-                || v instanceof StringBuilder) {
-            return "a holder " + n;
         }
         if (n.startsWith("java.") || n.startsWith("javax.") || n.startsWith("jdk.") || n.startsWith("sun.")) {
             return null;

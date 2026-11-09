@@ -343,7 +343,8 @@ public final class MinimalCorpus {
                     + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
-                discovery.setupsByPackage(), new CorpusObserver(), judgeMode);
+                discovery.setupsByPackage(), new CorpusObserver(),
+                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -554,7 +555,7 @@ public final class MinimalCorpus {
             com.legend.harness.RefereeVerify.CURRENT_TEST.set(t.fqn());
             // the measurement's one attribution label: the censuses' samples name the running test (leg 3.0: database
             // mode's bug list); 2026-11-09, one label where each census held a hook of its own
-            com.legend.diagnostics.Census.attributeTo(t.fqn());
+            com.legend.base.Attribution.to(t.fqn());
             if (com.legend.diagnostics.Diagnostics.on("progress")) {
                 System.err.println("[corpus2] > " + t.fqn());
             }

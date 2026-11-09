@@ -50,12 +50,24 @@ class RunScopeTest {
 
     /** A held appeal decided after its body's run (P1.2, 2026-11-07): it plans nothing and plans no body, but it may
      *  run the plans planned ahead for it, each a run of its own. */
+    /** A run's caller called back (a sink, a session source) plans nothing: the full audit's must-fix, 2026-11-09 --
+     *  a session source planned the query again inside the run, where the wall did not look. */
+    @Test
+    void aRunsCallerCalledBackPlansNothing() {
+        try (var called = RunScope.callingBack()) {
+            assertThrows(RunScope.Refused.class, () -> RunScope.planning("lower a spec"));
+            assertThrows(RunScope.Refused.class, () -> RunScope.plans("a query"));
+        }
+        RunScope.planning("lower a spec");
+    }
+
     @Test
     void aJudgmentAfterARunPlansNothingButRunsItsPlans() {
         try (var judging = RunScope.judging()) {
             RunScope.Refused refused = assertThrows(RunScope.Refused.class, () -> RunScope.planning("lower a spec"));
             assertTrue(refused.getMessage().startsWith(
-                    "the runtime wall: lower a spec while a judgment is decided after its run ("), refused.getMessage());
+                    "the runtime wall: lower a spec while a judgment is decided after its run, or a run's caller is "
+                            + "called back for it ("), refused.getMessage());
             assertThrows(RunScope.Refused.class, () -> RunScope.plans("a test body"));
             try (var run = RunScope.enter()) {
                 assertTrue(RunScope.running());

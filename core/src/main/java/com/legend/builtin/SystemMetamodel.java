@@ -74,14 +74,14 @@ public final class SystemMetamodel {
      * names, one filtered set per kind over {@code data_types} (the engine
      * idiom for a hierarchy over one table); the seed writes the same
      * spelling in {@code dt_kind} ({@code OpSeeds.kindOf}). */
-    static final String[] DATA_TYPE_KINDS = {"BigInt", "SmallInt", "TinyInt",
+    private static final String[] DATA_TYPE_KINDS = {"BigInt", "SmallInt", "TinyInt",
         "Integer", "Float", "Double", "Real", "Bit", "Timestamp", "Date", "Time", "TimestampNs", "Distinct",
         "Other", "SemiStructured", "Varchar", "Char", "Binary", "Varbinary",
         "Decimal", "Numeric", "Array", "Object"};
 
     /** The relational-operation node kinds the store models: {m3 class
      * simple name, set id, property lines}. */
-    static final String[][] OP_KINDS = {
+    private static final String[][] OP_KINDS = {
         {"DynaFunction", "opDyna", "name: " + S + " metamodel.relational_elements.dyna_name"},
         {"Literal", "opLit", ""},
         {"LiteralList", "opLitList", ""},
@@ -140,7 +140,7 @@ public final class SystemMetamodel {
      * A plan's nodes RIDE THE QUERY as inline rows (PlanRows — the
      * executor's plan model turned into facts); the base ExecutionNode is
      * the inheritance operation over these members. */
-    static final String[][] PLAN_NODE_KINDS = {
+    private static final String[][] PLAN_NODE_KINDS = {
         {"meta::pure::executionPlan::SequenceExecutionNode", "SequenceExecutionNode", "pnSeq", ""},
         {"meta::pure::executionPlan::FunctionParametersValidationNode", "FunctionParametersValidationNode", "pnFpv",
             "functionParameters[planParam]: " + S + "@NodeToFunctionParameters"},
@@ -156,7 +156,7 @@ public final class SystemMetamodel {
      * connection on every SQLExecutionNode — PlanRows.connectionRows):
      * {class FQN, kind spelling, set id, own property lines}. The base
      * DatabaseConnection is the inheritance operation over them. */
-    static final String[][] CONNECTION_KINDS = {
+    private static final String[][] CONNECTION_KINDS = {
         {"meta::external::store::relational::runtime::TestDatabaseConnection", "TestDatabaseConnection", "pcTest",
             "testDataSetupCsv: " + S + " metamodel.plan_connections.test_data_setup_csv,\n"
             + "                    testDataSetupSqls: " + S + "@ConnToSqls | metamodel.plan_connection_sqls.text"},
@@ -166,7 +166,7 @@ public final class SystemMetamodel {
 
     /** The datasource-specification kinds over the same connection row
      * (ds_kind): {class FQN, kind spelling, set id, own property lines}. */
-    static final String[][] DATASOURCE_KINDS = {
+    private static final String[][] DATASOURCE_KINDS = {
         {"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification", "LocalH2DatasourceSpecification", "dsH2",
             "testDataSetupCsv: " + S + " metamodel.plan_connections.ds_test_data_setup_csv,\n"
             + "                    testDataSetupSqls: " + S + "@DatasourceToSqls | metamodel.plan_connection_sqls.text"},
@@ -175,7 +175,7 @@ public final class SystemMetamodel {
     /** The expression-tree node kinds (real m3 ValueSpecification
      * subclasses the rows discriminate on — FunctionBodyRows.kindOf):
      * {class FQN, kind spelling, set id, own property lines}. */
-    static final String[][] VS_KINDS = {
+    private static final String[][] VS_KINDS = {
         {"meta::pure::metamodel::valuespecification::FunctionExpression", "FunctionExpression", "vsFe",
             "parametersValues[vsFe]: " + S + "@VsToChildren,\n"
             + "                    parametersValues[vsIv]: " + S + "@VsToChildren,\n"
@@ -191,7 +191,7 @@ public final class SystemMetamodel {
      * {class FQN, kind spelling, set id, own property lines}. An
      * execute()'s activities are ROWS under the call's scope
      * (PlanAllocations.registerActivityRows). */
-    static final String[][] ACTIVITY_KINDS = {
+    private static final String[][] ACTIVITY_KINDS = {
         {"meta::relational::mapping::RelationalActivity", "RelationalActivity", "actRel",
             "sql: " + S + " metamodel.activities.sql,\n"
             + "                    comment: " + S + " metamodel.activities.comment"},
@@ -463,7 +463,7 @@ public final class SystemMetamodel {
     /** The relation kinds of the element table (the op-node kinds are
      * {@link #OP_KINDS}); the seed writes the same spelling in
      * {@code kind} ({@code RelationalOpRows}' factories). */
-    static final String[] ELEMENT_KINDS = {"Table", "View", "Column", "TableAlias"};
+    private static final String[] ELEMENT_KINDS = {"Table", "View", "Column", "TableAlias"};
 
     private static String dataTypeSets() {
         StringBuilder sb = new StringBuilder();
