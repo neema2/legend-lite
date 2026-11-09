@@ -16,7 +16,7 @@ everything else, and the manifest proves the rebuild is the same bytes.
 
 ## Rebuild and verify
 
-From the repository root, with Python 3.9+ and `requests`:
+From the repository root, with Python 3.9 or later and `requests` (these tools alone; the loader, embedder and judge run on the venv `tools/unstructured-corpus/pins.env` pins):
 
 ```sh
 EDGAR_USER_AGENT="Name email@example.org" python tools/edgar-corpus/fetch.py   # download every raw file the manifest pins
@@ -80,7 +80,7 @@ Reading it correctly:
 
 `tools/unstructured-corpus/load.py` loads this corpus and the two synthetic ones into DuckDB. The Python `duckdb` package
 may be older than the JDBC driver that reads the file (`//projects/unstructured:corpus_test`, 1.5.6), since DuckDB reads
-older files: 1.4.5 is what Python 3.9 can install, and it works. `load.py` refuses a writer newer than that reader.
+older files: 1.4.5, the version `tools/unstructured-corpus/pins.env` pins, works. `load.py` refuses a writer newer than that reader.
 
 ## Tests
 

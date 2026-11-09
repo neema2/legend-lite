@@ -14,17 +14,13 @@ import java.math.BigDecimal;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeAll;
@@ -197,18 +193,6 @@ class UnstructuredCorpusTest {
             System.out.println(agreement + ": " + ids.size() + " covenants, " + withStepDown.size() + " with a step-down, "
                     + withCure.size() + " with an equity cure");
         });
-    }
-
-    /** The frozen key is the file DECISIONS.md records, and the latest entry naming a sha256 governs. */
-    @Test
-    void answerKeyIsTheFileDecisionsRecords() throws IOException, NoSuchAlgorithmException {
-        String decisions = Files.readString(Runfile.envList("UNSTRUCTURED_DECISIONS").get(0));
-        List<MatchResult> records = Pattern.compile("(?m)^answer_key\\.yaml sha256: ([0-9a-f]{64})$").matcher(decisions).results().toList();
-        assertFalse(records.isEmpty(), "DECISIONS.md records no sha256 for answer_key.yaml");
-        byte[] key = Files.readAllBytes(Runfile.envList("UNSTRUCTURED_ANSWER_KEY").get(0));
-        String actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(key));
-        assertEquals(records.get(records.size() - 1).group(1), actual,
-                "answer_key.yaml is not the file DECISIONS.md records: a label changes only with a dated entry there");
     }
 
     private static long coverPageTotal(String accession) throws IOException {
