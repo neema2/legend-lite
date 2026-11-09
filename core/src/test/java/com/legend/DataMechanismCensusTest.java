@@ -83,7 +83,12 @@ class DataMechanismCensusTest {
             new Row("M4", "service-suite data through a synthetic connection", new Pending("L2")),
             new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4")),
             new Row("M6", "the system metamodel store on the product road", new Pending("L4")),
-            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed", new Pending("L2")),
+            // L2, 2026-11-09: a seed form mapped over executeInDb is a LOAD at its place (AT_STEP, made by LoadPlanner,
+            // its statements as the lambda's executeInDb sends them), never the program's effect script
+            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed", new Deleted("L2",
+                    List.of(
+                            // a form's statements added to the open effect script
+                            "script.addAll(EffectPlanner.statements("))),
             // L1, 2026-11-09: loadCsvToDbTable is a File load by reference; the path it put in a statement is gone
             new Row("M8", "loadCsvToDbTable: the planning machine's path in a statement (D3)", new Deleted("L1", List.of(
                     // the dialects' reader over a path written into the statement
@@ -164,9 +169,9 @@ class DataMechanismCensusTest {
 
     @Test
     void theDeletedRowsOnlyGrow() {
-        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8; 2026-11-09, L2: M2 and M3). A row leaves
-        // PENDING with its slice and this count rises with it, in the same change, with its date and slice
+        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8; 2026-11-09, L2: M2, M3 and M7-seed). A row
+        // leaves PENDING with its slice and this count rises with it, in the same change, with its date and slice
         long deleted = ROWS.stream().filter(r -> r.state() instanceof Deleted).count();
-        assertEquals(3, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        assertEquals(4, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }
