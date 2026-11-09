@@ -4,6 +4,8 @@ import com.legend.builtin.Pure;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;

@@ -203,10 +203,20 @@ class PlanMakerTest {
                     class: m::Raw; url: 'data:application/json,[{"name":"b"},{"name":"a"}]'; } }# ] ]; }
                 """;
         String query = "|m::P.all()->project(~[name: p|$p.name])->sort(~name->ascending())";
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("m::RT");
+        com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(model), query);
+        ExecutionPlan plan = typed.executionPlan("m::RT");
         ExecutionPlan.Target t = target(plan);
-        assertEquals(new ExecutionPlan.Database.Platform(Databases.PLATFORM), t.database());
+        // the platform's own engine (hole 7, 2026-11-08); a product plan names the engine alone -- the project's
+        // database, its key and its fill, is the server's road's (the full audit, 2026-11-09: TypedQuery.projectPlan)
+        assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
+                && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
+                && p.project() == null, String.valueOf(t.database()));
         assertEquals(List.of(), t.setup());
+        // the server's plan: the project's database, keyed by the model's stores, filled with nothing -- the run
+        // finds it from the plan alone
+        ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
+        assertTrue(served.database() instanceof ExecutionPlan.Database.Platform q
+                && q.project() != null && q.project().made().isEmpty(), String.valueOf(served.database()));
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {
             StringWriter out = new StringWriter();
@@ -411,7 +421,7 @@ class PlanMakerTest {
         for (DatabaseType type : IN_PROCESS) {
             ExecutionPlan root = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
             ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root(), type.name());
-            ExecutionPlan sequence = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(keyed)));
+            ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(keyed)));
             assertEquals(ExecutionPlan.TdsResult.Shape.RELATION, sequence.answerShape());
             assertEquals(sequence, com.legend.executionplan.PlanJson.read(com.legend.executionplan.PlanJson.write(sequence)),
                     type + ": the sequence read back");
@@ -427,7 +437,7 @@ class PlanMakerTest {
         ExecutionPlan root = Compiler.query(Compiler.compileModel(model(Databases.PLATFORM.name())), query)
                 .executionPlan("s::RT");
         ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root());
-        ExecutionPlan sequence = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(
+        ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(
                 new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", keyed.keys().target())), keyed)));
         String expected;
         try (Connection c = fresh(Databases.PLATFORM)) {
@@ -581,7 +591,7 @@ class PlanMakerTest {
      *  name, never bound as something it is not. */
     @Test
     void aListParameterWrittenWhereOneValueGoesIsRefusedByName() {
-        var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class, () -> plan(Databases.PLATFORM,
+        var refused = assertThrows(com.legend.sql.DialectCapability.class, () -> plan(Databases.PLATFORM,
                 "{ns: Integer[*]|#>{s::DB.T}#->extend(~n: r|$ns->size())->select(~[ID, n])}", Written.JSON));
         assertTrue(refused.getMessage().contains("is bound only as a whole list"), refused.getMessage());
     }
@@ -682,7 +692,7 @@ class PlanMakerTest {
             String sql = plan.answerSql().statement();
             if (dialect.inProcess()) {
                 forms.add("setup");
-                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                         && st.sql().contains("classes")), type + ": " + target.setup());
                 assertEquals(dialect.sessionSetup(), target.session(), type.name());
                 assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
@@ -693,7 +703,7 @@ class PlanMakerTest {
                 }
                 continue;
             }
-            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                     && st.sql().contains("classes")), type + ": " + target.setup());
             if (!dialect.temporaryTables()) {
                 forms.add("inline");

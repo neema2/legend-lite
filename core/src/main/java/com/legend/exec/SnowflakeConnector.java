@@ -3,8 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
 
 /** Snowflake's sessions: the platform opens no declared connection to it yet (its sessions are the test harnesses');
@@ -27,7 +26,7 @@ final class SnowflakeConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         return DatabaseConnector.notOpened(def);
     }
 

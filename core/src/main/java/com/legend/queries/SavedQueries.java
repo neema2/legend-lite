@@ -1,5 +1,6 @@
 package com.legend.queries;
 
+
 import com.legend.json.Json;
 
 import java.nio.charset.StandardCharsets;

@@ -6,7 +6,7 @@ package com.legend.exec;
 import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

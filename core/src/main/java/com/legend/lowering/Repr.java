@@ -12,7 +12,7 @@ import com.legend.sql.SqlType;
 /**
  * {@code toRepresentation}'s SQL spelling (One-Platform Plan Phase 4 —
  * the platform native's lowering owner; the host owner is
- * {@code judge.PureAsserts.repr}, and the {@code format} {@code %r}
+ * {@code testexecutionplan.Verdicts.repr}, and the {@code format} {@code %r}
  * directive rides the same emission): strings quote and
  * backslash-escape, temporals take the {@code %} literal prefix,
  * Decimal the {@code D} suffix; everything else is the toString

@@ -3,6 +3,7 @@
 
 package com.legend.server;
 
+
 import com.legend.json.Json;
 import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
@@ -102,15 +103,19 @@ public final class PureV1Api {
     static final Json.Config REQUEST = new Json.Config(4096);
 
     /**
-     * How a host runs an execute: the query, typed once by the route, planned as typed rows and run on its runtime's
-     * connection, its rows streamed to the sink {@code sinkOf} makes from the plan that runs -- made before any
-     * statement runs, so an answer the engine's API has no form for is refused before a program's writes land.
-     * legend-lite's server hands in its driver ({@code ConnectionResolver.RUNNER}).
+     * How a host runs an execute: the query this API compiled, planned and run by the host's door (legend-lite's
+     * server hands in its product door, {@code Execution.runOnProjectDatabases}: {@code ConnectionResolver.RUNNER}),
+     * its rows written in the output this API names ({@code Output.Engine} or {@code Output.Arrow}: the engine's
+     * formats, their envelope's facts read from the query before the run; the writer is made by the result library from
+     * the plan before any statement runs, so an answer the engine's API has no form for is refused before a program's
+     * writes land; until 2026-11-09 a factory the run called back). This API compiles and writes; it plans
+     * and runs nothing of an execute itself (slice 5, 2026-11-09: its own plan-then-run is gone -- the user's question,
+     * "why can't v1 call the same door directly?"; this library ships in the WebAssembly and native planners too, which
+     * have no database, so the door is handed in).
      */
     @FunctionalInterface
     public interface Runner {
-        void run(com.legend.TypedQuery query, String runtime,
-                java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
+        void run(com.legend.TypedQuery query, String runtime, com.legend.result.Output output)
                 throws java.io.IOException;
     }
 
@@ -489,7 +494,7 @@ public final class PureV1Api {
                 String runtime = runtimeOf(request, query.target());
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
-                    runner.run(query, runtime, plan -> engineWriter(query, plan, out));
+                    runner.run(query, runtime, new com.legend.result.Output.Engine(out, facts(query)));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
@@ -519,7 +524,7 @@ public final class PureV1Api {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query.target());
                 try {
-                    runner.run(query, runtime, plan -> arrowWriter(query, plan, out));
+                    runner.run(query, runtime, new com.legend.result.Output.Arrow(out, facts(query)));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
@@ -531,37 +536,6 @@ public final class PureV1Api {
         }
         return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
                 Map.of("x-legend-response-format", "FormatNotSet"));
-    }
-
-    /** The Arrow writer of {@code plan}'s answer onto {@code out}, its schema metadata the engine's for the columns
-     *  the run announces ({@link #executeArrow}). */
-    public static com.legend.result.ResultSink arrowWriter(com.legend.TypedQuery query,
-            com.legend.executionplan.ExecutionPlan plan, java.io.OutputStream out) {
-        return switch (plan.answerShape()) {
-            case OBJECTS -> throw new IllegalArgumentException(
-                    "ARROW_IPC answers a relation query; a graph fetch under it is refused (upstream's answer unprobed)");
-            case RELATION -> {
-                java.util.function.Function<List<com.legend.executionplan.ExecutionPlan.Column>, Map<String, String>>
-                        metadata = columns -> {
-                            com.legend.result.PureV1Writer.Envelope e = envelope(query.resultType(),
-                                    plan.answerSql().statement(), columns);
-                            Map<String, String> m = new LinkedHashMap<>();
-                            m.put("legend.builder", e.builder());
-                            m.put("legend.activities",
-                                    Json.toCompact(List.of(activity(plan.answerSql().statement(), false))));
-                            m.put("legend.columns", Json.toCompact(e.names()));
-                            return m;
-                        };
-                List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
-                // the JSON route's rule (engineWriter; the phase 3 audit, 2026-10-27): the envelope from the plan's
-                // stated columns BEFORE any statement runs, so a column with no builder entry refuses before a write
-                // program changes anything; made from the announced columns only where the plan states none (a
-                // dynamic pivot's)
-                yield stated == null ? new com.legend.result.ArrowWriter(out, metadata)
-                        : new com.legend.result.ArrowWriter(out, metadata.apply(stated));
-            }
-            case VALUE -> throw unprobed(query);
-        };
     }
 
     /**
@@ -599,7 +573,8 @@ public final class PureV1Api {
                     com.legend.executionplan.PlanJson.readColumns(Json.toCompact(resultColumns));
             Map<String, String> metadata = new LinkedHashMap<>();
             metadata.put("legend.builder", Json.toCompact(builder));
-            metadata.put("legend.activities", Json.toCompact(List.of(activity(sql.value(), false))));
+            metadata.put("legend.activities",
+                    Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(sql.value(), false))));
             metadata.put("legend.columns", Json.toCompact(names));
             try {
                 com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out, metadata));
@@ -615,78 +590,58 @@ public final class PureV1Api {
                 Map.of("x-legend-response-format", "FormatNotSet"));
     }
 
-    /**
-     * The engine's writer of {@code plan}'s answer onto {@code out}: a relation's TDS result, its envelope (the
-     * builder, the relational activity carrying the statement that answered, the columns' names as the engine labels
-     * them) made from the plan's own columns NOW, before any statement runs -- so a column the engine has no builder
-     * entry for refuses the answer before a write program changes anything (the phase 3 audit, 2026-10-27) -- or, for
-     * a dynamic pivot, whose columns its keys name, from the columns its run announces; or a graph fetch's JSON
-     * result. A value's answer (a scalar, a collection) is refused by name: the engine's serialization of one is
-     * unprobed.
-     */
-    public static com.legend.result.ResultSink engineWriter(com.legend.TypedQuery query,
-            com.legend.executionplan.ExecutionPlan plan, java.io.Writer out) {
-        return switch (plan.answerShape()) {
-            case OBJECTS -> com.legend.result.PureV1Writer.objects(out);
-            case RELATION -> {
-                List<com.legend.executionplan.ExecutionPlan.Column> stated = plan.answerColumns();
-                if (stated == null) {
-                    yield com.legend.result.PureV1Writer.relation(out,
-                            columns -> envelope(query.resultType(), plan.answerSql().statement(), columns));
-                }
-                com.legend.result.PureV1Writer.Envelope made = envelope(query.resultType(),
-                        plan.answerSql().statement(), stated);
-                yield com.legend.result.PureV1Writer.relation(out, columns -> made);
-            }
-            case VALUE -> throw unprobed(query);
-        };
-    }
-
     /** The refusal of a value's answer (a scalar, a collection), whose serialization by the engine is unprobed. */
     private static com.legend.error.NotImplementedException unprobed(com.legend.TypedQuery query) {
-        return new com.legend.error.NotImplementedException("execute: a "
-                + com.legend.plan.ResultShape.of(query.resultType()) + " result's serialization is unprobed");
+        return new com.legend.error.NotImplementedException(unprobedMessage(query));
     }
 
-    /** A relation's envelope for the columns the run announced: each column's builder entry by the type the compiler
-     *  gave it (a column only the data names -- a dynamic pivot's -- by its plan type, a primitive), the relational
-     *  activity carrying {@code sql}, and the columns' names as the engine labels them. */
-    private static com.legend.result.PureV1Writer.Envelope envelope(com.legend.compiler.element.type.ExprType rootType,
-            String sql, List<com.legend.executionplan.ExecutionPlan.Column> columns) {
-        Map<String, com.legend.compiler.element.type.Type> declared = new LinkedHashMap<>();
-        for (var c : UpstreamRelationType.columns(rootType)) {
-            declared.put(c.name(), c.type());
+    private static String unprobedMessage(com.legend.TypedQuery query) {
+        return "execute: a " + com.legend.plan.ResultShape.of(query.resultType()) + " result's serialization is unprobed";
+    }
+
+    /**
+     * What the engine's envelope knows of {@code query}, read from it before the run as data
+     * ({@link com.legend.result.PureV1Writer.Facts}; 2026-11-09, the user's question "why do we have any callbacks?": a
+     * writer factory the run called back read the compiled query until then): each column the compiler typed, its
+     * builder spelling or the engine's refusal of it; each primitive's, for a dynamic pivot's generated column; the
+     * refusal of a value's answer.
+     */
+    public static com.legend.result.PureV1Writer.Facts facts(com.legend.TypedQuery query) {
+        Map<String, com.legend.result.PureV1Writer.ColumnType> declared = new LinkedHashMap<>();
+        for (var c : UpstreamRelationType.columns(query.resultType())) {
+            declared.put(c.name(), columnType(c.type()));
         }
-        List<Map<String, Object>> builderColumns = new ArrayList<>();
-        List<String> names = new ArrayList<>();
-        for (var c : columns) {
-            // a column's type is the compiler's, under its name as the plan spells it or as a cast presents it (a
-            // pivot's generated name quoted); a column only the data names -- a dynamic pivot's generated one -- has
-            // none, and is typed by its plan type, a primitive; any other column the compiler did not type is refused
-            String name = com.legend.result.CellText.presentedName(c.name());
-            com.legend.compiler.element.type.Type t = declared.containsKey(c.name()) ? declared.get(c.name())
-                    : declared.containsKey(name) ? declared.get(name)
-                    : c.name().contains(com.legend.compiler.element.type.Type.RelationType.PIVOT_SEPARATOR)
-                            // (the plan names a primitive by its short name, the table by its path: every dynamic
-                            // pivot's engine answer was refused until 2026-10-27, found by the PCT read as the engine's
-                            // adapter reads it, the result boundary program's stage 1, step 3)
-                            ? com.legend.compiler.element.type.Type.Primitive.findByFqn(
-                                    "meta::pure::metamodel::type::" + c.type()).orElseThrow(() ->
-                                    new IllegalStateException("the generated column '" + c.name() + "' of type "
-                                            + c.type() + " is no primitive"))
-                            : null;
-            if (t == null) {
-                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: "
-                        + declared.keySet());
+        return new com.legend.result.PureV1Writer.Facts(declared, PRIMITIVES,
+                com.legend.compiler.element.type.Type.RelationType.PIVOT_SEPARATOR, unprobedMessage(query));
+    }
+
+    /** Each primitive's builder spelling, by the plan's short name of it (the type a dynamic pivot's generated column
+     *  carries): a constant of the platform. */
+    private static final Map<String, com.legend.result.PureV1Writer.ColumnType> PRIMITIVES = primitives();
+
+    private static Map<String, com.legend.result.PureV1Writer.ColumnType> primitives() {
+        String prefix = "meta::pure::metamodel::type::";
+        Map<String, com.legend.result.PureV1Writer.ColumnType> out = new LinkedHashMap<>();
+        for (var e : com.legend.compiler.element.type.Type.Primitive.byFqn().entrySet()) {
+            if (e.getKey().startsWith(prefix)) {
+                out.put(e.getKey().substring(prefix.length()), columnType(e.getValue()));
             }
-            builderColumns.add(builderColumn(name, t));
-            names.add(name);
         }
-        Map<String, Object> builder = new LinkedHashMap<>();
-        builder.put("_type", "tdsBuilder");
-        builder.put("columns", builderColumns);
-        return new com.legend.result.PureV1Writer.Envelope(Json.toCompact(builder),
-                Json.toCompact(List.of(activity(sql, true))), names);
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /** {@code type}'s builder spelling, or the engine's refusal of it (it has no relational spelling of the type). */
+    private static com.legend.result.PureV1Writer.ColumnType columnType(com.legend.compiler.element.type.Type type) {
+        String tds = UpstreamRelationType.tdsTypePath(type);
+        String relational;
+        try {
+            relational = UpstreamRelationType.relationalSpelling(type);
+        } catch (com.legend.error.NotImplementedException refused) {
+            // the refusal kept as the column's data, raised where the column is answered (as the envelope raised it)
+            return com.legend.result.PureV1Writer.ColumnType.refused(
+                    java.util.Objects.requireNonNull(refused.getMessage(), "the refusal names its type"));
+        }
+        return com.legend.result.PureV1Writer.ColumnType.spelled(tds, relational);
     }
 
     /**
@@ -712,7 +667,8 @@ public final class PureV1Api {
             }
             Map<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("legend.builder", Json.toCompact(tdsBuilder(plan)));
-            metadata.put("legend.activities", Json.toCompact(List.of(activity(plan.sql(), false))));
+            metadata.put("legend.activities",
+                    Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(plan.sql(), false))));
             metadata.put("legend.columns", Json.toCompact(columnNames(plan)));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", plan.sql());
@@ -738,7 +694,7 @@ public final class PureV1Api {
             Hosted hosted = hosted(body, models);
             com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime());
             if (plan.answerShape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
-                // as the server's execute refuses it (engineWriter): a value's answer is not one the engine was
+                // as the server's execute refuses it (Output.Engine): a value's answer is not one the engine was
                 // measured on
                 throw unprobed(hosted.query());
             }
@@ -760,8 +716,8 @@ public final class PureV1Api {
             if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
                 out.put("builder", Map.of("_type", "json"));
             } else {
-                com.legend.result.PureV1Writer.Envelope e = envelope(hosted.query().resultType(), statement,
-                        result.columns());
+                com.legend.result.PureV1Writer.Envelope e = com.legend.result.PureV1Writer.envelope(
+                        facts(hosted.query()), statement, result.columns());
                 out.put("builder", Json.parse(e.builder()));
                 out.put("activities", Json.parse(e.activities()));
                 out.put("columns", e.names());
@@ -944,20 +900,6 @@ public final class PureV1Api {
         col.put("type", UpstreamRelationType.tdsTypePath(type));
         col.put("relationalType", UpstreamRelationType.relationalSpelling(type));
         return col;
-    }
-
-    /**
-     * The relational activity, carrying the SQL: with its {@code _type} first, as the JSON answer writes it, or
-     * without, as the Arrow answer's metadata does (measured, 4.145.0).
-     */
-    private static Map<String, Object> activity(String sql, boolean typed) {
-        Map<String, Object> activity = new LinkedHashMap<>();
-        if (typed) {
-            activity.put("_type", "relational");
-        }
-        activity.put("comment", "-- \"executionTraceID\" : \"" + java.util.UUID.randomUUID() + "\"");
-        activity.put("sql", sql);
-        return activity;
     }
 
     private static List<String> columnNames(QueryPlan plan) {
@@ -1183,7 +1125,7 @@ public final class PureV1Api {
     private static boolean refusesTheText(Throwable e) {
         return e instanceof com.legend.error.LegendCompileException
                 || e instanceof com.legend.error.NotImplementedException
-                || e instanceof com.legend.sql.dialect.DialectCapability;
+                || e instanceof com.legend.sql.DialectCapability;
     }
 
     /** Any other failure, as the server writes it: its class's simple name and its message (a database's refusal, its cause's). */

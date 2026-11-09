@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend;
 
-import com.legend.judge.AssertListener;
+import com.legend.testexecutionplan.AssertListener;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * BOTH JUDGES ON PLANS (the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6): every assert body
- * below runs under the agreement gate ({@link ExecuteOptions.JudgeMode#BOTH}) on every in-process database -- the host judge
+ * below runs under the agreement gate ({@link com.legend.testplan.PlanningOptions.JudgeMode#BOTH}) on every in-process database -- the host judge
  * reading each side as a plan's result decoded by its declared types, the database judge's verdict a plan whose one
  * row is the verdict -- and holds with the two judges in agreement, every assert judged twice (a kind the database
  * judge left UNJUDGED would be named here, with the host deciding; none is, measured 2026-10-18).
@@ -121,9 +121,9 @@ class JudgesOnPlansTest {
                     com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery("|" + c.body() + ";");
                     List<com.legend.protocol.spec.ValueSpecification> statements =
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body();
-                    Execution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
+                    TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
                             new com.legend.model.ImportScope(List.of()), ctx)), "s::RT",
-                            com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), new AssertListener() {
+                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), new AssertListener() {
                                 @Override
                                 public void verdict(String assertName, boolean pass,
                                         @com.legend.base.Nullable String detail) {
@@ -140,7 +140,7 @@ class JudgesOnPlansTest {
                                 public void unjudged(String assertName, String reason) {
                                     told.add("unjudged: " + reason);
                                 }
-                            }, null, ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH));
+                            }, null, ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
                     boolean passed = told.stream().anyMatch(l -> l.startsWith("pass "));
                     boolean onceOnly = told.stream().anyMatch(l -> l.startsWith("unjudged") || l.startsWith("declined"));
                     outcome = !passed ? "NO VERDICT " + told : onceOnly ? "host decided " + told : "both agree";
@@ -169,11 +169,11 @@ class JudgesOnPlansTest {
         try (Connection conn = com.legend.testbackend.TestBackends.platform().open()) {
             com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery("|assertEquals(1, 1 + 1);");
             var failed = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.AssertFailed.class,
-                    () -> Execution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(
+                    () -> TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body(),
                             new com.legend.model.ImportScope(List.of()), ctx)), "s::RT",
-                            com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
-                            ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH)));
+                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+                            ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH)));
             assertTrue(failed.getMessage().contains("expected: 1"), failed.getMessage());
             assertTrue(failed.getMessage().contains("actual:   2"), failed.getMessage());
             assertEquals(-1, failed.getMessage().indexOf("DISAGREE"), failed.getMessage());

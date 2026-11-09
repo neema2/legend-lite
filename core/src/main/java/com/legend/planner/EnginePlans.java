@@ -124,7 +124,7 @@ public final class EnginePlans {
      *  renames -- an activity's SQL, as the engine records the SQL it generated (the frame planner's string entry). */
     public static String engineTestSql(java.util.List<TypedSpec> raw, @com.legend.base.Nullable String mappingFqn,
             SpecCompiler specs, PlanEnv env) {
-        return engineSql(raw, mappingFqn, specs, env, EngineText.ENGINE_TEXT, java.util.Map.of(),
+        return engineSql(raw, mappingFqn, specs, env, EngineText.engineText(), java.util.Map.of(),
                 java.util.function.UnaryOperator.identity()).sql();
     }
 
@@ -674,7 +674,7 @@ public final class EnginePlans {
                 ? c.value() : null;
         java.util.List<String> sqls = java.util.List.of();
         if (csv != null && db != null) {
-            sqls = com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup, EngineText.ENGINE_TEXT);
+            sqls = com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup, EngineText.engineText());
         }
         com.legend.plan.PlanConn.DsSpec spec = null;
         if (ni.properties().get("datasourceSpecification")
@@ -687,7 +687,7 @@ public final class EnginePlans {
                     ? sc2.value() : null;
             java.util.List<String> specSqls = specCsv != null && db != null
                     ? com.legend.setup.Ddl.setUpDataSqlsText(specCsv, db,
-                            lookup, EngineText.ENGINE_TEXT)
+                            lookup, EngineText.engineText())
                     : java.util.List.of();
             spec = new com.legend.plan.PlanConn.DsSpec(
                     "LocalH2DatasourceSpecification", specCsv, specSqls);
@@ -894,7 +894,7 @@ public final class EnginePlans {
             }
             // the engine text renders the IR's schema DDL, as the table statements below
             // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
-            return EngineText.ENGINE_TEXT.render(com.legend.compiler.element.type.PlatformTypes
+            return EngineText.engineText().render(com.legend.compiler.element.type.PlatformTypes
                     .DROP_SCHEMA_STATEMENT.equals(fqn)
                     ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
                     : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
@@ -916,7 +916,7 @@ public final class EnginePlans {
                         ds.args().get(2)).value();
         if (com.legend.compiler.element.type.PlatformTypes
                 .DROP_TABLE_STATEMENT.equals(fqn)) {
-            return EngineText.ENGINE_TEXT.render(com.legend.setup.Ddl.dropTable(sch, tbl));
+            return EngineText.engineText().render(com.legend.setup.Ddl.dropTable(sch, tbl));
         }
         String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
         com.legend.model.DatabaseDefinition.TableDefinition def =
@@ -927,6 +927,6 @@ public final class EnginePlans {
         // the ENGINE_TEXT flavor of the ONE generator (NOT NULL /
         // PRIMARY KEY constraints) — the EXECUTION flavors stay
         // constraint-free for DuckDB re-seeds
-        return EngineText.ENGINE_TEXT.render(com.legend.setup.Ddl.createTable(def, sch));
+        return EngineText.engineText().render(com.legend.setup.Ddl.createTable(def, sch));
     }
 }

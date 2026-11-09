@@ -50,6 +50,10 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-09 (the user's question "why do we have any callbacks?"): the service test's answer is a receiver
+            // told the answer's shape before its columns (Output.Rows), where the run called a factory of the runner's
+            // until then; it holds the writer it made for that shape, set once, read by each row after
+            "ServiceTestRunner.writer",
             // 2026-11-01, the test-is-the-product plan's M5 audit: until then a field whose TYPE carried an annotation
             // (@Nullable, Outer.@Nullable Inner, Object @Nullable []) was outside this scan; the scan learned them and
             // found these, each listed with what it is. LAZY, set once from the instance's own inputs and read back
@@ -79,25 +83,56 @@ class CodeShapeGuardrailTest {
             "VerdictBatch.current", "CanonRider.wrap", "CanonRider.declined", "Lowerer.dbTimeZone",
             // 2026-11-01, the test-is-the-product plan's M7: the planned batch's one-shot latch -- the flush counted
             // once, when its groups start to run (the walk's flush, or the program road's first row), never for a
-            // batch planned and left for the walk
-            "VerdictBatch.counted",
-            // 2026-11-05, the split rung's tripwire (the user's ruling: after a verdict the harness may only explain a
-            // failure): the planned batch's first rejected fused statement, latched when the runner reports it and read
-            // once the root loop is through -- a rejection no assert reproduces alone fails as a lite error
-            "VerdictBatch.rejected",
+            // batch planned and left for the walk -- since 2026-11-08 (the plan-as-data design's step 5) the latch of
+            // one segment's run, RootLoops.Run, the planned batch being data
+            "RootLoops.counted",
+            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run): one body's
+            // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
+            // reports straight to the caller's listener
+            "Appeals.deciding",
+            // 2026-11-07, the P1 milestone audit's 2: whether a write of the body's ran (wrote) and ran after the first
+            // held appeal (wroteAfterHold) -- told by the runner's sink at each writing step, read when the appeals are
+            // decided: an appeal whose rows a write moved, or a failed run's rollback undid, is refused by name
+            "Appeals.wrote", "Appeals.wroteAfterHold",
+            // 2026-11-08, the plan-as-data design's step 0: a body's verdict ids -- one counter per body, the last id
+            // given; planning state, never read at run
+            "VerdictIds.last",
+            // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): the open program's end, set once when the program ends (its reads refused after it), and the
+            // test run's handing of the program's reader to the judges, once at the first callback
+            "ProgramRunner.closed", "TestRun.reading",
+            // 2026-11-08, the plan-as-data design's step 4: the body's engine-text appeals' last number given (planning
+            // state, one per body; since step 8b planning's registry alone, never published for the run)
+            "EngineTextAppeals.last",
+            // 2026-11-08, the plan-as-data design's step 6: one agreement-judged assert's run state -- the host half's
+            // verdict held until the database half's rows are in, and an assertError's raising row -- once per run,
+            // read from the plan's pairing (the planner's One held them until then, unscanned: no visibility)
+            "AgreementRuns.held", "AgreementRuns.heldHost", "AgreementRuns.raisingRow",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
-            "PureV1Writer.firstObject", "BodyCompiler.last", "BodyCompiler.pendingVerdict", "BodyCompiler.answers",
-            "ProgramFrames.ownStamp", "BodyRouter.opened",
+            "PureV1Writer.firstObject",
+            "ProgramFrames.ownStamp", "TestRunner.opened",
             // (2026-11-01, the test-is-the-product plan's M6) the body router's last judged verdict: one moved body's
             // sink, one instance per run and never shared, set at each verdict step so a body ending on an assert
-            // answers it (the walk's Segments.last, beside it above, until M10 deletes both)
-            "BodyRouter.lastVerdict",
+            // answers it (the walk's Segments.last beside it until the walk was deleted, 2026-11-06)
+            "TestRunner.lastVerdict",
             // (2026-11-04, the assert bar) the body router's reader: the running program's, handed by the runner before
             // its first step and taken back when its session closes (PlanRunner.ProgramSink#reader) -- one moved body's
             // sink, one instance per run and never shared; a verdict's caller's message is read through it only where
             // the verdict fails
-            "BodyRouter.reader",
+            "TestRunner.reader",
+            // (2026-11-09, slice 5: the run sink is the test's run's, TestRunner's; its three fields above moved with it)
+            // the run record (hole 6): how many messaged asserts are being judged -- one body's run, never shared, the
+            // thread-local CallerMessage.DEPTH it replaced made explicit
+            "BodyRun.messaged",
+            // the program's step mark for the reads a callback makes (slice 5: the thread-scoped statement origin made
+            // explicit) -- one program's run, set before each callback and restored after it
+            "ProgramRunner.stepMark",
+            // the activity comment reserved for a body's fused statement, minted once per body at planning (slice 5:
+            // planning's own, exec's execution trace until then)
+            "ActivityComments.reserved",
+            // the text collector's origin in force while an arm reads its texts (slice 5: the planning-time statement
+            // mark made explicit on the collector the planning environment carries)
+            "SqlTextVerdicts.originInForce",
             // (same date) regex artifact, NOT mutable: an interface's field, implicitly static final
             "DecisionProbe.INSTALLED",
             // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON
@@ -142,15 +177,6 @@ class CodeShapeGuardrailTest {
             // lifecycle as the session's connection (SessionState lives in a weak map keyed by it). The body
             // driver's nested Established.dirty before, moved to the seam
             "SessionState.dirty",
-            // the SEGMENT WALK's state object (block-compiler stage 3, 2026-09-21):
-            // the open effect segment — its sink and the ordinals of the body's
-            // statements it spans — and whether the last statement was a value;
-            // each is replaced whole when the compiler closes the segment. Same
-            // lifecycle as one body's compile; nothing outlives it
-            "BodyCompiler.sink",
-            "BodyCompiler.effectFrom",
-            "BodyCompiler.effectTo",
-            "BodyCompiler.lastIsValue",
             "EngineStyleH2.frameDepth",
             // anonymous-subselect nesting cursor (bare DISTINCT-key
             // spelling scope) — same lifecycle as frameDepth
@@ -185,9 +211,9 @@ class CodeShapeGuardrailTest {
             // columns as announced, whether the one value column is to-one, the row count for the comma and the
             // to-one refusal
             "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
-            // the streamed answer's cardinality sink (JudgePlans.Cardinality, the doors, door 1, 2026-10-29): the rows
+            // the streamed answer's cardinality sink (com.legend.testexec.SideShapes.Cardinality, the doors, door 1, 2026-10-29): the rows
             // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
-            "JudgePlans.rows",
+            "SideShapes.rows",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",
@@ -266,6 +292,9 @@ class CodeShapeGuardrailTest {
             // the shared minimal JSON reader's walk position — a parser
             // cursor, same family as Lexer.pos
             "Json.i",
+            // 2026-11-07, register S144: json-simple 1.1.1's grammar (JudgeJson, the compatibility rules' JSON) -- a
+            // parser cursor and the token it last read (its kind and value), one instance per text, never shared
+            "JudgeJson.at", "JudgeJson.kind", "JudgeJson.value",
             // ';'-ownership context for unbraced lambda code blocks: where the
             // enclosing sequence's statement that owes the next ';' began (or
             // -1) -- a cursor-adjacent mark, saved and restored around each

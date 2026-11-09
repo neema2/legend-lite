@@ -36,6 +36,19 @@ public sealed interface SqlSource {
      */
     record Pivot(SqlSource source, List<SqlExpr> on, List<SqlExpr> in, List<SqlExpr> named, List<Using> usings,
                  String alias, List<OutputCol> outputs) implements SqlSource {
+        /** The separator in a generated column's name, between its key and its template ({@code 2011__|__newCol});
+         *  the compiler's {@code Type.RelationType.PIVOT_SEPARATOR} is this constant (2026-11-09: the run reads a
+         *  keyed side's columns by it, and names no compiler type). */
+        public static final String SEPARATOR = "__|__";
+
+        /** A generated column's PRESENTED name, as upstream prints it: quoted where it carries the separator and is
+         *  not quoted already. A name, never SQL. */
+        public static String presented(String physical) {
+            return physical.contains(SEPARATOR) && !(physical.startsWith("'") && physical.endsWith("'"))
+                    ? "'" + physical + "'"
+                    : physical;
+        }
+
         /** The values whose columns a dialect without a dynamic PIVOT writes: {@code in}'s, else the named ones;
          *  empty for a dynamic pivot nothing names (its columns exist only once the database is asked). */
         public List<SqlExpr> values() {

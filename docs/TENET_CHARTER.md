@@ -26,7 +26,7 @@ Java is the driver, the transport, and the boundary. It MAY:
   headers, and schemas from the COMPILED PLAN's facts — column names, Pure types,
   multiplicities — never from inspecting values. The CSV header row, the JSON envelope,
   the TDS schema line are model-space artifacts.
-- **C1.4 — Control flow.** Statement ordering, phase sequencing, per-statement error
+- **C1.4 — Control flow** (named cases added by Clause 7, A3, 2026-11-07). Statement ordering, phase sequencing, per-statement error
   routing, retry/refusal policy — over OPAQUE results, without reading into them.
 - **C1.5 — Byte transport.** Carrying DB-rendered artifacts (a rendered CSV line, a
   DB-built JSON document) to sockets, files, and asserts untouched.
@@ -54,7 +54,7 @@ and belongs in the database:
   computed: no manufactured UUIDs, no empty collections standing in for unrecorded data,
   no `get(0)` fallbacks, no defaults that lose a type (`default -> "String"`). Absence is
   a loud `NotImplementedException`, never a plausible value.
-- **C2.5 — Rendering ruled representations.** No Java rendering of a value whose print
+- **C2.5 — Rendering ruled representations** (split into product and edge by Clause 7, A1, 2026-11-07). No Java rendering of a value whose print
   form has a REPRESENTATION RULE (float repr, date/subsecond forms, decimal scale). Those
   rules live in the SQL emission path (`Scalars.floatRepr`, `DateFmt`) and render in the
   database (Phase 4). The only exception is Clause 4.
@@ -124,7 +124,7 @@ values), and everything else walls loudly. Enforcement: the interpreter's nonexi
 Known enforcement limits are recorded in the audit's §3 — the guards catch drift, not
 adversaries; residue DELETION (the relation-typed `fetchDb` leg) is the durable fix.
 
-## Clause 4 — The literal exception, once (the LiteralFold rule)
+## Clause 4 — The literal exception, once (the LiteralFold rule; widened at compile time by Clause 7, A2, 2026-11-07)
 
 Java may answer without the database ONLY for a value that satisfies both conditions:
 
@@ -198,7 +198,7 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
   offset arithmetic fit in our tenets? Constant fold known at compile time?", then "Agree on everything else" to this
   wording). A frame bound decides the window's shape,
   as a column name decides a schema (C6.2a): legend-engine evaluates the window while it plans and reads each bound as
-  the number it computed (docs/SEMANTICS_REGISTER.md S144). A library writes its window's span once over its arguments
+  the number it computed (docs/SEMANTICS_REGISTER.md S170). A library writes its window's span once over its arguments
   (`-(timeseries::periodSpan($n, $unit) - 1)`), and once a call's literals are substituted the span is arithmetic over
   spelled integers alone; written to the database as an expression, it costs a runtime check around every window and is
   refused outright by MySQL and MariaDB.
@@ -206,7 +206,7 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
      classification), never a row's value.
   2. **What:** integer `+`, `-`, `*` and unary minus over integer literals, worked exactly (`WindowFrame.spelled`); an
      overflow, a division, a float, a parameter, a column or any other function folds nothing and leaves the bound the
-     database's (S144).
+     database's (S170).
   3. **Then:** the frame is the literal one -- its direction the number's sign, its order checked as a literal frame's,
      in upstream's words -- so `rows(1 - $w, 0)` with `w = 2` is `1 PRECEDING`, as upstream reads it.
   4. **Never a row value:** the same arithmetic in any other position stays SQL.
@@ -216,6 +216,38 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
   recursion).
 - **C6.4 — Residue is named, never ported**: recursion over row-backed trees (tier 2),
   effects, IO, reflection over the live graph.
+
+## Clause 7 — Amendments of 2026-11-07 (the user)
+
+Ruled by the user on 2026-11-07, with the goals of record (`docs/GOALS_OF_RECORD_2026_11_07.md`): the PRODUCT is lean and
+typed, and compatibility lives at the EDGE (that file's section 2). Where an older clause says otherwise, this clause
+wins.
+
+- **A1 — C2.5, split into product and edge.**
+  - **Product:** the product answers TYPED values and applies no Pure print rule anywhere, in Java or in SQL. A value goes
+    out in its wire format's own standard encoding: a JSON number, an ISO-8601 timestamp, an Arrow typed column.
+  - **Edge:** Pure's and legend-engine's print rules (Float layout, date precision and offset forms, decimal scale) are
+    compatibility. They are rendered at the edge, in Java where that keeps product SQL clean, in one contained place.
+    Each rule is a register row the user ruled.
+- **A2 — Clause 4 and C6.2, constant folding widened at compile time.** Besides a bare String or Boolean literal, the
+  compiler may fold `+`, `joinStrings` and `replace` over CONSTANT String tokens: a literal, a list of them, or a let
+  bound to one. This is the user's ruling of 2026-10-30, "it's okay to join CONSTANT strings only". It is pinned by
+  `JavaEvalLedgerTest.theCompilersLiteralFoldJoinsConstantsAlone`, and `LiteralsParityTest` proves it equal to the
+  database's answer. It has no run-time effect.
+- **A3 — C1.4, what exec may do beyond sending statements and streaming rows, named.** Three cases are allowed:
+  - **(a) Keyed regions.** The dialect writes, at planning, a fragment of a statement once (the region). At run time the
+    runner writes that fragment once per key a previous step of the plan read from the database, binding each key as a
+    parameter value. It may write the key's position number at places the plan marks, nothing else. This is the dynamic
+    pivot; the user ruled it acceptable on 2026-11-07.
+  - **(b) Planned branches.** Exec chooses a planned branch by a Boolean the database computed (designed 2026-11-04).
+  - **(c) Declared error read-back.** After a statement fails, exec sends the statements the plan's target declares for
+    reading the error back (MariaDB and MySQL keep a raised Pure message in a session variable).
+
+  Nothing else is allowed. Exec writes no other SQL text: the type hole is deleted (D1), and the per-execution comment is
+  no longer written at run (D3). Exec sends no statement the plan does not contain.
+- **A4 — The guards' text matches the code.** `JavaEvalLedgerTest`'s javadoc names classes that are gone, and says the
+  decode cluster computes nothing, which was false for five sites on 2026-11-07. AGENTS.md invariant 3 still describes
+  the type hole. Both are corrected as the code changes.
 
 ## Enforcement map
 

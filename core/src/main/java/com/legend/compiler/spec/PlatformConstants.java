@@ -31,12 +31,17 @@ public final class PlatformConstants {
     private static final String MULTIPLICITY_VALUE = PKG + "MultiplicityValue";
 
     /** name → (lower, upper; null = unbounded) — m3.pure:1411 onward. */
-    private static final Map<String, int[]> BOUNDS = Map.of(
-            "PureOne", new int[] {1, 1},
-            "PureZero", new int[] {0, 0},
-            "ZeroOne", new int[] {0, 1},
-            "ZeroMany", new int[] {0, -1},
-            "OneMany", new int[] {1, -1});
+    /** A multiplicity constant's bounds ({@code upper} -1: unbounded): a value, where an array was (2026-11-09, no
+     *  mutable static state). */
+    private record Bounds(int lower, int upper) {
+    }
+
+    private static final Map<String, Bounds> BOUNDS = Map.of(
+            "PureOne", new Bounds(1, 1),
+            "PureZero", new Bounds(0, 0),
+            "ZeroOne", new Bounds(0, 1),
+            "ZeroMany", new Bounds(0, -1),
+            "OneMany", new Bounds(1, -1));
 
     private PlatformConstants() {
     }
@@ -45,13 +50,13 @@ public final class PlatformConstants {
      * package), as a spelled instance; empty for any other path. */
     public static Optional<TypedSpec> multiplicity(String path) {
         String name = path.startsWith(PKG) ? path.substring(PKG.length()) : path;
-        int[] b = BOUNDS.get(name);
+        Bounds b = BOUNDS.get(name);
         if (b == null || name.contains("::")) {
             return Optional.empty();
         }
         Map<String, TypedSpec> props = new LinkedHashMap<>();
-        props.put("lowerBound", value(b[0]));
-        props.put("upperBound", value(b[1]));
+        props.put("lowerBound", value(b.lower()));
+        props.put("upperBound", value(b.upper()));
         return Optional.of(new TypedNewInstance(MULTIPLICITY, props,
                 ExprType.one(new Type.ClassType(MULTIPLICITY))));
     }

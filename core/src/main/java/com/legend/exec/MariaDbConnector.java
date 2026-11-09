@@ -3,9 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.DatabaseType;
+import com.legend.executionplan.ConnectionSpecification;
 
 
 /** MariaDB's sessions: a server, reached by its coordinates through MariaDB Connector/J, which opens MySQL too
@@ -29,7 +28,7 @@ class MariaDbConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.StaticDatasource(String host, int port,
                 String database)) {
             return new Sessions.Opening.Url("jdbc:mariadb://" + host + ":" + port + "/" + database);

@@ -2,6 +2,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
@@ -429,6 +431,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case com.legend.sql.SqlDml.Update u -> super.render(u);
             case com.legend.sql.SqlDml.DeleteWhere dw -> super.render(dw);
             case com.legend.sql.SqlDml.Merge m -> super.render(m);
+            case com.legend.sql.SqlDml.LoadCsv lc -> super.render(lc);
         };
     }
 

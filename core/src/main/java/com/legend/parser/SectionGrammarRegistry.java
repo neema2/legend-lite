@@ -115,7 +115,7 @@ public final class SectionGrammarRegistry {
                 .load(com.legend.spi.SectionGrammar.class)) {
             m.put(g.name(), g);
         }
-        return m;
+        return java.util.Collections.unmodifiableMap(m);
     }
 
     /** The grammar registered for {@code sectionName}, if any. */

@@ -35,7 +35,7 @@ Read these too, in this order. Everything here assumes them.
 - `docs/TS_V1_PROGRAM_2026_11_01.md` §1, §6, §7 and §8.
 - `docs/TS_TIME_MODEL_2026_11_02.md`: rulings D1 to D7.
 - `docs/TENET_CHARTER.md` C6.2b: a frame bound spelled in integers is folded.
-- `docs/SEMANTICS_REGISTER.md` rows S144, S145, S146, S147 and S148.
+- `docs/SEMANTICS_REGISTER.md` rows S170, S145, S146, S147 and S148.
 
 ## 1. Where things stand
 
@@ -586,7 +586,7 @@ conflicts) is in its commit.
 
 - **The register numbers collided; settled 2026-11-06 at main's merge.** #83 landed with its own rows S128 to S142;
   this branch's rows were renumbered past them, every citation with them (`docs/SEMANTICS_REGISTER.md`'s note of
-  2026-11-06): the branch's retired S128 is S143, and its S129 to S134 are S144 to S149 (frame offsets computed by the
+  2026-11-06): the branch's retired S128 is S143, and its S129 to S134 are S144 to S149 (S169 and S170 since 2026-11-09, main's merge of #92) (frame offsets computed by the
   database, step alignment, a function's id spelling its columns, a key's count, the correlation's clamp, the D8 tie
   refusal). A commit message of this branch dated before 2026-11-06 keeps the old numbers.
 
@@ -862,7 +862,7 @@ with "No such file".
   - Its profile is turned on with `PRAGMA enable_profiling='json'`, `SET profiling_mode='detailed'` and
     `PRAGMA profiling_output='<file>'`.
   - LAG over tied ORDER BY keys returns different rows from run to run.
-- **MySQL and MariaDB take no expression as a frame offset** (S144), so calendar windows are refused there by name.
+- **MySQL and MariaDB take no expression as a frame offset** (S170), so calendar windows are refused there by name.
 
 **Measured and rejected**
 
@@ -944,7 +944,7 @@ gate, for A2, A10 and before any landing; a landing needs the user's word (§2).
   - D2: the duplicates check is skipped where a key is declared (S147).
   - D5: words that keep their rows are columns of one table.
 - **R6, R7:** the language spec's rules. R6: lines meet on dates. R7: one table per base.
-- **S144:** frame offsets computed by the database.
+- **S170:** frame offsets computed by the database.
 - **S147:** a key's count is 1.
 - **S148:** correlation is clamped.
 - **C6.2b:** a frame bound spelled in integers is folded.
@@ -1003,7 +1003,7 @@ pins every statistic of the frame against the window worked in Java, on DuckDB, 
 
 Limits:
 
-- **MySQL and MariaDB** take no expression as a frame offset (S144), so at `b7d69d98b` these windows were refused there
+- **MySQL and MariaDB** take no expression as a frame offset (S170), so at `b7d69d98b` these windows were refused there
   by name. A day later C6.2b folded a spelled offset such as `-(6 * 31 - 1)` into the literal `185`. **Measured
   2026-11-06:** they run there, exact -- every statistic of `TimeseriesLibraryTest.aCalendarWindowOfDatesIsTheWindowAsAFrame`
   (mean, sum, min, max, range, std, var, count) over 3 and 6 months, a year, 10 days and 2 weeks, on MariaDB 11.4 and

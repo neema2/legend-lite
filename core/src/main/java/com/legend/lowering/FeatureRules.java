@@ -38,7 +38,8 @@ import java.util.Set;
 final class FeatureRules {
 
     /** Per flag, the rules that win over Scalars' for the same key. */
-    static final Map<Feature, Map<com.legend.model.FunctionId, Scalars.Rule>> UNDER = new EnumMap<>(Feature.class);
+    static final com.legend.base.Sealed.SealedMap<Feature, Map<com.legend.model.FunctionId, Scalars.Rule>> UNDER =
+            com.legend.base.Sealed.map(new EnumMap<>(Feature.class));
 
     /** Flags with a consumer that is not a rule here. */
     private static final Set<Feature> LOWERER_CONSUMED = Set.of(
@@ -78,7 +79,7 @@ final class FeatureRules {
     }
 
     private static void under(Feature flag, com.legend.model.FunctionId key, Scalars.Rule rule) {
-        UNDER.computeIfAbsent(flag, k -> new HashMap<>()).put(key, rule);
+        UNDER.computeIfAbsent(flag, k -> com.legend.base.Sealed.map(new HashMap<>())).put(key, rule);
     }
 
     /** The rule {@code features} select for {@code key}, or null for the plain one. */
@@ -104,5 +105,13 @@ final class FeatureRules {
                         + " is not implemented by the platform (no lowering consumes it)");
             }
         }
+    }
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        for (Map<com.legend.model.FunctionId, Scalars.Rule> rules : UNDER.values()) {
+            ((com.legend.base.Sealed.Seal) rules).seal();
+        }
+        UNDER.seal();
     }
 }

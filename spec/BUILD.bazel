@@ -121,6 +121,8 @@ legend_java_library(
         ":imports_generator",
         ":source_tree",
         "//core",
+        # the compatibility edge the corpus's runs are handed (the plan-as-data design's step 8, 2026-11-08)
+        "//core:edge",
         # the corpus lanes' databases: each lane's workspaces, fixture asides and the replay referee's sessions
         "//core:test_backends",
         "//testing",
@@ -179,6 +181,10 @@ corpus_lane(
     name = "corpus_duckdb",
     memory_mb = 1024,
     data = _CORPUS_INPUTS,
+    # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
+    # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
+    # shows here as a verdict that moves, against the committed rosters
+    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
     rosters = "duckdb",
     runtime_deps = [":spec_tests_lib"],
 )
@@ -240,8 +246,6 @@ legend_java_binary(
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         # the committed rosters, by one of them (MinimalCorpusTest.readRoster)
         "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
-        # the walk's door is closed by default (2026-11-05): the corpus's tools walk as its lanes do
-        "-Dlegend.walk.allowed=all",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
@@ -265,8 +269,6 @@ legend_java_binary(
         "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
-        # the walk's door is closed by default (2026-11-05): the corpus's tools walk as its lanes do
-        "-Dlegend.walk.allowed=all",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
@@ -297,8 +299,6 @@ legend_java_binary(
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
         "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
-        # the walk's door is closed by default (2026-11-05): the corpus's tools walk as its lanes do
-        "-Dlegend.walk.allowed=all",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",

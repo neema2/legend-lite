@@ -56,7 +56,8 @@ final class Scalars {
     interface Rule extends BiFunction<TypedNativeCall, List<SqlExpr>, SqlExpr> {
     }
 
-    private static final Map<com.legend.model.FunctionId, Rule> RULES = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, Rule> RULES =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     private Scalars() {
     }
@@ -3802,4 +3803,9 @@ final class Scalars {
      * proven: unscoped unwrap regressed tests/mapping 9->7). CONSUMED
      * positions keep the cast always (audit 19 F7: DuckDB does not
      * wire-convert where H2 does). */
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        RULES.seal();
+    }
 }

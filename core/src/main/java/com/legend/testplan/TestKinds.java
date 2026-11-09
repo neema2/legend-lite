@@ -6,6 +6,7 @@ package com.legend.testplan;
 import com.legend.TypedQuery;
 import com.legend.builtin.NativeFn;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.StatementEffects;
 import com.legend.compiler.spec.UserCallInliner;
 import com.legend.compiler.spec.typed.Literals;
 import com.legend.compiler.spec.typed.TypedLet;
@@ -25,6 +26,7 @@ import com.legend.planner.ProductStatements;
 import com.legend.planner.ProgramFrames;
 import com.legend.planner.ProgramKinds;
 import com.legend.planner.ProgramState;
+import com.legend.testexecutionplan.TestPlan;
 import com.legend.planner.QueryDoor;
 import com.legend.setup.CsvSeed;
 import com.legend.sql.RawSql;
@@ -69,8 +71,6 @@ final class TestKinds implements ProgramKinds {
     private final QueryDoor.Scan scan;
     /** The open script: the effect statements since the last statement of another kind. */
     private final List<EffectPlanner.Statement> script = new ArrayList<>();
-    /** The places (0-based) in the body of the statements the open script holds. */
-    private final List<Integer> scriptStatements = new ArrayList<>();
     /** Each effect step this program planned, its segment and ledger texts beside it (M5): beside the plan, never in
      *  it. */
     private final Map<ExecutionPlan.Node, TestDoor.Effect> effects = new IdentityHashMap<>();
@@ -92,10 +92,15 @@ final class TestKinds implements ProgramKinds {
     /** The body this program plans: a statement's stores decide its target (per-statement routing). */
     private final TypedQuery body;
 
-    TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts) {
+    /** Where a CSV load's file is read at planning, for its reference's digest and size (data:
+     *  docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09; a resolver function to a local path until then). */
+    private final com.legend.executionplan.DataStores stores;
+
+    TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts, com.legend.executionplan.DataStores stores) {
         this.scan = new QueryDoor.Scan(body, runtime);
         this.asserts = asserts;
         this.body = body;
+        this.stores = stores;
     }
 
     /** A statement reading the system metamodel store alone, in a program whose target is the user's: the graph's
@@ -107,20 +112,31 @@ final class TestKinds implements ProgramKinds {
                 || BodyClass.storesOf(statement, body, index) != BodyClass.Stores.SYSTEM) {
             return null;
         }
-        return com.legend.planner.PlanMaker.systemBeside(program.target());
+        return com.legend.planner.PlanMaker.systemBeside(program.target(),
+                com.legend.planner.SystemRoutes.graphKey(body.context()));
     }
 
-    /** The asserts' steps, as their judge planned them before the program (the statements' in order). */
+    /** The statements of the asserts' steps, as their judge planned them before the program (the statements' in
+     *  order). */
     @Override
     public List<ExecutionPlan.Node> plannedAhead() {
         List<ExecutionPlan.Node> out = new java.util.ArrayList<>();
         for (int i = 0; i < body.body().size(); i++) {
-            List<? extends ExecutionPlan.Node> steps = asserts.at(i);
+            List<? extends TestPlan.TestStep> steps = asserts.at(i);
             if (steps != null) {
-                out.addAll(steps);
+                steps.forEach(step -> out.addAll(TestPlan.statements(step)));
             }
         }
         return out;
+    }
+
+    /** The verdict steps this program placed, by their handle in the planner's program (the plan-as-data design's step
+     *  3, 2026-11-08: the planner holds a test's step by its handle and the statements it reads alone). */
+    private final List<TestPlan.TestStep> extensions = new ArrayList<>();
+
+    /** The verdict step placed under {@code handle}. */
+    TestPlan.TestStep extension(int handle) {
+        return extensions.get(handle);
     }
 
     @Override
@@ -136,7 +152,28 @@ final class TestKinds implements ProgramKinds {
         }
         // the statement's seeds, as the walk establishes its contexts before every statement (M3e)
         seed(program, statement);
+        if (statement instanceof TypedLet eagerLet && !last) {
+            // an execute(...) a value let reads eagerly (size(execute(...)), through the helpers it calls) runs at the
+            // let's turn, as Pure evaluates the let (2026-11-06)
+            eagerReads(program, index, eagerLet.value());
+        }
+        if (!last && statement instanceof TypedNativeCall ec && NativeFn.Handle.runsAFrame(ec.callee().id())) {
+            // a FRAME RUN AS A STATEMENT of its own (an unread frame let's execute(...), the user's ruling of
+            // 2026-11-02; a program with no assert holds one since 2026-11-06, "do all including last row"): its query
+            // run where it stands as a check, its rows dropped, as Pure evaluates it and the walk runs it
+            TypedQuery query = program.query();
+            PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(),
+                    program.frames().planRows());
+            FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(), query.specs(), env);
+            program.add(eagerRun(program, index, fc, program.frames().newStamp()));
+            return true;
+        }
         if (kinds.isEmpty()) {
+            return false;
+        }
+        if (statement instanceof TypedLet && kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))) {
+            // a value let whose asserts are a helper's own guards below its root (BodyClass.assertProgram): planned as
+            // any value let, spliced into its readers (2026-11-06)
             return false;
         }
         if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE)) && !last) {
@@ -147,10 +184,16 @@ final class TestKinds implements ProgramKinds {
                 || QueryDoor.assertErrorRoot(statement, program.query().specs())) {
             // a statement-root assert its judge planned (M6), or an assertError (its function's body the step's side,
             // 2026-11-03): its verdict step(s) at its turn -- none where the judge absorbed it into a later statement's
-            // groups (the database judge's segment, M7)
-            List<? extends ExecutionPlan.Node> steps = asserts.at(index);
+            // groups (the database judge's segment, M7); an execute(...) its sides read eagerly (size(execute(...))) run
+            // where it stands first, as a check (2026-11-06)
+            // (read through the user functions it calls: the statement as the program plans it, inlined)
+            eagerReads(program, index, statement);
+            List<? extends TestPlan.TestStep> steps = asserts.at(index);
             if (steps != null) {
-                steps.forEach(program::add);
+                for (TestPlan.TestStep step : steps) {
+                    extensions.add(step);
+                    program.addExtension(extensions.size() - 1, TestPlan.statements(step));
+                }
                 return true;
             }
         }
@@ -182,7 +225,8 @@ final class TestKinds implements ProgramKinds {
     private void frame(ProgramState program, int index, TypedLet let) {
         TypedNativeCall ec = (TypedNativeCall) LetPlanner.rhs(let);
         ProgramFrames frames = program.frames();
-        if (!asserts.runsFrames()) {
+        boolean lazy = !asserts.runsFrames();
+        if (lazy && !readByCheck(index, let.name())) {
             // the database judge (M7): the frame is never run at its let; its readers reference its CTE inside the
             // fused statement the asserts' planner composed, and its activity comment is that statement's stamp,
             // which the planner names and the fused step binds -- adopted here so every statement's lowering binds it
@@ -201,11 +245,95 @@ final class TestKinds implements ProgramKinds {
         String minted = asserts.frameStamp(index);
         String stamp = minted != null ? frames.adoptStamp(minted) : frames.newStamp();
         PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
-        frameRuns.add(program.size());
-        program.add(eagerRun(program, index, fc, stamp));
+        if (!lazy) {
+            frameRuns.add(program.size());
+            program.add(eagerRun(program, index, fc, stamp));
+        }
+        // a frame the database judge does not run at its let but a CHECK reads (a println: a statement that is no
+        // assert, 2026-11-06): registered for its readers as the host road's frames are, LAZY -- the check's own
+        // statement runs it and binds its stamp as its own (no run at the let: the walk sent none either); the asserts
+        // still read it inside their fused statement
         FramePlanner.Cte cte = fc.legendQuery() ? FramePlanner.Cte.NONE : cte(program, index, fc);
         frames.let(let.name(), new ProgramFrames.Frame(fc.chain(),
-                !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte));
+                !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte,
+                lazy ? stamp : null));
+    }
+
+    /** The bytes the test-input resource {@code path} names (a Pure resource path: its leading {@code /} the
+     *  resources' root) and their reference, read once at planning for the digest; refused by name where the run was
+     *  given no store for resources or the file is missing (before anything is sent). */
+    private Resource resource(String path) {
+        String name = path.startsWith("/") ? path.substring(1) : path;
+        byte[] bytes;
+        try {
+            bytes = stores.read(com.legend.executionplan.DataRef.Namespace.RESOURCE, name);
+        } catch (IllegalStateException | java.io.UncheckedIOException e) {
+            throw new com.legend.error.DataError("test resource '" + path + "': " + e.getMessage(), e);
+        }
+        return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
+                name, com.legend.executionplan.DataStores.sha256(bytes), bytes.length,
+                com.legend.executionplan.DataRef.Format.CSV), bytes);
+    }
+
+    /** A resource's reference and the bytes it digests. */
+    private record Resource(com.legend.executionplan.DataRef ref, byte[] bytes) {
+    }
+
+    /** Each {@code size(execute(...))} in {@code statement} (BodyClass.eagerInlineExecute): the execute's query run
+     *  where it stands as a check, its rows dropped -- Pure evaluates it, and the splice folds its size to the Result
+     *  envelope's 1 (2026-11-06; the walk ran it at the side's planning). */
+    private void eagerReads(ProgramState program, int index, TypedSpec statement) {
+        // read through the user functions it calls -- the statement inlined, as the program plans it -- only where one
+        // reaches a size(execute(...)): inlining a statement reaching none plans nothing here and may raise where its
+        // judge's planner does not (2026-11-06: the corpus's testConvertSubqueryPredicates, an inlined helper's union
+        // typed against a query specification)
+        if (!StatementEffects.reaches(statement, BodyClass::eagerInlineExecute, program.query().specs(),
+                new java.util.HashMap<>())) {
+            return;
+        }
+        eagerReadsIn(program, index, new UserCallInliner(program.query().specs()).inlineBody(List.of(statement))
+                .get(0));
+    }
+
+    private void eagerReadsIn(ProgramState program, int index, TypedSpec statement) {
+        if (BodyClass.eagerInlineExecute(statement)) {
+            TypedSpec arg = ((TypedNativeCall) statement).args().get(0);
+            while (arg instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+                arg = f.source();
+            }
+            TypedQuery query = program.query();
+            PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(),
+                    program.frames().planRows());
+            FramePlanner.FrameChain fc = FramePlanner.chain((TypedNativeCall) arg, program.lets(), query.specs(), env);
+            program.add(eagerRun(program, index, fc, program.frames().newStamp()));
+            return;
+        }
+        for (TypedSpec c : statement.children()) {
+            eagerReadsIn(program, index, c);
+        }
+    }
+
+    /** Whether a CHECK after the frame let at {@code index} reads the frame {@code name} -- a statement that is no let
+     *  and has no test-only kind (a {@code println}), reading the frame or a let after it whose value reads it. */
+    private boolean readByCheck(int index, String name) {
+        List<TypedSpec> statements = body.body();
+        Set<String> names = new HashSet<>(Set.of(name));
+        for (int i = index + 1; i < statements.size(); i++) {
+            TypedSpec s = statements.get(i);
+            if (s instanceof TypedLet l) {
+                if (!Collections.disjoint(com.legend.compiler.spec.typed.FreeVars.of(l.value()), names)) {
+                    names.add(l.name());
+                }
+                continue;
+            }
+            EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(s);
+            kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
+            kinds.remove(QueryDoor.TestOnly.RUNTIME_SEEDS);
+            if (kinds.isEmpty() && !Collections.disjoint(com.legend.compiler.spec.typed.FreeVars.of(s), names)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The frame's EAGER RUN: its query, run at the let as a {@code Check} (its rows dropped) under the renames of the
@@ -233,7 +361,7 @@ final class TestKinds implements ProgramKinds {
 
     /**
      * {@code statement}'s seeds (D35, M3e): its sources -- each {@code from()}'s inline test data and named runtime,
-     * the program's runtime -- planned as a {@link ExecutionPlan.Setup} step before it, unless the program placed
+     * the program's runtime -- planned as a {@link ExecutionPlan.Load} step before it, unless the program placed
      * the same sources since its last write (the walk's established state, within the program; across programs the
      * runner skips a key the session holds clean). The steps are generated once per sources value, never per
      * statement (their key is their content). A statement that is not an effect has closed the open script first
@@ -259,8 +387,9 @@ final class TestKinds implements ProgramKinds {
                     + " follows another, and its sources name test data): their order against the run's script is"
                     + " not designed");
         }
-        List<ExecutionPlan.SetupStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
-        ExecutionPlan.Setup setup = new ExecutionPlan.Setup(Seeds.key(steps), steps, program.target());
+        List<ExecutionPlan.LoadStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
+        ExecutionPlan.Load setup = new ExecutionPlan.Load(Seeds.key(steps), ExecutionPlan.Load.Cadence.BEFORE_STEP,
+                steps, program.target());
         program.add(setup);
         seeds.put(setup, planned.stream().map(CsvSeed.Planned::text).toList());
     }
@@ -284,22 +413,26 @@ final class TestKinds implements ProgramKinds {
         // through the let that binds it (Seeds.seedForm), its lambda one effect the door writes (oneEffectMapper)
         TypedMap raw = statement instanceof TypedMap tm && Seeds.oneEffectMapper(tm, program.lets()) ? tm : null;
         Seeds.SeedForm form = raw == null ? null : Seeds.seedForm(raw, program.lets());
+        // or a DDL text collection mapped over it (the aggregation-aware setUp; the corpus burn-down, 2026-11-06)
+        List<TypedSpec> ddl = raw == null || form != null ? null : Seeds.ddlTextSource(raw, program.lets());
+        List<String> texts = form != null ? form.texts(program.query().context(), program.dialect())
+                : ddl != null ? Seeds.ddlTexts(ddl, program.lets(), program.query().context()) : null;
         if (st.prepared() instanceof Prepared.Effect e) {
             effects.add(e);
-        } else if (st.prepared() instanceof Prepared.EffectfulMap && raw != null && form != null) {
+        } else if (st.prepared() instanceof Prepared.EffectfulMap && raw != null && texts != null) {
             // ($sqls->map(sql | executeInDb($sql, $connection)); the test-is-the-product plan's M10c item 7c, M9's T9
             // kind): the texts the form spells, each bound into the RAW lambda's statement (one inline and resolution,
             // in prepare) and prepared as the effect it is -- the walk's effectfulMap, statement by statement, in one
             // segment
             String param = raw.mapper().parameters().get(0);
-            for (String text : form.texts(program.query().context(), program.dialect())) {
+            for (String text : texts) {
                 TypedSpec bound = UserCallInliner.bindStringParam(raw.mapper().body().get(0), param, text);
                 List<TypedSpec> one = new ArrayList<>(program.lets());
                 one.add(bound);
                 ProductStatements.Statement bst = ProductStatements.prepare(program.query(), one, program.runtime(),
                         index, program.features());
                 if (!(bst.prepared() instanceof Prepared.Effect be)) {
-                    throw new NotImplementedException("a seed form's statement bound into its map's lambda prepared as "
+                    throw new NotImplementedException("a text form's statement bound into its map's lambda prepared as "
                             + bst.prepared().getClass().getSimpleName() + " on the test door's program road");
                 }
                 effects.add(be);
@@ -315,11 +448,6 @@ final class TestKinds implements ProgramKinds {
         for (Prepared.Effect e : effects) {
             TypedNativeCall call = e.call();
             effect = NativeFn.Effect.of(call.callee().id()).orElseThrow();
-            if (effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
-                throw new NotImplementedException("loadCsvToDbTable on the test door's program road:"
-                        + " its CSV is a test resource, read where the body runs (R17 C10: the walk's until its body's"
-                        + " class moves)");
-            }
             List<String> values = new ArrayList<>();
             for (TypedSpec arg : EffectPlanner.stringArgs(e.call())) {
                 if (!(Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
@@ -331,10 +459,15 @@ final class TestKinds implements ProgramKinds {
                 }
                 values.add(folded);
             }
+            if (effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
+                // a CSV load is a LOAD at its place (docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09): the file by
+                // its reference, never its path or its rows; the effects before it are their own step
+                load(program, e, resource(values.get(0)));
+                continue;
+            }
             script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
                     e.env().withDialect(program.dialect())));
         }
-        scriptStatements.add(index);
         if (last) {
             close(program);
             // the walk's arms' value: the DDL that drops and creates answers true, the others no value (a mapped seed
@@ -362,6 +495,27 @@ final class TestKinds implements ProgramKinds {
         return Collections.unmodifiableSet(frameRuns);
     }
 
+    /** A CSV file's load {@code e}, placed after the open script as a load of its own, run every time it is reached
+     *  ({@code AT_STEP}), the referee's copy of its rows beside it as a seed's; a file of no row loads nothing and
+     *  places nothing. Its identity: the file's digest and the statement it is delivered by. */
+    private void load(ProgramState program, Prepared.Effect e, Resource resource) {
+        EffectPlanner.PlannedLoad planned = EffectPlanner.loadCsv(e.call(), resource.ref(), resource.bytes(),
+                e.body(), e.env().withDialect(program.dialect()));
+        close(program);
+        if (planned == null) {
+            return;
+        }
+        String delivered = switch (planned.step().delivery()) {
+            case ExecutionPlan.LoadStep.Delivery.DatabaseReads r -> r.sql();
+            case ExecutionPlan.LoadStep.Delivery.Streamed st -> st.insert();
+        };
+        ExecutionPlan.Load load = new ExecutionPlan.Load(com.legend.executionplan.DataStores.sha256(
+                (resource.ref().digest() + "\n" + delivered).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                ExecutionPlan.Load.Cadence.AT_STEP, List.of(planned.step()), program.target());
+        program.add(load);
+        seeds.put(load, List.of(planned.recorded()));
+    }
+
     /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)
      *  and ledger texts beside it. */
     private void close(ProgramState program) {
@@ -374,11 +528,8 @@ final class TestKinds implements ProgramKinds {
                 + ";", List.of(), program.target(), null, List.of()), new ExecutionPlan.Effect.Script(executed,
                 dialect.script(executed), dialect.scriptAbort()));
         program.add(effect);
-        String where = EffectSegment.where(scriptStatements.get(0) + 1,
-                scriptStatements.get(scriptStatements.size() - 1) + 1);
-        effects.put(effect, new TestDoor.Effect(where, script.stream()
+        effects.put(effect, new TestDoor.Effect(script.stream()
                 .map(s -> new TestDoor.Recorded(s.recorded(), RawSql.isSingleQuery(s.executed()))).toList()));
         script.clear();
-        scriptStatements.clear();
     }
 }

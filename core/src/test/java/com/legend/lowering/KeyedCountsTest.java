@@ -70,7 +70,7 @@ class KeyedCountsTest {
         // the A2' review's finding 2 (2026-11-06): over one row a frame that ends a row back counts none of it; a frame
         // holding the row counts it
         SqlExpr.WindowCall.Frame back = new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
-                new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(), new SqlExpr.WindowCall.Frame.Bound.Preceding(1));
+                new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(), SqlExpr.WindowCall.Frame.Bound.Preceding.of(1));
         SqlExpr.WindowCall.Frame toDate = new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
                 new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(), new SqlExpr.WindowCall.Frame.Bound.CurrentRow());
         for (var f : List.of(back, toDate)) {

@@ -375,7 +375,7 @@ class MongoDbDifferentialTest {
                 String answer = run(mongo, c.expression(), c.output());
                 verdict = answer.equals(reference) ? "EQUAL" : "DIFFERENT";
                 detail = verdict.equals("EQUAL") ? "" : "reference=" + flat(reference) + " mongodb=" + flat(answer);
-            } catch (com.legend.sql.dialect.DialectCapability e) {
+            } catch (com.legend.sql.DialectCapability e) {
                 verdict = "REFUSED";
                 detail = first(e.getMessage());
             } catch (com.legend.error.DataError e) {
@@ -426,7 +426,7 @@ class MongoDbDifferentialTest {
     /** {@code expression}'s typed plan. */
     private static ExecutionPlan plan(String model, String expression) {
         return Compiler.query(Compiler.compileModel(model), expression)
-                .executionPlan(com.legend.test.StorelessRuntime.RUNTIME);
+                .executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME);
     }
 
     private static String run(String model, String expression, PlanCases.Written output) throws Exception {

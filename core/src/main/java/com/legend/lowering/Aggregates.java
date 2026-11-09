@@ -15,7 +15,8 @@ import java.util.Map;
  */
 public final class Aggregates {
 
-    private static final Map<com.legend.model.FunctionId, SqlAgg.Fn> REDUCERS = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, SqlAgg.Fn> REDUCERS =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     /** The signature keys this registry reduces — a CLAIM per key
      *  ({@link com.legend.builtin.Claims}, kind REDUCER). */
@@ -211,4 +212,8 @@ public final class Aggregates {
                 + " continuous) and variance(isBiasCorrected)");
     }
 
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        REDUCERS.seal();
+    }
 }

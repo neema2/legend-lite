@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -230,7 +231,7 @@ class SnowflakeDialectTest {
         SqlExpr k = col("t", "k");
         List<SqlSelect.SortKey> order = List.of(new SqlSelect.SortKey(col("t", "o"), true, null, null));
         SqlExpr.WindowCall.Frame three = new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
-                new SqlExpr.WindowCall.Frame.Bound.Preceding(2), new SqlExpr.WindowCall.Frame.Bound.CurrentRow());
+                SqlExpr.WindowCall.Frame.Bound.Preceding.of(2), new SqlExpr.WindowCall.Frame.Bound.CurrentRow());
         String corr = rendered(table("t", "a", "b", "k", "o"), new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(
                 com.legend.sql.SqlAgg.Fn.CORR, List.of(a, b), false, List.of()), List.of(k), order, three), List.of());
         assertFalse(corr.contains("CORR("), corr);
@@ -277,7 +278,7 @@ class SnowflakeDialectTest {
         SqlExpr k = col("t", "k");
         List<SqlSelect.SortKey> order = List.of(new SqlSelect.SortKey(col("t", "o"), true, null, null));
         java.util.function.Function<Integer, SqlExpr.WindowCall.Frame> back = n -> new SqlExpr.WindowCall.Frame(
-                SqlExpr.WindowCall.Frame.Kind.ROWS, new SqlExpr.WindowCall.Frame.Bound.Preceding(n),
+                SqlExpr.WindowCall.Frame.Kind.ROWS, SqlExpr.WindowCall.Frame.Bound.Preceding.of(n),
                 new SqlExpr.WindowCall.Frame.Bound.CurrentRow());
         SqlSelect filtered = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.WindowCall(
                 new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.AVG, List.of(v), false, List.of()),

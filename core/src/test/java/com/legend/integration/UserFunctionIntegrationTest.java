@@ -1583,7 +1583,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("an enumeration's value against a string or another enumeration's is false, in a body and a query")
         void anEnumerationAgainstAString() throws SQLException {
             // legend-pure's equal compares values of one classifier only (EqualityUtilities.equal, CompiledSupport.equal):
-            // Stat.mean == 'mean' is false (the user, 2026-10-30, S143). The database, given the value's name, had
+            // Stat.mean == 'mean' is false (the user, 2026-10-30, S169). The database, given the value's name, had
             // answered true, and the fold had left it to the database so a body and a query answered alike
             String model = modelWith("""
                     Enum test::Stat

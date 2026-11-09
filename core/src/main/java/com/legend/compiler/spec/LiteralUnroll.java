@@ -425,7 +425,7 @@ final class LiteralUnroll {
     }
 
     /** Whether two spelled scalars are of two kinds one of which is an enumeration: never equal (the user, 2026-10-30,
-     *  S143). legend-pure's {@code equal} compares values of one classifier only (EqualityUtilities.equal,
+     *  S169). legend-pure's {@code equal} compares values of one classifier only (EqualityUtilities.equal,
      *  CompiledSupport.equal), so {@code Stat.mean == 'mean'} and {@code E1.a == E2.a} are false; the database, given
      *  the value's name (S6), had answered true. Spelled operands only: a column or parameter of an enumeration's type
      *  against a string stays the database's, which compares its stored value with the string, as legend-engine's SQL

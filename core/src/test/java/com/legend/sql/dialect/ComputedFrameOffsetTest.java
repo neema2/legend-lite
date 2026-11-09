@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.SqlAgg;
@@ -51,7 +52,7 @@ class ComputedFrameOffsetTest {
             assertTrue(sql.matches("(?s).*ROWS BETWEEN \\(.*3.* - .*1.*\\) PRECEDING AND CURRENT ROW.*"),
                     t + ": " + sql);
             assertTrue(sql.contains("CASE WHEN"), t + ": the check: " + sql);
-            assertTrue(sql.contains(FrameGuard.ORDER) && sql.contains("S144"), t + ": both refusals: " + sql);
+            assertTrue(sql.contains(FrameGuard.ORDER) && sql.contains("S170"), t + ": both refusals: " + sql);
         }
     }
 
@@ -63,7 +64,7 @@ class ComputedFrameOffsetTest {
                 com.legend.sql.OutputCol.Origin.PHYSICAL)), List.of(SqlExpr.Column.physical("t0", "P")),
                 List.of(SqlSelect.SortKey.asc(SqlExpr.Column.physical("t0", "O"))),
                 new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
-                        new SqlExpr.WindowCall.Frame.Bound.Preceding(2L),
+                        SqlExpr.WindowCall.Frame.Bound.Preceding.of(2L),
                         new SqlExpr.WindowCall.Frame.Bound.CurrentRow()));
         SqlSelect q = SqlSelect.starOf(T).withProjections(List.of(new SqlSelect.Projection(w, "s", null)));
         for (DatabaseType t : List.of(DatabaseType.MariaDB, DatabaseType.MySQL, DatabaseType.DuckDB, DatabaseType.H2,

@@ -71,8 +71,8 @@ final class ArchitectureTest {
             java.util.Map.entry("door", "com.legend.door.ModelFromText"),
             java.util.Map.entry("builtin", "com.legend.builtin.Pure"),
             java.util.Map.entry("platform", "com.legend.platform.WalledBodies"),
-            // D71, 2026-10-30: the judge layer, out of exec
-            java.util.Map.entry("judge", "com.legend.judge.Equality"),
+            // D71, 2026-10-30: the judge layer, out of exec; the test's run since slice 5 (2026-11-09)
+            java.util.Map.entry("testexec", "com.legend.testexec.TestRunner"),
             java.util.Map.entry("compiler_element_type", "com.legend.compiler.element.type.ExprType"),
             java.util.Map.entry("sql_dialect", "com.legend.sql.dialect.SqlDialect"),
             java.util.Map.entry("database", "com.legend.database.Databases"),
@@ -88,12 +88,17 @@ final class ArchitectureTest {
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
             java.util.Map.entry("execution_plan", "com.legend.executionplan.ExecutionPlan"),
+            // 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, steps 2 and 3): a test body's plan as data, and the exec
+            // package's program half, its own target
+            java.util.Map.entry("test_plan", "com.legend.testexecutionplan.TestPlan"),
+            java.util.Map.entry("exec_program", "com.legend.exec.ProgramRunner"),
             java.util.Map.entry("result", "com.legend.result.Batch"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
             java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
             // the test-planning library (the test-is-the-product plan's M3c, R17 C7, 2026-10-31)
             java.util.Map.entry("testplan", "com.legend.testplan.TestDoor"),
-            java.util.Map.entry("driver", "com.legend.Execution"),
+            // the door (the driver until slice 5, 2026-11-09)
+            java.util.Map.entry("execution", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
             java.util.Map.entry("server_lib", "com.legend.server.ConnectionResolver"),
@@ -214,7 +219,7 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackage("com.legend")
             // the top layer is three packages since step C (D73, 2026-10-30): the root's doors, the plan machinery
             // (com.legend.planner) and the execution side's machinery (com.legend.driver)
-            .and().resideOutsideOfPackages("com.legend.driver", "com.legend.planner")
+            .and().resideOutsideOfPackages("com.legend.testplan", "com.legend.planner")
             // the server shell is a driver CONSUMER (HTTP/LSP/diagram on top
             // of Compiler) — a top-layer sibling, not a phase
             .and().resideOutsideOfPackage("com.legend.server..")
@@ -224,9 +229,9 @@ final class ArchitectureTest {
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
-                    com.legend.driver.BodyDriver.class)
-            .as("Invariant 4c: the root's doors, the planner and the driver are the top"
-                    + " layer — audit 19; step C, D73")
+                    com.legend.testplan.BodyDriver.class)
+            .as("Invariant 4c: the root's doors, the planner and the test's planner are the top"
+                    + " layer — audit 19; step C, D73; slice 5 (the driver deleted, 2026-11-09)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -240,10 +245,9 @@ final class ArchitectureTest {
     @Test
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
-            // the root layer's execution side is com.legend.driver since step C (D73, 2026-10-30: EngineText, the
-            // engine-text registry, lives there); the root's doors reach no engine-style renderer, so the root's own
-            // exemption, which the rule carried since audit 19, named nothing and left (the D73 audit)
-            .that().resideOutsideOfPackage("com.legend.driver")
+            // the root layer's execution side was com.legend.driver from step C (D73, 2026-10-30) to slice 5
+            // (2026-11-09: deleted); its planning is the test's planner's now, which holds no engine-style renderer
+            .that().resideOutsideOfPackage("com.legend.testplan")
             .and().resideInAPackage("com.legend..")
             // 2026-10-31 (the seam program's S2g): the engine-text registry is planning work and left the driver for
             // the planner; it alone constructs the renderers, so it alone of the planner is exempt (a plan the runner
@@ -275,7 +279,7 @@ final class ArchitectureTest {
         noClasses()
             // com.legend.driver since step C (D73, 2026-10-30): the root layer's execution side; the root's own
             // exemption left the same day (no door holds the interface; the D73 audit)
-            .that().resideOutsideOfPackages("com.legend.driver", "com.legend.sql.dialect", "com.legend.testdatagen")
+            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend.sql.dialect", "com.legend.testdatagen")
             .and().resideInAPackage("com.legend..")
             // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
             // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
@@ -559,22 +563,30 @@ final class ArchitectureTest {
      * <strong>The driver has one caller (step C, D73, 2026-10-30; the router between them since the
      * test-is-the-product plan's M5, 2026-11-01, the M5 audit's S5).</strong> {@code BodyDriver} was package-private
      * by design while it shared the root package with the execution door; the driver's machinery is its own package
-     * now ({@code com.legend.driver}). The execution door ({@code Execution.runProgram}) calls the body router
-     * ({@code BodyRouter}), which runs a body of a moved class on the program road and walks every other with the
+     * now ({@code com.legend.driver}). The execution door ({@code TestExecution.runProgram}) calls the body router
+     * ({@code TestPlanner}), which runs a body of a moved class on the program road and walks every other with the
      * body driver: the walk is reached from the driver package alone, and the router from the door alone.
      */
     @Test
     void theDriverHasOneCaller() {
+        // slice 5 (2026-11-09): the driver package is deleted; the body driver's planning environment is the test
+        // planner's, its run the test's run's, each entry the door's alone
         noClasses()
-            .that().resideOutsideOfPackage("com.legend.driver")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyDriver(\\$.*)?")
-            .as("step C, M5: the body driver (the walk) is the body router's alone")
+            .that().resideOutsideOfPackage("com.legend.testplan")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testplan\\.BodyDriver(\\$.*)?")
+            .as("step C, M5: the body driver's planning environment is the test planner's alone")
             .check(CORE_PROD_CLASSES);
         noClasses()
-            .that().resideOutsideOfPackage("com.legend.driver")
-            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyRouter(\\$.*)?")
-            .as("M5: the body router is the execution door's alone (Execution.runProgram)")
+            .that().resideOutsideOfPackage("com.legend.testplan")
+            .and().doNotHaveFullyQualifiedName("com.legend.TestExecution")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testplan\\.TestPlanner(\\$.*)?")
+            .as("M5: the test planner is the test door's alone (TestExecution.planBody, planProgram)")
+            .check(CORE_PROD_CLASSES);
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.testexec")
+            .and().doNotHaveFullyQualifiedName("com.legend.TestExecution")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testexec\\.TestRunner(\\$.*)?")
+            .as("slice 5: the test's run is the test door's alone (TestExecution.runBody)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -592,8 +604,9 @@ final class ArchitectureTest {
             .or().haveFullyQualifiedName("com.legend.Compiler")
             .or().haveFullyQualifiedName("com.legend.TypedQuery")
             .or().haveFullyQualifiedName("com.legend.HeldModels")
-            .should().dependOnClassesThat().resideInAnyPackage("com.legend.driver", "com.legend.exec..", "com.legend.judge")
-            .as("step C: planning never touches the driver, the runtime or the judge")
+            .should().dependOnClassesThat().resideInAnyPackage("com.legend.testplan", "com.legend.exec..",
+                    "com.legend.testexec")
+            .as("step C: planning never touches the test's planner, the runtime or the test's run")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -610,9 +623,9 @@ final class ArchitectureTest {
     @Test
     void theTestPlanningLibraryIsTheDriversAlone() {
         noClasses()
-            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend.driver")
+            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend")
             .should().dependOnClassesThat().resideInAPackage("com.legend.testplan")
-            .as("B4, R17 C7: the test-planning library is the driver's alone")
+            .as("B4, R17 C7: the test-planning library is the door's alone (the driver's until slice 5)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -748,6 +761,17 @@ final class ArchitectureTest {
                             .or(com.tngtech.archunit.core.domain.JavaClass
                                     .Predicates.type(
                                             com.legend.base.RunScope.class))
+                            // a rule table is a constant of the process once its class is initialised (2026-11-09,
+                            // the user's "fix all of it", mutable static state): Sealed, JDK-only in base, the
+                            // registry's seal -- staticStateIsConstantOrRegistered reads a sealed map as constant
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.belongToAnyOf(
+                                            com.legend.base.Sealed.class))
+                            // the one measurement label a census line carries (2026-11-09: the stamp census's own
+                            // label folded into base's, Attribution, JDK-only), never read by a decision
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.type(
+                                            com.legend.base.Attribution.class))
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
               + "nothing else, ever (plus the SourceInfo span component and the declaration identity)")
@@ -1042,10 +1066,12 @@ final class ArchitectureTest {
      *  database facts, the platform, the parser, the normalizer, the root, the judge, the generator, the server. An
      *  allowlist, not a blacklist of planning packages (the D72 audit): the two jars built against the whole of core
      *  ({@code duckdb_load}, {@code postgres_cells}) hold exec classes this rule judges too, and a blacklist left the
-     *  root and the judge open to them. */
+     *  root and the judge open to them. The model left the list with exec's model dependency (2026-11-08, the
+     *  plan-as-data design's step 7a: exec opens a session from the plan's own connection description; the slice 2
+     *  audit closed the class-level half). */
     private static final java.util.Set<String> EXEC_MAY_REACH = java.util.Set.of("com.legend.exec", "com.legend.base",
             "com.legend.json", "com.legend.cache", "com.legend.diagnostics", "com.legend.error",
-            "com.legend.executionplan", "com.legend.model", "com.legend.result", "com.legend.sql", "com.legend.values");
+            "com.legend.executionplan", "com.legend.result", "com.legend.sql", "com.legend.values");
 
     /* EXEC_PLANNING_REFERENCES, the ratchet of exec's reaches into planning (2026-10-09 to 2026-10-30): sixteen rows at
      * its widest, five after D71 (the judges and the probes out), none after D72 (the seam-and-wall program's B2: the
@@ -1075,6 +1101,35 @@ final class ArchitectureTest {
      * unseen. Every provider the classpath registers for an exec plug-in interface (a database's connector, its driver's
      * cells, its bulk load) is a class of {@code com.legend.exec}, and the rule above therefore covers it.
      */
+    /** The test plan's extension codecs are the edge's (the plan-as-data design's step 8a, 2.7; the slice 2 audit,
+     *  2026-11-08): a provider of {@code ExtensionCodec} outside {@code com.legend.edge} would put another library's
+     *  records in the test plan. */
+    @Test
+    void extensionCodecsAreTheEdges() throws Exception {
+        java.util.List<String> outside = new java.util.ArrayList<>();
+        int providers = 0;
+        java.util.Enumeration<java.net.URL> files = ArchitectureTest.class.getClassLoader()
+                .getResources("META-INF/services/" + com.legend.testexecutionplan.ExtensionCodec.class.getName());
+        while (files.hasMoreElements()) {
+            java.net.URL file = files.nextElement();
+            try (var in = file.openStream()) {
+                for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                    String provider = line.replaceAll("#.*", "").trim();
+                    if (provider.isEmpty()) {
+                        continue;
+                    }
+                    providers++;
+                    if (!provider.startsWith("com.legend.edge.") || provider.substring(16).contains(".")) {
+                        outside.add(provider + " (" + file + ")");
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(providers > 0, "no extension codec on the classpath to check");
+        org.junit.jupiter.api.Assertions.assertTrue(outside.isEmpty(),
+                "an extension codec outside com.legend.edge (the test plan's extensions are the edge's): " + outside);
+    }
+
     @Test
     void execPluginsAreExecClasses() throws Exception {
         java.util.List<String> outside = new java.util.ArrayList<>();
@@ -1102,6 +1157,609 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertTrue(providers > 0, "no exec plug-in provider on the classpath to check");
         org.junit.jupiter.api.Assertions.assertTrue(outside.isEmpty(),
                 "an exec plug-in provider outside com.legend.exec (move it into exec): " + outside);
+    }
+
+    /**
+     * <strong>THE PLAN/RUN SPLIT, HARD (the plan-as-data design's slice 5, docs/PLAN_AS_DATA_2026_11_07.md section 11,
+     * 2026-11-09).</strong> Until slice 5 a report-mode test measured the crossings between the halves and pinned them,
+     * shrink-only (278 at its last measure); the package split took them to zero, and these rules keep them there. R1:
+     * the test's run ({@code com.legend.testexec}) reaches only the run's libraries and the plan's records -- an
+     * allow-list, so a planning library added later is refused too.
+     */
+    @Test
+    void theRunReachesNoPlanning() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAPackage("com.legend.testexec")
+            .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "com.legend.base..",
+                    "com.legend.diagnostics", "com.legend.error", "com.legend.exec", "com.legend.executionplan",
+                    "com.legend.json..", "com.legend.result..", "com.legend.sql", "com.legend.testexecutionplan",
+                    "com.legend.testexec", "com.legend.values..")
+            .as("R1, slice 5: the test's run reaches no planning library")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** R2 (slice 5, 2026-11-09): planning -- the test's planner, the product's planner, the generator's planning, the
+     *  compiler, the middle end -- reaches no runtime class and not the door. */
+    @Test
+    void planningReachesNoRun() {
+        noClasses()
+            .that().resideInAnyPackage("com.legend.testplan..", "com.legend.planner..", "com.legend.testdatagen..",
+                    "com.legend.compiler..", "com.legend.lowering..", "com.legend.resolver..")
+            .should().dependOnClassesThat().resideInAnyPackage("com.legend.exec..", "com.legend.testexec..")
+            .orShould().dependOnClassesThat().belongToAnyOf(com.legend.Execution.class, com.legend.TestExecution.class,
+                    com.legend.ExecuteOptions.class)
+            .as("R2, slice 5: planning reaches no runtime class and not the door")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** R3 (slice 5, 2026-11-09): only the test door ({@code com.legend.TestExecution}, its own library since the doors'
+     *  split the same day) sees both halves -- no other class depends on both the test's planner and the test's run. */
+    @Test
+    void onlyTheDoorSeesBothHalves() {
+        java.util.Set<String> both = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            boolean plans = false;
+            boolean runs = false;
+            for (com.tngtech.archunit.core.domain.Dependency d : c.getDirectDependenciesFromSelf()) {
+                String pkg = d.getTargetClass().getBaseComponentType().getPackageName();
+                plans |= pkg.equals("com.legend.testplan");
+                runs |= pkg.equals("com.legend.testexec");
+            }
+            if (plans && runs && !topLevel(c).equals("com.legend.TestExecution")) {
+                both.add(c.getName());
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(both.isEmpty(), "R3: a class other than the door depends on both"
+                + " the test's planner and the test's run: " + both);
+    }
+
+    /** The planning libraries (R4, below): the compiler, the planners, the middle end, the generator's planning. */
+    private static final java.util.List<String> PLANNING_PACKAGES = java.util.List.of("com.legend.compiler",
+            "com.legend.planner", "com.legend.testplan", "com.legend.lowering", "com.legend.resolver",
+            "com.legend.normalizer", "com.legend.testdatagen",
+            // the rest of the plan side's libraries (the full audit, 2026-11-09: a class that renders or fills SQL and
+            // runs it was unseen): the dialects, the setup, the databases, the plan's text, the platform, the parser,
+            // the lexer, the built-ins, the protocol, the lineage, the validation
+            "com.legend.sql.dialect", "com.legend.setup", "com.legend.database", "com.legend.plan",
+            "com.legend.platform", "com.legend.parser", "com.legend.lexer", "com.legend.builtin",
+            "com.legend.protocol", "com.legend.lineage", "com.legend.validation");
+
+    /** The running libraries (R4): the runtime and the test's run. */
+    private static final java.util.List<String> RUNNING_PACKAGES = java.util.List.of("com.legend.exec",
+            "com.legend.testexec");
+
+    /** The root's plan-side doors, planning's public entries. */
+    private static final java.util.Set<String> PLAN_SIDE_DOORS = java.util.Set.of("com.legend.Compiler",
+            "com.legend.TypedQuery", "com.legend.HeldModels");
+
+    /** The two doors (the user's word of 2026-11-09, "split the door"): the product's and the test body's. */
+    private static final java.util.Set<String> DOORS = java.util.Set.of("com.legend.Execution",
+            "com.legend.TestExecution");
+
+    /** What a caller above the doors may name of planning (R4): its entries -- the plan-side doors -- and the types
+     *  they hand out (the compiled model, a program's facts) and take (the test planner's options). */
+    private static final java.util.Set<String> PLANNING_API = java.util.Set.of("com.legend.Compiler",
+            "com.legend.TypedQuery", "com.legend.HeldModels", "com.legend.compiler.element.ModelContext",
+            "com.legend.compiler.element.PureModelContext", "com.legend.planner.ProgramFacts",
+            "com.legend.testplan.PlanningOptions", "com.legend.platform.Feature",
+            // lite's own planning options beside the engine's flags (PlanOption: the tests' deterministic as-of), a
+            // planning input as Feature is (the timeseries branch's, S156; added at main's merge (#92), 2026-11-09)
+            "com.legend.platform.PlanOption");
+
+    /** Planning's INPUT a caller builds and hands the compiler (R4): the parsed program, Pure's protocol values (a test
+     *  runner composes a test body's call; the full audit's widening of R4 to every planning library, 2026-11-09). */
+    private static final String PLANNING_INPUT_PACKAGE = "com.legend.protocol.";
+
+    /** What a caller above the doors may name of running (R4): a session and where one comes from (the resource the
+     *  caller owns and hands a door), and the types a door's run takes from it (the referee; the answer's output is the
+     *  result library's, a record type: 2026-11-09). */
+    private static final java.util.Set<String> RUN_API = java.util.Set.of("com.legend.exec.Sessions",
+            "com.legend.exec.SessionSource", "com.legend.testexec.SqlReplayReferee");
+
+    /**
+     * WHAT A RUN TAKES FROM ITS CALLER IS DATA (2026-11-09, the user's question "why do we have any callbacks, esp
+     * dangerous ones that can break our tenet?"): every parameter of a run's entry ({@link #RUN_ENTRY_CLASSES}: the
+     * product's run and the test's, which every door's run half calls) and every record component inside one, is a
+     * value (a record, an enum, a final
+     * class, a collection of them) or a SEALED interface whose variants exec interprets (where the run's sessions come
+     * from, where its answer goes), or one of the named receivers and resources ({@link #CALLER_INTERFACES}): an
+     * output-only receiver of the answer or the verdicts, the edge's referee, the host's connection. No function type
+     * crosses: until this day the run called a caller's factory with the plan, and a caller's function to choose each
+     * statement's session -- the caller's code deciding inside the run. (Planning's inputs are not a run's: the test
+     * door's planning options carry a resource resolver, a function the planner calls for a CSV load's path -- D3,
+     * which the user moved into the data-in-the-plan design session, 2026-11-09.)
+     */
+    @Test
+    void aRunTakesDataSealedSourcesAndNamedReceiversAlone() {
+        java.util.Set<String> violations = new java.util.TreeSet<>();
+        for (Class<?> entry : RUN_ENTRY_CLASSES) {
+            for (java.lang.reflect.Method m : entry.getDeclaredMethods()) {
+                if (!java.lang.reflect.Modifier.isPublic(m.getModifiers()) || m.isSynthetic()) {
+                    continue;
+                }
+                for (java.lang.reflect.Type t : m.getGenericParameterTypes()) {
+                    takesData(t, entry.getSimpleName() + "#" + m.getName(), new java.util.HashSet<>(), violations);
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(violations.isEmpty(),
+                "a run takes code from its caller (make it data: a record, or a sealed set exec interprets):\n  "
+                        + String.join("\n  ", violations));
+    }
+
+    /** The classes whose public methods are a run's entries: the product's run and the test's (each door's run call is
+     *  one of them: {@code theDoorsOnlyCompose}). */
+    private static final java.util.List<Class<?>> RUN_ENTRY_CLASSES = java.util.List.of(
+            com.legend.exec.ProductRun.class, com.legend.testexec.TestRunner.class);
+
+    /** The open types a run may take, each named for what it is: receivers that decide nothing the run does (the
+     *  answer's rows, the verdicts: {@code theListenerIsOutputOnly}; the stream an answer is written to), the edge's
+     *  extension point, referee and data marker (the compatibility mode's, G5: every {@code Extension} is a record,
+     *  {@code PlanTypesAreDataTest}), the host's connection (a resource, as a data source is), and a session, which exec
+     *  alone makes ({@code onlyTheSeamMakesSessions}). */
+    private static final java.util.Set<Class<?>> CALLER_INTERFACES = java.util.Set.of(
+            com.legend.result.ResultSink.class, com.legend.testexecutionplan.AssertListener.class,
+            java.io.Writer.class, java.io.OutputStream.class,
+            com.legend.testexecutionplan.Edge.class, com.legend.testexec.SqlReplayReferee.class,
+            com.legend.testexecutionplan.Extension.class, com.legend.exec.Sessions.Opener.class,
+            com.legend.exec.Sessions.Session.class);
+
+    private static void takesData(java.lang.reflect.Type t, String where, java.util.Set<Class<?>> seen,
+            java.util.Set<String> violations) {
+        if (t instanceof java.lang.reflect.ParameterizedType p) {
+            takesData(p.getRawType(), where, seen, violations);
+            for (java.lang.reflect.Type a : p.getActualTypeArguments()) {
+                takesData(a, where, seen, violations);
+            }
+            return;
+        }
+        if (t instanceof java.lang.reflect.WildcardType w) {
+            for (java.lang.reflect.Type b : w.getUpperBounds()) {
+                takesData(b, where, seen, violations);
+            }
+            return;
+        }
+        if (t instanceof java.lang.reflect.TypeVariable<?> v) {
+            violations.add(where + " takes a type variable, " + v.getName() + " (name the type)");
+            return;
+        }
+        if (!(t instanceof Class<?> c) || !seen.add(c)) {
+            return;
+        }
+        if (c.isArray()) {
+            takesData(c.getComponentType(), where, seen, violations);
+            return;
+        }
+        // (a file's path is a value, though the JDK declares it an interface; Object is a bound parameter's value; the
+        // JDK's numbers and times are values, though BigDecimal and BigInteger are not declared final)
+        if (c.isPrimitive() || c.isEnum() || c == String.class || c == Object.class || c == java.nio.file.Path.class
+                || c.getName().startsWith("java.math.") || c.getName().startsWith("java.time.")
+                || CALLER_INTERFACES.contains(c)) {
+            return;
+        }
+        if (c.getName().startsWith("java.util.function.")) {
+            violations.add(where + " takes a function, " + c.getName());
+            return;
+        }
+        if (c == java.util.List.class || c == java.util.Map.class || c == java.util.Set.class
+                || c == java.util.Collection.class) {
+            return;
+        }
+        if (c.isInterface() && !c.isSealed()) {
+            violations.add(where + " takes an open interface, " + c.getName());
+            return;
+        }
+        if (c.isSealed()) {
+            for (Class<?> v : c.getPermittedSubclasses()) {
+                takesData(v, where, seen, violations);
+            }
+            return;
+        }
+        if (c.isRecord()) {
+            for (java.lang.reflect.RecordComponent rc : c.getRecordComponents()) {
+                takesData(rc.getGenericType(), where, seen, violations);
+            }
+            return;
+        }
+        // a final class (a typed query, a plan) is the product's own value, its fields its own; an open class is the
+        // caller's code by subclass (the follow-up audit, 2026-11-09: the guard passed every class until then)
+        if (!java.lang.reflect.Modifier.isFinal(c.getModifiers())) {
+            violations.add(where + " takes an open class, " + c.getName());
+        }
+    }
+
+    private static boolean inAnyPackage(String pkg, java.util.List<String> packages) {
+        for (String p : packages) {
+            if (pkg.equals(p) || pkg.startsWith(p + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * R4, ONLY THE DOORS COMPOSE (slice 5, the user's word of 2026-11-09: "callers compile and call a door, nothing
+     * else"): a class outside the planning and running libraries that reaches both -- the server, the test runners,
+     * the doors' options -- names only planning's public entries and the types they hand out ({@link #PLANNING_API})
+     * and only the session it owns and the run's parameter types ({@link #RUN_API}). The work of putting a plan and a
+     * run together is a door's ({@link #DOORS}); no third place plans with the planner's machinery and runs with the
+     * runtime's. Hard, no register: at its first measure (2026-11-09) three classes reached both, each through these
+     * types alone.
+     */
+    @Test
+    void onlyTheDoorsCompose() {
+        java.util.Set<String> composers = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            String top = topLevel(c);
+            if (inAnyPackage(c.getPackageName(), PLANNING_PACKAGES) || inAnyPackage(c.getPackageName(), RUNNING_PACKAGES)
+                    || DOORS.contains(top) || PLAN_SIDE_DOORS.contains(top)) {
+                continue;
+            }
+            java.util.Set<String> plans = new java.util.TreeSet<>();
+            java.util.Set<String> runs = new java.util.TreeSet<>();
+            for (com.tngtech.archunit.core.domain.Dependency d : c.getDirectDependenciesFromSelf()) {
+                com.tngtech.archunit.core.domain.JavaClass t = d.getTargetClass().getBaseComponentType();
+                String target = topLevel(t);
+                if (inAnyPackage(t.getPackageName(), PLANNING_PACKAGES) || PLAN_SIDE_DOORS.contains(target)) {
+                    plans.add(target);
+                }
+                if (inAnyPackage(t.getPackageName(), RUNNING_PACKAGES)) {
+                    runs.add(target);
+                }
+            }
+            if (plans.isEmpty() || runs.isEmpty()) {
+                continue;
+            }
+            plans.removeAll(PLANNING_API);
+            plans.removeIf(t -> t.startsWith(PLANNING_INPUT_PACKAGE));
+            runs.removeAll(RUN_API);
+            if (!plans.isEmpty() || !runs.isEmpty()) {
+                composers.add(top + " reaches planning " + plans + " and running " + runs);
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(composers.isEmpty(), "R4: a class other than the doors plans with"
+                + " the planner's machinery and runs with the runtime's (call a door): " + composers);
+    }
+
+    /** The calls a door may make (the doors' shape, below): planning's entries, the runs' entries, and the test door's
+     *  options' accessors -- {@code stores} since 2026-11-09 (docs/DATA_IN_THE_PLAN_2026_11_09.md L1: the data stores a
+     *  run's loads resolve through, a run input as the system connections are; the resolver function planning called
+     *  until then is deleted). */
+    private static final java.util.Set<String> DOOR_PLANNING_CALLS = java.util.Set.of(
+            "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
+            "com.legend.TypedQuery#projectPlan",
+            "com.legend.testplan.TestPlanner#plan", "com.legend.testplan.TestPlanner#planAhead",
+            "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
+            "com.legend.ExecuteOptions#systemConnections", "com.legend.ExecuteOptions#stores");
+
+    private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
+            "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",
+            "com.legend.testexec.TestRunner#runOpening");
+
+    /**
+     * THE DOORS ONLY COMPOSE (the user's question of 2026-11-09: "something that enforces that this should only call
+     * one line to call planner and one line to call executor and that's all it can do"): a door holds no state (no
+     * field, no nested class) and each of its methods calls only planning's entries ({@link #DOOR_PLANNING_CALLS}),
+     * the runs' entries ({@link #DOOR_RUN_CALLS}) and its own overloads; it calls at most one run -- a run entry or an
+     * overload. It reads no field but an enum's constant. Its source is one statement per method, with no branch, loop,
+     * lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}: the bytecode shows neither a branch nor
+     * which call comes first in one expression) -- so the run is the statement's outermost call, its plan an argument. A line cap would only measure it; this says what it may do.
+     */
+    @Test
+    void theDoorsOnlyCompose() {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            String top = topLevel(c);
+            if (!DOORS.contains(top)) {
+                continue;
+            }
+            if (!c.getName().equals(top)) {
+                found.add("a nested class " + c.getName());
+                continue;
+            }
+            for (com.tngtech.archunit.core.domain.JavaField f : c.getFields()) {
+                found.add("a field " + f.getFullName());
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                if (u.isConstructor() || u.getName().equals("<clinit>")) {
+                    continue;
+                }
+                int runs = 0;
+                for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                    String target = call.getTargetOwner().getName() + "#" + call.getName();
+                    if (DOOR_RUN_CALLS.contains(target) || call.getTargetOwner().getName().equals(top)) {
+                        runs++;
+                    } else if (!DOOR_PLANNING_CALLS.contains(target)) {
+                        found.add(u.getFullName() + " calls " + target);
+                    }
+                }
+                if (runs > 1) {
+                    found.add(u.getFullName() + " runs " + runs + " times");
+                }
+                if (!u.getMethodReferencesFromSelf().isEmpty() || !u.getConstructorReferencesFromSelf().isEmpty()) {
+                    found.add(u.getFullName() + " makes a method reference");
+                }
+                for (com.tngtech.archunit.core.domain.JavaFieldAccess a : u.getFieldAccesses()) {
+                    com.tngtech.archunit.core.domain.JavaClass owner = a.getTarget().getOwner();
+                    if (!owner.isEnum() || !a.getTarget().getRawType().equals(owner)) {
+                        found.add(u.getFullName() + " reads " + a.getTarget().getFullName());
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "a door does more than compose a plan and a run: "
+                + found);
+    }
+
+    /** No product class reaches the compatibility edge (slice 5's spec, 2026-11-09): the edge depends on the product,
+     *  never the reverse (G5); its codecs reach the test plan through the extension point's service file alone. The
+     *  build's twin is {@code tools/deps/core-layers.txt} (no product library lists {@code edge}). */
+    @Test
+    void noProductClassReachesTheEdge() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.edge..")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
+            .as("G5: the edge depends on the product, never the reverse")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** No thread-scoped state (the user's ruling of 2026-11-09, "remove all thread local"): every value a step needs is
+     *  handed to it. The one exception is base's {@code RunScope}, the run-time proof of the split the goals name
+     *  (G4: "proven at run time (RunScope) and at compile time (ArchUnit)") -- a guard, never a channel. */
+    @Test
+    void noThreadLocalState() {
+        // any thread-scoped holder, a subclass of ThreadLocal or a ScopedValue included (the full audit, 2026-11-09:
+        // the rule matched ThreadLocal's raw type alone)
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields()
+            .that().areDeclaredInClassesThat().doNotBelongToAnyOf(com.legend.base.RunScope.class)
+            .should().haveRawType(com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo(ThreadLocal.class))
+            .orShould().haveRawType("java.lang.ScopedValue")
+            .as("no thread-local state but the run-time wall's (RunScope)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>NO COMPILED MODEL REACHES THE RUN (the plan-as-data design's slice 3, docs/PLAN_AS_DATA_2026_11_07.md
+     * §11, 2026-11-08; a ratchet, ZERO AT SLICE 4).</strong> The run reads its plan and the database's rows, never the
+     * model it was planned over: no code unit the run REACHES ({@link #reachable} from {@link #RUN_ENTRIES}: by calls,
+     * a virtual call reaching every override, a lambda's calls its enclosing unit's) takes a {@code ModelContext} or a
+     * {@code TypedQuery}, calls a method that takes, returns or belongs to one, or reads a field of either type.
+     * Reachability, not a list of run classes (the slice 3 invariant audit, 2026-11-08: the first version scanned named
+     * classes and methods and missed the run methods of the classes not yet split). Holes 1, 2 and 7 closed it (slice 4,
+     * 2026-11-09): {@link #MODEL_SITES} is empty and the guard hard.
+     */
+    @Test
+    void noCompiledModelReachesTheRun() {
+        java.util.Set<String> modelTypes = java.util.Set.of("com.legend.compiler.element.ModelContext",
+                "com.legend.TypedQuery");
+        java.util.Set<String> sites = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {
+            String at = u.getOwner().getName() + "#" + u.getName();
+            for (com.tngtech.archunit.core.domain.JavaClass p : u.getRawParameterTypes()) {
+                if (modelTypes.contains(p.getName())) {
+                    sites.add("takes " + at + "(" + p.getSimpleName() + ")");
+                }
+            }
+            for (var t : targetsOf(u)) {
+                boolean returns = t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget m
+                        && modelTypes.contains(m.getRawReturnType().getName())
+                        || t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodReferenceTarget r
+                        && modelTypes.contains(r.getRawReturnType().getName());
+                if (returns || modelTypes.contains(t.getOwner().getName()) || t.getRawParameterTypes().stream()
+                        .anyMatch(p -> modelTypes.contains(p.getName()))) {
+                    sites.add("calls " + at + " -> " + t.getOwner().getName() + "#" + t.getName());
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess f : u.getFieldAccesses()) {
+                if (modelTypes.contains(f.getTarget().getRawType().getName())) {
+                    sites.add("reads " + at + " -> " + f.getTarget().getFullName());
+                }
+            }
+        }
+        java.util.Set<String> grew = new java.util.TreeSet<>(sites);
+        grew.removeAll(MODEL_SITES);
+        java.util.Set<String> gone = new java.util.TreeSet<>(MODEL_SITES);
+        gone.removeAll(sites);
+        org.junit.jupiter.api.Assertions.assertTrue(grew.isEmpty(), "a compiled model reaches the run at a NEW site"
+                + " (carry the fact in the plan's records): " + grew);
+        org.junit.jupiter.api.Assertions.assertTrue(gone.isEmpty(), "a site is gone: shrink MODEL_SITES, dated: " + gone);
+    }
+
+    /** Where the run begins: the router's run half, the door's, and the session sources a door opens the run's
+     *  session from (hole 7: each is handed the model) -- the contract's method and its implementations, the caller's
+     *  own session's ({@code Source.given}) and the server's ({@code ConnectionResolver.open}): the contract is
+     *  implemented by lambdas and method references, which no call site expands (the slice 3 follow-up audit,
+     *  2026-11-08). */
+    private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.testexec.TestRunner#run",
+            // slice 5, 2026-11-09: the doors are thin -- the runs' own entries, and the session sources, are the run's
+            "com.legend.testexec.TestRunner#runOpening", "com.legend.exec.ProductRun#run",
+            "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.exec.SessionSource#open",
+            "com.legend.exec.SessionSource#given",
+            "com.legend.exec.PlanSessions#projectDatabase");
+
+    /** Where planning begins: the router's planning halves and the doors'. */
+    private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#plan",
+            "com.legend.testplan.TestPlanner#planned", "com.legend.testplan.TestPlanner#planAhead",
+            "com.legend.TestExecution#planBody", "com.legend.TestExecution#planProgram");
+
+    /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
+     *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's
+     *  resolved unit, and -- the call being virtual -- every override among the product's classes; a lambda's calls
+     *  count as its enclosing unit's (ArchUnit's reading). Only the product's own code is followed. */
+    private static java.util.Set<com.tngtech.archunit.core.domain.JavaCodeUnit> reachable(java.util.Set<String> entries) {
+        java.util.Map<String, java.util.List<com.tngtech.archunit.core.domain.JavaMethod>> bySignature =
+                new java.util.HashMap<>();
+        java.util.Set<com.tngtech.archunit.core.domain.JavaCodeUnit> seen = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<com.tngtech.archunit.core.domain.JavaCodeUnit> todo = new java.util.ArrayDeque<>();
+        java.util.Set<String> found = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
+                bySignature.computeIfAbsent(signature(m.getName(), m.getRawParameterTypes()),
+                        k -> new java.util.ArrayList<>()).add(m);
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                if (entries.contains(c.getName() + "#" + u.getName())) {
+                    found.add(c.getName() + "#" + u.getName());
+                    if (seen.add(u)) {
+                        todo.add(u);
+                    }
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(entries), found,
+                "an entry the reachability walk was given is no code unit of the product");
+        while (!todo.isEmpty()) {
+            com.tngtech.archunit.core.domain.JavaCodeUnit u = todo.poll();
+            for (var t : targetsOf(u)) {
+                if (!t.getOwner().getName().startsWith("com.legend.")
+                        && !t.getOwner().getPackageName().equals("com.legend")) {
+                    continue;
+                }
+                java.util.List<com.tngtech.archunit.core.domain.JavaCodeUnit> next = new java.util.ArrayList<>();
+                t.resolveMember().ifPresent(next::add);
+                if (t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget
+                        || t instanceof com.tngtech.archunit.core.domain.AccessTarget.MethodReferenceTarget) {
+                    for (com.tngtech.archunit.core.domain.JavaMethod m : bySignature.getOrDefault(
+                            signature(t.getName(), t.getRawParameterTypes()), java.util.List.of())) {
+                        if (m.getOwner().isAssignableTo(t.getOwner().getName())) {
+                            next.add(m);
+                        }
+                    }
+                }
+                for (com.tngtech.archunit.core.domain.JavaCodeUnit n : next) {
+                    if (seen.add(n)) {
+                        todo.add(n);
+                    }
+                }
+            }
+        }
+        return seen;
+    }
+
+    /** What {@code u} calls or references (a method reference is a call made later). */
+    private static java.util.List<com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget> targetsOf(
+            com.tngtech.archunit.core.domain.JavaCodeUnit u) {
+        java.util.List<com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget> targets =
+                new java.util.ArrayList<>();
+        u.getCallsFromSelf().forEach(c -> targets.add(c.getTarget()));
+        u.getCodeUnitReferencesFromSelf().forEach(r -> targets.add(r.getTarget()));
+        return targets;
+    }
+
+    private static String signature(String name, java.util.List<com.tngtech.archunit.core.domain.JavaClass> params) {
+        StringBuilder b = new StringBuilder(name).append('(');
+        for (com.tngtech.archunit.core.domain.JavaClass p : params) {
+            b.append(p.getName()).append(',');
+        }
+        return b.append(')').toString();
+    }
+
+    /** {@link #noCompiledModelReachesTheRun}'s sites (the reachability measure, 2026-11-08, the slice 3 invariant
+     *  audit's fix): AT ZERO since slice 4, the guard hard -- a new site is a defect, carried as the plan's data. */
+    private static final java.util.Set<String> MODEL_SITES = java.util.Set.of(
+            // (gone 2026-11-08, hole 7 v1, the user's go: the server's session opened from the plan's target alone --
+            // the project database's identity and its Data fill planned into the target (ExecutionPlan.Project), the
+            // runner's PlanSessions.projectDatabase finding or making it; ConnectionResolver's keys and fill deleted,
+            // and the session contract takes no model: 25 sites)
+            // (gone 2026-11-08, slice 4's hole 1: the appeal is decided from the plan's data -- the enumerations the
+            // referee decodes planned into Appeal.Rows.enums, the referee's SPI handed them, never the model: decideAppeal
+            // and rowsLegNow take no model, and verify and verifyPlan take Appeal.Enums -- nine sites)
+            // (gone 2026-11-09, slice 4's hole 2: the system database found by the plan's own target -- its engine and
+            // the graph's store key, Database.System.graphKey -- one current session per engine in SystemDatabase,
+            // replaced when another graph's key comes; SystemDatabase.of(ctx) deleted, and runBody and com.legend.testexec.TestRunner.run
+            // take no model: the last six sites)
+            );
+
+    /**
+     * <strong>THE RUN RE-READS NO RULE (the plan-as-data design's slice 3, hole 8, 2026-11-08; hard).</strong> The plan
+     * carries the rules it was planned under -- each verdict step's judging rules, its judge, its features; nothing the
+     * run reaches asks the caller's options for them again ({@code ExecuteOptions}' judging rules, judge mode, features
+     * or resources). The slice 3 invariant audit: hole 8's code held, and nothing kept it.
+     */
+    @Test
+    void theRunRereadsNoRule() {
+        // engineCompat too: the judging rules are derived from it (the slice 3 follow-up audit, 2026-11-08)
+        java.util.Set<String> planningFacts = java.util.Set.of("judgingRules", "judgeMode", "features", "resources",
+                "engineCompat");
+        java.util.Set<String> reads = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {
+            for (var t : targetsOf(u)) {
+                if (t.getOwner().getName().equals("com.legend.ExecuteOptions") && planningFacts.contains(t.getName())) {
+                    reads.add(u.getOwner().getName() + "#" + u.getName() + " -> ExecuteOptions#" + t.getName());
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(reads.isEmpty(), "the run asks the caller's options for a fact the"
+                + " plan carries (read it from the plan): " + reads);
+    }
+
+    /**
+     * <strong>THE LISTENER IS OUTPUT ONLY, AND PLANNING TELLS NO ONE (the plan-as-data design's slice 3, holes 4 and 5,
+     * 2026-11-08; hard).</strong> The run tells the caller's {@code AssertListener} what happened and asks it for
+     * nothing: its methods are exactly the four reports, each void, each taking texts and flags alone (a pinned set:
+     * the slice 3 invariant audit found the first version would have let the deleted {@code beforeRun} back in). And
+     * planning tells no one anything: no code unit planning REACHES ({@link #reachable} from
+     * {@link #PLANNING_ENTRIES}) calls the listener, the held appeals' thread-local listener or hold, the engine-text
+     * arms' decline reporters, the edge's run half (a ledger written), the referee, or the verdict census's outcome
+     * counters (a verdict's outcome is counted at its turn in the run); no planning entry takes a listener or a
+     * referee, and no planning environment holds one.
+     */
+    @Test
+    void theListenerIsOutputOnly() {
+        java.util.Set<String> found = new java.util.TreeSet<>();
+        java.util.Set<String> reports = java.util.Set.of(
+                "verdict(java.lang.String,boolean,java.lang.String)", "declined(java.lang.String,java.lang.String)",
+                "unjudged(java.lang.String,java.lang.String)", "refereed(java.lang.String,java.lang.String)");
+        java.util.Set<String> handed = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
+                "com.legend.testexec.SqlReplayReferee");
+        java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.testplan.BodyDriver$ExecEnv",
+                "com.legend.planner.PlanEnv");
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            if (c.getName().equals("com.legend.testexecutionplan.AssertListener")) {
+                java.util.Set<String> methods = new java.util.TreeSet<>();
+                for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
+                    methods.add(m.getName() + "(" + String.join(",", m.getRawParameterTypes().stream()
+                            .map(com.tngtech.archunit.core.domain.JavaClass::getName).toList()) + ")");
+                    if (!m.getRawReturnType().getName().equals("void")) {
+                        found.add("answers " + m.getFullName());
+                    }
+                }
+                if (!methods.equals(new java.util.TreeSet<>(reports))) {
+                    found.add("the listener's methods are " + methods + ", not the four reports");
+                }
+            }
+            if (planningEnvironments.contains(c.getName())) {
+                for (com.tngtech.archunit.core.domain.JavaField f : c.getFields()) {
+                    if (handed.contains(f.getRawType().getName())) {
+                        found.add("planning holds " + f.getFullName());
+                    }
+                }
+            }
+        }
+        java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
+                "com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
+                "com.legend.testplan.SqlTextVerdicts#declinedNow", "com.legend.testplan.SqlTextVerdicts#declinedTo",
+                "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
+                "com.legend.testexec.CanonicalDivergence#sqlUnjudged", "com.legend.testexec.CanonicalDivergence#sqlRaised",
+                "com.legend.testexec.CanonicalDivergence#sqlRaisedAt", "com.legend.testexec.CanonicalDivergence#sqlEnter");
+        for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
+            String at = u.getOwner().getName() + "#" + u.getName();
+            if (PLANNING_ENTRIES.contains(at)) {
+                for (com.tngtech.archunit.core.domain.JavaClass p : u.getRawParameterTypes()) {
+                    if (handed.contains(p.getName())) {
+                        found.add("planning takes " + u.getFullName());
+                    }
+                }
+            }
+            for (var t : targetsOf(u)) {
+                String owner = t.getOwner().getName();
+                if (told.contains(owner) || told.contains(owner + "#" + t.getName())) {
+                    found.add("planning tells: " + at + " -> " + owner + "#" + t.getName());
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "the listener answers, or planning tells someone"
+                + " (the run tells, at each verdict's turn; planning tells no one): " + found);
     }
 
     @Test
@@ -1280,7 +1938,7 @@ final class ArchitectureTest {
     /**
      * <strong>The body driver and the judges hold no JDBC (2026-10-29, the result boundary program's track B, B1b;
      * docs/RESULT_BOUNDARY_START_HERE.md, the track B block).</strong> A test body is a sequence of plans: the driver
-     * ({@code BodyDriver}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
+     * ({@code BodyDriver}; {@code BodyCompiler} until the walk was deleted, 2026-11-06), the judges and their arms, the seed and error natives and the
      * test-data generator's natives hold a session ({@code Sessions.Session}) and reach the database only through its
      * statements ({@code Statements}), the plan runner and the session's state ({@code SessionState}); none depends
      * on {@code java.sql} or a driver's own API. The funnel above licensed root as a package until 2026-10-30 (D69:
@@ -1322,7 +1980,9 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsTheOneCallerOfTheSessionsStatements() {
-        String seam = "com\\.legend\\.exec\\.(PlanRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements)(\\$.*)?";
+        // ProgramRunner since 2026-11-08 (the plan-as-data design's step 3, the user's ruling): the runner's program half, its
+        // own target -- the program's transaction bracket and snapshot, as the runner took them before the split
+        String seam = "com\\.legend\\.exec\\.(PlanRunner|ProgramRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements|Statements)(\\$.*)?";
         noClasses()
             .that().haveNameNotMatching(seam)
             .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
@@ -1410,20 +2070,35 @@ final class ArchitectureTest {
     // spelling carrier, its parser and the decoders' arms are deleted; a mixed value is a tagged value, read in its
     // slot, and no cell is parsed by its text's shape.)
 
+    /** Register S144's reader of upstream's JSON grammar is the two judges' alone (the user, 2026-11-07: "keep it
+     *  isolated"): no product class, and no other judging class, reads JSON through it. It moves to the edge (P2). */
+    @Test
+    void theCompatibilityJsonReaderIsTheJudgesAlone() {
+        noClasses()
+            .that().doNotHaveFullyQualifiedName("com.legend.testplan.HostJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.DatabaseJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple$Kind")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.JudgeJson(\\$.*)?")
+            .as("S144: json-simple's grammar is read by the two judges alone")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
         noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.driver.AssertVerdicts")
+            .that().doNotHaveFullyQualifiedName("com.legend.testplan.AssertVerdicts")
             // task #27 (2026-09-21): the verdict seam's two arms — the host judge
             // (Java compare over database rows) and the database judge (the verdict
             // statement) — split out of the router
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.HostJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.DatabaseJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.AssertErrorNative")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.PureAsserts")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.TdsCompare")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.CanonicalForm")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.CanonicalDivergence")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.HostJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.DatabaseJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.AssertErrorNative")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.PureAsserts")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.TdsCompare")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
@@ -1433,17 +2108,24 @@ final class ArchitectureTest {
             // JUDGING_TWO_MODES step 2: the host judge and the service-test
             // judge are the seam's own (Equality decides; TestAssertions
             // routes EqualToJson to it)
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.Equality")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.Equality")
             .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
             // leg 3.4 (2026-09-20): the verdict seam's SENDING arm — the
             // body's deferred verdict statements as one statement; it
             // counts the census rows the arm counted at the assert
             // (raised, unjudged) and decides nothing (the row's judgment
             // is injected from AssertVerdicts)
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch")
-            // the batch's planned half (the test-is-the-product plan's M7, 2026-11-01): the same root loop, moved into
-            // the inner class the program road judges through; the census calls it makes are the batch's own
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch$Planned")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.VerdictBatch")
+            // the batch's planned half (the test-is-the-product plan's M7, 2026-11-01) is data since the plan-as-data
+            // design's step 5 (2026-11-08): its root loop is the plan's and runs in RootLoops, which makes the census
+            // calls the planned half made (raised, unjudged); it decides nothing -- the row's judgment is handed in
+            // (com.legend.testexec.DatabaseVerdicts.verdictOf), its appeal heard by number
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops$Run")
+            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is the edge's, decided after the body's
+            // run): a body's held appeals, the verdict seam's after the run -- a failed appeal counted as raised, as a
+            // failure at its step is (the census call); the appeal's own judgment is SqlTextVerdicts', nothing here
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.Appeals")
             // the four live in com.legend.judge since 2026-10-30 (D71, the seam-and-wall program's B1: the judge
             // layer out of exec); the rule's exemptions name them there too
             .should().dependOnClassesThat().haveNameMatching(
@@ -1459,7 +2141,7 @@ final class ArchitectureTest {
      * line-based regex {@code CodeShapeGuardrailTest.noStaticMutableState}, which a declaration split over two lines
      * escaped ({@code CanonicalDivergence.CONTEXT_SOURCE}, execution plan W0.2(d)). Its known limit: a final field may
      * still hold a mutable object (a queue, a map, an AtomicReference); collections are held by
-     * {@link #staticCollectionStateIsImmutableOrRegistered}, and the rest is the runner's to remove (W6.2).
+     * {@link #staticStateIsConstantOrRegistered} holds the rest (2026-11-09: until then collections alone).
      */
     @Test
     void staticFieldsAreFinal() {
@@ -1472,182 +2154,210 @@ final class ArchitectureTest {
                 .check(CORE_PROD_CLASSES);
     }
 
+    /** The kinds of static state the product may hold (the user's ruling of 2026-11-09: "do we want mutable state? fix
+     *  all of it"): anything else is a constant -- immutable, or a registry sealed once its class initialised
+     *  ({@code base.Sealed}). */
+    private enum StaticKind {
+        /** The run-time wall's thread-scoped depth (G4: proven at run time), the one thread-local of the product. */
+        RUN_GUARD,
+        /** A holder of the process's resources: the databases and sessions it keeps, a counter that names them. */
+        RESOURCE,
+        /** A memo of a pure function of constant inputs (the platform's tables, the boot model): an answer kept is the
+         *  answer computed again. */
+        CACHE,
+        /** Measurement: a census's counters, samples and attribution label -- written by the product, read only by its
+         *  own class's reports, never by a decision. */
+        MEASUREMENT,
+        /** A constant table held as an array for its speed (a digest's constants, a calendar's names): private, never
+         *  written after its class initialised. */
+        CONSTANT_ARRAY
+    }
+
+    /** THE STATIC STATE REGISTER (2026-11-09; until then {@code staticCollectionStateIsImmutableOrRegistered}, which saw
+     *  collections alone -- an atomic, an array, a shared dialect, a session store passed it): every static field of the
+     *  product holding a mutable object after its class initialised, by kind. Exact in both directions. */
+    private static final java.util.Map<String, StaticKind> STATIC_STATE = java.util.Map.ofEntries(
+            java.util.Map.entry("com.legend.base.RunScope.DEPTH", StaticKind.RUN_GUARD),
+            java.util.Map.entry("com.legend.base.RunScope.PLANNING", StaticKind.RUN_GUARD),
+            java.util.Map.entry("com.legend.base.RunScope.JUDGING", StaticKind.RUN_GUARD),
+            // the databases the process keeps: the server's project databases, the plans' own and named ones
+            java.util.Map.entry("com.legend.exec.PlanSessions.SHARED", StaticKind.RESOURCE),
+            java.util.Map.entry("com.legend.exec.PlanSessions.NAMED", StaticKind.RESOURCE),
+            java.util.Map.entry("com.legend.exec.PlanSessions.PROJECTS", StaticKind.RESOURCE),
+            java.util.Map.entry("com.legend.exec.PlanSessions.ATTEMPTS", StaticKind.RESOURCE),
+            // the current system database of each engine, leased per run (hole 2)
+            java.util.Map.entry("com.legend.exec.SystemDatabase.CURRENT", StaticKind.RESOURCE),
+            // a private in-memory database's unique name
+            java.util.Map.entry("com.legend.exec.H2Connector.PRIVATE_IDS", StaticKind.RESOURCE),
+            // the boot model compiled once; a bare name's referents and a built call's names over the platform's tables
+            java.util.Map.entry("com.legend.Compiler.BOOT", StaticKind.CACHE),
+            // a library's text compiled once a process, by its content (the timeseries branch's A5, docs/TS_V1_PROGRAM
+            // A5; registered at main's merge (#92) into it, 2026-11-09): an answer kept is the answer computed again
+            java.util.Map.entry("com.legend.Compiler.LIBRARIES", StaticKind.CACHE),
+            java.util.Map.entry("com.legend.compiler.BareNames.REFERENTS", StaticKind.CACHE),
+            java.util.Map.entry("com.legend.compiler.NameResolver.BUILT", StaticKind.CACHE),
+            java.util.Map.entry("com.legend.diagnostics.Census.COUNTS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.Census.KEYED", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.Census.FALLBACK_REASONS", StaticKind.MEASUREMENT),
+            // the Arrow framer's constants (2026-11-09, the follow-up audit: //arrow_ipc joins the product's jars)
+            java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.base.Attribution.LABEL", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.VerdictCensus.SQL_CENSUS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CHANNEL_SEEN", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.SAMPLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.DISAGREE_SAMPLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_FORMS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_DECLINES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_SAMPLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_SIDE_ROWS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.V7_DECLINE_WITNESSES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.testexec.CanonicalDivergence.QUARANTINED_WALL_TESTS",
+                    StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.probe.Shadow.SEEN", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.probe.Shadow.TABLES", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.probe.Shadow.ROWS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.sql.dialect.StableScanOrder.FIRINGS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.sql.dialect.SQLite.MONTHS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SQLite.DAYS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_K", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_S", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.SHA256_K", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.cache.Sha256.K", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.cache.Sha256.H0", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.protocol.sql.iq.IqFunctions.MONTHS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.protocol.sql.iq.IqFunctions.WEEKDAYS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.protocol.sql.iq.IqFunctions.WEEK_STARTS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.lexer.TokenStream.TOKEN_TYPES", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.DATA_TYPE_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.OP_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.PLAN_NODE_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.CONNECTION_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.DATASOURCE_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.VS_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.ACTIVITY_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.builtin.SystemMetamodel.ELEMENT_KINDS", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.lowering.DateFormats.FORMAT_TOKENS", StaticKind.CONSTANT_ARRAY));
+
+    /**
+     * NO STATIC STATE BUT THE REGISTER'S (the user's ruling of 2026-11-09, "do we want mutable state? fix all of it"):
+     * every static field of the product is read after its class initialised, and the object it holds is a constant --
+     * immutable, a lambda, a record or an enum, or a registry sealed once built ({@code base.Sealed}) -- or a field of
+     * {@link #STATIC_STATE}, by kind, and private (no other class reaches it: a census is read through its own reports,
+     * never by a decision; a cache or a resource through its class's methods). The register is exact: an entry whose
+     * field now holds a constant is stale.
+     */
     @Test
-    void staticCollectionStateIsImmutableOrRegistered() throws Exception {
-        java.util.Set<String> register = java.util.Set.of(
-                // CENSUS (block-compiler homework 2026-09-21): the fused
-                // statement's fallback reasons, appended by the batch's split
-                // rung, read by the corpus lanes only — no verdict reads it
-                // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): every count the lanes
-                // print or pin, one storage, one snapshot — read by the lanes and the
-                // divergence report only, never by a verdict
-                "com.legend.exec.Census.COUNTS",
-                "com.legend.exec.Census.KEYED",
-                "com.legend.exec.Census.FALLBACK_REASONS",
-                // the kinds of each body the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
-                // appended by the router, read by the corpus lanes' histogram only -- measurement, never a verdict
-                "com.legend.exec.Census.STAYED_KINDS",
-                // the asserts the host planner declined, by shape (the test-is-the-product plan's M10c, 2026-11-02):
-                // appended by the planner, read by the corpus lanes' histogram only -- measurement, never a verdict
-                "com.legend.exec.Census.UNPLANNED_ASSERTS",
-                // (com.legend.base.RunScope.REPORTED left 2026-11-06 with the wall's report mode: nothing turns the
-                // wall off)
-                // write-once static-init tables (populated once in <clinit>,
-                // read-only thereafter) — burn-down: wrap immutable
-                "com.legend.lexer.Lexer.KEYWORDS",
-                "com.legend.lowering.Windows.FNS",
-                "com.legend.lowering.Windows.AGGREGATES",
-                "com.legend.lowering.Scalars.RULES",
-                "com.legend.lowering.FeatureRules.UNDER",
-                "com.legend.lowering.Aggregates.REDUCERS",
-                "com.legend.platform.CoreFn.BY_NAME",
-                "com.legend.builtin.Pure.ALL_CLASSES",
-                "com.legend.builtin.Pure.ALL_ENUMS",
-                "com.legend.builtin.Pure.ALL",
-                "com.legend.builtin.Pure$Index.CLASS_BY_FQN",
-                "com.legend.builtin.Pure$Index.ENUM_BY_FQN",
-                "com.legend.builtin.Pure$Index.FN_BY_FQN",
-                "com.legend.builtin.Pure$Index.FN_BY_ID",
-                "com.legend.builtin.Pure$Index.USER_RESOLVABLE_FQNS",
-                // the step-3 shadow diff's sinks (a probe, deleted at step 4)
-                "com.legend.probe.Shadow.SEEN",
-                "com.legend.probe.Shadow.TABLES",
-                "com.legend.probe.Shadow.ROWS",
-                "com.legend.compiler.NameResolver.PRELUDE_TYPES",
-                "com.legend.compiler.NameResolver.PRELUDE_COLLISIONS",
-                "com.legend.parser.SectionGrammarRegistry.REGISTRY",
-                // warn-once diagnostic suppression set: genuinely mutable
-                // runtime state, bounded by the model's FQN universe
-                "com.legend.compiler.element.FunctionCompiler.SUPPRESSED_ONCE",
-                // live diagnostic ledger (Phase 0 honesty instrument):
-                // accumulates timings at runtime; content-addressing is
-                // meaningless for a metrics sink
-                // per-test wall of the same ledger (batch 8: the corpus
-                // dump names its 30 slowest tests)
-                // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
-                // bounded witness sample for the harness-published
-                // table; measurement only, never verdict-affecting
-                "com.legend.judge.CanonicalDivergence.SAMPLES",
-                // V7 dual-channel census (V7_ASSERT_VERDICT_CHARTER
-                // §4.1): per-form harness-vs-production verdict counts,
-                // bounded classified declines, bounded disagreement
-                // witnesses; measurement only — the CanonicalDivergence
-                // pattern
-                // reserved dual-verdict ALARM witness buffer (bounded
-                // 50) — the alarm row must never lose its witness to
-                // shared-sample crowding; measurement only
-                "com.legend.judge.CanonicalDivergence.SQL_DISAGREE_SAMPLES",
-                // §8.3b wobble burn: the BYTE channel's pinned-census
-                // witnesses get the same reserved buffer — a ±1 count
-                // wobble was unattributable because its rows sat past
-                // the shared 200-cap (decline-row crowding, the
-                // SQL_DISAGREE_SAMPLES lesson re-learned); bounded by
-                // the exact-pinned disagree count (23); measurement only
-                "com.legend.judge.CanonicalDivergence.DISAGREE_SAMPLES",
-                "com.legend.judge.CanonicalDivergence.V7_FORMS",
-                // leg 3.0 (DATABASE_MODE_HOMEWORK §4a): the SQL canon's
-                // CLAIM / DECLINE census per assert family and reason —
-                // bounded by families × decline-reason heads (~40 keys);
-                // measurement only, printed by the corpus lanes, never
-                // read by a verdict
-                "com.legend.judge.CanonicalDivergence.SQL_CENSUS",
-                "com.legend.judge.CanonicalDivergence.V7_DECLINES",
-                "com.legend.judge.CanonicalDivergence.V7_SAMPLES",
-                // step-0 residue census (FULL_RESIDUE_CENSUS_2026_08_30):
-                // per-ROW decline attribution, UNCAPPED by census
-                // doctrine but bounded by the sweep's own decline count
-                // (~420); measurement only, never verdict-affecting
-                "com.legend.judge.CanonicalDivergence.V7_DECLINE_WITNESSES",
-                // slice-1 quarantine channel move (census §10h): the
-                // wall-surfaced quarantine tests, vocabulary-matched —
-                // bounded by the partition's own size (20 today);
-                // measurement only, never verdict-affecting
-                "com.legend.judge.CanonicalDivergence.QUARANTINED_WALL_TESTS",
-                // SQLTEXT slice 3a: the text-emission census's
-                // per-reason text-verdict tally (foreign dialects,
-                // replay declines) — bounded by decline-reason
-                // cardinality; measurement only, never
-                // verdict-affecting (the CanonicalDivergence pattern)
-                // TYPED-IR Slice 1: the label-lie census's classified
-                // counters (declared-vs-computed pair -> count);
-                // measurement only, never verdict-affecting — the
-                // CanonicalDivergence pattern
-                "com.legend.judge.SqlTypeCensus.CLASSES",
-                // T3: bounded per-class WITNESSES (3 max each) — the
-                // emission-seam locator; measurement only
-                "com.legend.judge.SqlTypeCensus.SAMPLES",
-                // §E3 M-N1: the nullability differential's classified
-                // counters + bounded witnesses (fact-vs-label nullable
-                // — the M-N3 flip payload); measurement only, the
-                // §4AD navigation-arm census: runtime accumulation,
-                // dumped by the corpus runner (NAV_ARM_CENSUS_4AD.md)
-                // SqlTypeCensus pattern (runtime accumulation is the
-                // legitimate static-census shape)
-                "com.legend.judge.SqlTypeCensus.NUL_CLASSES",
-                "com.legend.judge.SqlTypeCensus.NUL_SAMPLES",
-                // (the §E3 slack census's SLACK_CLASSES and SLACK_SAMPLES LEFT this allowlist 2026-10-29: deleted
-                // with the wire census's arm by the doors' audit, D64 -- callerless since the plan runner)
-                // the primitive census (2026-10-12, the coverage map, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20): a
-                // tally per MIR primitive by outcome, bounded by the MIR's vocabulary; written only under
-                // -Dlegend.diagnostics=primitives; measurement only, never verdict-affecting (the SqlTypeCensus
-                // pattern)
-                "com.legend.judge.PrimitiveCensus.TALLY",
-                // and its per-test sets under primitives=per-test (the same day): bounded by tests x vocabulary
-                "com.legend.judge.PrimitiveCensus.TESTS",
-                // com.legend.exec.SessionState.OF LEFT this register 2026-10-30 (D70, the seam's step A): the
-                // process-wide weak map keyed by the driver's connection is gone -- the state is the owning session's
-                // own, shared by its views (Sessions.Session.state()); a product session owns its connection
-                // (theProductBorrowsNoConnection), so nothing is wrapped as a session anew at every call any more
-                // the bare-name rule's table (L7 "resolve once", step 3, 2026-10-10): the names a bare
-                // call may mean at an arity, computed from static tables (the engine surface, the core
-                // import group, the forms, the catalog) and kept per (name, arity) once computed; never
-                // cleared, never keyed by anything but those inputs
-                "com.legend.compiler.BareNames.REFERENTS",
-                // the resolver's answers for built calls (L7 step 3, 2026-10-10): per (name, arity) under the
-                // sectionless-query scope, from the same static inputs; never cleared
-                "com.legend.compiler.NameResolver.BUILT");
+    void staticStateIsConstantOrRegistered() throws Exception {
         java.util.List<String> violations = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
-            if (jc.getPackageName().startsWith("com.legend.cache")) {
-                continue;
-            }
             Class<?> cls;
             try {
                 cls = Class.forName(jc.getName());
-            } catch (Throwable t) {
-                continue; // unloadable in the test JVM — nothing to inspect
+            } catch (ExceptionInInitializerError e) {
+                // a class whose initialiser fails is a finding, never a class skipped (the follow-up audit, 2026-11-09)
+                violations.add(jc.getName() + "'s class initialiser fails: " + e.getCause());
+                continue;
+            } catch (NoClassDefFoundError | ClassNotFoundException e) {
+                continue; // a class whose driver is not on the test JVM's classpath: nothing to inspect
             }
             for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
-                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())
-                        || !(java.util.Map.class.isAssignableFrom(f.getType())
-                                || java.util.Collection.class.isAssignableFrom(f.getType()))) {
+                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.isSynthetic()
+                        || f.getType().isPrimitive()) {
                     continue;
                 }
                 String id = cls.getName() + "." + f.getName();
-                if (register.contains(id)) {
+                f.setAccessible(true);
+                String mutable = mutableObject(f.get(null), 0);
+                StaticKind kind = STATIC_STATE.get(id);
+                if (mutable == null) {
+                    if (kind != null) {
+                        violations.add(id + " is registered as " + kind + " but holds a constant (shrink the register)");
+                    }
                     continue;
                 }
-                f.setAccessible(true);
-                Object v = f.get(null);
-                if (v == null || !isKnownImmutable(v)) {
-                    violations.add(id + " holds "
-                            + (v == null ? "null" : v.getClass().getName()));
+                seen.add(id);
+                if (kind == null) {
+                    violations.add(id + " holds mutable state, " + mutable + " (make it constant, or register its kind)");
+                } else if (!java.lang.reflect.Modifier.isPrivate(f.getModifiers())) {
+                    violations.add(id + " (" + kind + ") is not private: another class could read or write it");
                 }
             }
         }
+        java.util.Set<String> gone = new java.util.TreeSet<>(STATIC_STATE.keySet());
+        gone.removeAll(seen);
+        for (String id : gone) {
+            if (violations.stream().noneMatch(v -> v.startsWith(id + " "))) {
+                violations.add(id + " is registered but no longer exists (shrink the register)");
+            }
+        }
         org.junit.jupiter.api.Assertions.assertTrue(violations.isEmpty(),
-                "Invariant 3 (field level): static collection state outside "
-                        + "com.legend.cache must be immutable or registered "
-                        + "with justification:\n  "
+                "no static state but the register's (constant, sealed, or registered by kind):\n  "
                         + String.join("\n  ", violations));
     }
 
-    private static boolean isKnownImmutable(Object v) {
-        String n = v.getClass().getName();
-        return n.startsWith("java.util.ImmutableCollections")
-                || n.startsWith("java.util.Collections$Unmodifiable")
-                || n.startsWith("java.util.Collections$Empty")
-                || n.startsWith("java.util.Collections$Singleton");
+    /** Why {@code v} is mutable, or null for a constant. */
+    private static @com.legend.base.Nullable String mutableObject(@com.legend.base.Nullable Object v, int depth) {
+        // (deep enough for a registry of registries: depth 4, the follow-up audit of 2026-11-09 -- 2 until then)
+        if (v == null || depth > 4) {
+            return null;
+        }
+        Class<?> k = v.getClass();
+        String n = k.getName();
+        if (v instanceof com.legend.base.Sealed.Seal seal) {
+            return seal.sealed() ? null : "an unsealed registry " + n;
+        }
+        if (k.isArray()) {
+            return java.lang.reflect.Array.getLength(v) == 0 ? null : "an array " + k.getComponentType().getName();
+        }
+        // a holder first: an atomic counter is a Number (the guard's own gap, found on its first Bazel run, 2026-11-09)
+        if (n.startsWith("java.util.concurrent.atomic.") || v instanceof ThreadLocal<?>
+                || v instanceof StringBuilder) {
+            return "a holder " + n;
+        }
+        // the JDK's own mutable values (the follow-up audit, 2026-11-09)
+        if (v instanceof java.util.Random || v instanceof java.util.BitSet || v instanceof java.util.Date
+                || v instanceof java.util.Calendar) {
+            return "a mutable value " + n;
+        }
+        // a record and a lambda are as constant as what they hold: their fields are looked at below (the follow-up
+        // audit, 2026-11-09: a record holding a list, a lambda capturing one, passed until then)
+        if (k.isEnum() || v instanceof String || v instanceof Number || v instanceof Boolean
+                || v instanceof Character || v instanceof Class) {
+            return null;
+        }
+        if (v instanceof java.util.Collection<?> || v instanceof java.util.Map<?, ?>) {
+            return n.startsWith("java.util.ImmutableCollections") || n.startsWith("java.util.Collections$Unmodifiable")
+                    || n.startsWith("java.util.Collections$Empty") || n.startsWith("java.util.Collections$Singleton")
+                    ? null : "a collection " + n;
+        }
+        if (n.startsWith("java.") || n.startsWith("javax.") || n.startsWith("jdk.") || n.startsWith("sun.")) {
+            return null;
+        }
+        // the product's own object: mutable if it has a field that is not final, or holds something mutable
+        for (Class<?> x = k; x != null && x != Object.class; x = x.getSuperclass()) {
+            for (java.lang.reflect.Field f : x.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                    continue;
+                }
+                if (!java.lang.reflect.Modifier.isFinal(f.getModifiers())) {
+                    return "an object " + n + " (its field " + f.getName() + " is not final)";
+                }
+                try {
+                    f.setAccessible(true);
+                    String inner = mutableObject(f.get(v), depth + 1);
+                    if (inner != null) {
+                        return "an object " + n + " (its field " + f.getName() + ": " + inner + ")";
+                    }
+                } catch (ReflectiveOperationException | RuntimeException e) {
+                    return "an object " + n + " (its field " + f.getName() + " unreadable: " + e + ")";
+                }
+            }
+        }
+        return null;
     }
 
     /**

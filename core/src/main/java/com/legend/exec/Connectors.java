@@ -3,8 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -88,7 +87,7 @@ public final class Connectors {
             implements DatabaseConnector {
 
         @Override
-        public Sessions.Session open(ConnectionDefinition def) {
+        public Sessions.Session open(com.legend.executionplan.Connection def) {
             throw unbuilt();
         }
 
@@ -98,7 +97,7 @@ public final class Connectors {
         }
 
         @Override
-        public Sessions.Opening opening(ConnectionDefinition def) {
+        public Sessions.Opening opening(com.legend.executionplan.Connection def) {
             return DatabaseConnector.notOpened(def);
         }
 

@@ -3,9 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.DatabaseType;
+import com.legend.executionplan.ConnectionSpecification;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -78,7 +77,7 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         ConnectionSpecification spec = def.specification();
         if (spec instanceof ConnectionSpecification.LocalFile(String path)) {
             return new Sessions.Opening.Url("jdbc:h2:file:" + path);

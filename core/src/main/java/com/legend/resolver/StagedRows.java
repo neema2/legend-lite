@@ -42,6 +42,13 @@ public final class StagedRows {
                 grid.info()), letInfo);
     }
 
+    /** The temporary table a RAW GRID let read after a later effect is staged into on the program road (the walk
+     *  deletion, 2026-11-06): the let's name and its place in the body, so the test door that stages it and the
+     *  asserts' planners that read it name one table, planned apart. */
+    public static String gridTable(String let, int place) {
+        return table(let) + "_grid" + place;
+    }
+
     /** The temporary table of the session a staged let's rows are held in: the let's name under a prefix of the
      *  platform's own, so no table of a store is named. */
     public static String table(String let) {
@@ -200,7 +207,7 @@ public final class StagedRows {
                             inner.addAll(t.tables());
                             innerAny |= t.any();
                         }
-                    } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                    } catch (com.legend.error.TypeInferenceException e) {
                         innerAny = true;   // an un-typeable callee cannot run; taken to touch any table
                     }
                     callee = new Touched(inner, innerAny);

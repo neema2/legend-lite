@@ -3,9 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.DatabaseType;
+import com.legend.executionplan.ConnectionSpecification;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -31,7 +30,7 @@ final class SqliteConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.LocalFile(String path)) {
             return new Sessions.Opening.Url("jdbc:sqlite:" + path);
         }

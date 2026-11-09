@@ -2,6 +2,21 @@
 
 > **This file is read by AI coding assistants. Follow these rules strictly.**
 >
+> **The goals of record (ratified by the user, 2026-11-07): `docs/GOALS_OF_RECORD_2026_11_07.md`.
+> Read it before reopening any "where does this live / may this run here" debate.**
+> - **G1 One road:** one compiler, one planner, one exec. No walk, no second evaluator.
+> - **G2 Judge parity:** the host and database judges reach the same verdict everywhere.
+> - **G3 A lean product path:** typed values matched by type and value, lean SQL, fast exec.
+> - **G4 Provable separation:** plan only plans, exec only execs, judge and driver included.
+>   - The plan is SQL and data only, never Java and never stuffed to dodge the rule.
+>   - Exec runs only the plan's statements.
+>   - It is proven at run time (`RunScope`) and at compile time (ArchUnit).
+> - **G5 Compatibility at the edge:** contained, one direction (the edge depends on the product, never the reverse).
+> - **G6 The database does the work.** Small Java formatting, the appeals and the referee are allowed only at the edge.
+>
+> G7-G11 were accepted by the user (2026-11-07): no fallbacks, ledgered fidelity, a guard for every goal, determinism,
+> and the plan as portable data.
+>
 > **North-star tenet:** *Total Knowledge, Demand-Driven Work* — be eager and
 > total about Knowledge (parse/index/manifest), lazy about Work (type-check
 > bodies, lower, SQL, execute). See `docs/TENETS.md` before any "lazy vs
@@ -173,8 +188,8 @@ user-visible error carries one of these eight.
 | `Compiler.compileErrors(String)` | A→F, then eager G over all bodies: a whole model | its errors as a list: the first element error alone, else every body's; both `compilation/compile` routes answer from it |
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
-| `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
-| `Execution.runProgram(...)` | a TEST BODY through the body router: a body of a moved class (`testplan/BodyClass`) planned whole by the test door and run as one plan, its asserts judged at their verdict steps by the router's sink (the host judge, M6), every other G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
+| `Execution.run(...)` | A→K: the query planned by its one planning entry (`TypedQuery.executionPlan`), the plan run by exec's product run (`ProductRun`), its rows written in the caller's `Output` (a format and a stream, data: the result library makes the writer from the plan; 2026-11-09); `Execution.runOnProjectDatabases` is the server's (pure/v1's execute) | STRICT — **the production seam** |
+| `TestExecution.runProgram(...)` | a TEST BODY planned whole by the test planner (`testplan/TestPlanner`; `testplan/BodyClass` names its class) into a test plan, which is data, and run by the test runner (`testexec/TestRunner`), its asserts judged at their verdict steps; a body the program road does not plan is refused by name (the walk was deleted 2026-11-06); the verdicts to a listener, the last statement's answer written in the caller's `Output` (data, the writer the result library's). Its halves `planBody`/`runBody` (and `planProgram`/`runFixture`) let a caller provide fixtures between them | STRICT |
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
@@ -186,26 +201,19 @@ and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is the driver's (`com.legend.driver`, step C,
-D73, 2026-10-30) and **has one caller by design**, the body router `driver/BodyRouter`, which `Execution.runProgram`
-alone calls; the router runs a body of a moved class whole on the program road and walks every other body with the
-body driver (the test-is-the-product plan's M5, 2026-11-01, until M10 deletes both; the classes moved: the effect setup
-programs and the plain query programs (M5), the assert programs under the host judge (M6: each assert's sides planned
-before the program by `driver/HostAsserts` through the test library's `TestDoor.Asserts` hook, judged at its verdict
-step by the router's sink with the walk's census and listener protocol), the frame programs under the host judge (M9,
-2026-11-01: `let r = execute(...)` frames, aliases, inline executes, handles, activities reads -- the frame's trace
-stamp a plan parameter its eager run binds and the sides carry -- effects with literal arguments; a body a store write
-reaches, a side routed to another session than the body's, a system-store read, the engine-text asserts and the
-test-data generator stay on the walk), and the same two classes under the DATABASE judge (M7, 2026-11-01:
-`driver/DatabaseAsserts` plans the asserts under a collecting verdict batch before the program, a static pass first;
-the batch's planning half composes each segment's fused statement with the frames' CTEs at its head, the frames never
-run at their let; the router's sink judges each segment at its last verdict with the batch's own root loop; channel
-B's BOTH judging walks every assert body until M8); the kinds of each walked body are counted by `testplan/BodyKinds` into
-`Census.STAYED_KINDS` for the corpus lanes' histogram (measurement, deciding nothing); `ArchitectureTest.theDriverHasOneCaller`;
-package-private while it shared the root package with the door). The root package holds the five public doors alone:
-`Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
-machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline
-order.
+**The driver and judge packages are deleted (slice 5, 2026-11-09, docs/PLAN_AS_DATA_2026_11_07.md section 11).** A
+test body is planned by `testplan/` (`TestPlanner`: the body's class, `BodyClass`; each assert planned by its judge's
+planner, `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`; `BodyDriver` is what remains of the body's planning
+environment) into a test plan, which is data (`testexecutionplan/`), and the plan is run by `testexec/` (`TestRunner`:
+exec's program runner with the judges as its callback), which reaches no planning library. **The walk is deleted
+(2026-11-06)**; a body no class admits, or whose judge's planner refuses an assert, is refused by name
+(`NotImplementedException: the program road does not plan this body`, with its kinds and the class rule's reason).
+The root package holds the public doors alone: `Compiler`, `TypedQuery`, `HeldModels` (the plan side, `//core:planner`),
+`Execution` (the product's door, `//core:execution`) and `TestExecution`, `ExecuteOptions` (the test body's door,
+`//core:test_execution`). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
+`JavaEvalLedgerTest.theDoorsHoldNoLogic`); only the test door sees both halves of a test (`onlyTheDoorSeesBothHalves`),
+and a class above the doors reaches each side through its public types alone (`onlyTheDoorsCompose`). The planner depends
+on no execution class (`plannerIsExecutionFree`).
 
 ## Layer ownership (the contract)
 
@@ -429,6 +437,8 @@ otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
+| `docs/DATA_IN_THE_PLAN_2026_11_09.md` | **Data in the plan** (the user's go, 2026-11-09): data enters a database through a load and only a load -- a reference with a digest (never a machine path, never large rows), resolved, verified and delivered by exec, the delivery chosen at planning per database; today's 17 mechanisms each replaced and deleted (13) or bounded by a guard (4, not loads); the deletion census as the proof; slices L1-L8. Evidence: `docs/data-in-the-plan-homework/` |
+| `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |
 | `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` | **Start here for the test-is-the-product program** (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83): the state on 2026-11-06, the user's rulings, the concepts (the program road, the three judges, the runtime and exec walls, channels A and B), the roadmap from PCT and core at 100% through the corpus, the walk's deletion, the special-casing audit and lean SQL, the measurements and the lessons |
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |

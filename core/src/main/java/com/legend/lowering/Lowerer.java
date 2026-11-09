@@ -632,6 +632,15 @@ public final class Lowerer {
         return lower(List.of(new TypedVariable(name, type)));
     }
 
+    /** Whether {@code spec} is a USER {@code toOne()} over a relation (never the conformance {@code trustOne}). */
+    private static boolean checkedToOne(TypedSpec spec) {
+        return spec instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
+                && Pure.isToOneCall(tc.callee().qualifiedName())
+                && !Pure.Lite.TRUST_ONE.equals(tc.callee().qualifiedName())
+                && tc.args().size() == 1
+                && Type.isRelation(tc.args().get(0).info().type());
+    }
+
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
         com.legend.base.RunScope.planning("lower a spec");
@@ -669,8 +678,11 @@ public final class Lowerer {
         // lowers through the relation pipeline; a COLLECTION-shaped root
         // filters empty cells at egress (Fold#collectionRootEgress).
         if (Type.schemaView(spec.info().type()) instanceof Type.RelationType rrt) {
-            return Fold.collectionRootEgress(relation(spec), rrt,
+            SqlQuery rows = Fold.collectionRootEgress(relation(spec), rrt,
                     Stamps.isMany(spec), this::nextAlias);
+            // a relation's toOne() at the statement's ROOT: the database checks it is exactly one row (D2, the user,
+            // 2026-11-07: "sql guard is good"); a toOne nested in a pipeline keeps upstream's look-through
+            return checkedToOne(spec) ? ToOneGuard.exactlyOne(rows, this::nextAlias) : rows;
         }
         // relation->map(row|scalar) at the ROOT is the single-column
         // projection (pure: a VALUE collection derived from rows; the

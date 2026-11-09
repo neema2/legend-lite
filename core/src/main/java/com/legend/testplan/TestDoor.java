@@ -3,11 +3,15 @@
 
 package com.legend.testplan;
 
+import com.legend.testexecutionplan.Edge;
+
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.planner.PlanMaker;
+import com.legend.planner.PlannedStep;
 import com.legend.platform.Feature;
+import com.legend.testexecutionplan.TestPlan;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -30,8 +34,8 @@ public final class TestDoor {
     }
 
     /** {@code body}'s plan on {@code runtime}, under {@code features}. */
-    public static ExecutionPlan plan(TypedQuery body, String runtime, Set<Feature> features) {
-        return planned(body, runtime, features).plan();
+    public static TestPlan plan(TypedQuery body, String runtime, Set<Feature> features) {
+        return planned(body, runtime, features);
     }
 
     /** A statement the raw-SQL ledger records once it ran: the text the walk records (the referee's spelling) and
@@ -39,24 +43,11 @@ public final class TestDoor {
     public record Recorded(String text, boolean query) {
     }
 
-    /** An effect step beside the plan: the walk's name for its segment ({@link EffectSegment#where}), which a
-     *  failure is named by, and its statements' ledger texts in order. */
-    public record Effect(String where, List<Recorded> statements) {
+    /** An effect step beside the plan: its statements' ledger texts in order, recorded once the step ran (a step
+     *  that fails records nothing: its failure is the database's own error, P1, 2026-11-07). */
+    public record Effect(List<Recorded> statements) {
         public Effect {
             statements = List.copyOf(statements);
-        }
-    }
-
-    /** A body's plan and, beside it, its effect steps' segments and ledger texts and its seed steps' ledger texts
-     *  (whether a seed answered rows is the run's to say), each by the step's place in the plan's sequence (the test
-     *  door's own index: the product plan carries no referee text); and the places of its frame lets' eager runs
-     *  (M9: a check the walk sends under its own origin, LET, which the plan does not say). */
-    public record Planned(ExecutionPlan plan, Map<Integer, Effect> effects, Map<Integer, List<String>> seeds,
-            Set<Integer> frameRuns) {
-        public Planned {
-            effects = Collections.unmodifiableMap(new LinkedHashMap<>(effects));
-            seeds = Collections.unmodifiableMap(new LinkedHashMap<>(seeds));
-            frameRuns = Collections.unmodifiableSet(new java.util.TreeSet<>(frameRuns));
         }
     }
 
@@ -76,7 +67,12 @@ public final class TestDoor {
          *  groups: the database judge defers every assert of a segment to the segment's last), one branch (an
          *  {@code if} whose sides hold asserts, each side's steps its judge's: the asserts-as-plan-nodes program, step
          *  4), or null (not planned: the body is refused by name). */
-        @Nullable List<? extends ExecutionPlan.Node> at(int statement);
+        @Nullable List<? extends TestPlan.TestStep> at(int statement);
+
+        /** The judge the asserts were planned for: the body's plan names it (the host's where none is planned). */
+        default TestPlan.Judge judge() {
+            return TestPlan.Judge.HOST;
+        }
 
         /** Whether a frame let's eager run is a step of the program (the host judge: Pure runs it at the let); the
          *  database judge runs no frame at its let -- its readers reference the frame's CTE inside the fused statement
@@ -93,13 +89,13 @@ public final class TestDoor {
         }
     }
 
-    /** {@link #plan} with the effects' and seeds' ledger texts beside it; no assert planned. */
-    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features) {
+    /** {@link #plan}, no assert planned and nothing for the edge. */
+    public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features) {
         return planned(body, runtime, features, Asserts.NONE);
     }
 
     /** {@link #planned(TypedQuery, String, Set)} with the body's asserts placed as {@code asserts} planned them. */
-    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts) {
+    public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts) {
         return planned(body, runtime, features, asserts, false);
     }
 
@@ -107,29 +103,64 @@ public final class TestDoor {
      *  metamodel store and nothing else ({@code BodyClass.systemRouted}), so its program's target is the graph's
      *  SYSTEM database on the runtime's engine ({@link ExecutionPlan.Database.System}; the test-is-the-product plan's
      *  M10a), which the caller's sessions source opens. */
-    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
+    public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted) {
-        TestKinds kinds = new TestKinds(body, runtime, asserts);
-        ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
-        List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
-                : List.of(plan.root());
-        Map<Integer, Effect> effects = byStep(steps, kinds.effects());
-        Map<Integer, List<String>> seeds = byStep(steps, kinds.seeds());
+        return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(), null);
+    }
+
+    /** {@link #planned(TypedQuery, String, Set, Asserts, boolean)} with the stores a CSV load's file is read from at
+     *  planning, for its reference's digest (docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09). */
+    public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
+            boolean systemRouted,
+            com.legend.executionplan.DataStores stores,
+            com.legend.testexecutionplan.@Nullable Edge edge) {
+        TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
+        PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
+        List<PlannedStep> planned = program.steps();
         for (int place : kinds.frameRuns()) {
-            if (place >= steps.size() || !(steps.get(place) instanceof ExecutionPlan.Check)) {
+            if (place >= planned.size() || !(planned.get(place) instanceof PlannedStep.Product p
+                    && p.node() instanceof ExecutionPlan.Check)) {
                 throw new IllegalStateException("the frame run at place " + place + " of the test door's plan is not"
-                        + " a check of its sequence");
+                        + " a check of its steps");
             }
         }
-        return new Planned(plan, effects, seeds, kinds.frameRuns());
+        // each step the planner holds as the test plan holds it: a product node, a frame let's eager run (M9: sent under
+        // its own origin, LET -- a fact of the plan), or the verdict step the library placed under its handle
+        List<TestPlan.TestStep> steps = new java.util.ArrayList<>(planned.size());
+        for (int i = 0; i < planned.size(); i++) {
+            boolean frameRun = kinds.frameRuns().contains(i);
+            steps.add(switch (planned.get(i)) {
+                case PlannedStep.Product p when frameRun ->
+                        new TestPlan.FrameRun((ExecutionPlan.Check) p.node());
+                case PlannedStep.Product p -> new TestPlan.Run(p.node());
+                case PlannedStep.Extension e -> kinds.extension(e.handle());
+            });
+        }
+        Map<Integer, Effect> effects = byStep(planned, kinds.effects());
+        Map<Integer, List<String>> seeds = byStep(planned, kinds.seeds());
+        // the ledger texts are the compatibility edge's to plan, by the step's index (the plan-as-data design's step 8,
+        // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
+        Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
+        if (edge != null) {
+            effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
+                    e.statements().stream().map(Recorded::query).toList())));
+            seeds.forEach((i, texts) -> byStep.put(i, edge.seed(texts)));
+        }
+        // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
+        // (the slice 2 invariant audit's hole 3, 2026-11-08)
+        boolean answersLastVerdict = asserts.at(body.body().size() - 1) != null;
+        // the session the body runs on: its runtime's database, the test door's own target (slice 5, 2026-11-09: the
+        // door planned it beside the plan until then)
+        return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
+                PlanMaker.testSessionTarget(body.context(), runtime));
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library
      *  planned that is not one of them is refused by name (its texts would never reach the ledger). */
-    private static <T> Map<Integer, T> byStep(List<ExecutionPlan.Node> steps, Map<ExecutionPlan.Node, T> beside) {
+    private static <T> Map<Integer, T> byStep(List<PlannedStep> steps, Map<ExecutionPlan.Node, T> beside) {
         Map<Integer, T> byIndex = new LinkedHashMap<>();
         for (int i = 0; i < steps.size(); i++) {
-            T texts = beside.get(steps.get(i));
+            T texts = steps.get(i) instanceof PlannedStep.Product p ? beside.get(p.node()) : null;
             if (texts != null) {
                 byIndex.put(i, texts);
             }

@@ -79,7 +79,7 @@ public enum BodyClass {
      * with at least one effect, no assert, and nothing that seeds: no statement names test data (a {@code from()}),
      * and the runtime declares none (the walk keys its seed memo by the seed's sources, the runner by the seeds'
      * content, and orders a statement's seeds against an open script the other way round: the M5 audit's B1). The
-     * test door plans each as the walk sends it (M3d: every script byte-identical; {@code BodyRouterParityTest}).
+     * test door plans each as the walk sends it (M3d: every script byte-identical; {@code TestPlannerParityTest}).
      */
     EFFECT_PROGRAM,
 
@@ -158,7 +158,7 @@ public enum BodyClass {
         if (effectProgram(body, scan)) {
             return EFFECT_PROGRAM;
         }
-        if (queryProgram(body, scan)) {
+        if (queryProgram(body, scan) == null) {
             return QUERY_PROGRAM;
         }
         if (!oneJudge || writesAStore(body)) {
@@ -378,7 +378,7 @@ public enum BodyClass {
                             break;
                         }
                     }
-                } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                } catch (com.legend.error.TypeInferenceException e) {
                     // an un-typeable callee executes in no channel; the scan does not decide on it (StatementEffects')
                 }
                 memo.put(key, reaches);
@@ -406,9 +406,15 @@ public enum BodyClass {
         if (n instanceof TypedTableReference table) {
             return !SystemMetamodel.STORE_FQN.equals(table.store());
         }
+        // a raw SQL read, a JDBC catalog grid and a database effect act on the CONNECTION's database, the user's (the
+        // walk deletion, 2026-11-06: a body whose metamodel read is the connection let alone was classed system-routed,
+        // and its effects and raw reads would have run on the system database)
         return n instanceof TypedFrom
+                || n instanceof TypedRawSqlRelation
+                || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid
                 || n instanceof TypedNativeCall call && (NativeFn.Handle.isExecute(call.callee().id())
                         || NativeFn.Handle.runsAFrame(call.callee().id())
+                        || NativeFn.Effect.isDbEffect(call.callee().id())
                         || StatementEffects.containsTdgGenerator(call));
     }
 
@@ -453,12 +459,31 @@ public enum BodyClass {
         boolean statementFrame = false;
         ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         boolean sentBefore = false;
+        // the seed sources established so far with no write since (the test door's own established set, TestKinds.seed:
+        // a let naming them again plans no seed step)
+        Set<Seeds.Sources> seeded = new HashSet<>();
         // the names the frames' query lambdas bind themselves (their parameters, their top-level lets), so far
-        Set<String> frameNames = new HashSet<>();
+        Map<String, Set<String>> framesBinding = new HashMap<>();
+        // the frames whose lambda's names a LATER frame rebound (by the let name that denotes them): a statement that
+        // reads one after the rebinding is the walk's -- the frames write one environment's query lets, so it would read
+        // the later binding (the walk's defect, upstream reads each frame's own; the M10c item 12 audit's F1). A frame
+        // read only BEFORE a later frame rebinds its names reads its own (the walk deletion, 2026-11-06: the corpus's
+        // paginate and slice tests run one executeLegendQuery per lambda, each binding `$i`, each read at once)
+        Set<String> stale = new HashSet<>();
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
             boolean last = i == body.size() - 1;
+            if (!stale.isEmpty() && !java.util.Collections.disjoint(
+                    com.legend.compiler.spec.typed.FreeVars.of(statement instanceof TypedLet sl ? sl.value() : statement),
+                    stale)) {
+                // a read of a frame a later frame rebound (above)
+                return false;
+            }
+            if (statement instanceof TypedLet rebinding) {
+                // the name denotes this let's value from here: no longer a stale frame
+                stale.remove(rebinding.name());
+            }
             if (statement instanceof TypedLet && !last && !sentBefore) {
                 // a from()'s inline test data in a let (the corpus's `let func = {|...->from(mapping, $runtimeWithTestData)}`
                 // a frame then runs; M10c item 11): the test door seeds the let's sources before it, as the walk
@@ -468,6 +493,15 @@ public enum BodyClass {
                 // the segment's fused statement is placed at its last assert where the walk flushes it later, so a
                 // seed after either would land on the other side of it (the M5 audit's B1, the item's audit F2/F3).
                 // An assert holding inline data stays refused: its planner plans an assert whose kinds are its alone
+                if (kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS)) {
+                    seeded.add(Seeds.sources(statement, runtime, ctx));
+                }
+            } else if (statement instanceof TypedLet && !last && kinds.contains(QueryDoor.TestOnly.INLINE_SEEDS)
+                    && seeded.contains(Seeds.sources(statement, runtime, ctx))) {
+                // the SAME sources a let established earlier, with no write since: the test door plans no seed step for
+                // it (TestKinds.seed's established set), so nothing lands between the asserts -- a second frame over
+                // the first's inline data (the corpus burn-down, 2026-11-06: paginate::testPaginated,
+                // union::rootLevel::testSpecialUnion_m2m2r)
                 kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
             }
             // whether this statement sends (an effect, a frame let, an assert): no later let's seeds are admitted
@@ -484,11 +518,13 @@ public enum BodyClass {
                 if (statement instanceof TypedLet || !literalEffect(call, body.subList(0, i))) {
                     return false;
                 }
+                seeded.clear();   // a write: the sources established before it are established no longer
                 continue;
             }
             if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT)) && !(statement instanceof TypedLet)
                     && seedFormEffectMap(value, body.subList(0, i))) {
                 // a seed form mapped over an effect (M10c item 7c): the test door plans its texts as one script
+                seeded.clear();
                 continue;
             }
             if (statement instanceof TypedLet let && !last) {
@@ -514,17 +550,16 @@ public enum BodyClass {
                     // query until M10c item 11's lanes found a temporal graph fetch through it
                     TypedSpec boundQuery = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0),
                             body.subList(0, i));
-                    if (boundQuery instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                            && !java.util.Collections.disjoint(frameNames, ownNames(lam))) {
-                        // the query lambda binds a name an earlier frame's lambda bound (an executeLegendQuery
-                        // parameter, a top-level let): the walk's frames write ONE environment's query lets, so the
-                        // earlier frame's readers read the later binding (`$r1` over the pairs of `$r2`: the walk's
-                        // defect, upstream reads each frame's own) -- the program road cannot agree with it and must
-                        // not copy it: the walk's, by name, until per-frame bindings (the M10c item 12 audit's F1)
-                        return false;
-                    }
                     if (boundQuery instanceof com.legend.compiler.spec.typed.TypedLambda lam) {
-                        frameNames.addAll(ownNames(lam));
+                        // the query lambda binds a name an earlier frame's lambda bound (an executeLegendQuery
+                        // parameter, a top-level let): the earlier frame is STALE from here (above)
+                        for (String n : ownNames(lam)) {
+                            Set<String> earlier = framesBinding.computeIfAbsent(n, k -> new HashSet<>());
+                            stale.addAll(earlier);
+                            earlier.add(let.name());
+                        }
+                        // this let's name denotes this frame now, even where an earlier frame bore it
+                        stale.remove(let.name());
                     }
                     TypedSpec frameQuery = framesAndHandlesAsTheirQueries(boundQuery);
                     if (StatementEffects.reaches(frameQuery, n -> frameQueryKind(n, systemClasses, ctx) != null
@@ -597,16 +632,15 @@ public enum BodyClass {
             // a frame program with no assert (2026-11-03, the core program: ExecuteFrameTest's `let r = execute(...);
             // $r.values`): its last statement is its answer, by the query program's answer rule -- the guard below (a
             // query planned after the asserts could fail before they ran) has no assert to guard.
-            // Only let-bound frames, no frame run as a statement of its own: the corpus's
-            // otherwiseTestQualifierPropertyConstantExpression (`let result = execute(|Product.all()->filter(...));
-            // true;`, its unread let a statement over an object query) the walk runs and the store resolver refuses.
             // A bare execute(...) of a relation-rooted query as the answer answers its frame's rows, the walk's forced
             // frame (2026-11-04, the core program: ExecuteFrameTest's executeInResultPosition; the test door's
             // ProductStatements.prepare, frameAnswered); any other execute(...) answered whole stays the walk's
             if (bareExecute(last)) {
                 return !statementFrame && relationFrameAnswer(query, last, lets);
             }
-            return !statementFrame && !frames.isEmpty() && answered(query, Lets.bare(last));
+            // a frame run as a statement of its own (an unread frame let's execute(...), the user's ruling of
+            // 2026-11-02): run where it stands, its rows dropped, as the walk runs it (the user, 2026-11-06)
+            return (statementFrame || !frames.isEmpty()) && answered(query, Lets.bare(last));
         }
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
@@ -697,6 +731,22 @@ public enum BodyClass {
         return arg instanceof TypedNativeCall ec && NativeFn.Handle.isExecute(ec.callee().id());
     }
 
+    /** Whether an assert program holds a let of {@code kind} before its last statement: a VALUE let (spliced into its
+     *  readers), or a raw grid STAGED across a later effect (the test door stages it at its turn: PlanMaker's
+     *  stagedGridLet, the walk deletion, 2026-11-06). */
+    private static boolean admittedLet(LetPlanner.Kind kind) {
+        return kind == LetPlanner.Kind.VALUE || kind == LetPlanner.Kind.STAGED_GRID;
+    }
+
+    /** {@code -Dlegend.diagnostics=body-class}: the assert program's rule that refused a body, by statement (the walk
+     *  deletion's measurement, 2026-11-06; prints, decides nothing). */
+    private static void assertRefusal(int statement, String why) {
+        if (java.util.Arrays.asList(System.getProperty("legend.diagnostics", "").split(",")).contains("body-class")) {
+            System.err.println("[body-class] assert rule " + System.getProperty("legend.test.current", "?")
+                    + " statement " + statement + ": " + why);
+        }
+    }
+
     private static boolean assertProgram(TypedQuery query, QueryDoor.Scan scan, boolean systemRouted) {
         ModelContext ctx = query.context();
         Set<String> systemClasses = systemClasses(ctx);
@@ -716,18 +766,41 @@ public enum BodyClass {
             // executionPlan, by an execute's runtime argument): a value let the program splices, no system read (M10b;
             // the same test routes the body; through helpers, constructions and chains: items 7, 7b)
             boolean consumedBinding = consumption.consumedElementLet(i);
-            if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
+            if (!systemRouted && kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT))
+                    && plannedEffect(statement, body.subList(0, i))) {
+                // a database effect the test door writes as a statement of its own, as the frame and effect programs
+                // admit it (a literal effect, a text form mapped over one): the corpus's setup helpers unfolded before
+                // the asserts (the corpus burn-down, 2026-11-06; the walk-deletion analysis's group A). A system-routed
+                // body's effects would target the user's connection beside the program's own: not admitted
+                continue;
+            }
+            // a let whose value holds asserts only below its root -- a helper's own guards (the lift made every assert in
+            // a value's position a statement of its own: AssertLift) -- is a value let, spliced into its readers as the
+            // walk splices it (the walk deletion, 2026-11-06: testConvertAlias's newState(), whose converter map
+            // validates itself with asserts)
+            boolean guardedLet = statement instanceof TypedLet && kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT));
+            if (!assertRoot && !kinds.isEmpty() && !guardedLet || StatementEffects.containsTdgGenerator(statement)
                     || !consumedBinding && storesOf(statement, query, i) == Stores.BOTH
                     || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx, systemRouted) != null, query.specs(), memo)) {
+                assertRefusal(i, !assertRoot && !kinds.isEmpty() ? "kinds " + kinds + " ("
+                        + (statement instanceof TypedNativeCall nc ? "native " + nc.callee().qualifiedName()
+                                : statement instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                                        ? "user call " + uc.callee().qualifiedName()
+                                        : statement.getClass().getSimpleName())
+                        + (systemRouted ? ", system-routed" : "") + ")"
+                        : StatementEffects.containsTdgGenerator(statement) ? "the test data generator"
+                        : !consumedBinding && storesOf(statement, query, i) == Stores.BOTH ? "both stores"
+                        : "a side of another kind");
                 return false;
             }
             if (assertRoot) {
                 anAssert = true;
             } else if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
-                    && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
-                            effectMemo, name -> false) == LetPlanner.Kind.VALUE)
+                    && !(statement instanceof TypedLet let && admittedLet(LetPlanner.kind(let, body, i, query.specs(),
+                            effectMemo, name -> false)))
                     && !check(statement, systemClasses, ctx, query, checkMemo)) {
+                assertRefusal(i, "a statement before the last that plans a step and is no check");
                 return false;
             }
         }
@@ -779,22 +852,20 @@ public enum BodyClass {
         return false;
     }
 
-    /** Why the query program's rule last refused a body on this thread (a measurement for the walk's door message,
-     *  2026-11-03: the core program reads it to move the walking bodies); null where it admitted the body. */
-    private static final ThreadLocal<String> REFUSAL = new ThreadLocal<>();
-
-    /** The query program rule's last refusal on this thread, or null. */
-    public static @Nullable String lastRefusal() {
-        return REFUSAL.get();
+    /** Why the query program's rule refuses {@code body} on {@code runtime}, or null where it admits it (a measurement
+     *  for the door's refusal message, 2026-11-03; returned, no longer left on the thread for a later read: slice 5,
+     *  2026-11-09). */
+    public static @Nullable String queryRuleRefusal(TypedQuery body, String runtime) {
+        return queryProgram(body, new QueryDoor.Scan(body, runtime));
     }
 
-    private static boolean refused(String why) {
-        REFUSAL.set(why);
-        return false;
+    /** The query program rule's refusal, {@code why}. */
+    private static String refused(String why) {
+        return why;
     }
 
-    private static boolean queryProgram(TypedQuery query, QueryDoor.Scan scan) {
-        REFUSAL.remove();
+    /** The query program rule over {@code query}: null where it admits the body, else why it refuses it. */
+    private static @Nullable String queryProgram(TypedQuery query, QueryDoor.Scan scan) {
         ModelContext ctx = query.context();
         Set<String> systemClasses = systemClasses(ctx);
         Map<FunctionId, Boolean> memo = new HashMap<>();
@@ -815,7 +886,7 @@ public enum BodyClass {
                     // mixedChainKeepsTheWall): planning raises what the walk raises at its turn, nothing before it --
                     // the store resolver's wall where a user class has no context, else the system route's refusal
                     // (no single session: SystemRoutes.refuseMixed, the walk's and the program road's)
-                    return true;
+                    return null;
                 }
                 return refused("statement " + i + " reads both stores");
             }
@@ -827,8 +898,15 @@ public enum BodyClass {
                 continue;
             }
             Kind[] found = new Kind[1];
+            boolean last = i == body.size() - 1;
             if (StatementEffects.reaches(statement, n -> {
                         Kind kind = anotherWay(n, systemClasses, ctx);
+                        // a graph fetch and a temporal class read as the body's ANSWER (2026-11-06, the walk deletion's
+                        // stress lanes: a service's query, 444 graph fetches and 17 temporal reads): the product's own
+                        // statement, the one a frame's query plans (frameQueryKind) -- what the service serves
+                        if (last && (kind == Kind.GRAPH || kind == Kind.TEMPORAL)) {
+                            return false;
+                        }
                         // the product's statement plans these too (2026-11-03, the core program, each measured on the
                         // program road by core's tests): a raw grid (executeInDb's rows, the product's keyed result,
                         // ProductStatements), an object built inside the statement (InstanceIdentityTest's keyed
@@ -848,6 +926,10 @@ public enum BodyClass {
             }
             if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
                     && !(!(statement instanceof TypedLet) && StatementEffects.isStoreWrite(Lets.bare(statement)))
+                    // a CHECK before the last (an unread let's value is one, the user's ruling of 2026-11-02; a no-assert
+                    // program's run as it is, the user, 2026-11-06: "do all including last row"): a value statement run
+                    // for what it raises, its rows dropped, as the walk runs it
+                    && !check(statement, systemClasses, ctx, query, memo)
                     && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
                             new HashMap<>(), n -> false) == LetPlanner.Kind.STAGED)
                     && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
@@ -864,8 +946,8 @@ public enum BodyClass {
         if (body.isEmpty()) {
             return refused("empty body");
         }
-        return answered(query, Lets.bare(body.get(body.size() - 1))) || refused("the answer: " + answerRefusal(query,
-                Lets.bare(body.get(body.size() - 1))));
+        return answered(query, Lets.bare(body.get(body.size() - 1))) ? null : refused("the answer: "
+                + answerRefusal(query, Lets.bare(body.get(body.size() - 1))));
     }
 
     /** Why {@link #answered} refuses {@code answer} (the measurement's text). */
@@ -898,7 +980,10 @@ public enum BodyClass {
         // (Class.all()->size(), a mapping's set implementations) is the product's statement, routed to the system
         // database (2026-11-03, the core program: the metamodel stores' tests, measured on the program road)
         Set<String> systemClasses = systemClasses(query.context());
-        if (!Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll all
+        // a graph fetch's serialized answer reads its class's extent as the product's statement does (2026-11-06, the
+        // stress lanes' service queries): the one JSON value a frame's graph fetch answers too
+        boolean graph = answer instanceof TypedSerialize || answer instanceof TypedSerializeGraph;
+        if (!graph && !Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll all
                 && !systemClasses.contains(all.classFqn()) && !SystemMetamodel.isSystemElement(all.classFqn()),
                 query.specs(), new HashMap<>())) {
             return false;
@@ -944,15 +1029,13 @@ public enum BodyClass {
         /** The one inline shape the splice runs at planning ({@link #eagerInlineExecute}). */
         EAGER_INLINE_EXECUTE("eager-inline-execute"),
         /** The test-data-generation lane's census carrier ({@code getRelationalCSVDataFromQuery}, the checker's
-         *  {@link TypedCsvCensus}): the walk folds it to instance literals in Java from the model
-         *  ({@code TestDataGenerationNatives.foldCensus}) before the statement is planned; the program road has no
-         *  such fold (M10a's third cut, caught by the corpus: its three census tests moved on the strength of their
-         *  system reads alone and walled at lowering). */
+         *  {@link TypedCsvCensus}): the program road has no fold for it, so a body holding it is refused by name (its
+         *  Java fold went with the walk, 2026-11-06; the tests skipped by a ruled register row). */
         CSV_CENSUS("csv-census"),
         /** The test-data generator's carrier ({@code generateTestData}, {@code generateSeedDataString}: the checker's
-         *  {@link TypedTestDataGen} of the {@code generate} and {@code seedString} flavours): the walk folds it by
-         *  running the generator's fetches through the database ({@code TestDataGenerationNatives.foldCensus}); the
-         *  program road has no such step yet (T8, the plan's M10c/M10d). The {@code plan} flavour is a value the
+         *  {@link TypedTestDataGen} of the {@code generate} and {@code seedString} flavours): the program road has no
+         *  step for the generator's fetches, so a body holding it is refused by name (the walk's run of them deleted,
+         *  2026-11-06/07; the tests skipped by a ruled register row). The {@code plan} flavour is a value the
          *  planner renders ({@code generatorPlanText}) and no kind (M10b). */
         TDG_GENERATOR("tdg-generator");
 
@@ -974,7 +1057,7 @@ public enum BodyClass {
      *  ({@code systemClasses}), a table of it, one of its functions, an element used as a value (a mapping, a store:
      *  its instance is the store's row: {@link #systemElementReference}); an object built, a graph answered, a
      *  temporal class read (their ids, layouts and the exists-join form converge on the product's with MV6); the
-     *  test-data-generation lane's census carrier, folded in Java on the walk ({@link Kind#CSV_CENSUS}). */
+     *  test-data-generation lane's census carrier ({@link Kind#CSV_CENSUS}). */
     static @Nullable Kind anotherWay(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
         if (n instanceof TypedCsvCensus) {
             return Kind.CSV_CENSUS;
@@ -1037,7 +1120,7 @@ public enum BodyClass {
     /** The kind {@code n} is that keeps an assert statement or a value let of a HOST-judged program off the program
      *  road, named, or null: a read of the system metamodel store (its session is the system database's, which a
      *  moved body's program does not open until M10a), a store write (run where its side is planned), the census
-     *  carrier the walk folds in Java ({@link Kind#CSV_CENSUS}), or the eager inline execute (a run at planning).
+     *  carrier ({@link Kind#CSV_CENSUS}), or the eager inline execute (a run at planning).
      *  Every other
      *  kind in such a statement is admitted since M9c: the asserts' sides are the walk's own plans on both roads
      *  ({@code HostAsserts} plans them with the walk's planner, let prefix and frames) and a value let sends nothing
@@ -1055,7 +1138,9 @@ public enum BodyClass {
             // a side or a value let reading the system store: its side is routed to the graph's system database and
             // runs there beside the body's own (per-statement routing, 2026-11-03; a system-routed body's one target
             // since M10a) -- a statement reading BOTH stores is refused by the class rules (Stores.BOTH)
-            return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;
+            // an eager inline execute (size(execute(...))) is the test door's check step at its assert's turn and the
+            // splice's folded 1 (2026-11-06): no kind that keeps the body on the walk
+            return null;
         }
         if (kind == Kind.STORE_WRITE || kind == Kind.CSV_CENSUS || kind == Kind.TDG_GENERATOR) {
             // a store write inside a side or a value let: the side planner runs it where it plans it (the walk at
@@ -1063,14 +1148,14 @@ public enum BodyClass {
             // the walk's (the M9c audit's F2); the census and generator carriers: folded by the walk alone (M10a, M10b)
             return kind;
         }
-        return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;
+        return null;
     }
 
     /** The kind {@code n} is that keeps a FRAME's query off the program road, named, or null: the kinds the product's
      *  lowering plans another way than the walk's ({@link #anotherWay}) but a temporal class read and a graph fetch,
      *  whose eager runs the two lowerings spell alike (M9d for a temporal read; M10c item 12 for a graph fetch and its
      *  serialize -- the frame's one JSON value, the same statement on both roads -- pinned byte-identical by
-     *  {@code BodyRouterParityTest} on every in-process database, a tree's qualifier arguments bound on the product's
+     *  {@code TestPlannerParityTest} on every in-process database, a tree's qualifier arguments bound on the product's
      *  road since that item). */
     static @Nullable Kind frameQueryKind(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
         Kind kind = anotherWay(n, systemClasses, ctx);
@@ -1138,6 +1223,13 @@ public enum BodyClass {
                 // dropped: upstream runs it there, and what it raises fails the test
                 continue;
             }
+            if (statement instanceof TypedLet && i < body.size() - 1
+                    && Literals.fold(value, body.subList(0, i)) instanceof String) {
+                // a text the planner folds ('insert into ... ' + '(' + ...: a literal concatenation), which a later
+                // effect reads as its text -- the effect's own rule folds it the same way (literalEffect); the corpus
+                // burn-down, 2026-11-06: the aggregation-aware setUp's calendar insert
+                continue;
+            }
             boolean inert = value instanceof TypedNativeCall call
                     && NativeFn.Effect.isInertDiagnostic(call.callee().id());
             if (!inert && !literal(value) && BodyPlanner.handleType(value, ctx) == null) {
@@ -1153,14 +1245,29 @@ public enum BodyClass {
      *  $connection))} with {@code sqls} a {@code setUpDataSQLs} form whose data folds over {@code lets}: the corpus's
      *  setup helpers, unfolded into the body by the resolver's statement inliner): the test door plans its texts as the
      *  effect script the walk sends (M10c item 7c; {@code Seeds.seedForm}, one reader for both roads). */
+    /** Whether {@code statement} is a database effect the test door writes as a statement of its own: not a let, and
+     *  either a literal effect ({@link #literalEffect}) or a text form mapped over one ({@link #seedFormEffectMap}). */
+    private static boolean plannedEffect(TypedSpec statement, List<TypedSpec> lets) {
+        if (statement instanceof TypedLet) {
+            return false;
+        }
+        if (statement instanceof TypedNativeCall call && NativeFn.Effect.isDbEffect(call.callee().id())) {
+            return literalEffect(call, lets);
+        }
+        return seedFormEffectMap(statement, lets);
+    }
+
     static boolean seedFormEffectMap(TypedSpec value, List<TypedSpec> lets) {
-        return value instanceof com.legend.compiler.spec.typed.TypedMap tm && Seeds.seedForm(tm, lets) != null
+        // a text form whose texts the planner spells -- a seed form's (item 7c) or a DDL text collection's (the corpus
+        // burn-down, 2026-11-06) -- mapped over the one effect the door writes
+        return value instanceof com.legend.compiler.spec.typed.TypedMap tm
+                && (Seeds.seedForm(tm, lets) != null || Seeds.ddlTextSource(tm, lets) != null)
                 && Seeds.oneEffectMapper(tm, lets);
     }
 
     /** Whether {@code query}'s body, holding no assert, has a statement that is a database effect whose String
      *  arguments are not all literals ({@link #literalEffect}): a text the database would compute before the effect is
-     *  written -- a text hole, which lite does not have. {@code loadCsvToDbTable} is not one (its CSV a test resource). */
+     *  written -- a text hole, which lite does not have. */
     private static boolean computedEffectText(TypedQuery query, QueryDoor.Scan scan) {
         List<TypedSpec> body = query.body();
         boolean computed = false;
@@ -1171,7 +1278,6 @@ public enum BodyClass {
             }
             TypedSpec value = statement instanceof TypedLet let ? let.value() : statement;
             computed |= value instanceof TypedNativeCall call && NativeFn.Effect.isDbEffect(call.callee().id())
-                    && NativeFn.Effect.of(call.callee().id()).orElse(null) != NativeFn.Effect.LOAD_CSV_TO_DB_TABLE
                     && !literalEffect(call, body.subList(0, i));
         }
         return computed;
@@ -1183,11 +1289,9 @@ public enum BodyClass {
     }
 
     /** Whether {@code call}, a database effect, is one the test door writes: each String argument a literal (folded
-     *  over {@code lets}, the statements before it), and not {@code loadCsvToDbTable} (its CSV a test resource). */
+     *  over {@code lets}, the statements before it) -- a {@code loadCsvToDbTable}'s, the CSV file's resource path, which
+     *  its statement names for the database to read (the user's ruling, 2026-11-06). */
     static boolean literalEffect(TypedNativeCall call, List<TypedSpec> lets) {
-        if (NativeFn.Effect.of(call.callee().id()).orElse(null) == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
-            return false;
-        }
         for (TypedSpec arg : EffectPlanner.stringArgs(call)) {
             if (!(Literals.fold(arg, lets) instanceof String)) {
                 return false;

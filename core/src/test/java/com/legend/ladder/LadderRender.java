@@ -174,7 +174,7 @@ public final class LadderRender {
         try (PureTestRunner runner = new PureTestRunner(CTX, "l::RT",
                 () -> com.legend.testbackend.TestSessions.owning(recording(freshDuck(), sent)),
                 List.of(), FOUND.setupsByPackage(), TestObserver.NONE,
-                com.legend.ExecuteOptions.JudgeMode.DATABASE)) {
+                com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE))) {
             PureTestRunner.Result r = runner.run(test);
             if (r.status() != PureTestRunner.Status.PASS) {
                 throw new IllegalStateException(fqn + " does not pass in database mode: " + r.reason());

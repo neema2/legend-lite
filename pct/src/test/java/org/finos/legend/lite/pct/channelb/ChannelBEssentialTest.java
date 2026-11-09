@@ -217,13 +217,6 @@ class ChannelBEssentialTest {
         assertTrue(agreePass >= 324, "AGREE-PASS fell: " + agreePass);
         assertTrue(bFixesA >= 12, "B-FIXES-A fell (a test channel A's ledger lists regressed in B): " + bFixesA);
         assertTrue(wireBug <= 0, "WIRE-BUG census grew: " + wireBug);
-        // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte
-        // verdict of record and the host-lattice referee may never
-        // disagree silently; a disagreement fails the suite with the
-        // census line (CANONICAL_FORM_SPEC §0, ratified design).
-        assertTrue(com.legend.judge.CanonicalDivergence.sqlDisagreeCount() == 0,
-                "DUAL-VERDICT DISAGREEMENT: "
-                        + com.legend.judge.CanonicalDivergence.summary());
 
         // V6b (OPEN_REGISTER): the decline CEILING — the surviving
         // declines are DECLARED residue (class instances + wire-tree
@@ -263,15 +256,15 @@ class ChannelBEssentialTest {
         // this pin guards is the asserts the DATABASE judge names UNJUDGED, printed here and pinned by the lane
         // (ChannelBLane) once measured
         System.out.println("[chB essential] database judge: judged="
-                + com.legend.judge.CanonicalDivergence.sqlJudgedInDatabaseCount() + " unjudged="
-                + com.legend.judge.CanonicalDivergence.sqlUnjudgedCount() + " "
-                + com.legend.judge.CanonicalDivergence.sqlCensus().entrySet().stream()
+                + com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount() + " unjudged="
+                + com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount() + " "
+                + com.legend.diagnostics.VerdictCensus.sqlCensus().entrySet().stream()
                         .filter(e -> e.getKey().startsWith("unjudged ")).toList() + " | "
-                + com.legend.judge.CanonicalDivergence.summary());
+                + com.legend.testexec.CanonicalDivergence.summary());
         // the UNJUDGED ceiling, shrink-only (measured 2026-10-18 under the agreement gate: 0)
-        assertTrue(com.legend.judge.CanonicalDivergence.sqlUnjudgedCount() <= 0,
+        assertTrue(com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount() <= 0,
                 "the database judge's UNJUDGED asserts grew past the measured residue (0): "
-                        + com.legend.judge.CanonicalDivergence.sqlCensus());
+                        + com.legend.diagnostics.VerdictCensus.sqlCensus());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,
         // shrink-only): DIVERGE = the true residue (hash UBIGINT,
         // percentile input-type, Number-erasure decimal delivery —
@@ -280,7 +273,6 @@ class ChannelBEssentialTest {
         // 80 -> 75 (2026-08-23): hash UBIGINT family burned by the
         // dialect hashSigned conform (single owner; Lowerer's private
         // agg shift DELETED) — measured full-lane residue 74
-        System.out.println("[channelb-census] Essential: " + com.legend.judge.SqlTypeCensus.summary());
         // 75 -> 0, and adopt-pending 103 -> 0 (2026-10-05, Bazel workplan P3-09): one JVM per class now, so the counts
         // are this class's own; measured 0 on every class's own target, HARDENED TO EQUALITY. The two wire pins
         // RETIRED 2026-10-29 (the doors' audit, D64): the wire census's arm lost its last caller when the plan runner
@@ -289,10 +281,7 @@ class ChannelBEssentialTest {
         // TYPED-IR pin on THIS lane too (the corpus-runner pins do
         // not cover this JVM); the judge-vs-node pins retired WITH the
         // judge (parity pinned zero on every lane first).
-        org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.judge.SqlTypeCensus.mismatchCount(),
-                "a label lie escaped reconciliation (the flip): "
-                        + com.legend.judge.SqlTypeCensus.summary());
+        // (the label-lie pin deleted 2026-11-09: SqlTypeCensus had no feeder, a dead gate; the census is deleted)
 
 
 

@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.LambdaFunction;

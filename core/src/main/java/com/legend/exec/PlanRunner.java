@@ -132,582 +132,22 @@ public final class PlanRunner {
                     + " plan's answer is a result");
             case ExecutionPlan.Effect effect -> throw new IllegalStateException("a plan whose answer is an effect: a"
                     + " plan's answer is a result (an effect alone is sent by effect(...))");
-            case ExecutionPlan.Setup seeds -> throw new IllegalStateException("a plan whose root is a seed step: a"
-                    + " program's step, run by program(...)");
-            case ExecutionPlan.Verdicts verdicts -> throw new IllegalStateException("a plan whose root is a verdict"
-                    + " group: a program's step, run by program(...)");
-            case ExecutionPlan.Branch branch -> throw new IllegalStateException("a plan whose root is a branch: a"
-                    + " program's step, run by program(...)");
+            case ExecutionPlan.Load seeds -> throw new IllegalStateException("a plan whose root is a seed step: a"
+                    + " program's step, run by the program runner (ProgramRunner.run)");
         }
     }
 
-    // ---- a program (a test body as one plan: the planner-driver seam program's S1b, 2026-10-30) ---------------------
-
-    /** Which judge a program's verdict steps are run for: the DATABASE judge (each group's fused statement, or each
-     *  verdict's wrapper), the HOST judge (each verdict's base sides, their rows to the sink), or BOTH. */
-    public enum Judging { DATABASE, HOST, BOTH }
-
-    /**
-     * Where a program's steps deliver (docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md §3.4): the program's answer, if
-     * it has one, as any typed result's ({@link com.legend.result.ResultSink}: the columns, the batches, the end,
-     * after the steps have run and their changes committed), and every verdict step's rows as they are read. The
-     * runner judges nothing: the sink is the judges' door. A failure the sink raises ends the program (the first
-     * failure's sequencing), its transaction rolled back.
-     */
-    public interface ProgramSink extends ResultSink {
-
-        /** The DATABASE judge's row for {@code verdict}: the verdict schema's cells in the wrapper's column order
-         *  (the fused statement's index cell removed); null where the verdict has no wrapper (the database judges
-         *  nothing there). Delivered in the group's order. */
-        void verdict(ExecutionPlan.Verdict verdict, @Nullable List<Object> row) throws IOException;
-
-        /** The group's fused statement ran ({@code rejected} null: every verdict's row came from it) or the database
-         *  rejected it ({@code rejected} the error: the split rung, each verdict's own wrapper runs instead, in the
-         *  group's order). Once per group that has a fused statement, before its verdicts; the sink's accounting (the
-         *  runner counts nothing). */
-        void fused(ExecutionPlan.Verdicts group, com.legend.error.@Nullable DataError rejected)
-                throws IOException;
-
-        /** The HOST judge's sides for {@code verdict}: each base side's typed rows in the base's order -- a rows
-         *  side's and a keyed side's read from the database, a constant side's its columns and its TEXT cells as the
-         *  program wrote them (the sink reads them by the columns' facts). */
-        void sides(ExecutionPlan.Verdict verdict, List<Rows> sides) throws IOException;
-
-        /** The HOST judge's sides for {@code verdict} could not be read: the database refused one of them, or the
-         *  read raised ({@code failure}: a data error, or any other; an I/O failure unchecked) (the test-is-the-product
-         *  plan's M6). The sink judges the verdict over that error as over rows ({@link #sides}), and raises where it
-         *  does not hold: an error is every verdict's failure but the one whose answer it is (an {@code assertError}'s,
-         *  the walker-deletion program, 2026-11-03), and the program goes on where it returns. */
-        default void sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
-            throw failure;
-        }
-
-        /** The program's READER, handed before its first step runs (null once its session has closed): a verdict's
-         *  {@code message} side read on demand, the one side the runner never reads on its own -- the judge asks for
-         *  it only where the verdict fails, as upstream evaluates a caller's message only there (the assert bar,
-         *  2026-11-04). */
-        default void reader(@Nullable SideReader reader) {
-        }
-
-        /** The program's seed step {@code step} ran (a step the session held established runs nothing and is not
-         *  told): each of its setup steps that ran, in order, whether it answered rows (the raw-SQL ledger's kind;
-         *  the test-is-the-product plan's M5) -- where one failed, those before it. */
-        default void seeded(int step, List<Boolean> answeredRows) {
-        }
-
-        /** The statement origin the program's step {@code step} is sent under where none is marked, or null (the
-         *  step's own kind decides: a result STATEMENT, an effect BODY, a seed SEED). The test library knows what a
-         *  step is for where the plan does not say -- a frame's eager run is a check the walk labels LET (the
-         *  test-is-the-product plan's M9); the census is the measurement both roads are held to. */
-        default @Nullable StatementOrigin originOf(int step) {
-            return null;
-        }
-
-        /** The program's effect step {@code step} ran: its script applied. */
-        default void effectRan(int step) {
-        }
-
-        /** The program's effect step {@code step} failed with {@code failure} (its script's abort sent): the ledger
-         *  records what the database applied before it, as the walk's ({@code SqlDialect.failingStatement}); the
-         *  error the program raises is the one returned (the failure itself, or the failure named where it
-         *  happened). */
-        default DataError effectFailed(int step, DataError failure) {
-            return failure;
-        }
-    }
-
-    /** A side of the program read on demand ({@link ProgramSink#reader}): its typed rows, on the session its
-     *  statement's target names. */
-    @FunctionalInterface
-    public interface SideReader {
-        Rows read(ExecutionPlan.Side side) throws IOException;
-    }
-
-    /**
-     * Runs {@code plan} as a PROGRAM: its steps in order on one session, in one transaction where one changes the
-     * database (as {@link #stream}'s sequence; a keyed step's snapshot the same), every verdict step delivered to
-     * {@code sink} as {@code judging} asks, and the program's answer -- its one result step's typed rows, if it has
-     * one; a program may answer no rows -- streamed to the sink once the steps have run. A plain plan (one node) is
-     * a program of that one step.
-     */
-    public static void program(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            Judging judging, ProgramSink sink) throws IOException {
-        // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
-        try (var run = com.legend.base.RunScope.enter()) {
-            programRun(plan, values, sessions, judging, sink);
-        }
-    }
-
-    private static void programRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            Judging judging, ProgramSink sink) throws IOException {
-        Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
-        ExecutionPlan.Sequence sequence = plan.root() instanceof ExecutionPlan.Sequence s ? s
-                : new ExecutionPlan.Sequence(List.of(plan.root()));
-        ProgramShape shape = shapeOf(sequence, checked);
-        Held held = new Held();
-        ExecutionPlan.Target on = shape.target();
-        if (on == null) {
-            sink.reader(side -> constantRows(constantOnly(side)));
-            try {
-                constantsAlone(sequence, judging, held, sink);
-            } finally {
-                sink.reader(null);
-            }
-        } else {
-            try (Sessions.Session session = shape.changes() ? sessions.openToChange(on) : sessions.open(on)) {
-                Statements st = opened(session, on);
-                ExecutionPlan.Target system = shape.system();
-                if (system == null) {
-                    Routes rt = new Routes(st, on.database() instanceof ExecutionPlan.Database.System, null, null);
-                    sink.reader(side -> sideRows(side, checked, rt));
-                    try {
-                        bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
-                    } finally {
-                        sink.reader(null);
-                    }
-                } else {
-                    // a statement reading the graph's system metamodel store beside the body's: its own session, read
-                    // only, outside the program's transaction (the walker-deletion program's per-statement routing,
-                    // 2026-11-03: the first step to a program over two stores)
-                    try (Sessions.Session systemSession = sessions.open(system)) {
-                        Routes rt = new Routes(st, false, opened(systemSession, system), systemSession);
-                        sink.reader(side -> sideRows(side, checked, rt));
-                        try {
-                            bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, rt, held, sink));
-                        } finally {
-                            sink.reader(null);
-                        }
-                    }
-                }
-            }
-        }
-        if (shape.answers()) {
-            // every step ran, the result step among them: its rows, held, streamed now its changes have committed
-            streamHeld(held, sink);
-        }
-    }
-
-    /**
-     * A program plan's SHAPE, read from its steps before any of them runs: the one target its steps run on (null when
-     * it sends nothing), whether it changes the database (a store write: the program's transaction), and the
-     * strictest snapshot its keyed steps ask; a plan that names two targets, a write's count named as a declared
-     * parameter, or more than one result step is refused before anything runs. It reads a plan differently from
-     * {@link #sequence} ON PURPOSE: an effect commits itself, so it opens no transaction (the transaction rule, the
-     * test-is-the-product plan's R17), and a seed step takes part, its target the program's (a program of seeds and a
-     * constant opens its session: the M3 audit's B3).
-     */
-    private record ProgramShape(ExecutionPlan.@Nullable Target target, boolean changes,
-            ExecutionPlan.Keyed.@Nullable Snapshot snapshot, boolean answers,
-            ExecutionPlan.@Nullable Target system) {
-    }
-
-    /** Where a program's statements run: the program's own session, and the graph's system database's where a
-     *  statement names that target beside the program's (read only: no write, effect or seed is planned there). */
-    private record Routes(Statements home, boolean homeIsSystem, @Nullable Statements system,
-            Sessions.@Nullable Session systemSession) {
-        /** The session {@code sql} runs on: the system database's where it names that target -- the program's own
-         *  where the program runs there, else its second session -- and the program's otherwise. A statement naming
-         *  the system database in a program that opened none for it is refused by name, never run on the user's
-         *  session (the final audit, 2026-11-06: a row read on demand through the program's reader is routed here
-         *  with no target check of its own). */
-        Statements on(ExecutionPlan.Sql sql) {
-            if (sql.target().database() instanceof ExecutionPlan.Database.System s) {
-                if (homeIsSystem) {
-                    return home;
-                }
-                if (system == null) {
-                    throw new IllegalStateException("a statement on the graph's system database (" + s.type()
-                            + ") in a program that planned none there: never run on the program's own session");
-                }
-                return system;
-            }
-            return home;
-        }
-    }
-
-    /** {@code sequence}'s {@link ProgramShape}: whether it answers (its one result step, a constant's too). */
-    private static ProgramShape shapeOf(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked) {
-        ExecutionPlan.Target target = null;
-        ExecutionPlan.Target system = null;
-        int results = 0;
-        boolean changes = false;
-        ExecutionPlan.Keyed.Snapshot snapshot = null;
-        for (ExecutionPlan.Node step : sequence.steps()) {
-            List<ExecutionPlan.Sql> sqls = new ArrayList<>();
-            switch (step) {
-                case ExecutionPlan.Update u -> {
-                    changes = true;
-                    if (u.count() != null && checked.containsKey(u.count())) {
-                        throw new IllegalStateException("a write's count is named '" + u.count() + "', as a"
-                                + " declared parameter is");
-                    }
-                    writesHome(u.sql().target(), "a write");
-                    sqls.add(u.sql());
-                }
-                case ExecutionPlan.Check k -> sqls.add(k.sql());
-                case ExecutionPlan.Effect e -> {
-                    writesHome(e.sql().target(), "an effect");
-                    sqls.add(e.sql());
-                }
-                case ExecutionPlan.Setup u -> {
-                    if (u.target().database() instanceof ExecutionPlan.Database.System) {
-                        // the graph's system store's own seeds: the one write its database takes, once per session
-                        systemStore(u);
-                        system = sameTarget(system, u.target());
-                    } else {
-                        target = sameTarget(target, u.target());
-                    }
-                }
-                case ExecutionPlan.TdsResult t -> {
-                    results++;
-                    sqls.add(t.sql());
-                }
-                case ExecutionPlan.Constant c -> results++;
-                case ExecutionPlan.Keyed k -> {
-                    results++;
-                    snapshot = stricter(snapshot, k.snapshot());
-                    sqls.add(k.keys());
-                    sqls.add(k.body());
-                }
-                case ExecutionPlan.Verdicts v -> snapshot = verdictStatements(v, sqls, snapshot);
-                case ExecutionPlan.Branch b -> snapshot = branchStatements(b, sqls, snapshot);
-                case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
-                        + " plan's steps are one list");
-            }
-            for (ExecutionPlan.Sql sql : sqls) {
-                nullTypes(sql);
-                if (sql.target().database() instanceof ExecutionPlan.Database.System) {
-                    system = sameTarget(system, sql.target());
-                } else {
-                    target = sameTarget(target, sql.target());
-                }
-            }
-        }
-        if (results > 1) {
-            throw new IllegalStateException("a program of " + results + " result steps: a program's answer is at"
-                    + " most one");
-        }
-        // a program reading the system store alone runs there, as one target; beside the program's own, the system
-        // database is a second, read-only session (per-statement routing, 2026-11-03)
-        return target == null ? new ProgramShape(system, changes, snapshot, results > 0, null)
-                : new ProgramShape(target, changes, snapshot, results > 0, system);
-    }
-
-    /** A seed step on the graph's system database is the system store's own ({@link ExecutionPlan.Setup#SYSTEM_STORE},
+    /** A seed step on the graph's system database is the system store's own ({@link ExecutionPlan.Load#SYSTEM_STORE},
      *  the planner's), never a body's test data: refused by name otherwise. */
-    private static void systemStore(ExecutionPlan.Setup seeds) {
-        if (!seeds.key().equals(ExecutionPlan.Setup.SYSTEM_STORE)) {
+    static void systemStore(ExecutionPlan.Load seeds) {
+        if (!seeds.identity().equals(ExecutionPlan.Load.SYSTEM_STORE)) {
             throw new IllegalStateException("a seed step on the graph's system database that is not the system store's"
                     + " own: the database holds the graph's metamodel and nothing else");
         }
     }
 
-    /** A write or an effect names {@code target}: refused on the graph's system database, which is read only beside a
-     *  program's own target (its rows are the graph's, written once by the store's seed step). */
-    private static void writesHome(ExecutionPlan.Target target, String what) {
-        if (target.database() instanceof ExecutionPlan.Database.System s) {
-            throw new IllegalStateException(what + " on the graph's system database (" + s.type() + "): it is read"
-                    + " only, written once by the system store's own seed step");
-        }
-    }
-
-    /** {@code next}, the plan's one target so far being {@code sofar} (none yet when null). */
-    private static ExecutionPlan.Target sameTarget(ExecutionPlan.@Nullable Target sofar,
-            ExecutionPlan.Target next) {
-        if (sofar != null && !sofar.equals(next)) {
-            throw new NotImplementedException("a plan whose steps name different targets: its steps run on one"
-                    + " session, in one transaction");
-        }
-        return next;
-    }
-
-    /** A verdict group's statements added to {@code sqls}: its fused statement, each verdict's wrapper and sides;
-     *  the strictest snapshot its keyed ones ask, from {@code snapshot}. */
-    private static ExecutionPlan.Keyed.@Nullable Snapshot verdictStatements(ExecutionPlan.Verdicts v,
-            List<ExecutionPlan.Sql> sqls, ExecutionPlan.Keyed.@Nullable Snapshot snapshot) {
-        ExecutionPlan.Keyed.Snapshot strictest = snapshot;
-        if (v.fused() != null) {
-            sqls.add(v.fused().sql());
-        }
-        for (ExecutionPlan.Verdict each : v.verdicts()) {
-            switch (each.wrapper()) {
-                case null -> { }
-                case ExecutionPlan.TdsResult t -> sqls.add(t.sql());
-                case ExecutionPlan.Keyed k -> {
-                    strictest = stricter(strictest, k.snapshot());
-                    sqls.add(k.keys());
-                    sqls.add(k.body());
-                }
-                default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed result");
-            }
-            List<ExecutionPlan.Side> sides = new ArrayList<>(each.base());
-            if (each.message() != null) {
-                // read on demand, on the program's session: its statement names its target as a base side's does
-                sides.add(each.message());
-            }
-            for (ExecutionPlan.Side side : sides) {
-                switch (side) {
-                    case ExecutionPlan.Side.Rows r -> sqls.add(r.result().sql());
-                    case ExecutionPlan.Side.KeyedRows kr -> {
-                        strictest = stricter(strictest, kr.keyed().snapshot());
-                        sqls.add(kr.keyed().keys());
-                        sqls.add(kr.keyed().body());
-                    }
-                    case ExecutionPlan.Side.Constant c -> {
-                    }
-                }
-            }
-        }
-        return strictest;
-    }
-
-    /** {@code side}, read where the program has no session: a constant, or refused by name. */
-    private static ExecutionPlan.Side.Constant constantOnly(ExecutionPlan.Side side) {
-        if (!(side instanceof ExecutionPlan.Side.Constant c)) {
-            throw new IllegalStateException("a verdict side that sends a statement in a program with no target");
-        }
-        return c;
-    }
-
-    /** A branch's statements, whichever side runs: its condition's and both sides' (each side's steps verdict groups
-     *  and branches, the record's own rule). */
-    private static ExecutionPlan.Keyed.@Nullable Snapshot branchStatements(ExecutionPlan.Branch b,
-            List<ExecutionPlan.Sql> sqls, ExecutionPlan.Keyed.@Nullable Snapshot snapshot) {
-        ExecutionPlan.Keyed.Snapshot strictest = sideStatements(b.condition(), sqls, snapshot);
-        for (List<ExecutionPlan.Node> side : List.of(b.then(), b.otherwise())) {
-            for (ExecutionPlan.Node step : side) {
-                strictest = switch (step) {
-                    case ExecutionPlan.Verdicts v -> verdictStatements(v, sqls, strictest);
-                    case ExecutionPlan.Branch inner -> branchStatements(inner, sqls, strictest);
-                    default -> throw new IllegalStateException("a branch's side holds verdict groups and branches");
-                };
-            }
-        }
-        return strictest;
-    }
-
-    /** A side's statements: a typed result's one, a keyed result's two, a constant's none. */
-    private static ExecutionPlan.Keyed.@Nullable Snapshot sideStatements(ExecutionPlan.Side side,
-            List<ExecutionPlan.Sql> sqls, ExecutionPlan.Keyed.@Nullable Snapshot snapshot) {
-        switch (side) {
-            case ExecutionPlan.Side.Rows r -> sqls.add(r.result().sql());
-            case ExecutionPlan.Side.KeyedRows kr -> {
-                sqls.add(kr.keyed().keys());
-                sqls.add(kr.keyed().body());
-                return stricter(snapshot, kr.keyed().snapshot());
-            }
-            case ExecutionPlan.Side.Constant c -> {
-            }
-        }
-        return snapshot;
-    }
-
-    /** A program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, held, no session
-     *  opened; a verdict group whose sides are all constants (M6) handed to the sink as {@code judging} asks -- each
-     *  verdict's constant sides to the host judge, no row to the database judge (it judges nothing without a
-     *  wrapper). Any other step sends something, so it has a target. */
-    private static void constantsAlone(ExecutionPlan.Sequence sequence, Judging judging, Held held,
-            ProgramSink sink) throws IOException {
-        for (ExecutionPlan.Node step : sequence.steps()) {
-            switch (step) {
-                case ExecutionPlan.Constant c -> constant(c, held);
-                case ExecutionPlan.Verdicts v -> constantVerdicts(v, judging, sink);
-                case ExecutionPlan.Branch b -> constantBranch(b, judging, sink);
-                default -> throw new IllegalStateException("a program that sends nothing holds a "
-                        + step.getClass().getSimpleName() + " step: only a constant, a verdict group of constants"
-                        + " or a branch over them runs with no session");
-            }
-        }
-    }
-
-    /** A verdict group of constants handed to the sink as {@code judging} asks, nothing sent. */
-    private static void constantVerdicts(ExecutionPlan.Verdicts v, Judging judging, ProgramSink sink)
-            throws IOException {
-        boolean hostAll = judging == Judging.HOST || judging == Judging.BOTH;
-        for (ExecutionPlan.Verdict each : v.verdicts()) {
-            // a HOST-JUDGED verdict in a database-judged program (an assertError's step, ruling N3): its sides, as the
-            // runner's main path hands them (verdicts' hostOnly) -- until 2026-11-04 a program of constants alone
-            // handed none, so such a step was never judged
-            boolean hostOnly = !hostAll && each.wrapper() == null && !each.base().isEmpty();
-            if (hostAll || hostOnly) {
-                List<Rows> sides = new ArrayList<>(each.base().size());
-                for (ExecutionPlan.Side side : each.base()) {
-                    if (!(side instanceof ExecutionPlan.Side.Constant c)) {
-                        throw new IllegalStateException("a verdict side that sends a statement in a program with no"
-                                + " target");
-                    }
-                    sides.add(constantRows(c));
-                }
-                sink.sides(each, sides);
-            }
-            if (judging == Judging.DATABASE || judging == Judging.BOTH) {
-                sink.verdict(each, null);
-            }
-        }
-    }
-
-    /** A branch that sends nothing: its condition the program's text, the side it names run as constants. */
-    private static void constantBranch(ExecutionPlan.Branch b, Judging judging, ProgramSink sink) throws IOException {
-        if (!(b.condition() instanceof ExecutionPlan.Side.Constant c)) {
-            throw new IllegalStateException("a branch condition that sends a statement in a program with no target");
-        }
-        for (ExecutionPlan.Node step : taken(constantRows(c)) ? b.then() : b.otherwise()) {
-            switch (step) {
-                case ExecutionPlan.Verdicts v -> constantVerdicts(v, judging, sink);
-                case ExecutionPlan.Branch inner -> constantBranch(inner, judging, sink);
-                default -> throw new IllegalStateException("a branch's side holds verdict groups and branches");
-            }
-        }
-    }
-
-    /** Which side of {@code b} runs: its condition's one Boolean, as the database answered it or the program wrote it
-     *  (a constant's TEXT cell, its Pure spelling). An absent or many-valued condition is refused by name: Pure's
-     *  {@code if} takes a {@code Boolean[1]}. */
-    private static boolean taken(Rows condition) {
-        if (condition.rows().size() != 1 || condition.rows().get(0).size() != 1) {
-            throw new IllegalStateException("a branch's condition answered " + condition.rows().size() + " rows: an"
-                    + " if's condition is one Boolean");
-        }
-        Object cell = condition.rows().get(0).get(0);
-        return switch (cell) {
-            case Boolean v -> v;
-            case String text when text.equals("true") || text.equals("false") -> Boolean.parseBoolean(text);
-            case null -> throw new IllegalStateException("a branch's condition answered no value: an if's condition"
-                    + " is one Boolean");
-            default -> throw new IllegalStateException("a branch's condition answered a "
-                    + cell.getClass().getSimpleName() + " (" + cell + "): an if's condition is one Boolean");
-        };
-    }
-
-    /** A constant side's rows: its columns and its TEXT cells as the program wrote them. */
-    private static Rows constantRows(ExecutionPlan.Side.Constant c) {
-        List<List<Object>> rows = new ArrayList<>(c.cells().size());
-        for (List<String> row : c.cells()) {
-            rows.add(new ArrayList<Object>(row));
-        }
-        return new Rows(c.columns(), rows);
-    }
-
-    /** {@code work} run in the bracket {@code shape} asks: the strictest snapshot its keyed steps ask, where the
-     *  session owns its transaction; else one transaction where the program changes the database; else no bracket. */
-    private static void bracketed(ProgramShape shape, Statements st, Statements.Work work) throws IOException {
-        ExecutionPlan.Keyed.Snapshot snapshot = shape.snapshot();
-        if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
-            st.inSnapshot(snapshot, work);
-        } else if (shape.changes()) {
-            try {
-                st.inTransaction(() -> {
-                    try {
-                        work.run();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    return null;
-                });
-            } catch (UncheckedIOException e) {
-                throw e.getCause();
-            }
-        } else {
-            // reads alone, no snapshot asked: each statement as the session sends it, no bracket -- a verdict
-            // group's statements ran so before they were a plan's steps (S2e, 2026-10-30), and a bracket would
-            // carry a rejected fused statement's abort into the wrappers that follow it on a database that aborts
-            // the transaction on any error (Postgres); a program that changes the database is S4's to settle
-            // (the plan's F11)
-            work.run();
-        }
-    }
-
-    /** The program's steps run in order on {@code st}, the values a step produces (a write's count, a run's stamp)
-     *  bound for the steps after it; its answer held in {@code held}, its verdicts to {@code sink}. */
-    private static void runSteps(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
-            Judging judging, Sessions.Session session, Routes rt, Held held, ProgramSink sink) throws IOException {
-        Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
-        List<ExecutionPlan.Node> steps = sequence.steps();
-        for (int i = 0; i < steps.size(); i++) {
-            StatementOrigin named = sink.originOf(i);
-            try (var origin = named == null ? StatementOrigin.enter(StatementOrigin.current())
-                    : StatementOrigin.enterIfUnmarked(named)) {
-                runStep(steps.get(i), i, live, judging, session, rt, held, sink);
-            }
-        }
-    }
-
-    private static void runStep(ExecutionPlan.Node step, int i, Map<String, PlanParameters.Checked> live,
-            Judging judging, Sessions.Session session, Routes rt, Held held, ProgramSink sink)
-            throws IOException {
-        Statements st = rt.home();
-        switch (step) {
-            case ExecutionPlan.Update u -> {
-                // a store write may change a seeded table: every seed establishes again after it, as after an effect
-                // (the design audit's H1, 2026-11-02: an update left the seeds marked in place)
-                session.state().markWriting();
-                update(u, live, st);
-            }
-            case ExecutionPlan.Check k -> {
-                // a statement of the body run for what it raises, its rows dropped: a statement on its own, as the
-                // walk marks a value statement it runs (an unread let's, the user's ruling of 2026-11-02); a mark in
-                // force (a frame's eager run, LET) stands
-                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    check(k, live, rt.on(k.sql()));
-                }
-            }
-            case ExecutionPlan.Effect e -> {
-                // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
-                // the session's seeds to establish again (the M3 audit's B5)
-                session.state().markWriting();
-                try {
-                    script(e, live, st, insideATransaction(st));
-                } catch (DataError failed) {
-                    throw sink.effectFailed(i, failed);
-                }
-                sink.effectRan(i);
-            }
-            case ExecutionPlan.Setup u -> {
-                // the system store's seeds on the system database's session where it is a second one; every other seed
-                // step on the program's
-                boolean beside = rt.systemSession() != null
-                        && u.target().database() instanceof ExecutionPlan.Database.System;
-                seed(u, beside ? Objects.requireNonNull(rt.systemSession()) : session,
-                        beside ? Objects.requireNonNull(rt.system()) : st, answered -> sink.seeded(i, answered));
-            }
-            case ExecutionPlan.TdsResult t -> {
-                // the program's answering statement is a statement of the body on its own, as the walk marks a
-                // value statement (BodyDriver.answerValue); a mark in force (a judge's, a fixture's) stands
-                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    result(t, live, rt.on(t.sql()), held);
-                }
-            }
-            case ExecutionPlan.Constant c -> constant(c, held);
-            case ExecutionPlan.Keyed k -> {
-                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    keyedOn(k, live, rt.on(k.keys()), heldSink(held));
-                }
-            }
-            case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, rt, sink, insideATransaction(st));
-            case ExecutionPlan.Branch b -> {
-                // its condition a statement of the body, as a value statement is (a mark in force stands); then the
-                // steps of the side it names, and only those: the side not taken is never sent
-                Rows condition;
-                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    condition = sideRows(b.condition(), live, rt);
-                }
-                for (ExecutionPlan.Node inner : taken(condition) ? b.then() : b.otherwise()) {
-                    runStep(inner, i, live, judging, session, rt, held, sink);
-                }
-            }
-            case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
-        }
-    }
-
-    /** Whether {@code st} is inside a transaction now -- the program's own (it writes a store, or a keyed step's
-     *  snapshot holds it) or a caller's the session joins: the session's own state, asked at each step (the M3 audit's
-     *  B2: decided once, it missed the snapshot's transaction). A session that owns its transaction has none open. */
-    private static boolean insideATransaction(Statements st) {
-        return !st.ownsTransaction();
-    }
-
     /** The program's held answer streamed to {@code sink}, once its steps have run (and its changes committed). */
-    private static void streamHeld(Held held, ProgramSink sink) throws IOException {
+    static void streamHeld(Held held, ResultSink sink) throws IOException {
         Streamed streamed = new Streamed(held.columns, sink, Batcher.DEFAULT_CAPACITY);
         for (List<Object> row : held.rows) {
             streamed.row(row);
@@ -715,232 +155,7 @@ public final class PlanRunner {
         streamed.end();
     }
 
-    /** A verdict group as {@code judging} asks: the DATABASE judge's rows from the fused statement (each verdict's
-     *  own wrapper where the fused statement is none or the database rejects it: the split rung, counted) and the
-     *  HOST judge's sides, each verdict's rows to {@code sink} in the group's order. */
-    private static void verdicts(ExecutionPlan.Verdicts group, Judging judging,
-            Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
-            throws IOException {
-        if (group.verdicts().stream().anyMatch(ExecutionPlan.Verdict::raises)) {
-            raisingVerdict(group, judging, values, st, sink, inTransaction);
-            return;
-        }
-        boolean hostAll = judging == Judging.HOST || judging == Judging.BOTH;
-        // a HOST-JUDGED verdict in a database-judged program: its sides and no statement of the database's (no wrapper,
-        // no fused statement) -- an assertError's step (ruling N3: Java compares the error in both judge modes)
-        boolean hostOnly = !hostAll && group.fused() == null
-                && group.verdicts().stream().anyMatch(v -> v.wrapper() == null && !v.base().isEmpty());
-        if (hostAll || hostOnly) {
-            // F11 for the host's reads: inside the program's transaction a side whose failure the program may survive
-            // (an assertError's) is read under the group's savepoint, so the transaction stays live for the steps after
-            // it; the program's transaction is its own target's
-            ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
-            for (ExecutionPlan.Verdict each : group.verdicts()) {
-                if (!hostAll && (each.wrapper() != null || each.base().isEmpty())) {
-                    continue;
-                }
-                List<Rows> sides;
-                if (guard != null) {
-                    sendStatement(guard.set(), st.home());
-                }
-                try {
-                    sides = hostSides(each, values, st);
-                } catch (RuntimeException e) {
-                    if (guard != null) {
-                        sendStatement(guard.rollbackTo(), st.home());
-                    }
-                    sink.sidesFailed(each, e);
-                    continue;
-                } catch (IOException e) {
-                    if (guard != null) {
-                        sendStatement(guard.rollbackTo(), st.home());
-                    }
-                    sink.sidesFailed(each, new UncheckedIOException(e));
-                    continue;
-                }
-                if (guard != null) {
-                    sendStatement(guard.release(), st.home());
-                }
-                sink.sides(each, sides);
-            }
-        }
-        if (judging == Judging.DATABASE || judging == Judging.BOTH) {
-            databaseVerdicts(group, values, st, sink, inTransaction);
-        }
-    }
-
-    /**
-     * An assertError's verdict (the user's ruling S135, 2026-11-05: the host catches, the database judges): its base --
-     * the asserted function's sides -- read once under the group's savepoint, so the transaction stays live for the
-     * steps after it; what reading it RAISED (a database's error or a deferred guard's, the errors assertError takes) is
-     * the outcome, any other exception a wall raised as it was. The host judge is handed the sides or the error as any
-     * assert's; the database judge's statement is run with the outcome bound to its parameters
-     * ({@link ExecutionPlan.Verdict#RAISED_MESSAGE}, {@code RAISED_LINE}, {@code RAISED_COLUMN}: each absent where the
-     * base raised nothing, the position absent where the raise carried none) and its row handed to the sink.
-     */
-    private static void raisingVerdict(ExecutionPlan.Verdicts group, Judging judging,
-            Map<String, PlanParameters.Checked> values, Routes st, ProgramSink sink, boolean inTransaction)
-            throws IOException {
-        if (group.fused() != null || group.verdicts().size() != 1) {
-            throw new IllegalStateException("a raising verdict is a group of its own: its statement reads what its own"
-                    + " base raised");
-        }
-        ExecutionPlan.Verdict each = group.verdicts().get(0);
-        ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
-        List<Rows> sides = null;
-        RuntimeException raised = null;
-        if (guard != null) {
-            sendStatement(guard.set(), st.home());
-        }
-        boolean read = false;
-        try {
-            sides = hostSides(each, values, st);
-            read = true;
-        } catch (DataError | com.legend.error.ModelException e) {
-            // the errors assertError takes; any other is a wall, raised as it was -- never judged as "no error"
-            raised = e;
-        } finally {
-            if (guard != null) {
-                sendStatement(read ? guard.release() : guard.rollbackTo(), st.home());
-            }
-        }
-        if (judging == Judging.HOST || judging == Judging.BOTH) {
-            if (raised != null) {
-                sink.sidesFailed(each, raised);
-            } else {
-                sink.sides(each, java.util.Objects.requireNonNull(sides));
-            }
-        }
-        if (judging == Judging.DATABASE || judging == Judging.BOTH) {
-            Map<String, PlanParameters.Checked> bound = new HashMap<>(values);
-            PlanParameters.Checked none = new PlanParameters.None();
-            RuntimeException error = raised;
-            bound.put(ExecutionPlan.Verdict.RAISED_MESSAGE,
-                    error != null ? new PlanParameters.One(String.valueOf(error.getMessage())) : none);
-            RaisedErrors.Positioned at = error instanceof DataError d && d.getCause() instanceof RaisedErrors.Positioned p
-                    ? p : null;
-            bound.put(ExecutionPlan.Verdict.RAISED_LINE, at != null ? new PlanParameters.One((long) at.line()) : none);
-            bound.put(ExecutionPlan.Verdict.RAISED_COLUMN,
-                    at != null ? new PlanParameters.One((long) at.column()) : none);
-            if (!(each.wrapper() instanceof ExecutionPlan.TdsResult t)) {
-                throw new IllegalStateException(each.name() + ": a raising verdict's statement is a typed result");
-            }
-            Held h = new Held();
-            result(t, bound, st.on(t.sql()), h);
-            Rows single = collected(h);
-            if (single.rows().size() != 1) {
-                throw new IllegalStateException(each.name() + ": the verdict statement answered "
-                        + single.rows().size() + " rows");
-            }
-            sink.verdict(each, single.rows().get(0));
-        }
-    }
-
-    /** {@code each}'s base sides read for the host judge, in the base's order. */
-    private static List<Rows> hostSides(ExecutionPlan.Verdict each, Map<String, PlanParameters.Checked> values,
-            Routes st) throws IOException {
-        List<Rows> sides = new ArrayList<>(each.base().size());
-        for (ExecutionPlan.Side side : each.base()) {
-            sides.add(sideRows(side, values, st));
-        }
-        return sides;
-    }
-
-    /** A side's typed rows: a statement's or a keyed result's read on the session its target names, a constant's its
-     *  TEXT cells as the program wrote them. */
-    private static Rows sideRows(ExecutionPlan.Side side, Map<String, PlanParameters.Checked> values, Routes st)
-            throws IOException {
-        return switch (side) {
-            case ExecutionPlan.Side.Rows r -> {
-                Held h = new Held();
-                result(r.result(), values, st.on(r.result().sql()), h);
-                yield collected(h);
-            }
-            case ExecutionPlan.Side.KeyedRows k -> {
-                Held h = new Held();
-                keyedOn(k.keyed(), values, st.on(k.keyed().keys()), heldSink(h));
-                yield collected(h);
-            }
-            case ExecutionPlan.Side.Constant c -> constantRows(c);
-        };
-    }
-
-    /** The DATABASE judge's rows for {@code group}: its fused statement (the split rung on a rejection), else each
-     *  verdict's own wrapper, each row handed to the sink in the group's order. */
-    private static void databaseVerdicts(ExecutionPlan.Verdicts group, Map<String, PlanParameters.Checked> values,
-            Routes rt, ProgramSink sink, boolean inTransaction) throws IOException {
-        // the fused statement's session (its members read one store: the database judge groups them by session)
-        Statements st = group.fused() != null ? rt.on(group.fused().sql()) : rt.home();
-        Map<Integer, List<Object>> rows = new HashMap<>();
-        boolean rejected = false;
-        if (group.fused() != null) {
-            Held h = new Held();
-            // F11: inside a transaction on a database that aborts it on a failing statement, the fused statement
-            // is guarded by the group's savepoint, so a rejection leaves the wrappers a live transaction -- the
-            // program's own session's: the graph's system database beside it holds no transaction of the program's
-            ExecutionPlan.Verdicts.Savepoint guard = inTransaction && st == rt.home() ? group.savepoint() : null;
-            if (guard != null) {
-                sendStatement(guard.set(), st);
-            }
-            try {
-                result(group.fused(), values, st, h);
-                for (List<Object> row : collected(h).rows()) {
-                    if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
-                        throw new IllegalStateException("a fused verdict row's first cell is the verdict's index:"
-                                + " " + (row.isEmpty() ? "no cell" : row.get(0)));
-                    }
-                    rows.put(index.intValue(), row.subList(1, row.size()));
-                }
-                if (rows.size() != group.verdicts().size()) {
-                    throw new IllegalStateException("the fused verdict statement answered " + rows.size()
-                            + " rows for " + group.verdicts().size() + " verdicts");
-                }
-                sink.fused(group, null);
-                if (guard != null) {
-                    sendStatement(guard.release(), st);
-                }
-            } catch (DataError e) {
-                if (guard != null) {
-                    sendStatement(guard.rollbackTo(), st);
-                }
-                // the split rung: the database rejected the fused statement, so each verdict's own wrapper runs
-                // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
-                // change
-                rows.clear();
-                rejected = true;
-                sink.fused(group, e);
-            }
-        }
-        for (int i = 0; i < group.verdicts().size(); i++) {
-            ExecutionPlan.Verdict each = group.verdicts().get(i);
-            List<Object> row = rows.get(i);
-            if (row == null && each.wrapper() != null) {
-                Held h = new Held();
-                // the split rung's wrapper (the database rejected the fused statement) is a fallback; a group
-                // planned with no fused statement runs its wrappers as its caller sends them (the batch's keyed
-                // verdicts as the body's, its one-verdict retry as a fallback: VerdictBatch.executeOne; the
-                // planner-driver seam program's S3c, 2026-10-31)
-                try (var origin = StatementOrigin.enter(rejected ? StatementOrigin.FALLBACK
-                        : StatementOrigin.current())) {
-                    switch (each.wrapper()) {
-                        case ExecutionPlan.TdsResult t -> result(t, values, rt.on(t.sql()), h);
-                        case ExecutionPlan.Keyed k -> keyedOn(k, values, rt.on(k.keys()), heldSink(h));
-                        default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
-                                + " result");
-                    }
-                }
-                Rows single = collected(h);
-                if (single.rows().size() != 1) {
-                    throw new IllegalStateException(each.name() + ": the verdict statement answered "
-                            + single.rows().size() + " rows");
-                }
-                row = single.rows().get(0);
-            }
-            sink.verdict(each, row);
-        }
-    }
-
-    private static KeyedSink heldSink(Held held) {
+    static KeyedSink heldSink(Held held) {
         return new KeyedSink() {
             @Override
             public void columns(List<ExecutionPlan.Column> columns) {
@@ -1019,7 +234,7 @@ public final class PlanRunner {
         }
         // a run of one statement (THE WALL, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter(); Sessions.Session session = sessions.open(sql.target())) {
-            return read.apply(opened(session, sql.target()), sql.statement());
+            return read.apply(opened(session, sql.target(), sessions.mark()), sql.statement());
         }
     }
 
@@ -1040,7 +255,7 @@ public final class PlanRunner {
      * itself); a session the host opens is set up by its owner ({@link PlanSessions#setUp}). Counted under the
      * caller's statement origin. No step streams to a sink, so none raises an {@code IOException} of its own.
      */
-    public static void setUp(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
+    public static void setUp(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
             PlanSessions.Source sessions, @Nullable Ran ran) {
         // a run of its steps (THE WALL, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
@@ -1050,23 +265,29 @@ public final class PlanRunner {
 
     /** {@link #setUp} inside the run in progress: a session the runner opened for a target, set up as it opens
      *  ({@link PlanSessions}). */
-    static void setUpIn(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
+    static void setUpIn(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
             PlanSessions.Source sessions, @Nullable Ran ran) {
         for (int i = 0; i < steps.size(); i++) {
             boolean answeredRows = switch (steps.get(i)) {
-                case ExecutionPlan.SetupStep.Statement s -> {
+                case ExecutionPlan.LoadStep.Statement s -> {
                     try {
                         yield effectIn(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }
-                case ExecutionPlan.SetupStep.Rows r -> {
+                // a target's setup holds statements and rows; its loads by reference arrive with the design's L2
+                case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("a file's load in a target's"
+                        + " setup (" + f.ref().name() + "): a target's loads by reference arrive with"
+                        + " docs/DATA_IN_THE_PLAN_2026_11_09.md L2");
+                case ExecutionPlan.LoadStep.Rows r -> {
                     try (Sessions.Session session = sessions.open(target)) {
-                        if (!opened(session, target).load(r)) {
+                        if (!opened(session, target, sessions.mark()).load(r)) {
                             throw new IllegalStateException("the setup has rows for a bulk loader, and the session's"
                                     + " database has none (" + r.stagingTable() + ")");
                         }
+                        // the bulk load's one statement, counted under the caller's mark
+                        StatementOrigin.count(sessions.mark());
                     }
                     yield false;
                 }
@@ -1135,7 +356,7 @@ public final class PlanRunner {
     /** {@code held}'s rows as {@link #rows} hands them: through the result's batches and the collector, so a cell
      *  reaches a judge as it reaches every other reader of a typed result (a tagged column's value, not its carrier;
      *  the seam program's S2f, 2026-10-30: the held rows of a verdict's sides and of the fused statement go this way). */
-    private static Rows collected(Held held) throws IOException {
+    static Rows collected(Held held) throws IOException {
         Collector collector = new Collector();
         Streamed streamed = new Streamed(held.columns, collector, Batcher.DEFAULT_CAPACITY);
         for (List<Object> row : held.rows) {
@@ -1147,15 +368,15 @@ public final class PlanRunner {
     }
 
     /** A plan of several steps' answer, held until its changes have committed: its typed rows. */
-    private static final class Held {
-        private List<ExecutionPlan.Column> columns = List.of();
-        private final List<List<Object>> rows = new ArrayList<>();
+    static final class Held {
+        List<ExecutionPlan.Column> columns = List.of();
+        final List<List<Object>> rows = new ArrayList<>();
     }
 
     // ---- a keyed plan (a dynamic pivot's probe plan, 2026-10-20; docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) ----------
 
     /** Where a keyed plan's answer goes, once its keys are known: its columns, then each row's cells. */
-    private interface KeyedSink {
+    interface KeyedSink {
         void columns(List<ExecutionPlan.Column> columns) throws IOException;
 
         void row(List<Object> cells) throws IOException;
@@ -1196,8 +417,8 @@ public final class PlanRunner {
                     changes = true;
                     yield e.sql();
                 }
-                case ExecutionPlan.Setup u -> throw new NotImplementedException("a seed step in a"
-                        + " plan the query door runs: seeds are the test door's (the program runner's, program(...))");
+                case ExecutionPlan.Load u -> throw new NotImplementedException("a seed step in a"
+                        + " plan the query door runs: seeds are the test door's (the program runner's, ProgramRunner.run)");
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     yield t.sql();
@@ -1212,10 +433,6 @@ public final class PlanRunner {
                     snapshot = stricter(snapshot, k.snapshot());
                     yield k.keys();
                 }
-                case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
-                        + " for its answer: a program's step, run by program(...)");
-                case ExecutionPlan.Branch b -> throw new IllegalStateException("a branch inside a plan run for its"
-                        + " answer: a program's step, run by program(...)");
                 case ExecutionPlan.Constant c -> throw new IllegalStateException("not reached: a constant step sends"
                         + " nothing");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
@@ -1234,7 +451,7 @@ public final class PlanRunner {
         }
         ExecutionPlan.Target on = Objects.requireNonNull(target, "a sequence has a step");
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
-            Statements st = opened(session, on);
+            Statements st = opened(session, on, sessions.mark());
             if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
                 // a keyed step's snapshot is the sequence's own transaction, at the isolation the step asks, set
                 // before its first statement (Postgres refuses an isolation changed mid-transaction); a transaction a
@@ -1259,7 +476,7 @@ public final class PlanRunner {
 
     /** The stricter of two keyed snapshots ({@code a} null: none asked yet): a serializable transaction over a
      *  repeatable-read one, that over the database's own, that over none. */
-    private static ExecutionPlan.Keyed.Snapshot stricter(ExecutionPlan.Keyed.@Nullable Snapshot a,
+    static ExecutionPlan.Keyed.Snapshot stricter(ExecutionPlan.Keyed.@Nullable Snapshot a,
             ExecutionPlan.Keyed.Snapshot b) {
         if (a == null) {
             return b;
@@ -1287,26 +504,22 @@ public final class PlanRunner {
                 case ExecutionPlan.Update u -> update(u, values, st);
                 case ExecutionPlan.Check k -> check(k, values, st);
                 case ExecutionPlan.Effect e -> effect(e, values, st);
-                case ExecutionPlan.Setup u -> throw new IllegalStateException("a seed step in a plan's steps: the"
-                        + " program runner's (program(...))");
+                case ExecutionPlan.Load u -> throw new IllegalStateException("a seed step in a plan's steps: the"
+                        + " program runner's (ProgramRunner.run)");
                 case ExecutionPlan.TdsResult t -> result(t, values, st, held);
                 case ExecutionPlan.Constant c -> constant(c, held);
                 case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(held));
-                case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
-                        + " for its answer: a program's step, run by program(...)");
-                case ExecutionPlan.Branch b -> throw new IllegalStateException("a branch inside a plan run for its"
-                        + " answer: a program's step, run by program(...)");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
             }
         }
     }
 
     /** A change's statement on {@code st}, its count bound under its name for the slots after it. */
-    private static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
+    static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
         unstamped(u.sql());   // a write is sent with no trace comment (JdbcStatements.update): it binds none
         String statement = statement(u.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
         if (u.count() != null) {
             // (the database's count: a value it produced, bound where a later step reads it)
@@ -1315,11 +528,11 @@ public final class PlanRunner {
     }
 
     /** A check's rows read and dropped (the database computes what it may raise). */
-    private static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
+    static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
         stamp(k.sql(), values, st);
         String statement = statement(k.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
     }
 
@@ -1327,28 +540,25 @@ public final class PlanRunner {
     private static void effect(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st) {
         unstamped(e.sql());
         String statement = statement(e.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         st.execute(statement);
     }
 
     /** A program's effect step (the test-is-the-product plan's B12): a script in its dialect's bracket where the
      *  session owns its transaction and none is open (the bracket's abort sent before a failure is raised), its
      *  statements bare otherwise; a single statement as {@link #effect}. */
-    private static void script(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st,
+    static void script(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st,
             boolean inTransaction) {
         unstamped(e.sql());
         ExecutionPlan.Effect.Script script = e.script();
         // the script is the body's statement, whatever mark is in force (a fixture's seeding); its abort is not
+        Statements body = Statements.marked(st, StatementOrigin.BODY);
         if (script == null || inTransaction) {
-            try (var origin = StatementOrigin.enter(StatementOrigin.BODY)) {
-                effect(e, values, st);
-            }
+            effect(e, values, body);
             return;
         }
         try {
-            try (var origin = StatementOrigin.enter(StatementOrigin.BODY)) {
-                sendStatement(script.bracketed(), st);
-            }
+            sendStatement(script.bracketed(), body);
         } catch (DataError failed) {
             if (script.abort() != null) {
                 sendStatement(script.abort(), st);
@@ -1358,50 +568,82 @@ public final class PlanRunner {
     }
 
     /** A statement the plan wrote as text (a script, a savepoint's), sent for what it does. */
-    private static void sendStatement(String statement, Statements st) {
-        StatementOrigin.sent(statement);
+    static void sendStatement(String statement, Statements st) {
+        StatementOrigin.sent(st.mark(), statement);
         st.execute(statement);
     }
 
-    /** The graph's system store's seed step ({@link ExecutionPlan.Setup#SYSTEM_STORE}) on {@code system}, the graph's
+    /** The graph's system store's seed step ({@link ExecutionPlan.Load#SYSTEM_STORE}) on {@code system}, the graph's
      *  system database's session, once (the seeds' memo): the body driver's walk reaching that session runs the program
      *  road's own step through here, so whichever road comes first writes the store, once. Deleted with the walk. */
-    public static void seedSystemStore(ExecutionPlan.Setup seeds, Sessions.Session system) {
+    public static void seedSystemStore(ExecutionPlan.Load seeds, Sessions.Session system) {
         if (!(seeds.target().database() instanceof ExecutionPlan.Database.System)) {
             throw new IllegalStateException("the system store's seeds name the graph's system database");
         }
         systemStore(seeds);
         // a run of the seed step (THE WALL, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
-            seed(seeds, system, opened(system, seeds.target()), answered -> { });
+            // the system store's load holds rows and statements, never a file: it is given no store
+            seed(seeds, system, opened(system, seeds.target()), com.legend.executionplan.DataStores.none(),
+                    answered -> { });
         }
     }
 
-    /** A program's seed step (B12): skipped where the session holds its key's seeds and has run no write since; run
-     *  otherwise, step by step as a target's setup is, and its key recorded. {@code ran} is told which of its
-     *  statements ran, and whether each answered rows -- on a failure, those before it, as the walk records a setup's
-     *  statements as each runs (the M5 audit's S1). The system store's seeds are sent under the SYSTEM mark, as its
-     *  holder sent them; every other seed under SEED. */
-    private static void seed(ExecutionPlan.Setup seeds, Sessions.Session session, Statements st,
-            java.util.function.Consumer<List<Boolean>> ran) {
-        SeedKey key = new SeedKey(seeds.key());
-        if (session.state().established(key)) {
+    /** A program's load (B12; docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2): a {@code BEFORE_STEP} load (the seeds) skipped
+     *  where the session holds its identity and has run no write since, and its identity recorded once run; an
+     *  {@code AT_STEP} load (a program's own, {@code loadCsvToDbTable}) run every time, a write, recording nothing. Its
+     *  steps run as a target's setup's are, a file's through {@link DataLoads} over {@code stores}. {@code ran} is told
+     *  which of its steps ran, and whether each answered rows -- on a failure, those before it, as the walk records a
+     *  setup's statements as each runs (the M5 audit's S1). The system store's load is sent under the SYSTEM mark, as
+     *  its holder sent it; every other under SEED. */
+    static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
+            com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
+        boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        SeedKey key = new SeedKey(seeds.identity());
+        if (memo && session.state().established(key)) {
             return;
+        }
+        if (!memo) {
+            // a program's own load writes, as an effect does: a seed established before it is established no more
+            session.state().markWriting();
         }
         List<Boolean> answered = new ArrayList<>(seeds.steps().size());
         boolean system = seeds.target().database() instanceof ExecutionPlan.Database.System;
-        try (var origin = StatementOrigin.enter(system ? StatementOrigin.SYSTEM : StatementOrigin.SEED)) {
-            for (ExecutionPlan.SetupStep each : seeds.steps()) {
+        Statements seeding = Statements.marked(st, system ? StatementOrigin.SYSTEM : StatementOrigin.SEED);
+        try {
+            for (ExecutionPlan.LoadStep each : seeds.steps()) {
                 switch (each) {
-                    case ExecutionPlan.SetupStep.Statement s -> {
-                        StatementOrigin.sent(s.sql());
-                        answered.add(st.execute(s.sql()));
+                    case ExecutionPlan.LoadStep.Statement s -> {
+                        StatementOrigin.sent(seeding.mark(), s.sql());
+                        answered.add(seeding.execute(s.sql()));
                     }
-                    case ExecutionPlan.SetupStep.Rows r -> {
-                        if (!st.load(r)) {
+                    case ExecutionPlan.LoadStep.Rows r -> {
+                        if (!seeding.load(r)) {
                             throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
                                     + " database has none (" + r.stagingTable() + ")");
                         }
+                        // the bulk load's one statement, counted under the seeds' mark
+                        StatementOrigin.count(seeding.mark());
+                        answered.add(false);
+                    }
+                    case ExecutionPlan.LoadStep.File f -> {
+                        // the file by its reference: its verified bytes, delivered as the plan says (DataLoads)
+                        byte[] bytes = DataLoads.verified(f.ref(), stores);
+                        switch (f.delivery()) {
+                            case ExecutionPlan.LoadStep.Delivery.DatabaseReads reads -> {
+                                try (DataLoads.Staged staged = DataLoads.stage(bytes)) {
+                                    seeding.readsFile(reads.sql(), staged.path());
+                                }
+                            }
+                            case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
+                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns());
+                                if (!cells.isEmpty()) {
+                                    seeding.streams(streamed.insert(), cells);
+                                }
+                            }
+                        }
+                        // the load's one statement (its batch, or the read), counted under the seeds' mark
+                        StatementOrigin.count(seeding.mark());
                         answered.add(false);
                     }
                 }
@@ -1409,7 +651,9 @@ public final class PlanRunner {
         } finally {
             ran.accept(List.copyOf(answered));
         }
-        session.state().establish(key);
+        if (memo) {
+            session.state().establish(key);
+        }
     }
 
     /** A seed step's key as the session's seeds' memo holds it. */
@@ -1417,7 +661,7 @@ public final class PlanRunner {
     }
 
     /** A constant answer's rows into {@code held}. */
-    private static void constant(ExecutionPlan.Constant c, Held held) {
+    static void constant(ExecutionPlan.Constant c, Held held) {
         held.columns = c.columns();
         held.rows.addAll(constantRows(c));
     }
@@ -1448,11 +692,11 @@ public final class PlanRunner {
     }
 
     /** A typed result's rows into {@code held}. */
-    private static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
+    static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
             Held held) throws IOException {
         stamp(t.sql(), values, st);
         String statement = statement(t.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         if (reported(t)) {
             st.reportedRows(statement, t.sql().slots(), valuesOf(t.sql(), values), columns -> held.columns = columns,
                     held.rows::add);
@@ -1468,7 +712,7 @@ public final class PlanRunner {
     }
 
     /** Every null's type checked before any session is opened: a plan whose null is of no type is refused whole. */
-    private static void nullTypes(ExecutionPlan.Sql sql) {
+    static void nullTypes(ExecutionPlan.Sql sql) {
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
                 JdbcStatements.nullType(one, slot);
@@ -1514,7 +758,7 @@ public final class PlanRunner {
         nullTypes(keyed.keys());
         nullTypes(keyed.body());
         try (Sessions.Session session = sessions.open(keyed.keys().target())) {
-            Statements st = opened(session, keyed.keys().target());
+            Statements st = opened(session, keyed.keys().target(), sessions.mark());
             st.inSnapshot(keyed.snapshot(), () -> keyedOn(keyed, checked, st, sink));
         }
     }
@@ -1524,7 +768,7 @@ public final class PlanRunner {
      * sequence's transaction where the keyed result is a step: the seam program's S1a, 2026-10-30): the keys probe
      * read as typed rows, the body written for those keys and its rows handed to {@code sink}.
      */
-    private static void keyedOn(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
+    static void keyedOn(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
             Statements st, KeyedSink sink) throws IOException {
         int perKey = (int) keyed.outputs().stream().filter(o -> o instanceof ExecutionPlan.Keyed.PerKey).count();
         // each statement's cells read by the names it writes them under (a session reading by name, MongoDB's, needs
@@ -1601,7 +845,7 @@ public final class PlanRunner {
         }
         Expanded body = expand(keyed.body(), keys, checked);
         sink.columns(inOrder);
-        StatementOrigin.sent(body.statement());
+        StatementOrigin.sent(st.mark(), body.statement());
         st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
             List<Object> placed = new ArrayList<>(Collections.nCopies(columns, null));
             for (int i = 0; i < columns; i++) {
@@ -1739,7 +983,7 @@ public final class PlanRunner {
         // the session's own statements (JDBC's, or a connector's: Statements), 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md
         // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
-            Statements st = opened(session, sql.target());
+            Statements st = opened(session, sql.target(), sessions.mark());
             Map<String, PlanParameters.Checked> bound = checked;
             if (sql.stamp() != null) {
                 bound = new HashMap<>(checked);
@@ -1752,7 +996,7 @@ public final class PlanRunner {
             String statement = statement(sql, bound);
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
             // each statement a second time, 2026-10-21)
-            StatementOrigin.sent(statement);
+            StatementOrigin.sent(st.mark(), statement);
             ask.of(st, statement, values);
         }
     }
@@ -1765,17 +1009,20 @@ public final class PlanRunner {
      *  set there (Postgres's {@code SET} is transactional) and the memo cannot see it. The one place a session's
      *  statements are taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}),
      *  on every path: a statement, a schema read, a setup step, a sequence, a keyed plan. */
-    private static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
-        Statements st = session.statements();
+    static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
+        return opened(session, target, StatementOrigin.OTHER);
+    }
+
+    /** {@link #opened(Sessions.Session, ExecutionPlan.Target)}, the statements counted under {@code mark}. */
+    static Statements opened(Sessions.Session session, ExecutionPlan.Target target, StatementOrigin mark) {
+        Statements st = Statements.marked(session.statements(), mark);
         st.check(target);
         if (!target.session().isEmpty()) {
             boolean memo = st.ownsTransaction();
             if (!memo || session.state().needsSessionStatements(target.session())) {
-                try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
-                    for (String s : target.session()) {
-                        StatementOrigin.sent(s);
-                        st.execute(s);
-                    }
+                for (String s : target.session()) {
+                    StatementOrigin.sent(StatementOrigin.SESSION, s);
+                    st.execute(s);
                 }
                 if (memo) {
                     // recorded after every statement ran: one that failed leaves the list to run again

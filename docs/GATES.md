@@ -20751,3 +20751,618 @@ points are now its met rows), `//core:ts_documents_postgres_test` (15.0s), `//co
 budget raised 146,100 -> 148,000, its note dated), `typecheck_test`, `//python:ts_builder_test`, `//python:markets_test`
 (120.3s), `//:generated` (72): pass. `snap.sh --write` and `--write --fixture` re-snapped every dataset (the tools' sha
 now in each file); `snap.sh --check`: 0 problems (samples 303 cases, gallery 202). Not run: `//gates:local` and CI.
+
+## 2026-11-06 — The corpus walk: a named allow list; the test data generator's tests skipped (S143)
+
+The owner's ruling, verbatim: "Agree skip the tests, delete walk then we revisit to build product and maybe that's
+just a java built in if makes sense to think that way". The corpus lanes and tools no longer open the walk to every
+body (`-Dlegend.walk.allowed=all`): they name the bodies still allowed to walk, `spec/src/test/resources/rcorpus/
+walk-allowed.txt` (59, measured at `ae378220`: every body either judge walked on either lane, the test data
+generator's less), as core and PCT did before the walk closed there; the corpus names its running test
+(`legend.test.current`, as channel B does). The list only shrinks; when it is empty the walk is deleted.
+
+The generator's 66 walked tests are refused by name and are accepted non-passes on both lanes
+(`not-offered:test-data-generator(S143)`, witness "no class admits the body"); `testAlloyTestDatGenWithQuotedColumnsForViews`
+fails as before for its own reason (a class query under a runtime `if()`) and stays on DuckDB's fail roster. Measured
+on both lanes, host and database judges green:
+
+- DuckDB: fail roster **108, unchanged**; accepted 20 -> 86; skipped 14 -> 7; the differential floor 1009 -> 990 (19
+  of the generator's passes were referee-witnessed; dated in `MinimalCorpusTest.PLATFORM_STRENGTH`); both
+  engine-order registers lose the generator's 55 rows.
+- H2: fail roster 276 -> 273 (three generator tests that failed on the walk are accepted now); accepted 15 -> 81;
+  skipped 14 -> 7; the differential floor holds (964 >= 944).
+- Both database outside-body registers lose the generator's 34 rows.
+
+Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:guardrails`, `//core:census`, `//spec:all` green.
+
+What remains on the walk (`walk-allowed.txt`): 26 bodies both judges walk (metadata reads, DDL and temp tables,
+`loadCsv`, post-processor hooks, paginate and slice with variables, two engine-text asserts whose expected text is
+computed by `replace`, a few failing or verdictless) and 33 only the database judge walks (measured with
+`-Dlegend.diagnostics=judge-declines`): 14 a check statement (a `println`) over a frame the database judge does not
+run at its let; 19 refused by its static pass -- SQL or plan text reached through a helper let (the relational
+mapper's 10, the datetime plan tests' 5, `planToString`, `toSQLString`, `toSQL(...).sql`) and `toCSV()` of an
+`executeInDbToTDS` result.
+
+## 2026-11-06 — The walk list burns: a check over a frame, the CSV load step, nine failures off the walk (59 -> 35)
+
+- **A check over a frame under the database judge** (`356a3aa2`, full check green: both lanes, both judges, core):
+  the test door registers a frame a `println` reads as LAZY -- the check's own statement runs it and binds the frame's
+  activity stamp as its own; no run at the let (a first version ran it there: the outside-body register caught 16
+  statements the walk never sent). 14 bodies leave the walk; `testAssociationMixedDeep` passes under the database
+  judge on DuckDB for the first time (on H2 it fails under both judges as before, the list encoding).
+- **`loadCsvToDbTable` is a plan step the database runs** (`a2e9ae79`; the owner's ruling: the plan holds the file's
+  reference, never its rows): `SqlDml.LoadCsv`, DuckDB `read_csv`, H2 `CSVREAD`, every other dialect refused by name
+  (SQLite and Trino designed: one bound text parameter parsed in SQL). `testLoadCsv` 4/4 (both lanes, both judges).
+- **Nine bodies that fail on the walk fail at the router instead** (both fail rosters unchanged; scoped 9/9 FAIL on
+  both lanes under both judges). Their gaps, as the walk reported them, for the burn-down: `testTempTableSqlStatementsForH2`
+  and `testReAliasMergedJoinOperations` (store resolution left a user call: `DbConfig` translate hooks,
+  `buildAndTransformJoinMeta`); both `testPureExecutionStrategyFor*ExecutionNode` (a class query under a property
+  access); `testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements` (type inference in
+  `pureToSqlQuery`); `relationalResultSourcingOfListExecutionPlan` (a computed scalar projection's spelling);
+  `testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes` (an `executionPlan` mapping argument not a reference);
+  `toRelation::testJoinFunc` and `testJoinUsing` (an unknown `toRelation::transform`).
+
+Left on the walk (35): 17 engine-text asserts in system-routed bodies (their appeal reads the user's tables: walk
+deletion's step 3, the appeal as plan steps), `testModelConnectionJoin` (a let that raises at planning),
+`testExecuteInDbToTDS` (`toCSV` of a raw-SQL result), two verdictless bodies (`let r = execute(...); true;`: an unread
+let in a program with no assert), and 14 small passing ones (metadata reads, DDL and temp tables, post-processor hooks,
+paginate and slice with variables, two engine texts computed by `replace`).
+
+## 2026-11-06 — The walk list burns on (29 -> 5): step 3's appeal inside the run, system programs reach the user's database
+
+- **The appeal reads inside the run** (walk deletion step 3): its planned rows through the running program's reader
+  (`driver/RunReader`), never a run of its own; a program of constants reads such a side on demand on its target's
+  session; a program on the graph's system database routes a statement naming the user's database to that
+  database's own session (`PlanRunner.UserBeside`; until now such a statement ran on the system session, silently).
+- **The database judge plans a system-routed body's engine-text assert as the host does** (`ExecEnv.appealOn`): the
+  verdict row on the program's environment, the appeal's rows, the referee and the store provision on the body's. 17
+  system-routed bodies move under both judges.
+- **Class rules**: a program with no assert runs a check before its last statement and a frame run as a statement of
+  its own (the user: "do all including last row"); a later frame rebinding an earlier frame's names makes it stale only
+  for reads after it (paginate and slice with variables); the assert scan skips a lambda a construction stores (a
+  runtime's SQL post-processor); a raw SQL read, a JDBC catalog grid and a database effect are reads of the user's
+  database (`BodyClass.userStoreRead`: such a body was classed system-routed); a runtime-dialect text defers with its
+  environment.
+- **Records**: DuckDB fail roster **108**, H2 **273**, both unchanged. 22 of the generator's alloy tests now fail
+  inside the generator's own Pure (a class query under a runtime `if()`) rather than at the router: their accepted
+  rows keep `not-offered:test-data-generator(S143)` with that witness; 7 of them fail under the database judge at its
+  planner and are rows of the database-mode accepted registers. Two failing bodies (`relationalResultSourcingOfListExecutionPlan`,
+  `testToSQLStringWithAbs`) are rows of the host-compared registers. Engine-order registers regenerated. Pins moved,
+  dated: `BodyDriver` 1043, `AssertVerdicts` 1956, `SqlTextVerdicts` 1653, `EffectPlanner` 186 (the CSV load step,
+  committed earlier without the census run); `RunReader` registered as a driver class.
+- **H2 notes**: on H2's database judge `dropAndCreateTable` and `testFetchDbColumnsMetaData` fail where the walk passed
+  (a JSON parameter type, empty catalog cells: the H2 database-judge parity item); paginate and slice with variables
+  meet H2's missing list encoding in scoped runs.
+
+Left on the walk (5): `testConvertAlias` (asserts inside a map of converter lambdas built by helpers),
+`testExecuteInDbToTDS` (database judge: `toCSV` of a raw-SQL TDS), `dropAndCreateTempTable` (a raw grid staged across
+an effect), `testWithParameterToClassNestedSelect` (`execute(...)->size()` run where it stands),
+`testToSqlStringReplaceTablesPostProcessor` (the host's system-routed engine-text arm).
+
+Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:census`, `//core:guardrails`, `//core:core_tests_driver`
+(×3 judges), `//core:core_tests_testplan` green; the core gate runs next.
+
+## 2026-11-06 — Every lane's walk closed; THE WALL's named residue deleted
+
+- **The corpus walks nothing**: its list burned to 0 and was deleted (`rcorpus/walk-allowed.txt`); the corpus lanes,
+  `corpus_one`, the Postgres tool and the consumption probe run `-Dlegend.walk.allowed=none`, as core and PCT do.
+- **The stress lanes walk nothing**: a graph fetch and a temporal class read are a query program's ANSWER
+  (`BodyClass.queryProgram`; the product's own statement, the one a frame's query plans), and the router passes a
+  graph's objects through to the writer (`case OBJECTS`); 443 graph fetches and 17 temporal reads the stress lanes
+  walked run on the program road. `_STRESS_WALK_DOOR` is `none`; the lanes pass 4705 (DuckDB) and 4676 (H2), their
+  floors, as they did walking.
+- **THE WALL has no exception** (`RunScope`: rule 4, a run starts no run): the engine-text appeal's runs inside a
+  body's run, the one named residue, are gone with their door (`RunScope.residue`, `-Dlegend.wall.residue`,
+  `SqlTextVerdicts.ENGINE_TEXT_APPEAL`). The appeal's rows were already read by the running program's reader; the
+  last nested run, an appeal's fixture provision, is provided before the body's run (`AssertListener.beforeRun`), once
+  per store -- and not at all for a setup the body calls itself (`testGroupByWithWindowSubset` runs
+  `contractmoneyscenario::setUp()` first: on DuckDB the fixture's aside, provided before the body's own setup, held the
+  tables that setup's drops resolved to). The body's names are read through the compiler's own first pass
+  (`Compiler.resolveNames`, split out of `resolveQuery`; no new protocol construction).
+- **Fixes**: an assert statement is inlined at planning only where it reaches a `size(execute(...))` (inlining every one
+  raised on `testConvertSubqueryPredicates`, a DuckDB pass); a rendered raw grid (`executeInDb`'s late-bound rows) is
+  planned by the database arm.
+- **Records**: rosters unchanged (DuckDB 108, H2 273). Database outside-body registers: `testWithParameterToClassNestedSelect`
+  (`statement=1`: its `size(execute(...))` runs at the let's turn, as Pure evaluates it), measured counts refreshed.
+  Database host-compared registers: `testReAliasMergedJoinOperations` (fails as before; its failure is now the store
+  resolver's wall, judged at its step). Pins moved, dated: `SqlTextVerdicts` 1649, `AssertVerdicts` 1960. One parity
+  pin moved: a temporal answer is a query program.
+
+Checks: `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//core:stress_suites`, `//core:stress_suites_h2`,
+`//core:census`, `//core:guardrails`, `//core:core_tests_driver` (×3 judges), `//core:core_tests_testplan`,
+`//core:core_tests_root` green. Next: the walk's code deleted (step 4).
+
+## 2026-11-06 — The walk deleted
+
+- **Deleted**: the walk's statement-by-statement path (`BodyDriver.execute`, `executeStatements`, the prepared value
+  and its run, the segment walk's staging, script sends and context establishing: `BodyDriver` 1044 -> 820 code lines),
+  `driver/BodyCompiler` (the segment walk), `driver/WalkDoor` and `-Dlegend.walk.allowed` on every lane (core, PCT,
+  corpus, stress, the tools), the walk-only `assertError` runner (`AssertErrorNative.run`), the router's walk branch,
+  the stayed-kinds census (`Census.STAYED_KINDS`, the corpus's `corpus2-body-stayed.tsv` and its histogram) and the
+  `forbid-walk` diagnostic. Found by a reachability pass over the driver package: nothing else became dead.
+- **The router refuses by name** a body no class admits, or whose judge's planner refuses an assert:
+  `NotImplementedException: the program road does not plan this body: <why> [<kinds>] {query rule: <reason>}`. No corpus
+  body, stress body or PCT body reaches it (the corpus logs held no walk-door refusal with the door closed).
+- **`BodyRouterParityTest`** keeps its bodies and runs each on the program road alone: a moved body is planned whole and
+  moved (`assertParity`); a body its judge's planner refuses is refused by name with nothing sent (`assertWalkedAlike`);
+  the walk-only comparisons (the raw-SQL ledger, origins and statements against the walk's) are gone. Goldens the walk
+  read off a body answering a value alone are read through the product's query door (`productText`: a bare
+  `toSQLString`) or off the failure of an assert that cannot hold (`actualOf`: a lineage print, a qualified graph
+  frame). The test-data generator's census carrier, folded in Java by the walk, is refused by name (S143).
+- **Guards**: `BodyDriver` pin 820, `MinimalCorpusTest`'s sort sites 3 -> 2, the mutable-field allowlist loses the
+  segment walk's fields, `BodyDriver.STAGED_GRIDS` (dead) removed, `AGENTS.md`'s body driver paragraph and entry table
+  rewritten.
+
+Checks: `//gates:core` (all but the Postgres tests, which `initdb` refuses to run as root in this container),
+`//gates:checks`, `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//gates:pct_channel_b`, `//core:stress_suites`,
+`//core:stress_suites_h2` green. Next: the driver and judges split into a plan half and a run half (a census of the
+two packages is the first step's input).
+- **Orphans** (a reachability pass that also reads annotated return types, which the first pass missed):
+  `AssertVerdicts.tryAdjudicate` (the walk's statement-root entry) with `batched` and `flush`, `BodyDriver.evalValue`;
+  pins `AssertVerdicts` 1884, `BodyDriver` 800. Branches only the walk took inside live methods (the eager frame run,
+  the effect arms, the host sides' own fetches) go with the plan/run split.
+
+## 2026-11-07 — The DuckDB judges' disagreement: a runtime if over a table's name (22 off the rosters)
+
+- **Found**: the DuckDB judges' fail sets matched, but 17 tests the host judge filed as accepted non-passes the database
+  judge passed (`database-mode accepted diff vs host roster: gained=17`). 15 are Alloy test-data-generator tests whose
+  generator call is `mayExecuteAlloyTest(server, {| true})`: with no Alloy server the fallback runs, as in upstream's own
+  CI, and the body's one live check is `createTableRowIdentifiers`' assert that each named column exists. Its message
+  spells the table through `getQualifiedTableName`, `if($t.schema.name == 'default', | '', | $t.schema.name + '.')`,
+  a condition only the database decides; upstream reads the message only where the assert fails. The host judge plans
+  the message as a side, and the store resolver refused any anchored `if()` whose condition is not decidable at
+  planning ("class query under if() with a runtime condition is not resolvable yet"). Their S143 rows were wrong: they
+  never reached the generator. The other 2 are the graph-fetch milestoning goldens with a trailing `"` (below).
+- **Fixed in the compiler**: `StoreResolver.anchoredIf` -- an anchored `if()` choosing between two VALUES (a primitive
+  or an enum) under a runtime condition resolves part by part and the database decides it (`CASE WHEN`); a class- or
+  relation-valued one still needs a condition decidable at planning. Pinned by
+  `MetamodelQueryFunctionsTest.aRuntimeIfOverATableChoosesAValue` (the value, and the assert held and failed with its
+  message under every judge; it fails with the old refusal without the fix).
+- **Rosters**: 22 rows off `duckdb-accepted-roster.txt` and `h2-accepted-roster.txt` (the 15, and 7 more Alloy tests
+  the host judge now passes on both databases). The 7 stay non-passes under the database judge, whose static pass
+  refuses an assert in their setup (`TypedMap` of a one-identifier `createTableRowIdentifiers`; `assertEqualsH2Compatible`
+  in the milestoning setups): their rows in both `*-database-accepted-register.txt` are relabelled from S143 to
+  `judge-parity-gap:database-planner-refuses(P5)` -- a judge disagreement in the other direction, P5's to close.
+- **Open, the user's to rule**: the 2 graph-fetch goldens end `]"`. Upstream's `equalJsonStrings` reads both sides with
+  json-simple 1.1.1 (legend-pure's pin), which ignores an unterminated string at the end, ignores missing or extra commas
+  and colons, and keeps an unknown escape's backslash (probed against the 1.1.1 jar, 2026-11-07); the host judge's
+  reader refuses the golden, the database judge's (`Json.parseOne`) ignores any trailing text. Their rows stay on the
+  host rosters (`engine-golden-defect:json-stray-quote`) until the user rules strict vs upstream's grammar at the edge.
+- **Outside-body registers shrink (P1.2's, found here)**: the split rung's run-time retry and the root loop's run-ahead
+  were deleted by P1.2 (`d67cd85c`, exec runs only the plan's statements), and with them the FALLBACK statement origin;
+  ten rows registered only for FALLBACK statements are stale and leave `duckdb-database-outside-body-register.txt`
+  (1) and `h2-database-outside-body-register.txt` (9); no row cites the origin now. Every one keeps its pass or fail (the fail rosters are exact).
+  P1.2's own check compared the pass and fail sets and missed the register; a lane's whole gate output is read from now.
+- **Ruled (the user, 2026-11-07, option 2), register S144**: `assertJsonStringsEqual`'s two texts are read strictly in
+  lite's own runs and with json-simple 1.1.1's grammar under the compatibility rules, on both judges (`driver/JudgeJson`,
+  pinned case by case to the jar's answers in `JudgeJsonTest`). Measured first with a strict-JSON probe at the judges'
+  reads, the whole corpus on both databases: two goldens are not strict JSON, the two graph-fetch milestoning goldens; no
+  other test leans on any leniency (the database judge's implicit comma between objects was never used). Their
+  `engine-golden-defect:json-stray-quote` rows leave both host rosters: upstream passes them, and now so do both judges.
+  `Json.parseOne` keeps two product readers (`Substitution`'s primary-key JSON, `AsorReaders`), which should read
+  strictly: a separate change, measured first.
+
+## 2026-11-07 — P1.3 (D2): a relation's toOne() is the database's to check
+
+- **Built**: `lowering/ToOneGuard`. A USER `toOne()` over a relation at a statement's ROOT (never the conformance
+  `trustOne`, never a `toOne` nested in a pipeline, which keeps upstream's look-through) lowers to the relation's rows,
+  each counted by a window over the whole relation, left-joined onto a one-row source -- so an empty relation still
+  yields the row the check reads -- under `WHERE CASE WHEN COALESCE(rows, 0) = 1 THEN TRUE ELSE error(...) END`,
+  raising Pure's own `Cannot cast a collection of size N to multiplicity [1]`. One read of the relation. Prototyped on
+  DuckDB and H2 for zero, one and three rows (and the aggregate-joined-back shape alongside) before it landed.
+- **Deleted**: the Java row count (`JudgePlans.Cardinality`'s to-one reader, the router's `toOneReader` flag and its
+  helpers in `BodyRouter` and `BodyDriver`) and the run-time read of the typed tree (`JudgePlans.toOneReader`, called by
+  `HostSides` twice and by the appeal's side read); the dead `JudgePlans.stream` with it. The old Java message ("toOne()
+  over a relation returned N row(s)") was pinned by no test.
+- **Proven on each database**: `RelationToOneGuardTest` (two rows and none raise Pure's error, one row answered) on the
+  DuckDB, H2 and SQLite integration lanes, and on the embedded Postgres 16 (`//core:relation_to_one_postgres_test`,
+  added to `//gates:core`).
+- **Checks**: DuckDB corpus, both judges, unchanged and every roster exact (host 2436, database 2429; the host's failure
+  lines identical); core lowering, driver (three judges), integration (DuckDB, H2, SQLite), census and guardrails green.
+  Pins: `BodyDriver` 520 -> 517, `SqlTextVerdicts` 1496 -> 1495.
+
+## 2026-11-07 — P1: which statement of a failed script, deleted
+
+- The goals' P1 item "the runner reports which statement failed (no dialect parsing of error text)" is closed by
+  deletion (the user, 2026-11-07, after the measurement: "Yes if you're sure it's not used anywhere"). Nothing read it:
+  no corpus body, on either database or judge, fails inside an effect script, and no test pins the text since the walk
+  was deleted (`BodyRouterParityTest.aScriptFailingAtItsSecondStatement` checks the body is planned and run).
+- **Deleted**: H2's parse of its own error message (`SqlDialect.failingStatement`), the runner's `effectFailed` hook,
+  the router's handler that recorded the statements applied before the failure and appended "(statement N of M)",
+  `testplan/EffectSegment`, and the segment name beside each effect step (`TestDoor.Effect.where`). A failed script now
+  raises the database's own error, as upstream's `executeInDb` does, its bracket's abort sent first; the ledger records
+  nothing from a failed script.
+- Checks: core driver (two judges), exec, testplan, census and guardrails green.
+
+## 2026-11-07 — P1: the dead CanonRider construction and the host judge's byte channel, deleted
+
+- `HostJudge.sideCanonOf` built a `lowering.CanonRider` at run and declined it on the spot ("plan path: the database
+  judge is the referee", since the plan path's step 6, 2026-10-18), so the host judge's second, "byte" verdict -- the
+  canon texts compared beside the host lattice, its census of claims and disagreements -- could only ever decline.
+  Deleted with everything only it reached: `sqlByteVerdict` and `SqlVerdict`, the canon framing (`Framed`, `frame`,
+  `selectedFineKind`, `candidateIndex`), the grid and cell-multiset byte blocks, `SideFetch.rider`,
+  `AssertVerdicts.sideRowCanons`/`sideCellCanons`/`withinDeclaredUlp`/`containsTdsNullSentinel`, `TdsCompare`'s rider
+  methods (and its import of a lowering type), `KindClass.Fine.mixed`/`ofValues`/`integral`,
+  `Equality.differByLeniencyOnly`, `CanonicalDivergence.probeSqlVerdict`/`sqlNoChannel`. About 700 lines; no verdict
+  changes (the host lattice was always the verdict of record).
+- Registers shrink: `VerdictChannelRegisterTest` (AssertVerdicts no longer calls the judge), `HarnessDisciplineTest`
+  (HostJudge's four sorts, 4 -> 0); pins HostJudge 1087 -> 840, AssertVerdicts 1847 -> 1815, TdsCompare 350 -> 235,
+  Equality 461 -> 444. `InstanceIdentityTest.lambdaCtorDeclines` loses its count of the channel's decline.
+- Checks: DuckDB corpus, both judges, unchanged and every roster exact (identical failure lines); core driver (three
+  judges), judge (two), exec, integration, census and guardrails green; `//pct:all` builds.
+
+## 2026-11-07 — P1: the test-data generator's dead run paths, deleted
+
+- The goals' P1 item "delete the dead test-data generator transcript path". `TestDataGenerationNatives.foldCensus`
+  called only itself, so the generator's in-body run was dead: deleted with `transcript`, `needsBodyRoute`,
+  `postFold`, `seedStringOrDataError`, `deref`, `containsSetUpDataSqls` and `literal`. Also dead and deleted:
+  `TestDataGenerator.seedDataString` and `BodyDriver.viewSqlRenderer` (no callers), and the referee's generator
+  fetch-chain SPI (`SqlReplayReferee.verifyFetchTexts`/`verifyFetchChain`/`FetchTranscript`/`FetchHop`, called by
+  nothing in core) with its implementations in the spec harness and the parity test's stub. About 430 lines.
+- Kept, for the generator's product redesign under S143: `TestDataGenerator.generate`, whose one caller is
+  `ReservedNamesGenerationTest` (PARK-16: the generator's statements quote reserved names), and the plan-text path
+  (`planText`, `planTextResult`) the engine-text arms read.
+- Checks: core driver, judge, testdatagen, census and guardrails green; `//spec:all` and `//pct:all` build; DuckDB
+  corpus (host judge) unchanged, every roster exact. Pin `BodyDriver` 517 -> 512.
+
+## 2026-11-07 — P1: the plan/run split's rules R1, R2 and R4 in report mode
+
+- `ArchitectureTest.thePlanRunSplitInReportMode` measures, before any package moves, every crossing of the three
+  rules and pins the exact pairs (shrink-only: a new pair fails, a vanished one must leave the pin, dated).
+  - **R1** (run code reaches no planning): the body's sink `BodyRouter$Moved` holds the judges' planned asserts and
+    judges through them -- `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`, `HostSides`, `JudgePlans`,
+    `testplan.TestDoor` and one compiler type (`Multiplicity`). The run's reader and the held appeals cross nothing.
+  - **R2** (planning holds no session): only `TestDataGenerator.generate` (kept for its one test, S143).
+  - **R4** (the judge package holds no session): only the referee's SPI, `SqlReplayReferee` (the edge's, P2).
+  - R3 (only the router sees both halves) is the package split's own.
+  - **Narrower than it reads** (the milestone audit, below): R1 and R2 classify the driver's classes by name, and the
+    mixed ones (`AssertVerdicts`, `HostJudge`, `DatabaseJudge`, `SqlTextVerdicts`: a plan half and a run half in one
+    class) are neither, so their crossings are not measured until the split extracts the halves by method.
+
+## 2026-11-07 — P1.2 recorded, and the P1 milestone audit's findings fixed
+
+**P1.2** (`d67cd85c`, exec runs only the plan's statements; it had no entry here):
+- A fused verdict statement the database rejects fails the body by name; the split rung's run-time retry, its
+  savepoint guard and the `FALLBACK` statement origin are deleted. A member the dialect cannot spell is refused at
+  planning, at its place, nothing sent.
+- A root's caller's message is a side of the plan, carried on a verdict of its root and read only where the root fails.
+- The compatibility appeal is the edge's (`driver/Appeals`): held at its assert while the run goes on, the listener's
+  reports kept back, decided after the run, each planned side read as a plan of its own on the body's sessions; the
+  first failed appeal is the body's failure. Measured (DuckDB corpus, both judges): 1,010 bodies appeal, 48 after a
+  write of their own and none before a later write.
+- The run's reader refuses a side the plan does not carry.
+
+**The milestone audit** (an independent reviewer over P1.1 to P1.3, 2026-11-07): no blocker; seven should-fix items
+and four notes, each fixed here.
+1. **The split rung at planning dropped spellable members.** Where the dialect could not spell a fused statement, the
+   members it could spell alone were left out of every group and the root loop found no row for them. Now each
+   member is planned its own statement (`VerdictBatch.ownStatements`, a group with no fused statement), and only a
+   member the dialect cannot spell alone is refused at its place. The corpus never reaches this rung (no fused
+   statement fails to spell: `batch-fallbacks=0` on both judges), so `VerdictBatchSplitRungTest` pins it with stub
+   planner pieces.
+2. **A held appeal's rows were not checked to be the rows at its assert.** Now the runner's sink tells the appeals
+   each writing step (`ProgramSink.writing`); an appeal held before a later write of the body's is refused by name.
+   A body whose run FAILED with appeals held decides them before raising (the first held appeal's failure precedes
+   the run's, the run's suppressed in it), and refuses them by name where the failed run wrote (its rollback undid
+   what they read). Deciding runs inside `RunScope.judging()`: it plans nothing and plans no body, but runs the
+   plans planned ahead for it (`RunScopeTest.aJudgmentAfterARunPlansNothingButRunsItsPlans`). The corpus measured
+   none of these cases.
+3. **The caller's message's carrier.** The message side rides the root's first grouped verdict, rebuilt with it after
+   grouping (`VerdictBatch.carried`); where no verdict of the root is in the plan (decided or refused at planning),
+   reading the message raises a named refusal instead of an unplanned read.
+4. **The byte channel's leftovers, deleted**: the host judgments' static byte gate (`HostJudgment.ByteGate`,
+   `HostJudge.byteGate`, `AssertVerdicts.keylessCtorUnderLambda`), the SQL channel's dead counters
+   (`CanonicalDivergence.sqlDeclined`, `sqlTdsNullPolicy`, the disagreement witness buffer and its counts; the
+   census keys `SQL_AGREE`, `SQL_DISAGREE`, `SQL_DECLINED`, `SQL_TDSNULL_POLICY`), the corpus prints of them and the
+   six Channel B assertions on a count that is always zero. The byte probe census (`probeEqual` and its siblings)
+   stays: it is still fed.
+5. **The test-data generator's leftovers, deleted**: `TestDataGenerator.necessaryColumns` and `censusCols`, the census
+   checker's folded-form builders (`literal`, `literalStrings`, `literalTestData`, called only by the deleted fold),
+   two unused constants, and `SqlTextVerdicts`' check for the folded result, which nothing mints.
+6. **Stale docs** fixed: `RunReader`, `RunScope` (a judgment's rule added), `ExecutionPlan.Verdicts.Savepoint`,
+   `Census.FALLBACK_REASONS`, `VerdictBatch` (the appeal, the keyed group, an absent row), `DatabaseAsserts`,
+   `HostJudge` (the byte channel), an orphaned `AssertVerdicts` javadoc, `CanonicalForm`, `H2`, `ProductStatements`
+   and `RelationPredicates` (a relation's `toOne()` is checked by `ToOneGuard`), `BodyClass` and `CsvCensusChecker`
+   (the census carrier refused by name), `SqlTextVerdicts.decide`.
+7. **This entry** (P1.2 had none), and the report-mode rule's honest limits (above).
+- **Notes**: `StoreResolver.anchoredIf` decides a runtime `if()` in the database for values of at most one (a
+  collection is no `CASE` operand); `ToOneGuard`'s count column takes a name none of the relation's columns has;
+  `JudgeJson`'s compatibility grammar matches the 1.1.1 jar on three more points, probed: a form feed (and a backspace
+  or vertical tab) is no whitespace, a `\u` escape takes ASCII hex digits only (another digit keeps the backslash), and
+  an integer past a Long is refused (json-simple raises `NumberFormatException`) -- `JudgeJsonTest` pins each.
+- **Guards, dated in place**: ledger pins `HostJudge` 840 -> 825, `HostJudgment` 197 -> 194, `AssertVerdicts`
+  1815 -> 1782, `SqlTextVerdicts` 1495 -> 1488; broad catches `BodyRouter` 0 -> 1 (the failed run's catch, which always
+  rethrows); the mutable-field allowlist gains `Appeals.wrote` and `Appeals.wroteAfterHold`; `CanonicalFormTest`'s
+  summary loses the deleted counters.
+- **Checks**: DuckDB corpus, both judges, unchanged (host 2436 pass, database 2429; failure lines identical to the
+  previous run, every roster and register exact, no wall crossing); core architecture, guardrails, census, driver
+  (three judges), judge (three), exec, integration, lowering, resolver and root green; `//spec:all` and `//pct:all`
+  build. The milestone's lanes (H2 corpus, PCT, stress, Postgres) run next, on this commit.
+
+## 2026-11-07 — The P1 milestone lanes at 69ba09c2 (before the plan-as-data step)
+
+Run one at a time with the disk kept clear: `//gates:core` and `//gates:checks` (all but the Postgres tests), the
+Postgres tests as an unprivileged user, `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//gates:pct_duckdb`,
+`//gates:pct_h2`, `//gates:pct_channel_b`, `//core:stress_suites`, `//core:stress_suites_h2`: all green but one gate,
+the H2 judges' differential. P1.2's deletion of the run-time retry of a rejected fused verdict statement moved where
+five failures land under the H2 database judge (the same database error on both judges, the body failing by name
+with no assert's verdict where the split rung used to record each assert): four rows joined
+`h2-database-differential-register.txt` and the untriaged row for
+`stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat` (2026-09-23) left for it with its explanation
+(`83f68e44`). The H2 lane rerun green: `unregistered=0`. This is the baseline the plan-as-data step
+(`docs/PLAN_AS_DATA_2026_11_07.md`) is held to.
+
+## 2026-11-08 — The plan as data, step 0 (docs/PLAN_AS_DATA_2026_11_07.md): no behaviour change
+
+- **The census counters** (`Census`, JDK types alone) moved from `//core:exec` to `//core:diagnostics`, which both the
+  planning and the running halves reach (`4f268584`); the exec funnel register's row left, dated.
+- **Verdict ids** (`bba6df99`): every verdict of a body's plan carries an id no other verdict of that plan has, given
+  as it is planned by one counter per body (`judge/VerdictIds`, in the body's environment); a verdict rebuilt from
+  another keeps its id; every map keyed by a verdict object (the three planners', the batch's members, the sink's
+  rules) is keyed by id; `PlanJson` writes and reads it. `VerdictIdsTest` pins uniqueness under each judge and the ids
+  through the JSON. Guards dated: the judge register (+`VerdictIds`), `BodyDriver` 512 -> 514, the field allowlist
+  (+`VerdictIds.last`).
+- **Step 1's list** of run-time methods naming a compiler type (24, from the bytecode) is in the design, with the
+  referee's interface and the spec harness's enum decoding.
+- **`ApiToken`** is a vault key upstream (`Vault.INSTANCE.getValue(authStrategy.apiToken)`), so it rides the plan as a
+  reference.
+- **Measured** (a print-only probe that did not land): `Any`-slot key trees -- 52 on the DuckDB corpus under the host
+  judge, the largest `DynaFunction`'s 159 classes / 357 keys (9 verdicts); 52 on PCT DuckDB and core's driver and
+  integration suites, the largest `List`'s 45 classes (4 verdicts).
+- **Checks**: the DuckDB corpus on both judges unchanged after each change (host 2436, database 2429, failure lines
+  identical, every roster and register exact); core driver, judge and integration under the three judges, exec,
+  census, guardrails and architecture green; `//spec:all` and `//pct:all` build.
+
+## 2026-11-08 — The plan as data, slice 1 (steps 1-3, docs/PLAN_AS_DATA_2026_11_07.md): every lane, an audit, guard 3
+
+- **Step 1** (`0a1edf63`): the judges' value model reads the plan's type names, never the compiler's types. Checks: the
+  DuckDB corpus on both judges unchanged; core's driver, judge and integration suites under the three judges; then
+  every other lane on step 1 alone (Postgres, the H2 corpus, PCT, stress): green.
+- **Step 2** (`07eeaacc`): a failure known at planning is the test plan's `Failure` record (closed class list, message,
+  phase, element, unjudged reason, the planning site), raised from it at its turn. The first corpus run named one class
+  the list lacked (`TypeInferenceException`, 12 tests, by the list's own loud refusal); listed, the corpus was
+  identical.
+- **Step 3** (`b33aecb0`): two plan types (`TestPlan` around `ExecutionPlan`); exec the one walker, a callback at a
+  test step (`ProgramRunner`, its own target `//core:exec_program`); the verdict running in `driver/TestRun`; guard 1
+  introduced with dated pins; guard 3 in report mode.
+- **Slice 1's lanes at `b33aecb0`**: core (the product format's version test alone failing, fixed below), Postgres,
+  the DuckDB and H2 corpus, PCT and stress green.
+- **Slice 1's independent audit** (read-only, `6fdafffc..b33aecb0`), every finding fixed and recorded in the design's
+  section 10: verdicts still compared by object identity in three places (normal runs held; the decoded plan would not)
+  -- by id now, which surfaced the agreement judge's `assertError`-over-an-assert holding two verdicts with one id (its
+  database copy takes an id of its own); a failing savepoint statement judged as the guarded read's failure (Postgres
+  alone) -- the program's again; the closed failure list widened by the classes the audit named; the referee's enum
+  precheck back in place; guard 1 tightened on enums (pinning the product plan's model `DatabaseType`, step 7's);
+  guard 3 on the planned-ahead programs too.
+- **After the fixes**: core's suites (the root package, driver, judge, integration, exec, planner, testplan under the
+  three judges), architecture, guardrails, census and layering green; the DuckDB corpus on both judges identical
+  (host 2436, database 2429, failure lines and registers); **guard 3's report**: the DuckDB corpus run on every body's
+  plan READ BACK from its JSON (`-Dlegend.diagnostics=decoded-plan`), identical on both judges; the Postgres lane green.
+
+## 2026-11-08 — The plan as data, slice 2 (steps 4-8, docs/PLAN_AS_DATA_2026_11_07.md): every lane, two audits; THE INVARIANT IS NOT YET COMPLETE
+
+- **Steps:**
+  - 4a `3dea6293`, 4b `dc655af8`: the host judgment and the sides' shapes are the test plan's data.
+  - 5 `040bf06d`: the database judge's root loop.
+  - 6 `eb7ef50b`: the agreement pairing.
+  - 7a `3283487d`: the plan's own faithful copy of the connection description, so exec no longer reaches the model.
+  - 7b `32d07ef1`, its fix `6c72d970`: the system store named by its content's key, hashed in plain long arithmetic
+    because the planner's WebAssembly build has no `MessageDigest`.
+  - 8a `24f4a4ba`: the ledger texts are the edge's records.
+  - 8b `3a866f75`: an engine-text appeal is plan data, decided after the run.
+  - 8c `07258c9e`: three out-of-plan channels removed by name.
+
+  Each step: the DuckDB corpus on both judges identical to the baseline (host 2436/108/7, database 2429/108/7).
+- **The conformance audit** (read-only, `fbd29531..07258c9e`): 2 must-fixes, 8 should-fixes and 8 notes, all fixed and
+  recorded in the design's section 10 (`9de03396`).
+  - Must-fixes: an appeal side's failure of an unlisted class aborted the body's planning; fixture stores were provided
+    in verdict-id order.
+  - Should-fixes, among them: exec's class wall admitted the model; the R1 set missed the new run classes; dead code,
+    including a second copy of the shaping rules; a loosened root-loop check; a non-exhaustive switch; no round-trip test
+    of every record (now `TestPlanJsonRoundTripTest`); no guard on extension-codec providers.
+- **Every lane at `9de03396`, green:**
+  - `//gates:core` and `//gates:checks`; the Postgres tests as an unprivileged user;
+  - `//gates:corpus_duckdb`, `//gates:corpus_h2`;
+  - `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`;
+  - `//core:stress_suites`, `//core:stress_suites_h2`;
+  - `//wasm:planner` and `//pure-protocol:twins_test` (red at `07258c9e`, fixed by `6c72d970`).
+
+  Guard 3, report mode: the DuckDB corpus run from every body's plan read back from its JSON is identical on both judges
+  (host 2436/108/7, database 2429/108/7).
+- **The invariant audit** (read-only, `7d50ff56`). It was briefed with the rule, not the step list: the run reads only
+  its plan plus the database's rows; no code in the plan; only a thin door sees both halves.
+
+  **Verdict: the invariant does not hold at this commit.** It holds for the plan's types, and inside the walker and the
+  judges' run halves. It fails at the boundary around them:
+  1. The appeal decision reads the compiled model (enum decoding), plus the referee's static mirror and the ledger.
+  2. The system store's sessions are found through the compiled model, and the run writes its sessions into the model's
+     cache.
+  3. After the run, the router decides whether the last verdict is the answer, from planner objects.
+  4. The listener carries code: `fixtureAhead`'s closure, and `beforeRun` makes the harness plan and run fixtures between
+     the body's plan and its run.
+  5. Under the database judge, planning reports declines the plan does not carry, attributed to the wrong verdict, and
+     arm planning depends on whether a referee object exists.
+  6. Three thread-locals carry run state.
+  7. Sessions are opened from the model, on the test road and on the product's door alike; the plan's own connection is
+     ignored for ordinary targets.
+  8. The run re-checks the plan's rules against the options.
+
+  The guards were blind to most of it:
+  - guard 1 deduplicates by type, so its `Number` pin also hides `Following.n`;
+  - guard 3 is in report mode;
+  - the R1 measurement skips the mixed classes, `BodyRouter` and `SystemDatabase`;
+  - the plan's appeal numbers point into a planner registry;
+  - `BodyRouter` is no thin door.
+
+  The audit's first brief (conformance to the steps) could not see these, because the design's own step texts deferred
+  them. From here on, a milestone's audit is briefed with the invariant.
+- **What this record claims:** steps 4-8 as designed, verified on every lane. **Not** that the invariant holds. The
+  holes above are slices 3 to 5's checklist (the design's section 11), closed by guards that pin each hole and must
+  reach zero. Marker branch `claude/plan-as-data-slice-2`.
+
+## 2026-11-08 — The plan as data, slice 3 (docs/PLAN_AS_DATA_2026_11_07.md §11): holes 3, 4, 5, 8, D1 and D2 closed, three guards, two audits; every lane green
+
+- **Commits:**
+  - `99f4058c`, batch 1: step 9 (a window frame's offset a closed type), so guard 1 is at zero, judged per
+    (type, path) (D1); guard 3 hard on the DuckDB corpus lane; hole 3 (`TestPlan.answersLastVerdict`); hole 8 (the
+    run's rules re-check deleted); D2 (the plan carries every appeal its verdicts name, `PlannedAppeals`).
+  - `b0de178b`, batch 2: hole 5 (a decline is its verdict row's data, `RootLoop.Row.decline`, reported at the row's
+    turn; planning's environment holds no listener and no referee; the six "needs a replay oracle" planning walls
+    deleted) and hole 4 (the listener is output only; the doors `Execution.planBody`/`runBody`, `runProgram` composed
+    of them; the test runner provides fixtures between the halves).
+  - `4b81e64a`, the invariant audit's fixes; `d64c5f46`, a census fix; `e8a932cb`, the follow-up audit's fixes.
+- **The guards** (`ArchitectureTest`, in `//core:guardrails`):
+  - R1 measures every class of the driver, the judges and the edge but `PLANNING_ONLY`. A measured class reaching
+    planning directly is mixed and is itself a target, and the run-only `BodyRouter$Moved` is keyed by its own name.
+    14 mixed classes, 281 crossings, pinned in `R1_CROSSINGS`, zero at slice 5.
+  - `noCompiledModelReachesTheRun`, by call and method-reference reachability from the run's entries (the router's
+    run half, `runBody`, and the session sources, the server's included): 40 sites, holes 1, 2 and 7 (24 of them the
+    product's session source), pinned in `MODEL_SITES`, zero at slice 4.
+  - `theListenerIsOutputOnly`, hard: the listener's four void reports pinned exactly; nothing planning reaches tells
+    the listener, the held appeals, the edge's run half, the referee or the verdict census's outcome counters.
+  - `theRunRereadsNoRule`, hard (hole 8): nothing the run reaches reads the caller's judging rules, judge mode,
+    features, resources or engine-compat flag.
+  - Guard 1 walks an enum's fields and refuses a constant with a body.
+- **The invariant audit** (read-only, `b0de178b`, briefed with the invariant): 1 must-fix, 5 should-fixes, 5 notes, all
+  fixed in `4b81e64a`:
+  - must: the verdict census was written at planning and its attribution state read at run; now counted at the root's
+    turn from the plan's data;
+  - the agreement judge reported some declines nowhere; now once, first, under every judge (pinned);
+  - the three guards were weaker than their names; now reachability-based;
+  - hole 8 had no guard, and a plan with edge records ran silently with no edge (now refused);
+  - notes: `runBody` checks the plan carries its appeals; the defaulting `TestPlan` constructors are gone.
+- **The follow-up audit** (read-only, `e16f495c`): nothing must-fix; the six findings hold with respect to the
+  invariant. Its should-fixes, fixed in `d64c5f46` and `e8a932cb`: the census's accounting (walls, the agreement's
+  double count, a row's UNJUDGED); reachability through method references and the session sources; `engineCompat`.
+  **One defect confirmed and left open, A1 (slice 4):** under the agreement judge with the compatibility rules each
+  half holds its own appeal, so the referee replays twice; the outcome is right; pinned at 2 in
+  `BodyRouterParityTest`.
+- **Behaviour:**
+  - The DuckDB corpus equals the baseline on both judges at every batch (host 2436/108/7, database 2429/108/7, no line
+    differs).
+  - Two tallies moved as intended:
+    - under the database judge, `foreign-dialect:Composite` 9 to 8 (the host's count: a decline planning had told for
+      a row the run never reached);
+    - the census's "raised" counts are attributed to each assert's own family, the same total.
+  - In lite's own runs, an SQL-text assert with no referee is decided by its text (the user's ruling of 2026-11-05),
+    no longer refused at planning.
+- **Every lane at `e8a932cb`:** green:
+  - `//gates:core` and `//gates:checks` (233 pass, 1 skipped; rerun on a clean output base after the first run met
+    the session's disk allowance mid-build -- "No space left on device" copying inputs into a sandbox, no test's
+    failure); the Postgres tests as an unprivileged user;
+  - `//gates:corpus_duckdb`, `//gates:corpus_h2`;
+  - `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`;
+  - `//core:stress_suites`, `//core:stress_suites_h2`;
+  - `//wasm:planner` and `//pure-protocol:twins_test`.
+
+  The same round at `b0de178b` (batch 2, before the audits' fixes) was green too.
+- **What this record claims:** slice 3's holes closed and its own pins at zero (guard 1, guard 3, the listener, the
+  rule re-read). It does **not** claim the invariant holds:
+  - holes 1, 2, 6 and 7, D3, E and A1 remain;
+  - their guards are pinned and go to zero at slices 4 and 5.
+
+  Marker branch `claude/plan-as-data-slice-3`.
+
+## 2026-11-09 — The plan as data, slices 4 and 5 (docs/PLAN_AS_DATA_2026_11_07.md §11): every hole but D3 closed, the two thin doors, no static state but the register's, a run takes data from its caller; two full audits
+
+- **Slice 4:**
+  - `3f60de81` hole 1: the appeal decided from the plan's data, the referee handed the enumerations, not the model.
+  - `97df8749` A1: one appeal per assert under the agreement judge (the database half's joins the host half's).
+  - `050e78bd` hole 7 v1: the server's session opened from the plan alone, the project database in the plan's target.
+  - `ecaaceb7` hole 2: the system database found by the plan's target, leased per run; no model at run.
+- **Slice 5 (the user's word: "100% separately doing planning and exec, without any middle package doing both"):**
+  - `c0106c5f`, `5300ea20`: the run's planning touches cut; `testexec` created; the mixed classes split; `judge` deleted.
+  - `f98801e4`, `9446f09d` (hole 6): no thread-local state but `RunScope`, the G4 run-time guard; the run's state is the
+    explicit run record `testexec/BodyRun`; statement origins passed with each statement.
+  - `8e59e9ec`: the planning classes into `testplan`; `driver` deleted.
+  - `fbb448eb`, `4fd3b31a` (the user's word: "split the door"): two thin doors in their own libraries --
+    `Execution` (`//core:execution`, the product's) and `TestExecution` (`//core:test_execution`, the test body's);
+    each method one statement, its run call with its plan an argument; each plan carries where it runs
+    (`ExecutionPlan.writes`, `TestPlan.session`; plan JSON v30, test plan JSON v10); pure/v1 compiles and hands the
+    query to the product door, its own plan-then-run deleted; a project database's refusal is plan data.
+  - `b1ed5a98`, `f4ce85c6`, `8aca1eea`: the full audit's fixes and the mutable-state fix (below); `8aca1eea` is what
+    the new guards found on their first Bazel run.
+  - `ea82b7bb` (the user's question: "why do we have any callbacks, esp dangerous ones that can break our tenet?"):
+    a run takes data from its caller (below).
+  - `3cdd8add`, `8ff49fc0`: the follow-up audit's fixes (below).
+- **The full audit (read-only, `4fd3b31a`, everything since slice 3):** 1 must-fix, 8 should-fixes, 6 notes, fixed in
+  `b1ed5a98`/`f4ce85c6` but D3 (open, the user's data-in-the-plan design session):
+  - must: the runtime wall's blind spot at exec's entry -- a run's caller callbacks (the sink factory, the session
+    source, the answer's sink) ran before the run scope opened, and the PCT harness's session source planned the query
+    again inside the run. Now `RunScope.callingBack` refuses planning from exec's entry; the supplier is gone.
+  - pure/v1's writer read the compiled query during the run (a dynamic pivot's columns, Arrow's metadata): now read
+    before the run.
+  - the project's Data fill was planned into every product and test plan: now the server's run alone
+    (`TypedQuery.projectPlan`, `Execution.runOnProjectDatabases`); the test plan's session is the test door's own
+    target; the project database keyed by its project's key, the platform's by its stores alone (as before hole 7).
+  - the door's options hid a switch and a check: now a record of the two halves' options (`PlanningOptions`, the run's
+    system connections), one judge-mode enum, under `theDoorsHoldNoLogic`.
+  - R4 widened to every plan-side library (the parsed program, planning's input, named); R2 names the test door;
+    `noThreadLocalState` catches a subclass and `ScopedValue`; the server's unused runtime deps dropped; a dead
+    planning branch that read the wall as a channel deleted; the stale comments fixed; the storeless test runtime moved
+    to the test backends (it was test-only; `Connectors.named` gone).
+- **Mutable static state (the user's ruling: "fix all of it"):**
+  - the startup registries are sealed once built (`base.Sealed`: a write after class initialisation is refused);
+  - three shared dialect instances replaced by one per use -- a dialect keeps state while it writes (its inline
+    mode, its stacks), so a shared one could mix two statements written at once on the server's threads;
+  - the product's statement observer deleted (the parity test records on its own connection,
+    `testbackend.RecordingConnection`); five per-census test labels replaced by one (`base.Attribution`);
+  - two dead censuses deleted (`SqlTypeCensus`, `PrimitiveCensus`: no feeder, every count zero by construction) and
+    the PCT gates that pinned them -- dead gates; the dead mute and suspend switches deleted;
+  - the guard `ArchitectureTest.staticStateIsConstantOrRegistered` replaces the collections-only one: every static
+    field's object after its class initialised is constant or in the register by kind (the run guard, resources,
+    caches, measurement, constant arrays) and private; exact both ways.
+- **A run takes data from its caller (`ea82b7bb`):**
+  - where the answer goes is data (`result.Output`, a sealed set: JSON rows, CSV, the engine's pure/v1 and Arrow
+    answers, the caller's own receiver); the result library makes the writer from the plan before any statement runs,
+    where the run called the caller's factory with the plan; pure/v1's envelope facts are read from the query before
+    the run (`PureV1Writer.Facts`); `testexec.Answer` deleted;
+  - where a run's sessions come from is data: `SessionSource` and `PlanSessions.Source` are sealed sets exec
+    interprets; the PCT lanes' session rule (a harness function) is exec's (`SessionSource.Held`, `PlanSessions.lane`);
+    the system sessions are the run's leases, not a function; the PCT's engine answer is written after the run from the
+    collected rows;
+  - the guard `ArchitectureTest.aRunTakesDataSealedSourcesAndNamedReceiversAlone`: every parameter of the product's and
+    the test's run, and every record component inside one, is a value, a sealed set, or a named receiver or resource
+    (the answer's and the verdicts' receivers, the edge, the host's connection); no function type. Planning's resource
+    resolver (a CSV load's path) is D3's.
+- **The guards at the end, all hard, no pinned list:** R1-R4, the doors' shape and no-logic rules, no product class
+  reaches the edge, no compiled model reaches the run, the listener output-only, the run re-reads no rule, no
+  thread-local but `RunScope`, no static state but the register's, a run takes no function; `tools/deps/core-layers.txt` pins the targets.
+- **The follow-up audit (read-only, `4fd3b31a..ea82b7bb`):** 1 must-fix, 4 should-fixes, 7 notes, all addressed:
+  - must: the census tool no longer compiled (the storeless runtime moved to the test backends): the tool is testonly
+    over them;
+  - the server's project databases refused a plan without its project nowhere (an empty database shared by every
+    model): refused by name now;
+  - the run-data guard passed any open class (a caller's `Writer` subclass): it checks finality, names the answer's
+    streams and exec's session, and counts the JDK's numbers and times as values;
+  - the static-state guard read records and lambdas as constant, stopped at depth 2, skipped a failing class
+    initialiser and did not see `//arrow_ipc`: all four closed;
+  - the parity test's "nothing sent" checks saw only the body's connection: a refused body is checked on every
+    session (exec's counts by origin), a moved body's unseen statements are bounded by its system database's
+    planning-time setup;
+  - notes kept as they are: the PCT lane opens its held session per query, not only when used; its engine answer is
+    written after the run; pure/v1 reads its envelope's facts before planning (so a facts error precedes a planning
+    error); PCT-only session rules live in exec (`PlanSessions.lane`, `SessionSource.Held`: a follow-up makes them
+    plan data); a test body's answer in the engine's formats is refused before it runs; the stale comments, the dead
+    `primitives` switch and the missing `permits` clauses fixed.
+- **Behaviour (the lane rounds):**
+  - at `ea82b7bb`: every lane green -- core (but the census tool's build, fixed, and the parser ratchet), Postgres,
+    both corpus lanes (re-run, outputs identical), PCT (DuckDB, H2, channel B), stress (DuckDB, H2), wasm;
+  - at `8ff49fc0` (the final commit), green:
+    - `//gates:core` and `//gates:checks` (232 pass, 1 skipped); the nine Postgres tests as an unprivileged user;
+    - `//gates:corpus_duckdb`, `//gates:corpus_h2` (the shards re-run, their outputs identical to the baseline);
+    - `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`;
+    - `//core:stress_suites`, `//core:stress_suites_h2`;
+    - `//wasm:planner` and `//pure-protocol:twins_test`.
+
+    Not run here: Windows, macOS and arm (CI on the PR), the server and cloud PCT lanes (their session rule moved
+    into exec: `SessionSource.Held`, `PlanSessions.lane`).
+- **Found on the way:** the round at `cc935762` found two breaks of slice 5's own (fixed in `fbb448eb`): wasm's
+  Boundary on pure/v1's runner signature; and the nine embedded-mapping bodies on both corpus lanes' outside-body
+  register (a setup run through the program door counted as a body statement since the explicit origins). The stress
+  lanes' collapse (5,795 bodies) was hole 7 v1's, two days earlier, not run on stress when it landed.
+- **What this record claims:** P1 of the goals of record (the separation) is done but for D3 (a CSV load's local path
+  in the plan), which the user moved into the data-in-the-plan design session. The slice 5 spec's review is the
+  user's, as built.
+
+  Marker branch `claude/plan-as-data-slice-5`.

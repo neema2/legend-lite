@@ -68,7 +68,7 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
     );
 
     public static Test suite() {
-        // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
+        // M4 §3.4: the census gate (its SqlTypeCensus pins deleted 2026-11-09: the census had no feeder)
         // invariants at suite teardown (PctCensusGate)
         return PctCensusGate.wrap("Grammar", wrapSuite(
                 () -> true,

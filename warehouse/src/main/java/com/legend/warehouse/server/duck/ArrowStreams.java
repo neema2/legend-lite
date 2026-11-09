@@ -75,7 +75,7 @@ public final class ArrowStreams {
 
     /** The stream so far, ended; the next begins with the schema again. */
     byte[] flush() {
-        current.writeBytes(ArrowIpc.END);
+        current.writeBytes(ArrowIpc.end());
         byte[] out = current.toByteArray();
         current = new ByteArrayOutputStream();
         current.writeBytes(schema);

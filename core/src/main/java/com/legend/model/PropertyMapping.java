@@ -1,5 +1,6 @@
 package com.legend.model;
 
+
 import com.legend.protocol.TypeExpression;
 
 import com.legend.protocol.Multiplicity;

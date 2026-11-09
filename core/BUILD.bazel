@@ -76,7 +76,11 @@ legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache
 legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
-legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
+legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":sql"])
+# THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's steps 2 and 3, 2026-11-08): a test
+# body's plan as data, around the product's (:execution_plan) -- its steps, its verdict groups and branches, an error known
+# at planning (Failure) -- and its JSON. Data alone: it depends on no planning or runtime library.
+legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/testexecutionplan/*.java"]), deps = ["//base", "//json", ":error", ":execution_plan", ":sql", ":values"])
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
@@ -201,24 +205,36 @@ legend_java_library(
 )
 legend_java_library(
     name = "exec",
-    srcs = glob(["src/main/java/com/legend/exec/*.java"]),
+    # the program runner is its own target, the package's (below)
+    srcs = glob(["src/main/java/com/legend/exec/*.java"], exclude = ["src/main/java/com/legend/exec/ProgramRunner.java"]),
     # THE WALL (D72, 2026-10-30, the seam-and-wall program's B2; D71 the day before took the judges and the probes out):
     # the runtime depends on no planning library -- not the compiler, not lowering, not a dialect, not the plan side's
     # setup or database facts. A plan and a session in, typed rows out: the plan records (:execution_plan) carry every
     # type and spelling fact the runtime reads, the connector every driver fact. ArchitectureTest.execReachesNoPlanning
     # says it at the class level; tools/deps/core-layers.txt pins this list.
-    deps = ["//base", "//json", ":cache", ":diagnostics", ":error", ":execution_plan", ":model", ":result", ":sql", ":values"],
+    deps = ["//base", "//json", ":cache", ":diagnostics", ":error", ":execution_plan", ":result", ":sql", ":values"],
 )
-# THE JUDGE (D71, 2026-10-30, the seam-and-wall program's B1): the verdict layer -- equality, the asserts, the TDS
-# compare, the canonical form, the SQL replay referee, the censuses -- out of exec. It reads the compiler's types and
-# renders through the dialect: planning-side work the runtime must not carry. Reachable from the body driver alone
-# (ArchitectureTest.hostVerdictIsReachableOnlyFromTheVerdictSeam).
+# THE PROGRAM RUNNER (docs/PLAN_AS_DATA_2026_11_07.md 2.8 and 2.9, the user's ruling of 2026-11-08: its own target, the
+# exec package's): a program's steps in order on one session, a step exec does not know a callback at its place (a test
+# body's verdict group or branch), reading only what it declared. A product caller that runs plans (the server, the query
+# door) reaches none of it: they depend on :exec alone.
 legend_java_library(
-    name = "judge",
-    srcs = glob(["src/main/java/com/legend/judge/*.java"]),
-    # :execution_plan and :result since 2026-10-30 (the seam program's S2e): the verdict batch builds a verdict group
-    # and runs it through the plan runner, its program sink (a result sink) the batch's own
-    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":execution_plan", ":lowering", ":result", ":sql", ":sql_dialect", ":values"],
+    name = "exec_program",
+    srcs = ["src/main/java/com/legend/exec/ProgramRunner.java"],
+    deps = ["//base", ":error", ":exec", ":execution_plan", ":result"],
+)
+# THE TEST'S RUN (docs/PLAN_AS_DATA_2026_11_07.md 2.9 and section 11's slice 5, 2026-11-09): a test plan run on its
+# sessions and judged -- the run sink, the root loop, the agreement rule, the held appeals, the host judge's
+# comparisons (equality, the asserts, the TDS compare, the canonical form), the verdict row's reading. It replaced
+# `judge` (D71's verdict layer) and the run half of the driver. It depends on no planning library -- not the compiler,
+# lowering, the resolver, the planner, testplan, a dialect, the database facts -- pinned here, in
+# tools/deps/core-layers.txt, and by ArchitectureTest's split rules: the plan's data and the database's rows are all it
+# reads.
+legend_java_library(
+    name = "testexec",
+    srcs = glob(["src/main/java/com/legend/testexec/*.java"]),
+    deps = ["//base", "//json", ":diagnostics", ":error", ":exec", ":exec_program", ":execution_plan", ":result", ":sql",
+            ":test_plan", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -228,8 +244,9 @@ legend_java_library(
 legend_java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
-    # :execution_plan since 2026-10-29 (the doors): the generator's statements are plan statements of the body's target
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":execution_plan", ":judge", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":values"],
+    # planning alone since slice 5 (2026-11-09): the generator's own run, which planned and ran interleaved, is the tests'
+    # (core/src/test/.../testdatagen/TestDataGeneratorRun.java); the product keeps its planning (planText)
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":plan", ":protocol", ":test_plan", ":sql", ":sql_dialect", ":values"],
 )
 
 # THE PLANNER (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the root package's plan side --
@@ -257,19 +274,31 @@ legend_java_library(
     ],
 )
 
-# the execution side: the root's two execution doors (Execution, ExecuteOptions) and com.legend.driver, the machinery
-# behind them (the body driver, the judges' arms, the seeds, the probes, the system database; step C, D73, 2026-10-30)
+# THE TWO DOORS (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5, 2026-11-09), each its own library and each thin:
+# a method is one planning call and one run call (ArchitectureTest.theDoorsOnlyCompose). Until slice 5 one library
+# held both, and before it `driver`, holding the body driver, the judges' arms and the router between the doors,
+# planning and running in one package; that package is deleted.
+# THE PRODUCT'S DOOR: a query planned by its one planning entry (TypedQuery.executionPlan) and run by exec's product
+# run (ProductRun). It carries none of the test's machinery: the server depends on it alone.
 legend_java_library(
-    name = "driver",
-    srcs = glob(["src/main/java/com/legend/*.java", "src/main/java/com/legend/driver/*.java"], exclude = _PLANNER_DOORS),
-    # //json since 2026-10-29 (the doors, door 1): the body driver writes a graph fetch's objects as host rows, one per
-    # object of the array the database built, read as JSON nodes
+    name = "execution",
+    srcs = [
+        "src/main/java/com/legend/Execution.java",
+        "src/main/java/com/legend/package-info.java",
+    ],
+    deps = ["//base", ":compiler", ":exec", ":execution_plan", ":planner", ":platform", ":result"],
+)
+# THE TEST BODY'S DOOR and its options: a body planned by testplan's entry (TestPlanner), run by testexec's
+# (TestRunner) -- the one library that sees both halves of a test.
+legend_java_library(
+    name = "test_execution",
+    srcs = [
+        "src/main/java/com/legend/ExecuteOptions.java",
+        "src/main/java/com/legend/TestExecution.java",
+    ],
     deps = [
-        "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
-        ":execution_plan", ":judge", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
-        ":platform",
-        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":testplan", ":validation",
-        ":values",
+        "//base", ":exec", ":execution_plan", ":planner", ":platform", ":result", ":test_plan", ":testexec",
+        ":testplan",
     ],
 )
 # THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
@@ -282,9 +311,13 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/testplan/*.java"]),
     # the effects' statements (EffectPlanner, M3d): the store model, the DDL and the dialects that write them; the
     # seeds' content key (Seeds, M3e): :cache's Hash
+    # since slice 5 (2026-11-09) every planning class of a test body (the asserts' planners, the arms, the router's
+    # classify-and-plan, the verdict batch): it reaches no runtime library -- not exec, not testexec, not the door
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan",
-        ":model", ":planner", ":platform", ":setup", ":sql", ":sql_dialect",
+        "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics",
+        ":door", ":error", ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan",
+        ":planner", ":platform", ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":test_plan",
+        ":testdatagen", ":validation", ":values",
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
@@ -293,7 +326,9 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
     # track Z, 2026-10-29: the service test runner spells a cell through the boundary's writer (result's CellText),
     # never by rules of its own
-    deps = ["//base", "//json", ":compiler", ":driver", ":error", ":exec", ":execution_plan", ":judge", ":model", ":planner", ":protocol", ":result", ":sql", ":values"],
+    # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 3, hole 4): the test runner reads the stores a body's planned
+    # appeals name from the plan's data (PlannedAppeals.stores) and seeds them between the body's plan and its run
+    deps = ["//base", "//json", ":compiler", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test_plan", ":values"],
 )
 # legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
@@ -309,7 +344,7 @@ legend_java_library(
         "src/main/java/com/legend/server/PureV1Api.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
-    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql_dialect"],
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect"],
 )
 legend_java_library(
     name = "server_lib",
@@ -325,15 +360,18 @@ legend_java_library(
             "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":execution_plan", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":setup", ":sql_dialect"],
+    # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
+    # class; :cache, :lowering and :setup were unused
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
-    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":driver", ":ide", ":test",
-    ":server_lib",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":testexec", ":probe", ":testdatagen",
+    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":execution",
+    ":test_execution", ":ide", ":test",
+    ":server_lib", ":test_plan", ":exec_program",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
@@ -400,6 +438,19 @@ legend_java_library(
     ],
 )
 
+# THE COMPATIBILITY EDGE (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the plan-as-data design's step 8, 2026-11-08): the
+# records a run under the compatibility rules plans into a test plan (the referee's ledger texts) and the edge a harness
+# hands the run; its codec registered for the test plan's format through META-INF/services. The product depends on no
+# edge (G5): only the harnesses that run under the compatibility rules do.
+legend_java_library(
+    name = "edge",
+    srcs = glob(["src/main/java/com/legend/edge/*.java"]),
+    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    resources = glob(["src/main/edge/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/edge",
+    deps = ["//base", "//json", ":sql_dialect", ":test_plan"],
+)
+
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
 # the statements that run the pipelines the MongoDb dialect writes, behind core's DatabaseConnector seam, found by
 # ServiceLoader as the bulk loader is. The one source set that compiles against the MongoDB driver: core compiles
@@ -415,7 +466,6 @@ legend_java_library(
         ":error",
         ":exec",
         ":execution_plan",
-        ":model",
         ":result",
         ":values",
         "@bson//jar",
@@ -543,6 +593,8 @@ legend_java_library(
             "src/test/java/com/legend/integration/SqlWritesPostgresTest.java",
             # and the write plans on Postgres (leg 7)
             "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
+            # a relation's toOne() guard on Postgres is :relation_to_one_postgres_test's (D2, 2026-11-07)
+            "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's, and so is the LEAN twin's reader (track T, 2026-10-29): every
             # per-lane target reads its lane's answers through it
@@ -586,6 +638,7 @@ legend_java_library(
         ":shadow_binding",
     ],
     deps = [
+        ":edge",
         ":core",
         ":test_backends",
         ":test_cases",
@@ -652,11 +705,9 @@ _CORE_TEST_PACKAGES = [
     "builtin",
     "cache",
     "compiler",
-    "driver",
     "exec",
     "ide",
     "integration",
-    "judge",
     "ladder",
     "lexer",
     "lineage",
@@ -676,6 +727,8 @@ _CORE_TEST_PACKAGES = [
     "testing",
     # the test-planning library's door (the test-is-the-product plan's M3c, 2026-10-31)
     "testplan",
+    # the test's run (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5, 2026-11-09): judge's tests and the run's
+    "testexec",
     # ("values" left 2026-10-29 with its one test, LiteralTextTest, track L's L2: the package has no test)
 ]
 
@@ -699,16 +752,9 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
 ]
 
-# THE WALK'S DOOR (the walker-deletion program, 2026-11-03): a core test's body reaches the walk only where the allow
-# list names the test (driver/WalkDoor); the list only shrank. CLOSED 2026-11-04 (the core program: 73 -> 0, the last
-# entry a computed executeInDb text the user ruled a text hole lite does not have): no core test walks, and no list
-# remains that could grow back -- channel B's door since 2026-11-03
-_WALK_DOOR = ["-Dlegend.walk.allowed=none"]
-
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR,
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
@@ -757,7 +803,6 @@ junit_test(
 junit_test(
     name = "core_tests_root",
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR,
     size = "medium",
     select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
@@ -793,7 +838,7 @@ _CORE_LANES = {
     select = ["--select-package=com.legend.integration", "--exclude-classname=.*CorpusDifferentialTest"],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     data = data,
-    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags + _WALK_DOOR,
+    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags,
     tags = tags,
     target_compatible_with = compatible,
     runtime_deps = [
@@ -815,13 +860,13 @@ test_suite(
 # and their agreement, as the host's run holds it. Measured that day: the packages importing testing.Program or
 # LaneFloor, and the root package (its testcases); core under each judge ran 28 of 28 at 6038d060. Linux only in CI
 # for cost (the host's run is every platform's).
-_JUDGED_PACKAGES = ["compiler", "driver", "exec", "integration", "judge", "lowering", "normalizer", "planner",
-                    "resolver", "server", "sql", "testing"]
+_JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer", "planner",
+                    "resolver", "server", "sql", "testexec", "testing", "testplan"]
 
 [junit_test(
     name = "core_tests_" + p + "_judge_" + judge.lower(),
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR + ["-Dlegend.test.judge=" + judge],
+    jvm_flags = ["-Dlegend.test.judge=" + judge],
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
@@ -837,7 +882,7 @@ _JUDGED_PACKAGES = ["compiler", "driver", "exec", "integration", "judge", "lower
 [junit_test(
     name = "core_tests_root_judge_" + judge.lower(),
     memory_mb = _CORE_TEST_MEMORY_MB,
-    jvm_flags = _WALK_DOOR + ["-Dlegend.test.judge=" + judge],
+    jvm_flags = ["-Dlegend.test.judge=" + judge],
     size = "medium",
     select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
@@ -1959,6 +2004,34 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# A RELATION'S toOne() CHECKED BY THE DATABASE (D2 of docs/GOALS_OF_RECORD_2026_11_07.md, 2026-11-07): the lowering's
+# guard on the embedded Postgres 16 -- two rows and none raise Pure's size error, one row is answered; the same checks
+# run on DuckDB, H2 and SQLite in the integration lanes (RelationToOneGuardTest)
+junit_test(
+    name = "relation_to_one_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
+        "src/test/java/com/legend/integration/RelationToOneGuardTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.RelationToOneGuardPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # THE #IQ{...}# ISLAND'S SYNTAX-CASE RATCHET (docs/IQ_SQL_STUDY_2026_10_13.md §6.4): the research's derived syntax cases
 # (iq-parity/syntax-cases.jsonl: probe, options, policy, SQL Anywhere's outcome), each read by the island's reader and
 # given a verdict, the counts and the known wrong verdicts held by iq-parity/syntax-pins.tsv, which only improves.
@@ -2016,7 +2089,7 @@ legend_java_library(
     nullaway = False,
     testonly = True,
     srcs = glob(["src/test/java/com/legend/testbackend/*.java"]),
-    visibility = ["//pct:__pkg__", "//spec:__pkg__"],
+    visibility = ["//pct:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__"],
     deps = [
         ":core",
         "//testing",
@@ -2076,7 +2149,9 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector", ":postgres_cells"],
+    # //arrow_ipc (2026-11-09, the follow-up audit): the result library's framer is the product's too, so the static
+    # state guard holds its constants
+    deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_load", ":mongodb_connector", ":postgres_cells"],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
@@ -2148,21 +2223,12 @@ legend_java_binary(
     ],
 )
 
-# THE STRESS CORPUS'S WALK (2026-11-06, PR #83's CI on 28a27931): the walk's door closed by default at 084cc1d3
-# (2026-11-05), which opened it for the relational corpus's lanes and tools and missed these two lanes and the stress
-# tool -- 461 service queries a lane refused by name (444 a graph fetch, 17 a temporal class read: the query program's
-# rule plans neither as a body's last statement yet, BodyClass.queryProgram), DuckDB 4251 and H2 4224 passing against
-# floors of 4705 and 4676. The stress corpus walks them as the relational corpus walks its own until the program road
-# plans both kinds; a corpus lane, not core's (core's door stays `none`)
-_STRESS_WALK_DOOR = ["-Dlegend.walk.allowed=all"]
-
 # Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest (no -D modes: the knobs are
 # //core:stress_tool's). Its own lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
     memory_mb = 768,
-    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
@@ -2177,7 +2243,6 @@ junit_test(
     name = "stress_suites_h2",
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
-    jvm_flags = _STRESS_WALK_DOOR,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [
@@ -2193,7 +2258,7 @@ legend_java_binary(
     name = "stress_tool",
     testonly = True,
     # the corpus is core_tests_lib's classpath resources (P3-05)
-    jvm_flags = ["-Duser.timezone=GMT"] + _STRESS_WALK_DOOR,
+    jvm_flags = ["-Duser.timezone=GMT"],
     main_class = "com.legend.integration.StressTool",
     tags = ["manual"],
     runtime_deps = [

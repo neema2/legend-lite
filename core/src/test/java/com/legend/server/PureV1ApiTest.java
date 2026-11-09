@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PureV1ApiTest {
 
     /** A runner for a route that must not run anything. */
-    private static final PureV1Api.Runner NO_RUN = (query, runtime, sinkOf) -> {
+    private static final PureV1Api.Runner NO_RUN = (query, runtime, output) -> {
         throw new AssertionError("nothing is run here");
     };
 
@@ -630,7 +630,8 @@ class PureV1ApiTest {
 
         String[] ran = new String[1];
         PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
-                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (q, runtime, sinkOf) -> {
+                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (q, runtime, output) -> {
+                    // the host's door is handed the compiled query and its runtime: the door plans and runs it (slice 5)
                     ran[0] = runtime;
                     throw new IllegalArgumentException("not here");
                 });

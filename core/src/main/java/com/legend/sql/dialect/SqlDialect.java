@@ -1,5 +1,7 @@
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlQuery;
 
 /**
@@ -61,11 +63,27 @@ public interface SqlDialect {
     String storedName(String name, boolean declaredQuoted);
 
     /** Whether a target on this database loads its declared rows through the database's own bulk loader (a plan's
-     *  {@code SetupStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
+     *  {@code LoadStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
      *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
      *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
     default boolean loadsRowsInBulk() {
         return false;
+    }
+
+    /**
+     * How this dialect's database takes a CSV file's rows ({@link com.legend.sql.SqlDml.LoadCsv}; the design's 2.5,
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09): its statement, and whether the database READS the runner's copy
+     * of the file through the statement's one bound {@code ?} ({@link CsvLoad#readsFile}) or the runner STREAMS the
+     * cells, the statement one row's insert. Chosen here, at planning, as every spelling is; a dialect whose database
+     * takes neither refuses it by name ({@code DialectCapability}).
+     */
+    CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
+
+    /** A CSV file's load as this dialect spells it: {@code sql}, and whether the database reads the file itself. */
+    record CsvLoad(boolean readsFile, String sql) {
+        public CsvLoad {
+            java.util.Objects.requireNonNull(sql, "sql");
+        }
     }
 
     /** Whether a {@code RelationalDatabaseConnection} declares this database: its text is SQL over relational tables.
@@ -229,13 +247,6 @@ public interface SqlDialect {
 
     /** {@link #verdictSavepoint}'s three texts. */
     record VerdictSavepoint(String set, String rollbackTo, String release) {
-    }
-
-    /** Which statement of a failed script the engine's message names (0-based), or
-     *  empty when the engine does not say — H2 quotes the failing statement
-     *  ({@code SQL statement: …}); DuckDB names values and columns only. */
-    default java.util.OptionalInt failingStatement(String message, java.util.List<String> statements) {
-        return java.util.OptionalInt.empty();
     }
 
     /** DDL rendered like a query (2026-09-16): the dialect spells the

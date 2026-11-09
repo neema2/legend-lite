@@ -814,6 +814,16 @@ public final class Compiler {
                 + "' binds no connection: a query executes on a runtime's declared connection");
     }
 
+    /** A body's statements with their names resolved and nothing else: no call inlined, no desugar (the first pass of
+     *  {@link #resolveQuery}; the test runner reads which setups a body calls itself, 2026-11-06). */
+    public static java.util.List<com.legend.protocol.spec.ValueSpecification> resolveNames(
+            java.util.List<com.legend.protocol.spec.ValueSpecification> statements,
+            com.legend.model.ImportScope imports, ModelContext ctx) {
+        return ((com.legend.protocol.spec.LambdaFunction) com.legend.compiler.NameResolver.resolveQueryIn(
+                new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements), imports,
+                ctx.resolutionUniverse())).body();
+    }
+
     /** THE query front door: raw-space desugars (the relational
      * {@code validate(...)} call → its synthesized execute; the engine's
      * own generateValidationQuery synthesis over the parsed AST, feature
@@ -827,10 +837,7 @@ public final class Compiler {
         // own package, prelude; candidates on a bare call) — every pass
         // below consumes the resolver's names (ResolvedNames) and constructs
         // only bare natives and lets, which need no further resolution
-        statements = ((com.legend.protocol.spec.LambdaFunction)
-                com.legend.compiler.NameResolver.resolveQueryIn(
-                        new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements),
-                        imports, ctx.resolutionUniverse())).body();
+        statements = resolveNames(statements, imports, ctx);
         // a call the platform implements (validate: a Form row) is never inlined
         // as the user's body — StatementInline asks the implementation table, so
         // the two passes may run in either order

@@ -43,6 +43,11 @@ shows no difference on them proves nothing about them.
 
 ## 3. The coverage map: what the corpus needs that PCT never ran, per database
 
+**Retired 2026-11-09.** The primitive census (`exec/PrimitiveCensus`) had lost its feeder at exec's send, so every
+tally read zero; it was deleted with its switch (`-Dlegend.diagnostics=primitives`). The tools below read logs made
+before then; reviving the map means a feeder at the plan runner's send, beside the statement counts. The section is
+kept as the record of how it was measured.
+
 ```
 bazel run //spec:corpus_one -- --jvm_flag=-Dlegend.diagnostics=primitives=per-test duckdb host > corpus.log
 bazel test --local_test_jobs=1 --jvmopt=-Dlegend.diagnostics=primitives //pct:pct_<lane>   # each lane; keep test.log

@@ -54,18 +54,15 @@ import java.util.stream.Stream;
  */
 public final class Shadow implements DecisionProbe {
 
-    /** The test/query currently compiling — set by harness runners so a line
-     * names its witness (the StampCensus.CONTEXT pattern). */
-    public static final ThreadLocal<String> CONTEXT =
-            ThreadLocal.withInitial(() -> "<unattributed>");
+    // (the test label is base's one, Attribution.now(): 2026-11-09, one label for every census)
 
     /** Every distinct line, written once. */
-    static final Set<String> SEEN = ConcurrentHashMap.newKeySet();
+    private static final Set<String> SEEN = ConcurrentHashMap.newKeySet();
     /** The declaration table of each model the typer compiles against. */
-    static final Map<Object, DeclarationTable> TABLES =
+    private static final Map<Object, DeclarationTable> TABLES =
             Collections.synchronizedMap(new WeakHashMap<>());
     /** The table row of each resolved callee seen by the lowering. */
-    static final Map<FunctionId, Implementation> ROWS = new ConcurrentHashMap<>();
+    private static final Map<FunctionId, Implementation> ROWS = new ConcurrentHashMap<>();
 
     private static final class Sink {
         static final Registrations REGISTRATIONS = com.legend.lowering.PlatformRegistrations.current();
@@ -255,7 +252,7 @@ public final class Shadow implements DecisionProbe {
     private static void write(String kind, String subject, String today, String table, String verdict) {
         String line = kind + "\t" + subject + "\t" + today + "\t" + table + "\t" + verdict;
         if (SEEN.add(line)) {
-            Sink.OUT.println(line + "\t" + CONTEXT.get());
+            Sink.OUT.println(line + "\t" + com.legend.base.Attribution.now());
         }
     }
 }

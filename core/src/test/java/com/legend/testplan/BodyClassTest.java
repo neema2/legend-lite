@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.legend.Compiler;
 import com.legend.TypedQuery;
 import com.legend.database.Databases;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;

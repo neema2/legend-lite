@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import java.util.List;
 import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSpec;

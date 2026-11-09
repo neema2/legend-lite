@@ -1,0 +1,58 @@
+import com.legend.compiler.element.ModelContext;
+import java.nio.file.*;
+import java.util.*;
+
+/** Is the platform's catalog a fixed part of every model's catalog? For each system table: are the empty model's rows
+ *  (the platform's) all present, unchanged, in a model's rows -- and what does the model add? */
+public class SplitCheck {
+    static Map<String, List<List<String>>> catalog(ModelContext ctx) {
+        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow();
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        for (var schema : store.schemas()) {
+            for (var def : schema.tables()) {
+                out.put(def.name(), com.legend.planner.MetamodelSeeds.rows(def.name(), ctx));
+            }
+        }
+        return out;
+    }
+
+    public static void main(String[] args) throws Exception {
+        ModelContext empty = com.legend.Compiler.compileModel("Class zz::Empty { x: String[1]; }");
+        Map<String, List<List<String>>> platform = catalog(empty);
+        ModelContext model = StressSeed.build();
+        Map<String, List<List<String>>> full = catalog(model);
+        long missing = 0, added = 0;
+        for (var e : platform.entrySet()) {
+            Map<List<String>, Integer> have = new HashMap<>();
+            for (List<String> r : full.get(e.getKey())) {
+                have.merge(r, 1, Integer::sum);
+            }
+            int miss = 0;
+            List<String> example = null;
+            for (List<String> r : e.getValue()) {
+                // the empty model's own class zz::Empty is not the platform's
+                if (r.stream().anyMatch(c -> c != null && c.contains("zz::"))) {
+                    continue;
+                }
+                Integer n = have.get(r);
+                if (n == null || n == 0) {
+                    miss++;
+                    if (example == null) {
+                        example = r;
+                    }
+                } else {
+                    have.put(r, n - 1);
+                }
+            }
+            long add = have.values().stream().mapToLong(Integer::longValue).sum();
+            missing += miss;
+            added += add;
+            if (miss > 0) {
+                System.out.printf("  %-28s platform rows changed or missing in the model's catalog: %d, e.g. %s%n",
+                        e.getKey(), miss, example);
+            }
+        }
+        System.out.printf("platform rows not found unchanged in the stress model's catalog: %d; rows the model adds: %d%n",
+                missing, added);
+    }
+}

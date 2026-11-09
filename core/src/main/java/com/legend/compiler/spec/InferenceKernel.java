@@ -1,5 +1,9 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.SchemaInvariantException;
+
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;

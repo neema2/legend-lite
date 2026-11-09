@@ -61,7 +61,7 @@ public final class TestBackends {
     public static TestBackend of(Connection session) throws SQLException {
         String product = session.getMetaData().getDatabaseProductName();
         for (DatabaseType type : Databases.implemented()) {
-            if (Sessions.jdbcProduct(type).equals(product)) {
+            if (Sessions.jdbcProduct(com.legend.planner.ConnectionPlans.type(type)).equals(product)) {
                 return of(type);
             }
         }

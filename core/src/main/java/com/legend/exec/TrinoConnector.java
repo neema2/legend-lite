@@ -3,9 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.DatabaseType;
+import com.legend.executionplan.ConnectionSpecification;
 
 
 /** Trino's sessions: a declared connection of a Trino specification is opened by its URL (the plan path program's step
@@ -32,14 +31,14 @@ final class TrinoConnector implements DatabaseConnector {
     /** {@inheritDoc} legend-engine's TrinoManager.buildURL: the session's catalog, then its schema, in the URL's path;
      *  TLS and query tags are refused by name, never dropped. */
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         return switch (def.specification()) {
             case ConnectionSpecification.Trino t -> new Sessions.Opening.Url(url(def, t));
             default -> DatabaseConnector.refused(def);
         };
     }
 
-    private static String url(ConnectionDefinition def, ConnectionSpecification.Trino t) {
+    private static String url(com.legend.executionplan.Connection def, ConnectionSpecification.Trino t) {
         if (t.ssl()) {
             throw new com.legend.error.NotImplementedException("a Trino connection over TLS is not implemented"
                     + " (connection '" + def.qualifiedName() + "')");
@@ -64,7 +63,7 @@ final class TrinoConnector implements DatabaseConnector {
     /** The user a Trino session names: a session names one even unauthenticated (legend-engine's TrinoManager sends
      *  the credential's user), the test authentications' ({@code AuthenticationSpec.testUser}); no authentication
      *  names none, and is refused by name. A credential is refused before ({@link Sessions#openingFor}). */
-    private static String user(ConnectionDefinition def) {
+    private static String user(com.legend.executionplan.Connection def) {
         String user = def.authentication().testUser();
         if (user == null) {
             throw new com.legend.error.NotImplementedException("a Trino session names a user, and a connection of no"

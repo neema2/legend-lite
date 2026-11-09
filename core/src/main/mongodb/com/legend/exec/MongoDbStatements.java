@@ -4,7 +4,6 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.model.ConnectionDefinition;
 import com.mongodb.MongoException;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -60,7 +59,7 @@ final class MongoDbStatements implements Statements {
     public void check(ExecutionPlan.Target target) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         if (!(target.database() instanceof ExecutionPlan.Database.Declared d)
-                || d.connection().databaseType() != ConnectionDefinition.DatabaseType.MongoDB) {
+                || d.connection().databaseType() != com.legend.executionplan.DatabaseType.MongoDB) {
             throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
                     + " but the session is MongoDB — dialect/connection mismatch");
         }
@@ -136,10 +135,24 @@ final class MongoDbStatements implements Statements {
     /** A MongoDB database is its connector's own and a plan sets none up ({@code PlanSessions.refuseSetup}): a bulk
      *  load of a plan's rows is refused by name. */
     @Override
-    public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+    public boolean load(ExecutionPlan.LoadStep.Rows rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a bulk load of a plan's rows asked of a MongoDB session: its"
                 + " databases are the connector's own, and a plan sets none up");
+    }
+
+    @Override
+    public void readsFile(String statement, String staged) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"
+                + " the connector's own, and a plan loads none");
+    }
+
+    @Override
+    public void streams(String insert, List<List<String>> rows) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"
+                + " the connector's own, and a plan loads none");
     }
 
     @Override

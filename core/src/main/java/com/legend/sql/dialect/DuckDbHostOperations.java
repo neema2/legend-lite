@@ -28,7 +28,11 @@ final class DuckDbHostOperations implements HostOperations {
 
     static final DuckDbHostOperations INSTANCE = new DuckDbHostOperations();
 
-    private static final DuckDb DIALECT = new DuckDb();
+    /** A name as DuckDB stores it (one dialect per use, 2026-11-09: a dialect keeps state while it writes, so none is
+     *  shared statically). */
+    private static String physicalName(String name) {
+        return new DuckDb().physicalName(name);
+    }
 
     /** S3 credentials' names as a secret takes them; USE_SSL a boolean, every other a string. */
     private static final Set<String> CREDENTIALS = Set.of("KEY_ID", "SECRET", "SESSION_TOKEN", "REGION", "ENDPOINT",
@@ -58,7 +62,7 @@ final class DuckDbHostOperations implements HostOperations {
             case HostOperation.MakeRelation m -> List.of("CREATE " + (m.replace() ? "OR REPLACE " : "") + kind(m.kind())
                     + " " + name(m.target()) + " AS SELECT " + columns(m) + " FROM " + source(m.from()));
             case HostOperation.Insert i -> List.of("INSERT INTO " + name(i.target()) + " ("
-                    + String.join(", ", i.columns().stream().map(c -> DIALECT.physicalName(c.target())).toList())
+                    + String.join(", ", i.columns().stream().map(c -> physicalName(c.target())).toList())
                     + ") SELECT " + String.join(", ", i.columns().stream().map(c -> quoted(c.from())).toList())
                     + " FROM " + source(i.from()));
             case HostOperation.Drop d -> List.of("DROP " + kind(d.kind()) + " IF EXISTS " + name(d.target()));
@@ -193,8 +197,8 @@ final class DuckDbHostOperations implements HostOperations {
 
     /** A relation's name: a model's declared one as its seed spelled it, any other quoted; its database, schema too. */
     private static String name(HostOperation.Name n) {
-        String last = n.declared() ? DIALECT.physicalName(n.name()) : quoted(n.name());
-        String schema = n.schema() == null ? null : n.declared() ? DIALECT.physicalName(n.schema()) : quoted(n.schema());
+        String last = n.declared() ? physicalName(n.name()) : quoted(n.name());
+        String schema = n.schema() == null ? null : n.declared() ? physicalName(n.schema()) : quoted(n.schema());
         StringBuilder out = new StringBuilder();
         if (n.database() != null) {
             out.append(quoted(n.database())).append('.');

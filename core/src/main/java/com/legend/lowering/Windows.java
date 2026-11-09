@@ -33,7 +33,8 @@ final class Windows {
         }
     }
 
-    private static final Map<com.legend.model.FunctionId, WindowFn> FNS = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, WindowFn> FNS =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     private Windows() {
     }
@@ -45,7 +46,8 @@ final class Windows {
     }
 
     /** SQL reducer names for the 4-arg colToAgg window aggregates. */
-    private static final Map<com.legend.model.FunctionId, com.legend.sql.SqlAgg.Fn> AGGREGATES = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, com.legend.sql.SqlAgg.Fn> AGGREGATES =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     /** The signature keys of the window functions — CLAIMS, kind WINDOW_FN
      *  ({@link com.legend.builtin.Claims}). */
@@ -247,7 +249,7 @@ final class Windows {
                     "Invalid window frame boundary - a computed bound's direction is read from how it is written"
                             + " (-(n) is n before the current row, any other n after it), and this frame then"
                             + " starts after where it ends: write the bound before the current row as -(n)"
-                            + " (docs/SEMANTICS_REGISTER.md S144)");
+                            + " (docs/SEMANTICS_REGISTER.md S170)");
         }
         return new SqlExpr.WindowCall.Frame(
                 f.kind() == com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS
@@ -297,11 +299,11 @@ final class Windows {
             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedPreceding ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.Preceding p ->
-                    new SqlExpr.WindowCall.Frame.Bound.Preceding(p.n());
+                    SqlExpr.WindowCall.Frame.Bound.Preceding.of(p.n());
             case com.legend.compiler.spec.typed.WindowFrame.Bound.CurrentRow ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.Following fo ->
-                    new SqlExpr.WindowCall.Frame.Bound.Following(fo.n());
+                    SqlExpr.WindowCall.Frame.Bound.Following.of(fo.n());
             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedFollowing ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalPreceding ip ->
@@ -309,5 +311,11 @@ final class Windows {
             case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalFollowing ifo ->
                     new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(ifo.n(), ifo.unit());
         };
+    }
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        FNS.seal();
+        AGGREGATES.seal();
     }
 }

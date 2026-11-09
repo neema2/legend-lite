@@ -25,8 +25,14 @@ public final class ArrowIpc {
 
     public static final String MEDIA_TYPE = "application/vnd.apache.arrow.stream";
 
-    /** The end of a stream: a continuation marker and a zero metadata length. */
-    public static final byte[] END = {-1, -1, -1, -1, 0, 0, 0, 0};
+    /** The end of a stream: a continuation marker and a zero metadata length (private, a copy per use: an array is
+     *  writable, 2026-11-09). */
+    private static final byte[] END = {-1, -1, -1, -1, 0, 0, 0, 0};
+
+    /** The end of a stream, a fresh copy. */
+    public static byte[] end() {
+        return END.clone();
+    }
 
     private static final short V5 = 4;
     private static final byte SCHEMA = 1;

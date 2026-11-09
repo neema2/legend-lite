@@ -186,7 +186,41 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+    public void readsFile(String statement, String staged) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        try (PreparedStatement st = c.prepareStatement(statement)) {
+            com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+            st.setString(1, staged);
+            st.execute();
+        } catch (SQLException e) {
+            throw failed(e);
+        }
+    }
+
+    @Override
+    public void streams(String insert, List<List<String>> rows) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        try (PreparedStatement st = c.prepareStatement(insert)) {
+            com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+            for (List<String> row : rows) {
+                for (int i = 0; i < row.size(); i++) {
+                    String cell = row.get(i);
+                    if (cell == null) {
+                        st.setNull(i + 1, java.sql.Types.VARCHAR);
+                    } else {
+                        st.setString(i + 1, cell);
+                    }
+                }
+                st.addBatch();
+            }
+            st.executeBatch();
+        } catch (SQLException e) {
+            throw failed(e);
+        }
+    }
+
+    @Override
+    public boolean load(ExecutionPlan.LoadStep.Rows rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try {
             BulkLoad bulk = BulkLoads.of(c);

@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;
@@ -870,7 +872,7 @@ final class StaticFold {
 
     /** Two static values compared. An enumeration's value equals only itself (an EnumToken's equality), so against a
      *  string or another enumeration's value it is false, as legend-pure answers and as a query's spelled comparison
-     *  does (the user, 2026-10-30, S143: {@code LiteralUnroll.neverEqual}); the fold had left those to the database,
+     *  does (the user, 2026-10-30, S169: {@code LiteralUnroll.neverEqual}); the fold had left those to the database,
      *  which compared the value's name, since the second review of 2026-10-28 held a body and a query to one answer. */
     private static @com.legend.base.Nullable Boolean staticEquals(Object a, Object b) {
         if (a instanceof EnumToken || b instanceof EnumToken) {

@@ -1,5 +1,7 @@
 package com.legend.exec;
 
+import com.legend.diagnostics.Census;
+
 import com.legend.testing.Program;
 
 import com.legend.error.DataError;
@@ -48,7 +50,7 @@ class RowLoadDuckDbTest {
     /** The DuckDB session's target: the one fact the runner checks a session against. */
     private static final com.legend.executionplan.ExecutionPlan.Target TARGET =
             new com.legend.executionplan.ExecutionPlan.Target(new com.legend.executionplan.ExecutionPlan.Database
-                    .Platform(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
+                    .Platform(com.legend.executionplan.DatabaseType.DuckDB, null),
                     List.of(), List.of());
 
     /** {@code load} on {@code c} through the plan runner: the bulk path (the doors, 2026-10-29; SetupRunner's load
@@ -59,7 +61,7 @@ class RowLoadDuckDbTest {
 
     /** {@code load}'s one INSERT on {@code c} through the plan runner: the text path. */
     private static void text(Connection c, RowLoad load) {
-        PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
+        PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
                 DUCK.render(load.values()))), TARGET, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), null);
     }
 
@@ -140,8 +142,8 @@ class RowLoadDuckDbTest {
                 """;
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            var r = Program.last(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
-                    "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", com.legend.test.StorelessRuntime.RUNTIME, c);
+            var r = Program.last(com.legend.testbackend.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
+                    "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", com.legend.testbackend.StorelessRuntime.RUNTIME, c);
             assertEquals("dbInc", r.one());
             assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
                     "the seed's rows must take DuckDB's Appender");

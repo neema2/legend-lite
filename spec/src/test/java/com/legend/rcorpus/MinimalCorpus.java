@@ -56,7 +56,7 @@ import java.util.stream.Stream;
  *     its own inline data runs on a private workspace;</li>
  * <li><b>run + judge</b> — the PRODUCT's test runner ({@link PureTestRunner},
  *     upstream boundary batch 7a): sessions, setups, the body through the ONE
- *     production entry with the platform's {@link com.legend.judge.AssertListener};
+ *     production entry with the platform's {@link com.legend.testexecutionplan.AssertListener};
  *     every assert is the platform's verdict; the harness attaches its referee
  *     and its census through {@link TestObserver} and owns no judgment;</li>
  * <li><b>referee</b> — {@link com.legend.harness.ReplayReferee#INSTANCE}
@@ -334,16 +334,17 @@ public final class MinimalCorpus {
         }
         // the lane's argument (-Dlegend.judge.mode, judge-lanes.sh) is the RUN's
         // mode — handed to the runner once; nothing in the product reads it
-        com.legend.ExecuteOptions.JudgeMode judgeMode = switch (
+        com.legend.testplan.PlanningOptions.JudgeMode judgeMode = switch (
                 System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
-            case "host" -> com.legend.ExecuteOptions.JudgeMode.HOST;
-            case "database" -> com.legend.ExecuteOptions.JudgeMode.DATABASE;
-            case "both" -> com.legend.ExecuteOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
+            case "host" -> com.legend.testplan.PlanningOptions.JudgeMode.HOST;
+            case "database" -> com.legend.testplan.PlanningOptions.JudgeMode.DATABASE;
+            case "both" -> com.legend.testplan.PlanningOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
             default -> throw new IllegalArgumentException("legend.judge.mode='"
                     + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
-                discovery.setupsByPackage(), new CorpusObserver(), judgeMode);
+                discovery.setupsByPackage(), new CorpusObserver(),
+                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -552,11 +553,9 @@ public final class MinimalCorpus {
             // belong to (display attribution only, no verdict flows through it)
             currentTest = t.fqn();
             com.legend.harness.RefereeVerify.CURRENT_TEST.set(t.fqn());
-            // the byte-channel census attributes its disagreement samples
-            // (leg 3.0: database mode's bug list) to the running test
-            com.legend.judge.CanonicalDivergence.attributeTo(t::fqn);
-            // the primitive census's per-test tally (measurement only, under -Dlegend.diagnostics=primitives=per-test)
-            com.legend.judge.PrimitiveCensus.attributeTo(t::fqn);
+            // the measurement's one attribution label: the censuses' samples name the running test (leg 3.0: database
+            // mode's bug list); 2026-11-09, one label where each census held a hook of its own
+            com.legend.base.Attribution.to(t.fqn());
             if (com.legend.diagnostics.Diagnostics.on("progress")) {
                 System.err.println("[corpus2] > " + t.fqn());
             }
@@ -603,21 +602,17 @@ public final class MinimalCorpus {
             recorder = new com.legend.sql.dialect.RawSqlBoundary.Recorder(
                     shared ? seedLedger : List.of());
             referee = new com.legend.harness.ReplayReferee(recorder);
-            // the test-input resource resolver rides the same options (Phase 2d)
-            return com.legend.ExecuteOptions.recording(recorder, path -> {
-                try {
-                    return Files.readString(Corpus.RELATIONAL.getParent().getParent()
-                            .resolve(path.startsWith("/") ? path.substring(1) : path));
-                } catch (IOException e) {
-                    throw new com.legend.error.DataError("test resource '" + path + "'", e);
-                }
-            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
-            // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-            }).withEngineCompat(true);
+            // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
+            // 2026-11-09): a CSV load's plan names its file by reference and digest, the run reads it from here
+            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder),
+                            com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()))
+                    // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
+                    // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
+                    .withEngineCompat(true);
         }
 
         @Override
-        public com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
+        public com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
             return referee;
         }
 

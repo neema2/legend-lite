@@ -36,7 +36,7 @@ public final class DuckDbAppenderLoad implements BulkLoad {
     }
 
     @Override
-    public void load(Connection connection, ExecutionPlan.SetupStep.Rows rows) throws SQLException {
+    public void load(Connection connection, ExecutionPlan.LoadStep.Rows rows) throws SQLException {
         try (Statement st = connection.createStatement()) {
             st.execute(rows.createStaging());
         }

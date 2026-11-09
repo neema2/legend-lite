@@ -4,7 +4,7 @@
 package org.finos.legend.lite.pct.channelb;
 
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.FunctionDefinition;
@@ -191,9 +191,6 @@ public final class ChannelB {
         // unscoped suite.
         String only = com.legend.diagnostics.Diagnostics.value("chb-only");
         List<Outcome> out = new ArrayList<>();
-        // the walk CLOSED on every lane, by construction (2026-11-03, the channel B audit: a lane whose target set no
-        // property walked freely): every body runs on the program road, and one that would walk is refused by name
-        System.setProperty("legend.walk.allowed", "none");
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {
                 continue;
@@ -228,30 +225,10 @@ public final class ChannelB {
     private static Outcome runOne(FunctionDefinition fd,
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
-        com.legend.lowering.StampCensus.CONTEXT.set(fqn);
-        com.legend.probe.Shadow.CONTEXT.set(fqn);
-        com.legend.judge.SqlTypeCensus.CONTEXT.set(fqn);
-        // dual-verdict attribution: name the test that grows the
-        // disagreement census (the alarm's diagnosis needs the WHO) —
-        // and the DECLINE census likewise (the burn targets tests, not
-        // a bare histogram; the F10 census rides this)
-        long disagreeBefore =
-                com.legend.judge.CanonicalDivergence.sqlDisagreeCount();
-        long declineBefore =
-                com.legend.judge.CanonicalDivergence.sqlDeclinedCount();
-        try {
-            return runOneInner(fd, module, ctx, fqn);
-        } finally {
-            if (com.legend.judge.CanonicalDivergence.sqlDisagreeCount()
-                    > disagreeBefore) {
-                System.out.println("[chB] DUAL-VERDICT-DISAGREE in " + fqn);
-            }
-            long dd = com.legend.judge.CanonicalDivergence.sqlDeclinedCount()
-                    - declineBefore;
-            if (dd > 0) {
-                System.out.println("[chB] DECLINES+" + dd + " in " + fqn);
-            }
-        }
+        // the measurement's one attribution label (2026-11-09: five per-census hooks until then)
+        com.legend.base.Attribution.to(fqn);
+        // (the dual-verdict and decline attribution prints went with the host judge's byte channel, 2026-11-07)
+        return runOneInner(fd, module, ctx, fqn);
     }
 
     private static Outcome runOneInner(FunctionDefinition fd,
@@ -268,7 +245,7 @@ public final class ChannelB {
         } catch (Declined d) {
             return new Outcome(fqn, Status.DECLINED, d.getMessage());
         }
-        // the running test, by its function's full name: the walk's door names the bodies still allowed to walk by it
+        // the running test, by its function's full name: the diagnostics name the test they report from
         System.setProperty("legend.test.current", fqn);
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             var lambda = new LambdaFunction(List.of(), body);
@@ -283,15 +260,15 @@ public final class ChannelB {
             // B's identity adapter carries it the same way
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
-            Execution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.test.StorelessRuntime.RUNTIME, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+            TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
                             // the tests' planning options: as-of joins the same row on every database (PlanOption)
                             .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
                             // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
                             // bodies under one judge, to read which shapes the program road plans for it
-                            .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.valueOf(
+                            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
                                     System.getProperty("pct.channelb.judge", "BOTH")))
                             // a server lane's system connection, as channel A's (PctBackend)
                             .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections())

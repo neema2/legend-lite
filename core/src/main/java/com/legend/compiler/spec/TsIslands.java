@@ -8,6 +8,7 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.Property;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
+import com.legend.error.TypeInferenceException;
 import com.legend.protocol.spec.IslandLanguage;
 import com.legend.protocol.spec.SqlIsland;
 import com.legend.protocol.spec.ValueSpecification;

@@ -12,7 +12,7 @@
  * root's three plan-side doors ({@code Compiler}, {@code TypedQuery}, {@code HeldModels}), which are the product's API;
  * this package is theirs and the driver's. Until D73 these files shared the root package with the doors and with the
  * driver, and Bazel alone told the two sides apart; the package line makes the planner-driver wall the language's too
- * (nothing here depends on {@code com.legend.driver}: the build has no such edge, and
+ * (nothing here depends on the test planner, exec or the test run -- the driver until slice 5: the build has no such edge, and
  * {@code ArchitectureTest.plannerIsExecutionFree} says it at the class level). A closed register
  * ({@code JavaEvalLedgerTest.PLANNER_CLASSES}).
  */

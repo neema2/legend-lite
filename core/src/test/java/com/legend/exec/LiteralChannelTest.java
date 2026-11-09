@@ -3,13 +3,13 @@
 
 package com.legend.exec;
 
-import com.legend.judge.CanonicalDivergence;
+import com.legend.testexec.CanonicalDivergence;
 
 import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -70,7 +70,7 @@ class LiteralChannelTest {
     private static Lean.Result runBoth(String query) throws SQLException {
         return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
                 com.legend.ExecuteOptions.NONE.withJudgeMode(
-                        com.legend.ExecuteOptions.JudgeMode.BOTH));
+                        com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
     }
 
     @Test
@@ -78,14 +78,14 @@ class LiteralChannelTest {
     void mixedClaims() throws Exception {
         // 2026-10-18 (step 6): the byte channel that rode the side query is retired; the database judge is the
         // referee, and this pair is one it JUDGES (the literal channel's claim), never names unjudged
-        long judged = CanonicalDivergence.sqlJudgedInDatabaseCount();
-        long unjudged = CanonicalDivergence.sqlUnjudgedCount();
+        long judged = com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount();
+        long unjudged = com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount();
         assertEquals(Boolean.TRUE, (runBoth(
                 "{|assertEquals([1, 'a', true, 2.5], [1, 'a', true, 2.5])}"))
                 .value());
-        assertEquals(judged + 1, CanonicalDivergence.sqlJudgedInDatabaseCount(),
+        assertEquals(judged + 1, com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount(),
                 "mixed Any pair must be JUDGED by the database judge: " + CanonicalDivergence.summary());
-        assertEquals(unjudged, CanonicalDivergence.sqlUnjudgedCount(),
+        assertEquals(unjudged, com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount(),
                 "mixed Any pair must CLAIM: " + CanonicalDivergence.summary());
     }
 
@@ -109,16 +109,12 @@ class LiteralChannelTest {
     }
 
     @Test
-    @DisplayName("the tree marker never compares: equal trees DECLINE,"
-            + " never fabricate")
+    @DisplayName("equal trees inside Any cells: the host referee judges them equal, never fabricated")
     void treesDecline() throws Exception {
-        long before = CanonicalDivergence.sqlDeclinedCount();
-        // a JSON tree inside an Any cell (list of lists via map) —
-        // host referee judges; the byte channel counts its decline
+        // a JSON tree inside an Any cell (list of lists via map) -- the host referee judges (the byte channel's decline
+        // this test also counted went with the channel, 2026-11-07)
         assertEquals(Boolean.TRUE, run(
                 "{|assertEquals([pair(1,'a')]->map(p|$p), "
                         + "[pair(1,'a')]->map(p|$p))}").one());
-        assertTrue(CanonicalDivergence.sqlDeclinedCount() >= before,
-                CanonicalDivergence.summary());
     }
 }

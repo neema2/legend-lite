@@ -52,7 +52,7 @@ class ReservedNamesGenerationTest {
     static List<DatabaseType> inMemory() throws SQLException {
         List<DatabaseType> out = new ArrayList<>();
         for (DatabaseType t : DatabaseType.values()) {
-            try (Connection ignored = com.legend.exec.Connectors.of(t).openPrivate()) {
+            try (Connection ignored = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(t)).openPrivate()) {
                 out.add(t);
             } catch (NotImplementedException refused) {
                 // no in-memory instance of this type
@@ -66,20 +66,20 @@ class ReservedNamesGenerationTest {
     void generates(DatabaseType type) throws Exception {
         SqlDialect dialect = Databases.dialect(type);
         ModelContext ctx = Compiler.compileModel(MODEL);
-        try (Connection c = com.legend.exec.Connectors.of(type).openPrivate()) {
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(ReservedNames.CSV, "s::DB", ctx, dialect)) {
                     s.execute(sql);
                 }
             }
-            TestDataGenerator.Result order = TestDataGenerator.generate(ctx,
+            TestDataGeneratorRun.Result order = TestDataGeneratorRun.generate(ctx,
                     query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("default", "order",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))),
                     null, false, com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), target(type), dialect, NO_VIEWS);
             assertFalse(order.sqls().isEmpty(), type.name());
             assertEquals("default\norder\nID,NAME\n1,a\n-----\n", order.dataCsvString(), type.name());
-            TestDataGenerator.Result item = TestDataGenerator.generate(ctx,
+            TestDataGeneratorRun.Result item = TestDataGeneratorRun.generate(ctx,
                     query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("select", "T",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L))))),
@@ -91,7 +91,7 @@ class ReservedNamesGenerationTest {
     /** The private session's target: its database type, the one fact the runner checks a session against. */
     private static com.legend.executionplan.ExecutionPlan.Target target(DatabaseType type) {
         return new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.Platform(type),
+                new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 List.of(), List.of());
     }
 
@@ -100,7 +100,7 @@ class ReservedNamesGenerationTest {
     }
 
     /** No view is fetched here. */
-    private static final TestDataGenerator.ViewSql NO_VIEWS = (db, view, temps) -> {
+    private static final TestDataGeneratorRun.ViewSql NO_VIEWS = (db, view, temps) -> {
         throw new AssertionError("no view in this model: " + view);
     };
 }

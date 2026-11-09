@@ -1222,13 +1222,17 @@ class TsIslandTest {
                     backend + ": a ramp longer than the line refused by name: " + longer.getMessage());
             assertEquals(n, column(rows(backend, "|#TS{SELECT CLOSE AS c, mean(CLOSE, 5, " + n + ") AS m FROM PRICES ON DAY"
                     + " BY SYMBOL}#"), "SYMBOL", "AAA", "c").length, backend + ": a ramp of the line's length answers, none");
+            // what gs-quant raises on before it reads a point, refused by the library as the line runs (the translator's
+            // until main's merge (#92), 2026-11-09: it binds no parameter by its name): a negative ramp, percentiles'
+            // ramp over its window (pandas' min_periods)
+            for (String[] q : new String[][] {
+                    {"SELECT mean(CLOSE, 5, -1) AS m FROM PRICES ON DAY BY SYMBOL", "a window's ramp, r, is a whole number from 0"},
+                    {"SELECT percentiles(CLOSE, w => 3, r => 5) AS p FROM PRICES ON DAY BY SYMBOL", "percentiles' r is at most its window"}}) {
+                Exception e = assertThrows(Exception.class, () -> rows(backend, "|#TS{" + q[0] + "}#"), backend + ": " + q[0]);
+                assertTrue(String.valueOf(e.getMessage()).contains(q[1]), backend + ": " + q[0] + " refused by name: " + e.getMessage());
+            }
         }
-        // what gs-quant raises on before it reads a point is refused as the text is read: a negative ramp, percentiles'
-        // ramp over its window (pandas' min_periods), a ramp vol_swap_volatility's n_days has not (Window(n, n - 1) alone)
-        assertTrue(refused("SELECT mean(CLOSE, 5, -1) AS m FROM PRICES ON DAY BY SYMBOL", true)
-                .contains("a window's ramp, is a whole number from 0"), "a negative ramp");
-        assertTrue(refused("SELECT percentiles(CLOSE, w => 3, r => 5) AS p FROM PRICES ON DAY BY SYMBOL", true)
-                .contains("percentiles's r is at most its window, 3"), "percentiles' ramp over its window");
+        // a ramp vol_swap_volatility's n_days has not (Window(n, n - 1) alone) is refused as the text is read
         assertTrue(refused("SELECT vol_swap_volatility(CLOSE, w => 5, r => 4) AS v FROM PRICES ON DAY BY SYMBOL", true)
                 .contains("has no option r"), "vol_swap_volatility's ramp");
     }
