@@ -15,8 +15,16 @@ legend_library(
 junit_test(
     name = "corpus_test",
     size = "medium",
-    data = ["model.pure"],
-    env = {"UNSTRUCTURED_MODEL": "$(rlocationpaths :model.pure)"},
+    data = [
+        "evals/DECISIONS.md",
+        "evals/answer_key.yaml",
+        "model.pure",
+    ],
+    env = {
+        "UNSTRUCTURED_ANSWER_KEY": "$(rlocationpaths :evals/answer_key.yaml)",
+        "UNSTRUCTURED_DECISIONS": "$(rlocationpaths :evals/DECISIONS.md)",
+        "UNSTRUCTURED_MODEL": "$(rlocationpaths :model.pure)",
+    },
     memory_mb = 1024,
     select = ["--select-class=com.legend.tools.legend.UnstructuredCorpusTest"],
     tags = [
