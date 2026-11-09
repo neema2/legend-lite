@@ -12,7 +12,7 @@ import java.util.List;
  * rows, which the database casts): carriage, never a value computed. The rule is H2's {@code CSVREAD}'s, which a CSV
  * file's load on H2 ran until 2026-11-09, kept by L1 so the H2 lane's rows are what they were. It is NOT upstream's:
  * legend-pure reads the file with Commons CSV's EXCEL format, keeping a padded cell and reading an empty or quoted
- * empty cell as NULL (register row S146); the design's L2 replaces it with the declared format's default. Today's
+ * empty cell as NULL (register row S172); the design's L2 replaces it with the declared format's default. Today's
  * rule: comma-separated, {@code "} quoting with {@code ""} inside a quoted cell; an unquoted cell's surrounding whitespace
  * dropped and an empty one null; a quoted cell exactly its text; spaces and tabs between a closing quote and the next
  * separator dropped; a line ends at {@code \n}, {@code \r} or the end; an empty line is no row.

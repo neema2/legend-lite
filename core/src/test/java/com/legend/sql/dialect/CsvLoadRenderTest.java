@@ -51,7 +51,7 @@ class CsvLoadRenderTest {
     }
 
     /** The cells the runner streams to H2 are the cells H2's own {@code CSVREAD} read until 2026-11-09: the split
-     *  rule ({@code base.CsvCells}) measured against the reader itself. (Not upstream's reader: register row S146; the
+     *  rule ({@code base.CsvCells}) measured against the reader itself. (Not upstream's reader: register row S172; the
      *  design's L2 moves the rule to the declared format's default and this test to that reader.) */
     @Test
     void theStreamedCellsAreTheCellsCsvreadReads(@TempDir Path dir) throws Exception {
