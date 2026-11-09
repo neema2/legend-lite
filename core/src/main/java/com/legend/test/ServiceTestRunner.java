@@ -213,15 +213,17 @@ public final class ServiceTestRunner implements AutoCloseable {
         return out;
     }
 
-    private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+    /** The test runtime a suite's test runs on and the program it runs: the parameters as let-bound variables, then
+     *  the service's body. */
+    private record Program(TestRuntime rt, List<ValueSpecification> statements) {
+    }
+
+    private Program program(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
             Protocol.PServiceTestSuite.PSuiteTest test) {
         String runtimeFqn = runtimeOf(svc);
         RuntimeDefinition runtime = ctx.findRuntime(runtimeFqn).orElseThrow(
                 () -> new Skip("runtime '" + runtimeFqn + "' is not in the model"));
-        List<Provision> provisions = provisions(suite, runtime);
-        TestRuntime rt = testRuntime(runtime, provisions);
-
-        // the program: parameters as let-bound variables, then the body
+        TestRuntime rt = testRuntime(runtime, provisions(suite, runtime));
         List<ValueSpecification> statements = new ArrayList<>();
         if (test.parameters() != null) {
             for (Protocol.PServiceTestSuite.PSuiteParam p : test.parameters()) {
@@ -230,9 +232,34 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
         }
         statements.addAll(body(svc.functionBody()));
+        return new Program(rt, statements);
+    }
+
+    /** The TEST PLAN {@code svc}'s test {@code testId} of suite {@code suiteId} runs, as JSON, planned and never run
+     *  (the data-in-the-plan design's M4 guard, 2026-11-09: a suite's data reaches the plan only as a load). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId) {
+        for (Protocol.PServiceTestSuite suite : java.util.Objects.requireNonNull(svc.testSuites())) {
+            for (Protocol.PServiceTestSuite.PSuiteTest test : suite.tests()) {
+                if (suite.id().equals(suiteId) && test.id().equals(testId)) {
+                    Program p = program(svc, suite, test);
+                    ValueSpecification resolved = Compiler.resolveQuery(p.statements(), new ImportScope(List.of()),
+                            p.rt().ctx());
+                    return com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                            Compiler.queryResolved(p.rt().ctx(), resolved), p.rt().runtimeFqn(),
+                            com.legend.ExecuteOptions.NONE));
+                }
+            }
+        }
+        throw new IllegalArgumentException("no test " + suiteId + "." + testId + " in " + svc.qualifiedName());
+    }
+
+    private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+            Protocol.PServiceTestSuite.PSuiteTest test) {
+        Program program = program(svc, suite, test);
+        TestRuntime rt = program.rt();
         ValueSpecification resolved;
         try {
-            resolved = Compiler.resolveQuery(statements, new ImportScope(List.of()), rt.ctx());
+            resolved = Compiler.resolveQuery(program.statements(), new ImportScope(List.of()), rt.ctx());
         } catch (RuntimeException e) {
             return fail(svc, suite, test, "resolve: " + PureTestRunner.whole(e.getMessage()));
         }

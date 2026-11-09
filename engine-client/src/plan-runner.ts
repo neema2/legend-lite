@@ -61,7 +61,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1) -- a load node is refused by name, as the setup node was, and a
 // target's setup steps are refused whatever their kind (below)
 // 32 since 2026-11-09: a data reference's format is the declared format, an object, and a file's one delivery is the
-// streamed one (L2) -- read by none of this runner's steps: a load node is refused by name, as at 31
+// streamed one (L2) -- read by none of this runner's steps: a load node is refused by name, as at 31; a target's
+// setup is its `loads` (identities into the plan's `loads` section): a target naming any is refused, as its setup was
 const PLAN_VERSION = 32;
 interface Column { readonly name: string; readonly type: string }
 type Step =
@@ -122,10 +123,12 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   const target = JSON.stringify(first!.target);
   if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
   const t = first!.target as { database?: { _type?: string; connection?: { databaseType?: string }; databaseType?: string };
-    session?: readonly string[]; setup?: readonly unknown[] };
+    session?: readonly string[]; loads?: readonly unknown[] };
   const type = t.database?.connection?.databaseType ?? t.database?.databaseType;
   if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
-  if ((t.setup ?? []).length > 0) throw new PlanRefusal('a plan that sets its database up first is not run here: it runs on the host\'s own');
+  // a target's loads (its declared test data, a project's Data: L2/L3) are refused by name, as its setup steps were; a
+  // target that names none (a field absent included) is a host's own database as it is
+  if (!Array.isArray(t.loads) || t.loads.length > 0) throw new PlanRefusal('a plan that loads data into its database first is not run here: it runs on the host\'s own');
   for (const s of sent) {
     // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
     // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one

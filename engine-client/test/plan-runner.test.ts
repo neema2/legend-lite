@@ -138,6 +138,9 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const steps = root.steps as unknown as { _type: string; sql: { target: unknown } }[];
     const seeded = { ...plan, root: { ...root, steps: [{ _type: 'setup', key: 'k', steps: [], target: steps[0]!.sql.target }, ...steps] } };
     await assert.rejects(() => runPlan(JSON.stringify(seeded), here), /not a setup/);
+    // a target that loads data first (its declared test data, a project's Data: the plan's load section, L2/L3)
+    const loading = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, target: { ...(step.sql.target as object), loads: ['load:k'] } } })) } };
+    await assert.rejects(() => runPlan(JSON.stringify(loading), here), /loads data into its database first/);
     const stamped = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, stamp: '#stamp0' } })) } };
     await assert.rejects(() => runPlan(JSON.stringify(stamped), here), /its own execution-trace stamp/);
   });

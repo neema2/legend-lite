@@ -183,4 +183,39 @@ class ServiceTestProvisionKeyTest {
             assertEquals(1, shared.sessions().size());
         }
     }
+
+    /**
+     * THE M4 GUARD (docs/DATA_IN_THE_PLAN_2026_11_09.md, census row M4, the user's ruling of 2026-11-09: option 1, the
+     * upstream-faithful overlay kept): a suite's data, which the harness overlays as a synthetic connection's declared
+     * test data exactly as legend-engine's service test runner does, reaches the test plan ONLY inside a load's steps --
+     * never in a target's connection description, never in a statement's text.
+     */
+    @org.junit.jupiter.api.Test
+    void aSuitesDataReachesThePlanOnlyAsALoad() {
+        String json;
+        try (ServiceTestRunner r = runner(Compiler.compileModel(MODEL))) {
+            json = r.planJson(service("local::ServiceA"), "suiteA", "readsA");
+        }
+        com.legend.json.Json.Obj plan = (com.legend.json.Json.Obj) com.legend.json.Json.parse(json,
+                new com.legend.json.Json.Config(com.legend.executionplan.PlanJson.MAX_DEPTH));
+        java.util.List<String> where = new java.util.ArrayList<>();
+        find(plan, "", false, where);
+        org.junit.jupiter.api.Assertions.assertFalse(where.isEmpty(), "the suite's row is loaded: " + json);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), where.stream()
+                .filter(w -> !w.startsWith("load:")).toList(), "the suite's row outside a load: " + json);
+    }
+
+    /** Every string holding the suite's value ('Aa'), each named by whether it sits inside a load node's steps. */
+    private static void find(com.legend.json.Json.Node n, String path, boolean inLoad, java.util.List<String> where) {
+        if (n instanceof com.legend.json.Json.Obj o) {
+            boolean load = inLoad || "load".equals(o.getStringOr("_type", null));
+            o.fields().forEach((k, v) -> find(v, path + "/" + k, load && !k.equals("target"), where));
+        } else if (n instanceof com.legend.json.Json.Arr a) {
+            for (int i = 0; i < a.items().size(); i++) {
+                find(a.items().get(i), path + "/" + i, inLoad, where);
+            }
+        } else if (n instanceof com.legend.json.Json.Str s && s.value().contains("Aa")) {
+            where.add((inLoad ? "load:" : "outside:") + path);
+        }
+    }
 }
