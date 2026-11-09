@@ -48,31 +48,18 @@ class PlanJsonTest {
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
                                                 new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
-                        // a placeholder typed by its value (H2): its type hole, with each kind's spelling
+                        // a placeholder of a declared kind (H2): its fixed type in the text, bound bare (P4)
                         new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null, null)),
-                                new Sql("select ID * CAST(? AS ) as x from T", List.of(new Slot("f",
-                                        new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(22,
-                                                java.util.Map.of(ExecutionPlan.ValueKind.DECIMAL,
-                                                        new ExecutionPlan.TypeSpelling("NUMERIC",
-                                                                ExecutionPlan.Digits.PRECISION_AND_SCALE),
-                                                        ExecutionPlan.ValueKind.FLOATING,
-                                                        new ExecutionPlan.TypeSpelling("DECFLOAT",
-                                                                ExecutionPlan.Digits.PRECISION)),
-                                                ExecutionPlan.ValueKind.DECIMAL)))), t, null)),
-                        // a date-time's hole, a finer one cut to six digits (Postgres)
+                                new Sql("select ID * CAST(? AS FLOAT) as x from T", List.of(new Slot("f",
+                                        new ExecutionPlan.Binding.One("DECIMAL", null))), t, null)),
+                        // a date-time bound as its text, a finer digit cut to six (Postgres)
                         // (its written-precision fact too, format 17: the column's fourth fact round-trips; a value
                         // root's instant is MINIMAL, format 18)
                         new TdsResult(TdsResult.Shape.VALUE, List.of(new Column("t", "DateTime", new Multiplicity(0, 1), "TIMESTAMP", null,
                                 ExecutionPlan.Precision.MINIMAL)),
-                                new Sql("select CAST(? AS ) as t", List.of(new Slot("t",
-                                        new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.TypeHole(17,
-                                                java.util.Map.of(ExecutionPlan.ValueKind.DATE_TIME,
-                                                        new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                                                                ExecutionPlan.Digits.NONE),
-                                                        ExecutionPlan.ValueKind.DATE_TIME_NANOS,
-                                                        new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                                                                ExecutionPlan.Digits.NONE, 6)),
-                                                ExecutionPlan.ValueKind.DATE_TIME)))), t, null)),
+                                new Sql("select CAST(? AS TIMESTAMP) as t", List.of(new Slot("t",
+                                        new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.AsText(6)))), t,
+                                        null)),
                         new TdsResult(TdsResult.Shape.OBJECTS, List.of(new Column("value", "model::Person", new Multiplicity(0, null), "VARCHAR", null, null)),
                                 new Sql("select json_object(...) from T", List.of(), t, null)),
                         // a write plan's steps (the writes design's leg 7): a change whose count a later slot binds,

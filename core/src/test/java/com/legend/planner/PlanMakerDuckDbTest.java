@@ -42,14 +42,10 @@ class PlanMakerDuckDbTest {
                 duck.slots());
     }
 
-    /** A DateTime parameter is cast to the type of its value's literal: DuckDB's is a TIMESTAMP_NS only when the value
-     *  has digits finer than a microsecond (probes/timestamp-results.txt). */
+    /** A DateTime parameter is DuckDB's finest timestamp, a TIMESTAMP_NS, whatever the value (D1, P4: until then the
+     *  type of the value's literal, TIMESTAMP_NS only for a value finer than a microsecond). */
     @Test
-    void aDateTimeParameterIsCastToItsLiteralsType() {
-        assertEquals(java.util.Map.of(
-                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                        ExecutionPlan.Digits.NONE),
-                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP_NS",
-                        ExecutionPlan.Digits.NONE)), PlanMakerTest.dateTimeBinding(DUCKDB).hole().types());
+    void aDateTimeParameterIsCastToTimestampNs() {
+        assertEquals("CAST(? AS TIMESTAMP_NS) text:null", PlanMakerTest.dateTimeCast(DUCKDB));
     }
 }

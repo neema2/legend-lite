@@ -340,24 +340,14 @@ public class H2 extends AnsiSqlRenderer {
      *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's value is,
      *  which answers as the literal does (docs/execution-plan-boundary-2026-10-05/probes/literal-results.txt). A
      *  parameter of one type is cast to it, a date-time to the nanosecond (a plain {@code TIMESTAMP} keeps six digits
-     *  and rounds the rest, where the literal keeps nine). A parameter whose value decides its type (a Float's, a
-     *  Decimal's, a Date's, a Number's) is cast to a TYPE HOLE the runner fills when the value is known, with the type
-     *  H2 gives a literal of that value: a decimal of its own precision and scale, a floating decimal of its own digits,
-     *  a date, a date-time to the nanosecond; and a whole number a BIGINT, as an Integer parameter is (the literal of a
-     *  small one is an INTEGER: the same text, and Pure's Integer is 64 bits). A date-time is passed as its text, as on
-     *  every database. Measured, every value against its literal, alone, in arithmetic, compared and in the answer's
-     *  JSON (probes/value-typed-cast-results.txt). */
+     *  and rounds the rest, where the literal keeps nine); a parameter of a declared kind (a Float's, a Decimal's, a
+     *  Number's, a Date's, a DateTime's) to its declared kind's fixed type ({@link #parameterType}: D1, P4, 2026-11-09 --
+     *  until then a TYPE HOLE the runner filled with the type of the value's literal). */
     @Override
     protected SqlWriter placeholder(SqlWriter writer, com.legend.sql.SqlExpr.PlanParam p) {
-        com.legend.sql.ValueTyping byValue = p.byValue();
-        if (byValue != null) {
-            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types =
-                    new java.util.EnumMap<>(com.legend.sql.ValueKind.class);
-            for (com.legend.sql.ValueKind kind : byValue.kinds()) {
-                types.put(kind, holeType(kind));
-            }
-            return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").typeHole(types, byValue.absent())
-                    .append(")");
+        com.legend.sql.DeclaredKind declared = p.declared();
+        if (declared != null) {
+            return super.placeholder(writer, p);
         }
         if (!(p.type() instanceof com.legend.sql.TypeFact.Typed t)) {
             throw new DialectCapability("plan parameter '" + p.name() + "' has no type and is not typed by its value,"
@@ -374,15 +364,16 @@ public class H2 extends AnsiSqlRenderer {
 
     /** The type H2 gives a literal of a value of {@code kind}, spelled with the value's own digits where it takes them:
      *  every kind, H2 typing every placeholder when it prepares it. */
+    /** H2 types a placeholder when it prepares it, so each declared kind is cast to the closest fixed type (D1, ruled
+     *  2026-11-07; P4): a Float {@code FLOAT} (upstream's own), a Decimal and a Number {@code DECFLOAT} (exact), a Date
+     *  and a DateTime a {@code TIMESTAMP(9)}, bound as text. Until P4 the runner wrote the type of each value's literal
+     *  into a hole. */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case INTEGER -> new RenderedStatement.TypeSpelling("BIGINT", RenderedStatement.Digits.NONE);
-            case DECIMAL -> new RenderedStatement.TypeSpelling("NUMERIC", RenderedStatement.Digits.PRECISION_AND_SCALE);
-            case FLOATING -> new RenderedStatement.TypeSpelling("DECFLOAT", RenderedStatement.Digits.PRECISION);
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("TIMESTAMP(9)",
-                    RenderedStatement.Digits.NONE);
+            case FLOAT -> new ParameterType("FLOAT", null);
+            case DECIMAL, NUMBER -> new ParameterType("DECFLOAT", null);
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP(9)", new RenderedStatement.AsText(null));
         };
     }
 

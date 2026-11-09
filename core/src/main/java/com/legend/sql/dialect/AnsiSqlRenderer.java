@@ -1575,40 +1575,37 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * A plan parameter's placeholder: the value bound bare, typed by the database from the bound value (DuckDB and
-     * Postgres do, every type answering as its literal does: docs/execution-plan-boundary-2026-10-05/probes/
-     * literal-results.txt) -- but a date-time, which is cast to a TYPE HOLE the runner fills with the type of the
-     * value's literal ({@link #holeType}) and passed as its text: the drivers pass no digit finer than a microsecond
-     * alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt). A dialect whose database types a
-     * parameter otherwise writes it typed.
+     * A plan parameter's placeholder (D1, ruled 2026-11-07; P4, 2026-11-09): typed by its DECLARED Pure type, as
+     * upstream's database extension writes its template, never by the value -- the statement's text is the same on every
+     * call. A parameter of a declared kind this dialect types ({@link #parameterType}) is cast to it, a date or date-time
+     * bound as its text; any other is bound bare, the database typing it from the value (DuckDB and Postgres do, a number
+     * answering as its literal does: docs/execution-plan-boundary-2026-10-05/probes/literal-results.txt).
      */
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
-        com.legend.sql.ValueTyping byValue = p.byValue();
-        if (byValue != null && byValue.kinds().stream().anyMatch(k -> k == com.legend.sql.ValueKind.DATE_TIME
-                || k == com.legend.sql.ValueKind.DATE_TIME_NANOS)) {
-            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types =
-                    new java.util.EnumMap<>(com.legend.sql.ValueKind.class);
-            for (com.legend.sql.ValueKind kind : byValue.kinds()) {
-                types.put(kind, holeType(kind));
-            }
-            return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").typeHole(types, byValue.absent())
-                    .append(")");
+        com.legend.sql.DeclaredKind declared = p.declared();
+        ParameterType type = declared == null ? null : parameterType(declared);
+        if (type != null) {
+            return writer.append("CAST(").bind(type.asText() == null ? scalarBind(p) : textBind(p, type.asText()))
+                    .append(" AS ").append(type.name()).append(")");
         }
         return writer.bind(scalarBind(p));
     }
 
-    /** The type this dialect's database gives a literal of a value of {@code kind}, for a placeholder cast to its value's
-     *  type: here, a date and a date-time's (every other value is bound bare); a date-time finer than a microsecond is
-     *  each dialect's own. */
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    /** The SQL type a placeholder of a parameter declared {@code kind} is cast to, and whether its value is bound as its
+     *  text; null where the value is bound bare. Here (DuckDB's and Postgres's base): a number bare; a Date and a DateTime
+     *  a {@code TIMESTAMP}, upstream's (D1), bound as text -- each dialect its own finest timestamp. */
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("TIMESTAMP", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> throw new DialectCapability("a date-time finer than a microsecond: this dialect"
-                    + " names no type its literal has");
-            case INTEGER, DECIMAL, FLOATING -> throw new DialectCapability("a value of kind " + kind + " is bound"
-                    + " bare here, typed by the database from the value");
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(null));
         };
+    }
+
+    /** A placeholder's declared cast: the SQL type's name, and how the value is bound as text (null: as it is). */
+    public record ParameterType(String name, RenderedStatement.@com.legend.base.Nullable AsText asText) {
+        public ParameterType {
+            java.util.Objects.requireNonNull(name, "name");
+        }
     }
 
     /**
@@ -1630,23 +1627,28 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return new RenderedStatement.Bind(p.name(), new RenderedStatement.Binding.One(nullType(p), null));
     }
 
-    /** The JDBC type an absent value of {@code p} is bound as: its type's; for a parameter its value types, its absent
+    /** {@link #scalarBind} of a date or date-time bound as its text ({@code asText}). */
+    protected static RenderedStatement.Bind textBind(SqlExpr.PlanParam p, RenderedStatement.AsText asText) {
+        RenderedStatement.Bind one = scalarBind(p);
+        return new RenderedStatement.Bind(one.parameter(), new RenderedStatement.Binding.One(
+                ((RenderedStatement.Binding.One) one.binding()).nullType(), asText));
+    }
+
+    /** The JDBC type an absent value of {@code p} is bound as: its type's; for a parameter of a declared kind, that
      *  kind's. Refused by name for a parameter of neither (a legacy plan's template parameter). */
     protected static String nullType(SqlExpr.PlanParam p) {
         if (p.type() instanceof com.legend.sql.TypeFact.Typed t) {
             return jdbcType(t.type(), p.name());
         }
-        com.legend.sql.ValueTyping byValue = p.byValue();
-        if (byValue == null) {
-            throw new DialectCapability("plan parameter '" + p.name() + "' has no type and is not typed by its value:"
-                    + " not bound");
+        com.legend.sql.DeclaredKind declared = p.declared();
+        if (declared == null) {
+            throw new DialectCapability("plan parameter '" + p.name() + "' has no type and no declared kind: not"
+                    + " bound");
         }
-        return switch (byValue.absent()) {
-            case INTEGER -> "BIGINT";
-            case DECIMAL -> "DECIMAL";
-            case FLOATING -> "DOUBLE";
+        return switch (declared) {
+            case FLOAT, DECIMAL, NUMBER -> "DECIMAL";
             case DATE -> "DATE";
-            case DATE_TIME, DATE_TIME_NANOS -> "TIMESTAMP";
+            case DATE_TIME -> "TIMESTAMP";
         };
     }
 

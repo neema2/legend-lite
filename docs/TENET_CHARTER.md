@@ -230,8 +230,9 @@ wins.
   Nothing else is allowed. Exec writes no other SQL text: the type hole is deleted (D1), and the per-execution comment is
   no longer written at run (D3). Exec sends no statement the plan does not contain.
 - **A4 — The guards' text matches the code.** `JavaEvalLedgerTest`'s javadoc names classes that are gone, and says the
-  decode cluster computes nothing, which was false for five sites on 2026-11-07. AGENTS.md invariant 3 still describes
-  the type hole. Both are corrected as the code changes.
+  decode cluster computes nothing, which was false for five sites on 2026-11-07. AGENTS.md invariant 3 described the
+  type hole until 2026-11-09, when the hole was deleted (P4) and the text corrected. Both are corrected as the code
+  changes.
 
 ## Enforcement map
 

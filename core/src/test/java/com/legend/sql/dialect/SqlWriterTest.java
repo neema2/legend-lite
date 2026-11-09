@@ -47,21 +47,6 @@ class SqlWriterTest {
         assertEquals(new RenderedStatement("a = ? AND b = ANY(?) AND c = ?", List.of(x, ids, x)), w.statement());
     }
 
-    /** A placeholder typed by its value: the type hole is recorded at its place in the text, on that placeholder. */
-    @Test
-    void aTypeHoleIsRecordedWhereItIsWritten_onThePlaceholderBoundLast() {
-        var types = java.util.Map.of(com.legend.sql.ValueKind.DECIMAL,
-                new RenderedStatement.TypeSpelling("NUMERIC", RenderedStatement.Digits.PRECISION_AND_SCALE));
-        SqlWriter w = textOnly().append("a = CAST(")
-                .bind(new RenderedStatement.Bind("f", new RenderedStatement.Binding.One("DECIMAL", null)))
-                .append(" AS ").typeHole(types, com.legend.sql.ValueKind.DECIMAL).append(")");
-        assertEquals(new RenderedStatement("a = CAST(? AS )", List.of(new RenderedStatement.Bind("f",
-                new RenderedStatement.Binding.One("DECIMAL", new RenderedStatement.TypeHole(14, types,
-                        com.legend.sql.ValueKind.DECIMAL))))), w.statement());
-        assertThrows(IllegalStateException.class, () -> textOnly().append("a = ").typeHole(types,
-                com.legend.sql.ValueKind.DECIMAL), "a type hole follows a placeholder of one value");
-    }
-
     @Test
     void aStatementWithBoundParametersIsRefusedAsText() {
         SqlWriter w = textOnly().append("a = ").bind(new RenderedStatement.Bind("x",

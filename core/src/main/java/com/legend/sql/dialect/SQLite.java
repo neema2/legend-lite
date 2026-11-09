@@ -3073,13 +3073,12 @@ public final class SQLite extends AnsiSqlRenderer {
     // Plan parameters: a date or date-time is bound as its text
     // ==================================================================
 
+    /** A Date and a DateTime parameter are bound as their text (SQLite keeps a date as text; D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS ->
-                    new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TEXT", new RenderedStatement.AsText(null));
         };
     }
 

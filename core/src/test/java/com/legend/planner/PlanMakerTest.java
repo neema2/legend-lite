@@ -84,8 +84,11 @@ class PlanMakerTest {
      *  JSON on SQLite as today now (its four rows removed, -4). 35 -> 26 (2026-10-27, the result boundary program's
      *  phase 3): the streamed JSON output is gone -- every answer streams, written by the writers at the edge -- and
      *  its nine rows with it (-9). 26 -> 18 (2026-10-27, the program's phase 4): the TDS text output is gone -- the
-     *  PCT writes Pure's TDS text from typed rows -- and SQLite's eight list-parameter refusals under it with it (-8). */
-    private static final int MAX_DIFFERENCES = 18;
+     *  PCT writes Pure's TDS text from typed rows -- and SQLite's eight list-parameter refusals under it with it (-8).
+     *  18 -> 26 (2026-11-09, the total wall's M2, P4 under D1 as ruled 2026-11-07: a run-time parameter typed by its
+     *  declared type, the type hole deleted -- H2's Float parameter a FLOAT, its Decimal a DECFLOAT, a Date parameter a
+     *  timestamp on H2 and DuckDB: each case's CSV and JSON, +8; each posted to the user for a register row). */
+    private static final int MAX_DIFFERENCES = 26;
 
     /** The test methods run in this class, so that unreached rows are judged on a whole run only. */
     private static final java.util.concurrent.atomic.AtomicInteger RAN = new java.util.concurrent.atomic.AtomicInteger();
@@ -551,25 +554,37 @@ class PlanMakerTest {
         }
     }
 
-    /** A DateTime parameter is cast to the type of its value's literal on every database (each one's spelling is its
-     *  own test's, {@code PlanMaker<Db>Test}): a type hole, absent a date-time, a null a TIMESTAMP. */
+    /** A DateTime parameter is cast to its DECLARED type's SQL type on every database, written when the plan is made
+     *  and bound as its text (D1, P4, 2026-11-09: each one's spelling is its own test's, {@code PlanMaker<Db>Test});
+     *  absent, a null a TIMESTAMP. No statement has a hole the runner writes into. */
     @Test
-    void aDateTimeParameterIsCastToATypeHoleOnEveryDatabase() {
+    void aDateTimeParameterIsCastToItsDeclaredTypeOnEveryDatabase() {
         for (DatabaseType type : IN_PROCESS) {
-            ExecutionPlan.Binding.One one = dateTimeBinding(type);
-            ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), type + ": a type hole");
-            assertEquals(java.util.Set.of(ExecutionPlan.ValueKind.DATE_TIME, ExecutionPlan.ValueKind.DATE_TIME_NANOS),
-                    hole.types().keySet(), type.name());
-            assertEquals(ExecutionPlan.ValueKind.DATE_TIME, hole.absent(), type.name());
+            ExecutionPlan.Sql sql = dateTimeSql(type);
+            ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
+            assertTrue(one.asText() != null, type + ": bound as its text");
+            assertTrue(sql.statement().contains("CAST(? AS "), type + ": " + sql.statement());
             assertEquals("TIMESTAMP", one.nullType(), type.name());
         }
     }
 
-    /** The binding of a DateTime parameter, written as a column's value, on {@code type}. */
-    static ExecutionPlan.Binding.One dateTimeBinding(DatabaseType type) {
-        ExecutionPlan.Sql sql = plan(type, "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}",
-                Written.JSON).answerSql();
-        return (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
+    /** The statement of a DateTime parameter, written as a column's value, on {@code type}. */
+    static ExecutionPlan.Sql dateTimeSql(DatabaseType type) {
+        return plan(type, "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}", Written.JSON)
+                .answerSql();
+    }
+
+    /** The cast a DateTime parameter's placeholder is written with on {@code type}, and how it is bound. */
+    static String dateTimeCast(DatabaseType type) {
+        ExecutionPlan.Sql sql = dateTimeSql(type);
+        String text = sql.statement();
+        int at = text.indexOf("CAST(? AS ");
+        int end = at + "CAST(".length();
+        for (int depth = 1; depth > 0; end++) {
+            depth += text.charAt(end) == '(' ? 1 : text.charAt(end) == ')' ? -1 : 0;
+        }
+        ExecutionPlan.AsText asText = ((ExecutionPlan.Binding.One) sql.slots().get(0).binding()).asText();
+        return text.substring(at, end) + " " + (asText == null ? "bare" : "text:" + asText.fraction());
     }
 
     /** What a plan does not bind yet is refused when the plan is made, by name (PARK-21): a class instance, an

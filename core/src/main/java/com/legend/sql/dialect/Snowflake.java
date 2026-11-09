@@ -346,15 +346,13 @@ public final class Snowflake extends AnsiSqlRenderer {
         return "OBJECT";
     }
 
-    /** A date and a date-time placeholder take the NTZ timestamp; finer than a microsecond is cut to six digits, as
-     *  its literal is. */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP_NTZ} ({@code '…'::timestamp}, upstream's), six digits of
+     *  a second as its literal (D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("TIMESTAMP_NTZ", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("TIMESTAMP_NTZ", RenderedStatement.Digits.NONE, 6);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP_NTZ", new RenderedStatement.AsText(6));
         };
     }
 

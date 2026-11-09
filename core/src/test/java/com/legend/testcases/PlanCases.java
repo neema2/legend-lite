@@ -83,7 +83,8 @@ public final class PlanCases {
                     "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
                     java.util.Map.of("t", java.time.LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789))),
             // a parameter whose value decides its type: bound as its value's kind
-            new Parameterised("d: Date[1]", "let d = %2024-01-02;",
+            // (its lets form names the declared type, so the register tells it from the StrictDate parameter's case)
+            new Parameterised("d: Date[1]", "let d = %2024-01-02->cast(@Date);",
                     "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
                     java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
             new Parameterised("d: Date[1]", "let d = %2024-01-02T10:30:00;",

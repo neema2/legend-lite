@@ -238,11 +238,14 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     /** A date-time finer than a microsecond is a {@code TIMESTAMP_NS}, as its literal is ({@link #timestampLit}). */
+    /** A Date and a DateTime parameter are DuckDB's finest timestamp, {@code TIMESTAMP_NS} (D1, P4: the declared type
+     *  decides, never the value); a number is bound bare, typed as its literal is. */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
-        return kind == com.legend.sql.ValueKind.DATE_TIME_NANOS
-                ? new RenderedStatement.TypeSpelling("TIMESTAMP_NS", RenderedStatement.Digits.NONE)
-                : super.holeType(kind);
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP_NS", new RenderedStatement.AsText(null));
+        };
     }
 
     /** DuckDB's bare {@code TIMESTAMP} is MICROSECOND precision — a

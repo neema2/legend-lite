@@ -2972,14 +2972,14 @@ public final class BigQuery extends AnsiSqlRenderer {
     // Plan parameters
     // ==================================================================
 
-    /** A date-time parameter is cast to DATETIME (the naive type); finer than a microsecond, its first six digits. */
+    /** A Date parameter is a {@code DATE}, as upstream's BigQuery extension writes it ({@code PARSE_DATE}); a
+     *  DateTime a {@code DATETIME} (the naive type) of six digits of a second (D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("DATETIME", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("DATETIME", RenderedStatement.Digits.NONE, 6);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE -> new ParameterType("DATE", new RenderedStatement.AsText(null));
+            case DATE_TIME -> new ParameterType("DATETIME", new RenderedStatement.AsText(6));
         };
     }
 

@@ -52,33 +52,21 @@ class PlanMakerH2Test {
     /** H2 types a parameter when it prepares the statement, and a Float's, a Decimal's, a Date's or a Number's type is
      *  its value's: H2's plan casts it to a TYPE HOLE the runner fills with the type H2 gives that value's literal
      *  (probes/value-typed-cast-results.txt). Every scalar case of {@link PlanMakerTest} answers through it on H2. */
+    /** A Float parameter is cast to its declared type's fixed type, upstream's own FLOAT (D1, P4), bound bare. */
     @Test
-    void aParameterTypedByItsValueIsCastToATypeHole() {
+    void aFloatParameterIsCastToFloat() {
         ExecutionPlan.Sql h2 = plan(H2, "{f: Float[1]|#>{s::DB.T}#"
                 + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", com.legend.testcases.PlanCases.Written.JSON).answerSql();
         assertEquals(1, h2.slots().size());
-        ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) h2.slots().get(0).binding();
-        ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), "a type hole");
-        assertEquals("CAST(? AS )", h2.statement().substring(hole.at() - "CAST(? AS ".length(), hole.at() + 1),
-                h2.statement());
-        assertEquals(java.util.Map.of(
-                ExecutionPlan.ValueKind.DECIMAL, new ExecutionPlan.TypeSpelling("NUMERIC",
-                        ExecutionPlan.Digits.PRECISION_AND_SCALE),
-                ExecutionPlan.ValueKind.FLOATING, new ExecutionPlan.TypeSpelling("DECFLOAT",
-                        ExecutionPlan.Digits.PRECISION)), hole.types());
-        assertEquals(ExecutionPlan.ValueKind.DECIMAL, hole.absent());
-        assertEquals("DECIMAL", one.nullType());
+        assertTrue(h2.statement().contains("CAST(? AS FLOAT)"), h2.statement());
+        assertEquals(new ExecutionPlan.Binding.One("DECIMAL", null), h2.slots().get(0).binding());
     }
 
-    /** A DateTime parameter is cast to the type of its value's literal, and passed as its text: H2's keeps nanoseconds
-     *  (a plain TIMESTAMP keeps six digits and rounds the rest; probes/value-typed-cast-results.txt). */
+    /** A DateTime parameter is a TIMESTAMP(9), passed as its text: H2's keeps nanoseconds (a plain TIMESTAMP keeps six
+     *  digits and rounds the rest; probes/value-typed-cast-results.txt). */
     @Test
-    void aDateTimeParameterIsCastToItsLiteralsType() {
-        assertEquals(java.util.Map.of(
-                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                        ExecutionPlan.Digits.NONE),
-                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                        ExecutionPlan.Digits.NONE)), PlanMakerTest.dateTimeBinding(H2).hole().types());
+    void aDateTimeParameterIsCastToTimestamp9() {
+        assertEquals("CAST(? AS TIMESTAMP(9)) text:null", PlanMakerTest.dateTimeCast(H2));
     }
 
     @Test

@@ -60,54 +60,43 @@ class PlanRunnerH2Test {
         assertEquals(2, setupStatements() - before, "set up once");
     }
 
-    /** H2's spelling of each kind of value, as its dialect writes a type hole's (H2.holeType). */
-    private static final Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> H2_TYPES = Map.of(
-            ExecutionPlan.ValueKind.INTEGER, new ExecutionPlan.TypeSpelling("BIGINT", ExecutionPlan.Digits.NONE),
-            ExecutionPlan.ValueKind.DECIMAL, new ExecutionPlan.TypeSpelling("NUMERIC",
-                    ExecutionPlan.Digits.PRECISION_AND_SCALE),
-            ExecutionPlan.ValueKind.FLOATING, new ExecutionPlan.TypeSpelling("DECFLOAT", ExecutionPlan.Digits.PRECISION),
-            ExecutionPlan.ValueKind.DATE, new ExecutionPlan.TypeSpelling("DATE", ExecutionPlan.Digits.NONE),
-            ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                    ExecutionPlan.Digits.NONE),
-            ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                    ExecutionPlan.Digits.NONE));
-
-    /** A plan reading one value typed by its value, through a type hole, as text: {@code type} is the parameter's. */
-    private static ExecutionPlan holed(String type) {
-        String before = "SELECT CAST(CAST(? AS ";
+    /** A plan reading one value of a declared kind as text, its placeholder cast to the declared kind's fixed type
+     *  ({@code cast}: H2's, D1, P4) -- the statement the plan's own, never written at run. */
+    private static ExecutionPlan declaredCast(String type, String cast, ExecutionPlan.@com.legend.base.Nullable AsText asText) {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
                 H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of());
         return ExecutionPlan.reading(List.of(declared("v", type, 0, 1)), PlanRunnerTest.cell(
-                new ExecutionPlan.Sql(before + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
-                        new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(before.length(), H2_TYPES,
-                                type.equals("Date") ? ExecutionPlan.ValueKind.DATE
-                                        : ExecutionPlan.ValueKind.DECIMAL)))), target, null)));
+                new ExecutionPlan.Sql("SELECT CAST(CAST(? AS " + cast + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
+                        new ExecutionPlan.Binding.One("DECIMAL", asText))), target, null)));
     }
 
-    /** The runner fills a type hole with the type of the value's own literal: each value answers on H2 exactly as its
-     *  literal does, text included (the whole sweep, every position: probes/value-typed-cast-results.txt). */
+    /** A placeholder of a declared kind answers as the database's own cast of the value to the declared kind's fixed
+     *  type (D1, P4, 2026-11-09: until then the runner wrote the type of the value's literal into a hole), the same
+     *  statement for every value; a date or date-time is bound as its text, a StrictDate value a midnight timestamp. */
     @Test
-    void aTypeHoleIsFilledWithTheTypeOfTheValuesLiteral_andAnswersAsTheLiteralDoes() throws Exception {
-        Map<Object, String> literals = new java.util.LinkedHashMap<>();
-        literals.put(1.1d, "1.1");
-        literals.put(new BigDecimal("2.50"), "2.50");
-        literals.put(1e-6d, "0.0000010");
-        literals.put(1.5e15d, "1.5E15");
-        literals.put(2.5e-7d, "2.5E-7");
-        literals.put(7L, "CAST(7 AS BIGINT)");
+    void aDeclaredKindsPlaceholderAnswersAsTheFixedTypesCast() throws Exception {
+        Map<Object, String> numbers = new java.util.LinkedHashMap<>();
+        numbers.put(1.1d, "1.1");
+        numbers.put(new BigDecimal("2.50"), "2.50");
+        numbers.put(1e-6d, "0.000001");
+        numbers.put(1.5e15d, "1.5E15");
+        numbers.put(7L, "7");
         try (Connection h2 = TestBackends.of(H2).open()) {
-            for (var e : literals.entrySet()) {
-                assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Number"), Map.of("v", e.getKey()),
+            for (var e : numbers.entrySet()) {
+                assertEquals(literalText(h2, "CAST(" + e.getValue() + " AS DECFLOAT)"), PlanRunnerTest.run(
+                        declaredCast("Number", "DECFLOAT", null), Map.of("v", e.getKey()),
                         PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
             }
-            Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "DATE '2024-01-02'",
-                    LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "TIMESTAMP '2024-01-02 10:30:00.123456789'");
+            Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "2024-01-02 00:00:00",
+                    LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "2024-01-02 10:30:00.123456789");
             for (var e : dates.entrySet()) {
-                assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Date"), Map.of("v", e.getKey()),
+                assertEquals(e.getValue(), PlanRunnerTest.run(declaredCast("Date", "TIMESTAMP(9)",
+                        new ExecutionPlan.AsText(null)), Map.of("v", e.getKey()),
                         PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
             }
-            // an absent value: a null of its absent kind's type, by name alone
-            assertEquals(null, PlanRunnerTest.run(holed("Number"), Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
+            // an absent value: a null of the binding's type
+            assertEquals(null, PlanRunnerTest.run(declaredCast("Number", "DECFLOAT", null), Map.of(),
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
         }
     }
 

@@ -3449,13 +3449,12 @@ public class MariaDb extends AnsiSqlRenderer {
     // Plan parameters
     // ==================================================================
 
+    /** A Date and a DateTime parameter are a {@code DATETIME(6)}, MariaDB's finest (D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS ->
-                    new RenderedStatement.TypeSpelling("DATETIME(6)", RenderedStatement.Digits.NONE);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("DATETIME(6)", new RenderedStatement.AsText(null));
         };
     }
 

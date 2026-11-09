@@ -487,7 +487,7 @@ public final class PlanRunner {
     static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
         unstamped(u.sql());   // a write is sent with no trace comment (JdbcStatements.update): it binds none
-        String statement = statement(u.sql(), values);
+        String statement = u.sql().statement();
         StatementOrigin.sent(st.mark(), statement);
         long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
         if (u.count() != null) {
@@ -500,7 +500,7 @@ public final class PlanRunner {
     static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
         stamp(k.sql(), values, st);
-        String statement = statement(k.sql(), values);
+        String statement = k.sql().statement();
         StatementOrigin.sent(st.mark(), statement);
         st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
     }
@@ -508,7 +508,7 @@ public final class PlanRunner {
     /** An effect sent for what it does. */
     private static void effect(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st) {
         unstamped(e.sql());
-        String statement = statement(e.sql(), values);
+        String statement = e.sql().statement();
         StatementOrigin.sent(st.mark(), statement);
         st.execute(statement);
     }
@@ -661,7 +661,7 @@ public final class PlanRunner {
     static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
             Held held) throws IOException {
         stamp(t.sql(), values, st);
-        String statement = statement(t.sql(), values);
+        String statement = t.sql().statement();
         StatementOrigin.sent(st.mark(), statement);
         if (reported(t)) {
             st.reportedRows(statement, t.sql().slots(), valuesOf(t.sql(), values), columns -> held.columns = columns,
@@ -752,7 +752,7 @@ public final class PlanRunner {
         if (keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS) {
             // a raw grid's: each column its result reports a key, its label the key's one cell (the seam program's
             // S3c, 2026-10-30) -- read when the plan runs, never at planning
-            for (Statements.Reported r : st.columns(statement(probe, checked))) {
+            for (Statements.Reported r : st.columns(probe.statement())) {
                 if (!keyed.admitted().isEmpty()) {
                     String slot = r.type() == null ? null : ColumnFacts.slot(r.type());
                     if (slot == null || !keyed.admitted().contains(slot)) {
@@ -768,7 +768,7 @@ public final class PlanRunner {
             for (int i = 0; i < probe.slots().size(); i++) {
                 probeValues.add(value(checked, probe.slots().get(i), i + 1));
             }
-            st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
+            st.rows(probe.statement(), probe.slots(), probeValues, keyColumns, keys::add);
         }
         int fixed = keyed.outputs().size() - perKey;
         int columns = fixed + keys.size() * perKey;
@@ -840,7 +840,7 @@ public final class PlanRunner {
     }
 
     /**
-     * {@code sql} written for {@code keys}: the text outside its regions as it is, its type holes filled; each region
+     * {@code sql} written for {@code keys}: the text outside its regions as it is; each region
      * once per key ({@code lead} before the first copy, {@code separator} between copies, the key's position at each
      * counter; with no key, {@code empty}, or the statement refused where it has no form without one); each slot
      * outside a region bound once, each inside one bound in every copy, a key's cell to that key's text.
@@ -848,24 +848,13 @@ public final class PlanRunner {
     private static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
             Map<String, PlanParameters.Checked> checked) {
         String text = sql.statement();
-        // the type holes, each outside every region (the writer refuses one inside): their places and types, in order
-        List<int[]> holes = new ArrayList<>();
-        List<String> holeTypes = new ArrayList<>();
-        for (int i = 0; i < sql.slots().size(); i++) {
-            ExecutionPlan.Slot each = sql.slots().get(i);
-            if (each.binding() instanceof ExecutionPlan.Binding.One one && one.hole() != null) {
-                holes.add(new int[] {one.hole().at()});
-                holeTypes.add(typeOf(one.hole(), value(checked, each, i + 1), each));
-            }
-        }
         StringBuilder out = new StringBuilder(text.length() + keys.size() * 64);
         List<ExecutionPlan.Slot> slots = new ArrayList<>();
         List<PlanParameters.Checked> values = new ArrayList<>();
-        int[] hole = {0};
         int from = 0;
         int slot = 0;
         for (ExecutionPlan.Region r : sql.regions()) {
-            outside(out, text, from, r.start(), holes, holeTypes, hole);
+            out.append(text, from, r.start());
             for (; slot < r.firstSlot(); slot++) {
                 bindOnce(sql, slot, checked, slots, values);
             }
@@ -902,25 +891,11 @@ public final class PlanRunner {
             slot = r.firstSlot() + r.slotCount();
             from = r.end();
         }
-        outside(out, text, from, text.length(), holes, holeTypes, hole);
+        out.append(text, from, text.length());
         for (; slot < sql.slots().size(); slot++) {
             bindOnce(sql, slot, checked, slots, values);
         }
         return new Expanded(out.toString(), slots, values);
-    }
-
-    /** The statement's text {@code [from, to)} outside its regions, each type hole up to {@code to} filled (one at
-     *  {@code to} itself before the region that starts there); {@code next} the first hole not yet written. */
-    private static void outside(StringBuilder out, String text, int from, int to, List<int[]> holes,
-            List<String> holeTypes, int[] next) {
-        int at = from;
-        while (next[0] < holes.size() && holes.get(next[0])[0] <= to) {
-            int place = holes.get(next[0])[0];
-            out.append(text, at, place).append(holeTypes.get(next[0]));
-            at = place;
-            next[0]++;
-        }
-        out.append(text, at, to);
     }
 
     private static void bindOnce(ExecutionPlan.Sql sql, int slot, Map<String, PlanParameters.Checked> checked,
@@ -931,13 +906,13 @@ public final class PlanRunner {
     }
 
     /** What a statement's session is asked, once the session is checked and its own statements have run: the
-     *  statement with its type holes filled, and the slots' checked values in slot order. */
+     *  statement as the plan holds it (P4: no text is written at run), and the slots' checked values in slot order. */
     private interface Ask {
         void of(Statements st, String statement, List<PlanParameters.Checked> values) throws IOException;
     }
 
-    /** {@code sql} sent on a session of {@code sessions}: the slots bound to the checked values, the type holes
-     *  filled, the session asked ({@code ask}: each row's text, or each row's typed cells). */
+    /** {@code sql} sent on a session of {@code sessions}: the slots bound to the checked values, the statement the
+     *  plan's own, the session asked ({@code ask}: each row's text, or each row's typed cells). */
     private static void send(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, Ask ask) throws IOException {
         // every null type checked before any session is opened: a plan whose null is of no type is refused whole
@@ -959,7 +934,7 @@ public final class PlanRunner {
             for (int i = 0; i < sql.slots().size(); i++) {
                 values.add(value(bound, sql.slots().get(i), i + 1));
             }
-            String statement = statement(sql, bound);
+            String statement = sql.statement();
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
             // each statement a second time, 2026-10-21)
             StatementOrigin.sent(st.mark(), statement);
@@ -1010,55 +985,6 @@ public final class PlanRunner {
         return value;
     }
 
-    /** The statement to prepare: the plan's, with each type hole filled with its value's type (a statement with none is
-     *  the plan's as it is). */
-    private static String statement(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> checked) {
-        StringBuilder out = new StringBuilder();
-        int from = 0;
-        List<ExecutionPlan.Slot> slots = sql.slots();
-        for (int i = 0; i < slots.size(); i++) {
-            ExecutionPlan.Slot slot = slots.get(i);
-            if (slot.binding() instanceof ExecutionPlan.Binding.One one && one.hole() != null) {
-                ExecutionPlan.TypeHole hole = one.hole();
-                out.append(sql.statement(), from, hole.at()).append(typeOf(hole, value(checked, slot, i + 1), slot));
-                from = hole.at();
-            }
-        }
-        return out.append(sql.statement().substring(from)).toString();
-    }
-
-    /** The type a hole takes for {@code value}: the spelling of its kind, with its own digits where the spelling takes
-     *  them; an absent value's, its type's name alone (a null has no digits to keep). */
-    private static String typeOf(ExecutionPlan.TypeHole hole, PlanParameters.Checked value, ExecutionPlan.Slot slot) {
-        Object v = switch (value) {
-            case PlanParameters.One one -> one.value();
-            case PlanParameters.None none -> null;
-            case PlanParameters.Many many -> throw new IllegalStateException("slot of '" + slot.parameter()
-                    + "' binds one value, given a list");
-        };
-        ExecutionPlan.TypeSpelling spelling = spelling(hole, v == null ? hole.absent() : kindOf(v, slot), slot);
-        if (v == null) {
-            return spelling.name();
-        }
-        BigDecimal digits = v instanceof Double d ? BigDecimal.valueOf(d) : v instanceof BigDecimal bd ? bd : null;
-        return switch (spelling.digits()) {
-            case NONE -> spelling.name();
-            case PRECISION -> spelling.name() + "(" + digitsOf(digits, slot).precision() + ")";
-            case PRECISION_AND_SCALE -> spelling.name() + "(" + digitsOf(digits, slot).precision() + ","
-                    + digitsOf(digits, slot).scale() + ")";
-        };
-    }
-
-    static ExecutionPlan.TypeSpelling spelling(ExecutionPlan.TypeHole hole, ExecutionPlan.ValueKind kind,
-            ExecutionPlan.Slot slot) {
-        ExecutionPlan.TypeSpelling spelling = hole.types().get(kind);
-        if (spelling == null) {
-            throw new IllegalStateException("slot of '" + slot.parameter() + "' is given a value of kind " + kind
-                    + ", and its type hole spells only " + hole.types().keySet());
-        }
-        return spelling;
-    }
-
     private static final DateTimeFormatter DATE_TIME_TEXT =
             DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSSSSS", Locale.ROOT);
 
@@ -1070,27 +996,5 @@ public final class PlanRunner {
             unit *= 10;
         }
         return DATE_TIME_TEXT.format(t.withNano(t.getNano() - t.getNano() % unit));
-    }
-
-    private static BigDecimal digitsOf(@Nullable BigDecimal digits, ExecutionPlan.Slot slot) {
-        if (digits == null) {
-            throw new IllegalStateException("slot of '" + slot.parameter() + "' spells a type with a value's digits,"
-                    + " given a value with none");
-        }
-        return digits;
-    }
-
-    /** The kind of a checked value (one {@link PlanParameters} makes). */
-    static ExecutionPlan.ValueKind kindOf(Object v, ExecutionPlan.Slot slot) {
-        return switch (v) {
-            case Long l -> ExecutionPlan.ValueKind.INTEGER;
-            case BigDecimal d -> ExecutionPlan.ValueKind.DECIMAL;
-            case Double d -> ExecutionPlan.ValueKind.FLOATING;
-            case LocalDate d -> ExecutionPlan.ValueKind.DATE;
-            case LocalDateTime t -> t.getNano() % 1000 == 0 ? ExecutionPlan.ValueKind.DATE_TIME
-                    : ExecutionPlan.ValueKind.DATE_TIME_NANOS;
-            default -> throw new IllegalStateException("slot of '" + slot.parameter() + "' is typed by its value,"
-                    + " given " + v.getClass().getSimpleName() + ", which is of no value kind");
-        };
     }
 }

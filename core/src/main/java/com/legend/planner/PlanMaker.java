@@ -46,13 +46,11 @@ import com.legend.sql.SqlRewriter;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
-import com.legend.sql.ValueKind;
 import com.legend.sql.dialect.RenderedStatement;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -815,36 +813,10 @@ public final class PlanMaker {
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */
     private static ExecutionPlan.Binding binding(RenderedStatement.Binding b) {
         return switch (b) {
-            case RenderedStatement.Binding.One one -> {
-                RenderedStatement.TypeHole hole = one.hole();
-                yield new ExecutionPlan.Binding.One(one.nullType(), hole == null ? null
-                        : new ExecutionPlan.TypeHole(hole.at(), spellings(hole.types()), kind(hole.absent())));
-            }
+            case RenderedStatement.Binding.One one -> new ExecutionPlan.Binding.One(one.nullType(),
+                    one.asText() == null ? null : new ExecutionPlan.AsText(one.asText().fraction()));
             case RenderedStatement.Binding.Array array -> new ExecutionPlan.Binding.Array(array.elementSqlType());
             case RenderedStatement.Binding.Key key -> new ExecutionPlan.Binding.Key(key.cell());
-        };
-    }
-
-    private static Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> spellings(
-            Map<ValueKind, RenderedStatement.TypeSpelling> types) {
-        Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> out =
-                new EnumMap<>(ExecutionPlan.ValueKind.class);
-        types.forEach((k, t) -> out.put(kind(k), new ExecutionPlan.TypeSpelling(t.name(), switch (t.digits()) {
-            case NONE -> ExecutionPlan.Digits.NONE;
-            case PRECISION -> ExecutionPlan.Digits.PRECISION;
-            case PRECISION_AND_SCALE -> ExecutionPlan.Digits.PRECISION_AND_SCALE;
-        }, t.fraction())));
-        return out;
-    }
-
-    private static ExecutionPlan.ValueKind kind(ValueKind k) {
-        return switch (k) {
-            case INTEGER -> ExecutionPlan.ValueKind.INTEGER;
-            case DECIMAL -> ExecutionPlan.ValueKind.DECIMAL;
-            case FLOATING -> ExecutionPlan.ValueKind.FLOATING;
-            case DATE -> ExecutionPlan.ValueKind.DATE;
-            case DATE_TIME -> ExecutionPlan.ValueKind.DATE_TIME;
-            case DATE_TIME_NANOS -> ExecutionPlan.ValueKind.DATE_TIME_NANOS;
         };
     }
 

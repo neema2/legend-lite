@@ -15,17 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class PlanMakerPostgresTest {
 
-    /** A DateTime parameter is cast to the type of its value's literal: Postgres's keeps six digits and cuts the rest,
-     *  as its literal writer does (probes/timestamp-results.txt). */
+    /** A DateTime parameter is a TIMESTAMP, its text cut to six digits of a second as Postgres's literal writer cuts
+     *  them (probes/timestamp-results.txt; D1, P4). */
     @Test
-    void aDateTimeParameterIsCastToItsLiteralsType() {
-        ExecutionPlan.Binding.One one = PlanMakerTest.dateTimeBinding(DatabaseType.Postgres);
-        assertEquals(java.util.Map.of(
-                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                        ExecutionPlan.Digits.NONE),
-                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                        ExecutionPlan.Digits.NONE, 6)), one.hole().types());
-        assertEquals(ExecutionPlan.ValueKind.DATE_TIME, one.hole().absent());
-        assertEquals("TIMESTAMP", one.nullType());
+    void aDateTimeParameterIsCastToTimestamp() {
+        assertEquals("CAST(? AS TIMESTAMP) text:6", PlanMakerTest.dateTimeCast(DatabaseType.Postgres));
     }
 }

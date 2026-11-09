@@ -421,12 +421,15 @@ final class JdbcStatements implements Statements {
             case ExecutionPlan.Binding.One one -> {
                 switch (value) {
                     case PlanParameters.One v -> {
-                        ExecutionPlan.TypeHole hole = one.hole();
-                        if (hole != null && v.value() instanceof LocalDateTime t) {
-                            // a date-time in a cast is passed as its text: the drivers pass no digit finer than a
-                            // microsecond alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt)
-                            st.setString(index, PlanRunner.dateTimeText(t,
-                                    PlanRunner.spelling(hole, PlanRunner.kindOf(t, slot), slot).fraction()));
+                        ExecutionPlan.AsText asText = one.asText();
+                        if (asText != null && v.value() instanceof LocalDateTime t) {
+                            // a date-time in its declared type's cast is passed as its text: the drivers pass no digit
+                            // finer than a microsecond alike (DuckDB's cuts it, Postgres's rounds it;
+                            // probes/timestamp-results.txt)
+                            st.setString(index, PlanRunner.dateTimeText(t, asText.fraction()));
+                        } else if (asText != null && v.value() instanceof java.time.LocalDate d) {
+                            // a StrictDate value of a Date parameter: its text, a midnight timestamp in the cast (D1)
+                            st.setString(index, d.toString());
                         } else {
                             st.setObject(index, v.value());
                         }

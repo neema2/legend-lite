@@ -31,7 +31,7 @@ export interface PlanSession {
   transaction(step: 'begin' | 'commit' | 'rollback'): Promise<void>;
 }
 
-interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly typeHole?: unknown } }
+interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly asText?: unknown } }
 interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown; readonly stamp?: string }
 
 /** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 18 since 2026-10-29
@@ -146,7 +146,8 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
       if (slot.binding._type !== 'one') {
         throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : 'a list'}, which is not run here`);
       }
-      if (slot.binding.typeHole !== undefined) throw new PlanRefusal(`'${slot.parameter}' takes its type from its value, which is not run here`);
+      // a date or date-time bound as its text into its declared type's cast (P4): a host binds none
+      if (slot.binding.asText !== undefined && slot.binding.asText !== null) throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text, which is not run here`);
     }
   }
   const changes = steps.some((s) => s._type === 'update') && o.joined !== true;

@@ -1396,11 +1396,14 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** A date-time finer than a microsecond is a {@code TIMESTAMP} of its first six digits, the finer ones cut, as its
      *  literal is ({@link #timestampLit}). */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP} of six digits of a second, the finer ones cut, as its
+     *  literal is ({@link #timestampLit}; D1, P4); a number is bound bare. */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
-        return kind == com.legend.sql.ValueKind.DATE_TIME_NANOS
-                ? new RenderedStatement.TypeSpelling("TIMESTAMP", RenderedStatement.Digits.NONE, 6)
-                : super.holeType(kind);
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
+        };
     }
 
     /** Postgres keeps microseconds and ROUNDS finer digits (59.9999999 becomes the next

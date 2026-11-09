@@ -90,7 +90,10 @@ public final class PlanJson {
      *  the {@code databaseReads} delivery is gone, L2), a file step its {@code sizeLimitMegabytes}, and a target's
      *  {@code setup} is its {@code loads}: each a {@code PER_ACQUISITION} load, written once in the plan's {@code loads}
      *  section and named by its identity in every target that needs it (L2); a project names its key and refusal
-     *  alone, its Data rows the target's ONCE load (L3). */
+     *  alone, its Data rows the target's ONCE load (L3); a placeholder's
+     *  type is its declared type's, written when the plan is made: a binding's {@code typeHole} is gone, a date or
+     *  date-time bound as its text {@code asText} (P4, D1). A planned parameter's {@code byValue} is its
+     *  {@code declared} kind. */
     public static final int VERSION = 32;
 
     private PlanJson() {
@@ -421,26 +424,11 @@ public final class PlanJson {
             case ExecutionPlan.Binding.One one -> {
                 o.put("_type", BindingTag.one.name());
                 o.put("nullType", one.nullType());
-                ExecutionPlan.TypeHole hole = one.hole();
-                if (hole != null) {
-                    Map<String, Object> h = new LinkedHashMap<>();
-                    h.put("at", hole.at());
-                    Map<String, Object> types = new LinkedHashMap<>();
-                    for (ExecutionPlan.ValueKind kind : ExecutionPlan.ValueKind.values()) {
-                        ExecutionPlan.TypeSpelling t = hole.types().get(kind);
-                        if (t != null) {
-                            Map<String, Object> spelling = new LinkedHashMap<>();
-                            spelling.put("name", t.name());
-                            spelling.put("digits", t.digits().name());
-                            if (t.fraction() != null) {
-                                spelling.put("fraction", t.fraction());
-                            }
-                            types.put(kind.name(), spelling);
-                        }
-                    }
-                    h.put("types", types);
-                    h.put("absent", hole.absent().name());
-                    o.put("typeHole", h);
+                ExecutionPlan.AsText asText = one.asText();
+                if (asText != null) {
+                    Map<String, Object> t = new LinkedHashMap<>();
+                    t.put("fraction", asText.fraction());
+                    o.put("asText", t);
                 }
             }
             case ExecutionPlan.Binding.Array array -> {
@@ -744,22 +732,10 @@ public final class PlanJson {
     private static ExecutionPlan.Binding readBinding(Json.Obj o) {
         return switch (tag(BindingTag.class, o, "binding")) {
             case one -> {
-                Json.Obj h = o.getObjOr("typeHole", null);
-                ExecutionPlan.TypeHole hole = null;
-                if (h != null) {
-                    Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> types =
-                            new java.util.EnumMap<>(ExecutionPlan.ValueKind.class);
-                    for (Map.Entry<String, Json.Node> e : h.getObj("types").fields().entrySet()) {
-                        Json.Obj t = (Json.Obj) e.getValue();
-                        types.put(named(ExecutionPlan.ValueKind.class, e.getKey(), "value kind"),
-                                new ExecutionPlan.TypeSpelling(t.getString("name"),
-                                        named(ExecutionPlan.Digits.class, t.getString("digits"), "type digits"),
-                                        t.getOr("fraction", null) == null ? null : t.getInt("fraction")));
-                    }
-                    hole = new ExecutionPlan.TypeHole(h.getInt("at"), types,
-                            named(ExecutionPlan.ValueKind.class, h.getString("absent"), "absent value kind"));
-                }
-                yield new ExecutionPlan.Binding.One(o.getString("nullType"), hole);
+                Json.Obj t = o.getObjOr("asText", null);
+                ExecutionPlan.AsText asText = t == null ? null
+                        : new ExecutionPlan.AsText(t.getOr("fraction", null) == null ? null : t.getInt("fraction"));
+                yield new ExecutionPlan.Binding.One(o.getString("nullType"), asText);
             }
             case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"));
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
