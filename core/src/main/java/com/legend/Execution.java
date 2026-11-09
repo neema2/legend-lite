@@ -85,20 +85,32 @@ public final class Execution {
             java.util.Set<com.legend.platform.Feature> features,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
             int batchRows) throws java.io.IOException {
-        if (typed.writes()) {
-            com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
-            com.legend.result.ResultSink sink = sinkOf.apply(plan);
-            com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
-            return plan;
-        }
         // planned first, then run: the session is opened from the plan's own target, never from the model (the
         // plan-as-data design's hole 7, the user's go of 2026-11-08: until then the door opened it from the compiled
         // model before planning, and the server's source read the model to find and fill it)
         com.legend.executionplan.ExecutionPlan plan = planned(typed, runtimeFqn, features);
         com.legend.result.ResultSink sink = sinkOf.apply(plan);
-        com.legend.executionplan.ExecutionPlan.Target target = plan.sendsTheAnswer() ? plan.answerSql().target()
+        com.legend.executionplan.ExecutionPlan.Target target = typed.writes() ? null
+                : plan.sendsTheAnswer() ? plan.answerSql().target()
                 : com.legend.planner.PlanMaker.runtimeTarget(typed.context(), java.util.Objects.requireNonNull(
                         runtimeFqn, "a query's runtime"));
+        runPlan(plan, target, typed.writes(), sessions, planSessions, establish, sink, batchRows);
+        return plan;
+    }
+
+    /** A product query's PLAN run (the run half of {@link #run}; slice 5, 2026-11-09: a host that planned the query
+     *  itself, pure/v1's execute, hands the plan, never the compiled query): one that writes on the plan's own sessions
+     *  ({@code planSessions}); one that reads on the session {@code sessions} opens for {@code target}, its declared
+     *  setup established as {@code establish} says; its rows to {@code sink}. */
+    public static void runPlan(com.legend.executionplan.ExecutionPlan plan,
+            com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Target target, boolean writes,
+            Source sessions, com.legend.exec.PlanSessions.Source planSessions, Establish establish,
+            com.legend.result.ResultSink sink, int batchRows) throws java.io.IOException {
+        if (writes) {
+            com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), planSessions, sink, batchRows);
+            return;
+        }
+        java.util.Objects.requireNonNull(target, "a reading plan's session target");
         try (com.legend.exec.Sessions.Session session = sessions.open(target)) {
             com.legend.exec.PlanSessions.Source on = switch (establish) {
                 // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
@@ -108,7 +120,6 @@ public final class Execution {
                 case AS_GIVEN -> com.legend.exec.PlanSessions.of(session);
             };
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
-            return plan;
         }
     }
 

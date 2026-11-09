@@ -32,8 +32,9 @@ public final class ConnectionResolver {
      *  reads runs on its runtime's connection, leased, established first as legend-engine establishes it on every
      *  acquisition (its declared test data run on it); a program that writes runs from its plan on the plan's sessions
      *  (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). A database failure is a {@link com.legend.error.DataError}. */
-    public static final PureV1Api.Runner RUNNER = (query, runtime, sinkOf) -> com.legend.Execution.run(query, runtime,
-            SOURCE, com.legend.exec.PlanSessions.shared(), com.legend.Execution.Establish.DECLARED_SETUP, sinkOf);
+    public static final PureV1Api.Runner RUNNER = (plan, target, writes, sink) -> com.legend.Execution.runPlan(plan,
+            target, writes, SOURCE, com.legend.exec.PlanSessions.shared(), com.legend.Execution.Establish.DECLARED_SETUP,
+            sink, com.legend.result.Batcher.DEFAULT_CAPACITY);
 
     /** The session for {@code runtimeFqn} of the compiled model {@code ctx}: the same session a query on that runtime
      *  executes on (a caller that seeds tables before querying shares the database) -- the runtime's target planned,
