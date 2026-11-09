@@ -5,7 +5,7 @@ package com.legend.test;
 
 import com.legend.ExecuteOptions;
 import com.legend.testexecutionplan.AssertListener;
-import com.legend.judge.SqlReplayReferee;
+import com.legend.testexec.SqlReplayReferee;
 
 /**
  * The seam a caller instruments a {@link PureTestRunner} through. Every

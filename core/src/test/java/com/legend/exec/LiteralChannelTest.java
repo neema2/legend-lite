@@ -3,7 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.judge.CanonicalDivergence;
+import com.legend.testexec.CanonicalDivergence;
 
 import com.legend.testing.Lean;
 import com.legend.testing.Program;

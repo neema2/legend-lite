@@ -3,6 +3,8 @@
 
 package com.legend.lowering;
 
+import com.legend.testexecutionplan.Column;
+
 import com.legend.compiler.spec.typed.FoldStrategy;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;

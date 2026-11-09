@@ -3,6 +3,8 @@
 
 package com.legend.driver;
 
+import com.legend.testexecutionplan.Failure;
+
 import com.legend.testexecutionplan.HostJudgment;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
@@ -10,7 +12,6 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.planner.LetPlanner;
@@ -407,7 +408,7 @@ final class HostAsserts implements TestDoor.Asserts {
         com.legend.compiler.spec.typed.TypedSpec inner = QueryDoor.innerAssert(ae, specs);
         if (inner != null) {
             // f IS one assert (the asserts-as-plan-nodes program, 2026-11-04): planned as any assert, its sides the
-            // step's; its failure is the error assertError matches (AssertErrorNative.judge)
+            // step's; its failure is the error assertError matches (com.legend.testexec.AssertErrorRuns.judge)
             Planned p = planAssert(inner, inner, letPrefix, frames, specs, env, env);
             if (p == null) {
                 return null;

@@ -45,7 +45,7 @@ class TaggedListStatementSizeTest {
                 int size;
                 try {
                     size = Compiler.query(ctx, q).executionPlan("s::RT").answerSql().statement().length();
-                } catch (com.legend.error.DialectCapability refused) {
+                } catch (com.legend.sql.DialectCapability refused) {
                     continue;   // the dialect refuses the shape by name: no statement to measure
                 }
                 if (size > CEILING) {

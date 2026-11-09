@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.testexec.Answer;
+
 import com.legend.json.Json;
 import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
@@ -1115,7 +1117,7 @@ public final class PureV1Api {
     private static boolean refusesTheText(Throwable e) {
         return e instanceof com.legend.error.LegendCompileException
                 || e instanceof com.legend.error.NotImplementedException
-                || e instanceof com.legend.error.DialectCapability;
+                || e instanceof com.legend.sql.DialectCapability;
     }
 
     /** Any other failure, as the server writes it: its class's simple name and its message (a database's refusal, its cause's). */

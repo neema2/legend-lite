@@ -51,7 +51,7 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         SCHEMA_INVARIANT("com.legend.error.SchemaInvariantException"),
         DATA("com.legend.error.DataError"),
         ASSERT_FAILED("com.legend.error.AssertFailed"),
-        DIALECT_CAPABILITY("com.legend.error.DialectCapability"),
+        DIALECT_CAPABILITY("com.legend.sql.DialectCapability"),
         /** the engine-text arm's refusal of a text side that is not a constant: answered at planning (the body is
          *  refused by name), never raised at run */
         NOT_A_CONSTANT("com.legend.driver.SqlTextVerdicts$NotAConstant"),

@@ -149,7 +149,7 @@ class ChannelBRelationTest {
                 + com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount() + " "
                 + com.legend.diagnostics.VerdictCensus.sqlCensus().entrySet().stream()
                         .filter(e -> e.getKey().startsWith("unjudged ")).toList() + " | "
-                + com.legend.judge.CanonicalDivergence.summary());
+                + com.legend.testexec.CanonicalDivergence.summary());
         // the UNJUDGED ceiling, shrink-only (measured 2026-10-18 under the agreement gate: 5)
         assertTrue(com.legend.diagnostics.VerdictCensus.sqlUnjudgedCount() <= 5,
                 "the database judge's UNJUDGED asserts grew past the measured residue (5): "
@@ -171,9 +171,9 @@ class ChannelBRelationTest {
         // not cover this JVM); the judge-vs-node pins retired WITH the
         // judge (parity pinned zero on every lane first).
         org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.judge.SqlTypeCensus.mismatchCount(),
+                com.legend.testexec.SqlTypeCensus.mismatchCount(),
                 "a label lie escaped reconciliation (the flip): "
-                        + com.legend.judge.SqlTypeCensus.summary());
+                        + com.legend.testexec.SqlTypeCensus.summary());
 
 
 

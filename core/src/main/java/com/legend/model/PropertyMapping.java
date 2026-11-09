@@ -1,5 +1,7 @@
 package com.legend.model;
 
+import com.legend.testexecutionplan.Column;
+
 import com.legend.protocol.TypeExpression;
 
 import com.legend.protocol.Multiplicity;

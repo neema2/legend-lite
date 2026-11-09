@@ -3,6 +3,8 @@
 
 package com.legend.sql;
 
+import com.legend.testexecutionplan.Column;
+
 import java.util.List;
 
 /**

@@ -554,9 +554,9 @@ public final class MinimalCorpus {
             com.legend.harness.RefereeVerify.CURRENT_TEST.set(t.fqn());
             // the byte-channel census attributes its disagreement samples
             // (leg 3.0: database mode's bug list) to the running test
-            com.legend.judge.CanonicalDivergence.attributeTo(t::fqn);
+            com.legend.testexec.CanonicalDivergence.attributeTo(t::fqn);
             // the primitive census's per-test tally (measurement only, under -Dlegend.diagnostics=primitives=per-test)
-            com.legend.judge.PrimitiveCensus.attributeTo(t::fqn);
+            com.legend.testexec.PrimitiveCensus.attributeTo(t::fqn);
             if (com.legend.diagnostics.Diagnostics.on("progress")) {
                 System.err.println("[corpus2] > " + t.fqn());
             }
@@ -614,7 +614,7 @@ public final class MinimalCorpus {
         }
 
         @Override
-        public com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
+        public com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
             return referee;
         }
 

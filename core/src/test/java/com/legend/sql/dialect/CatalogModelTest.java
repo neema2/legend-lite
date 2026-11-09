@@ -1,6 +1,6 @@
 package com.legend.sql.dialect;
 
-import com.legend.error.DialectCapability;
+import com.legend.sql.DialectCapability;
 
 import com.legend.compiler.element.type.ExprType;
 import com.legend.plan.UpstreamRelationType;

@@ -1,5 +1,7 @@
 package com.legend.sql;
 
+import com.legend.testexecutionplan.Column;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -33,6 +35,13 @@ public sealed interface SqlExpr
      * {@code PlatformTypes.TDS_NULL_CELL} is this same constant.
      */
     public static final String TDS_NULL_CELL = "TDSNull";
+
+    /** An identity layout's synthetic fields, as a class instance's JSON object carries them: its identity
+     *  ({@code __id}) and its class ({@code __type}). The compiler's {@code ClassLayouts.SYNTHETIC_ID} and
+     *  {@code SYNTHETIC_TYPE} are these same constants; here so a test's run reads an object by them without the
+     *  compiler (the plan-as-data design's slice 5, 2026-11-09). */
+    public static final String SYNTHETIC_ID = "__id";
+    public static final String SYNTHETIC_TYPE = "__type";
 
     /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE

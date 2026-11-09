@@ -802,7 +802,7 @@ class JavaEvalLedgerTest {
             // 2282 -> 2313 (2026-10-29, the doors, door 1): the body's last value statement answered to the caller's sink
             // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
             // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
-            // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
+            // (com.legend.testexec.SideShapes.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
             // the body driver's planning helpers (the seam program's S2g, 2026-10-31), moved with no rule changed and
             // pinned where they went, so the code they hold stays on this ledger: the engine's plan text (D30's plan-time
             // values: planToString, toSQLString, the plan model) and the body planner (the resolver, the Lowerer, the
@@ -1576,7 +1576,7 @@ class JavaEvalLedgerTest {
                     // class (testplan/BodyClass) planned whole and run as one plan, every other walked; it plans
                     // nothing itself and evaluates no value (the ledger's texts are the plan's, recorded as they
                     // ran). Since M5f (2026-11-01) it holds on a moved body's answer the row-count contract the walk
-                    // holds (JudgePlans.holding: at most one row, at least one, exactly one for a to-one reader),
+                    // holds (com.legend.testexec.SideShapes.holding: at most one row, at least one, exactly one for a to-one reader),
                     // counting rows, never computing a cell -- the D30 residue until the plan carries the contract
                     "BodyRouter.java",
                     // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): a test plan run -- lowered to the runner's program, each verdict step read as its judge

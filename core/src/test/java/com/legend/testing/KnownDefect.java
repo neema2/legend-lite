@@ -3,6 +3,8 @@
 
 package com.legend.testing;
 
+import com.legend.testexecutionplan.Extension;
+
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.InvocationInterceptor;

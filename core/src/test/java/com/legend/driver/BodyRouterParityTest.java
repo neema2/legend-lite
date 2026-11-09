@@ -1745,7 +1745,7 @@ class BodyRouterParityTest {
                     : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
-            com.legend.judge.SqlReplayReferee referee = new StubReferee(c);
+            com.legend.testexec.SqlReplayReferee referee = new StubReferee(c);
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
@@ -1818,7 +1818,7 @@ class BodyRouterParityTest {
      *  witnesses use run on every in-process backend), its rows against ours as sorted text multisets -- a test
      *  double of the SPI, not the harness's comparison policy (spec's {@code ReplayReferee}); a golden the connection
      *  refuses is a decline. The generator's fetch entries are not exercised by any witness here. */
-    private static final class StubReferee implements com.legend.judge.SqlReplayReferee {
+    private static final class StubReferee implements com.legend.testexec.SqlReplayReferee {
         private final Connection c;
 
         StubReferee(Connection c) {

@@ -3,6 +3,9 @@
 
 package com.legend.driver;
 
+import com.legend.testplan.TestDoor;
+
+
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
@@ -12,7 +15,6 @@ import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.testexecutionplan.TestPlanJson;
 import com.legend.test.StorelessRuntime;
-import com.legend.testplan.TestDoor;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

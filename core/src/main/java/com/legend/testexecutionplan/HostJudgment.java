@@ -16,7 +16,7 @@ import java.util.Set;
  * per comparison, a closed list -- with the few facts the comparison needs that the sides' rows do not carry, every
  * one computed when the assert is PLANNED from the typed arguments and the model: the order view of a side, whether a
  * {@code $r.values} read is the envelope's, the subtype closure an {@code assertInstanceOf} accepts, the key trees a
- * keyed pair restricts to, the byte verdict's static gates. {@code HostJudge.judge} switches on the record and runs
+ * keyed pair restricts to, the byte verdict's static gates. {@code com.legend.testexec.HostJudgments.judge} switches on the record and runs
  * that one Java function over the rows and the facts. Part of a test body's plan (the plan-as-data design's step 4,
  * 2026-11-08: docs/PLAN_AS_DATA_2026_11_07.md 2.2): data alone -- no compiler object, no typed tree, no model, no
  * closure; the engine-text asserts' APPEAL is named by its number ({@link EngineText}), the plan's own record by verdict
@@ -223,7 +223,7 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     /** {@code assertError(f, expected[, line, column])} (the walker-deletion program, 2026-11-03): an ordinary verdict
      *  whose answer is an error -- its function's whole body is the step's sub-plan (ruling N3): each let that does
      *  work and the last statement are the step's sides, read in the body's order, and the first error reading them
-     *  raises is judged at the step by the arm's own rule ({@code AssertErrorNative.judge}), counted and reported as
+     *  raises is judged at the step by the arm's own rule ({@code com.legend.testexec.AssertErrorRuns.judge}), counted and reported as
      *  any assert is; {@code caught} the error {@code f} raised while it was PLANNED (a deferred guard's, as the walk's arm
      *  catches it where its lowering is the evaluation), else null. A side that raises nothing fails the assert: "No
      *  error was thrown". */

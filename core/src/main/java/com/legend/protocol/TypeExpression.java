@@ -1,5 +1,7 @@
 package com.legend.protocol;
 
+import com.legend.testexecutionplan.Column;
+
 import java.util.List;
 import java.util.Objects;
 

@@ -145,7 +145,7 @@ class AssertVerdictsTest {
                 .value());
         assertEquals(judged + 1, com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount(),
                 "enum-under-Any pair must be JUDGED by the database judge, in agreement with the host: "
-                        + com.legend.judge.CanonicalDivergence.summary());
+                        + com.legend.testexec.CanonicalDivergence.summary());
     }
 
     @Test

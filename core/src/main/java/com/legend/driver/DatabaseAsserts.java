@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
 
+import com.legend.testexecutionplan.Verdicts;
+
 import com.legend.testexecutionplan.HostJudgment;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
@@ -13,8 +15,7 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.testexecutionplan.AssertListener;
-import com.legend.judge.VerdictBatch;
+import com.legend.testplan.VerdictBatch;
 import com.legend.planner.LetPlanner;
 import com.legend.planner.PlanAllocations;
 import com.legend.planner.ProgramFrames;
@@ -320,7 +321,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      * host planner until it is a raising statement), or a planning raise no arm takes (a wall raised at its turn).
      */
     private static TestPlan.@Nullable Verdicts errorVerdict(HostAsserts.Planned step, BodyDriver.ExecEnv env,
-            java.util.function.Supplier<com.legend.judge.VerdictBatch.@Nullable Sole> innerSole) {
+            java.util.function.Supplier<com.legend.testplan.VerdictBatch.@Nullable Sole> innerSole) {
         AssertVerdicts.HostAssert a = step.assertion();
         if (a.beforeTheArm() != null
                 || !(HostJudgment.core(a.check().judgment()) instanceof HostJudgment.AssertError ae)) {
@@ -334,13 +335,13 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // f IS one assert: its own verdict row, planned by the database judge, as a statement that RAISES its failure
             // (VerdictSql.raisingRow) -- the base the runner reads and catches as any f's; a failure decided at planning
             // is the outcome as a constant
-            com.legend.judge.VerdictBatch.Sole sole = innerSole.get();
-            if (sole instanceof com.legend.judge.VerdictBatch.Sole.Decided d) {
+            com.legend.testplan.VerdictBatch.Sole sole = innerSole.get();
+            if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Decided d) {
                 raised = com.legend.lowering.VerdictSql.Raised.raised(String.valueOf(d.failure().message()), null,
                         null);
                 base = List.of();
                 raises = false;
-            } else if (sole instanceof com.legend.judge.VerdictBatch.Sole.Row r && r.on().equals(env.target())) {
+            } else if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Row r && r.on().equals(env.target())) {
                 var one = new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1);
                 var schema = new com.legend.compiler.element.type.Type.RelationType(List.of(
                         new com.legend.compiler.element.type.Type.RelationType.Column("value",
@@ -395,7 +396,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     /** The assert {@code statement}'s assertError holds as its function ({@code assertError(|assertEquals(...), m)}),
      *  planned by the database judge's arm alone in a batch of its own: its one verdict row, or its failure decided at
      *  planning; null where the arm plans it as no one row. */
-    private static com.legend.judge.VerdictBatch.@Nullable Sole innerSole(TypedSpec statement, List<TypedSpec> letPrefix,
+    private static com.legend.testplan.VerdictBatch.@Nullable Sole innerSole(TypedSpec statement, List<TypedSpec> letPrefix,
             Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env) {
         if (!(Lets.bare(statement) instanceof com.legend.compiler.spec.typed.TypedNativeCall ae)) {
             return null;
@@ -404,7 +405,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         if (inner == null) {
             return null;
         }
-        com.legend.judge.VerdictBatch batch = BodyDriver.newVerdictBatch(env);
+        com.legend.testplan.VerdictBatch batch = BodyDriver.newVerdictBatch(env);
         BodyDriver.ExecEnv benv = env.withVerdictBatch(batch);
         BodyDriver.ExecEnv at = BodyDriver.frameReplaceEnv(inner, frames, benv, letPrefix, specs);
         AssertVerdicts.SpliceHook hook = BodyDriver.spliceHook(frames, letPrefix, specs, benv)::apply;

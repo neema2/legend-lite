@@ -72,7 +72,7 @@ final class ArchitectureTest {
             java.util.Map.entry("builtin", "com.legend.builtin.Pure"),
             java.util.Map.entry("platform", "com.legend.platform.WalledBodies"),
             // D71, 2026-10-30: the judge layer, out of exec
-            java.util.Map.entry("judge", "com.legend.judge.Equality"),
+            java.util.Map.entry("judge", "com.legend.testexec.Equality"),
             java.util.Map.entry("compiler_element_type", "com.legend.compiler.element.type.ExprType"),
             java.util.Map.entry("sql_dialect", "com.legend.sql.dialect.SqlDialect"),
             java.util.Map.entry("database", "com.legend.database.Databases"),
@@ -1237,7 +1237,7 @@ final class ArchitectureTest {
     private static final java.util.Set<String> PLANNING_ONLY = java.util.Set.of("com.legend.driver.HostAsserts",
             "com.legend.driver.DatabaseAsserts", "com.legend.driver.AgreementAsserts", "com.legend.driver.AssertBranch",
             "com.legend.driver.SeedSqlForms", "com.legend.driver.LiteralFold", "com.legend.driver.EngineTextAppeals",
-            "com.legend.driver.AppealsByVerdict", "com.legend.driver.JudgmentFacts", "com.legend.judge.VerdictIds");
+            "com.legend.driver.AppealsByVerdict", "com.legend.driver.JudgmentFacts", "com.legend.testplan.VerdictIds");
 
     /** R1's pinned crossings, by source (the first measure of every class, 2026-11-08, the plan-as-data design's slice
      *  3: 14 mixed classes, 266 crossings; 281 the same day once the slice 3 invariant audit's fix keyed the run-only
@@ -1379,7 +1379,7 @@ final class ArchitectureTest {
             "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanRunner",
             "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanSessions$Source",
             // R4: the referee's SPI takes the body's session (the compatibility referee: the edge's, P2)
-            "R4 com.legend.judge.SqlReplayReferee -> com.legend.exec.Sessions$Session");
+            "R4 com.legend.testexec.SqlReplayReferee -> com.legend.exec.Sessions$Session");
 
     /**
      * <strong>NO COMPILED MODEL REACHES THE RUN (the plan-as-data design's slice 3, docs/PLAN_AS_DATA_2026_11_07.md
@@ -1541,7 +1541,7 @@ final class ArchitectureTest {
             // and rowsLegNow take no model, and verify and verifyPlan take Appeal.Enums -- nine sites)
             // (gone 2026-11-09, slice 4's hole 2: the system database found by the plan's own target -- its engine and
             // the graph's store key, Database.System.graphKey -- one current session per engine in SystemDatabase,
-            // replaced when another graph's key comes; SystemDatabase.of(ctx) deleted, and runBody and BodyRouter.run
+            // replaced when another graph's key comes; SystemDatabase.of(ctx) deleted, and runBody and com.legend.testexec.TestRunner.run
             // take no model: the last six sites)
             );
 
@@ -1586,7 +1586,7 @@ final class ArchitectureTest {
                 "verdict(java.lang.String,boolean,java.lang.String)", "declined(java.lang.String,java.lang.String)",
                 "unjudged(java.lang.String,java.lang.String)", "refereed(java.lang.String,java.lang.String)");
         java.util.Set<String> handed = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.judge.SqlReplayReferee");
+                "com.legend.testexec.SqlReplayReferee");
         java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.driver.BodyDriver$ExecEnv",
                 "com.legend.planner.PlanEnv");
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
@@ -1612,11 +1612,11 @@ final class ArchitectureTest {
             }
         }
         java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.judge.SqlReplayReferee", "com.legend.driver.Appeals#listenerNow", "com.legend.driver.Appeals#hold",
+                "com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
                 "com.legend.driver.SqlTextVerdicts#declinedNow", "com.legend.driver.SqlTextVerdicts#declinedTo",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
-                "com.legend.judge.CanonicalDivergence#sqlUnjudged", "com.legend.judge.CanonicalDivergence#sqlRaised",
-                "com.legend.judge.CanonicalDivergence#sqlRaisedAt", "com.legend.judge.CanonicalDivergence#sqlEnter");
+                "com.legend.testexec.CanonicalDivergence#sqlUnjudged", "com.legend.testexec.CanonicalDivergence#sqlRaised",
+                "com.legend.testexec.CanonicalDivergence#sqlRaisedAt", "com.legend.testexec.CanonicalDivergence#sqlEnter");
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
             String at = u.getOwner().getName() + "#" + u.getName();
             if (PLANNING_ENTRIES.contains(at)) {
@@ -1952,9 +1952,9 @@ final class ArchitectureTest {
         noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.driver.HostJudge")
             .and().doNotHaveFullyQualifiedName("com.legend.driver.DatabaseJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.JudgeJson")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.JudgeJson$JsonSimple")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.JudgeJson$JsonSimple$Kind")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple$Kind")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.JudgeJson(\\$.*)?")
             .as("S144: json-simple's grammar is read by the two judges alone")
             .check(CORE_PROD_CLASSES);
@@ -1970,10 +1970,10 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.driver.HostJudge")
             .and().doNotHaveFullyQualifiedName("com.legend.driver.DatabaseJudge")
             .and().doNotHaveFullyQualifiedName("com.legend.driver.AssertErrorNative")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.PureAsserts")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.TdsCompare")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.CanonicalForm")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.CanonicalDivergence")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.PureAsserts")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.TdsCompare")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
@@ -1983,24 +1983,24 @@ final class ArchitectureTest {
             // JUDGING_TWO_MODES step 2: the host judge and the service-test
             // judge are the seam's own (Equality decides; TestAssertions
             // routes EqualToJson to it)
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.Equality")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.Equality")
             .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
             // leg 3.4 (2026-09-20): the verdict seam's SENDING arm — the
             // body's deferred verdict statements as one statement; it
             // counts the census rows the arm counted at the assert
             // (raised, unjudged) and decides nothing (the row's judgment
             // is injected from AssertVerdicts)
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.VerdictBatch")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.VerdictBatch")
             // the batch's planned half (the test-is-the-product plan's M7, 2026-11-01) is data since the plan-as-data
             // design's step 5 (2026-11-08): its root loop is the plan's and runs in RootLoops, which makes the census
             // calls the planned half made (raised, unjudged); it decides nothing -- the row's judgment is handed in
-            // (DatabaseJudge.verdictOf), its appeal heard by number
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.RootLoops")
-            .and().doNotHaveFullyQualifiedName("com.legend.judge.RootLoops$Run")
+            // (com.legend.testexec.DatabaseVerdicts.verdictOf), its appeal heard by number
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops$Run")
             // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is the edge's, decided after the body's
             // run): a body's held appeals, the verdict seam's after the run -- a failed appeal counted as raised, as a
             // failure at its step is (the census call); the appeal's own judgment is SqlTextVerdicts', nothing here
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.Appeals")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.Appeals")
             // the four live in com.legend.judge since 2026-10-30 (D71, the seam-and-wall program's B1: the judge
             // layer out of exec); the rule's exemptions name them there too
             .should().dependOnClassesThat().haveNameMatching(
@@ -2081,7 +2081,7 @@ final class ArchitectureTest {
                 // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
                 // bounded witness sample for the harness-published
                 // table; measurement only, never verdict-affecting
-                "com.legend.judge.CanonicalDivergence.SAMPLES",
+                "com.legend.testexec.CanonicalDivergence.SAMPLES",
                 // V7 dual-channel census (V7_ASSERT_VERDICT_CHARTER
                 // §4.1): per-form harness-vs-production verdict counts,
                 // bounded classified declines, bounded disagreement
@@ -2095,26 +2095,26 @@ final class ArchitectureTest {
                 // the shared 200-cap (decline-row crowding, the
                 // dual-verdict buffer's lesson re-learned); bounded by
                 // the exact-pinned disagree count (23); measurement only
-                "com.legend.judge.CanonicalDivergence.DISAGREE_SAMPLES",
-                "com.legend.judge.CanonicalDivergence.V7_FORMS",
+                "com.legend.testexec.CanonicalDivergence.DISAGREE_SAMPLES",
+                "com.legend.testexec.CanonicalDivergence.V7_FORMS",
                 // leg 3.0 (DATABASE_MODE_HOMEWORK §4a): the SQL canon's
                 // CLAIM / DECLINE census per assert family and reason —
                 // bounded by families × decline-reason heads (~40 keys);
                 // measurement only, printed by the corpus lanes, never
                 // read by a verdict
                 "com.legend.diagnostics.VerdictCensus.SQL_CENSUS",
-                "com.legend.judge.CanonicalDivergence.V7_DECLINES",
-                "com.legend.judge.CanonicalDivergence.V7_SAMPLES",
+                "com.legend.testexec.CanonicalDivergence.V7_DECLINES",
+                "com.legend.testexec.CanonicalDivergence.V7_SAMPLES",
                 // step-0 residue census (FULL_RESIDUE_CENSUS_2026_08_30):
                 // per-ROW decline attribution, UNCAPPED by census
                 // doctrine but bounded by the sweep's own decline count
                 // (~420); measurement only, never verdict-affecting
-                "com.legend.judge.CanonicalDivergence.V7_DECLINE_WITNESSES",
+                "com.legend.testexec.CanonicalDivergence.V7_DECLINE_WITNESSES",
                 // slice-1 quarantine channel move (census §10h): the
                 // wall-surfaced quarantine tests, vocabulary-matched —
                 // bounded by the partition's own size (20 today);
                 // measurement only, never verdict-affecting
-                "com.legend.judge.CanonicalDivergence.QUARANTINED_WALL_TESTS",
+                "com.legend.testexec.CanonicalDivergence.QUARANTINED_WALL_TESTS",
                 // SQLTEXT slice 3a: the text-emission census's
                 // per-reason text-verdict tally (foreign dialects,
                 // replay declines) — bounded by decline-reason
@@ -2124,10 +2124,10 @@ final class ArchitectureTest {
                 // counters (declared-vs-computed pair -> count);
                 // measurement only, never verdict-affecting — the
                 // CanonicalDivergence pattern
-                "com.legend.judge.SqlTypeCensus.CLASSES",
+                "com.legend.testexec.SqlTypeCensus.CLASSES",
                 // T3: bounded per-class WITNESSES (3 max each) — the
                 // emission-seam locator; measurement only
-                "com.legend.judge.SqlTypeCensus.SAMPLES",
+                "com.legend.testexec.SqlTypeCensus.SAMPLES",
                 // §E3 M-N1: the nullability differential's classified
                 // counters + bounded witnesses (fact-vs-label nullable
                 // — the M-N3 flip payload); measurement only, the
@@ -2135,17 +2135,17 @@ final class ArchitectureTest {
                 // dumped by the corpus runner (NAV_ARM_CENSUS_4AD.md)
                 // SqlTypeCensus pattern (runtime accumulation is the
                 // legitimate static-census shape)
-                "com.legend.judge.SqlTypeCensus.NUL_CLASSES",
-                "com.legend.judge.SqlTypeCensus.NUL_SAMPLES",
+                "com.legend.testexec.SqlTypeCensus.NUL_CLASSES",
+                "com.legend.testexec.SqlTypeCensus.NUL_SAMPLES",
                 // (the §E3 slack census's SLACK_CLASSES and SLACK_SAMPLES LEFT this allowlist 2026-10-29: deleted
                 // with the wire census's arm by the doors' audit, D64 -- callerless since the plan runner)
                 // the primitive census (2026-10-12, the coverage map, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20): a
                 // tally per MIR primitive by outcome, bounded by the MIR's vocabulary; written only under
                 // -Dlegend.diagnostics=primitives; measurement only, never verdict-affecting (the SqlTypeCensus
                 // pattern)
-                "com.legend.judge.PrimitiveCensus.TALLY",
+                "com.legend.testexec.PrimitiveCensus.TALLY",
                 // and its per-test sets under primitives=per-test (the same day): bounded by tests x vocabulary
-                "com.legend.judge.PrimitiveCensus.TESTS",
+                "com.legend.testexec.PrimitiveCensus.TESTS",
                 // com.legend.exec.SessionState.OF LEFT this register 2026-10-30 (D70, the seam's step A): the
                 // process-wide weak map keyed by the driver's connection is gone -- the state is the owning session's
                 // own, shared by its views (Sessions.Session.state()); a product session owns its connection
@@ -2161,7 +2161,7 @@ final class ArchitectureTest {
                 // the current system database of each engine (the plan-as-data design's hole 2, 2026-11-09): found by
                 // the plan's own target, one per engine plus those a run still leases; under the class's lock, never
                 // read by a verdict -- it replaced the graph-keyed cache in the compiled model (ModelContext.derived)
-                "com.legend.driver.SystemDatabase.CURRENT");
+                "com.legend.exec.SystemDatabase.CURRENT");
         java.util.List<String> violations = new java.util.ArrayList<>();
         for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
             if (jc.getPackageName().startsWith("com.legend.cache")) {

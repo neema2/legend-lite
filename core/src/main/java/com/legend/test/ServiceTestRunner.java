@@ -3,6 +3,8 @@
 
 package com.legend.test;
 
+import com.legend.exec.Sessions;
+
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.element.ModelContext;

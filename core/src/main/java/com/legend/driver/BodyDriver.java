@@ -3,12 +3,11 @@
 
 package com.legend.driver;
 
+import com.legend.testplan.VerdictBatch;
+
 import com.legend.ExecuteOptions;
 import com.legend.Execution;
 import com.legend.TypedQuery;
-import com.legend.planner.CrossStoreGuard;
-import com.legend.planner.PlanMaker;
-import com.legend.planner.QueryParameters;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.testexecutionplan.TypedSide;
@@ -65,13 +64,13 @@ public final class BodyDriver {
             com.legend.executionplan.ExecutionPlan.Target target,
             ExecuteOptions options,
             com.legend.exec.ExecutionTrace trace,
-            com.legend.judge.@com.legend.base.Nullable VerdictBatch verdictBatch,
+            com.legend.testplan.@com.legend.base.Nullable VerdictBatch verdictBatch,
             SqlTextVerdicts.@com.legend.base.Nullable Collector engineText,
             com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage,
             BodyDriver.@com.legend.base.Nullable ExecEnv appealOn,
             // the body's verdict ids, one counter shared by every copy of the environment and every planner of the body
             // (the plan-as-data design's step 0, 2026-11-08): planning state, never read at run
-            com.legend.judge.VerdictIds verdictIds,
+            com.legend.testplan.VerdictIds verdictIds,
             // the body's engine-text appeals by number, shared likewise (the plan-as-data design's step 4, 2026-11-08):
             // planning's registry, the plan carrying those its verdicts name (step 8b)
             EngineTextAppeals appeals) {
@@ -87,7 +86,7 @@ public final class BodyDriver {
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, new com.legend.exec.ExecutionTrace(), null, null, null, null,
-                    new com.legend.judge.VerdictIds(), new EngineTextAppeals());
+                    new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
         }
 
         ModelContext ctx() {
@@ -129,7 +128,7 @@ public final class BodyDriver {
                             engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
-        ExecEnv withVerdictBatch(com.legend.judge.VerdictBatch b) {
+        ExecEnv withVerdictBatch(com.legend.testplan.VerdictBatch b) {
             return new ExecEnv(plan, target, options, trace, b, engineText,
                     failureMessage, appealOn, verdictIds, appeals);
         }
@@ -192,10 +191,10 @@ public final class BodyDriver {
 
     /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
      * statement as a plan (JudgePlans, step 6). */
-    static com.legend.judge.VerdictBatch newVerdictBatch(ExecEnv env) {
-        return new com.legend.judge.VerdictBatch(com.legend.lowering.VerdictSql::batch,
+    static com.legend.testplan.VerdictBatch newVerdictBatch(ExecEnv env) {
+        return new com.legend.testplan.VerdictBatch(com.legend.lowering.VerdictSql::batch,
                 com.legend.lowering.VerdictSql::either, com.legend.lowering.VerdictSql::selfContained, JudgePlans.runner(env),
-                env.trace(), env.verdictIds());
+                env.verdictIds());
     }
 
     /** Whether {@code nc} is a native of the asserts package, asked by its declaration: the verdict family's members
@@ -401,10 +400,10 @@ public final class BodyDriver {
         com.legend.compiler.element.type.ExprType plannedInfo = cte.plannedInfo();
         com.legend.sql.SqlSelect extentRows = cte.extentRows();
         if (env.verdictBatch() != null) {
-            com.legend.judge.VerdictBatch.frame(extentRows != null ? com.legend.judge.VerdictBatch.FrameRead.CLASS_CTE
-                    : plan != null ? com.legend.judge.VerdictBatch.FrameRead.CTE
-                    : fc.relationRooted() ? com.legend.judge.VerdictBatch.FrameRead.PASTED
-                    : com.legend.judge.VerdictBatch.FrameRead.CLASS);
+            com.legend.testplan.VerdictBatch.frame(extentRows != null ? com.legend.testplan.VerdictBatch.FrameRead.CLASS_CTE
+                    : plan != null ? com.legend.testplan.VerdictBatch.FrameRead.CTE
+                    : fc.relationRooted() ? com.legend.testplan.VerdictBatch.FrameRead.PASTED
+                    : com.legend.testplan.VerdictBatch.FrameRead.CLASS);
         }
         return new ExecFrame(fc.chain(),
                 fc.relationRooted(), env.tableReplace(), ec, plan, plannedInfo,

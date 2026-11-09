@@ -4,9 +4,9 @@
 /**
  * THE JUDGE LAYER (D71, 2026-10-30, the seam-and-wall program's B1; docs/RESULT_BOUNDARY_START_HERE.md, "The seam
  * and the wall"): the verdict of a test body's assertion, and nothing a product query runs on. The host lattice
- * ({@link com.legend.judge.PureAsserts}, {@link com.legend.judge.Equality}), the grid compare
- * ({@link com.legend.judge.TdsCompare}), the canonical instruments ({@link com.legend.judge.CanonicalForm},
- * {@link com.legend.judge.CanonicalDivergence}), the verdict batch, the SQL replay referee, the judges' collected
+ * ({@link com.legend.testexec.PureAsserts}, {@link com.legend.testexec.Equality}), the grid compare
+ * ({@link com.legend.testexec.TdsCompare}), the canonical instruments ({@link com.legend.testexec.CanonicalForm},
+ * {@link com.legend.testexec.CanonicalDivergence}), the verdict batch, the SQL replay referee, the judges' collected
  * side ({@link com.legend.testexecutionplan.TypedSide}), the canon rider (the lowering's since the seam program's S4a, 2026-10-31:
  * the canon wrap's outcome, written where a side is planned), the instance ids (the planner's since
  * the seam program's S2g, 2026-10-31: planning state), the type and primitive censuses and

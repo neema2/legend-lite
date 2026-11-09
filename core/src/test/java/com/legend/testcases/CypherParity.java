@@ -3,6 +3,10 @@
 
 package com.legend.testcases;
 
+import com.legend.testexec.Answer;
+
+import com.legend.testexecutionplan.Edge;
+
 import com.legend.testing.Lean;
 
 import java.io.IOException;
@@ -655,7 +659,7 @@ public final class CypherParity {
         } catch (Exception | StackOverflowError e) {
             boolean refusal = e instanceof com.legend.error.NotImplementedException;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                refusal |= t instanceof com.legend.error.DialectCapability;
+                refusal |= t instanceof com.legend.sql.DialectCapability;
             }
             if (refusal) {
                 return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
@@ -711,7 +715,7 @@ public final class CypherParity {
         // TCK's lane judges it: lite does not read the statement, so it does not catch Neo4j's error (PR #67's
         // review, 2026-10-22: eight cases had passed for BOTH_ERROR on a refusal)
         for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof com.legend.error.DialectCapability || refusedAsItRan(t)) {
+            if (t instanceof com.legend.sql.DialectCapability || refusedAsItRan(t)) {
                 return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
             }
         }
@@ -1213,7 +1217,7 @@ public final class CypherParity {
             }
             boolean refusal = e instanceof com.legend.error.NotImplementedException;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                refusal |= t instanceof com.legend.error.DialectCapability;
+                refusal |= t instanceof com.legend.sql.DialectCapability;
             }
             return new SqlParity.Outcome(refusal ? SqlParity.Status.REFUSED : SqlParity.Status.ERROR,
                     "the control query: " + oneLine(e));

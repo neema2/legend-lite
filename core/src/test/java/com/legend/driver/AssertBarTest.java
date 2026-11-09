@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
 
+import com.legend.testexec.Answer;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

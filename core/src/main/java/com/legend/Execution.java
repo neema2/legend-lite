@@ -3,6 +3,10 @@
 
 package com.legend;
 
+import com.legend.testexecutionplan.AssertListener;
+
+import com.legend.testexec.SqlReplayReferee;
+
 import com.legend.compiler.element.ModelContext;
 import com.legend.driver.BodyRouter;
 
@@ -174,7 +178,7 @@ public final class Execution {
      * as it is judged (one event each, in statement order; a failure is raised after its report), the SQL-text
      * referee {@code referee} consulted where an assert carries a golden text (the harnesses' registration seam;
      * production passes neither), nothing materialized returned: the last statement's answer, where a caller wants
-     * it, streams to the sink the caller hands for its shape ({@link Answer}; the doors, 2026-10-29: until then the
+     * it, streams to the sink the caller hands for its shape ({@link com.legend.testexec.Answer}; the doors, 2026-10-29: until then the
      * last side came back materialized, {@code ProgramReport.last}). The session is closed when the program ends
      * (the source's lease: nothing for a caller's own, {@link Source#given}). It is exactly {@link #runBody} of
      * {@link #planBody}, nothing between them: it provides no fixture for the stores the plan's appeals name
@@ -183,8 +187,8 @@ public final class Execution {
      */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             Source sessions, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
-            @com.legend.base.Nullable Answer answer) {
+            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            @com.legend.base.Nullable com.legend.testexec.Answer answer) {
         ModelContext ctx = typed.context();
         // planned before any session is opened: planning names targets, never sessions
         PlannedProgram planned = planBody(typed, runtimeFqn, options);
@@ -197,11 +201,11 @@ public final class Execution {
     }
 
     /** {@link #runProgram(TypedQuery, String, Source, com.legend.testexecutionplan.AssertListener,
-     *  com.legend.judge.SqlReplayReferee, ExecuteOptions, Answer)} with no answer wanted: the body's last statement
+     *  com.legend.testexec.SqlReplayReferee, ExecuteOptions, com.legend.testexec.Answer)} with no answer wanted: the body's last statement
      *  runs as every other and answers nothing to anyone (the corpus's bodies, whose verdicts are the listener's). */
     public static void runProgram(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             Source sessions, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
+            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options) {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
@@ -241,12 +245,23 @@ public final class Execution {
      */
     public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session,
             com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
-            @com.legend.base.Nullable Answer answer) {
+            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            @com.legend.base.Nullable com.legend.testexec.Answer answer) {
         // a plan naming an appeal it does not carry is refused before anything runs, whoever made it (the slice 3
         // invariant audit, 2026-11-08: the planning door checked it, a plan handed in did not)
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(planned.plan());
-        BodyRouter.run(planned.plan(), session, listener, referee, options, answer);
+        com.legend.testexec.TestRunner.run(planned.plan(), session, systemConnectionsByEngine(options), options.edge(),
+                listener, referee, answer);
+    }
+
+    /** The host's system connections keyed by the plan's engine (the options name the model's engine): the run finds a
+     *  system database by the plan's target alone. */
+    private static java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener>
+            systemConnectionsByEngine(ExecuteOptions options) {
+        java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener> out =
+                new java.util.LinkedHashMap<>();
+        options.systemConnections().forEach((t, o) -> out.put(com.legend.planner.ConnectionPlans.type(t), o));
+        return out;
     }
 
     /** {@code typed} PLANNED NOW for a session of its runtime's database, to run later (zero exemptions, the
@@ -262,15 +277,5 @@ public final class Execution {
         java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
                 com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
         return BodyRouter.planned(program != body ? typed.withBody(program) : typed, runtimeFqn, dialect, options);
-    }
-
-    /** Where a program's last statement answers: the sink for its shape, made once the shape is known (a relation,
-     *  a value of one column, a graph fetch's objects) -- a writer at the boundary, as a product answer's
-     *  ({@link #run}'s {@code sinkOf}). The body driver streams a planned statement's typed rows through the plan
-     *  runner to it; an answer it holds in Java (a host constant the prelude gave, a verdict, a staged let's rows, a
-     *  graph fetch's objects read as one cell) is written through a batcher as a host's rows are. */
-    @FunctionalInterface
-    public interface Answer {
-        com.legend.result.ResultSink of(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape);
     }
 }

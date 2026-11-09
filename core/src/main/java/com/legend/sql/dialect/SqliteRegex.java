@@ -3,7 +3,9 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.error.DialectCapability;
+import com.legend.testexecutionplan.Edge;
+
+import com.legend.sql.DialectCapability;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

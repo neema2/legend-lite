@@ -3,6 +3,8 @@
 
 package com.legend.plan;
 
+import com.legend.testexecutionplan.Column;
+
 import com.legend.compiler.element.ModelContext;
 import com.legend.error.NotImplementedException;
 import com.legend.lineage.ScanRelations;

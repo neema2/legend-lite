@@ -194,7 +194,7 @@ class CodeShapeGuardrailTest {
             // columns as announced, whether the one value column is to-one, the row count for the comma and the
             // to-one refusal
             "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
-            // the streamed answer's cardinality sink (JudgePlans.Cardinality, the doors, door 1, 2026-10-29): the rows
+            // the streamed answer's cardinality sink (com.legend.testexec.SideShapes.Cardinality, the doors, door 1, 2026-10-29): the rows
             // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
             "JudgePlans.rows",
             // parser cursors + scope state

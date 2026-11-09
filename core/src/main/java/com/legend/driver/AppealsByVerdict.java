@@ -3,10 +3,7 @@
 
 package com.legend.driver;
 
-import com.legend.testexecutionplan.Appeal;
 import com.legend.testexecutionplan.Extension;
-import com.legend.testexecutionplan.HostJudgment;
-import com.legend.testexecutionplan.RootLoop;
 import com.legend.testexecutionplan.TestPlan;
 
 import java.util.ArrayList;

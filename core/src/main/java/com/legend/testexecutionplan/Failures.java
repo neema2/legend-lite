@@ -59,7 +59,7 @@ public final class Failures {
                 String unjudged = f.unjudgedReason();
                 yield unjudged != null ? AssertFailed.unjudged(unjudged, text(f)) : new AssertFailed(text(f));
             }
-            case DIALECT_CAPABILITY -> new com.legend.error.DialectCapability(text(f));
+            case DIALECT_CAPABILITY -> new com.legend.sql.DialectCapability(text(f));
             case NOT_A_CONSTANT -> new IllegalStateException("a text side that is not a constant of the plan is"
                     + " refused at planning, never raised at run (" + f.where() + "): " + m);
             case ILLEGAL_STATE -> new IllegalStateException(m);

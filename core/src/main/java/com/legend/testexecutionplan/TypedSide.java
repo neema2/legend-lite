@@ -9,7 +9,7 @@ import java.util.Objects;
  * {@code ExecutionResult} until then, whose other role -- the product's materialized answer -- is gone: a product
  * answer is a plan, written at the boundary): a sealed quartet, one variant per {@link ResultShape}, which the body
  * driver's judges build to compare an assert's two sides and the SQL-text referee verifies; a side the driver holds at
- * a body's end is written to the caller's sink as host rows ({@code JudgePlans.host}, door 1, 2026-10-29). Never what
+ * a body's end is written to the caller's sink as host rows ({@code com.legend.testexec.SideShapes.host}, door 1, 2026-10-29). Never what
  * a caller of the product receives.
  */
 public sealed interface TypedSide {

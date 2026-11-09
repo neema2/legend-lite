@@ -3,7 +3,7 @@
 
 package org.finos.legend.lite.pct;
 
-import com.legend.judge.SqlTypeCensus;
+import com.legend.testexec.SqlTypeCensus;
 import junit.extensions.TestSetup;
 import junit.framework.Test;
 

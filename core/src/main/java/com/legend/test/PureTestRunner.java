@@ -3,13 +3,15 @@
 
 package com.legend.test;
 
+import com.legend.exec.Sessions;
+
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.ExecuteOptions;
 import com.legend.planner.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
 import com.legend.testexecutionplan.AssertListener;
-import com.legend.judge.SqlReplayReferee;
+import com.legend.testexec.SqlReplayReferee;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;

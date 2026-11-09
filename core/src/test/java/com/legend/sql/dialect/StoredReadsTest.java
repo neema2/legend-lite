@@ -3,7 +3,7 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.error.DialectCapability;
+import com.legend.sql.DialectCapability;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;

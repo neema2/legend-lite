@@ -83,7 +83,7 @@ door	base model parser protocol
 builtin	base door error model parser protocol
 platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
-sql_dialect	base error sql
+sql_dialect	base sql
 database	base error model sql_dialect
 compiler	base builtin compiler_element_type error model platform protocol sql values
 normalizer	base builtin compiler compiler_element_type error model platform protocol
@@ -107,23 +107,27 @@ exec_program	base error exec execution_plan result
 # its records in a test plan (the referee's ledger texts), their codec and the edge a harness hands a run; the product
 # reaches it not at all (G5), the harnesses do.
 edge	base json sql_dialect test_plan
-judge	base compiler compiler_element_type diagnostics error exec execution_plan lowering result sql sql_dialect test_plan values
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
 # read-backs typed rows of plan columns.
-testdatagen	base builtin compiler compiler_element_type error exec execution_plan judge lineage model plan protocol resolver setup sql sql_dialect values
+testdatagen	base builtin compiler compiler_element_type error exec execution_plan lineage model plan protocol resolver setup sql sql_dialect test_plan values
 execution_plan	base json sql
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 2): `test_plan`, a test body's plan as data (base, error); judge and
 # driver reach it (a planning failure recorded as data, raised at its turn). Step 3: it holds the test plan around the
 # product's (execution_plan) and its JSON (json); testplan reaches it (the test door builds the test plan).
-test_plan	base error execution_plan json
+# 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5): `judge` deleted; `testexec`, the test's run, takes its
+# run classes and the driver's run halves, and reaches no planning library. `test_plan` reaches `sql` and `values` (the
+# verdicts' shared vocabulary: a side's values, a value's printed form, the compatibility JSON reader); `testplan`
+# reaches `diagnostics` (the verdict batch, moved in from `judge`); `testdatagen` prints a value through `test_plan`.
+testexec	base diagnostics error exec exec_program execution_plan json result sql test_plan values
+test_plan	base error execution_plan json sql values
 result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json judge lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testplan validation values exec_program
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testplan validation values exec_program testexec
 # 2026-10-31, the test-is-the-product plan's M3c (B4 brought forward by R17 C7; brief B12 items 1 and 3): `testplan`, the
 # test-planning library -- the test door and a test's kinds on the product's program road, through the planner's
 # extension point; nothing on the plan side reaches it.
@@ -132,15 +136,11 @@ driver	base builtin cache compiler compiler_element_type database diagnostics er
 # library for them.
 # 2026-10-31, M3e: the seeds' owner moves in (Seeds, from the body driver), named in a plan by their content: `cache`
 # (Hash).
-testplan	base builtin cache compiler compiler_element_type database error execution_plan model planner platform setup sql sql_dialect test_plan
+testplan	base builtin cache compiler compiler_element_type database diagnostics error execution_plan model planner platform setup sql sql_dialect test_plan
 ide	base door lexer model parser
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 3, hole 4): `test` reaches `test_plan` -- the test runner reads
 # the stores a body's planned appeals name from the plan's data (PlannedAppeals.stores) and provides their fixtures
 # between the body's plan and its run, where the run used to ask its listener for them.
-# 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 5, step 2): `sql_dialect` reaches `error` -- the three classes
-# of the test plan's closed failure list that lived in planning libraries (TypeInferenceException,
-# SchemaInvariantException, DialectCapability) moved to `error`, so the run raises a planned failure naming no planning
-# library.
-test	base compiler driver error exec execution_plan json judge model planner protocol result sql test_plan values
+test	base compiler driver error exec execution_plan json model planner protocol result sql test_plan testexec values
 saved_queries	base json
 server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

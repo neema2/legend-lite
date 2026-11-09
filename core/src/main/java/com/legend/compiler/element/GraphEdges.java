@@ -3,6 +3,8 @@
 
 package com.legend.compiler.element;
 
+import com.legend.testexecutionplan.Edge;
+
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;

@@ -1,15 +1,13 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.driver;
+
+import com.legend.testexecutionplan.JudgeJson;
 import com.legend.testexecutionplan.KindClass;
 import com.legend.builtin.NativeFn;
-import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.testexecutionplan.TypedSide;
-import com.legend.judge.PureAsserts;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -94,8 +92,8 @@ final class DatabaseJudge {
                 // VERDICT (false), decided statically, the one comparison SQL
                 // never sees
                 com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
-                return wantEqual ? AssertVerdicts.fail(name + ": kinds differ (" + AssertVerdicts.typeName(eSpec)
-                        + " vs " + AssertVerdicts.typeName(aSpec) + ")") : AssertVerdicts.ok();
+                return wantEqual ? com.legend.testexecutionplan.Verdicts.fail(name + ": kinds differ (" + AssertVerdicts.typeName(eSpec)
+                        + " vs " + AssertVerdicts.typeName(aSpec) + ")") : com.legend.testexecutionplan.Verdicts.ok();
             }
             // a class / generic side's static class is a declaration, not
             // the value's kind (a supertype stamp over equal instances):
@@ -413,52 +411,14 @@ final class DatabaseJudge {
             // a caller's failure message (the asserts-as-plan-nodes program, step 2): the row's message the caller's
             vq = com.legend.lowering.VerdictSql.withFailureMessage(vq, runOn.failureMessage());
         }
-        com.legend.judge.VerdictBatch batch = runOn.verdictBatch();
+        com.legend.testplan.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
             batch.defer(name, wantEqual, vq, runOn.target());   // leg 3.4: judged at the flush
-            return AssertVerdicts.ok();
+            return com.legend.testexecutionplan.Verdicts.ok();
         }
         // a verdict statement is a step of its body's plan, deferred on the body's batch and judged at its verdict step
         // (I2, 2026-11-07: the walk's verdict sent on its own, outside a batch, deleted -- measured unreached)
         throw new IllegalStateException(name + ": a verdict statement outside its body's verdict batch");
-    }
-
-    /** The verdict of one row ({@code verdict, expected, actual, unjudged, lenient, holds, message}): unjudged
-     * (counted, the assert fails with the reason), or the row's own answer -- holds, or its message raised (the
-     * test-is-the-product plan's M8b: the polarity and the text are the statement's; this reads two columns). */
-    static TypedSide verdictOf(String name, List<Object> row) {
-        if (com.legend.diagnostics.Diagnostics.dumpSql()) {
-            // the SQL dump's companion: the verdict row the statement returned
-            System.err.println("[verdict] " + name + " verdict=" + row.get(com.legend.testexecutionplan.RootLoop.VERDICT_COLUMN)
-                    + " expected=" + row.get(com.legend.testexecutionplan.RootLoop.EXPECTED_COLUMN) + " actual=" + row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN)
-                    + " unjudged=" + row.get(com.legend.testexecutionplan.RootLoop.UNJUDGED_COLUMN) + " holds=" + row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN));
-        }
-        Object unjudged = row.get(com.legend.testexecutionplan.RootLoop.UNJUDGED_COLUMN);
-        if (unjudged != null) {
-            // counted UNJUDGED here, at the row's turn: the run's own census (the slice 3 follow-up audit, 2026-11-08:
-            // moving the count off planning left the row's UNJUDGED uncounted)
-            com.legend.diagnostics.VerdictCensus.sqlUnjudged(name, String.valueOf(unjudged));
-            // the evidence columns ride the message (bounded): an accepted
-            // divergence matches its witness here, and a row is diagnosable
-            // without a re-run
-            return unjudged(name, String.valueOf(unjudged),
-                    "\nexpected: " + AssertVerdicts.excerpt(row.get(com.legend.testexecutionplan.RootLoop.EXPECTED_COLUMN))
-                    + "\nactual:   " + AssertVerdicts.excerpt(row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN)));
-        }
-        if (!(row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN) instanceof Boolean holds)) {
-            throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN));
-        }
-        com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
-        if (Boolean.TRUE.equals(row.get(com.legend.testexecutionplan.RootLoop.LENIENT_COLUMN))) {
-            // the declared 2-ULP Float leniency decided it — counted as
-            // host mode counts its own firings
-            com.legend.judge.CanonicalDivergence.sqlUlpPolicy("database " + name);
-            com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "database " + name);
-        }
-        if (holds) {
-            return AssertVerdicts.ok();
-        }
-        return AssertVerdicts.fail(String.valueOf(row.get(com.legend.testexecutionplan.RootLoop.MESSAGE_COLUMN)));
     }
 
     static SideRows planSide(TypedSpec spec, boolean expected, List<TypedSpec> letPrefix,
@@ -621,7 +581,7 @@ final class DatabaseJudge {
         List<String> n2 = s2.columns().stream().map(c -> c.name()).toList();
         if (!n1.equals(n2)) {
             com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
-            return AssertVerdicts.fail(name + ": columns differ " + n1 + " vs " + n2);   // a static verdict
+            return com.legend.testexecutionplan.Verdicts.fail(name + ": columns differ " + n1 + " vs " + n2);   // a static verdict
         }
         List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
         List<Boolean> floats = new ArrayList<>();
@@ -719,7 +679,7 @@ final class DatabaseJudge {
         if (answered == null) {
             return null;
         }
-        List<Object> values = AssertVerdicts.decodeSideValues(answered);
+        List<Object> values = com.legend.testexecutionplan.Verdicts.decodeSideValues(answered);
         com.legend.sql.SqlQuery plan = com.legend.lowering.VerdictSql.constantPlan(values);
         if (plan == null) {
             return null;
@@ -992,7 +952,7 @@ final class DatabaseJudge {
         }
         @Override public TypedSide condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            // the host's words (HostJudge.conditionOf): "Assert failed"
+            // the host's words (com.legend.testexec.HostJudgments.conditionOf): "Assert failed"
             return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook, "Assert failed");
         }
         @Override public TypedSide empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
@@ -1031,14 +991,14 @@ final class DatabaseJudge {
         try {
             goldenRead = JudgeJson.read(goldenText, env.options().judgingRules());
         } catch (IllegalStateException malformed) {
-            // the host judge's words for the same golden (HostJudge.jsonOf): a golden the rules refuse fails the test
+            // the host judge's words for the same golden (com.legend.testexec.HostJudgments.jsonOf): a golden the rules refuse fails the test
             throw new IllegalStateException("golden JSON does not parse: " + malformed.getMessage(), malformed);
         }
         TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
                 .throughJsonPrettyPrint(AssertVerdicts.chaseLets(args.get(1), letPrefix));
         SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
         // bucket 9: a root the query does not order is a MULTISET of root objects -- the golden's root elements against
-        // the document's -- under the host's own test (HostJudge.jsonOf: the actual's OrderView INCIDENTAL), so the two
+        // the document's -- under the host's own test (com.legend.testexec.HostJudgments.jsonOf: the actual's OrderView INCIDENTAL), so the two
         // judges decide the same documents the same way (2026-11-03: the deleted rootMany sniff had gated it, and its
         // deletion left these unjudged here while the host judged them). A dialect that cannot place the element rows
         // falls to the byte compare below, which equal sequences pass and others fail
@@ -1054,7 +1014,7 @@ final class DatabaseJudge {
                     try {
                         env.dialect().render(mq);
                         placeable = true;
-                    } catch (com.legend.error.DialectCapability wall) {
+                    } catch (com.legend.sql.DialectCapability wall) {
                         placeable = false;
                     }
                     if (placeable) {

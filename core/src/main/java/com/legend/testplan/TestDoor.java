@@ -3,6 +3,8 @@
 
 package com.legend.testplan;
 
+import com.legend.testexecutionplan.Edge;
+
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;

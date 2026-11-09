@@ -3,7 +3,7 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.error.DialectCapability;
+import com.legend.sql.DialectCapability;
 
 import com.legend.sql.DateFmt;
 import com.legend.sql.SqlAgg;

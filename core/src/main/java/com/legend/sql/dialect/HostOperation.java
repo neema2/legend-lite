@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.testexecutionplan.Column;
+
 import java.util.List;
 import java.util.Map;
 
