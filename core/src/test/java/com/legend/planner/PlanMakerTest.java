@@ -819,11 +819,8 @@ class PlanMakerTest {
         try (Connection today = fresh(type); Connection planned = fresh(type)) {
             var ctx = Compiler.compileModel(model);
             var dialect = Databases.dialect(type);
-            // the declared test data as the plan runner establishes it on a session (the doors, 2026-10-29)
-            com.legend.exec.PlanRunner.establish(com.legend.planner.LoadPlanner.load(com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION, com.legend.setup.CsvSeed.planned(
-                    com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect), dialect).stream()
-                    .map(com.legend.setup.CsvSeed.Planned::step).toList(),
-                    plan.answerSql().target().bare()), com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(today)));
+            // the declared test data: today's door establishes its target's loads on the session it acquires (the M1
+            // tenets audit's finding 7, 2026-11-09: until then this harness seeded the session itself)
             // today's path: the query with its values as lets, run as the server runs it, on the connection its declared
             // test data was established on
             return new String[] {PlanCases.today(model, query, "s::RT", today, output),

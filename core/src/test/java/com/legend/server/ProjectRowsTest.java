@@ -62,17 +62,25 @@ class ProjectRowsTest {
         assertEquals(List.of("Halberd Securities", "Meridian Capital"), names(PARTY));
     }
 
-    /** The same project on H2's in-memory database (legend-engine's {@code LocalH2}: the opener names it, the Named arm)
-     *  answers its own rows too, and a refused model is refused there by name, never run on an empty database (the M1
-     *  tenets audit's finding 1, 2026-11-09: only the held arm made the database until then). */
+    /** The project's connection, and the same connection on an in-memory database its opener names (legend-engine's
+     *  test specification). */
+    private static final String HELD = """
+            RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+            """;
+    private static final String OPENER_NAMED = """
+            RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+            """;
+
+    /** The same project on an in-memory database its opener names (the named arm) answers its own rows too, and a
+     *  refused model is refused there by name, never run on an empty database (the M1 tenets audit's finding 1,
+     *  2026-11-09: only the held arm made the database until then). */
     @Test
-    void anH2ProjectsQueryAnswersItsOwnRows_andARefusedOneIsRefused() throws Exception {
-        String h2 = PARTY.replace("type: DuckDB; specification: DuckDB { }; auth: Test;",
-                "type: H2; specification: LocalH2 { }; auth: DefaultH2;");
-        org.junit.jupiter.api.Assertions.assertNotEquals(PARTY, h2);
-        assertEquals(List.of("Halberd Securities", "Meridian Capital"), names(h2));
+    void aProjectOnAnOpenerNamedDatabaseAnswersItsOwnRows_andARefusedOneIsRefused() throws Exception {
+        String named = PARTY.replace(HELD.strip(), OPENER_NAMED.strip());
+        org.junit.jupiter.api.Assertions.assertNotEquals(PARTY, named);
+        assertEquals(List.of("Halberd Securities", "Meridian Capital"), names(named));
         IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> names(h2.replace("PARTY.PARTY:\n", "PARTY.NOPE:\n")));
+                () -> names(named.replace("PARTY.PARTY:\n", "PARTY.NOPE:\n")));
         assertEquals("the Data element proj::PartyData fills PARTY.NOPE, which no Database of the model declares",
                 refused.getMessage());
     }

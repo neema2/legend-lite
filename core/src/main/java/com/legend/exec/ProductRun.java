@@ -72,7 +72,16 @@ public final class ProductRun {
         try (Sessions.Session session = sessions.open(target)) {
             PlanSessions.Source on = switch (establish) {
                 case DECLARED_SETUP -> PlanSessions.acquired(session, target);
-                case AS_GIVEN -> PlanSessions.of(session);
+                case AS_GIVEN -> {
+                    // the caller set its session up: a target that loads data on acquisition would run without it,
+                    // refused by name, never skipped (the M1 tenets audit's finding 7, 2026-11-09)
+                    if (!target.loads().isEmpty()) {
+                        throw new IllegalStateException("the plan's target loads data when a session is acquired for"
+                                + " it (" + target.loads().size() + " load(s)), and its session is as the caller set it"
+                                + " up: establish its loads (DECLARED_SETUP) or plan a target with none");
+                    }
+                    yield PlanSessions.of(session);
+                }
             };
             PlanRunner.stream(plan, Map.of(), on, sink, batchRows);
         }

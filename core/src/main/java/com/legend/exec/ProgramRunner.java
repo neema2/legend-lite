@@ -372,6 +372,7 @@ public final class ProgramRunner {
                             sqls.add(e.sql());
                         }
                         case ExecutionPlan.Load u -> {
+                            refuseTargetCadence(u);
                             if (u.target().database() instanceof ExecutionPlan.Database.System) {
                                 // the graph's system store's own seeds: the one write its database takes, once per
                                 // session
@@ -522,6 +523,7 @@ public final class ProgramRunner {
                 sink.effectRan(i);
             }
             case ExecutionPlan.Load u -> {
+                refuseTargetCadence(u);
                 // the system store's load on the system database's session where it is a second one; every other load
                 // on the program's
                 boolean beside = rt.systemSession() != null
@@ -616,6 +618,17 @@ public final class ProgramRunner {
             if (o != null) {
                 o.session().close();
             }
+        }
+    }
+
+    /** A program's own load node is a seed ({@code BEFORE_STEP}) or a load at its place ({@code AT_STEP}); a target's
+     *  load ({@code PER_ACQUISITION}, {@code ONCE}) runs where its target is acquired or made, never as a node: refused by
+     *  name (the cadence a contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09). */
+    static void refuseTargetCadence(ExecutionPlan.Load load) {
+        if (load.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION
+                || load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
+            throw new IllegalStateException("a " + load.cadence() + " load (" + load.identity() + ") is a target's,"
+                    + " established where its target is acquired or made: never a program's node");
         }
     }
 }

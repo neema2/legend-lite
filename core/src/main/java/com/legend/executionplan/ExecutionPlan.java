@@ -301,9 +301,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  an effect is, never skipped. */
             AT_STEP,
             /** A target's load (a connection's declared test data, L2): established when a session is acquired for the
-             *  target -- once per in-memory database the target keeps, on each acquisition of a database the plan does
-             *  not make (the project road's query) -- a write, as legend-engine establishes a test connection on each
-             *  acquisition. */
+             *  target, a write, as legend-engine establishes a test connection on each acquisition. Per source (the
+             *  contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09): a caller's session
+             *  ({@code PlanSessions.acquired}: the product door's, every query) -- once per run, on the run's first open;
+             *  a database the platform makes and keeps for the target ({@code PlanSessions.shared}, the PCT lanes'
+             *  {@code lane}) -- once, when it is made; a private database for a write ({@code openToChange}) -- once,
+             *  when it is made; a source that establishes none (a caller's session as it is) refuses a target that has
+             *  one; a program node of this cadence is refused. */
             PER_ACQUISITION,
             /** A project's Data rows (L3, S145): made once, when the platform makes the project's database the target
              *  names, and kept with it for the process; never run on a database the plan does not make. */

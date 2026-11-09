@@ -72,12 +72,12 @@ public final class Execution {
     }
 
     /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output)} for a
-     *  model's text and a query's text, the session as the caller set it up. */
+     *  model's text and a query's text, the target's loads established on the session it acquires. */
     public static ExecutionPlan run(String model, String query,
             @com.legend.base.Nullable String runtimeFqn, SessionSource sessions,
             PlanSessions.Source planSessions, Output output) throws IOException {
         return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
-                planSessions, ProductRun.Establish.AS_GIVEN, output, Batcher.DEFAULT_CAPACITY);
+                planSessions, ProductRun.Establish.DECLARED_SETUP, output, Batcher.DEFAULT_CAPACITY);
     }
 
     /** {@link #run(String, String, String, SessionSource, PlanSessions.Source, Output)} in batches of up to
@@ -87,6 +87,6 @@ public final class Execution {
             PlanSessions.Source planSessions, Output output, int batchRows)
             throws IOException {
         return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
-                planSessions, ProductRun.Establish.AS_GIVEN, output, batchRows);
+                planSessions, ProductRun.Establish.DECLARED_SETUP, output, batchRows);
     }
 }

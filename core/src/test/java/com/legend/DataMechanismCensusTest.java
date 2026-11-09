@@ -34,7 +34,12 @@ class DataMechanismCensusTest {
 
     /** A mechanism's state: deleted (with the symbols that must read zero), pending (its slice), or staying (its
      *  guard). */
-    sealed interface State permits Deleted, Pending, Staying {
+    sealed interface State permits Deleted, Bounded, Pending, Staying {
+    }
+
+    /** Kept by a ruling, its part that reached a plan deleted ({@code symbols} read zero) and the rest bounded by
+     *  {@code guard}: neither deleted nor pending (the M1 tenets audit's finding 2, 2026-11-09). */
+    record Bounded(String slice, List<String> symbols, String guard) implements State {
     }
 
     /** Deleted by {@code slice}: each of {@code symbols} reads zero in every source tree. */
@@ -54,15 +59,12 @@ class DataMechanismCensusTest {
 
     /** The 17, in the inventory's order. */
     static final List<Row> ROWS = List.of(
-            // L3, 2026-11-09: a project's Data rows are its target's ONCE load (S145), made once where the platform makes
-            // the project's database and kept; the project names its key and refusal alone
-            new Row("M1", "###Data into the server's project database (Project.made)", new Deleted("L3", List.of(
-                    // the project's own fill steps, carried and read
-                    "project.made()",
-                    "o.put(\"made\"",
-                    "getArr(\"made\")",
-                    // the project stripped to its key on every open
-                    "keyOnly("))),
+            // L3, 2026-11-09: a project's Data rows are its target's ONCE load (S145), run on every database the platform
+            // makes and refused on any other (the M1 audit's finding 1). PENDING still (the M1 tenets audit's finding 2,
+            // 2026-11-09): the fill is ProjectData.fill's INSERT text inline in every plan (decision 1's reference above
+            // its threshold not built), PlanSessions.made makes it, Project.refused stays
+            new Row("M1", "###Data into the server's project database (Project.made)", new Pending("L3 (the fill by"
+                    + " reference, decision 1)")),
             // L2, 2026-11-09: a target's declared test data is its PER_ACQUISITION loads, written once per plan and run
             // by the one deliverer every load takes (PlanRunner.seed); the target's setup and its own runner are gone
             new Row("M2", "a connection's declared test data on the product path (Target.setup)", new Deleted("L2",
@@ -76,26 +78,18 @@ class DataMechanismCensusTest {
                             "PlanSessions.setUp(",
                             "refuseSetup("))),
             // L2, 2026-11-09: the test road's seeds are loads made by the one load planner (LoadPlanner, one identity
-            // scheme); the plan's connection description no longer carries the raw test data the loads carry. The
-            // referee's copy of a seed's rows (the edge's SeedTexts) is M15's, replayed from the plan's loads at L8
+            // scheme), and the plan's connection description no longer carries the raw test data. PENDING still (the
+            // M1 tenets audit's finding 2): Seeds.planned remains the seeds' own path to their steps, and the referee's
+            // copy of a seed's rows (the edge's SeedTexts) is replayed from the plan's loads only at L8. Its deleted
+            // symbols so far read zero (theRemovedSymbolsReadZero)
             new Row("M3", "test data on the test road (the seed Load, SeedTexts, the raw text in a target)",
-                    new Deleted("L2", List.of(
-                            // the seeds' own identity scheme, folded into LoadPlanner.identity
-                            "Seeds.key(",
-                            // the plan's copy of a connection's raw test data, written and read
-                            "x.testDataSetupCsv(), x.testDataSetupSqls()",
-                            "putIfSet(o, \"testDataSetupCsv\"",
-                            "o.optionalString(\"testDataSetupCsv\")",
-                            // the node a seed was until L1
-                            "ExecutionPlan.Setup"))),
-            // L2, 2026-11-09 (the user's ruling: option 1): the harness keeps the upstream-faithful overlay (a synthetic
-            // connection carrying the suite's CSV, as legend-engine's service test runner builds one); its data reaches
-            // a plan only as a load -- guarded by ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad --
-            // and the plan's copy of a connection no longer carries it (the symbols below)
+                    new Pending("L8 (SeedTexts; Seeds.planned's own path)")),
+            // L2, 2026-11-09 (the user's ruling: option 1): BOUNDED, not deleted (the M1 tenets audit's finding 2): the
+            // harness keeps the upstream-faithful overlay (a synthetic connection carrying the suite's CSV, as
+            // legend-engine's service test runner builds one, and RuntimeKey, a cache of overlay contexts by value); its
+            // data reaches a plan only as a load, which the guard proves
             new Row("M4", "service-suite data through a synthetic connection (the overlay kept; its data a load)",
-                    new Deleted("L2", List.of(
-                            "o.put(\"testDataSetupSqls\"",
-                            "o.strings(\"testDataSetupSqls\")"))),
+                    new Bounded("L2", List.of(), "ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad")),
             new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4")),
             new Row("M6", "the system metamodel store on the product road", new Pending("L4")),
             // L2, 2026-11-09: a seed form mapped over executeInDb is a LOAD at its place (AT_STEP, made by LoadPlanner,
@@ -131,6 +125,17 @@ class DataMechanismCensusTest {
             new Row("M17", "data parsed and never loaded", new Pending("L8")),
             new Row("M7-authored", "executeInDb: SQL the user wrote",
                     new Staying("P9: an effect's statements are the author's text, folded")));
+
+    /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets
+     *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). */
+    static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of(
+            // L2: the seeds' own identity scheme (folded into LoadPlanner.identity), the plan's copy of a connection's
+            // raw test data written and read, and the node a seed was until L1
+            "M3", List.of("Seeds.key(", "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
+                    "o.optionalString(\"testDataSetupCsv\")", "o.put(\"testDataSetupSqls\"",
+                    "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup"),
+            // L3: the project's own fill steps, carried and read; the project stripped to its key on every open
+            "M1", List.of("project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly("));
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */
@@ -170,11 +175,15 @@ class DataMechanismCensusTest {
             }
             String text = Files.readString(f, StandardCharsets.UTF_8);
             for (Row row : ROWS) {
-                if (row.state() instanceof Deleted d) {
-                    for (String symbol : d.symbols()) {
-                        if (text.contains(symbol)) {
-                            found.add(row.id() + " (" + d.slice() + ") '" + symbol + "' in " + f);
-                        }
+                List<String> symbols = switch (row.state()) {
+                    case Deleted d -> d.symbols();
+                    case Bounded b -> b.symbols();
+                    case Pending p -> REMOVED_SO_FAR.getOrDefault(row.id(), List.of());
+                    case Staying st -> List.of();
+                };
+                for (String symbol : symbols) {
+                    if (text.contains(symbol)) {
+                        found.add(row.id() + " '" + symbol + "' in " + f);
                     }
                 }
             }
@@ -184,9 +193,10 @@ class DataMechanismCensusTest {
 
     @Test
     void theDeletedRowsOnlyGrow() {
-        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8; 2026-11-09, L2: M2, M3, M4 and M7-seed;
-        // 2026-11-09, L3: M1). A row leaves PENDING with its slice and this count rises with it, in the same change, with its date and slice
+        // shrink-only in reverse: the rows deleted so far (2026-11-09, L1: M8; 2026-11-09, L2: M2 and M7-seed -- M1, M3
+        // and M4 counted deleted until the M1 tenets audit's finding 2 the same day: M1 and M3 PENDING, M4 BOUNDED by
+        // its ruling). A row leaves PENDING with its slice and this count rises with it, in the same change, with its date and slice
         long deleted = ROWS.stream().filter(r -> r.state() instanceof Deleted).count();
-        assertEquals(6, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        assertEquals(3, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }
