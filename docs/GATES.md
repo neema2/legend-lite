@@ -163,6 +163,24 @@ seven-family "regression" that does not exist. It cost an hour and a false
 check the flag before reading the scoreboard. Prefer `tools/allgates.sh`,
 which cannot make this mistake.
 
+## The total wall's M1, 2026-11-09 -- data in the plan, L2 and L3 (branch `claude/total-wall`, 34eeb5a8)
+
+What landed: `docs/DATA_IN_THE_PLAN_2026_11_09.md` "L2 and L3 as built" (the declared CSV format, upstream's rule, every
+database streamed; a target's loads written once per plan; the seeds and seed forms as loads; the plan's connection
+without raw test data; a project's Data its target's ONCE load; the census at 6 of 17 deleted). Measured on that
+commit, in a root container (one heavy lane at a time):
+
+- `bazel test --lockfile_mode=error //gates:local`: 488 pass, 1 skipped by design; the 10 that refuse root (the eight
+  Postgres targets and `//datacube:verify_app_test`) re-run under `tools/postgres/as_unprivileged.sh ubuntu`
+  (`--strategy=TestRunner=standalone`, the script copied outside the workspace): 10 pass. Green.
+- `//spec:corpus_duckdb` and `//spec:corpus_h2` (run at bc4bd99c, before L3 and the M4 guard; the rosters' verdicts
+  hold): green. `corpus_one duckdb|h2 host testLoadCsv`: pass on both.
+- `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`: green.
+- `//core:stress_suites`, `//core:stress_suites_h2`: green.
+- `//wasm:planner` builds; `//engine-client:plan_runner_test` green.
+- Not run here: CI's other operating systems; the lanes CI does not run (SQLite, MongoDB, MariaDB, MySQL, ClickHouse,
+  Trino, BigQuery, Databricks, Snowflake), measured by the warm lane sessions on request.
+
 ## Read this before trusting a green
 
 Three ways this chain reports success without having checked anything:
