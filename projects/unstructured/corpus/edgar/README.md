@@ -76,6 +76,12 @@ Reading it correctly:
   `fetch.py` removes it, proving the result against the size the filing index states. A sha256 over that tag would stop
   verifying when the CDN rotates it.
 
+## Loading
+
+`tools/unstructured-corpus/load.py` loads this corpus and the two synthetic ones into DuckDB. The Python `duckdb` package
+may be older than the JDBC driver that reads the file (`//projects/unstructured:corpus_test`, 1.5.6), since DuckDB reads
+older files: 1.4.5 is what Python 3.9 can install, and it works. `load.py` refuses a writer newer than that reader.
+
 ## Tests
 
 A test that needs this corpus runs in a manual lane, outside `//gates:local` (a checkout has no filings until someone

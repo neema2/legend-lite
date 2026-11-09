@@ -1,39 +1,41 @@
 #!/usr/bin/env python3
-"""Load the unstructured study's corpora into DuckDB and, if PG_URL is set, into Postgres.
+"""Load the unstructured study's three corpora into DuckDB and, if PG_URL is set, into Postgres.
 
     python tools/unstructured-corpus/load.py
     PG_URL=postgresql://host/database python tools/unstructured-corpus/load.py
 
-Needs duckdb, psycopg when PG_URL is set, and the EDGAR corpus on disk (projects/unstructured/corpus/edgar/README.md).
+Needs duckdb, psycopg when PG_URL is set, the EDGAR corpus on disk (projects/unstructured/corpus/edgar/README.md), and the
+synthetic corpora, which are committed (tools/synth-corpus rebuilds them).
 
 The tables, their keys, the stored value of every enum and the DuckDB file's path are all read from
-projects/unstructured/model.pure, so there is no second copy here to drift. store::Sales and store::Lending are created
-empty until their generators exist. Everything is checked before anything is written; a refusal names what it refused.
+projects/unstructured/model.pure, so there is no second copy here to drift. Everything is checked before anything is
+written; a refusal names what it refused.
 
 A run replaces the DuckDB file, and in Postgres drops and recreates the model's tables and only those. Deterministic:
 two runs print the same row counts and the same digest of the passages' sha256 set.
 
-A passage is whole lines of one extracted .txt file, about TARGET_CHARS long: lines are added until the next would pass
-the target, so a paragraph or table row is never split and one longer than the target stands alone. Passages do not
-overlap. charStart and charEnd count Unicode code points of the decoded file; sha256 is of exactly that span, as UTF-8.
+An EDGAR passage is whole lines of one extracted .txt file, about TARGET_CHARS long: lines are added until the next would
+pass the target, so a paragraph or table row is never split and one longer than the target stands alone. A SALES or
+LENDING passage is one blank-line-delimited block (corpus_schema.block_spans), an email's paragraph or an agreement's
+clause, because a row's passageSha256 must be the hash of exactly the text that states it. Passages do not overlap.
+charStart and charEnd count Unicode code points of the decoded file; sha256 is of exactly that span, as UTF-8. FILE_PATH is
+relative to the corpus's own directory, and (FILE_PATH, CHAR_START) identifies a passage across all three.
 """
 from __future__ import annotations
 
 import csv
 import datetime
+import decimal
 import hashlib
 import os
 import re
 import sys
 from pathlib import Path
 
-import duckdb
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "edgar-corpus"))
 from fetch import CORPUS_ROOT, load_manifest, sha256_of, verify_disk  # noqa: E402
+from corpus_schema import EMAILS_ROOT, LOANS_ROOT, REPO_ROOT, Model, block_spans, load_model  # noqa: E402
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-MODEL_PATH = REPO_ROOT / "projects" / "unstructured" / "model.pure"
 TARGET_CHARS = 800
 
 # The newest DuckDB whose files //projects/unstructured:corpus_test can open: its JDBC driver is this version
@@ -45,62 +47,10 @@ REBUILD = (
     "  python tools/edgar-corpus/extract.py"
 )
 
-COLUMN = re.compile(r"(\w+)\s+([A-Z]+(?:\([0-9, ]+\))?)((?:\s+PRIMARY KEY|\s+NOT NULL)*)")
 SIZED_VARCHAR = re.compile(r"VARCHAR\((\d+)\)")
-ENUM_MAPPING = re.compile(r"\S+: EnumerationMapping (\w+)\s*\{([^}]*)\}")
-ENUM_USE = re.compile(r"EnumerationMapping (\w+): \[store::\w+\](\w+)\.(\w+)")
-DUCKDB_PATH = re.compile(r"specification: DuckDB \{ path: '([^']+)'; \}")
 LINE = re.compile(r"[^\n]+")
-
-
-class Model:
-    """What load.py reads from model.pure."""
-
-    def __init__(self, text: str) -> None:
-        sections = {part.split("\n", 1)[0].strip(): part for part in re.sub(r"(?m)^\s*//.*$", "", text).split("###")[1:]}
-        self.tables: dict[str, list[tuple[str, str, bool, bool]]] = {}  # name -> (column, type, not null, in the key)
-        for name, body in tables_of(sections["Relational"]):
-            self.tables[name] = [column_of(name, entry) for entry in split_top_level(body)]
-        mappings = {name: set(re.findall(r"'([^']*)'", body)) for name, body in ENUM_MAPPING.findall(sections["Mapping"])}
-        self.enums: dict[tuple[str, str], set[str]] = {}
-        for mapping, table, column in ENUM_USE.findall(sections["Mapping"]):
-            if not any(c[0] == column for c in self.tables[table]):
-                raise SystemExit(f"model.pure: {table}.{column} is enum-mapped but not declared")
-            self.enums[(table, column)] = mappings[mapping]
-        paths = DUCKDB_PATH.findall(sections["Connection"])
-        if len(paths) != 1:
-            raise SystemExit(f"model.pure: expected one DuckDB connection path, found {paths}")
-        self.duckdb_path = REPO_ROOT / paths[0]
-
-
-def tables_of(relational: str):
-    for match in re.finditer(r"\bTable\s+(\w+)\s*\(", relational):
-        depth, index = 1, match.end()
-        while depth:
-            depth += {"(": 1, ")": -1}.get(relational[index], 0)
-            index += 1
-        yield match.group(1), relational[match.end():index - 1]
-
-
-def split_top_level(body: str) -> list[str]:
-    entries, depth, current = [], 0, ""
-    for character in body:
-        depth += {"(": 1, ")": -1}.get(character, 0)
-        if character == "," and depth == 0:
-            entries.append(current)
-            current = ""
-        else:
-            current += character
-    return [entry.strip() for entry in [*entries, current] if entry.strip()]
-
-
-def column_of(table: str, entry: str) -> tuple[str, str, bool, bool]:
-    match = COLUMN.fullmatch(entry)
-    if match is None:
-        raise SystemExit(f"model.pure: {table}: a column load.py cannot read: {entry!r}")
-    name, kind, constraints = match.groups()
-    in_key = "PRIMARY KEY" in constraints
-    return name, kind, in_key or "NOT NULL" in constraints, in_key
+SECTION_HEADING = re.compile(r"Section (\d+\.\d+)\b")
+CLAUSE_LETTER = re.compile(r"\(([a-z])\)")
 
 
 def create_statement(table: str, columns: list[tuple[str, str, bool, bool]]) -> str:
@@ -180,7 +130,147 @@ def edgar_rows(manifest: list[dict]) -> dict[str, list[dict]]:
     return tables
 
 
+# ---- the synthetic corpora: one CSV per table, named for it, and one text file per document ----
+
+def coerce(table: str, column: str, kind: str, raw: str):
+    if raw == "":
+        return None
+    try:
+        if kind == "BIGINT":
+            return int(raw)
+        if kind == "DATE":
+            return datetime.date.fromisoformat(raw)
+        if kind == "TIMESTAMP":
+            return datetime.datetime.fromisoformat(raw)
+        if kind.startswith("DECIMAL"):
+            return decimal.Decimal(raw)
+    except (ValueError, decimal.InvalidOperation):
+        raise SystemExit(f"refused: {table}.{column}: value {raw!r} is not a {kind}") from None
+    if kind == "BIT":
+        if raw not in ("true", "false"):
+            raise SystemExit(f"refused: {table}.{column}: value {raw!r} is not true or false")
+        return raw == "true"
+    if kind.startswith("VARCHAR"):
+        return raw
+    raise SystemExit(f"{table}.{column}: load.py cannot read a {kind} column from a CSV")
+
+
+def csv_rows(root: Path, model: Model, table: str, derived: tuple[str, ...] = ()) -> list[dict]:
+    """A ground-truth table, each value typed by its column in model.pure; derived columns are the caller's to fill."""
+    path = root / "ground_truth" / f"{table}.csv"
+    if not path.is_file():
+        generator = "gen_emails.py" if root == EMAILS_ROOT else "gen_loan_docs.py"
+        raise SystemExit(f"no {path.relative_to(REPO_ROOT).as_posix()}. Rebuild it: python tools/synth-corpus/{generator}")
+    kinds = {name: kind for name, kind, _, _ in model.tables[table]}
+    with open(path, newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        expected = [c for c in model.columns(table) if c not in derived]
+        if reader.fieldnames != expected:
+            raise SystemExit(f"refused: {table}: the CSV's columns {reader.fieldnames} are not the model's {expected}")
+        return [{c: coerce(table, c, kinds[c], row[c]) for c in expected} for row in reader]
+
+
+def spans_of(root: Path) -> list[dict]:
+    with open(root / "ground_truth" / "spans.csv", newline="", encoding="utf-8") as file:
+        return [{**row, "CHAR_START": int(row["CHAR_START"]), "CHAR_END": int(row["CHAR_END"])} for row in csv.DictReader(file)]
+
+
+def document_text(root: Path, relative: str, recorded_sha: str, table: str) -> str:
+    data = (root / relative).read_bytes()
+    actual = sha256_of(data)
+    if actual != recorded_sha:
+        raise SystemExit(f"refused: {table}: {relative} hashes to {actual}, its row says {recorded_sha}")
+    return data.decode("utf-8")
+
+
+def block_passages(source: str, path: str, text: str, label_of, as_of: datetime.date) -> list[dict]:
+    rows = []
+    for ordinal, (start, end) in enumerate(block_spans(text)):
+        rows.append({"SOURCE": source, "FILE_PATH": path, "SECTION_OR_DOC": label_of(text[start:end]), "ORDINAL": ordinal, "CHAR_START": start,
+                     "CHAR_END": end, "SHA256": sha256_of(text[start:end].encode("utf-8")), "PASSAGE_TEXT": text[start:end], "AS_OF_DATE": as_of})
+    return rows
+
+
+def sales_rows(model: Model) -> tuple[dict[str, list[dict]], list[dict]]:
+    tables = {t: csv_rows(EMAILS_ROOT, model, t) for t in ("SA_CLIENT", "SA_CONTACT", "SA_SALESPERSON", "SA_DEAL", "SA_ALLOCATION_REQUEST")}
+    tables["SA_EMAIL"] = csv_rows(EMAILS_ROOT, model, "SA_EMAIL", derived=("BODY",))
+    passages = []
+    for email in tables["SA_EMAIL"]:
+        path = f"bodies/{email['MESSAGE_ID']}.txt"
+        email["BODY"] = document_text(EMAILS_ROOT, path, email["BODY_SHA256"], "SA_EMAIL")
+        message_id = email["MESSAGE_ID"]
+        passages.extend(block_passages("SALES", path, email["BODY"], lambda _: message_id, email["SENT_AT"].date()))
+    tables["CO_PASSAGE"] = passages
+    return tables, spans_of(EMAILS_ROOT)
+
+
+def clause_labels():
+    """A clause reference for each block of an agreement in order: Section 7.11(a), Section 7.11, or the front matter."""
+    section = None
+
+    def label(block: str) -> str:
+        nonlocal section
+        heading = SECTION_HEADING.match(block)
+        if heading is not None:
+            section = f"Section {heading.group(1)}"
+            return section
+        if block.startswith("ARTICLE "):
+            return block.split("\n", 1)[0]
+        if section is None:
+            return "Cover"
+        letter = CLAUSE_LETTER.match(block)
+        return f"{section}({letter.group(1)})" if letter is not None else section
+
+    return label
+
+
+def lending_rows(model: Model) -> tuple[dict[str, list[dict]], list[dict]]:
+    names = ("LN_BORROWER", "LN_CREDIT_AGREEMENT", "LN_FACILITY", "LN_COLLATERAL", "LN_COVENANT", "LN_COVENANT_STEP", "LN_EVENT_OF_DEFAULT")
+    tables = {t: csv_rows(LOANS_ROOT, model, t) for t in names}
+    passages = []
+    for agreement in tables["LN_CREDIT_AGREEMENT"]:
+        if not (LOANS_ROOT / agreement["PDF_PATH"]).is_file():
+            raise SystemExit(f"refused: LN_CREDIT_AGREEMENT: no file at {agreement['PDF_PATH']}")
+        path = agreement["PDF_PATH"][:-len(".pdf")] + ".txt"
+        text = document_text(LOANS_ROOT, path, agreement["TEXT_SHA256"], "LN_CREDIT_AGREEMENT")
+        passages.extend(block_passages("LENDING", path, text, clause_labels(), agreement["AGREEMENT_DATE"]))
+    tables["CO_PASSAGE"] = passages
+    return tables, spans_of(LOANS_ROOT)
+
+
+def merge(into: dict[str, list[dict]], tables: dict[str, list[dict]]) -> None:
+    for table, rows in tables.items():
+        into.setdefault(table, []).extend(rows)
+
+
 # ---- what refuses a load ----
+
+def refuse_bad_spans(model: Model, tables: dict[str, list[dict]], spans: list[dict]) -> None:
+    """A row's pointer has to land on one passage exactly, and a clause's on the clause it names."""
+    passages = {(row["FILE_PATH"], row["CHAR_START"], row["CHAR_END"]): row for row in tables["CO_PASSAGE"]}
+    declared = {}
+    for span in spans:
+        where = f"{span['TABLE_NAME']} {span['ROW_KEY']}"
+        passage = passages.get((span["FILE_PATH"], span["CHAR_START"], span["CHAR_END"]))
+        if passage is None:
+            raise SystemExit(f"refused: {where}: no passage at {span['FILE_PATH']}[{span['CHAR_START']}:{span['CHAR_END']}]")
+        if passage["SHA256"] != span["PASSAGE_SHA256"]:
+            raise SystemExit(f"refused: {where}: the passage at {span['FILE_PATH']}[{span['CHAR_START']}] hashes to {passage['SHA256']}, its span says {span['PASSAGE_SHA256']}")
+        declared[(span["TABLE_NAME"], span["ROW_KEY"])] = passage
+    for table, rows in tables.items():
+        if table == "CO_PASSAGE" or "PASSAGE_SHA256" not in model.columns(table):
+            continue
+        key = model.key(table)
+        for row in rows:
+            row_key = "|".join(str(row[c]) for c in key)
+            passage = declared.get((table, row_key))
+            if passage is None:
+                raise SystemExit(f"refused: {table} {row_key}: no span says which passage states it")
+            if passage["SHA256"] != row["PASSAGE_SHA256"]:
+                raise SystemExit(f"refused: {table} {row_key}: PASSAGE_SHA256 {row['PASSAGE_SHA256']} is not its span's {passage['SHA256']}")
+            if "CLAUSE_REF" in row and row["CLAUSE_REF"] != passage["SECTION_OR_DOC"]:
+                raise SystemExit(f"refused: {table} {row_key}: CLAUSE_REF {row['CLAUSE_REF']!r} but its passage is {passage['SECTION_OR_DOC']!r}")
+
 
 def refuse_bad_rows(model: Model, tables: dict[str, list[dict]]) -> None:
     for table, rows in tables.items():
@@ -201,6 +291,9 @@ def refuse_bad_rows(model: Model, tables: dict[str, list[dict]]) -> None:
                 sized = SIZED_VARCHAR.fullmatch(kind)
                 if sized is not None and len(value) > int(sized.group(1)):
                     raise SystemExit(f"refused: {table}.{name}: {len(value)} characters, the column holds {sized.group(1)}")
+    identities = [(row["FILE_PATH"], row["CHAR_START"]) for row in tables["CO_PASSAGE"]]
+    if len(set(identities)) != len(identities):
+        raise SystemExit("refused: CO_PASSAGE: two passages share (FILE_PATH, CHAR_START), which identifies a result")
     passages = {row["SHA256"] for row in tables["CO_PASSAGE"]}
     for table, rows in tables.items():
         for row in rows:
@@ -215,7 +308,7 @@ def load(connection, model: Model, tables: dict[str, list[dict]], placeholder: s
     for table, columns in model.tables.items():
         cursor.execute(f"DROP TABLE IF EXISTS {table}")
         cursor.execute(create_statement(table, columns))
-        rows = tables.get(table, [])
+        rows = tables[table]
         if rows:
             names = [name for name, _, _, _ in columns]
             cursor.executemany(
@@ -236,6 +329,8 @@ def report(label: str, connection, model: Model) -> None:
 
 
 def load_duckdb(model: Model, tables: dict[str, list[dict]]) -> None:
+    import duckdb
+
     version = tuple(int(part) for part in duckdb.__version__.split(".")[:3])
     if version > NEWEST_DUCKDB_THE_JDBC_DRIVER_READS:
         raise SystemExit(f"refused: duckdb {duckdb.__version__} writes a file the JDBC driver cannot open; "
@@ -268,17 +363,25 @@ def load_postgres(url: str, model: Model, tables: dict[str, list[dict]]) -> None
 
 
 def main() -> int:
-    model = Model(MODEL_PATH.read_text(encoding="utf-8"))
+    model = load_model()
     manifest = load_manifest()
     if not manifest:
         raise SystemExit(f"no EDGAR manifest rows. Rebuild the corpus from the repository root:\n  {REBUILD}")
     if verify_disk(manifest) != 0:
         raise SystemExit(f"the EDGAR corpus on disk does not match its manifest. Rebuild it from the repository root:\n  {REBUILD}")
     tables = edgar_rows(manifest)
+    spans: list[dict] = []
+    for rows, its_spans in (sales_rows(model), lending_rows(model)):
+        merge(tables, rows)
+        spans.extend(its_spans)
+    missing = [table for table in model.tables if table not in tables]
+    if missing:
+        raise SystemExit(f"model.pure declares tables nothing loads: {missing}")
     refuse_bad_rows(model, tables)
-    sizes = sorted(row["CHAR_END"] - row["CHAR_START"] for row in tables["CO_PASSAGE"])
-    print(f"passages: {len(sizes)}; characters median {sizes[len(sizes) // 2]}, max {sizes[-1]}; "
-          f"{sum(size > TARGET_CHARS for size in sizes)} longer than {TARGET_CHARS} (one paragraph or row each)")
+    refuse_bad_spans(model, tables, spans)
+    for source in model.enum_values("CO_PASSAGE", "SOURCE"):
+        sizes = sorted(row["CHAR_END"] - row["CHAR_START"] for row in tables["CO_PASSAGE"] if row["SOURCE"] == source)
+        print(f"{source} passages: {len(sizes)}; characters median {sizes[len(sizes) // 2]}, max {sizes[-1]}")
     load_duckdb(model, tables)
     url = os.environ.get("PG_URL")
     if url is not None:
