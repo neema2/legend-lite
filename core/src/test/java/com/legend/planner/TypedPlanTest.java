@@ -54,7 +54,7 @@ class TypedPlanTest {
         // the plan reads back from its JSON as it was made (format 12: the typed result's shape)
         assertEquals(PlanJson.write(plan), PlanJson.write(PlanJson.read(PlanJson.write(plan))));
         try (Connection c = TestBackends.of(type).open()) {
-            return PlanRunner.rows(plan, Map.of(), PlanSessions.setUp(com.legend.testbackend.TestSessions.over(c), target(plan)));
+            return PlanRunner.rows(plan, Map.of(), PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), target(plan)));
         }
     }
 
@@ -140,7 +140,7 @@ class TypedPlanTest {
         ExecutionPlan plan = plan(type, "|#>{s::DB.T}#->select(~[ID, NAME])->sort(~ID->ascending())");
         List<String> events = new ArrayList<>();
         try (Connection c = TestBackends.of(type).open()) {
-            PlanRunner.stream(plan, Map.of(), PlanSessions.setUp(com.legend.testbackend.TestSessions.over(c), target(plan)), new ResultSink() {
+            PlanRunner.stream(plan, Map.of(), PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), target(plan)), new ResultSink() {
                 @Override
                 public void columns(List<ExecutionPlan.Column> columns) {
                     events.add("columns " + columns.stream().map(ExecutionPlan.Column::name).toList());

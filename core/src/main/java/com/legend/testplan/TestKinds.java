@@ -394,8 +394,8 @@ final class TestKinds implements ProgramKinds {
                     + " not designed");
         }
         List<ExecutionPlan.LoadStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
-        ExecutionPlan.Load setup = new ExecutionPlan.Load(Seeds.key(steps), ExecutionPlan.Load.Cadence.BEFORE_STEP,
-                steps, program.target());
+        ExecutionPlan.Load setup = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, steps,
+                program.target());
         program.add(setup);
         seeds.put(setup, planned.stream().map(CsvSeed.Planned::text).toList());
     }
@@ -511,12 +511,8 @@ final class TestKinds implements ProgramKinds {
         if (planned == null) {
             return;
         }
-        String delivered = switch (planned.step().delivery()) {
-            case ExecutionPlan.LoadStep.Delivery.Streamed st -> st.insert();
-        };
-        ExecutionPlan.Load load = new ExecutionPlan.Load(com.legend.executionplan.DataStores.sha256(
-                (resource.ref().digest() + "\n" + delivered).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                ExecutionPlan.Load.Cadence.AT_STEP, List.of(planned.step()), program.target());
+        ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
+                List.of(planned.step()), program.target());
         program.add(load);
         seeds.put(load, List.of(planned.recorded()));
     }

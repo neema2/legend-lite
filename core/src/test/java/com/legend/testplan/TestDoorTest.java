@@ -60,14 +60,14 @@ class TestDoorTest {
         ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, test.root());
         assertEquals(2, seq.steps().size(), seq.steps().toString());
         ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class, seq.steps().get(1));
-        assertEquals(List.of(), answer.sql().target().setup(), "R17 C6: the test door's target carries no setup");
+        assertEquals(List.of(), answer.sql().target().loads(), "R17 C6: the test door's target carries no load");
         // the statement is the query door's: one road
         ExecutionPlan query = body.executionPlan("x::RT");
         assertEquals(query.answerSql().statement(), answer.sql().statement());
-        assertFalse(query.answerSql().target().setup().isEmpty(), "the query door's target: the declared rows");
+        assertFalse(query.answerSql().target().loads().isEmpty(), "the query door's target: the declared rows");
         // M3e: the runtime's seeds are a step of the program, the same steps the query door's target carries
         ExecutionPlan.Load seeds = assertInstanceOf(ExecutionPlan.Load.class, seq.steps().get(0));
-        assertEquals(query.answerSql().target().setup(), seeds.steps());
+        assertEquals(query.answerSql().target().loads().get(0).steps(), seeds.steps());
     }
 
     /** M3e: a statement's seeds are placed once until a write; after an effect the next statement's are placed
@@ -464,7 +464,7 @@ class TestDoorTest {
         ExecutionPlan.LoadStep two = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
                 java.util.List.of(java.util.List.of("a", "b")));
         assertEquals(one.toString(), two.toString(), "the two steps print alike");
-        assertFalse(Seeds.key(java.util.List.of(one)).equals(Seeds.key(java.util.List.of(two))),
+        assertFalse(com.legend.planner.LoadPlanner.identity(java.util.List.of(one)).equals(com.legend.planner.LoadPlanner.identity(java.util.List.of(two))),
                 "and their keys differ");
     }
 }

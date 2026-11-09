@@ -149,8 +149,8 @@ class PlanRunnerH2Test {
         ExecutionPlan p = counting(inMemory("s::Named", H2,
                 new ConnectionSpecification.EmbeddedH2("users_own", "/never", false)), "NAMED_T");
         var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
-        assertEquals("connection 's::Named' is an in-memory database the user named ('users_own'), and the plan has"
-                + " setup for it: never run on it", refused.getMessage());
+        assertEquals("connection 's::Named' is an in-memory database the user named ('users_own'), and the plan loads"
+                + " data into it: never run on it", refused.getMessage());
     }
 
     /** Runs of one target that start together set it up once: its two setup statements sent once, every run answered

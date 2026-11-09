@@ -854,12 +854,15 @@ public final class PlanMaker {
             ModelContext ctx, SqlDialect dialect,
             Metamodel metamodel, boolean projectDatabase) {
         ExecutionPlan.Database database = database(decided, projectDatabase ? project(decided, ctx, dialect) : null);
-        List<ExecutionPlan.LoadStep> steps = new ArrayList<>(
-                setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect));
-        steps.addAll(metamodel.setup());
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
-        return new ExecutionPlan.Target(database, session, steps);
+        ExecutionPlan.Target bare = new ExecutionPlan.Target(database, session, List.of());
+        // the runtime's declared test data, then the system metamodel store's rows (M6, until L4), each its own load
+        // established on acquisition (L2, 2026-11-09: until then the target's setup steps)
+        List<ExecutionPlan.Load> loads = new ArrayList<>(LoadPlanner.targetLoads(
+                setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect), bare));
+        loads.addAll(LoadPlanner.targetLoads(metamodel.setup(), bare));
+        return new ExecutionPlan.Target(database, session, loads);
     }
 
     /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's, a

@@ -59,7 +59,7 @@ class ProductStatementsTest {
     private static List<List<Object>> rows(ExecutionPlan plan) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             return PlanRunner.rows(plan, Map.of(), plan.sendsTheAnswer()
-                    ? PlanSessions.setUp(TestSessions.over(c), plan.answerSql().target())
+                    ? PlanSessions.acquired(TestSessions.over(c), plan.answerSql().target())
                     : PlanSessions.of(TestSessions.over(c))).rows();
         }
     }

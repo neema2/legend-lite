@@ -87,7 +87,9 @@ public final class PlanJson {
      *  design's L1 (docs/DATA_IN_THE_PLAN_2026_11_09.md); 32 since 2026-11-09: a data reference's {@code format} is
      *  the declared format, an object ({@code _type} {@code csv}, its {@code delimiter} and {@code quote}: decision 6),
      *  and a file's one delivery is the streamed one (the database's own reader cannot read the declared format exactly:
-     *  the {@code databaseReads} delivery is gone, L2). */
+     *  the {@code databaseReads} delivery is gone, L2), a file step its {@code sizeLimitMegabytes}, and a target's
+     *  {@code setup} is its {@code loads}: each a {@code PER_ACQUISITION} load, written once in the plan's {@code loads}
+     *  section and named by its identity in every target that needs it (L2). */
     public static final int VERSION = 32;
 
     private PlanJson() {
@@ -151,7 +153,86 @@ public final class PlanJson {
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("root", node(plan.root()));
         out.put("writes", plan.writes());
+        out.put("loads", hoistLoads(out));
         return Json.toCompact(out);
+    }
+
+    /**
+     * THE LOAD SECTION (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.6, L2): every target in {@code tree} written with its
+     * loads inline ({@link #target}) has them moved to one list, each once by its identity, the target naming the
+     * identities alone; the list returned, for the plan's (or the test plan's) {@code loads}. A target is the object
+     * holding {@code database}, {@code session} and {@code loads}. Two loads of one identity whose content differs are
+     * refused: an identity digests its load.
+     */
+    @SuppressWarnings("unchecked")
+    public static List<Object> hoistLoads(Map<String, Object> tree) {
+        Map<String, Object> section = new LinkedHashMap<>();
+        hoist(tree, section);
+        return new ArrayList<>(section.values());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void hoist(Object o, Map<String, Object> section) {
+        if (o instanceof Map<?, ?> m) {
+            Map<String, Object> map = (Map<String, Object>) m;
+            if (map.containsKey("database") && map.containsKey("session") && map.get("loads") instanceof List<?> loads) {
+                List<Object> identities = new ArrayList<>();
+                for (Object each : loads) {
+                    if (!(each instanceof Map<?, ?> load)) {
+                        throw new IllegalStateException("a target's load is written inline before it is hoisted");
+                    }
+                    String identity = (String) load.get("identity");
+                    Object seen = section.putIfAbsent(identity, load);
+                    if (seen != null && !Json.toCompact(seen).equals(Json.toCompact(load))) {
+                        throw new IllegalStateException("two loads of one identity differ: " + identity);
+                    }
+                    identities.add(identity);
+                }
+                map.put("loads", identities);
+            }
+            for (Object v : map.values()) {
+                hoist(v, section);
+            }
+        } else if (o instanceof List<?> l) {
+            for (Object v : l) {
+                hoist(v, section);
+            }
+        }
+    }
+
+    /** {@link #hoistLoads}' inverse, in place: every target in {@code tree} given back its loads from {@code section}
+     *  (the plan's {@code loads}), each named by its identity; an identity the section lacks is refused by name. */
+    public static void inlineLoads(Json.Node tree, Json.Arr section) {
+        Map<String, Json.Node> byIdentity = new LinkedHashMap<>();
+        for (Json.Node n : section.items()) {
+            byIdentity.put(((Json.Obj) n).getString("identity"), n);
+        }
+        inline(tree, byIdentity);
+    }
+
+    private static void inline(Json.Node n, Map<String, Json.Node> byIdentity) {
+        if (n instanceof Json.Obj o) {
+            if (o.fields().containsKey("database") && o.fields().containsKey("session")
+                    && o.fields().get("loads") instanceof Json.Arr ids) {
+                List<Json.Node> loads = new ArrayList<>();
+                for (Json.Node id : ids.items()) {
+                    String identity = id instanceof Json.Str s ? s.value() : null;
+                    Json.Node load = identity == null ? null : byIdentity.get(identity);
+                    if (load == null) {
+                        throw new IllegalArgumentException("a target names a load its plan does not hold: " + id);
+                    }
+                    loads.add(load);
+                }
+                o.fields().put("loads", new Json.Arr(loads));
+            }
+            for (Json.Node v : o.fields().values()) {
+                inline(v, byIdentity);
+            }
+        } else if (n instanceof Json.Arr a) {
+            for (Json.Node v : a.items()) {
+                inline(v, byIdentity);
+            }
+        }
     }
 
     /** A declared parameter as JSON: the test plan's format writes its parameters so. */
@@ -376,7 +457,10 @@ public final class PlanJson {
     /** {@code target} in the lite format, alone: an unambiguous spelling of its whole content (a runner keys a shared
      *  database by it, decision A). */
     public static String writeTarget(Target target) {
-        return Json.toCompact(target(target));
+        // the target as a plan writes it: its loads by identity (a key names what a target holds by its digests)
+        Map<String, Object> t = target(target);
+        hoistLoads(t);
+        return Json.toCompact(t);
     }
 
     /** {@code t} as a JSON object (the test plan's format writes an appeal's replay target so: step 8b). */
@@ -393,7 +477,8 @@ public final class PlanJson {
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("database", database(t.database()));
         to.put("session", t.session());
-        to.put("setup", t.setup().stream().map(PlanJson::setupStep).toList());
+        // inline here; the plan's writer moves each to its load section once (hoistLoads)
+        to.put("loads", t.loads().stream().map(PlanJson::node).toList());
         return to;
     }
 
@@ -482,6 +567,7 @@ public final class PlanJson {
             throw new IllegalArgumentException("not a " + FORMAT + " v" + VERSION + " plan (format " + format
                     + ", version " + o.getIntOr("version", -1) + ")");
         }
+        inlineLoads(o, o.getArr("loads"));
         List<Parameter> parameters = new ArrayList<>();
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(readParameter((Json.Obj) n));
@@ -705,11 +791,15 @@ public final class PlanJson {
     }
 
     private static Target readTarget(Json.Obj t) {
-        List<LoadStep> setup = new ArrayList<>();
-        for (Json.Node n : t.getArr("setup").items()) {
-            setup.add(readLoadStep((Json.Obj) n));
+        // the loads inline: the plan's reader gave each back from its load section (inlineLoads)
+        List<ExecutionPlan.Load> loads = new ArrayList<>();
+        for (Json.Node n : t.getArr("loads").items()) {
+            if (!(n instanceof Json.Obj o) || !(readNode(o) instanceof ExecutionPlan.Load load)) {
+                throw new IllegalArgumentException("a target's load is a load node: " + n);
+            }
+            loads.add(load);
         }
-        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), setup);
+        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {

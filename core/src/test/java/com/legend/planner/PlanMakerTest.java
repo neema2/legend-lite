@@ -211,7 +211,7 @@ class PlanMakerTest {
         assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
                 && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
                 && p.project() == null, String.valueOf(t.database()));
-        assertEquals(List.of(), t.setup());
+        assertEquals(List.of(), t.loads());
         // the server's plan: the project's database, keyed by the model's stores, filled with nothing -- the run
         // finds it from the plan alone
         ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
@@ -692,8 +692,8 @@ class PlanMakerTest {
             String sql = plan.answerSql().statement();
             if (dialect.inProcess()) {
                 forms.add("setup");
-                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
-                        && st.sql().contains("classes")), type + ": " + target.setup());
+                assertTrue(target.loads().stream().flatMap(l -> l.steps().stream()).anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
+                        && st.sql().contains("classes")), type + ": " + target.loads());
                 assertEquals(dialect.sessionSetup(), target.session(), type.name());
                 assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
                 if (type == Databases.PLATFORM) {
@@ -703,8 +703,8 @@ class PlanMakerTest {
                 }
                 continue;
             }
-            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
-                    && st.sql().contains("classes")), type + ": " + target.setup());
+            assertTrue(target.loads().stream().flatMap(l -> l.steps().stream()).noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
+                    && st.sql().contains("classes")), type + ": " + target.loads());
             if (!dialect.temporaryTables()) {
                 forms.add("inline");
                 assertTrue(target.session().stream().noneMatch(s -> s.contains("metamodel_classes")),
@@ -805,10 +805,10 @@ class PlanMakerTest {
             var ctx = Compiler.compileModel(model);
             var dialect = Databases.dialect(type);
             // the declared test data as the plan runner establishes it on a session (the doors, 2026-10-29)
-            com.legend.exec.PlanRunner.setUp(com.legend.setup.CsvSeed.planned(
+            com.legend.exec.PlanRunner.establish(com.legend.planner.LoadPlanner.load(com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION, com.legend.setup.CsvSeed.planned(
                     com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect), dialect).stream()
                     .map(com.legend.setup.CsvSeed.Planned::step).toList(),
-                    plan.answerSql().target(), com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(today)), null);
+                    plan.answerSql().target().bare()), com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(today)));
             // today's path: the query with its values as lets, run as the server runs it, on the connection its declared
             // test data was established on
             return new String[] {PlanCases.today(model, query, "s::RT", today, output),

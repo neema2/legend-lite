@@ -52,7 +52,7 @@ final class ProgramRunnerTest {
     }
 
     private static PlanSessions.Source sessions() {
-        return PlanSessions.setUp(TestSessions.over(conn), target);
+        return PlanSessions.acquired(TestSessions.over(conn), target);
     }
 
     /** The test-is-the-product plan's M10a: a target naming the graph's SYSTEM database opens the session its holder

@@ -24,7 +24,7 @@ public final class PlanSessions {
      *  a write runs on a database of its own, a database the user names or a URL reaches keeps it). A closed set of
      *  exec's own (2026-11-09, the user's question "why do we have any callbacks?"): a caller names one, exec decides by
      *  its rule; until then a caller's function decided, inside the run, which session a statement went to. */
-    public sealed interface Source permits Marked, Shared, Given, SetUp, Refusing, Lane {
+    public sealed interface Source permits Marked, Shared, Given, Acquired, Refusing, Lane {
         Sessions.Session open(ExecutionPlan.Target target);
 
         default Sessions.Session openToChange(ExecutionPlan.Target target) {
@@ -114,7 +114,7 @@ public final class PlanSessions {
             Sessions.Opener fresh) implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
-            if (!target.setup().isEmpty()) {
+            if (!target.loads().isEmpty()) {
                 return openShared(target);
             }
             Sessions.Session h = held;
@@ -156,23 +156,23 @@ public final class PlanSessions {
         }
     }
 
-    /** {@link #of(Sessions.Session)} with {@code target}'s setup run on the session first, once (the plan's seeds, the
-     *  session statements, under the SEED mark): run INSIDE the plan's run, when the runner first opens a session
-     *  of this source (THE WALL's rule 3, 2026-11-06: until then it ran here, before the run, a statement sent
-     *  outside every run); a plan whose setup has rows for a bulk loader is refused by name there, before any
-     *  statement, on a database that has none. */
-    public static Source setUp(Sessions.Session session, ExecutionPlan.Target target) {
-        return new SetUp(session, target);
+    /** {@link #of(Sessions.Session)} with {@code target}'s loads established on the session first, once
+     *  ({@link ExecutionPlan.Load.Cadence#PER_ACQUISITION}: the session is acquired for the target): run INSIDE the
+     *  plan's run, when the runner first opens a session of this source (THE WALL's rule 3, 2026-11-06), each through
+     *  the one deliverer ({@link PlanRunner#establishOn}); a load whose rows need a bulk loader is refused by name there,
+     *  before any statement, on a database that has none. Until L2 (2026-11-09) the target's {@code setup}. */
+    public static Source acquired(Sessions.Session session, ExecutionPlan.Target target) {
+        return new Acquired(session, target);
     }
 
-    private static final class SetUp implements Source {
+    private static final class Acquired implements Source {
         private final Sessions.Session session;
         private final ExecutionPlan.Target target;
         private final Source source;
-        // [0] established, [1] a setup that failed: never run again on the same source (some of its steps ran)
+        // [0] established, [1] an establishing that failed: never run again on the same source (some of its steps ran)
         private final boolean[] state = {false, false};
 
-        SetUp(Sessions.Session session, ExecutionPlan.Target target) {
+        Acquired(Sessions.Session session, ExecutionPlan.Target target) {
             this.session = session;
             this.target = target;
             this.source = of(session);
@@ -182,12 +182,12 @@ public final class PlanSessions {
         public Sessions.Session open(ExecutionPlan.Target t) {
             synchronized (state) {
                 if (state[1]) {
-                    throw new IllegalStateException("the session's setup failed on its first open, and is not run"
-                            + " again (some of its steps ran)");
+                    throw new IllegalStateException("the session's loads failed on its first open, and are not run"
+                            + " again (some of their steps ran)");
                 }
                 if (!state[0]) {
                     state[1] = true;
-                    establish(session, target);
+                    loads(session, target);
                     state[1] = false;
                     state[0] = true;
                 }
@@ -196,16 +196,19 @@ public final class PlanSessions {
         }
     }
 
-    /** {@code target}'s setup run on {@code session} now, inside the run that opened it (the runner's own setup steps:
-     *  {@link PlanRunner#setUpIn}); refused by name before any statement where its rows need a bulk loader the
-     *  session's database has none of. */
-    private static void establish(Sessions.Session session, ExecutionPlan.Target target) {
-        if (target.setup().stream().anyMatch(ExecutionPlan.LoadStep.Rows.class::isInstance)
-                && !Sessions.loadsRows(session)) {
-            throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
-                    + " database has none (" + Sessions.product(session) + ")");
+    /** {@code target}'s loads established on {@code session} now, inside the run that acquired it; refused by name
+     *  before any statement where a load's rows need a bulk loader the session's database has none of. */
+    private static void loads(Sessions.Session session, ExecutionPlan.Target target) {
+        for (ExecutionPlan.Load load : target.loads()) {
+            if (load.steps().stream().anyMatch(ExecutionPlan.LoadStep.Rows.class::isInstance)
+                    && !Sessions.loadsRows(session)) {
+                throw new IllegalStateException("the plan's load has rows for a bulk loader, and the session's"
+                        + " database has none (" + Sessions.product(session) + ")");
+            }
         }
-        PlanRunner.setUpIn(target.setup(), target, marked(of(session), StatementOrigin.SEED), null);
+        for (ExecutionPlan.Load load : target.loads()) {
+            PlanRunner.establishOn(load, session);
+        }
     }
 
     /** A session on the target's database kept by the target's content (its setup run once when opened): a view of a
@@ -223,7 +226,7 @@ public final class PlanSessions {
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
                 if (connector.ownSessions()) {
-                    refuseSetup(target, d, "a database its connector opens");
+                    refuseLoads(target, d, "a database its connector opens");
                     yield connector.open(d.connection());
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
@@ -232,7 +235,7 @@ public final class PlanSessions {
                     case Sessions.Opening.Named n -> {
                         String usersName = n.name();
                         if (usersName != null) {
-                            refuseSetup(target, d, "an in-memory database the user named ('" + usersName + "')");
+                            refuseLoads(target, d, "an in-memory database the user named ('" + usersName + "')");
                             yield Sessions.openNamed(n, usersName);
                         }
                         Named named = NAMED.getOrOpenSlowly(key, held -> Sessions.closed(held.keeper()), () -> {
@@ -242,7 +245,7 @@ public final class PlanSessions {
                         yield Sessions.joinKept(n, named.name());
                     }
                     case Sessions.Opening.Url u -> {
-                        refuseSetup(target, d, "a database reached by a URL");
+                        refuseLoads(target, d, "a database reached by a URL");
                         yield Sessions.open(u);
                     }
                 };
@@ -271,10 +274,10 @@ public final class PlanSessions {
         };
     }
 
-    private static void refuseSetup(ExecutionPlan.Target target, ExecutionPlan.Database.Declared d, String what) {
-        if (!target.setup().isEmpty()) {
+    private static void refuseLoads(ExecutionPlan.Target target, ExecutionPlan.Database.Declared d, String what) {
+        if (!target.loads().isEmpty()) {
             throw new IllegalStateException("connection '" + d.connection().qualifiedName() + "' is " + what
-                    + ", and the plan has setup for it: never run on it");
+                    + ", and the plan loads data into it: never run on it");
         }
     }
 
@@ -369,16 +372,16 @@ public final class PlanSessions {
             return session;
         }
         return closedOnFailure(session, () -> {
-            ExecutionPlan.Target filling = new ExecutionPlan.Target(target.database(), target.session(),
-                    project.made());
-            PlanRunner.setUp(filling.setup(), filling, marked(of(session), StatementOrigin.SEED), null);
+            // the project's fill as a load of its own until L3 makes it the plan's ONCE load (S145)
+            PlanRunner.establish(new ExecutionPlan.Load("the project's Data " + project.key(),
+                    ExecutionPlan.Load.Cadence.PER_ACQUISITION, project.made(), target.bare()), of(session));
         });
     }
 
-    /** {@code session} with {@code target}'s setup run on it; a setup that fails closes the session it was opened
-     *  for, the setup's failure the one told. */
+    /** {@code session} with {@code target}'s loads established on it, as a run of their own; a load that fails closes
+     *  the session it was opened for, the load's failure the one told. */
     private static Sessions.Session setUpOpened(Sessions.Session session, ExecutionPlan.Target target) {
-        return closedOnFailure(session, () -> establish(session, target));
+        return closedOnFailure(session, () -> loads(session, target));
     }
 
     /** {@code session} after {@code work} ran on it; closed, and the failure raised, where {@code work} fails. */

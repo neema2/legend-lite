@@ -64,7 +64,7 @@ final class TestRunTest {
     }
 
     private static PlanSessions.Source sessions() {
-        return PlanSessions.setUp(TestSessions.over(conn), target);
+        return PlanSessions.acquired(TestSessions.over(conn), target);
     }
 
     private static ExecutionPlan.Column col(String name, String type, String slot) {

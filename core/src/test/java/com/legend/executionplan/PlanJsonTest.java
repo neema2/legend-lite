@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
-        return new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
-                spec, auth)), null), List.of(),
+        return com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
+                spec, auth)), null), List.of(), List.of()),
                 List.of(new LoadStep.Statement("create table T(ID INT)")));
     }
 
@@ -86,9 +86,9 @@ class PlanJsonTest {
 
     @Test
     void bothLoadStepKindsReadBack_aNullCellStaysNull() {
-        Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
+        Target t = com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
-                List.of("SET TimeZone='UTC'"),
+                List.of("SET TimeZone='UTC'"), List.of()),
                 List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
                         new LoadStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
                                 "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
@@ -96,7 +96,7 @@ class PlanJsonTest {
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
-        LoadStep.Rows rows = (LoadStep.Rows) ((TdsResult) back.root()).sql().target().setup().get(1);
+        LoadStep.Rows rows = (LoadStep.Rows) ((TdsResult) back.root()).sql().target().loads().get(0).steps().get(1);
         assertEquals(null, rows.rows().get(1).get(1));
     }
 

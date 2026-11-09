@@ -1476,6 +1476,9 @@ class JavaEvalLedgerTest {
                     "ConnectionPlans.java",
                     // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): a program's step as the planner holds it, a product node or an extension's by its handle
                     "PlannedStep.java",
+                    // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L2 (P2): the one place a plan's load is made and the
+                    // one identity scheme (a digest of the steps' content, every digest in it); data in, no value computed
+                    "LoadPlanner.java",
                     "MetamodelSeeds.java", "OpSeeds.java",
                     "ProgramFacts.java",
                     "QueryParameters.java",

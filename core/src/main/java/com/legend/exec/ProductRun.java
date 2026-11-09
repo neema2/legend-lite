@@ -71,7 +71,7 @@ public final class ProductRun {
         ExecutionPlan.Target target = plan.answerSql().target();
         try (Sessions.Session session = sessions.open(target)) {
             PlanSessions.Source on = switch (establish) {
-                case DECLARED_SETUP -> PlanSessions.setUp(session, target);
+                case DECLARED_SETUP -> PlanSessions.acquired(session, target);
                 case AS_GIVEN -> PlanSessions.of(session);
             };
             PlanRunner.stream(plan, Map.of(), on, sink, batchRows);

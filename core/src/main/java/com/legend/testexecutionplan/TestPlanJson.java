@@ -31,8 +31,9 @@ public final class TestPlanJson {
      *  hole 1): an appeal's rows carry the enumerations the referee decodes; 9 (A1): an appeal names the appeal it is a
      *  second hearing of; 10 (slice 5, 2026-11-09): the target of the session the body runs on; 11 (2026-11-09, the
      *  data-in-the-plan design's L1): a program's steps in the product's format version 31 -- the load node, a file
-     *  load by its data reference. */
-    public static final int VERSION = 11;
+     *  load by its data reference; 12 (L2): the product's version 32, and the test plan's own {@code loads} section,
+     *  each load once, every target naming it by identity. */
+    public static final int VERSION = 12;
 
     private TestPlanJson() {
     }
@@ -91,6 +92,8 @@ public final class TestPlanJson {
             ext.put("byVerdict", extensions(plan.extensionsByVerdict()));
             out.put("extensions", ext);
         }
+        // each load once, every target naming it by identity (the data-in-the-plan design's 2.6, L2)
+        out.put("loads", PlanJson.hoistLoads(out));
         return Json.toCompact(out);
     }
 
@@ -204,6 +207,7 @@ public final class TestPlanJson {
                     + PlanJson.VERSION + " (format " + format + ", version " + o.getIntOr("version", -1)
                     + ", product version " + o.getIntOr("productVersion", -1) + ")");
         }
+        PlanJson.inlineLoads(o, o.getArr("loads"));
         List<ExecutionPlan.Parameter> parameters = new ArrayList<>();
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(PlanJson.parameterOf((Json.Obj) n));

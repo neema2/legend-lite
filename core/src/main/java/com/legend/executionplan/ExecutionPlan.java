@@ -299,7 +299,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             BEFORE_STEP,
             /** A program's own load at its place ({@code loadCsvToDbTable}): run every time it is reached, a write as
              *  an effect is, never skipped. */
-            AT_STEP
+            AT_STEP,
+            /** A target's load (a connection's declared test data, L2): established when a session is acquired for the
+             *  target -- once per in-memory database the target keeps, on each acquisition of a database the plan does
+             *  not make (the project road's query) -- a write, as legend-engine establishes a test connection on each
+             *  acquisition. */
+            PER_ACQUISITION
         }
     }
 
@@ -745,17 +750,40 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
     /**
      * Where a statement runs: the database; the statements every connection to it runs first ({@code session}: its
-     * settings, such as the time zone); and the steps that ESTABLISH it once, when its database is opened, before
-     * anything else ({@code setup}: a connection's declared test data, written at plan time for the target's database).
-     * Two runs share an in-memory database when their targets are equal (decision A,
-     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9). No server version: every database's statements are spelled alike
-     * for every version lite runs (2026-11-05, one H2; until then H2's plans named the versions they were written for).
+     * settings, such as the time zone); and the LOADS that establish it when a session is acquired for it, before
+     * anything else ({@code loads}: a connection's declared test data, written at plan time for the target's database;
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md L2, 2026-11-09 -- until then the target's {@code setup} steps). Each is a
+     * {@link Load.Cadence#PER_ACQUISITION} load whose own target is this one's database and session with no load (a
+     * plan's JSON writes each load once, in its load section, and a target names it by identity). Two runs share an
+     * in-memory database when their targets are equal (decision A, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the
+     * loads by their identities, which digest their content. No server version: every database's statements are spelled
+     * alike for every version lite runs (2026-11-05, one H2).
      */
-    public record Target(Database database, List<String> session, List<LoadStep> setup) {
+    public record Target(Database database, List<String> session, List<Load> loads) {
         public Target {
             Objects.requireNonNull(database, "database");
             session = List.copyOf(session);
-            setup = List.copyOf(setup);
+            loads = List.copyOf(loads);
+            java.util.Set<String> identities = new java.util.HashSet<>();
+            for (Load load : loads) {
+                if (load.cadence() != Load.Cadence.PER_ACQUISITION) {
+                    throw new IllegalArgumentException("a target's load is established on acquisition: "
+                            + load.identity() + " is " + load.cadence());
+                }
+                if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
+                        || !load.target().session().equals(session)) {
+                    throw new IllegalArgumentException("a target's load loads into the target's own database and"
+                            + " session, and names no load of its own: " + load.identity());
+                }
+                if (!identities.add(load.identity())) {
+                    throw new IllegalArgumentException("a target names a load twice: " + load.identity());
+                }
+            }
+        }
+
+        /** This target with no load: where its loads load. */
+        public Target bare() {
+            return loads.isEmpty() ? this : new Target(database, session, List.of());
         }
     }
 

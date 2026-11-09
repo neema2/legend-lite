@@ -105,7 +105,7 @@ class QueryDoorTest {
         // the plan's own runtime: its test data is its target's setup step
         ExecutionPlan own = Compiler.query(Compiler.compileModel(SEEDED), read).executionPlan("x::Seeded");
         assertInstanceOf(ExecutionPlan.TdsResult.class, own.root());
-        assertFalse(own.answerSql().target().setup().isEmpty(), "the declared rows, the target's setup");
+        assertFalse(own.answerSql().target().loads().isEmpty(), "the declared rows, the target's load");
     }
 
     /** M3f, D15: an inline execute(...)'s result read lazily is the product's: planned as its chain, its activity's

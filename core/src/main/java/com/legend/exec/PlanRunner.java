@@ -238,64 +238,33 @@ public final class PlanRunner {
         }
     }
 
-    /** How a setup step went, for a caller that records the steps it asked for (the referee's ledger): the step's
-     *  index and whether its statement answered rows. */
-    @FunctionalInterface
-    public interface Ran {
-        void ran(int step, boolean answeredRows);
-    }
-
     /**
-     * A session's setup, step by step, on a session of {@code sessions} for {@code target}: a statement step as an
-     * effect ({@link #effect}); a rows step through the session's bulk loader ({@link Statements#load}), which the plan
-     * side chose where the database has one ({@code SqlDialect.loadsRowsInBulk}; a session whose database has none is
-     * a mismatch, refused by name, as {@link PlanSessions}'s own setup refuses it). The body driver's seeds (a
-     * context's declared test data), a program's session statements and the system metamodel store's rows come
-     * through here (the doors, 2026-10-29; until then {@code SetupRunner} ran them on the session's statements
-     * itself); a session the host opens is set up by its owner ({@link PlanSessions#setUp}). Counted under the
-     * caller's statement origin. No step streams to a sink, so none raises an {@code IOException} of its own.
+     * A TARGET'S LOAD established ({@link ExecutionPlan.Load.Cadence#PER_ACQUISITION}; docs/DATA_IN_THE_PLAN_2026_11_09.md
+     * L2, 2026-11-09): run on a session of {@code sessions} for its target, through the one deliverer every load takes
+     * ({@link #seed}: a statement step sent, a rows step through the session's bulk loader -- refused by name where the
+     * database has none -- a file step by its reference), as a run of its own (THE WALL: a statement is sent only inside
+     * a run). Counted under the SEED mark. {@code PlanSessions} establishes a target's loads so when it acquires a session
+     * for it; a caller that holds a load of its own (a test's fixture) establishes it here. Until L2 a target's setup
+     * steps ran by a path of their own ({@code setUp}).
      */
-    public static void setUp(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
-            PlanSessions.Source sessions, @Nullable Ran ran) {
-        // a run of its steps (THE WALL, 2026-11-06)
+    public static void establish(ExecutionPlan.Load load, PlanSessions.Source sessions) {
         try (var run = com.legend.base.RunScope.enter()) {
-            setUpIn(steps, target, sessions, ran);
+            establishIn(load, sessions);
         }
     }
 
-    /** {@link #setUp} inside the run in progress: a session the runner opened for a target, set up as it opens
-     *  ({@link PlanSessions}). */
-    static void setUpIn(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
-            PlanSessions.Source sessions, @Nullable Ran ran) {
-        for (int i = 0; i < steps.size(); i++) {
-            boolean answeredRows = switch (steps.get(i)) {
-                case ExecutionPlan.LoadStep.Statement s -> {
-                    try {
-                        yield effectIn(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-                // a target's setup holds statements and rows; its loads by reference arrive with the design's L2
-                case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("a file's load in a target's"
-                        + " setup (" + f.ref().name() + "): a target's loads by reference arrive with"
-                        + " docs/DATA_IN_THE_PLAN_2026_11_09.md L2");
-                case ExecutionPlan.LoadStep.Rows r -> {
-                    try (Sessions.Session session = sessions.open(target)) {
-                        if (!opened(session, target, sessions.mark()).load(r)) {
-                            throw new IllegalStateException("the setup has rows for a bulk loader, and the session's"
-                                    + " database has none (" + r.stagingTable() + ")");
-                        }
-                        // the bulk load's one statement, counted under the caller's mark
-                        StatementOrigin.count(sessions.mark());
-                    }
-                    yield false;
-                }
-            };
-            if (ran != null) {
-                ran.ran(i, answeredRows);
-            }
+    /** {@link #establish} inside the run in progress. */
+    static void establishIn(ExecutionPlan.Load load, PlanSessions.Source sessions) {
+        try (Sessions.Session session = sessions.open(load.target())) {
+            establishOn(load, session);
         }
+    }
+
+    /** {@code load} established on {@code session}, inside the run in progress: a target's loads hold statements and
+     *  rows, never a file (they are given no store; a file step is refused by name). */
+    static void establishOn(ExecutionPlan.Load load, Sessions.Session session) {
+        seed(load, session, opened(session, load.target(), StatementOrigin.SEED),
+                com.legend.executionplan.DataStores.none(), answered -> { });
     }
 
     /** A typed answer on its way to a sink: the columns once the statement has answered (its first row, or its
@@ -598,6 +567,7 @@ public final class PlanRunner {
      *  its holder sent it; every other under SEED. */
     static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
             com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
+        // a seed (BEFORE_STEP) is memoed; a program's own load and a target's (AT_STEP, PER_ACQUISITION) write
         boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP;
         SeedKey key = new SeedKey(seeds.identity());
         if (memo && session.state().established(key)) {

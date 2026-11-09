@@ -39,7 +39,7 @@ final class ReportedColumnsTest {
         List<ExecutionPlan.Column> columns = new ArrayList<>();
         List<List<Object>> rows = new ArrayList<>();
         try (Connection c = backend.open()) {
-            PlanRunner.stream(plan, Map.of(), PlanSessions.setUp(TestSessions.over(c), target), new ResultSink() {
+            PlanRunner.stream(plan, Map.of(), PlanSessions.acquired(TestSessions.over(c), target), new ResultSink() {
                 @Override
                 public void columns(List<ExecutionPlan.Column> reported) {
                     columns.addAll(reported);

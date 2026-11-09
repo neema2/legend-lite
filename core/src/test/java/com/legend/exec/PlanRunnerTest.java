@@ -191,9 +191,9 @@ class PlanRunnerTest {
     // ---- sessions -------------------------------------------------------------------------------------------------
 
     static ExecutionPlan counting(ConnectionDefinition connection, String table) {
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                List.of(), List.of(new ExecutionPlan.LoadStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
-                        new ExecutionPlan.LoadStep.Statement("INSERT INTO " + table + " VALUES (1)")));
+        ExecutionPlan.Target target = target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
+                new ExecutionPlan.LoadStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
+                new ExecutionPlan.LoadStep.Statement("INSERT INTO " + table + " VALUES (1)"));
         return ExecutionPlan.reading(List.of(), cell(
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
@@ -254,7 +254,8 @@ class PlanRunnerTest {
     }
 
     static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.LoadStep... setup) {
-        return new ExecutionPlan.Target(database, List.of(), List.of(setup));
+        return com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(database, List.of(), List.of()),
+                List.of(setup));
     }
 
     static ExecutionPlan.LoadStep.Statement statement(String sql) {
@@ -298,7 +299,7 @@ class PlanRunnerTest {
                             statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
             for (int attempt = 1; attempt <= 2; attempt++) {
                 var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
-                assertEquals("the plan's setup has rows for a bulk loader, and the session's database has none ("
+                assertEquals("the plan's load has rows for a bulk loader, and the session's database has none ("
                         + connection.databaseType() + ")", refused.getMessage(), "attempt " + attempt);
             }
         }
@@ -313,7 +314,7 @@ class PlanRunnerTest {
         ExecutionPlan p = counting(inMemory("s::File", Databases.PLATFORM,
                 new ConnectionSpecification.LocalFile(file.toString())), "URL_T");
         var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
-        assertEquals("connection 's::File' is a database reached by a URL, and the plan has setup for it: never run on"
+        assertEquals("connection 's::File' is a database reached by a URL, and the plan loads data into it: never run on"
                 + " it", refused.getMessage());
         assertTrue(java.nio.file.Files.notExists(file), "opened: " + file);
     }
