@@ -127,7 +127,7 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   const type = t.database?.connection?.databaseType ?? t.database?.databaseType;
   if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
   // a target's loads (its declared test data, a project's Data: L2/L3) are refused by name, as its setup steps were; a
-  // target that names none (a field absent included) is a host's own database as it is
+  // target with an empty list is a host's own database as it is, and one whose list is absent is no plan of version 32
   if (!Array.isArray(t.loads) || t.loads.length > 0) throw new PlanRefusal('a plan that loads data into its database first is not run here: it runs on the host\'s own');
   for (const s of sent) {
     // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by

@@ -77,7 +77,7 @@ class DataLoadsTest {
     }
 
     private static ExecutionPlan.Load load(TestBackend b, ExecutionPlan.LoadStep.File file) {
-        return new ExecutionPlan.Load("a load", ExecutionPlan.Load.Cadence.AT_STEP, List.of(file),
+        return com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, List.of(file),
                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(b.planType(), null), List.of(),
                         List.of()));
     }
@@ -252,6 +252,22 @@ class DataLoadsTest {
             } finally {
                 st.execute("DROP TABLE data_loads_people");
             }
+        }
+    }
+
+    /** A load whose identity is not its content's digest is refused before anything runs: the seeds' memo and a shared
+     *  database's key trust the identity (the M1 tenets audit's note, 2026-11-09). */
+    @Test
+    void aLoadWhoseIdentityIsNotItsContentsIsRefused(@TempDir Path dir) throws Exception {
+        byte[] bytes = CSV.getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("employees.csv"), bytes);
+        for (TestBackend b : loading()) {
+            ExecutionPlan.Load honest = load(b, file(b.dialect(), "employees.csv", bytes));
+            ExecutionPlan.Load named = new ExecutionPlan.Load("load:another", honest.cadence(), honest.steps(),
+                    honest.target());
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> loaded(b, DataStores.resources(dir), named), b.name());
+            assertTrue(e.getMessage().contains("is not its content's"), e.getMessage());
         }
     }
 }

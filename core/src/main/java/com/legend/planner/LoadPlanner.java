@@ -24,7 +24,7 @@ public final class LoadPlanner {
     /** {@code steps} as a load of {@code cadence} into {@code target}, named by its content ({@link #identity}). */
     public static ExecutionPlan.Load load(ExecutionPlan.Load.Cadence cadence, List<ExecutionPlan.LoadStep> steps,
             ExecutionPlan.Target target) {
-        return new ExecutionPlan.Load(identity(steps), cadence, steps, target);
+        return new ExecutionPlan.Load(identity(cadence, steps), cadence, steps, target);
     }
 
     /** {@code steps} as the loads a target establishes on acquisition: none for no step, else one load into
@@ -40,48 +40,10 @@ public final class LoadPlanner {
         return new ExecutionPlan.Target(target.database(), target.session(), targetLoads(steps, target));
     }
 
-    /** A load's name: the content of its steps (a statement's text, a rows step's statements and cells, a file's
-     *  reference and delivery), so equal loads share it and loads that run differently never do (the M3 audit; the
-     *  design audit's H1, 2026-11-02: each field length-prefixed, since a record's text joins fields with no escape). */
-    public static String identity(List<ExecutionPlan.LoadStep> steps) {
-        StringBuilder sb = new StringBuilder();
-        for (ExecutionPlan.LoadStep step : steps) {
-            switch (step) {
-                case ExecutionPlan.LoadStep.Statement st -> field(sb.append('S'), st.sql());
-                case ExecutionPlan.LoadStep.Rows r -> {
-                    field(field(field(field(sb.append('R'), r.stagingTable()), r.createStaging()), r.copy()),
-                            r.dropStaging());
-                    sb.append(r.rows().size()).append(':');
-                    for (List<String> row : r.rows()) {
-                        sb.append(row.size()).append(':');
-                        for (String cell : row) {
-                            if (cell == null) {
-                                sb.append('N');
-                            } else {
-                                field(sb.append('V'), cell);
-                            }
-                        }
-                    }
-                }
-                case ExecutionPlan.LoadStep.File f -> {
-                    field(field(field(sb.append('F'), f.ref().namespace().name()), f.ref().name()), f.ref().digest());
-                    sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
-                    switch (f.ref().format()) {
-                        case com.legend.executionplan.DataRef.Csv csv ->
-                                sb.append("csv").append(csv.delimiter()).append(csv.quote());
-                    }
-                    switch (f.delivery()) {
-                        case ExecutionPlan.LoadStep.Delivery.Streamed st ->
-                                field(sb.append("streamed").append(st.columns()).append(':'), st.insert());
-                    }
-                }
-            }
-        }
-        return "load:" + Hash.ofUtf8(sb.toString()).hex();
-    }
-
-    /** {@code text} into {@code sb} prefixed by its length: no two field sequences spell one string. */
-    private static StringBuilder field(StringBuilder sb, String text) {
-        return sb.append(text.length()).append(':').append(text);
+    /** A load's name: the SHA-256 of its canonical content ({@link ExecutionPlan.Load#canonical}: its cadence and its
+     *  steps' content), so equal loads share it and loads that run differently never do. Exec recomputes it before it
+     *  runs a load and refuses one whose identity is not its content's (the M1 tenets audit's note, 2026-11-09). */
+    public static String identity(ExecutionPlan.Load.Cadence cadence, List<ExecutionPlan.LoadStep> steps) {
+        return ExecutionPlan.Load.IDENTITY_PREFIX + Hash.ofUtf8(ExecutionPlan.Load.canonical(cadence, steps)).hex();
     }
 }

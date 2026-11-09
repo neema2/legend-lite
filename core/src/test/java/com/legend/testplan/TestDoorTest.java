@@ -464,7 +464,7 @@ class TestDoorTest {
         ExecutionPlan.LoadStep two = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
                 java.util.List.of(java.util.List.of("a", "b")));
         assertEquals(one.toString(), two.toString(), "the two steps print alike");
-        assertFalse(com.legend.planner.LoadPlanner.identity(java.util.List.of(one)).equals(com.legend.planner.LoadPlanner.identity(java.util.List.of(two))),
+        assertFalse(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, java.util.List.of(one)).equals(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, java.util.List.of(two))),
                 "and their keys differ");
     }
 }

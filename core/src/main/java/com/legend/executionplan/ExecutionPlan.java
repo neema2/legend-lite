@@ -278,6 +278,55 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          *  engine, so the one identity names its rows unambiguously; the runner refuses any other load there. */
         public static final String SYSTEM_STORE = "the graph's system metamodel store";
 
+        /** The prefix every load identity but the system store's carries. */
+        public static final String IDENTITY_PREFIX = "load:";
+
+        /** A load's CANONICAL content, the text its identity digests (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2: one
+         *  scheme for every load): its cadence, then each step's content -- a statement's text, a rows step's statements
+         *  and cells, a file's reference (namespace, name, digest, size, format), size limit and delivery -- each field
+         *  length-prefixed and a cell's absence marked, so no two loads that run differently spell one text (the design
+         *  audit's H1, 2026-11-02). Data, no digest: the planner and exec each hash it with their own. */
+        public static String canonical(Cadence cadence, List<LoadStep> steps) {
+            StringBuilder sb = new StringBuilder();
+            field(sb.append('C'), cadence.name());
+            for (LoadStep step : steps) {
+                switch (step) {
+                    case LoadStep.Statement st -> field(sb.append('S'), st.sql());
+                    case LoadStep.Rows r -> {
+                        field(field(field(field(sb.append('R'), r.stagingTable()), r.createStaging()), r.copy()),
+                                r.dropStaging());
+                        sb.append(r.rows().size()).append(':');
+                        for (List<String> row : r.rows()) {
+                            sb.append(row.size()).append(':');
+                            for (String cell : row) {
+                                if (cell == null) {
+                                    sb.append('N');
+                                } else {
+                                    field(sb.append('V'), cell);
+                                }
+                            }
+                        }
+                    }
+                    case LoadStep.File f -> {
+                        field(field(field(sb.append('F'), f.ref().namespace().name()), f.ref().name()), f.ref().digest());
+                        sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
+                        switch (f.ref().format()) {
+                            case DataRef.Csv csv -> sb.append("csv").append(csv.delimiter()).append(csv.quote());
+                        }
+                        switch (f.delivery()) {
+                            case LoadStep.Delivery.Streamed st ->
+                                    field(sb.append("streamed").append(st.columns()).append(':'), st.insert());
+                        }
+                    }
+                }
+            }
+            return sb.toString();
+        }
+
+        private static StringBuilder field(StringBuilder sb, String text) {
+            return sb.append(text.length()).append(':').append(text);
+        }
+
         public Load {
             Objects.requireNonNull(target, "target");
             Objects.requireNonNull(cadence, "cadence");

@@ -52,4 +52,26 @@ class TypeHoleDeletedTest {
         }
         assertEquals(List.of(), found, "the type hole is back");
     }
+
+    /** The deleted records and methods are gone by type, not only by spelling (the M1 tenets audit's note: a census of
+     *  spellings passes a re-spelling): each class does not load, each method is not declared. */
+    @Test
+    void theDeletedTypesAndMethodsAreGone() throws Exception {
+        for (String gone : List.of("com.legend.executionplan.ExecutionPlan$TypeHole",
+                "com.legend.executionplan.ExecutionPlan$TypeSpelling", "com.legend.executionplan.ExecutionPlan$ValueKind",
+                "com.legend.sql.dialect.RenderedStatement$TypeHole", "com.legend.sql.ValueTyping", "com.legend.sql.ValueKind",
+                "com.legend.executionplan.ExecutionPlan$LoadStep$Delivery$DatabaseReads",
+                "com.legend.executionplan.ExecutionPlan$Setup")) {
+            org.junit.jupiter.api.Assertions.assertThrows(ClassNotFoundException.class, () -> Class.forName(gone), gone);
+        }
+        for (var m : Class.forName("com.legend.exec.PlanRunner").getDeclaredMethods()) {
+            assertTrue(!List.of("setUp", "setUpIn", "typeOf", "kindOf").contains(m.getName()), "PlanRunner." + m.getName());
+        }
+        for (var m : Class.forName("com.legend.exec.Statements").getDeclaredMethods()) {
+            assertTrue(!m.getName().equals("readsFile"), "Statements.readsFile");
+        }
+        for (var m : Class.forName("com.legend.executionplan.ExecutionPlan$Target").getDeclaredMethods()) {
+            assertTrue(!m.getName().equals("setup"), "Target.setup");
+        }
+    }
 }

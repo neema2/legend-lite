@@ -262,7 +262,7 @@ final class ProgramRunnerTest {
     @Test
     @DisplayName("a seed step runs once on a session, is skipped while the session holds its seeds, re-runs after a write")
     void aSeedStepRunsOnceUntilAWrite() throws Exception {
-        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3b-seeds", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
+        ExecutionPlan.Load seeds = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE OR REPLACE TABLE m3b_seed AS SELECT 1 AS a")), target);
         ExecutionPlan.TdsResult read = relation("SELECT count(*) AS n FROM m3b_seed",
                 List.of(col("n", "Integer", "BIGINT")));
@@ -301,7 +301,7 @@ final class ProgramRunnerTest {
     @Test
     @DisplayName("seeds before a constant answer: the seed step opens the program's session")
     void seedsBeforeAConstantOpenTheSession() throws Exception {
-        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3x-seeds", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
+        ExecutionPlan.Load seeds = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE OR REPLACE TABLE m3x_c AS SELECT 1 AS a")), target);
         ExecutionPlan.Constant answer = new ExecutionPlan.Constant(List.of(new ExecutionPlan.Column("value", "String",
                 new ExecutionPlan.Multiplicity(1, 1), null, null, null)), List.of(List.of("x")));
@@ -315,7 +315,7 @@ final class ProgramRunnerTest {
     @DisplayName("a seed step undone by a rollback runs again in the next program")
     void aSeedUndoneByARollbackRunsAgain() throws Exception {
         exec("DROP TABLE IF EXISTS m3x_r");
-        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3x-rollback", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
+        ExecutionPlan.Load seeds = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE TABLE m3x_r AS SELECT 1 AS a")), target);
         ExecutionPlan.Update failing = new ExecutionPlan.Update(ExecutionPlan.Sql.of(
                 "INSERT INTO no_such_table_m3x VALUES (1)", target), null);

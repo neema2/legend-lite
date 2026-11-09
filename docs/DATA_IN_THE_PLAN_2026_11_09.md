@@ -229,8 +229,19 @@ that cannot delete what it replaces is not done.
 - **A project's Data (M1, L3, S145):** the target's `ONCE` load, made once where the platform makes the
   project's database and kept; `Project` names its key and refusal alone (the refusal stays where the database is
   made, slice 5's rule).
-- **The census:** M1, M2, M3, M4, M7-seed and M8 deleted (6 of 17); the TypeScript runner refuses a target naming any
-  load, as it refused a setup.
+- **The census, corrected by the M1 tenets audit (2026-11-09, finding 2):** DELETED M2, M7-seed, M8 (3 of 17); M4
+  BOUNDED (the user's option 1: the harness's overlay stays, legend-engine's own shape; its data reaches a plan only as a
+  load, `ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`); M1 PENDING (the fill is still
+  `ProjectData.fill`'s INSERT text inline: decision 1's reference above the threshold), M3 PENDING (`Seeds.planned` is
+  still the seeds' own path; `SeedTexts`, the referee's copy, goes with M15 at L8), each with what L2/L3 removed held at
+  zero. The TypeScript runner refuses a target naming any load, as it refused a setup.
+- **The guards (finding 3):** P2 is on (`ArchitectureTest.onlyTheLoadPlannerMakesALoad`, `SystemRoutes` a dated exception
+  closed by L4; `execMakesNoLoad`). P1 (one record family) is not yet on: `Load`/`LoadStep` are the only row-holding
+  records but no test asserts it; it lands with L4.
+- **After the audit (finding 1):** a project's Data and its refusal run on every database the platform makes and are
+  refused by name on a database the user owns, by one rule both sides read (`ConnectionSpecification.platformMakes`);
+  a load's identity (its cadence and its steps' canonical content, `Load.canonical`) is recomputed by exec before a load
+  runs, a mismatch refused; the header record is dropped unread, as upstream drops it.
 
 ## 5. Upstream
 
@@ -288,6 +299,11 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
      (`read_csv`'s options, a `COPY`'s) or, where the reader cannot express it, chooses the streamed delivery. The
      delivery is the dialect's (2.5); the cells are not. Letting each database read a file its own way would load one
      file as different rows on different lanes (measured below), the one dialect decision that changed an answer.
+   - **Amended 2026-11-09 (L2, measured):** the default is upstream's rule -- Commons CSV 1.5 `EXCEL`, an empty cell NULL
+     -- which DuckDB's own reader does NOT read exactly (a cell whose quote follows a space read as quoted, an empty line
+     in a wider table skipped, mixed line breaks refused, even configured strictly); so every database takes the cells
+     the runner streams by the declared format, and the user accepted that (D-a, D-b, D-c and "every database streams",
+     2026-11-09). The paragraph below, written before the measurement, called DuckDB's rule upstream's.
    - **The default is DuckDB's rule (the user's pick), which is upstream's** (measured 2026-11-09, read from the pinned
      sources): legend-pure's `loadCsvToDbTable` reads the file in Java (`CsvReader.readCsv`: Apache Commons CSV 1.5,
      `CSVFormat.EXCEL`), drops the header, reads an empty cell as NULL (`LoadToDbTableHelper.collectIterable`:

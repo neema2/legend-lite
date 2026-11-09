@@ -244,8 +244,9 @@ public final class PlanRunner {
      * ({@link #seed}: a statement step sent, a rows step through the session's bulk loader -- refused by name where the
      * database has none -- a file step by its reference), as a run of its own (THE WALL: a statement is sent only inside
      * a run). Counted under the SEED mark. {@code PlanSessions} establishes a target's loads so when it acquires a session
-     * for it; a caller that holds a load of its own (a test's fixture) establishes it here. Until L2 a target's setup
-     * steps ran by a path of their own ({@code setUp}).
+     * for it; a caller that holds a load of its own (a test's fixture) establishes it here -- test harnesses alone, M15
+     * residue (docs/DATA_IN_THE_PLAN_2026_11_09.md), narrowed when L8 moves their seeding into plans. Until L2 a target's
+     * setup steps ran by a path of their own.
      */
     public static void establish(ExecutionPlan.Load load, PlanSessions.Source sessions) {
         try (var run = com.legend.base.RunScope.enter()) {
@@ -569,6 +570,7 @@ public final class PlanRunner {
             com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
         // a seed (BEFORE_STEP) is memoed; a program's own load and a target's (AT_STEP, PER_ACQUISITION) write
         boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        verifyIdentity(seeds);
         SeedKey key = new SeedKey(seeds.identity());
         if (memo && session.state().established(key)) {
             return;
@@ -996,5 +998,20 @@ public final class PlanRunner {
             unit *= 10;
         }
         return DATE_TIME_TEXT.format(t.withNano(t.getNano() - t.getNano() % unit));
+    }
+
+    /** {@code load} refused by name unless its identity is its content's digest (ExecutionPlan.Load.canonical): the
+     *  seeds' memo and a shared database's key trust it (the M1 tenets audit's note, 2026-11-09). The system store's load
+     *  is named by its constant until the design's L4. */
+    static void verifyIdentity(ExecutionPlan.Load load) {
+        if (load.identity().equals(ExecutionPlan.Load.SYSTEM_STORE)) {
+            return;
+        }
+        String content = ExecutionPlan.Load.IDENTITY_PREFIX + com.legend.cache.Hash.ofUtf8(
+                ExecutionPlan.Load.canonical(load.cadence(), load.steps())).hex();
+        if (!content.equals(load.identity())) {
+            throw new IllegalStateException("a load whose identity (" + load.identity() + ") is not its content's ("
+                    + content + "): refused, never run under another's name");
+        }
     }
 }

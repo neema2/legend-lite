@@ -209,7 +209,10 @@ public final class PlanJson {
     public static void inlineLoads(Json.Node tree, Json.Arr section) {
         Map<String, Json.Node> byIdentity = new LinkedHashMap<>();
         for (Json.Node n : section.items()) {
-            byIdentity.put(((Json.Obj) n).getString("identity"), n);
+            String identity = ((Json.Obj) n).getString("identity");
+            if (byIdentity.put(identity, n) != null) {
+                throw new IllegalArgumentException("a plan's load section names a load twice: " + identity);
+            }
         }
         inline(tree, byIdentity);
     }
