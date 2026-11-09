@@ -64,6 +64,21 @@ The upstream-fidelity tenet decides it (the owner, 2026-11-08): lite answers nul
 This corrects this file's earlier reading, which took the mapping to happen in Java after the rows return
 (`ExecutionNodeResultHelper.buildReverseEnumFunc`). That code exists, but on this relation path the SQL does the mapping.
 
+## F-U6: a repeated passage takes its newest date for recency
+
+Found by the judge (`projects/unstructured/evals/DECISIONS.md`, entry 3). Hybrid dedupes by sha256 before it blends in
+recency, so a hash held at several dates takes its most recent location's date. Boilerplate repeated across filings
+therefore inherits the newest filing's date, which inflates its recency. Measured 2026-11-09: 171 of the 1,769 distinct
+hashes are held at more than one date.
+
+| Source | Hashes | At more than one date | Largest gap, days |
+|---|---|---|---|
+| `EDGAR` | 1,361 | 50 | 263 |
+| `LENDING` | 243 | 80 | 1,015 |
+| `SALES` | 165 | 41 | 216 |
+
+Approved for the baseline. Scoring per location and keeping the best is a candidate tuning entry, not a baseline change.
+
 ## Design inputs for the judge
 
 **Repeated passage text is expected, and is not a bug.** EDGAR's 1,499 passage rows hold 1,361 distinct sha256 values: 125

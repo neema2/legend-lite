@@ -109,6 +109,7 @@ test_suite(
         "//spec:update_ratchets_tests",
         "//tools/gs-quant-oracle:update_generated_tests",
         "//tools/engine-runner:update_vocab_tests",
+        "//tools/unstructured-oracle:update_generated_tests",
         "//warehouse:update_reachability_metadata_tests",
     ],
 )
@@ -144,6 +145,7 @@ write_source_files(
         "//tools/engine-runner:update_vocab",
         "//tools/gs-quant-oracle:update_generated",
         "//tools/gs-quant-oracle:update_two_rows_page",
+        "//tools/unstructured-oracle:update_generated",
         "//warehouse:update_reachability_metadata",
     ],
 )

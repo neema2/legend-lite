@@ -1,6 +1,9 @@
 # THE UNSTRUCTURED STUDY'S JUDGE (README.md). The judge itself is a hand tool: it needs the EDGAR corpus, which is never
 # committed, the pinned model and a live server. Its verdict rules and its gate need none of those and are tested here.
 
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -16,6 +19,37 @@ py_test(
     size = "small",
     srcs = ["judge_logic_test.py"],
     deps = [":judge_logic"],
+)
+
+# THE LEDGER'S COUNTS (summary.py), read from the ledger alone and diff-tested (in //:generated).
+# Regenerate: bazel run //tools/unstructured-oracle:update_generated
+py_binary(
+    name = "summary",
+    srcs = ["summary.py"],
+    deps = [":judge_logic"],
+)
+
+run_binary(
+    name = "gen_summary",
+    srcs = ["ledger.tsv"],
+    outs = ["generated/summary.tsv"],
+    args = [
+        "$(execpath ledger.tsv)",
+        "$(execpath generated/summary.tsv)",
+    ],
+    env = {
+        "PYTHONHASHSEED": "0",
+        "PYTHONUTF8": "1",
+    },
+    tool = ":summary",
+)
+
+write_source_files(
+    name = "update_generated",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe ledger's counts moved with the ledger -- regenerate: bazel run //tools/unstructured-oracle:update_generated",
+    files = {"summary.tsv": ":generated/summary.tsv"},
+    visibility = ["//:__pkg__"],
 )
 
 guards_package()
