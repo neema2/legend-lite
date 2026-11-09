@@ -221,8 +221,9 @@ def judge_text(cases, duck, pg, vectors, refusal, failures) -> list[dict]:
                 elif backend == "postgres" and arm != "keyword" and refusal is not None:
                     outcome = {"verdict": logic.REFUSED, "receipts": [], "detail": refusal}
                 else:
-                    parameters = {"question": case["question"], "vector": vectors[case["id"]], "time_aware": case["type"] == "time-aware"}
-                    needed = {"keyword": ["question"], "vector": ["vector"], "hybrid": ["question", "vector", "time_aware"]}[arm]
+                    parameters = {"question": case["question"], "vector": vectors[case["id"]], "time_aware": case["type"] == "time-aware",
+                                  "cut": logic.cut(accepted)}
+                    needed = {"keyword": ["question"], "vector": ["vector"], "hybrid": ["question", "vector", "time_aware", "cut"]}[arm]
                     arguments = {name: parameters[name] for name in needed}
                     if backend == "postgres" and "vector" in arguments:
                         arguments["vector"] = "[" + ",".join(repr(x) for x in arguments["vector"]) + "]"

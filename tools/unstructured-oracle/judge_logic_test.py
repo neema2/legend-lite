@@ -47,6 +47,26 @@ class TextVerdict(unittest.TestCase):
     def test_stale_only_counts_in_the_top_five(self):
         self.assertEqual(self.verdict([result(1, A), result(6, OLD)], superseded=(OLD,))["verdict"], logic.PASS)
 
+    def test_the_cut_is_five_or_the_number_accepted(self):
+        self.assertEqual(logic.cut([]), 5)
+        self.assertEqual(logic.cut([A] * 5), 5)
+        self.assertEqual(logic.cut([A] * 12), 12)
+
+    def test_a_case_accepting_more_than_five_can_pass(self):
+        many = [logic.pointer("SALES", f"{n}.txt", 0) for n in range(1, 8)]
+        results = [result(n, many[n - 1]) for n in range(1, 8)]
+        self.assertEqual(self.verdict(results, accepted=many)["verdict"], logic.PASS)
+
+    def test_the_wider_cut_still_ends(self):
+        many = [logic.pointer("SALES", f"{n}.txt", 0) for n in range(1, 8)]
+        results = [result(n, many[n - 1]) for n in range(1, 7)] + [result(8, many[6])]
+        self.assertEqual(self.verdict(results, accepted=many)["verdict"], logic.DROPPED)
+
+    def test_a_superseded_pointer_counts_inside_the_wider_cut(self):
+        many = [logic.pointer("SALES", f"{n}.txt", 0) for n in range(1, 8)]
+        results = [result(n, many[n - 1]) for n in range(1, 8)] + [result(7, OLD)]
+        self.assertEqual(self.verdict(results, accepted=many, superseded=(OLD,))["verdict"], logic.STALE_HIT)
+
     def test_negative(self):
         self.assertEqual(self.verdict([], accepted=(), negative=True)["verdict"], logic.EMPTY_OK)
         self.assertEqual(self.verdict([result(1, A)], accepted=(), negative=True)["verdict"], logic.FALSE_HIT)
