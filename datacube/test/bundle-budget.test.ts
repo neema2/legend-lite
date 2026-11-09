@@ -957,8 +957,12 @@ const CHART_BUDGET = 303_500;
  *  144,000 -> 144,500 (2026-11-08, item 14e; the user's rulings on PR #91's findings): the library's text with
  *  vol_swap_volatility's default as gs-quant's one figure and the rulings' sentences. Measured 144,047 with item 14g's
  *  first attempt in it too (a calendar ramp from the first date, withdrawn the same day until 14g's points land), which
- *  the ceiling keeps room for. */
-const TIMESERIES_BUDGET = 144_500;
+ *  the ceiling keeps room for.
+ *  144,500 -> 145,200 (2026-11-09, item 14g; the user's ruling on PR #91's finding 2, "gs-quant's: from the first
+ *  date", and "Should we push the right fix to later? Why?" -- done now): the library's text with every calendar word's
+ *  ramp counted from its line's first date and its ramp's dates dropped (helpers::rampedPeriod, rampedBandPeriod,
+ *  rows::pointsPeriod, the since forms of overPeriod and its kin) and their sentences. Measured 144,911. */
+const TIMESERIES_BUDGET = 145_200;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

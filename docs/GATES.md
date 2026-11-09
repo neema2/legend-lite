@@ -20680,3 +20680,28 @@ ledger writers byte-identical on all three ledgers, `//core:ts_gsquant_parity_te
 **green** at the final tree (on #90's `0f76abe80`, `--lockfile_mode=error`): 519 tests pass, 2 skipped
 (`//tools/guards:classpath_test` and `//tools/guards:markdown_inputs_test`, whose reports `guards_package` limits to the
 platforms it lists: skipped on darwin-arm64), Bazel's exit 0. Edited after the run: Markdown alone (this line).
+
+## 2026-11-09 — A calendar word's ramp as gs-quant's: from the line's first date, its dates dropped (item 14g)
+
+The user's ruling on PR #91's finding 2 ("gs-quant's: from the first date"), done whole (the user: "Should we push the
+right fix to later? Why?"), `docs/TS_DECISIONS_2026_11_07.md` item 14g. Every calendar word's ramp counts from its
+line's first date (a word of returns from the first price's, the pair words, the captures, `lead_lag`,
+`dickey_fuller` and `half_life` too); its line form drops the ramp's dates (`helpers::rampedPeriod`,
+`rampedBandPeriod`) and its rows form's points start past it (`rows::pointsPeriod`), so a word reading it next counts
+its own ramp from its first point, as gs-quant's does after `apply_ramp` (`zscores(volatility(x, 2w), 3w)`).
+
+**#91's ledgers (rewritten by the parity test's update mode, the reports regenerated):** 14 cases DIFF -> PASS and no
+other move (`product w=3mo` and `correlation w=3mo`, on the samples and each fixture file's three symbols): samples PASS
+138, DIFF 10, GS_ERROR 2, SKIP 27; each fixture file PASS 397 (19 on a dup-span), DIFF 32 (5), REFUSED 92 (92),
+GS_ERROR 27, SKIP 160; `unruled.tsv` down to `if x=line,y=line` and `interpolate method=zero`. `tools/ts-oracle` over the
+gallery: AGREE 185, DEPARTS 4, NOT-CHECKED 26, as before.
+
+Checks, one at a time: `//datacube:timeseries_queries_test` (79.5s; the calendar tests hold the dropped dates),
+`//core:timeseries_library_test` (43.7s), `//core:ts_island_test` (74.9s), `//core:ts_documents_test`,
+`//core:ts_adversarial_test`, `//core:ts_line_spike_test`, `//core:ts_gsquant_parity_test` (29.7s),
+`//datacube:timeseries_ts_parity_test` (38.2s), `//datacube:stress_markets_test` (46.7s), the builder, code, spec,
+edit, saved-documents and offer-facts tests, `//python:markets_test` (120.2s), `//python:ts_builder_test`, as the
+unprivileged user `//core:ts_island_postgres_test` (67.1s), `//core:ts_replay_postgres_test` (138.3s),
+`//core:ts_replay_clickhouse_test` (28.4s), `//core:ts_documents_postgres_test` and `_clickhouse_test`, `//:generated`
+(72), `//datacube:bundle_budget_test` (the tile's ceiling 144,500 -> 145,200, measured 144,911), `//core:census`: all
+pass. Not run: `//gates:local` and CI (a push to the branch alone).

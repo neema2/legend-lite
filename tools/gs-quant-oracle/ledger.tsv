@@ -32,7 +32,7 @@ range w=3mo	OK	PASS	-	8c3b7734748da7466dfce801b892a4934122f0d3d4afada11d0a8538dd
 range w=all	OK	PASS	-	6c27ad721af91601cc548f84f7537469245499a3a5327b649e065cf9f4c9e855	-	1304 points
 product default	OK	DIFF	S165	52cb6841bec0af26c0333f3b111a480e6ba94f11eb4dab1636fec0652bb5283c	-	1304 points | lite: 1304 gs-quant points, 1303 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 2020-01-02, 0 lite's alone
 product w=5	OK	PASS	-	594c23e5c4a9b618964293dcfcf2d5d2c2b466934de66b2c67e7852721659689	-	1299 points
-product w=3mo	OK	DIFF	-	201977e8f555699c7a3fd6475285fc2971c6cff05fd86245bba30e1d92a473dd	-	1239 points | lite: 1239 gs-quant points, 1238 lite's; 0 dates apart (worst absolute 0.0), 1 gs-quant's alone from 2020-04-02, 0 lite's alone
+product w=3mo	OK	PASS	-	201977e8f555699c7a3fd6475285fc2971c6cff05fd86245bba30e1d92a473dd	-	1239 points
 percentile n=50	OK	PASS	-	c71f8284c886deb1feb38548a1949c484e36b088b333556b99c42ba02d520de9	-	1304 points
 percentile n=50,w=whole	OK	PASS	-	82e7440545728a60f0178a00c51155d76cf9fd4697c9bc6888890a9104425a7a	-	1304 points
 percentile n=90,w=20	OK	PASS	-	f9cd1238cc4966d1fe8cd241d7d5d695bc959a72f15d87c29e4137ed803d1632	-	1284 points
@@ -74,7 +74,7 @@ volatility type=log	OK	PASS	-	90e9ee819a83944e40174bfce308efcd94f6b1d184bb0b13df
 volatility w=63,r=10	OK	PASS	-	22650c1967aa4cf33cdb60ab4e9484729396284bea26ece0536e375cbe09fe9d	-	1294 points
 volatility w=10,annualization_factor=252	OK	PASS	-	626c8faa2a905d42579c9fb9cb5f25299738e8964a64499d378a0035de31510e	-	1294 points
 correlation default	OK	PASS	-	b15949f34d69a96fb6df3a359f816ecd21f01a68ad3254a82fc1cad0a9706ab9	-	1302 points
-correlation w=3mo	OK	DIFF	-	709fe83ec886ca7d68ee28e6b06d5e444dfcb2406defdfd507c2ca85b85ed19a	-	1239 points | lite: 1239 gs-quant points, 1238 lite's; 0 dates apart (worst relative 0.0), 1 gs-quant's alone from 2020-04-02, 0 lite's alone
+correlation w=3mo	OK	PASS	-	709fe83ec886ca7d68ee28e6b06d5e444dfcb2406defdfd507c2ca85b85ed19a	-	1239 points
 correlation w=all	OK	PASS	-	b15949f34d69a96fb6df3a359f816ecd21f01a68ad3254a82fc1cad0a9706ab9	-	1302 points
 correlation w=63,r=10	OK	PASS	-	83e9d796801697a839f1d3b0415bfce3de1689e4306552b47438e61e9159174a	-	1294 points
 beta default	OK	PASS	-	277fc803498623f53c8e3611d669e55b6effc6aa6813ba7e47dd7a38f2856cf2	-	1301 points

@@ -798,12 +798,15 @@ function backBy(d: string, n: number, unit: 'd' | 'w' | 'm'): string {
 const onBy = (d: string, n: number, unit: 'd' | 'w' | 'm'): string => backBy(d, -n, unit);
 /** The days from one ISO date to another. */
 const dayCount = (from: string, to: string): number => (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
+/** A calendar word's line: its points from `start` on, the ramp's dates dropped as gs-quant's apply_ramp drops them
+ * (x.loc[x.index[0] + r:]; item 14g, 2026-11-09) -- a count window's `ramp` alike. */
+const since = (start: string, x: Line, days: readonly string[] = DAYS): Line => x.filter((_, i) => days[i]! >= start);
 
 describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s tenors)', () => {
   it('mean over 2w: the dates after two weeks back, to this one; drawn from the first date two weeks on', async () => {
     const l = await line(await spec({ A: "mean(close['AAA'], 2w)" }));
     const start = onBy(DAYS[0]!, 2, 'w');
-    close(l.values, DAYS.map((d) => (d < start ? null : avg(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), 'mean 2w', 1e-9);
+    close(l.values, since(start, DAYS.map((d) => avg(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), 'mean 2w', 1e-9);
   });
 
   // the conversion to DataCube's Pure library (2026-10-27): every rolled statistic of a calendar period is one library
@@ -820,7 +823,7 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     };
     for (const [f, stat] of Object.entries(of)) {
       const l = await line(await spec({ A: `${f}(close['AAA'], 2w)` }));
-      close(l.values, DAYS.map((d) => (d < start ? null : stat(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), `${f} 2w`, 1e-9);
+      close(l.values, since(start, DAYS.map((d) => stat(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), `${f} 2w`, 1e-9);
     }
   });
 
@@ -829,17 +832,17 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
   it('z-scores, a drawdown and Bollinger bands over 2w: of the dates after two weeks back, to this one; from the first date two weeks on', async () => {
     const start = onBy(DAYS[0]!, 2, 'w');
     const within = (d: string): number[] => AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d);
-    close((await line(await spec({ A: "zscores(close['AAA'], w => 2w)" }))).values, DAYS.map((d, i) => {
+    close((await line(await spec({ A: "zscores(close['AAA'], w => 2w)" }))).values, since(start, DAYS.map((d, i) => {
       const v = within(d);
-      return d < start || v.length < 2 || sd(v) === 0 ? null : (AAA[i]! - avg(v)) / sd(v);
-    }), 'zscores 2w', 1e-7);
+      return v.length < 2 || sd(v) === 0 ? null : (AAA[i]! - avg(v)) / sd(v);
+    })), 'zscores 2w', 1e-7);
     close((await line(await spec({ A: "drawdown(close['AAA'], w => 2w)" }))).values,
-      DAYS.map((d, i) => (d < start ? null : AAA[i]! / Math.max(...within(d)) - 1)), 'drawdown 2w', 1e-9);
+      since(start, DAYS.map((d, i) => AAA[i]! / Math.max(...within(d)) - 1)), 'drawdown 2w', 1e-9);
     const b = await line(await spec({ A: "bollinger_bands(close['AAA'], w => 2w, k => 2)" }));
-    const band = (k: number): Line => DAYS.map((d) => {
+    const band = (k: number): Line => since(start, DAYS.map((d) => {
       const v = within(d);
-      return d < start || v.length < 2 ? null : avg(v) + k * sd(v);
-    });
+      return v.length < 2 ? null : avg(v) + k * sd(v);
+    }));
     close(b.lower!, band(-2), 'lower 2w', 1e-7);
     close(b.upper!, band(2), 'upper 2w', 1e-7);
   });
@@ -869,7 +872,7 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     const back2 = (d: string): number[] => DAYS.map((_, j) => j).filter((j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d);
     const dd = DAYS.map((d, i) => AAA[i]! / Math.max(...back2(d).map((j) => AAA[j]!)) - 1);
     close((await line(await spec({ A: "max_drawdown(close['AAA'], w => 2w)" }))).values,
-      DAYS.map((d) => (d < start ? null : Math.min(...back2(d).map((j) => dd[j]!)))), 'max drawdown 2w', 1e-9);
+      since(start, DAYS.map((d) => Math.min(...back2(d).map((j) => dd[j]!)))), 'max drawdown 2w', 1e-9);
   });
 
   it('returns over 1w: each date against the value as of a week before, its last at or before', async () => {
@@ -895,11 +898,10 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     const l = await line(await spec({ A: "volatility(close['AAA'], w => 1mo, type => 'simple')" }));
     const r = simple(AAA);
     const start = onBy(DAYS[0]!, 1, 'm');
-    close(l.values, DAYS.map((d) => {
-      if (d < start) return null;
+    close(l.values, since(start, DAYS.map((d) => {
       const vals = r.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
       return vals.length < 2 ? null : sd(vals) * Math.sqrt(252) * 100;
-    }), 'volatility 1m', 1e-9);
+    })), 'volatility 1m', 1e-9);
     // a Sharpe ratio over 1m too, gs-quant's: the level against its level as of a month back (S162), compounded over the
     // month's days, over that volatility -- its first value (the first date a month on) dropped
     const first = DAYS.findIndex((d) => d >= start);
@@ -914,11 +916,13 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     }), first + 1), 'sharpe 1m', 1e-9);
   });
 
+  // its ramp from the first price's date, as gs-quant's counts from x.index[0] (item 14g, 2026-11-09; the first return's
+  // date before) -- its rows kept, a pair word's rows form its table's
   it('correlation over 3w: two series\' returns over the dates both have, each three weeks back', async () => {
     const l = await line(await spec({ A: "correlation(close['AAA'], close['BBB'], w => 3w)" }));
     const ra = simple(AAA);
     const rb = simple(BBB);
-    const start = onBy(DAYS[1]!, 3, 'w');
+    const start = onBy(DAYS[0]!, 3, 'w');
     close(l.values, DAYS.map((d) => {
       if (d < start) return null;
       const js = DAYS.map((_, j) => j).filter((j) => ra[j] !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
@@ -929,13 +933,13 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
   });
 
   // the library's calendar forms of the pairs (pure-library.ts pairPeriod, 2026-10-27): each over the pairs whose dates
-  // are within three weeks back, from the first pair's date that period on
+  // are within three weeks back, from the line's first date that period on (gs-quant's x.index[0], item 14g)
   it('the pairs over 3w: R², covariance, beta, alpha and residual, over the dates both have', async () => {
     const ra = simple(AAA);
     const rb = simple(BBB);
     const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
     const over = (xs: Line, ys: Line, f: (p: number[], q: number[]) => number): Line => {
-      const start = onBy(DAYS[xs.findIndex((v, i) => v !== null && ys[i] !== null)]!, 3, 'w');
+      const start = onBy(DAYS[0]!, 3, 'w');
       return DAYS.map((d) => {
         if (d < start) return null;
         const js = DAYS.map((_, j) => j).filter((j) => xs[j] !== null && ys[j] !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
@@ -950,7 +954,7 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
       over(ra, rb, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 'alpha 3w', 1e-9);
     close((await line(await spec({ A: "residual(close['AAA'], close['BBB'], w => 3w)" }))).values,
       over(AAA, BBB, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual 3w', 1e-9);
-    // a second series that starts later: its pairs, and its ramp from the first pair's date
+    // a second series that starts later: its pairs, its ramp from the first's first date still
     const lb = simple(lagged(BBB, 3));
     close((await line(await spec({ A: "beta(close['AAA'], lag(close['BBB'], 3, 'truncate'), w => 3w)" }))).values, over(ra, lb, slope), 'beta on a lag 3w', 1e-9);
   });
@@ -958,39 +962,40 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
   // the library's calendar forms of a product and a vol swap (pure-library.ts productPeriod, volSwapVolatilityPeriod)
   it('a product over 2w and a vol swap over 1m, from the first value\'s date that period on', async () => {
     const start2w = onBy(DAYS[0]!, 2, 'w');
-    close((await line(await spec({ A: "product(close['AAA'] / 100, w => 2w)" }))).values, DAYS.map((d) => (d < start2w ? null
-      : AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d).reduce((a, v) => a * (v / 100), 1))), 'product 2w', 1e-9);
+    close((await line(await spec({ A: "product(close['AAA'] / 100, w => 2w)" }))).values, since(start2w, DAYS.map((d) =>
+      AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d).reduce((a, v) => a * (v / 100), 1))), 'product 2w', 1e-9);
     // a value of 0 (AAA's 23rd is 105.8) and values below it: a product of 0 where the period holds it, else a sign by
     // its negatives
     const signed = (await line(await spec({ A: "product(close['AAA'] - 105.8, w => 2w)" }))).values;
-    close(signed, DAYS.map((d) => (d < start2w ? null
-      : AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d).reduce((a, v) => a * (v - 105.8), 1))), 'product of signs 2w', 1e-9);
+    close(signed, since(start2w, DAYS.map((d) =>
+      AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d).reduce((a, v) => a * (v - 105.8), 1))), 'product of signs 2w', 1e-9);
     assert.ok(signed.some((v) => v === 0) && signed.some((v) => v !== null && v < 0) && signed.some((v) => v !== null && v > 0), 'zeros and both signs');
     const lr = AAA.map((v, i) => (i === 0 ? null : Math.log(v / AAA[i - 1]!)));
     const start1m = onBy(DAYS[0]!, 1, 'm');
-    close((await line(await spec({ A: "vol_swap_volatility(close['AAA'], w => 1mo)" }))).values, DAYS.map((d) => {
-      if (d < start1m) return null;
+    close((await line(await spec({ A: "vol_swap_volatility(close['AAA'], w => 1mo)" }))).values, since(start1m, DAYS.map((d) => {
       const w = lr.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
       return Math.sqrt(w.reduce((a, b) => a + b * b, 0) / w.length) * Math.sqrt(252) * 100;
-    }), 'vol swap 1m', 1e-9);
+    })), 'vol swap 1m', 1e-9);
   });
 
+  // the outer ramp from the inner's first point -- the inner's ramp dropped, as gs-quant's apply_ramp drops it (item
+  // 14g, 2026-11-09)
   it('nested: a z-score over three weeks of a volatility over two, planned and run', async () => {
     const l = await line(await spec({ A: "zscores(volatility(close['AAA'], w => 2w, type => 'simple'), w => 3w)" }));
-    const vol = (await line(await spec({ A: "volatility(close['AAA'], w => 2w, type => 'simple')" }))).values;
-    const start = onBy(DAYS.find((_, i) => vol[i] !== null)!, 3, 'w');
-    close(l.values, DAYS.map((d, i) => {
-      if (d < start || vol[i] === null) return null;
-      const vals = vol.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d) as number[];
-      return (vol[i]! - avg(vals)) / sd(vals);
-    }), 'zscores of a volatility', 1e-7);
+    const vol = await line(await spec({ A: "volatility(close['AAA'], w => 2w, type => 'simple')" }));
+    assert.equal(vol.dates[0], DAYS.find((d) => d >= onBy(DAYS[0]!, 2, 'w')), 'the volatility from its first price two weeks on');
+    close(l.values, since(onBy(vol.dates[0]!, 3, 'w'), vol.values.map((v, i) => {
+      const d = vol.dates[i]!;
+      const vals = vol.values.filter((_, j) => vol.dates[j]! > backBy(d, 3, 'w') && vol.dates[j]! <= d) as number[];
+      return (v! - avg(vals)) / sd(vals);
+    }), vol.dates), 'zscores of a volatility', 1e-7);
   });
 
   it('a split series: each line\'s window its own', async () => {
     const l = await line(await spec({ A: "sum(close, 1w)" }, {}, 'symbol'));
     const of = (sym: string): Line => l.values.filter((_, i) => l.split![i] === sym);
     const start = onBy(DAYS[0]!, 1, 'w');
-    close(of('BBB'), DAYS.map((d) => (d < start ? null : BBB.filter((_, j) => DAYS[j]! > backBy(d, 1, 'w') && DAYS[j]! <= d).reduce((x, y) => x + y, 0))), 'BBB', 1e-9);
+    close(of('BBB'), since(start, DAYS.map((d) => BBB.filter((_, j) => DAYS[j]! > backBy(d, 1, 'w') && DAYS[j]! <= d).reduce((x, y) => x + y, 0))), 'BBB', 1e-9);
   });
 });
 
@@ -1457,8 +1462,8 @@ describe('a window by its rows: percentile ranks, medians and percentiles', () =
       ramp(AAA.map((v, i) => (i < 9 ? null : rankIn(AAA.slice(i - 9, i + 1), v))), 10), 'over 10', 1e-12);
     close((await line(await spec({ A: "percentiles(close['AAA'], w => all)" }))).values, AAA.map((v, i) => rankIn(AAA.slice(0, i + 1), v)), 'from the start', 1e-12);
     const start = onBy(DAYS[0]!, 2, 'w');
-    close((await line(await spec({ A: "percentiles(close['AAA'], w => 2w)" }))).values, DAYS.map((d, i) => (d < start ? null
-      : rankIn(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), AAA[i]!))), 'over 2w', 1e-12);
+    close((await line(await spec({ A: "percentiles(close['AAA'], w => 2w)" }))).values, since(start, DAYS.map((d, i) =>
+      rankIn(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), AAA[i]!))), 'over 2w', 1e-12);
     // a constant series: every value equal to every other, each the middle of its window
     close((await line(await spec({ A: "percentiles(close['AAA'] * 0, w => 5)" }))).values, ramp(AAA.map((_, i) => (i < 4 ? null : 50)), 5), 'all equal', 1e-12);
   });
@@ -1477,8 +1482,8 @@ describe('a window by its rows: percentile ranks, medians and percentiles', () =
     assert.equal((body.slice(0, body.indexOf('\n}\n')).match(/->join\(/g) ?? []).length, 1, 'one join: the line\'s figure');
     // over a calendar period: the values after two weeks back, to this one, from the first date two weeks on
     const start = onBy(DAYS[0]!, 2, 'w');
-    close((await line(await spec({ A: "median(close['AAA'], w => 2w)" }))).values, DAYS.map((d) => (d < start ? null
-      : quantile(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), 0.5))), 'median over 2w', 1e-12);
+    close((await line(await spec({ A: "median(close['AAA'], w => 2w)" }))).values, since(start, DAYS.map((d) =>
+      quantile(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), 0.5))), 'median over 2w', 1e-12);
   });
 });
 
@@ -2080,8 +2085,8 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     const p = await packLine("donchian_channels(high['P'], low['P'], w => 2w)");
     const start = onBy(PACK_DAYS[0]!, 2, 'w');
     const within = (xs: number[], d: string): number[] => xs.filter((_, j) => PACK_DAYS[j]! > backBy(d, 2, 'w') && PACK_DAYS[j]! <= d);
-    close(p.lower!, PACK_DAYS.map((d) => (d < start ? null : Math.min(...within(PL, d)))), 'lower 2w', 0);
-    close(p.upper!, PACK_DAYS.map((d) => (d < start ? null : Math.max(...within(PH, d)))), 'upper 2w', 0);
+    close(p.lower!, since(start, PACK_DAYS.map((d) => Math.min(...within(PL, d))), PACK_DAYS), 'lower 2w', 0);
+    close(p.upper!, since(start, PACK_DAYS.map((d) => Math.max(...within(PH, d))), PACK_DAYS), 'upper 2w', 0);
   });
 
   it('obv: each volume added on a rise, taken off on a fall, from 0; vwap: Σ price × volume / Σ volume', async () => {
@@ -2096,8 +2101,8 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     // over a calendar period (the library's vwapPeriod): the dates after two weeks back, to this one, from the first
     // price two weeks on
     const start = onBy(PACK_DAYS[0]!, 2, 'w');
-    close((await packLine("vwap(close['P'], volume['P'], w => 2w)")).values, PACK_DAYS.map((d) => (d < start ? null
-      : vwap(pv.filter((_, j) => PACK_DAYS[j]! > backBy(d, 2, 'w') && PACK_DAYS[j]! <= d)))), 'VWAP 2w', 1e-12);
+    close((await packLine("vwap(close['P'], volume['P'], w => 2w)")).values, since(start, PACK_DAYS.map((d) =>
+      vwap(pv.filter((_, j) => PACK_DAYS[j]! > backBy(d, 2, 'w') && PACK_DAYS[j]! <= d))), PACK_DAYS), 'VWAP 2w', 1e-12);
   });
 
   /** P's simple returns and Q's, each on its own dates, on Q's (the dates both have); Q's `k` back (or on, below 0). */
@@ -2146,11 +2151,11 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
   });
 
   // the library's calendar forms (pure-library.ts trackingErrorPeriod, informationRatioPeriod, upCapturePeriod,
-  // downCapturePeriod, leadLagPeriod; 2026-10-27): each over the dates within a month back, from the first return's
-  // date that period on
+  // downCapturePeriod, leadLagPeriod; 2026-10-27): each over the dates within a month back, from the line's first date
+  // that period on (gs-quant's x.index[0], item 14g; the first return's date before)
   it('tracking error, information ratio, the captures and lead_lag over 1m', async () => {
     const over = (xs: Line, ys: Line, f: (p: number[], q: number[]) => number | null): Line => {
-      const start = onBy(Q_DAYS[xs.findIndex((v) => v !== null)]!, 1, 'm');
+      const start = onBy(Q_DAYS[0]!, 1, 'm');
       return Q_DAYS.map((d) => {
         if (d < start) return null;
         const js = Q_DAYS.map((_, j) => j).filter((j) => xs[j] !== null && ys[j] !== null && Q_DAYS[j]! > backBy(d, 1, 'm') && Q_DAYS[j]! <= d);
@@ -2169,9 +2174,12 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
         return on.length === 0 ? null : avg(on.map((i) => p[i]!)) / avg(on.map((i) => q[i]!));
       }), `${f} 1m`, 1e-9);
     }
+    // lead_lag has its line form alone, whose rows are its points: its ramp's dates dropped (the others' rows forms keep
+    // their table's rows, none on those dates)
     for (const k of [0, 2]) {
       const { a: la, b: lb } = pairsOn(k);
-      close((await packLine(`lead_lag(close['P'], close['Q'], ${k}, 1mo)`)).values, over(la, lb, correlation), `lead_lag ${k} 1m`, 1e-9);
+      close((await packLine(`lead_lag(close['P'], close['Q'], ${k}, 1mo)`)).values, since(onBy(Q_DAYS[0]!, 1, 'm'), over(la, lb, correlation), Q_DAYS),
+        `lead_lag ${k} 1m`, 1e-9);
     }
   });
 
@@ -2273,9 +2281,10 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
   });
 
   // the library's calendar forms (pure-library.ts dickeyFullerPeriod, halfLifePeriod, 2026-10-27): the pairs (Δx, x[-1])
-  // whose dates are within two months back, from the first pair's date that period on
+  // whose dates are within two months back, from the line's first date that period on, the ramp's dates dropped (item
+  // 14g, 2026-11-09: every calendar word's ramp so; the first pair's date before)
   it('dickey_fuller and half_life over 2m: the pairs of the dates two months back', async () => {
-    const start = onBy(PACK_DAYS[1]!, 2, 'm');
+    const start = onBy(PACK_DAYS[0]!, 2, 'm');
     const within = (d: string): number[] => PC.filter((_, j) => j >= 1 && PACK_DAYS[j]! > backBy(d, 2, 'm') && PACK_DAYS[j]! <= d);
     // the window's pairs: each date's x and the x before it, the first of them the value before the period's first
     const fit = (i: number): { b: number; t: number } => {
@@ -2284,13 +2293,12 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       return ols(PC.slice(Math.max(first - 1, 0), i + 1));
     };
     assert.ok(within(PACK_DAYS.at(-1)!).length > 3, 'the period holds pairs');
-    close((await packLine("dickey_fuller(close['P'], w => 2mo)")).values, PACK_DAYS.map((d, i) => (d < start ? null : fit(i).t)), 'DF over 2m', 1e-9);
+    close((await packLine("dickey_fuller(close['P'], w => 2mo)")).values, since(start, PACK_DAYS.map((_, i) => fit(i).t), PACK_DAYS), 'DF over 2m', 1e-9);
     const hl = await packLine("half_life(close['P'], w => 2mo)");
-    close(hl.values, PACK_DAYS.map((d, i) => {
-      if (d < start) return null;
+    close(hl.values, since(start, PACK_DAYS.map((_, i) => {
       const { b } = fit(i);
       return b >= 0 || b <= -1 ? null : -Math.log(2) / Math.log(1 + b);
-    }), 'half-life over 2m', 1e-9);
+    }), PACK_DAYS), 'half-life over 2m', 1e-9);
   });
 
   // the Phase 4 review's 1: at a frequency, each period's highest high, lowest low, last close and whole volume (a
