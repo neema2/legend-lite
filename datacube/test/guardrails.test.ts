@@ -3,6 +3,7 @@
 // bans actually happened here.
 
 import assert from 'node:assert/strict';
+import { posix } from 'node:path';
 import { describe, it } from 'node:test';
 
 import { Sources } from '../../tools/js/runfiles.mts';
@@ -670,5 +671,56 @@ describe('the timeseries language has one reader, core\'s', () => {
     assert.deepEqual(strays, [], 'every word of TS_FUNCTION_NAMES (timeseries-words.ts) is core\'s generated catalog\'s or SCALARS\'');
     assert.deepEqual(Object.keys(WORD_SIGNATURES).filter((w) => !tile.has(w)).sort(), UNDRAWN,
       'the catalog\'s words the tile does not draw: a new one is drawn or named in UNDRAWN with why; one drawn leaves it');
+  });
+});
+
+describe('the chart API stands apart from the screen (docs/TS_DECISIONS_2026_11_07.md §5, the ruling of 2026-11-09)', () => {
+  // A tile's spec is the page's; every edit of it is one change (timeseries-edit.ts TsChange) made by the one rule
+  // (editTimeseries) -- the screen, Python and TypeScript's Chart its three fronts, each held to every change kind by the
+  // change-parity ledger (one-api-ledger.test.ts). Two more holds: the API is no part of the screen, and the screen tells
+  // the page a tile's spec through one door, which takes a change.
+  const API = [
+    'src/timeseries-spec.ts', 'src/timeseries-edit.ts', 'src/timeseries-chart.ts', 'src/timeseries-builder.ts',
+    'src/timeseries-builder-source.ts', 'src/timeseries-builder-wire.ts', 'src/timeseries-text.ts',
+  ];
+  const IMPORT = /\bfrom\s+'(\.[^']+)'|\bimport\(\s*'(\.[^']+)'\s*\)/g;
+  // the DOM's globals, never a property of that name (a chart's own `d.window.column`)
+  const DOM = /(?<![.\w])(?:document|window)\.|\bHTMLElement\b|\baddEventListener\(/;
+
+  it('the API reaches nothing of the screen, the page or the DOM, however far its imports go', () => {
+    const known = new Set(SOURCES.under('src', '.ts').concat(SOURCES.under('../engine-client/src', '.ts')));
+    const reached = new Set<string>();
+    const wrong: string[] = [];
+    const visit = (f: string, from: string): void => {
+      if (reached.has(f)) return;
+      reached.add(f);
+      if (f.startsWith('src/ui/') || f.startsWith('src/page/')) {
+        wrong.push(`${from} reaches ${f}`);
+        return;
+      }
+      const code = SOURCES.read(f).split('\n').filter((l) => !isComment(l));
+      code.forEach((line, i) => {
+        if (DOM.test(line)) wrong.push(`${f}:${i + 1} (reached from ${from}) touches the DOM: ${line.trim()}`);
+      });
+      for (const m of code.join('\n').matchAll(IMPORT)) {
+        const next = posix.normalize(posix.join(posix.dirname(f), m[1] ?? m[2]!));
+        if (known.has(next)) visit(next, f);
+      }
+    };
+    for (const f of API) {
+      assert.ok(known.has(f), `${f} is one of the sources read`);
+      visit(f, f);
+    }
+    assert.ok(reached.size > API.length, `the walk reads the API's imports (${reached.size} modules)`);
+    assert.deepEqual(wrong, [], 'the chart API is no part of the screen (the ruling of 2026-11-09)');
+  });
+
+  it('the screen tells the page a tile\'s spec in one place, and that place takes a change', () => {
+    const code = SOURCES.read('src/ui/timeseries-view.ts').split('\n').filter((l) => !isComment(l));
+    const tells = code.flatMap((l, i) => (/\.setSpec\(/.test(l) ? [i] : []));
+    assert.equal(tells.length, 1, `the tile view tells the page its spec in one place, not ${tells.length}`);
+    // the method it is in: the nearest method declared above it
+    const head = code.slice(0, tells[0]).reverse().find((l) => /^ {2}#?\w+\(/.test(l)) ?? '';
+    assert.match(head, /^ {2}#tell\(change: TsChange\b/, `the one door takes a change (TsChange), not a spec: ${head.trim()}`);
   });
 });

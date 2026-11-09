@@ -592,22 +592,18 @@ export class TimeseriesView {
 
   // -- the spec changed ----------------------------------------------------------------------------------------------
 
-  /** The person changed the spec: kept by the page, and drawn (or asked) at once. */
-  /** A change kept, judged as Python's is (timeseries-edit.ts judgedEdit): refused for a problem it makes, in its words --
-   *  whether it was kept, so an editor whose change was refused stays open, what was typed in it kept (the third
-   *  review's 1). */
-  #set(spec: TimeseriesSpec): boolean {
-    let read: TimeseriesSpec;
-    try {
-      read = judgedEdit(this.#spec, spec, (s) => this.#columns(s));
-    } catch (e) {
-      if (!(e instanceof TsEditRefusal)) throw e;
-      this.#say([e.message], true);
-      return false;
-    }
-    this.#apply(read);
+  /**
+   * THE TILE'S ONE DOOR TO THE PAGE (docs/TS_DECISIONS_2026_11_07.md §5, the chart API's ruling A, 2026-11-09): a
+   * change the person made, as the tile's one rule makes it (timeseries-edit.ts editTimeseries, which Python and
+   * TypeScript's Chart ask too), judged as Python's is (judgedEdit: refused for a problem it makes), drawn -- `drawn`, the
+   * tile as it now is (#apply unless the change draws itself: a range's zoom) -- and told to the page: the one place the
+   * tile tells the page its spec, and it takes a change, never a spec (guardrails.test.ts holds it so). Throws the
+   * rule's refusal (TsEditRefusal).
+   */
+  #tell(change: TsChange, drawn: (spec: TimeseriesSpec) => void = (spec) => this.#apply(spec)): void {
+    const read = judgedEdit(this.#spec, editTimeseries(this.#spec, change), (s) => this.#columns(s));
+    drawn(read);
     this.#host.setSpec(read);
-    return true;
   }
 
   #apply(spec: TimeseriesSpec): void {
@@ -1545,21 +1541,18 @@ export class TimeseriesView {
 
   #setRange(word: TsRangeWord): void {
     this.#stopReplay();
-    const tried = this.#untried();
+    const tried = this.#tried !== undefined;
     this.#zoom = null;
-    const spec = editTimeseries(this.#spec, { kind: 'range', range: { last: word } });
-    // a drag's try set aside: the tile asked again as the page has it
-    if (tried !== undefined) {
-      this.#apply(spec);
-      this.#host.setSpec(spec);
-      return;
-    }
-    this.#range = JSON.stringify(spec.range);
-    this.#spec = spec;
-    this.#host.setSpec(spec);
+    // through the one door (#edit, #tell): a drag's try set aside, the tile asked again as the page has it (#apply);
+    // else the chart zoomed to the new window over the rows it has
+    const kept = this.#edit({ kind: 'range', range: { last: word } }, tried ? undefined : (spec) => {
+      this.#range = JSON.stringify(spec.range);
+      this.#spec = spec;
+    });
+    if (!kept || tried) return;
     this.#paintRanges();
     const w = this.#window();
-    if (spec.view?.mode === undefined) this.#chart?.zoomTo(w.from, w.to);
+    if (this.#spec.view?.mode === undefined) this.#chart?.zoomTo(w.from, w.to);
     void this.#windowed();
   }
 
@@ -1905,15 +1898,15 @@ export class TimeseriesView {
     return tried;
   }
 
-  /** A change the person made, by the tile's one rule (timeseries-edit.ts editTimeseries, which Python asks too): kept
-   *  and drawn, or refused in its words. */
-  #edit(change: TsChange): boolean {
+  /** A change the person made, told to the page through the tile's one door (#tell): kept and drawn (`drawn`: #tell's),
+   *  or refused in its words -- whether it was kept, so an editor whose change was refused stays open, what was typed in
+   *  it kept (the third review's 1). */
+  #edit(change: TsChange, drawn?: (spec: TimeseriesSpec) => void): boolean {
     const tried = this.#untried();
-    let made: TimeseriesSpec;
     let kept: boolean;
     try {
-      made = editTimeseries(this.#spec, change);
-      kept = this.#set(made);
+      this.#tell(change, drawn);
+      kept = true;
     } catch (e) {
       if (!(e instanceof TsEditRefusal)) throw e;
       this.#say([e.message], true);
