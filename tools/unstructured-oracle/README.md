@@ -29,3 +29,10 @@ engine. Everything here is either data preparation (the vectors) or a statement 
 Hybrid's relevance is the fused score divided by its largest possible value, `2 / (60 + 1)`, a constant that needs no
 look at the results. It is needed only for the blend `0.7 * relevance + 0.3 * recency`, which would otherwise be decided by
 recency alone: a fused score never exceeds 0.033.
+
+## The structured route
+
+A structured query always goes through lite: the judge starts `//core:server` and POSTs to
+`/api/pure/v1/execution/execute` with the model as text and `runtime::DuckDb`. It never runs one itself. Rows are compared
+as a set, numbers by value (`4`, `4.0` and `4.00` are one value, and a boolean is not a number). A refusal or a failure is
+an ERROR, never an empty result.
