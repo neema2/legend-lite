@@ -982,8 +982,13 @@ const CHART_BUDGET = 303_500;
  *  rows::pairPoints and pairPointsPeriod), the calendar words' ramps from the line's first point, lead_lag's line from
  *  its w-th pair, the Sharpe ratio's points on its met rows (helpers::sharpeOn, firstNone), a basket's member of several
  *  rows a date refused (helpers::memberOnce, D1), percentile's empties dropped first, and their sentences. Measured
- *  147,679. */
-const TIMESERIES_BUDGET = 148_000;
+ *  147,679.
+ *  148,000 -> 148,200 (2026-11-09, main's #92 merged into the branch; the user: "we also have to merge in main again
+ *  first"): the library's text with a window's ramp's two refusals that core's translator had raised by a parameter's
+ *  name (a negative r, which gs-quant's Window(w, r) refuses; percentiles' r past its window) -- helpers::fromZero and
+ *  minPeriods, moved into the library, as TsTranslatorGuardrailTest keeps the translator to calls of the library (it
+ *  had failed since b4a267ae0, found at the merge). Measured 148,023. */
+const TIMESERIES_BUDGET = 148_200;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
