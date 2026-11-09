@@ -40,8 +40,8 @@ final class AssertRuns {
     static @com.legend.base.Nullable TypedSide judge(com.legend.testexecutionplan.Assertion a, HostJudgment j,
             java.util.function.Supplier<List<TypedSide>> sides,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-        TypedSide v = judgedOrFellThrough(com.legend.testexec.HostJudgments.judge(j, sides, rules, message));
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
+        TypedSide v = judgedOrFellThrough(com.legend.testexec.HostJudgments.judge(j, sides, rules, message, run));
         if (v != null && HostJudgment.core(j) instanceof HostJudgment.EngineText e && e.routed()) {
             sqlTextRouted(a.name());
         }
@@ -68,7 +68,7 @@ final class AssertRuns {
     static @com.legend.base.Nullable TypedSide judgedAtItsStep(com.legend.testexecutionplan.TestPlan.Host h,
             com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
         com.legend.testexecutionplan.Assertion a = h.assertion();
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
@@ -77,13 +77,13 @@ final class AssertRuns {
         }
         if (listener == null) {
             enter(a);
-            return judge(a, h.judgment(), sides, rules, message);
+            return judge(a, h.judgment(), sides, rules, message, run);
         }
         com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
-            TypedSide v = judge(a, h.judgment(), sides, rules, message);
+            TypedSide v = judge(a, h.judgment(), sides, rules, message, run);
             settled = true;
             if (v != null) {
                 listener.verdict(a.listenerName(), true, null);
@@ -150,7 +150,7 @@ final class AssertRuns {
      */
     static HostHeld heldAtItsStep(com.legend.testexecutionplan.TestPlan.Host h, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
         com.legend.testexecutionplan.Assertion a = h.assertion();
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
         if (before != null) {
@@ -165,7 +165,7 @@ final class AssertRuns {
             TypedSide v = null;
             com.legend.error.AssertFailed failed = null;
             try {
-                v = judge(a, h.judgment(), sides, rules, message);
+                v = judge(a, h.judgment(), sides, rules, message, run);
             } catch (com.legend.error.AssertFailed e) {
                 failed = e;
             }

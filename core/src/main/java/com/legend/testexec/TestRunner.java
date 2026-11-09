@@ -46,6 +46,8 @@ public final class TestRunner {
         // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
         // judges tell the caller's listener through it, its reports kept back while an appeal is held
         Appeals appeals = new Appeals(callers);
+        // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
+        BodyRun run = new BodyRun(appeals);
         AssertListener listener = appeals.listener();
         ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
                 : null;
@@ -56,13 +58,13 @@ public final class TestRunner {
         try (SystemDatabase.Leases leases = SystemDatabase.leases(systemConnections)) {
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
                     leases::sessionFor;
-            Moved moved = new Moved(plan, edge, answer, early,
-                    listener, sessionsByTarget(session, systemSessions));
+            Moved moved = new Moved(plan, edge, answer, early, listener, run);
             // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
             java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
-            Appeals.Decider decider = (n, golden, ours, textEqual, l) -> com.legend.testexec.SqlTextRuns.decideAppeal(
-                    com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, l);
-            try (var open = appeals.open()) {
+            Appeals.Decider decider = (n, golden, ours, textEqual, l, reader, sessions) ->
+                    com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
+                            golden, ours, textEqual, referee, l, reader, sessions);
+            try {
                 TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
                         moved, moved);
             } catch (RuntimeException runFailed) {
@@ -90,8 +92,8 @@ public final class TestRunner {
      *  sides judged by the host judge at its verdict step, counted and reported to the listener as the walk does
      *  (M6). The database judge's verdicts reach no moved body: its bodies stay on the walk until M7. */
     /** The run's session for a target: the graph's system database for a target naming it, the body's own session for
-     *  every other -- as the run's sessions source maps them ({@link PlanSessions#of}), unviewed: a judgment that needs
-     *  the body's session (the referee's replay) asks the run for it ({@link RunReader#session}). */
+     *  every other -- as the run's sessions source maps them ({@link PlanSessions#of}), unviewed: the held appeals'
+     *  decision after the run is handed it (the referee's replay; {@link Appeals#decide}). */
     private static java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessionsByTarget(
             Sessions.Session session,
             java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions) {
@@ -116,8 +118,8 @@ public final class TestRunner {
          *  arm marked for it (M10c item 8). */
         private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;
         private final @Nullable AssertListener listener;
-        /** The run's sessions by target, published to the judgments it runs ({@link RunReader#session}). */
-        private final java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions;
+        /** The run record (hole 6, 2026-11-09): the held appeals and the caller's-message depth the judges share. */
+        private final BodyRun run;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
         /** {@code node}'s verdict steps' rules recorded by verdict: the plan's rules stand, the run reads them and no
@@ -151,7 +153,7 @@ public final class TestRunner {
 
         Moved(TestPlan planned, com.legend.testexecutionplan.@Nullable Edge edge,
                 @Nullable Answer answer, @Nullable ResultSink early, @Nullable AssertListener listener,
-                java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessions) {
+                BodyRun run) {
             if (edge == null && !planned.extensionsByStep().isEmpty()) {
                 // records planned for the edge (the compatibility rules' ledger texts) with no edge to hand them: the
                 // plan was made for another run, refused by name, never run with its records dropped (the slice 3
@@ -160,7 +162,7 @@ public final class TestRunner {
                         + planned.extensionsByStep().keySet() + " run with no edge");
             }
             this.planned = planned;
-            this.sessions = sessions;
+            this.run = run;
             this.edge = edge;
             this.answer = answer;
             this.early = early;
@@ -172,8 +174,9 @@ public final class TestRunner {
                     ? new com.legend.testexec.RootLoops.Runs(planned.steps()) : null;
             // a database row's appeal heard by its number, the plan's data (step 8b): the texts its row compared recorded
             java.util.Map<Integer, com.legend.testexecutionplan.Appeal> appealsPlanned = com.legend.testexecutionplan.PlannedAppeals.byNumber(planned);
-            this.rowAppeals = n -> row -> com.legend.testexec.SqlTextRuns.rowAppealed(com.legend.testexecutionplan.PlannedAppeals.of(appealsPlanned, n), row);
-            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.steps(), rowAppeals)
+            this.rowAppeals = n -> row -> com.legend.testexec.SqlTextRuns.rowAppealed(
+                    com.legend.testexecutionplan.PlannedAppeals.of(appealsPlanned, n), row, run);
+            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.steps(), rowAppeals, run)
                     : null;
             planned.steps().forEach(this::rulesOf);
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
@@ -212,9 +215,7 @@ public final class TestRunner {
             if (agreementRuns != null) {
                 // both judges have read once the step's last row is in: the agreement rule decides
                 TypedSide v;
-                try (var judging = RunReader.judging(reader, sessions)) {
-                    v = agreementRuns.of(verdict).received(verdict, row, listener, reader);
-                }
+                v = agreementRuns.of(verdict).received(verdict, row, listener, reader);
                 if (v != null) {
                     lastVerdict = v;
                 }
@@ -228,10 +229,8 @@ public final class TestRunner {
             if (hostStep != null && verdict.wrapper() != null) {
                 // an assertError's verdict the database judges (S135): its row is its statement's, judged alone at its
                 // step -- the host's facts name the assert it reports under
-                try (var judging = RunReader.judging(reader, sessions)) {
-                    com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
-                            "an assertError's verdict statement answered no row"), listener);
-                }
+                com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
+                        "an assertError's verdict statement answered no row"), listener);
                 lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
                 return;
             }
@@ -248,11 +247,9 @@ public final class TestRunner {
             // a row of a segment: to its root loop, the plan's, judged once the segment's last verdict is in (inside
             // the program's run: a row the loop planned ahead is read through the program's reader, THE WALL)
             com.legend.testexec.RootLoops.Run run = runs.of(verdict);
-            try (var judging = RunReader.judging(reader, sessions)) {
-                run.received(verdict, row);
-                if (runs.closes(verdict)) {
-                    run.judge(listener, reader, true, com.legend.testexec.DatabaseVerdicts::verdictOf, rowAppeals);
-                }
+            run.received(verdict, row);
+            if (runs.closes(verdict)) {
+                run.judge(listener, reader, true, com.legend.testexec.DatabaseVerdicts::verdictOf, rowAppeals, this.run);
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }
@@ -284,10 +281,8 @@ public final class TestRunner {
             }
             TestPlan.Host p = hostOf(verdict);
             java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
-            try (var judging = RunReader.judging(reader, sessions)) {
-                judged(p, () -> com.legend.testexec.HostSideShapes.shapedBase(p.assertion().name(), p.shapes(), rows),
-                        read == null ? null : com.legend.testexec.HostSideShapes.message(p.shapes(), read), rules(verdict));
-            }
+            judged(p, () -> com.legend.testexec.HostSideShapes.shapedBase(p.assertion().name(), p.shapes(), rows),
+                    read == null ? null : com.legend.testexec.HostSideShapes.message(p.shapes(), read), rules(verdict));
         }
 
         /** The program's reader, while it runs (PlanRunner.ProgramSink#reader). */
@@ -349,7 +344,7 @@ public final class TestRunner {
                 java.util.function.@Nullable Supplier<TypedSide> message,
                 com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
             com.legend.testexecutionplan.Assertion a = p.assertion();
-            TypedSide v = com.legend.testexec.AssertRuns.judgedAtItsStep(p, listener, sides, rules, message);
+            TypedSide v = com.legend.testexec.AssertRuns.judgedAtItsStep(p, listener, sides, rules, message, run);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
                         + " judge declined the sides it read (the walk's generic path has no program form)");
@@ -436,7 +431,7 @@ public final class TestRunner {
 
         @Override
         public void writing(int step) {
-            Appeals.writing();
+            run.writing();
         }
 
         @Override

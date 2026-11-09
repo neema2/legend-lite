@@ -158,7 +158,7 @@ public enum BodyClass {
         if (effectProgram(body, scan)) {
             return EFFECT_PROGRAM;
         }
-        if (queryProgram(body, scan)) {
+        if (queryProgram(body, scan) == null) {
             return QUERY_PROGRAM;
         }
         if (!oneJudge || writesAStore(body)) {
@@ -852,22 +852,20 @@ public enum BodyClass {
         return false;
     }
 
-    /** Why the query program's rule last refused a body on this thread (a measurement for the walk's door message,
-     *  2026-11-03: the core program reads it to move the walking bodies); null where it admitted the body. */
-    private static final ThreadLocal<String> REFUSAL = new ThreadLocal<>();
-
-    /** The query program rule's last refusal on this thread, or null. */
-    public static @Nullable String lastRefusal() {
-        return REFUSAL.get();
+    /** Why the query program's rule refuses {@code body} on {@code runtime}, or null where it admits it (a measurement
+     *  for the door's refusal message, 2026-11-03; returned, no longer left on the thread for a later read: slice 5,
+     *  2026-11-09). */
+    public static @Nullable String queryRuleRefusal(TypedQuery body, String runtime) {
+        return queryProgram(body, new QueryDoor.Scan(body, runtime));
     }
 
-    private static boolean refused(String why) {
-        REFUSAL.set(why);
-        return false;
+    /** The query program rule's refusal, {@code why}. */
+    private static String refused(String why) {
+        return why;
     }
 
-    private static boolean queryProgram(TypedQuery query, QueryDoor.Scan scan) {
-        REFUSAL.remove();
+    /** The query program rule over {@code query}: null where it admits the body, else why it refuses it. */
+    private static @Nullable String queryProgram(TypedQuery query, QueryDoor.Scan scan) {
         ModelContext ctx = query.context();
         Set<String> systemClasses = systemClasses(ctx);
         Map<FunctionId, Boolean> memo = new HashMap<>();
@@ -888,7 +886,7 @@ public enum BodyClass {
                     // mixedChainKeepsTheWall): planning raises what the walk raises at its turn, nothing before it --
                     // the store resolver's wall where a user class has no context, else the system route's refusal
                     // (no single session: SystemRoutes.refuseMixed, the walk's and the program road's)
-                    return true;
+                    return null;
                 }
                 return refused("statement " + i + " reads both stores");
             }
@@ -948,8 +946,8 @@ public enum BodyClass {
         if (body.isEmpty()) {
             return refused("empty body");
         }
-        return answered(query, Lets.bare(body.get(body.size() - 1))) || refused("the answer: " + answerRefusal(query,
-                Lets.bare(body.get(body.size() - 1))));
+        return answered(query, Lets.bare(body.get(body.size() - 1))) ? null : refused("the answer: "
+                + answerRefusal(query, Lets.bare(body.get(body.size() - 1))));
     }
 
     /** Why {@link #answered} refuses {@code answer} (the measurement's text). */

@@ -106,11 +106,11 @@ public final class BodyRouter {
         boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
         TestDoor.Asserts asserts = host != null ? host : database != null ? database : agreement;
         if (runtimeFqn == null || bodyClass == null || assertsPlanned && asserts == null) {
+            String queryRule = runtimeFqn == null || bodyClass != null ? null : BodyClass.queryRuleRefusal(typed, runtimeFqn);
             String why = (runtimeFqn == null ? "no runtime" : bodyClass == null ? "no class admits the body"
                     : mode.name().toLowerCase(java.util.Locale.ROOT) + " judge's planner refused an assert")
                     + (runtimeFqn == null ? "" : " [" + BodyKinds.of(typed, runtimeFqn, null) + "]")
-                    + (bodyClass == null && BodyClass.lastRefusal() != null
-                            ? " {query rule: " + BodyClass.lastRefusal() + "}" : "");
+                    + (queryRule != null ? " {query rule: " + queryRule + "}" : "");
             // the walk is deleted (2026-11-06): a body the program road does not plan is refused by name
             throw new com.legend.error.NotImplementedException("the program road does not plan this body: " + why);
         }

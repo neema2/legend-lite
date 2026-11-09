@@ -83,11 +83,18 @@ public final class SqlTypeCensus {
             new ConcurrentHashMap<>();
     private static final int SAMPLES_PER_CLASS = 3;
 
-    /** The runners' per-test marker (set beside StampCensus.CONTEXT
+    /** The runners' per-test marker (named beside StampCensus.test
      * by ChannelB and the corpus Runner — test-side wiring): witness
      * attribution without exec reaching into the middle-end
      * (Invariant 6d). */
-    public static final ThreadLocal<String> CONTEXT = new ThreadLocal<>();
+    private static final java.util.concurrent.atomic.AtomicReference<@com.legend.base.Nullable String> TEST =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    /** The harness names the test it runs now (an explicit label since slice 5, 2026-11-09: a thread-local until
+     *  then; the harnesses run one test at a time per JVM). */
+    public static void test(String name) {
+        TEST.set(name);
+    }
 
     // ------------------------------------------------------------------
     // §E3 M-N1 — THE NULLABILITY DIFFERENTIAL (fact vs label): for
@@ -130,7 +137,7 @@ public final class SqlTypeCensus {
                 k -> java.util.Collections.synchronizedList(
                         new ArrayList<>()));
         if (ws.size() < SAMPLES_PER_CLASS) {
-            String ctx = CONTEXT.get();
+            String ctx = TEST.get();
             ws.add(declared.name() + " := " + sketch(e)
                     + (ctx == null ? "" : " [" + ctx + "]"));
         }
@@ -322,7 +329,7 @@ public final class SqlTypeCensus {
                 k -> java.util.Collections.synchronizedList(
                         new ArrayList<>()));
         if (ws.size() < SAMPLES_PER_CLASS) {
-            String ctx = CONTEXT.get();
+            String ctx = TEST.get();
             ws.add(witness + (ctx == null ? "" : " [" + ctx + "]"));
         }
     }

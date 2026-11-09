@@ -30,11 +30,14 @@ final class AgreementRuns {
     private final Map<Integer, Run> byVerdict = new HashMap<>();
     /** A database root's failed row's appeal, by its number in the plan (step 8b). */
     private final java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals;
+    /** The run record (hole 6): the held appeals and the caller's-message depth the two halves share. */
+    private final BodyRun run;
 
     /** The runs of {@code steps}' asserts (a branch's sides included), each keyed by every verdict it reads. */
     AgreementRuns(List<? extends TestPlan.TestStep> steps,
-            java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals) {
+            java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals, BodyRun run) {
         this.rowAppeals = rowAppeals;
+        this.run = run;
         add(steps);
     }
 
@@ -46,7 +49,7 @@ final class AgreementRuns {
                     if (pairing == null) {
                         continue;
                     }
-                    Run run = new Run(group, pairing, rowAppeals);
+                    Run run = new Run(group, pairing, rowAppeals, this.run);
                     for (TestPlan.Verdict v : group.verdicts()) {
                         byVerdict.put(v.id(), run);
                     }
@@ -85,11 +88,13 @@ final class AgreementRuns {
         private TestPlan.@Nullable Host heldHost;
         private @Nullable List<Object> raisingRow;
         private final java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals;
+        private final BodyRun bodyRun;
 
         Run(TestPlan.Verdicts group, Agreement pairing,
-                java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals) {
+                java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals, BodyRun bodyRun) {
             this.pairing = pairing;
             this.rowAppeals = rowAppeals;
+            this.bodyRun = bodyRun;
             RootLoop loop = group.roots();
             this.database = loop == null ? null : new RootLoops.Run(loop);
             this.closing = group.verdicts().get(group.verdicts().size() - 1).id();
@@ -114,7 +119,7 @@ final class AgreementRuns {
                     "a host verdict the plan carries no host for");
             held = com.legend.testexec.AssertRuns.heldAtItsStep(h, listener,
                     () -> com.legend.testexec.HostSideShapes.shapedBase(h.assertion().name(), h.shapes(), rows.get()), rules,
-                    message == null ? null : com.legend.testexec.HostSideShapes.message(h.shapes(), message));
+                    message == null ? null : com.legend.testexec.HostSideShapes.message(h.shapes(), message), bodyRun);
             heldHost = h;
         }
 
@@ -162,6 +167,7 @@ final class AgreementRuns {
             List<Object> raised = raisingRow;
             boolean raising = pairing.raising();
             java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> appeals = rowAppeals;
+            BodyRun br = bodyRun;
             return com.legend.testexec.AssertRuns.agreedAtItsStep(a, listener, () -> AgreementArm.agree(a.name(), listener,
                     () -> {
                         AssertFailed failed = h.failed();
@@ -181,7 +187,7 @@ final class AgreementRuns {
                         }
                         // the verdict alone: a failure both judges agree on is told in the host's words, its message
                         // the host's side on the assert's verdict (AgreementArm)
-                        db.judge(null, reader, false, com.legend.testexec.DatabaseVerdicts::verdictOf, appeals);
+                        db.judge(null, reader, false, com.legend.testexec.DatabaseVerdicts::verdictOf, appeals, br);
                         return com.legend.testexecutionplan.Verdicts.ok();
                     }));
         }

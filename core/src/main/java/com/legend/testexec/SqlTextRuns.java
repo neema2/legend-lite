@@ -28,7 +28,7 @@ final class SqlTextRuns {
      *  decline reported, then the text decides -- equal holds; else the appeal, the walk's own rows leg, now, with the
      *  texts in hand. */
     static TypedSide judge(HostJudgment.EngineText e, List<TypedSide> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         // the appeal is heard by its number, the plan's (step 8b): the run records the texts it read, and the edge
         // decides after the run; the step's rules say whether a failed text is appealed
         boolean compat = rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
@@ -45,7 +45,7 @@ final class SqlTextRuns {
         // by the host's half under the agreement judge (its database half reports to no listener); until the slice 3
         // invariant audit (2026-11-08) a golden read at the step that differed from ours reported none
         if (e.decline() != null) {
-            declinedNow(e.name(), e.decline());
+            declinedTo(run.listener(), e.name(), e.decline());
         }
         if (e.golden() == null) {
             // a golden the plan read (2026-11-04, the core program): the two texts compare first, as any equality;
@@ -72,7 +72,7 @@ final class SqlTextRuns {
                 return fail(e.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
                         + " route the plan did not plan (a population or in-list temp statement): " + g);
             }
-            return Appeals.hold(e.name(), e.appeal(), g, ours, false);
+            return run.hold(e.name(), e.appeal(), g, ours, false);
         }
         boolean textEqual = e.textEqual();
         if (e.ours() == null) {
@@ -85,7 +85,7 @@ final class SqlTextRuns {
         // the equality arm's census route is the caller's to count once this answered (AssertVerdicts.HostAssert); the
         // decline reported above, the text decides -- equal holds, else the appeal heard, or the texts' failure
         String o = java.util.Objects.requireNonNull(ours);
-        return textEqual ? ok() : compat ? Appeals.hold(e.name(), e.appeal(), e.golden(), o, textEqual)
+        return textEqual ? ok() : compat ? run.hold(e.name(), e.appeal(), e.golden(), o, textEqual)
                 : textsDiffer(e.name(), e.golden(), o, e.decline());
     }
 
@@ -105,7 +105,8 @@ final class SqlTextRuns {
      */
     static TypedSide decideAppeal(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
             @com.legend.base.Nullable SqlReplayReferee referee,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, SideReader reader,
+            java.util.function.Function<com.legend.executionplan.ExecutionPlan.Target, com.legend.exec.Sessions.Session> sessions) {
         String name = a.name();
         return switch (a.kind()) {
             case CONTRACT -> fail(java.util.Objects.requireNonNull(a.contract()) + ": expected " + golden + ", got "
@@ -117,13 +118,13 @@ final class SqlTextRuns {
                 com.legend.base.RunScope.planning("the test-data generator's rows leg");
                 throw new IllegalStateException(name + ": the test-data generator's rows leg is not offered (S143)");
             }
-            case ROWS -> rowsLegNow(a, golden, ours, textEqual, referee, listener);
+            case ROWS -> rowsLegNow(a, golden, ours, textEqual, referee, listener, reader, sessions);
         };
     }
 
     /** The database judge's failed row's appeal heard (step 8b): the texts its row compared, ours read from the row's
      *  actual cell where the plan reads it, recorded for the decision after the run. */
-    static TypedSide rowAppealed(com.legend.testexecutionplan.Appeal a, List<Object> row) {
+    static TypedSide rowAppealed(com.legend.testexecutionplan.Appeal a, List<Object> row, BodyRun run) {
         com.legend.testexecutionplan.Appeal.Batched b = java.util.Objects.requireNonNull(a.batched(), "a row appeal with no row's texts");
         String ours = b.ours() != null ? b.ours() : actualText(row);
         if (ours == null) {
@@ -132,15 +133,16 @@ final class SqlTextRuns {
         // a second hearing of an appeal another half holds (the agreement judge's database half, A1): joined to it,
         // never decided twice
         return a.joins() != com.legend.testexecutionplan.RootLoop.NO_APPEAL
-                ? Appeals.join(a.name(), a.joins(), b.golden(), ours)
-                : Appeals.hold(a.name(), a.number(), b.golden(), ours,
+                ? run.join(a.name(), a.joins(), b.golden(), ours)
+                : run.hold(a.name(), a.number(), b.golden(), ours,
                         b.ours() != null ? b.textEqual() : b.golden().equals(ours));
     }
 
     /** The rows leg itself, from the plan's data: OUR rows as planned, the golden replayed via the referee, judged. */
     private static TypedSide rowsLegNow(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
             @com.legend.base.Nullable SqlReplayReferee referee,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, SideReader reader,
+            java.util.function.Function<com.legend.executionplan.ExecutionPlan.Target, com.legend.exec.Sessions.Session> sessions) {
         String name = a.name();
         com.legend.testexecutionplan.Appeal.Rows r = a.rows();
         if (r == null) {
@@ -162,7 +164,7 @@ final class SqlTextRuns {
         try {
             com.legend.testexec.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                rows = read(r.rows());
+                rows = read(r.rows(), reader);
             }
         } catch (com.legend.base.RunScope.Refused e) {
             // the runtime wall's refusal is never a rows-underivable decline: it fails the body by name
@@ -184,7 +186,7 @@ final class SqlTextRuns {
                 // test loudly -- never a decline that rescues the text
                 com.legend.testexec.SqlTypeCensus.probeSuspend(true);
                 try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                    TypedSide population = read(r.population());
+                    TypedSide population = read(r.population(), reader);
                     if (population != null) {
                         facts = facts.withPopulation(population);
                     }
@@ -205,9 +207,9 @@ final class SqlTextRuns {
         SqlReplayReferee.RowVerdict rv;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = r.goldenPlan() != null
-                ? referee.verifyPlan(RunReader.session(r.on()), r.goldenPlan(), r.planBindings(),
+                ? referee.verifyPlan(sessions.apply(r.on()), r.goldenPlan(), r.planBindings(),
                         rows, r.mappingFqn(), r.classFqn(), facts, r.enums())
-                : referee.verify(RunReader.session(r.on()),
+                : referee.verify(sessions.apply(r.on()),
                         r.replaySql() != null ? r.replaySql() : golden,
                         rows, r.mappingFqn(), r.classFqn(), facts, r.enums(),
                         temps.isEmpty() ? (seed == null ? List.of()
@@ -250,7 +252,8 @@ final class SqlTextRuns {
 
     /** One side of the rows leg read after the run: its failure raised as planned; a constant its text decoded; else
      *  its rows through the edge's reader (a plan of its own on the body's sessions), shaped by the plan; none: null. */
-    private static @com.legend.base.Nullable TypedSide read(com.legend.testexecutionplan.Appeal.Read read) {
+    private static @com.legend.base.Nullable TypedSide read(com.legend.testexecutionplan.Appeal.Read read,
+            SideReader reader) {
         com.legend.testexecutionplan.Failure f = read.failure();
         if (f != null) {
             throw com.legend.testexecutionplan.Failures.raised(f);
@@ -273,11 +276,6 @@ final class SqlTextRuns {
             }
             return com.legend.testexec.SideShapes.shape(shape, new com.legend.exec.PlanRunner.Rows(c.columns(), cells));
         }
-        com.legend.testexec.SideReader reader = RunReader.current();
-        if (reader == null) {
-            // no fallback (2026-11-06, the plan ahead): an appeal's side is read by its decision alone
-            throw new IllegalStateException("an appeal's planned side read outside its decision: no reader");
-        }
         try {
             return com.legend.testexec.SideShapes.shape(shape, reader.read(side));
         } catch (java.io.IOException e) {
@@ -291,11 +289,6 @@ final class SqlTextRuns {
         if (listener != null) {
             listener.declined(name, reason);
         }
-    }
-
-    /** A decline reported while the body runs, to its listener (the appeals' keeping one). */
-    private static void declinedNow(String name, String reason) {
-        declinedTo(Appeals.listenerNow(), name, reason);
     }
 
     /** An in-list temp table a golden names by its name ({@code tempTableForIn_x}): a golden whose text chooses a

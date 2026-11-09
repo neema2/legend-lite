@@ -283,8 +283,9 @@ final class HostJudgments {
      * {@link HostJudgment.EngineText}, the one named exception: M10b): the sink holds data. Null where the
      * judgment declines the sides it read (the walk's generic path continues).
      */
-    static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        return judge(j, sides, rules, null);
+    static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
+        return judge(j, sides, rules, null, run);
     }
 
     /** {@code message}: the reader of the assert's caller's message where the verdict carries it apart from its sides
@@ -292,7 +293,7 @@ final class HostJudgments {
      *  {@code sides} (a judgment nested in another's, whose sides the step read together). */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
         java.util.Objects.requireNonNull(rules, "a judgment names the rules it judges by");
         return switch (j) {
             case HostJudgment.TdsEquivalent t -> tdsEquivalentOf(t, sides);
@@ -303,7 +304,7 @@ final class HostJudgments {
             case HostJudgment.Condition c -> conditionOf(c, sides);
             case HostJudgment.AllRows a -> allRowsOf(a, sides);
             case HostJudgment.Rows r -> rowsOf(r, sides, rules);
-            case HostJudgment.Unrolled u -> unrolledOf(u, sides, rules);
+            case HostJudgment.Unrolled u -> unrolledOf(u, sides, rules, run);
             case HostJudgment.Subset s -> subsetOf(s, sides, rules);
             case HostJudgment.Empty e -> emptyOf(e, sides.get(0));
             case HostJudgment.Eq e -> eqOf(e, sides, rules);
@@ -315,9 +316,9 @@ final class HostJudgments {
             case HostJudgment.Json js -> jsonOf(js, sides, rules);
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
-            case HostJudgment.EngineText e -> com.legend.testexec.SqlTextRuns.judge(e, sides, rules);
-            case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, rules);
-            case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message);
+            case HostJudgment.EngineText e -> com.legend.testexec.SqlTextRuns.judge(e, sides, rules, run);
+            case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, rules, run);
+            case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message, run);
         };
     }
 
@@ -329,9 +330,9 @@ final class HostJudgments {
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j,
             java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-        return j instanceof HostJudgment.AssertError a ? com.legend.testexec.AssertErrorRuns.judge(a, sides, rules)
-                : judge(j, sides.get(), rules, message);
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
+        return j instanceof HostJudgment.AssertError a ? com.legend.testexec.AssertErrorRuns.judge(a, sides, rules, run)
+                : judge(j, sides.get(), rules, message, run);
     }
 
     /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a supertype
@@ -466,9 +467,9 @@ final class HostJudgments {
 
     private static @com.legend.base.Nullable TypedSide messagedOf(HostJudgment.Messaged m, List<TypedSide> sides,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message) {
-        try (var messaged = com.legend.testexec.CallerMessage.judging()) {
-            return judge(m.inner(), sides.subList(0, m.innerSides()), rules);
+            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
+        try (var messaged = run.messaged()) {
+            return judge(m.inner(), sides.subList(0, m.innerSides()), rules, run);
         } catch (com.legend.error.AssertFailed e) {
             if (e.unjudgedReason() != null) {
                 throw e;
@@ -598,7 +599,8 @@ final class HostJudgments {
     /** Each element's planned assert judged over its slice of the sides, in order, counted as the walk counts an
      *  element it adjudicates (entered, its family; an engine-text route once answered): the last verdict, the first
      *  failure raising; an element whose judgment declines its sides is the walk's wall. */
-    private static TypedSide unrolledOf(HostJudgment.Unrolled u, List<TypedSide> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static TypedSide unrolledOf(HostJudgment.Unrolled u, List<TypedSide> sides,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         int at = 0;
         TypedSide last = null;
         for (int i = 0; i < u.parts().size(); i++) {
@@ -611,7 +613,7 @@ final class HostJudgments {
                 throw com.legend.testexecutionplan.Failures.raised(before);
             }
             com.legend.testexec.AssertRuns.enter(part.assertion());
-            TypedSide v = com.legend.testexec.AssertRuns.judge(part.assertion(), part.judgment(), () -> slice, rules, null);
+            TypedSide v = com.legend.testexec.AssertRuns.judge(part.assertion(), part.judgment(), () -> slice, rules, null, run);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(
                         "unrolled quantified assert: element verdict not adjudicable for "

@@ -128,7 +128,7 @@ public final class RootLoops {
          *  run of its own; a failed row's appeal is {@code appeals}' by its number. */
         public void judge(@com.legend.base.Nullable AssertListener l, @com.legend.base.Nullable SideReader reader,
                 boolean messages, Judge judge,
-                java.util.function.IntFunction<Appeal> appeals) {
+                java.util.function.IntFunction<Appeal> appeals, BodyRun run) {
             counted();
             for (RootLoop.Root r : loop.roots()) {
                 RuntimeException failure = null;
@@ -149,7 +149,7 @@ public final class RootLoops {
                                     l.declined(p.name(), p.decline());
                                 }
                                 spoke = true;
-                                row(p, r, judge, appeals);
+                                row(p, r, judge, appeals, run);
                             }
                             case RootLoop.Decided d -> {
                                 reported = d.reported();
@@ -199,7 +199,7 @@ public final class RootLoops {
          *  generic row whose ruled comparison was decided at planning raises that decision where it fails or was never
          *  written), a failed row heard by its appeal where it has one. */
         private void row(RootLoop.Row p, RootLoop.Root r, Judge judge,
-                java.util.function.IntFunction<Appeal> appeals) {
+                java.util.function.IntFunction<Appeal> appeals, BodyRun run) {
             List<Object> row = p.verdict() == RootLoop.NO_VERDICT ? null : rows.get(p.verdict());
             Failure orElse = p.orElse();
             if (row == null && orElse != null && p.verdict() == RootLoop.NO_VERDICT) {
@@ -233,7 +233,7 @@ public final class RootLoops {
                 com.legend.diagnostics.Diagnostics.judgeSend("appeal", p.name());
                 Appeal appeal = appeals.apply(p.appeal());
                 if (r.message() != null) {
-                    try (var messaged = CallerMessage.judging()) {
+                    try (var messaged = run.messaged()) {
                         appeal.appeal(row);
                     }
                 } else {

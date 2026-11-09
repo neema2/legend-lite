@@ -225,9 +225,9 @@ public final class ChannelB {
     private static Outcome runOne(FunctionDefinition fd,
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
-        com.legend.lowering.StampCensus.CONTEXT.set(fqn);
-        com.legend.probe.Shadow.CONTEXT.set(fqn);
-        com.legend.testexec.SqlTypeCensus.CONTEXT.set(fqn);
+        com.legend.lowering.StampCensus.test(fqn);
+        com.legend.probe.Shadow.test(fqn);
+        com.legend.testexec.SqlTypeCensus.test(fqn);
         // (the dual-verdict and decline attribution prints went with the host judge's byte channel, 2026-11-07)
         return runOneInner(fd, module, ctx, fqn);
     }

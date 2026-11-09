@@ -42,11 +42,16 @@ public final class StampCensus {
     private static final boolean COUNT_MODE =
             System.getenv("LL_STAMP_COUNT") != null;
 
-    /** The test/query currently compiling — set by harness runners so a
-     * census line names its witness (the RefereeVerify.CURRENT_TEST pattern;
-     * main-scope holder because the lowering cannot see test classes). */
-    public static final ThreadLocal<String> CONTEXT =
-            ThreadLocal.withInitial(() -> "<unattributed>");
+    /** The test/query the harness is running -- named by the harness ({@link #test}) so a census line names its
+     *  witness; a measurement label, never read by a verdict (an explicit label since slice 5, 2026-11-09: a
+     *  thread-local until then; the harnesses run one test at a time per JVM). */
+    private static final java.util.concurrent.atomic.AtomicReference<String> TEST =
+            new java.util.concurrent.atomic.AtomicReference<>("<unattributed>");
+
+    /** The harness names the test it runs now. */
+    public static void test(String name) {
+        TEST.set(name);
+    }
 
 
     /** The scalar-funnel hook: spec's stamp vs the lowered expression's
@@ -57,7 +62,7 @@ public final class StampCensus {
             // a VARIABLE stamp surviving to lowering is its own finding —
             // lowering should only ever see concrete bounds
             fire("VAR-STAMP-AT-LOWERING " + digest(spec)
-                    + " test=" + CONTEXT.get());
+                    + " test=" + TEST.get());
             return;
         }
         boolean scalarStamp = b.upper() != null && b.upper() <= 1;
@@ -101,14 +106,14 @@ public final class StampCensus {
         if (scalarStamp && !designedListCarrier && listShaped(e)) {
             fire("ONE-STAMP/LIST-SHAPE mult=[" + b.lower() + ".."
                     + b.upper() + "] sql=" + e.getClass().getSimpleName()
-                    + " " + digest(spec) + " test=" + CONTEXT.get());
+                    + " " + digest(spec) + " test=" + TEST.get());
             return;
         }
         if (!scalarStamp && definitelyScalar(e)) {
             fire("MANY-STAMP/SCALAR-SHAPE mult=[" + b.lower() + ".."
                     + (b.upper() == null ? "*" : b.upper()) + "] sql="
                     + e.getClass().getSimpleName() + " " + digest(spec)
-                    + " test=" + CONTEXT.get());
+                    + " test=" + TEST.get());
         }
     }
 

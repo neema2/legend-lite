@@ -21,7 +21,7 @@ final class AssertErrorRuns {
      *  road's one rule; a side that raises nothing fails ("No error was thrown"), an error no arm takes (a wall) is
      *  raised as it was. */
     static TypedSide judge(HostJudgment.AssertError a, java.util.function.Supplier<List<TypedSide>> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         if (a.inner() != null) {
             // f IS an assert (2026-11-04): its failure is the error assertError matches, as upstream's assertError
             // catches an assert's failure as any error; the inner assert judged over its sides as any assert, by the
@@ -29,7 +29,7 @@ final class AssertErrorRuns {
             String message = null;
             try {
                 // the inner assert's sides were read with the step's, its caller's message among them: no reader
-                if (com.legend.testexec.HostJudgments.judge(a.inner().judgment(), sides, rules, null) == null) {
+                if (com.legend.testexec.HostJudgments.judge(a.inner().judgment(), sides, rules, null, run) == null) {
                     throw new com.legend.error.NotImplementedException(a.inner().assertion().name()
                             + " inside assertError: the host judge declined the sides it read");
                 }

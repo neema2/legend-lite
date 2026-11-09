@@ -34,8 +34,6 @@ import java.util.function.Function;
  */
 final class Appeals {
 
-    private static final ThreadLocal<@Nullable Appeals> OPEN = new ThreadLocal<>();
-
     /** An appeal heard at its assert, as the run records it (the plan-as-data design's step 8b, 2026-11-08: data, the
      *  run's output): the appeal's number in the plan, the two texts as read and their equality; {@code at} the kept
      *  reports before it; {@code messaged} whether its assert carries a caller's message. */
@@ -78,36 +76,18 @@ final class Appeals {
         return keeping;
     }
 
-    /** This body's appeals open for its run: an appeal heard inside it is held. */
-    Scope open() {
-        if (OPEN.get() != null) {
-            throw new IllegalStateException("a body's appeals opened inside another body's run");
-        }
-        OPEN.set(this);
-        return OPEN::remove;
-    }
-
     /** The appeal numbered {@code number} heard over the failed text of {@code name}: recorded for after the run; the
-     *  assert holds until then. Refused outside a body's run: an appeal is heard at its assert's verdict step alone. */
-    static TypedSide hold(String name, int number, String golden, String ours, boolean textEqual) {
-        Appeals open = OPEN.get();
-        if (open == null) {
-            throw new IllegalStateException(name + " (sql-text): an appeal heard outside a body's run");
-        }
-        open.held.add(new Held(name, number, golden, ours, textEqual, open.kept.size(),
-                com.legend.testexec.CallerMessage.present()));
+     *  assert holds until then; {@code messaged} whether its assert carries a caller's message (the run record's). */
+    TypedSide hold(String name, int number, String golden, String ours, boolean textEqual, boolean messaged) {
+        held.add(new Held(name, number, golden, ours, textEqual, kept.size(), messaged));
         return com.legend.testexecutionplan.Verdicts.ok();
     }
 
     /** A second hearing of appeal {@code number}, held earlier in this run by the assert's other half (the agreement
      *  judge's database half, A1): joined to it -- decided once, told once. The appeal must be held, on the same
      *  texts; anything else is refused by name. */
-    static TypedSide join(String name, int number, String golden, String ours) {
-        Appeals open = OPEN.get();
-        if (open == null) {
-            throw new IllegalStateException(name + " (sql-text): an appeal joined outside a body's run");
-        }
-        for (Held h : open.held) {
+    TypedSide join(String name, int number, String golden, String ours) {
+        for (Held h : held) {
             if (h.number() == number) {
                 if (!h.golden().equals(golden) || !h.ours().equals(ours)) {
                     throw new IllegalStateException(name + " (sql-text): the agreement judge's two halves heard one"
@@ -120,23 +100,12 @@ final class Appeals {
                 + " holds");
     }
 
-    /** The listener of the body whose run is in progress (its reports kept back from the first held appeal on), or
-     *  null outside a body's run. */
-    static @Nullable AssertListener listenerNow() {
-        Appeals open = OPEN.get();
-        return open == null ? null : open.keeping;
-    }
-
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals; none where no body's run is open (a program planned ahead). */
-    static void writing() {
-        Appeals open = OPEN.get();
-        if (open == null) {
-            return;
-        }
-        open.wrote = true;
-        if (!open.held.isEmpty()) {
-            open.wroteAfterHold = true;
+    void writing() {
+        wrote = true;
+        if (!held.isEmpty()) {
+            wroteAfterHold = true;
         }
     }
 
@@ -212,8 +181,8 @@ final class Appeals {
             for (; told < h.at(); told++) {
                 tell(kept.get(told));
             }
-            try (var judging = RunReader.judging(own, sessions); var noPlanning = com.legend.base.RunScope.judging()) {
-                decider.decide(h.number(), h.golden(), h.ours(), h.textEqual(), keeping);
+            try (var noPlanning = com.legend.base.RunScope.judging()) {
+                decider.decide(h.number(), h.golden(), h.ours(), h.textEqual(), keeping, own, sessions);
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
                 failed(h, told, e);
                 throw e;
@@ -263,13 +232,8 @@ final class Appeals {
     @FunctionalInterface
     interface Decider {
         TypedSide decide(int number, String golden, String ours, boolean textEqual,
-                @Nullable AssertListener listener);
-    }
-
-    /** A judgment's scope, closed when it ends. */
-    interface Scope extends AutoCloseable {
-        @Override
-        void close();
+                @Nullable AssertListener listener, SideReader reader,
+                Function<ExecutionPlan.Target, Sessions.Session> sessions);
     }
 
     /** The caller's listener, its reports kept back while an appeal is held and the run goes on. */
