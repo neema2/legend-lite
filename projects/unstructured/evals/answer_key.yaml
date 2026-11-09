@@ -45,7 +45,7 @@ cases:
       - {path: "bodies/MSG-0003.txt", charStart: 11, charEnd: 48, sha256: f97a5936d72a6747361319cd4967d7f68621fbf4f9a010a85527b2c672b44e4c}
     why_hard: "A superseded order ($25mm at 99.55, soft) sits earlier in the same thread, and the desk's acknowledgement repeats it."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C02
     corpus: "SALES"
@@ -99,7 +99,7 @@ cases:
           rows: [["Velmara Life Assurance plc", "Kestrelline Logistics Inc."], ["Hallerbrunn Privatbank AG", "Lumencrest Therapeutics Inc."], ["Sorrelmead Teachers Pension Fund", "Caldrith Materials Inc."]]
     why_hard: "Three unconnected threads, none of which uses the word declined."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C05
     corpus: "LENDING"
@@ -195,7 +195,7 @@ cases:
           rows: [["0001193125-26-352200", 299253556246]]
     why_hard: "The largest single row is American Express ($50.4bn), but Apple's 12 rows combine to $65.95bn; the earlier 13F is a near-duplicate, and the cover page's total is on the text route."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C10
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -237,8 +237,8 @@ cases:
           rows: [["0001193125-26-226661", 237703], ["0001193125-26-352200", 298117]]
     why_hard: "Needs the row from each filing; the CUSIP differs from the class A rows, which share the issuer name."
     author: ABS
-    reviewer: ""
-    status: resolved
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: unresolved
   - id: C15
     corpus: "EDGAR 13F"
     type: number
@@ -336,7 +336,7 @@ cases:
       answer: "nothing in the corpus"
     why_hard: "The table has a put_call column, which invites an answer, but it is empty on all 3,140 rows."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C24
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -412,7 +412,7 @@ cases:
           - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 7683, charEnd: 8429, sha256: 1018681a296a93fe9e6d203108b43d22b271ccadd95a3ef2d763493029ec9ae1, snippet: "Services  76.2%  75.4%  73.9%"}
     why_hard: "Two tables with the same row label, 'Services', in different passages."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C32
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -471,7 +471,7 @@ cases:
       answer: "nothing in the corpus"
     why_hard: "The filing is in the corpus but declares only Items 7.01 and 9.01, so no text was extracted; other JPMorgan 8-K text is the distractor."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C42
     corpus: "EDGAR 10-K/10-Q/8-K"
@@ -535,7 +535,7 @@ cases:
       - {path: "bodies/MSG-0021.txt", charStart: 8, charEnd: 173, sha256: a3344641ce350201b183c7e2af9786868f371b9da21ef0af10e2523db72b6a68}
     why_hard: "The hold email has far more words on the subject than the short clearance that replaces it."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C48
     corpus: "SALES"
@@ -660,7 +660,7 @@ cases:
       answer: "nothing in the corpus"
     why_hard: "The deal has not priced; Ysolde's 99.50 limit looks like an answer."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
   - id: C63
     corpus: "LENDING"
@@ -828,5 +828,5 @@ cases:
       answer: "nothing in the corpus"
     why_hard: "The interest clauses look like the answer, and they all say Term SOFR."
     author: ABS
-    reviewer: ""
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: resolved
