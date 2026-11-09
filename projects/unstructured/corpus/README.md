@@ -9,6 +9,26 @@
 `tools/unstructured-corpus/load.py` loads all three into `unstructured.duckdb`, which is built here and never committed,
 and into Postgres if `PG_URL` is set.
 
+## Embeddings
+
+`tools/unstructured-corpus/embed.py` computes one vector per distinct passage with `BAAI/bge-small-en-v1.5` (384
+dimensions, MIT licence), held by commit and weights sha256 in `tools/unstructured-corpus/pins.env`, on the libraries pinned
+there; a run on anything else stops with `VERSION`. **Embedding is data preparation and is never done by the engine: lite
+reads vectors, it does not make them.** The DuckDB file keeps them in `CO_PASSAGE_EMBEDDING` (`FLOAT[384]`, keyed by the
+passage's `sha256`), and `CO_EMBEDDING_PIN` records what made them. `load.py` replaces the file, so run it first.
+
+```
+uv venv --python 3.12 <venv>; uv pip install --python <venv>/bin/python -r <requirements with pins.env's values>
+UNSTRUCTURED_MODEL_DIR=<an empty directory> <venv>/bin/python tools/unstructured-corpus/embed.py --fetch    # the one network step
+UNSTRUCTURED_MODEL_DIR=<that directory> <venv>/bin/python tools/unstructured-corpus/embed.py                # offline
+```
+
+Measured 2026-11-09: 1,769 distinct passages, one vector each, none longer than the model's 512 tokens.
+
+**Postgres holds no vectors, and that is a measurement.** The repository's embedded Postgres (zonky's PostgreSQL 16.15)
+offers 63 extensions and `vector` is not one of them. `embed.py` reads `pg_available_extensions`, reports
+`REFUSED pgvector: ...` and installs nothing; the judge's vector and hybrid arms on Postgres are REFUSED rows.
+
 ## The passage rule differs by corpus, by design
 
 | Source | A passage is | Why |

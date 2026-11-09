@@ -1,0 +1,13 @@
+# The unstructured study's requirements, each at its pin (pins.env).
+sentence-transformers==${SENTENCE_TRANSFORMERS_VERSION}
+torch==${TORCH_VERSION}
+transformers==${TRANSFORMERS_VERSION}
+tokenizers==${TOKENIZERS_VERSION}
+huggingface-hub==${HUGGINGFACE_HUB_VERSION}
+safetensors==${SAFETENSORS_VERSION}
+numpy==${NUMPY_VERSION}
+duckdb==${DUCKDB_VERSION}
+psycopg==${PSYCOPG_VERSION}
+psycopg-binary==${PSYCOPG_BINARY_VERSION}
+pyyaml==${PYYAML_VERSION}
+requests==${REQUESTS_VERSION}
