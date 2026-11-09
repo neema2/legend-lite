@@ -401,6 +401,14 @@ Asked with pros, cons and costs (the decisions 1-10 of the message of that day);
      with 14c's sequence column on the tile's source (16); 8. v1's gate (17);
   9. after v1: 18b (Snowflake's compile cost and its last two island cases), 3b (a connection's post-processors), 19
      (beyond gs-quant).
+- **Where #81 stops, and calendars after it** (the user, 2026-11-09: "Our PR as already getting massive, I think we
+  should try to figure out a good stopping point to merge to main"; then "Calendar can be after this PR"): proposed,
+  not yet ruled -- #81 lands with items 1 to 14i and main's merge (#92), and everything after it is a pull request of
+  its own from `main`. Ruled: the time
+  model's v1.1 (option (b) above: business-day calendars with holidays, intraday time and time zones) and as-of between
+  moments for trades and TCA come after #81, each with a design note first; nothing of them is in #81. A lane round on
+  #81's head (the lanes CI does not run, measure only) runs in the warm sessions, in parallel, blocking nothing (the
+  user: "Can run lane in warm sessions in parallel non blocking").
 - **The chart API: whole charts stored, edits as instructions -- option A** (asked "Did we already do the single
   typescript API for typed #TS + chart that ensured that all UI was decoupled from API completely for charts?", then
   "give me your view on if we should move charts to the real API", "Is this the right design and plan?", and, the
