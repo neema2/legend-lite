@@ -14,14 +14,20 @@ retrieval lives there and not in Python: the judge passes in the question and re
 | `keyword_duckdb.sql` | BM25 (`match_bm25`), any term may match, top 150 |
 | `keyword_postgres.sql` | `tsvector`, `@@`, `ts_rank`, any term may match, top 150 |
 | `vector_duckdb.sql` | `array_cosine_similarity` over `FLOAT[384]`, top 150 |
-| `vector_postgres.sql` | pgvector `<=>`, top 150. Never run: the embedded Postgres has no pgvector |
+| `vector_postgres.sql` | pgvector `<=>`, top 150. Has never returned a row: see below |
 | `hybrid_duckdb.sql`, `hybrid_postgres.sql` | reciprocal rank fusion (k = 60), one row per hash, recency blend on time-aware cases, cut as below |
 
 Every arm ranks distinct passages (one row per `sha256`) and each row carries every `(source, path, charStart)` holding
 that hash, so duplicates cannot use up the list.
 
 Each hybrid statement contains its keyword and vector arms verbatim, and the judge refuses a run if they have drifted.
-`hybrid_postgres.sql` has never run whole; its fusion half has, with its vector arm replaced by the keyword list.
+
+**The Postgres vector and hybrid statements are run on every case and refused.** The embedded Postgres has no pgvector, and
+nothing is installed into it. Both statements parse; the server stops at name resolution with
+`relation "co_passage_embedding" does not exist` (42P01), because that table's column needs the type pgvector provides: the
+store step itself answers `type "vector" does not exist` (42704). The ledger's REFUSED rows carry the catalogue's reason and
+the statement's exact error, and any other failure, such as a syntax error, is an ERROR. So `<=>` has never been exercised
+here. Hybrid's fusion half has run on its own, with the vector arm replaced by the keyword list.
 
 **No reranker: that is the boundary.** A cross-encoder runs a model per candidate pair at query time, which is outside the
 engine. Everything here is either data preparation (the vectors) or a statement the database executes.

@@ -69,3 +69,23 @@ BM25 score to 9 places before ranking. `match_bm25` sums in parallel, so mathema
 including C06 and C76's verdicts on keyword DuckDB. Rounding lets a tie be a tie and break on the hash.
 
 From here, a change that turns any row from PASS to anything else fails the gate, even if the counts improve.
+
+## Entry 4, 2026-11-09
+
+the Postgres vector and hybrid statements, run; this entry's ledger replaces entry 3's
+
+answer_key.yaml sha256: a4dcdc340a4aa10911a123ff15cb81e28c93ffb36252bebd1dba8a59c0945e7e
+
+ledger.tsv sha256: 45b0ec94317ea40e132e98759196323acbfe7b1f43419c4ffd9abf29cf6d6efe
+
+No verdict changed, and the gate against entry 3's ledger passed. The only rows that moved are the 88 REFUSED rows of the
+vector and hybrid arms on Postgres, whose detail now carries the exact error from running the statement on every case:
+UndefinedTable 42P01, relation "co_passage_embedding" does not exist. Until this entry the judge read the catalogue and did
+not run them.
+
+The repository's embedded Postgres has no pgvector and nothing was installed into it. Both statements parse; the server
+stops at name resolution, because the table's column needs the type pgvector provides, and creating that table answers
+UndefinedObject 42704, type "vector" does not exist. So neither statement has returned a row, and the `<=>` operator has
+not been exercised. A failure of these statements other than an undefined table, type or function is an ERROR, not a refusal.
+
+Three fresh runs wrote byte-identical ledgers.
