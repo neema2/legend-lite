@@ -33,14 +33,20 @@ exports_files(
         "ledger-adversarial-raw.tsv",
         "answers-adversarial-adjusted.jsonl.gz",
         "ledger-adversarial-adjusted.tsv",
+        "answers-gallery.jsonl.gz",
+        "ledger-gallery.tsv",
     ],
     visibility = ["//core:__pkg__"],
 )
 
 # the cases, and each as Show Python prints it (calls.tsv, the call snap.py runs: item 14f, step 2), which
-# //datacube:timeseries_builder_test writes and holds
+# //datacube:timeseries_builder_test writes and holds; and the gallery's series as gs-quant's calls (gallery.jsonl: item
+# 14f, step 4b), which //datacube:timeseries_ts_parity_test writes and holds
 exports_files(
-    ["calls.tsv"],
+    [
+        "calls.tsv",
+        "gallery.jsonl",
+    ],
     visibility = [
         "//core:__pkg__",
         "//datacube:__pkg__",
@@ -63,6 +69,7 @@ run_binary(
         "ledger.tsv",
         "ledger-adversarial-adjusted.tsv",
         "ledger-adversarial-raw.tsv",
+        "ledger-gallery.tsv",
     ],
     outs = [
         "generated/two-rows.tsv",
@@ -77,6 +84,8 @@ run_binary(
         "$(execpath ledger-adversarial-raw.tsv)",
         "--adjusted",
         "$(execpath ledger-adversarial-adjusted.tsv)",
+        "--gallery",
+        "$(execpath ledger-gallery.tsv)",
         "--two-rows",
         "$(execpath generated/two-rows.tsv)",
         "--summary",

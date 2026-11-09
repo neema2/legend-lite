@@ -1,9 +1,9 @@
 # Copyright 2026 Legend Contributors
 # SPDX-License-Identifier: Apache-2.0
-"""THE LEDGERS' REPORTS (README.md): read from the three ledgers alone -- never typed -- and written as data and a page.
+"""THE LEDGERS' REPORTS (README.md): read from the four ledgers alone -- never typed -- and written as data and a page.
 
   two_rows.py --samples ledger.tsv --raw ledger-adversarial-raw.tsv --adjusted ledger-adversarial-adjusted.tsv \\
-      --two-rows two-rows.tsv --summary summary.tsv --unruled unruled.tsv --md TWO_ROWS.md
+      --gallery ledger-gallery.tsv --two-rows two-rows.tsv --summary summary.tsv --unruled unruled.tsv --md TWO_ROWS.md
 
 - two-rows.tsv: what gs-quant and lite answer over the fixture's line with two rows on one date (BTCUSD's print and its
   correction on 2025-02-05), case by case, each case in exactly one group; a row no group describes is refused.
@@ -143,7 +143,7 @@ def lite_split(cases):
 
 
 def summary_tsv(ledgers, cases):
-    lines = ["# THE LEDGERS' COUNTS (two_rows.py, from the three ledgers): each ledger's verdicts with their dup-span"
+    lines = ["# THE LEDGERS' COUNTS (two_rows.py, from the four ledgers): each ledger's verdicts with their dup-span"
              " share, and lite's split over the two-row line (" + SYMBOL + ", " + DATE + "). Every count the PR and"
              " docs/GATES.md quote is a row here. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated",
              "ledger\tmeasure\tcases\tof which dup-span, or distinct words"]
@@ -165,7 +165,7 @@ def unruled_tsv(ledgers):
             if r["duckdb"] == "DIFF" and r["register"] == "-":
                 case, at = key.rsplit(" @", 1) if " @" in key else (key, None)
                 by.setdefault(case, []).append(name.replace(".tsv", "") + ("" if at is None else "@" + at))
-    lines = ["# EVERY DIFF NO REGISTER ROW RULES (two_rows.py, from the three ledgers): each case and where it is a DIFF;"
+    lines = ["# EVERY DIFF NO REGISTER ROW RULES (two_rows.py, from the four ledgers): each case and where it is a DIFF;"
              " the PR's Open findings answer each. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated",
              "case\twhere"]
     lines += [c + "\t" + ",".join(w) for c, w in sorted(by.items())]
@@ -211,11 +211,12 @@ def md(cases):
 
 def main():
     ap = argparse.ArgumentParser()
-    for a in ("samples", "raw", "adjusted", "two-rows", "summary", "unruled", "md"):
+    for a in ("samples", "raw", "adjusted", "gallery", "two-rows", "summary", "unruled", "md"):
         ap.add_argument("--" + a, required=True)
     a = ap.parse_args()
+    # the gallery's series (item 14f, step 4b) are counted and their DIFFs held ruled as the cases' are
     ledgers = [("ledger.tsv", read(a.samples)), ("ledger-adversarial-raw.tsv", read(a.raw)),
-               ("ledger-adversarial-adjusted.tsv", read(a.adjusted))]
+               ("ledger-adversarial-adjusted.tsv", read(a.adjusted)), ("ledger-gallery.tsv", read(a.gallery))]
     cases = classify(ledgers[1][1])
     for path, text in ((a.two_rows, two_rows_tsv(cases)), (a.summary, summary_tsv(ledgers, cases)),
                        (a.unruled, unruled_tsv(ledgers)), (a.md, md(cases))):

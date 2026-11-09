@@ -77,6 +77,13 @@ class TsGsquantParityTest {
         SAMPLES.put("macro", List.of(text("series"), date("date"), number("value")));
     }
 
+    /** The samples the gallery's series read (TsReplayTest's): the cases' and the cash (item 13b). */
+    private static final Map<String, List<CatalogModel.Column>> GALLERY_SAMPLES = new LinkedHashMap<>(SAMPLES);
+
+    static {
+        GALLERY_SAMPLES.put("cash", List.of(text("currency"), date("date"), number("rate"), number("index")));
+    }
+
     private static CatalogModel.Column text(String name) {
         return new CatalogModel.Column(name, "VARCHAR", "VARCHAR", null, null, false);
     }
@@ -254,9 +261,11 @@ class TsGsquantParityTest {
     }
 
     /** What a case's answer is for (snap.py's sha): its two texts, its column, the data (over a fixture, with the
-     *  symbol it runs as x) and gs-quant's release, the pin. */
+     *  symbol it runs as x) and gs-quant's release, the pin -- a gallery series' its key in place of its #TS (snap.py's
+     *  snap_gallery: gs-quant's answer is its call's alone, and the series' Show #TS is run as it stands). */
     static String sha(Case c, String dataSha, String pin) throws Exception {
-        String joined = String.join("\n\0\n", c.ts(), c.gs(), c.column() == null ? "" : c.column(), dataSha, pin);
+        String ts = GALLERY_WORD.equals(c.word()) ? c.args() : c.ts();
+        String joined = String.join("\n\0\n", ts, c.gs(), c.column() == null ? "" : c.column(), dataSha, pin);
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(
                 joined.getBytes(StandardCharsets.UTF_8)));
     }
@@ -535,10 +544,20 @@ class TsGsquantParityTest {
         return relative ? Math.abs(l - g) / Math.max(Math.abs(g), Double.MIN_NORMAL) : Math.abs(l - g);
     }
 
+    /** Whether a case is judged relative: its word's (a gallery series' its outermost call's: Show Python's name of it,
+     *  gs-quant's, which the RELATIVE words keep). */
+    static boolean relative(Case c) {
+        if (!GALLERY_WORD.equals(c.word())) {
+            return RELATIVE.contains(c.word());
+        }
+        Matcher m = Pattern.compile("^(\\w+)\\(").matcher(c.gs());
+        return m.find() && RELATIVE.contains(m.group(1));
+    }
+
     /** gs-quant's points against lite's: the same dates, each date the same number of values, and each date's values
      *  alike as a bag (sorted: lite's order among one date's rows is the database's, S149; gs-quant's is the file's). */
     static Verdict judge(Case c, Map<String, List<Double>> gs, Map<String, List<Double>> lite) {
-        boolean relative = RELATIVE.contains(c.word());
+        boolean relative = relative(c);
         double level = levelTolerance(gs);
         List<String> onlyGs = gs.keySet().stream().filter(d -> !lite.containsKey(d)).toList();
         List<String> onlyLite = lite.keySet().stream().filter(d -> !gs.containsKey(d)).toList();
@@ -675,10 +694,105 @@ class TsGsquantParityTest {
                 ledger, lineDates, ats);
     }
 
+    // ------------------------------------------------------------------ the gallery (item 14f, step 4b)
+
+    /** A gallery case's word: its key {@code series <view> <id>}, a struct's field {@code series <view> <id>.<field>}
+     *  (snap.py's GALLERY_WORD). */
+    static final String GALLERY_WORD = "series";
+
+    /** The pages whose tables a series' Show #TS reads, {@code <page>_<sample>} (the parity test's, TsReplayTest's). */
+    private static final List<String> PAGES = List.of("gallery", "markets");
+
+    private static final Pattern GALLERY_KNOWN = Pattern.compile("  known: \\{(.*)}");
+
+    /** The gallery's cases and the series no case runs (by key, with why: a tile setting gs-quant's call has not,
+     *  DataCube's own spelling). */
+    record Gallery(Word word, Map<String, String> skipped) {
+    }
+
+    /**
+     * THE GALLERY'S SERIES (gallery.jsonl, which //datacube:timeseries_ts_parity_test writes): every series of the gallery
+     * and the markets example, each field of a struct its own case -- its gs-quant call Show Python's (snap.py runs it
+     * over the pages' samples), its lite side its Show #TS statement (show-ts.txt, the same series' as the replays run),
+     * the register row a DIFF of it is ruled by (mapping.yaml's {@code gallery: known:}).
+     */
+    static Gallery gallery(Path rows, Path statements, Path mapping) throws IOException {
+        Map<String, String> shown = new LinkedHashMap<>();
+        for (String line : Files.readAllLines(statements, StandardCharsets.UTF_8)) {
+            int colon = line.indexOf(": ");
+            if (colon > 0) {
+                shown.put(line.substring(0, colon), line.substring(colon + 2));
+            }
+        }
+        Map<String, String> known = new LinkedHashMap<>();
+        boolean inGallery = false;
+        for (String line : Files.readAllLines(mapping, StandardCharsets.UTF_8)) {
+            Matcher m;
+            if (line.equals("gallery:")) {
+                inGallery = true;
+            } else if (inGallery && (m = GALLERY_KNOWN.matcher(line)).matches() && !m.group(1).isBlank()) {
+                for (String part : m.group(1).split(", ")) {
+                    String[] kv = part.split(": ");
+                    known.put(kv[0].startsWith("\"") && kv[0].endsWith("\"") ? kv[0].substring(1, kv[0].length() - 1) : kv[0], kv[1]);
+                }
+            }
+        }
+        List<Case> cases = new ArrayList<>();
+        Map<String, String> skipped = new LinkedHashMap<>();
+        for (String line : Files.readAllLines(rows, StandardCharsets.UTF_8)) {
+            if (line.isBlank() || line.startsWith("#")) {
+                continue;
+            }
+            Json.Obj o = Json.parseObject(line);
+            String id = o.getString("series");
+            List<String> fields = o.get("fields") instanceof Json.Arr a
+                    ? a.items().stream().map(n -> ((Json.Str) n).value()).toList()
+                    : java.util.Collections.singletonList(null);
+            for (String field : fields) {
+                String args = field == null ? id : id + "." + field;
+                if (!(o.get("skip") instanceof Json.Null)) {
+                    skipped.put(GALLERY_WORD + " " + args, o.getString("skip"));
+                    continue;
+                }
+                String statement = shown.get(id);
+                if (statement == null) {
+                    throw new IllegalStateException("no Show #TS statement of " + id + " in show-ts.txt");
+                }
+                cases.add(new Case(GALLERY_WORD, args, statement, o.getString("python"), field,
+                        known.getOrDefault(args, NO_REGISTER_ROW), "-"));
+            }
+        }
+        for (String k : known.keySet()) {
+            if (cases.stream().noneMatch(c -> c.args().equals(k))) {
+                throw new IllegalStateException("mapping.yaml's gallery known " + k + " is no case of the gallery's");
+            }
+        }
+        return new Gallery(new Word(GALLERY_WORD, false, cases, true), skipped);
+    }
+
+    /** The gallery's dataset: the pages' samples as each page's tables ({@code gallery_prices}, {@code markets_cash}),
+     *  its answers and ledger; every row its own dates. */
+    static Dataset galleryDataset() throws Exception {
+        String text = Files.readString(Runfile.property("ts.gsquant.samples"), StandardCharsets.UTF_8);
+        Json.Obj samples = Json.parseObject(text);
+        Map<String, String> csv = new LinkedHashMap<>();
+        Map<String, List<CatalogModel.Column>> columns = new LinkedHashMap<>();
+        for (String page : PAGES) {
+            GALLERY_SAMPLES.forEach((sample, cols) -> {
+                csv.put(page + "_" + sample, samples.getString(sample));
+                columns.put(page + "_" + sample, cols);
+            });
+        }
+        List<String> ats = new ArrayList<>();
+        ats.add(null);
+        return new Dataset("gallery", csv, columns, sha256(text), Runfile.property("ts.gsquant.gallery.answers"),
+                Runfile.property("ts.gsquant.gallery.ledger"), Map.of(), ats);
+    }
+
     /** One dataset judged: each case's verdict, its findings appended, its problems added; its ledger rewritten into
-     *  {@code update} (a directory) when given. */
+     *  {@code update} (a directory) when given. {@code skipped}: cases no answer is snapped for, by key, with why. */
     static void judgeDataset(Dataset d, List<Word> words, String pin, Pattern only, StringBuilder findings,
-            List<String> problems, String update) throws Exception {
+            List<String> problems, String update, Map<String, String> skipped) throws Exception {
         Answers answers = answers(d.answers(), d.lineDates());
         Json.Obj snapped = (Json.Obj) answers.meta().get("cases");
         Map<String, String> expected = new LinkedHashMap<>();
@@ -700,6 +814,7 @@ class TsGsquantParityTest {
                 }
             }
         }
+        skipped.forEach((key, why) -> verdicts.put(key, new Verdict("SKIP", why)));
         problems.addAll(guards(expected, answers, pin, d.name()));
         problems.addAll(answers.problems());
         TestBackend platform = TestBackends.platform();
@@ -724,6 +839,11 @@ class TsGsquantParityTest {
                         Json.Obj entry = (Json.Obj) snapped.get(key);
                         if ("GS_ERROR".equals(entry.getString("status"))) {
                             verdicts.put(key, new Verdict("GS_ERROR", entry.getString("error")));
+                            continue;
+                        }
+                        // gs-quant answers no such field (a band's width): a gallery case snapped as SKIP, with why
+                        if ("SKIP".equals(entry.getString("status"))) {
+                            verdicts.put(key, new Verdict("SKIP", entry.getString("error")));
                             continue;
                         }
                         Map<String, List<Double>> gs = answers.points().get(key);
@@ -857,8 +977,12 @@ class TsGsquantParityTest {
                 + "Each DIFF and REFUSED: the dataset and case, its register row, what differs, gs-quant's function, the"
                 + " #TS statement and lite's SQL on DuckDB.\n");
         for (Dataset d : List.of(samples(), fixture("adversarial-raw"), fixture("adversarial-adjusted"))) {
-            judgeDataset(d, words, pin, onlyPattern, findings, problems, update);
+            judgeDataset(d, words, pin, onlyPattern, findings, problems, update, Map.of());
         }
+        // the gallery's and the markets example's series, each its Show #TS against gs-quant's call of it (item 14f, 4b)
+        Gallery g = gallery(Runfile.property("ts.gsquant.gallery"), Runfile.property("ts.gsquant.gallery.statements"),
+                Runfile.property("ts.gsquant.mapping"));
+        judgeDataset(galleryDataset(), List.of(g.word()), pin, onlyPattern, findings, problems, update, g.skipped());
         String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (outputs != null) {
             Files.writeString(Path.of(outputs, "gsquant-findings.md"), findings.toString(), StandardCharsets.UTF_8);

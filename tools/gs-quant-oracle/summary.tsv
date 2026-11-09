@@ -1,4 +1,4 @@
-# THE LEDGERS' COUNTS (two_rows.py, from the three ledgers): each ledger's verdicts with their dup-span share, and lite's split over the two-row line (BTCUSD, 2025-02-05). Every count the PR and docs/GATES.md quote is a row here. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated
+# THE LEDGERS' COUNTS (two_rows.py, from the four ledgers): each ledger's verdicts with their dup-span share, and lite's split over the two-row line (BTCUSD, 2025-02-05). Every count the PR and docs/GATES.md quote is a row here. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated
 ledger	measure	cases	of which dup-span, or distinct words
 ledger.tsv	PASS	240	0 dup-span
 ledger.tsv	DIFF	16	0 dup-span
@@ -18,6 +18,12 @@ ledger-adversarial-adjusted.tsv	REFUSED	132	131 dup-span
 ledger-adversarial-adjusted.tsv	GS_ERROR	92	0 dup-span
 ledger-adversarial-adjusted.tsv	SKIP	88	0 dup-span
 ledger-adversarial-adjusted.tsv	rows	1064	-
+ledger-gallery.tsv	PASS	196	0 dup-span
+ledger-gallery.tsv	DIFF	4	0 dup-span
+ledger-gallery.tsv	REFUSED	0	0 dup-span
+ledger-gallery.tsv	GS_ERROR	0	0 dup-span
+ledger-gallery.tsv	SKIP	32	0 dup-span
+ledger-gallery.tsv	rows	232	-
 two-row line	run	244	75 words
 two-row line	gs-quant raises	86	27 words
 two-row line	gs-quant answers	158	53 words

@@ -26,6 +26,7 @@ rule), and CI judges from the committed files.
 import argparse
 import datetime as dt
 import fnmatch
+import functools
 import gzip
 import hashlib
 import io
@@ -496,6 +497,220 @@ def run_case(gs_text, column, env, ns):
     return [] if math.isnan(v) else [(pd.Timestamp(d).date().isoformat(), value_text(v)) for d in env["x"].index]
 
 
+# ------------------------------------------------------------------ the gallery (item 14f, step 4b)
+
+
+#: the gallery's and the markets example's series as gs-quant's calls: //datacube:timeseries_ts_parity_test writes it
+GALLERY = os.path.join(HERE, "gallery.jsonl")
+#: a gallery case's word: its key `series <view> <id>`, a field's `series <view> <id>.<field>`
+GALLERY_WORD = "series"
+
+
+def gallery_rows(path=GALLERY):
+    """gallery.jsonl's rows: each series' key, Show Python's call of it (its other series inlined), its tile's sources,
+    its answer's fields (none for a value) and why gs-quant cannot answer it (null: it can)."""
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip() and not line.startswith("#")]
+
+
+def gallery_known(m):
+    """The gallery's cases a register row or a word's own sentence rules a DIFF of: mapping.yaml's `gallery: known:`."""
+    return (m.get("gallery") or {}).get("known") or {}
+
+
+def gallery_frames(data):
+    """The pages' samples as frames, by cube (prices, rates, macro, cash)."""
+    import pandas as pd
+    return {cube: pd.read_csv(io.StringIO(text)) for cube, text in data.items()}
+
+
+@functools.lru_cache(maxsize=None)
+def line_class():
+    """A line of a gallery series' run (and every gs-quant answer there, gallery_namespace): a pandas Series whose
+    comparisons and `&`, `|` are the program's -- legend_lite.timeseries' Term's, the language's: two lines met on the
+    dates both have (S152), where pandas raises on two series of different dates (tools/ts-oracle/calls.py's rule, moved
+    here with the gallery) -- and Show Python's `.period(fn)`, each date's value of its rows under the tile's frequency,
+    which the gallery reads under none (a frequency is skipped): each date's one row itself (a date of two rows is this
+    tool's error). pandas defers its own operators to it (`__pandas_priority__`)."""
+    import pandas as pd
+
+    class Line(pd.Series):
+        __pandas_priority__ = 5000
+
+        @property
+        def _constructor(self):
+            return Line
+
+        def period(self, fn):
+            if self.index.has_duplicates:
+                raise ValueError("a period's " + fn + " over a date of two rows: none of the gallery's samples")
+            return self
+
+        def _met(self, other, op):
+            if isinstance(other, pd.Series):
+                a, b = self.align(other, join="inner")
+                return Line(op(pd.Series(a), pd.Series(b)))
+            return Line(op(pd.Series(self), other))
+
+        def __lt__(self, other):
+            return self._met(other, lambda a, b: a < b)
+
+        def __le__(self, other):
+            return self._met(other, lambda a, b: a <= b)
+
+        def __gt__(self, other):
+            return self._met(other, lambda a, b: a > b)
+
+        def __ge__(self, other):
+            return self._met(other, lambda a, b: a >= b)
+
+        def __eq__(self, other):
+            return self._met(other, lambda a, b: a == b)
+
+        def __ne__(self, other):
+            return self._met(other, lambda a, b: a != b)
+
+        def __and__(self, other):
+            return self._met(other, lambda a, b: (a != 0) & (b != 0))
+
+        def __or__(self, other):
+            return self._met(other, lambda a, b: (a != 0) | (b != 0))
+
+        def __rand__(self, other):
+            return self.__and__(other)
+
+        def __ror__(self, other):
+            return self.__or__(other)
+
+        __hash__ = None
+
+    return Line
+
+
+def gallery_namespace(ns):
+    """The namespace's every function answering a Line where it answers a pandas Series: a gallery series' operators
+    meet gs-quant's answers as the language meets lines."""
+    import pandas as pd
+    line = line_class()
+
+    def lined(f):
+        def call(*args, **kwargs):
+            got = f(*args, **kwargs)
+            return line(got) if isinstance(got, pd.Series) and not isinstance(got, line) else got
+        return call
+    return {k: lined(v) if callable(v) and not isinstance(v, type) else v for k, v in ns.items()}
+
+
+def gallery_column(frames, sources, read):
+    """Show Python's column(name, pick) over the pages' samples: `alias.column` (the tile's first source's where it names
+    none), the pick's rows by its source's key, along its date -- a line ordered by its dates, its missing values none
+    (lite's) -- each line read kept in `read` (the dates gs-quant's one number is answered on). A split's pick, a
+    period's value and any other are this tool's error (HARNESS), never gs-quant's: the gallery skips their series."""
+    import pandas as pd
+    by = {s["alias"]: s for s in sources}
+    Line = line_class()
+
+    def column(name, *picks):
+        alias, col = name.split(".", 1) if "." in name else (sources[0]["alias"], name)
+        s = by.get(alias)
+        if s is None or len(picks) > 1 or any(isinstance(p, dict) for p in picks) or (s["key"] is None) != (not picks):
+            raise ValueError("column(" + ", ".join(map(repr, (name,) + picks)) + ") is no line of the gallery's samples")
+        df = frames[s["cube"]]
+        rows = df if not picks else df[df[s["key"]].astype(str) == str(picks[0])]
+        rows = rows.assign(_on=pd.to_datetime(rows[s["date"]])).sort_values("_on", kind="mergesort")
+        values = pd.Series(rows[col].astype(float).values, index=pd.DatetimeIndex(rows["_on"])).dropna()
+        line = Line(values.values, index=values.index, name=str(picks[0]) if picks else col)
+        read.append(line)
+        return line
+    return column
+
+
+def cashed_sharpe_ratio(ns, column):
+    """gs-quant's sharpe_ratio with its risk-free curve the page's cash line: gs-quant's own path for a price line
+    (econometrics._get_ratio: get_ratio_pure of excess_returns_pure over the currency's spot curve) with the curve that
+    excess_returns reads from Marquee (a currency's SharpeAssets cash index, a session's) read from the page instead --
+    `cash.index['<currency>']`, the builders' convention (item 13b: RiskFreeRateCurrency.USD is the page's dollar cash).
+    Its excess returns' line itself (EXCESS_RETURNS) is gs-quant's as it stands."""
+    from gs_quant.timeseries.econometrics import RiskFreeRateCurrency, excess_returns_pure, get_ratio_pure
+    from gs_quant.timeseries.helper import CurveType, Interpolate
+    line = line_class()
+
+    def sharpe_ratio(series, currency=RiskFreeRateCurrency.USD, w=None, curve_type=CurveType.PRICES,
+                     method=Interpolate.NAN):
+        er = series if curve_type == CurveType.EXCESS_RETURNS else excess_returns_pure(
+            series, column("cash.index", getattr(currency, "value", currency)))
+        return line(get_ratio_pure(er, w, method))
+    return sharpe_ratio
+
+
+def run_gallery(row, field, frames, ns):
+    """gs-quant's answer for a gallery series (a field of it: a band's lower, a candle's open): its points in gs-quant's
+    own order, or None where gs-quant's answer has no such field (its bands no width), or raises."""
+    import pandas as pd
+    read = []
+    column = gallery_column(frames, row["sources"], read)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        # gallery.jsonl's calls, this repository's own file (the printer's)
+        got = eval(row["python"], {**ns, "column": column, "sharpe_ratio": cashed_sharpe_ratio(ns, column)}, {})   # noqa: S307
+    if isinstance(got, pd.DataFrame):
+        # a reference's frame names its columns; gs-quant's bands by position (0 lower, 1 upper), as run_case reads them
+        if field in got.columns:
+            got = got[field]
+        elif field in ("lower", "upper") and got.shape[1] == 2:
+            got = got.iloc[:, {"lower": 0, "upper": 1}[field]]
+        else:
+            return None
+    elif field is not None:
+        return None
+    if isinstance(got, pd.Series):
+        return [(pd.Timestamp(d).date().isoformat(), value_text(float(v))) for d, v in got.items()
+                if not (v is None or (isinstance(v, float) and math.isnan(v)))]
+    if got is None:
+        return []
+    v = float(got)
+    on = sorted({d.date().isoformat() for line in read for d in line.index})
+    return [] if math.isnan(v) else [(d, value_text(v)) for d in on]
+
+
+def snap_gallery(gallery, env, data_sha, ns, version, known_map):
+    """Every series of the gallery (each field of a struct its own case) run over the pages' samples: its rows -- each its
+    own dates, never a spine -- its ledger cells and its meta entries. A case's sha is over its key, not its #TS: the
+    answer is gs-quant's, of its call alone, and the parity test runs the series' Show #TS as it is."""
+    rows, ledger, meta_cases = [], {}, {}
+    ns = gallery_namespace(ns)
+    for g in gallery:
+        for field in (g["fields"] or [None]):
+            args = g["series"] + ("" if field is None else "." + field)
+            key = case_key(GALLERY_WORD, args)
+            if g["skip"]:
+                ledger[key] = [key, "SKIP", "SKIP", "-", "-", "-", g["skip"]]
+                continue
+            register = known_map.get(args, "-")
+            case_sha = sha(args, g["python"], field, data_sha, version)
+            try:
+                points = run_gallery(g, field, env["frames"], ns)
+            except Exception as e:   # noqa: BLE001 -- gs-quant's error is the case's answer; any other is this tool's
+                at_line = raised_at(e)
+                if at_line is None:
+                    raise SystemExit("HARNESS: " + key + ": " + type(e).__name__ + ": " + str(e).split("\n")[0]
+                                     + " -- raised outside gs-quant") from e
+                message = (type(e).__name__ + ": " + str(e)).split("\n")[0][:300] + " (" + at_line + ")"
+                meta_cases[key] = {"sha": case_sha, "status": "GS_ERROR", "error": message}
+                ledger[key] = [key, "GS_ERROR", "GS_ERROR", register, "-", "-", message]
+                continue
+            if points is None:
+                why = "gs-quant's answer has no " + field
+                meta_cases[key] = {"sha": case_sha, "status": "SKIP", "error": why}
+                ledger[key] = [key, "SKIP", "SKIP", "-", "-", "-", why]
+                continue
+            dates, values = series(points, [])
+            rows.append({"word": GALLERY_WORD, "args": args, "symbol": "-", "dates": dates, "values": values})
+            meta_cases[key] = {"sha": case_sha, "status": "OK", "points": len(points)}
+            ledger[key] = [key, "OK", "-", register, digest(dates, values), "-", str(len(points)) + " points"]
+    return rows, ledger, meta_cases
+
+
 def raised_at(e):
     """Where gs-quant raised: the innermost frame of its traceback inside gs_quant, as file:line under
     gs_quant/timeseries/ (econometrics.py:497 for 'multiple data points on same date' at the pin)."""
@@ -713,15 +928,17 @@ def main():
             data, data_sha, symbols = fixture_data(args.fixture, file_name)
             runs = [(s_, lines(data, x_symbol=s_, y_symbol=fixture_y(s_))) for s_ in symbols]
             where = os.path.relpath(os.path.abspath(os.path.join(args.fixture, file_name)), ROOT)
-            datasets.append(("-" + name, data_sha, runs, where))
+            datasets.append(("-" + name, data_sha, runs, where, None))
     else:
         data, data_sha = samples(args.samples)
-        datasets = [("", data_sha, [(None, lines(data))], None)]
+        # the mapping's cases, then the gallery's and the markets example's series (item 14f, step 4b), over the samples
+        datasets = [("", data_sha, [(None, lines(data))], None, None),
+                    ("-gallery", data_sha, [(None, {"frames": gallery_frames(data)})], None, gallery_rows())]
     status = 0
-    for suffix, data_sha, runs, where in datasets:
+    for suffix, data_sha, runs, where, gallery in datasets:
         if suffix:
-            print("--", suffix[1:], "(" + where + ")")
-        status |= one(m, args, suffix, data_sha, runs, where, version)
+            print("--", suffix[1:] + ("" if where is None else " (" + where + ")"))
+        status |= one(m, args, suffix, data_sha, runs, where, version, gallery)
     if args.fixture:
         status |= traps(m, args.fixture, args.write)
     return status
@@ -851,8 +1068,9 @@ def inspect_module(ts, name):
     return inspect.getmodule(inspect.unwrap(getattr(ts, name))).__name__.rsplit(".", 1)[1]
 
 
-def one(m, args, suffix, data_sha, runs, where, version):
-    """One dataset's snap or check: the samples (no suffix) or one of a fixture's price files."""
+def one(m, args, suffix, data_sha, runs, where, version, gallery=None):
+    """One dataset's snap or check: the samples (no suffix), the gallery's series over them (-gallery: `gallery` its
+    rows), or one of a fixture's price files."""
     ns = namespace()
     fixture = where is not None
     answers_file = os.path.join(HERE, "answers" + suffix + ".jsonl.gz")
@@ -860,7 +1078,8 @@ def one(m, args, suffix, data_sha, runs, where, version):
     rows, ledger, meta_cases = [], {}, {}
     order = []
     for at, env in runs:
-        r, l, mc = snap(cases(m), env, data_sha, ns, version, at)
+        r, l, mc = (snap(cases(m), env, data_sha, ns, version, at) if gallery is None
+                    else snap_gallery(gallery, env, data_sha, ns, version, gallery_known(m)))
         if args.only:
             l = {k: v for k, v in l.items() if fnmatch.fnmatchcase(k, args.only)}
             mc = {k: v for k, v in mc.items() if k in l}

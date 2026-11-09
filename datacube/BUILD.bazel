@@ -239,6 +239,8 @@ _EXTRA_ENV = {
         "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
         # every series' Show #TS statement, held: //core:ts_replay_test replays them (2026-11-07, item 9)
         "TS_STATEMENTS": "$(rlocationpath test/fixtures/timeseries/show-ts.txt)",
+        # every series as the one gs-quant oracle reads it, held (item 14f, step 4b)
+        "GS_ORACLE_GALLERY": "$(rlocationpath :gs_oracle_gallery)",
     },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
@@ -337,6 +339,7 @@ _EXTRA_DATA = {
         "test/fixtures/timeseries/gallery-answers.json",
         "test/fixtures/timeseries/show-ts.txt",
         "test/timeseries-frozen.ts",
+        ":gs_oracle_gallery",
     ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [
@@ -1126,6 +1129,14 @@ copy_file(
     name = "gs_oracle_calls",
     src = "//tools/gs-quant-oracle:calls.tsv",
     out = "gs-oracle/calls.tsv",
+)
+
+# and its gallery (each series as gs-quant's call), which //datacube:timeseries_ts_parity_test writes and holds (item
+# 14f, step 4b)
+copy_file(
+    name = "gs_oracle_gallery",
+    src = "//tools/gs-quant-oracle:gallery.jsonl",
+    out = "gs-oracle/gallery.jsonl",
 )
 
 js_run_binary(

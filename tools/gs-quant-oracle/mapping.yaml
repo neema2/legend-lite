@@ -752,3 +752,13 @@ traps:
   late_print: {case: returns default, symbol: BRAVO}
   split_2_for_1: {case: returns default, symbol: BRAVO}
   stale_price_5d: {case: "volatility w=10,annualization_factor=252", symbol: BRAVO}
+
+# THE GALLERY'S SERIES (gallery.jsonl, item 14f step 4b): every series of the gallery and the markets example, each a
+# case `series <view> <id>` (a struct's field `series <view> <id>.<field>`), its gs-quant call Show Python's of it (its
+# other series inlined) over the pages' samples, its lite side its Show #TS statement. A DIFF the register or its word's
+# own sentence rules is known here, by the case's args: the old oracle's departures (tools/ts-oracle's report of
+# 2026-11-08), each the same -- if-compare B's step before a line's first value (S145), Keltner's middle line from the
+# first close and OBV from 0 (the words' sentences, as their mapping cases). Winsorize A is SKIP now: its to date is
+# DataCube's ToDate(), no call of gs-quant's (S150's divergence is its word's `default` case).
+gallery:
+  known: {"if-compare B": S145, "channels B.lower": sentence, "channels B.upper": sentence, "volume-flow C": sentence}

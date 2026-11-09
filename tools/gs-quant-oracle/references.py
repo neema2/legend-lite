@@ -131,6 +131,28 @@ def percent_change(x):
 
 
 @reference("pandas")
+def cash_index(rate, day_count="actual_360"):
+    """An overnight rate's cash account: 100 at its first date, then grown each day by the rate before over the days
+    since (actual/360, or actual/365 fixed) -- the old oracle's (tools/ts-oracle, B5), moved in with the gallery (item
+    14f, step 4b)."""
+    basis = 365 if day_count == "actual_365f" else 360
+    days = pd.Series(rate.index, index=rate.index).diff().dt.days
+    growth = (1 + rate.shift(1) / 100 * days / basis).fillna(1.0)
+    return 100 * growth.cumprod()
+
+
+@reference("pandas")
+def total_return(price, dividends):
+    """The price with a dividend yield a year reinvested, accrued day by day, from its first value: each day's price over
+    the one before plus the yield over the days since, compounded (a line of dividends: no sample has one)."""
+    if isinstance(dividends, pd.Series):
+        raise ValueError("total_return over a line of dividends: no sample has one")
+    days = pd.Series(price.index, index=price.index).diff().dt.days
+    growth = (price / price.shift(1) + float(dividends) * days / 365).fillna(1.0)
+    return price.iloc[0] * growth.cumprod()
+
+
+@reference("pandas")
 def drawdown(x, w=0, r=None):
     """Each value's drawdown from the greatest of its window's."""
     return over(x, ramp_of(w, r), lambda s: s.iloc[-1] / s.max() - 1)

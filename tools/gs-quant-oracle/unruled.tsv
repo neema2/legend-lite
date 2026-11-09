@@ -1,2 +1,2 @@
-# EVERY DIFF NO REGISTER ROW RULES (two_rows.py, from the three ledgers): each case and where it is a DIFF; the PR's Open findings answer each. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated
+# EVERY DIFF NO REGISTER ROW RULES (two_rows.py, from the four ledgers): each case and where it is a DIFF; the PR's Open findings answer each. GENERATED -- regenerate: bazel run //tools/gs-quant-oracle:update_generated
 case	where
