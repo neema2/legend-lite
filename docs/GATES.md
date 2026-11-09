@@ -181,6 +181,22 @@ commit, in a root container (one heavy lane at a time):
 - Not run here: CI's other operating systems; the lanes CI does not run (SQLite, MongoDB, MariaDB, MySQL, ClickHouse,
   Trino, BigQuery, Databricks, Snowflake), measured by the warm lane sessions on request.
 
+## The total wall's M1 fixes and M2 (P4, the type hole deleted), 2026-11-09 (branch `claude/total-wall`, 732b25e1)
+
+What landed: the M1 audits' findings (`8c75dcba`, `06b06728`: a project database keyed by its whole target with its
+loads' identities; the seed forms back on the effect script; upstream's exact too-large text; `CsvCells` registered in
+the ledger by name; the Postgres arm pinning a Date parameter's upstream outcome) and P4 (a placeholder typed by its
+declared Pure type at planning, per database; `TypeHole` and the runner's statement rewriting deleted;
+`TypeHoleDeletedTest`). Merged with main at `732b25e1` (register rows renumbered S171-S174). Measured:
+
+- `bazel test --lockfile_mode=error //gates:local` at `8c75dcba`: 488 pass; the 10 that refuse root re-run
+  unprivileged: 10 pass after `06b06728` (the Postgres arm's Date case, fixed in its test).
+- At `732b25e1`, one lane at a time: `//core:census`, `//core:guardrails`; `//gates:pct_duckdb`, `//gates:pct_h2`,
+  `//gates:pct_channel_b`; `//spec:corpus_duckdb`, `//spec:corpus_h2` (the rosters' verdicts hold);
+  `//core:stress_suites`, `//core:stress_suites_h2`: all green.
+- Open, for the user: R1/R2 (an H2 Float parameter as `DECFLOAT`, against upstream's `CAST(%s AS FLOAT)`; H2 Decimal's
+  scale) await their rulings before their rows (S175 on) land.
+
 ## Read this before trusting a green
 
 Three ways this chain reports success without having checked anything:
