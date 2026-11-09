@@ -210,11 +210,16 @@ public final class PlanCases {
     public enum Written {
         CSV, JSON;
 
-        /** This form's writer of an answer of {@code shape} onto {@code out}. */
+        /** This form's writer of an answer of {@code shape} onto {@code out} (a plan streamed by the runner directly). */
         public com.legend.result.ResultSink writer(java.io.Writer out, ExecutionPlan.TdsResult.Shape shape) {
+            return output(out).writerFor(shape);
+        }
+
+        /** This form onto {@code out}, as data: the result library makes its writer from the plan. */
+        public com.legend.result.Output output(java.io.Writer out) {
             return switch (this) {
-                case CSV -> new com.legend.result.CsvWriter(out, shape);
-                case JSON -> new com.legend.result.JsonRowsWriter(out, shape);
+                case CSV -> new com.legend.result.Output.Csv(out);
+                case JSON -> new com.legend.result.Output.JsonRows(out);
             };
         }
     }
@@ -243,7 +248,7 @@ public final class PlanCases {
             throws java.io.IOException {
         java.io.StringWriter out = new java.io.StringWriter();
         com.legend.Execution.run(model, query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
-                com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), p -> written.writer(out, p.answerShape()));
+                com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), written.output(out));
         return out.toString();
     }
 

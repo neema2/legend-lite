@@ -100,7 +100,7 @@ public final class Program {
         java.io.StringWriter out = new java.io.StringWriter();
         Lean.Capturing sink = new Lean.Capturing(out);
         TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
-                options, sink::of);
+                options, new com.legend.result.Output.Rows(sink));
         return new Report(List.copyOf(verdicts), sink.answered());
     }
 }

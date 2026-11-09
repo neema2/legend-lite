@@ -1248,9 +1248,108 @@ final class ArchitectureTest {
     private static final String PLANNING_INPUT_PACKAGE = "com.legend.protocol.";
 
     /** What a caller above the doors may name of running (R4): a session and where one comes from (the resource the
-     *  caller owns and hands a door), and the types a door's run takes from it (the answer's sink, the referee). */
+     *  caller owns and hands a door), and the types a door's run takes from it (the referee; the answer's output is the
+     *  result library's, a record type: 2026-11-09). */
     private static final java.util.Set<String> RUN_API = java.util.Set.of("com.legend.exec.Sessions",
-            "com.legend.exec.SessionSource", "com.legend.testexec.Answer", "com.legend.testexec.SqlReplayReferee");
+            "com.legend.exec.SessionSource", "com.legend.testexec.SqlReplayReferee");
+
+    /**
+     * WHAT A RUN TAKES FROM ITS CALLER IS DATA (2026-11-09, the user's question "why do we have any callbacks, esp
+     * dangerous ones that can break our tenet?"): every parameter of a run's entry ({@link #RUN_ENTRY_CLASSES}: the
+     * product's run and the test's, which every door's run half calls) and every record component inside one, is a
+     * value (a record, an enum, a final
+     * class, a collection of them) or a SEALED interface whose variants exec interprets (where the run's sessions come
+     * from, where its answer goes), or one of the named receivers and resources ({@link #CALLER_INTERFACES}): an
+     * output-only receiver of the answer or the verdicts, the edge's referee, the host's connection. No function type
+     * crosses: until this day the run called a caller's factory with the plan, and a caller's function to choose each
+     * statement's session -- the caller's code deciding inside the run. (Planning's inputs are not a run's: the test
+     * door's planning options carry a resource resolver, a function the planner calls for a CSV load's path -- D3,
+     * which the user moved into the data-in-the-plan design session, 2026-11-09.)
+     */
+    @Test
+    void aRunTakesDataSealedSourcesAndNamedReceiversAlone() {
+        java.util.Set<String> violations = new java.util.TreeSet<>();
+        for (Class<?> entry : RUN_ENTRY_CLASSES) {
+            for (java.lang.reflect.Method m : entry.getDeclaredMethods()) {
+                if (!java.lang.reflect.Modifier.isPublic(m.getModifiers()) || m.isSynthetic()) {
+                    continue;
+                }
+                for (java.lang.reflect.Type t : m.getGenericParameterTypes()) {
+                    takesData(t, entry.getSimpleName() + "#" + m.getName(), new java.util.HashSet<>(), violations);
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(violations.isEmpty(),
+                "a run takes code from its caller (make it data: a record, or a sealed set exec interprets):\n  "
+                        + String.join("\n  ", violations));
+    }
+
+    /** The classes whose public methods are a run's entries: the product's run and the test's (each door's run call is
+     *  one of them: {@code theDoorsOnlyCompose}). */
+    private static final java.util.List<Class<?>> RUN_ENTRY_CLASSES = java.util.List.of(
+            com.legend.exec.ProductRun.class, com.legend.testexec.TestRunner.class);
+
+    /** The open interfaces a run may take, each named for what it is: receivers that decide nothing the run does (the
+     *  answer's rows, the verdicts: {@code theListenerIsOutputOnly}), the edge's extension point, referee and data
+     *  marker (the compatibility mode's, G5: every {@code Extension} is a record, {@code PlanTypesAreDataTest}), and the
+     *  host's connection (a resource, as a data source is). */
+    private static final java.util.Set<Class<?>> CALLER_INTERFACES = java.util.Set.of(
+            com.legend.result.ResultSink.class, com.legend.testexecutionplan.AssertListener.class,
+            com.legend.testexecutionplan.Edge.class, com.legend.testexec.SqlReplayReferee.class,
+            com.legend.testexecutionplan.Extension.class, com.legend.exec.Sessions.Opener.class);
+
+    private static void takesData(java.lang.reflect.Type t, String where, java.util.Set<Class<?>> seen,
+            java.util.Set<String> violations) {
+        if (t instanceof java.lang.reflect.ParameterizedType p) {
+            takesData(p.getRawType(), where, seen, violations);
+            for (java.lang.reflect.Type a : p.getActualTypeArguments()) {
+                takesData(a, where, seen, violations);
+            }
+            return;
+        }
+        if (t instanceof java.lang.reflect.WildcardType w) {
+            for (java.lang.reflect.Type b : w.getUpperBounds()) {
+                takesData(b, where, seen, violations);
+            }
+            return;
+        }
+        if (!(t instanceof Class<?> c) || !seen.add(c)) {
+            return;
+        }
+        if (c.isArray()) {
+            takesData(c.getComponentType(), where, seen, violations);
+            return;
+        }
+        // (a file's path is a value, though the JDK declares it an interface)
+        if (c.isPrimitive() || c.isEnum() || c == String.class || c == Object.class || c == java.nio.file.Path.class
+                || CALLER_INTERFACES.contains(c)) {
+            return;
+        }
+        if (c.getName().startsWith("java.util.function.")) {
+            violations.add(where + " takes a function, " + c.getName());
+            return;
+        }
+        if (c == java.util.List.class || c == java.util.Map.class || c == java.util.Set.class
+                || c == java.util.Collection.class) {
+            return;
+        }
+        if (c.isInterface() && !c.isSealed()) {
+            violations.add(where + " takes an open interface, " + c.getName());
+            return;
+        }
+        if (c.isSealed()) {
+            for (Class<?> v : c.getPermittedSubclasses()) {
+                takesData(v, where, seen, violations);
+            }
+            return;
+        }
+        if (c.isRecord()) {
+            for (java.lang.reflect.RecordComponent rc : c.getRecordComponents()) {
+                takesData(rc.getGenericType(), where, seen, violations);
+            }
+        }
+        // a final class (a session, a typed query, a plan) is the product's own value: its fields are its own
+    }
 
     private static boolean inAnyPackage(String pkg, java.util.List<String> packages) {
         for (String p : packages) {

@@ -21,9 +21,10 @@ public final class PlanSessions {
 
     /** Where the runner gets the session for a plan's target: the caller's own, or one opened and kept for the
      *  target. {@link #openToChange}: a session for a plan that WRITES (docs/WRITES_DESIGN_2026_10_18.md, decision A:
-     *  a write runs on a database of its own, a database the user names or a URL reaches keeps it). */
-    @FunctionalInterface
-    public interface Source {
+     *  a write runs on a database of its own, a database the user names or a URL reaches keeps it). A closed set of
+     *  exec's own (2026-11-09, the user's question "why do we have any callbacks?"): a caller names one, exec decides by
+     *  its rule; until then a caller's function decided, inside the run, which session a statement went to. */
+    public sealed interface Source permits Marked, Shared, Given, SetUp, Refusing, Lane {
         Sessions.Session open(ExecutionPlan.Target target);
 
         default Sessions.Session openToChange(ExecutionPlan.Target target) {
@@ -39,11 +40,11 @@ public final class PlanSessions {
 
     /** {@code sessions} whose statements are counted under {@code mark}. */
     public static Source marked(Source sessions, StatementOrigin mark) {
-        Source inner = sessions instanceof MarkedSource m ? m.inner() : sessions;
-        return new MarkedSource(inner, mark);
+        Source inner = sessions instanceof Marked m ? m.inner() : sessions;
+        return new Marked(inner, mark);
     }
 
-    private record MarkedSource(Source inner, StatementOrigin mark) implements Source {
+    private record Marked(Source inner, StatementOrigin mark) implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
             return inner.open(target);
@@ -68,17 +69,57 @@ public final class PlanSessions {
 
     /** The sessions a target opens for itself and keeps: the plan path's own (the server's, the readers'). */
     public static Source shared() {
-        return new Source() {
-            @Override
-            public Sessions.Session open(ExecutionPlan.Target target) {
+        return new Shared();
+    }
+
+    private record Shared() implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            return openShared(target);
+        }
+
+        @Override
+        public Sessions.Session openToChange(ExecutionPlan.Target target) {
+            return openOwn(target);
+        }
+    }
+
+    /** A source that opens nothing, refusing by name ({@code why}): a plan that sends no statement (a constant answer)
+     *  runs on it. */
+    public static Source refusing(String why) {
+        return new Refusing(why);
+    }
+
+    private record Refusing(String why) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            throw new IllegalStateException(why);
+        }
+    }
+
+    /**
+     * A SERVER LANE'S SESSIONS (the PCT's, moved here from its harness as data, 2026-11-09): a target with setup on the
+     * plan's own sessions ({@link #shared}: a server's database is the user's, so its own source refuses it by name); a
+     * target whose session statements are {@code optionsOnly} -- the dialect's own options, run on any session again as
+     * on a new one -- on {@code held}, the lane's held session, where it holds one; any other on a new owned session from
+     * {@code fresh}, closed with the plan's use of it (a table of the session's own, the system metamodel store's, lives
+     * only on a session of its own: round 14, 2026-11-03).
+     */
+    public static Source lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
+            Sessions.Opener fresh) {
+        return new Lane(held, java.util.List.copyOf(optionsOnly), java.util.Objects.requireNonNull(fresh, "fresh"));
+    }
+
+    private record Lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
+            Sessions.Opener fresh) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            if (!target.setup().isEmpty()) {
                 return openShared(target);
             }
-
-            @Override
-            public Sessions.Session openToChange(ExecutionPlan.Target target) {
-                return openOwn(target);
-            }
-        };
+            Sessions.Session h = held;
+            return h != null && target.session().equals(optionsOnly) ? Sessions.view(h) : Sessions.open(fresh);
+        }
     }
 
     /** The caller's own session for every target: a non-closing view of it ({@link Sessions#view}). The one way a
@@ -100,10 +141,19 @@ public final class PlanSessions {
      *  opened once per graph -- its store written by the plan's own seed step -- and hands it here; the runner knows
      *  no database). Null {@code system}: every target the caller's session. */
     public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace,
-            java.util.function.@com.legend.base.Nullable Function<ExecutionPlan.Database.System, Sessions.Session> system) {
-        return target -> target.database() instanceof ExecutionPlan.Database.System s && system != null
-                ? Sessions.view(system.apply(s), trace)
-                : Sessions.view(session, trace);
+            SystemDatabase.@com.legend.base.Nullable Leases system) {
+        return new Given(session, trace, system);
+    }
+
+    private record Given(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace,
+            SystemDatabase.@com.legend.base.Nullable Leases system) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            var sys = system;
+            return target.database() instanceof ExecutionPlan.Database.System s && sys != null
+                    ? Sessions.view(sys.sessionFor(s), trace)
+                    : Sessions.view(session, trace);
+        }
     }
 
     /** {@link #of(Sessions.Session)} with {@code target}'s setup run on the session first, once (the plan's seeds, the
@@ -112,27 +162,38 @@ public final class PlanSessions {
      *  outside every run); a plan whose setup has rows for a bulk loader is refused by name there, before any
      *  statement, on a database that has none. */
     public static Source setUp(Sessions.Session session, ExecutionPlan.Target target) {
-        Source source = of(session);
+        return new SetUp(session, target);
+    }
+
+    private static final class SetUp implements Source {
+        private final Sessions.Session session;
+        private final ExecutionPlan.Target target;
+        private final Source source;
         // [0] established, [1] a setup that failed: never run again on the same source (some of its steps ran)
-        boolean[] state = {false, false};
-        return new Source() {
-            @Override
-            public Sessions.Session open(ExecutionPlan.Target t) {
-                synchronized (state) {
-                    if (state[1]) {
-                        throw new IllegalStateException("the session's setup failed on its first open, and is not run"
-                                + " again (some of its steps ran)");
-                    }
-                    if (!state[0]) {
-                        state[1] = true;
-                        establish(session, target);
-                        state[1] = false;
-                        state[0] = true;
-                    }
+        private final boolean[] state = {false, false};
+
+        SetUp(Sessions.Session session, ExecutionPlan.Target target) {
+            this.session = session;
+            this.target = target;
+            this.source = of(session);
+        }
+
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target t) {
+            synchronized (state) {
+                if (state[1]) {
+                    throw new IllegalStateException("the session's setup failed on its first open, and is not run"
+                            + " again (some of its steps ran)");
                 }
-                return source.open(t);
+                if (!state[0]) {
+                    state[1] = true;
+                    establish(session, target);
+                    state[1] = false;
+                    state[0] = true;
+                }
             }
-        };
+            return source.open(t);
+        }
     }
 
     /** {@code target}'s setup run on {@code session} now, inside the run that opened it (the runner's own setup steps:
@@ -224,7 +285,7 @@ public final class PlanSessions {
      *  -- a declared connection by {@code Sessions}' opening, the platform's engine for a runtime binding only model
      *  data. {@code ConnectionResolver.SOURCE} until slice 5 (2026-11-09): the source is the runtime's, named here, so
      *  the server names no runtime class. */
-    public static final SessionSource PROJECT_DATABASES = PlanSessions::projectDatabase;
+    public static final SessionSource PROJECT_DATABASES = new SessionSource.ProjectDatabases();
 
     /**
      * A PROJECT'S OWN DATABASE for {@code target} (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5; the plan-as-data design's

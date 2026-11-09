@@ -248,7 +248,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 // assertions compare
                 TestExecution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
                         com.legend.exec.SessionSource.given(conn), null, null, com.legend.ExecuteOptions.NONE,
-                        shape -> writer(out, shape, test.serializationFormat()));
+                        new com.legend.result.Output.Rows(new ServiceAnswer(out, test.serializationFormat())));
             } catch (Skip s) {
                 throw s;
             } catch (RuntimeException e) {
@@ -455,17 +455,56 @@ public final class ServiceTestRunner implements AutoCloseable {
      *  ({@link com.legend.result.TdsObjectsWriter}: objects keyed by column, legend-engine's cell tokens); another
      *  format of a relation is not rendered by this runner. The text is read back as the plain tree the assertions
      *  compare. */
-    private static com.legend.result.ResultSink writer(java.io.Writer out,
-            com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape, @com.legend.base.Nullable String format) {
-        String fmt = format == null ? "DEFAULT" : format;
-        if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
-            return com.legend.result.PureV1Writer.objects(out);
+    /** The service's answer as the test reads it back: told the answer's shape before its columns, it writes in the
+     *  test's serialization format -- a graph fetch's objects as the engine's JSON, a relation as TDS objects where the
+     *  format is one this runner renders (else the test is skipped by name). A receiver, deciding nothing the run does
+     *  (2026-11-09: the run called a factory of the runner's until then). */
+    private static final class ServiceAnswer implements com.legend.result.ResultSink {
+        private final java.io.Writer out;
+        private final String format;
+        private com.legend.result.@com.legend.base.Nullable ResultSink writer;
+
+        ServiceAnswer(java.io.Writer out, @com.legend.base.Nullable String format) {
+            this.out = out;
+            this.format = format == null ? "DEFAULT" : format;
         }
-        if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION
-                && !fmt.equals("PURE_TDSOBJECT") && !fmt.equals("RAW")) {
-            throw new Skip("serialization format " + fmt + " of a tabular result is not rendered by this runner");
+
+        @Override
+        public void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
+            if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
+                writer = com.legend.result.PureV1Writer.objects(out);
+                return;
+            }
+            if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION
+                    && !format.equals("PURE_TDSOBJECT") && !format.equals("RAW")) {
+                throw new Skip("serialization format " + format + " of a tabular result is not rendered by this runner");
+            }
+            writer = new com.legend.result.TdsObjectsWriter(out, shape);
         }
-        return new com.legend.result.TdsObjectsWriter(out, shape);
+
+        private com.legend.result.ResultSink writer() {
+            com.legend.result.ResultSink w = writer;
+            if (w == null) {
+                throw new IllegalStateException("the service's answer was not told its shape before its rows");
+            }
+            return w;
+        }
+
+        @Override
+        public void columns(java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns)
+                throws java.io.IOException {
+            writer().columns(columns);
+        }
+
+        @Override
+        public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+            writer().batch(batch);
+        }
+
+        @Override
+        public void end() throws java.io.IOException {
+            writer().end();
+        }
     }
 
     private static @com.legend.base.Nullable String judge(Protocol.PTestAssertion a,

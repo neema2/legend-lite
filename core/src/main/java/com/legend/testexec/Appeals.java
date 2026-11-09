@@ -114,7 +114,7 @@ final class Appeals {
      *  suppressed in it), else the run's own, returned for the caller to raise. Where the failed run wrote, its rollback has undone what the appeals would read: they
      *  are refused by name (the milestone audit's 2, 2026-11-07). */
     RuntimeException afterFailure(RuntimeException runFailed, Sessions.Session session,
-            Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions,
+            com.legend.exec.SystemDatabase.Leases systemSessions,
             Function<ExecutionPlan.Target, Sessions.Session> sessions, Decider decider) {
         if (held.isEmpty()) {
             deciding = true;
@@ -153,7 +153,7 @@ final class Appeals {
      *  before a later write of the body's is refused by name: the rows after the run are not the rows at its assert
      *  (the milestone audit's 2, 2026-11-07; the corpus measured none). */
     void decide(Sessions.Session session,
-            Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions,
+            com.legend.exec.SystemDatabase.Leases systemSessions,
             Function<ExecutionPlan.Target, Sessions.Session> sessions, Decider decider) {
         deciding = true;
         if (held.isEmpty()) {

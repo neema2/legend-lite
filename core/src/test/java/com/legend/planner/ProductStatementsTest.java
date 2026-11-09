@@ -180,9 +180,7 @@ class ProductStatementsTest {
         // B2: a program that sends nothing answers its constant; no session is opened
         ExecutionPlan plan = plan("|'alone'");
         com.legend.result.Collector collector = new com.legend.result.Collector();
-        PlanSessions.Source none = target -> {
-            throw new AssertionError("a program that sends nothing opened a session");
-        };
+        PlanSessions.Source none = PlanSessions.refusing("a program that sends nothing opened a session");
         // a product plan of one constant: a program of that one step (the plan-as-data design's step 3, 2026-11-08: exec's
         // program runner, its verdict steps the test plan's)
         com.legend.exec.ProgramRunner.run(new com.legend.exec.ProgramRunner.Program(plan.parameters(),

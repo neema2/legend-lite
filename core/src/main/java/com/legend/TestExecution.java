@@ -7,7 +7,7 @@ import com.legend.base.Nullable;
 import com.legend.exec.SessionSource;
 import com.legend.exec.Sessions;
 import com.legend.exec.StatementOrigin;
-import com.legend.testexec.Answer;
+import com.legend.result.Output;
 import com.legend.testexec.SqlReplayReferee;
 import com.legend.testexec.TestRunner;
 import com.legend.testexecutionplan.AssertListener;
@@ -32,18 +32,18 @@ public final class TestExecution {
      * once, planned whole ({@link #planBody}), then run ({@link TestRunner#runOpening}) on the session {@code sessions}
      * opens for the target the plan names (its runtime's), every assert's verdict told to {@code listener} at its turn,
      * the SQL-text referee {@code referee} deciding the appeals held after the run, the last statement's answer, where
-     * a caller wants it, streamed to {@code answer}'s sink. No fixture is provided between the plan and the run: a
+     * a caller wants it, streamed to {@code answer} (a format and a stream, or the caller's receiver: data, 2026-11-09). No fixture is provided between the plan and the run: a
      * caller whose appeals read another package's store plans and runs the two halves itself ({@link #planBody},
      * {@link #runBody}), providing them between.
      */
     public static void runProgram(TypedQuery typed, @Nullable String runtimeFqn, SessionSource sessions,
             @Nullable AssertListener listener, @Nullable SqlReplayReferee referee, ExecuteOptions options,
-            @Nullable Answer answer) {
+            @Nullable Output answer) {
         TestRunner.runOpening(TestPlanner.plan(typed, runtimeFqn, options.planning()), sessions,
                 options.systemConnections(), options.edge(), listener, referee, answer);
     }
 
-    /** {@link #runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee, ExecuteOptions, Answer)}
+    /** {@link #runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee, ExecuteOptions, Output)}
      *  with no answer wanted: the body's last statement answers nothing to anyone (the corpus's bodies, whose verdicts
      *  are the listener's). */
     public static void runProgram(TypedQuery typed, @Nullable String runtimeFqn, SessionSource sessions,
@@ -66,9 +66,9 @@ public final class TestExecution {
 
     /** {@code plan} RUN on {@code session} (the run half of {@link #runProgram}): its data alone decides what is sent
      *  and judged; each verdict told to {@code listener} at its turn; a held appeal decided after the run by the
-     *  {@code referee}; the last statement's answer, where wanted, streamed to {@code answer}'s sink. */
+     *  {@code referee}; the last statement's answer, where wanted, streamed to {@code answer} (a format and a stream, or the caller's receiver: data, 2026-11-09). */
     public static void runBody(TestPlan plan, Sessions.Session session, @Nullable AssertListener listener,
-            @Nullable SqlReplayReferee referee, ExecuteOptions options, @Nullable Answer answer) {
+            @Nullable SqlReplayReferee referee, ExecuteOptions options, @Nullable Output answer) {
         TestRunner.run(plan, session, options.systemConnections(), options.edge(), listener, referee, answer,
                 StatementOrigin.OTHER);
     }

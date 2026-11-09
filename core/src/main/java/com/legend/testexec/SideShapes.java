@@ -22,7 +22,7 @@ final class SideShapes {
     /** A side the body driver holds in Java (the doors, door 1, 2026-10-29) written to the caller's sink through a batcher, as a host's rows are: its
      *  columns as plan columns of the side's Pure types (no slot: the writer spells a cell by its carrier's own kind),
      *  its rows the side's values; a graph side one row per object of its array (the reader's own reading). */
-    static void host(TypedSide side, Answer answer) {
+    static void host(TypedSide side, com.legend.result.Output answer) {
         com.legend.executionplan.ExecutionPlan.Multiplicity one = new com.legend.executionplan.ExecutionPlan
                 .Multiplicity(1, 1);
         com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape;
@@ -79,7 +79,7 @@ final class SideShapes {
             }
         }
         try {
-            com.legend.result.Batcher batcher = new com.legend.result.Batcher(columns, answer.of(shape),
+            com.legend.result.Batcher batcher = new com.legend.result.Batcher(columns, answer.writerFor(shape),
                     com.legend.result.Batcher.DEFAULT_CAPACITY);
             batcher.start();
             for (java.util.List<Object> row : rows) {

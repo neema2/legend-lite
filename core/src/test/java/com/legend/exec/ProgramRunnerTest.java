@@ -65,11 +65,15 @@ final class ProgramRunnerTest {
             ExecutionPlan.Target systemTarget = new ExecutionPlan.Target(
                     new ExecutionPlan.Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
                     List.of(), List.of());
-            PlanSessions.Source source = PlanSessions.of(body, null, s -> system);
-            assertEquals(Sessions.identity(system), Sessions.identity(source.open(systemTarget)),
-                    "the System target opens the opener's session");
-            assertEquals(Sessions.identity(body), Sessions.identity(source.open(target)),
-                    "any other target the caller's own");
+            // the run's leases of the system databases (2026-11-09: the leases themselves, where a function was handed)
+            try (SystemDatabase.Leases leases = SystemDatabase.leases(java.util.Map.of())) {
+                PlanSessions.Source source = PlanSessions.of(body, null, leases);
+                assertEquals(Sessions.identity(leases.sessionFor(
+                                (ExecutionPlan.Database.System) systemTarget.database())),
+                        Sessions.identity(source.open(systemTarget)), "the System target opens the leased session");
+                assertEquals(Sessions.identity(body), Sessions.identity(source.open(target)),
+                        "any other target the caller's own");
+            }
             assertEquals(Sessions.identity(body), Sessions.identity(PlanSessions.of(body, null, null).open(systemTarget)),
                     "no opener: the caller's own for every target");
             var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,

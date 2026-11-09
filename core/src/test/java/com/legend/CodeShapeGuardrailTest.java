@@ -50,6 +50,10 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-09 (the user's question "why do we have any callbacks?"): the service test's answer is a receiver
+            // told the answer's shape before its columns (Output.Rows), where the run called a factory of the runner's
+            // until then; it holds the writer it made for that shape, set once, read by each row after
+            "ServiceTestRunner.writer",
             // 2026-11-01, the test-is-the-product plan's M5 audit: until then a field whose TYPE carried an annotation
             // (@Nullable, Outer.@Nullable Inner, Object @Nullable []) was outside this scan; the scan learned them and
             // found these, each listed with what it is. LAZY, set once from the instance's own inputs and read back

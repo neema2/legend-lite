@@ -1545,7 +1545,7 @@ class BodyRouterParityTest {
             Sessions.Session session = Sessions.borrowed(c);
             Execution.run(typed(ctx, query), runtime, com.legend.exec.SessionSource.given(session),
                     com.legend.exec.PlanSessions.of(session), com.legend.exec.ProductRun.Establish.AS_GIVEN,
-                    p -> capture.of(p.answerShape()));
+                    new com.legend.result.Output.Rows(capture));
             return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), ""));
         }
     }
@@ -1779,7 +1779,7 @@ class BodyRouterParityTest {
                     com.legend.diagnostics.VerdictCensus.sqlCensus());
             try {
                 TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, referee, options,
-                        capture::of);
+                        new com.legend.result.Output.Rows(capture));
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
             }
@@ -1886,9 +1886,9 @@ class BodyRouterParityTest {
     private static final class Capture implements ResultSink {
         private final StringBuilder seen = new StringBuilder();
 
-        ResultSink of(ExecutionPlan.TdsResult.Shape shape) {
+        @Override
+        public void answers(ExecutionPlan.TdsResult.Shape shape) {
             seen.append("shape=").append(shape).append(' ');
-            return this;
         }
 
         @Override

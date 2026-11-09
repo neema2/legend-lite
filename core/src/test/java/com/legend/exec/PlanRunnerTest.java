@@ -170,9 +170,7 @@ class PlanRunnerTest {
         ExecutionPlan given = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)),
                 counting(inMemory("s::C", Databases.PLATFORM, new ConnectionSpecification.InMemory()), "UNOPENED_T").root());
         var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.rows(given, Map.of("n", "1"),
-                target -> {
-                    throw new AssertionError("a session was opened");
-                }));
+                com.legend.exec.PlanSessions.refusing("a session was opened")));
         assertEquals(invalid("parameter 'n' (Integer[1]): given \"1\" (String): an Integer is a Long"),
                 refused.getMessage());
     }
@@ -185,9 +183,8 @@ class PlanRunnerTest {
         ExecutionPlan bad = ExecutionPlan.reading(List.of(declared("n", "Integer", 0, 1)), cell(
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
-        var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(), t -> {
-            throw new AssertionError("a session was opened");
-        }));
+        var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(),
+                com.legend.exec.PlanSessions.refusing("a session was opened")));
         assertEquals("slot of 'n': its null type 'NOT_A_TYPE' is no JDBC type", refused.getMessage());
     }
 

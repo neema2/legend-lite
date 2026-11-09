@@ -1435,7 +1435,7 @@ class JavaEvalLedgerTest {
                     // (HostJudgments, AssertRuns, AssertErrorRuns, DatabaseVerdicts, SideShapes, HostSideShapes), the
                     // agreement rule (AgreementArm, AgreementRuns) and the plan's run (TestRun). They judge rows the plan
                     // read, compute nothing the database did not, and reach no planning library
-                    "TestRunner.java", "Answer.java", "BodyRun.java", "Appeals.java", "SqlTextRuns.java",
+                    "TestRunner.java", "BodyRun.java", "Appeals.java", "SqlTextRuns.java",
                     "HostJudgments.java", "AssertRuns.java", "AssertErrorRuns.java", "DatabaseVerdicts.java",
                     "SideShapes.java", "HostSideShapes.java", "AgreementArm.java", "AgreementRuns.java", "TestRun.java",
                     "package-info.java");
@@ -1668,7 +1668,13 @@ class JavaEvalLedgerTest {
                     // runner's answer as a writer at the boundary -- objects keyed by the presented column name, each
                     // cell legend-engine's token (CellText.engine); a to-one value as its one cell; spells, decides
                     // nothing
-                    "TdsObjectsWriter.java");
+                    "TdsObjectsWriter.java",
+                    // where a run's answer goes, as data (2026-11-09, the user's question "why do we have any
+                    // callbacks?"): a closed set of formats and their streams, the writer chosen by the answer's shape
+                    // from the plan before any statement runs (PureV1Writer.Facts, the envelope's facts read before the
+                    // run) -- a switch over the variants and the shape; nothing computed, an answer a format has no
+                    // form for refused by name
+                    "Output.java");
 
     /** The other funnel packages (documented-debts 2026-08-18,
      * audit item 9's remainder): server and testdatagen could touch JDBC

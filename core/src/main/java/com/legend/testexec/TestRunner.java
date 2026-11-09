@@ -18,6 +18,7 @@ import com.legend.testexecutionplan.TestPlan;
 import com.legend.testexecutionplan.AssertListener;
 import com.legend.testexecutionplan.TypedSide;
 import com.legend.result.Batch;
+import com.legend.result.Output;
 import com.legend.result.ResultSink;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,7 +39,7 @@ public final class TestRunner {
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
             Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections, @Nullable Edge edge,
-            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Answer answer) {
+            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer) {
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
@@ -60,7 +61,7 @@ public final class TestRunner {
             Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
             com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
-            @Nullable Answer answer, com.legend.exec.StatementOrigin origin) {
+            @Nullable Output answer, com.legend.exec.StatementOrigin origin) {
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
         // the caller's answer sink and listener are called back during the run, and before its plan's run scope opens
         // (the answer's sink is made first): they plan nothing (the full audit's must-fix, 2026-11-09)
@@ -71,15 +72,14 @@ public final class TestRunner {
             // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
             BodyRun run = new BodyRun(appeals);
             AssertListener listener = appeals.listener();
-            ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
+            ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.writerFor(plan.answerShape())
                     : null;
             // the graph's system database for a step that names it -- the body's own target when the body is
             // system-routed, else the second, read-only session a statement reading the system store alone runs on
             // (per-statement routing, 2026-11-03) -- found by the plan's target (SystemDatabase: the engine's current
             // one, leased for the run), opened when a step first asks
             try (SystemDatabase.Leases leases = SystemDatabase.leases(systemConnections)) {
-                java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions =
-                        leases::sessionFor;
+                SystemDatabase.Leases systemSessions = leases;
                 Moved moved = new Moved(plan, edge, answer, early, listener, run);
                 // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
                 java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
@@ -115,8 +115,8 @@ public final class TestRunner {
      *  decision after the run is handed it (the referee's replay; {@link Appeals#decide}). */
     private static java.util.function.Function<ExecutionPlan.Target, Sessions.Session> sessionsByTarget(
             Sessions.Session session,
-            java.util.function.Function<ExecutionPlan.Database.System, Sessions.Session> systemSessions) {
-        return target -> target.database() instanceof ExecutionPlan.Database.System s ? systemSessions.apply(s)
+            SystemDatabase.Leases systemSessions) {
+        return target -> target.database() instanceof ExecutionPlan.Database.System s ? systemSessions.sessionFor(s)
                 : session;
     }
 
@@ -128,7 +128,7 @@ public final class TestRunner {
         private final TestPlan planned;
         /** The compatibility edge the run was handed, which records the referee's ledger, or null (lite's rules). */
         private final com.legend.testexecutionplan.@Nullable Edge edge;
-        private final @Nullable Answer answer;
+        private final @Nullable Output answer;
         /** The caller's sink, asked for before the program ran (a sent answer), or null (none, or a constant's). */
         private final @Nullable ResultSink early;
         /** The database judge's segments, read from the plan (step 5, 2026-11-08), or null under another judge. */
@@ -175,7 +175,7 @@ public final class TestRunner {
         private final java.util.Map<Integer, com.legend.testexecutionplan.TestPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
         Moved(TestPlan planned, com.legend.testexecutionplan.@Nullable Edge edge,
-                @Nullable Answer answer, @Nullable ResultSink early, @Nullable AssertListener listener,
+                @Nullable Output answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 BodyRun run) {
             if (edge == null && !planned.extensionsByStep().isEmpty()) {
                 // records planned for the edge (the compatibility rules' ledger texts) with no edge to hand them: the
@@ -391,7 +391,7 @@ public final class TestRunner {
         @Override
         public void columns(List<ExecutionPlan.Column> columns) throws IOException {
             if (answer != null) {
-                ResultSink asked = early != null ? early : answer.of(planned.answerShape());
+                ResultSink asked = early != null ? early : answer.writerFor(planned.answerShape());
                 ResultSink sink = holdingTheWalksContract(asked, columns);
                 opened = sink;
                 sink.columns(columns);

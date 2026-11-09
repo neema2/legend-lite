@@ -100,44 +100,13 @@ public final class PctBackend {
      * source, which refuses it by name: the server's database is the user's.
      */
     public static com.legend.exec.PlanSessions.Source planSessions() {
-        com.legend.exec.PlanSessions.Source own = com.legend.exec.PlanSessions.shared();
         TestBackend backend = backend();
         if (backend.inProcess() || ownSessions(backend)) {
-            return own;
+            return com.legend.exec.PlanSessions.shared();
         }
-        return target -> {
-            if (!target.setup().isEmpty()) {
-                return own.open(target);
-            }
-            Connection held;
-            try {
-                held = optionsOnly(target) ? backend.held() : null;
-            } catch (SQLException e) {
-                throw new IllegalStateException("the " + name() + " lane's held session could not be opened: "
-                        + e.getMessage(), e);
-            }
-            if (held != null) {
-                // held for the suite (the JVM's exit closes it): ONE session over it, kept here, its memo kept (D70;
-                // the audit's finding: a cloud backend's held() answered a new unclosable proxy per call, so the
-                // connection's identity could not key the session; since 2026-11-06 it answers one view per held
-                // session, so TestSessions.over finds the same session for channel B too)
-                com.legend.exec.Sessions.Session s = heldSession;
-                if (s == null) {
-                    s = com.legend.testbackend.TestSessions.over(held);
-                    heldSession = s;
-                }
-                return s;
-            }
-            Connection c;
-            try {
-                c = backend.openSystem();
-            } catch (SQLException e) {
-                throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
-                        + e.getMessage(), e);
-            }
-            // a session of the lane's own, closed with the plan's use of it (D70: the seam's owned session)
-            return com.legend.testbackend.TestSessions.owning(c);
-        };
+        // the lane's rule as exec's data (2026-11-09, the user's question "why do we have any callbacks?": a function of
+        // this harness's chose the session inside the run until then)
+        return com.legend.exec.PlanSessions.lane(held(backend), optionsOnly(backend), backend::openSystem);
     }
 
     /**
@@ -156,53 +125,48 @@ public final class PctBackend {
     public static com.legend.exec.SessionSource executionSource() {
         TestBackend backend = backend();
         if (ownSessions(backend)) {
-            return target -> {
-                if (!(target.database() instanceof com.legend.executionplan.ExecutionPlan.Database.Declared d)) {
-                    throw new IllegalStateException("the " + name() + " lane's query names no declared connection: "
-                            + target.database());
-                }
-                return com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(backend.type()))
-                        .open(d.connection());
-            };
+            return new com.legend.exec.SessionSource.Declared();
         }
         if (backend.inProcess()) {
-            return target -> {
-                try {
-                    return com.legend.testbackend.TestSessions.owning(backend.open());
-                } catch (SQLException e) {
-                    throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
-                            + e.getMessage(), e);
-                }
-            };
+            return new com.legend.exec.SessionSource.Fresh(backend::open);
         }
-        return target -> {
-            try {
-                Connection held = backend.held();
-                if (held != null) {
-                    // the target the plan answers on (a constant answer opens no session at all)
-                    if (optionsOnly(target)) {
-                        com.legend.exec.Sessions.Session s = heldSession;
-                        if (s == null) {
-                            s = com.legend.testbackend.TestSessions.over(held);
-                            heldSession = s;
-                        }
-                        return com.legend.exec.Sessions.view(s);
-                    }
-                }
-                return com.legend.testbackend.TestSessions.owning(backend.openSystem());
-            } catch (SQLException e) {
-                throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
-                        + e.getMessage(), e);
-            }
-        };
+        // the lane's rule as exec's data (as planSessions's): the held session for a target whose session statements
+        // are the dialect's options alone, a new system session for any other
+        com.legend.exec.Sessions.@com.legend.base.Nullable Session held = held(backend);
+        return held == null ? new com.legend.exec.SessionSource.Fresh(backend::openSystem)
+                : new com.legend.exec.SessionSource.Held(held, optionsOnly(backend), backend::openSystem);
     }
 
-    /** Whether a plan's session statements are its dialect's own options alone (ALTER SESSION, run on any session
-     *  again as on a new one): a plan that makes a table of the session's own (the system metamodel store's) runs on
-     *  a new session, which drops the table when it closes. */
-    private static boolean optionsOnly(com.legend.executionplan.ExecutionPlan.Target target) {
-        return target.session().equals(com.legend.database.Databases.dialect(
-                com.legend.planner.ConnectionPlans.model(target.database().type())).sessionSetup());
+    /** The one session over the lane's held connection, where the backend holds one (a cloud's): kept for the suite,
+     *  its memo kept (D70). */
+    private static com.legend.exec.Sessions.@com.legend.base.Nullable Session held(TestBackend backend) {
+        Connection held;
+        try {
+            held = backend.held();
+        } catch (SQLException e) {
+            throw new IllegalStateException("the " + name() + " lane's held session could not be opened: "
+                    + e.getMessage(), e);
+        }
+        if (held == null) {
+            return null;
+        }
+        // held for the suite (the JVM's exit closes it): ONE session over it, kept here, its memo kept (D70; the
+        // audit's finding: a cloud backend's held() answered a new unclosable proxy per call, so the connection's
+        // identity could not key the session; since 2026-11-06 it answers one view per held session, so
+        // TestSessions.over finds the same session for channel B too)
+        com.legend.exec.Sessions.Session s = heldSession;
+        if (s == null) {
+            s = com.legend.testbackend.TestSessions.over(held);
+            heldSession = s;
+        }
+        return s;
+    }
+
+    /** The lane's dialect's own session options: a plan whose session statements are these alone runs on the held
+     *  session (ALTER SESSION, run on any session again as on a new one); a plan that makes a table of the session's
+     *  own (the system metamodel store's) runs on a new session, which drops the table when it closes. */
+    private static java.util.List<String> optionsOnly(TestBackend backend) {
+        return com.legend.database.Databases.dialect(backend.type()).sessionSetup();
     }
 
     /** The one session over the lane's held connection ({@link #planSessions}). */

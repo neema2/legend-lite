@@ -47,7 +47,7 @@ public final class Lean {
         ExecutionPlan plan;
         try {
             plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                    p -> sink.of(p));
+                    new com.legend.result.Output.Rows(sink));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -67,7 +67,7 @@ public final class Lean {
             // the server's own route (2026-11-09: the server's plans alone name the project's database)
             plan = Execution.runOnProjectDatabases(
                     com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model)), query), runtime,
-                    p -> sink.of(p));
+                    new com.legend.result.Output.Rows(sink));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -86,7 +86,7 @@ public final class Lean {
         try {
             plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query),
                     runtime,
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, p -> sink.of(p));
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(sink));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -106,11 +106,12 @@ public final class Lean {
             this.out = out;
         }
 
-        /** The sink for a program's answer of {@code shape} ({@link Execution.Answer}). */
-        ResultSink of(ExecutionPlan.TdsResult.Shape shape) {
+        /** Told the answer's shape before its columns (an {@code Output.Rows} receiver, 2026-11-09: a factory the run
+         *  called until then): lite's JSON rows for it. */
+        @Override
+        public void answers(ExecutionPlan.TdsResult.Shape shape) {
             this.shape = shape;
             writer = new JsonRowsWriter(out, shape);
-            return this;
         }
 
         /** The answer read back, once the body has answered; null for a body whose last statement answered nothing. */
@@ -118,10 +119,6 @@ public final class Lean {
             return shape == null ? null : Result.of(shape, columns, out.toString());
         }
 
-        ResultSink of(ExecutionPlan plan) {
-            writer = new JsonRowsWriter(out, plan.answerShape());
-            return this;
-        }
 
         @Override
         public void columns(List<ExecutionPlan.Column> columns) throws IOException {

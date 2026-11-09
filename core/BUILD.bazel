@@ -296,7 +296,7 @@ legend_java_library(
         "src/main/java/com/legend/TestExecution.java",
     ],
     deps = [
-        "//base", ":exec", ":execution_plan", ":planner", ":platform", ":test_plan", ":testexec",
+        "//base", ":exec", ":execution_plan", ":planner", ":platform", ":result", ":test_plan", ":testexec",
         ":testplan",
     ],
 )

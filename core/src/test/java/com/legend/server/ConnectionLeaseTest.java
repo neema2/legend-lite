@@ -108,9 +108,7 @@ class ConnectionLeaseTest {
         // the server's own route (2026-11-09: the server's plans alone name the project's database)
         com.legend.Execution.runOnProjectDatabases(
                 com.legend.Compiler.query(com.legend.Compiler.compileModel(duckModel), query), "test::TestRuntime",
-                plan -> csv
-                        ? new com.legend.result.CsvWriter(w, plan.answerShape())
-                        : new com.legend.result.JsonRowsWriter(w, plan.answerShape()));
+                csv ? new com.legend.result.Output.Csv(w) : new com.legend.result.Output.JsonRows(w));
         w.flush();
         return out.toByteArray();
     }
