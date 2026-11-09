@@ -233,9 +233,9 @@ cases:
     question: "By how many shares did Berkshire's Lennar class B position change between its two 13Fs?"
     expected:
       structured:
-        - query: "edgar::Holding.all()->filter(h|$h.filing.cik == 1067983 && $h.cusip == '526057302')->project(~[accession:x|$x.filing.accession, shares:x|$x.shares])"
-          rows: [["0001193125-26-226661", 237703], ["0001193125-26-352200", 298117]]
-    why_hard: "Needs the row from each filing; the CUSIP differs from the class A rows, which share the issuer name."
+        - query: "edgar::Holding.all()->filter(h|$h.cusip == '526057302' && ($h.filing.accession == '0001193125-26-226661' || $h.filing.accession == '0001193125-26-352200'))->project(~[cusip:x|$x.cusip, signed:x|if($x.filing.accession == '0001193125-26-352200', |$x.shares, |0 - $x.shares)])->groupBy(~cusip, ~change:x|$x.signed:y|$y->sum())->select(~[change])"
+          rows: [[60414]]
+    why_hard: "Needs the row from each filing; the CUSIP differs from the class A rows, which share the issuer name. Provenance: 237,703 shares in 0001193125-26-226661 and 298,117 in 0001193125-26-352200."
     author: ABS
     reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
     status: unresolved
