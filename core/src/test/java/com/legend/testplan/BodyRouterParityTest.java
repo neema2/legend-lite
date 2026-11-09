@@ -1522,7 +1522,7 @@ class BodyRouterParityTest {
                 "refused by name: " + body + " -> " + routed.outcome);
         assertEquals(0, routed.moved, "the router moved nothing: " + body);
         assertEquals(List.of(), routed.statements, "nothing sent while the router planned and refused: " + body);
-        allRecorded(routed, body);
+        assertEquals(0, routed.sent(), "nothing sent on any session while the router planned and refused: " + body);
     }
 
     /** A text as a Pure string literal's body. */
@@ -1714,11 +1714,16 @@ class BodyRouterParityTest {
             String database, long moved, List<String> statements, List<String> verdicts, String census, long sent) {
     }
 
-    /** Every statement the run sent was on the body's recorded connection: what {@code r.statements} says of a run is
-     *  of all of it. */
+    /** Every statement the run sent that could carry a run-time value was on the body's recorded connection: the
+     *  ones the recording does not see are a system database's own setup -- its session statements and its store's
+     *  seed, written at planning (no run-time value: a stamp is bound at the run) -- on the session exec opens for it.
+     *  What {@code r.statements} says of a run's statements is then of all of them that matter. */
     private static void allRecorded(Run r, String body) {
-        assertEquals(r.sent(), r.statements().size(), "a statement went to a session the recording does not see: "
-                + body + " -> origins " + r.origins() + ", recorded " + r.statements());
+        long[] origins = originsOf(r.origins());
+        long planningSetup = origins[StatementOrigin.SESSION.ordinal()] + origins[StatementOrigin.SEED.ordinal()];
+        long unrecorded = r.sent() - r.statements().size();
+        assertTrue(unrecorded >= 0 && unrecorded <= planningSetup, "a statement went to a session the recording "
+                + "does not see: " + body + " -> origins " + r.origins() + ", recorded " + r.statements());
     }
 
     private static Run run(TestBackend backend, ModelContext ctx, String body, String check)

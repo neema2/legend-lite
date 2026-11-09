@@ -1327,8 +1327,10 @@ final class ArchitectureTest {
             takesData(c.getComponentType(), where, seen, violations);
             return;
         }
-        // (a file's path is a value, though the JDK declares it an interface; Object is a bound parameter's value)
+        // (a file's path is a value, though the JDK declares it an interface; Object is a bound parameter's value; the
+        // JDK's numbers and times are values, though BigDecimal and BigInteger are not declared final)
         if (c.isPrimitive() || c.isEnum() || c == String.class || c == Object.class || c == java.nio.file.Path.class
+                || c.getName().startsWith("java.math.") || c.getName().startsWith("java.time.")
                 || CALLER_INTERFACES.contains(c)) {
             return;
         }
@@ -2189,6 +2191,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.diagnostics.Census.COUNTS", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.Census.KEYED", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.Census.FALLBACK_REASONS", StaticKind.MEASUREMENT),
+            // the Arrow framer's constants (2026-11-09, the follow-up audit: //arrow_ipc joins the product's jars)
+            java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
+            java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.base.Attribution.LABEL", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
