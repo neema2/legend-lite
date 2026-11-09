@@ -305,7 +305,8 @@ public final class PureTestRunner implements AutoCloseable {
                     Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
             if (fixture != null) {
                 provideFixture(store, conn, ran, shared,
-                        (fqn, target) -> Execution.runBody(fixture, target, null, null, options, null));
+                        (fqn, target) -> Execution.runBody(fixture, target, null, null, options, null,
+                                com.legend.exec.StatementOrigin.SEED));
             }
         }
     }
@@ -409,7 +410,8 @@ public final class PureTestRunner implements AutoCloseable {
             // as it always did — the declared-footprint guard above still
             // refuses the known clashes
         }
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+        try {
+            // the fixture's statements counted under SEED: the program's own mark (Execution.runBody's origin)
             program.accept(target);
         } finally {
             if (isolated) {

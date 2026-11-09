@@ -387,16 +387,12 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
         try {
             if (!session.getAutoCommit()) {
                 try (Statement st = session.createStatement()) {
-                    try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                        ourRows = RefereeVerify.rawRows(st, ourSql);
-                    }
+                    ourRows = RefereeVerify.rawRows(st, ourSql, com.legend.exec.StatementOrigin.REFEREE_OURS);
                 }
             } else {
                 try (Connection reader = com.legend.testbackend.TestBackends.of(session).readerOn(session);
                         Statement st = reader.createStatement()) {
-                    try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                        ourRows = RefereeVerify.rawRows(st, ourSql);
-                    }
+                    ourRows = RefereeVerify.rawRows(st, ourSql, com.legend.exec.StatementOrigin.REFEREE_OURS);
                 }
             }
         } catch (SQLException e) {
@@ -404,7 +400,7 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
                     + e.getMessage(), e);
         }
         List<RefereeVerify.Cells> golden = onReferee(seeds, TDG_SESSION,
-                st -> RefereeVerify.rawRows(st, goldenSql));
+                st -> RefereeVerify.rawRows(st, goldenSql, com.legend.exec.StatementOrigin.REFEREE_GOLDEN));
         return RefereeVerify.multisetCompare(golden, ourRows);
     }
 
@@ -448,33 +444,33 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
                 String name = a[0];
                 String sql = a[1];
                 if (created.contains(name)) {
-                    com.legend.exec.StatementOrigin.count();
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                     st.execute("create table TDG_TEMP_STAGE as " + sql);
-                    com.legend.exec.StatementOrigin.count();
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                     st.execute("drop table " + name);
-                    com.legend.exec.StatementOrigin.count();
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                     st.execute("alter table TDG_TEMP_STAGE rename to "
                             + name);
                 } else {
-                    com.legend.exec.StatementOrigin.count();
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                     st.execute("drop table if exists " + name);
-                    com.legend.exec.StatementOrigin.count();
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                     st.execute("create table " + name + " as " + sql);
                     created.add(name);
                 }
             }
-            return RefereeVerify.rawRows(st, goldenSql);
+            return RefereeVerify.rawRows(st, goldenSql, com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
         } finally {
             for (String name : created) {
                 try {
-                    com.legend.exec.StatementOrigin.count();
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                     st.execute("drop table if exists " + name);
                 } catch (SQLException ignored) {
                     // cleanup best-effort; the next use drops-if-exists
                 }
             }
             try {
-                com.legend.exec.StatementOrigin.count();
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                 st.execute("drop table if exists TDG_TEMP_STAGE");
             } catch (SQLException ignored) {
                 // same
@@ -782,7 +778,7 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
     private void execute(String sql) throws SQLException {
         onReferee(recorder.seeds(),
                 VERIFY_SESSION, st -> {
-                    com.legend.exec.StatementOrigin.count();
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                     st.execute(sql);
                     return Boolean.TRUE;
                 });

@@ -482,7 +482,7 @@ public final class RefereeVerify {
         boolean hasPk = false;
         List<String> dataLabels = new ArrayList<>();
         java.util.Set<String> temporal = new java.util.HashSet<>();
-        com.legend.exec.StatementOrigin.count();
+        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
         try (ResultSet rs = st.executeQuery(goldenSql)) {
             var md = rs.getMetaData();
             int n = md.getColumnCount();
@@ -714,7 +714,7 @@ public final class RefereeVerify {
                                 .map(c -> c.name()).toList(), facts.sortKeys())
                         : null;
                 List<Cells> theirKeys = new ArrayList<>();
-                com.legend.exec.StatementOrigin.count();
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
                     int n = rs.getMetaData().getColumnCount();
                     theirsCols[0] = n;
@@ -1258,10 +1258,10 @@ public final class RefereeVerify {
      * {@code <cols>} header row — column ORDER is not a fetch contract,
      * column IDENTITY is (a projection mismatch compares as unequal
      * header rows, never a garbled cell compare). */
-    static List<Cells> rawRows(Statement st, String sql)
+    static List<Cells> rawRows(Statement st, String sql, com.legend.exec.StatementOrigin origin)
             throws SQLException {
         List<Cells> out = new java.util.ArrayList<>();
-        com.legend.exec.StatementOrigin.count();
+        com.legend.exec.StatementOrigin.count(origin);
         try (ResultSet rs = st.executeQuery(sql)) {
             var md = rs.getMetaData();
             int n = md.getColumnCount();

@@ -163,9 +163,8 @@ final class SqlTextRuns {
         boolean priorSuspend = com.legend.testexec.SqlTypeCensus.probeSuspended();
         try {
             com.legend.testexec.SqlTypeCensus.probeSuspend(true);
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                rows = read(r.rows(), reader);
-            }
+            // our rows: counted under REFEREE_OURS, the mark on the reader's sessions (Appeals.decide)
+            rows = read(r.rows(), reader);
         } catch (com.legend.base.RunScope.Refused e) {
             // the runtime wall's refusal is never a rows-underivable decline: it fails the body by name
             throw e;
@@ -185,7 +184,7 @@ final class SqlTextRuns {
                 // page. No catch: the paged read just executed, so a failure here is a FAULT of ours and fails the
                 // test loudly -- never a decline that rescues the text
                 com.legend.testexec.SqlTypeCensus.probeSuspend(true);
-                try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+                try {
                     TypedSide population = read(r.population(), reader);
                     if (population != null) {
                         facts = facts.withPopulation(population);
@@ -205,8 +204,8 @@ final class SqlTextRuns {
                 .map(t -> new SqlReplayReferee.TempTable(t.name(), t.kind(), t.values())).toList();
         com.legend.testexecutionplan.Appeal.InListSeed seed = r.seed();
         SqlReplayReferee.RowVerdict rv;
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
-            rv = r.goldenPlan() != null
+        // the referee replays the golden beside the body's session, counting its own statements under REFEREE_GOLDEN
+        rv = r.goldenPlan() != null
                 ? referee.verifyPlan(sessions.apply(r.on()), r.goldenPlan(), r.planBindings(),
                         rows, r.mappingFqn(), r.classFqn(), facts, r.enums())
                 : referee.verify(sessions.apply(r.on()),
@@ -214,7 +213,6 @@ final class SqlTextRuns {
                         rows, r.mappingFqn(), r.classFqn(), facts, r.enums(),
                         temps.isEmpty() ? (seed == null ? List.of()
                                 : inListTemps(seed.kind(), seed.values(), golden)) : temps);
-        }
         if (listener != null) {
             listener.refereed(name, rv.outcome().name());
         }

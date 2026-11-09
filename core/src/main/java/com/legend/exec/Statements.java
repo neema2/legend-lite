@@ -138,4 +138,91 @@ public interface Statements {
     interface Cells {
         void row(List<Object> cells) throws IOException;
     }
+
+    /** The statement origin this session's statements are counted under ({@link StatementOrigin}): the mark the
+     *  runner gave them for what it runs now -- explicit, carried by the statements it hands down (until slice 5,
+     *  2026-11-09, a thread-scoped mark the senders read). */
+    default StatementOrigin mark() {
+        return StatementOrigin.OTHER;
+    }
+
+    /** {@code st} counted under {@code mark}: the same statements, the same session. */
+    static Statements marked(Statements st, StatementOrigin mark) {
+        if (st.mark() == mark) {
+            return st;
+        }
+        return new Marked(st instanceof Marked m ? m.inner() : st, mark);
+    }
+
+    /** A session's statements under a mark of the runner's: every call the inner statements', the mark this one's. */
+    record Marked(Statements inner, StatementOrigin mark) implements Statements {
+        @Override
+        public void check(ExecutionPlan.Target target) {
+            inner.check(target);
+        }
+
+        @Override
+        public String nextStamp() {
+            return inner.nextStamp();
+        }
+
+        @Override
+        public boolean execute(String statement) {
+            return inner.execute(statement);
+        }
+
+        @Override
+        public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+                Rows rows) throws IOException {
+            inner.query(statement, slots, values, rows);
+        }
+
+        @Override
+        public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+                throws IOException {
+            return inner.update(statement, slots, values);
+        }
+
+        @Override
+        public <T> T inTransaction(java.util.function.Supplier<T> work) {
+            return inner.inTransaction(work);
+        }
+
+        @Override
+        public boolean ownsTransaction() {
+            return inner.ownsTransaction();
+        }
+
+        @Override
+        public List<Reported> columns(String statement) {
+            return inner.columns(statement);
+        }
+
+        @Override
+        public List<Reported> describe(String statement) {
+            return inner.describe(statement);
+        }
+
+        @Override
+        public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+            return inner.load(rows);
+        }
+
+        @Override
+        public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+                List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+            inner.rows(statement, slots, values, columns, cells);
+        }
+
+        @Override
+        public void reportedRows(String statement, List<ExecutionPlan.Slot> slots,
+                List<PlanParameters.Checked> values, ReportedColumns columns, Cells cells) throws IOException {
+            inner.reportedRows(statement, slots, values, columns, cells);
+        }
+
+        @Override
+        public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
+            inner.inSnapshot(snapshot, work);
+        }
+    }
 }

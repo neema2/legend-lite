@@ -29,6 +29,30 @@ public final class PlanSessions {
         default Sessions.Session openToChange(ExecutionPlan.Target target) {
             return open(target);
         }
+
+        /** The statement origin the statements opened from these sessions are counted under (explicit since slice 5,
+         *  2026-11-09: a thread-scoped mark until then). */
+        default StatementOrigin mark() {
+            return StatementOrigin.OTHER;
+        }
+    }
+
+    /** {@code sessions} whose statements are counted under {@code mark}. */
+    public static Source marked(Source sessions, StatementOrigin mark) {
+        Source inner = sessions instanceof MarkedSource m ? m.inner() : sessions;
+        return new MarkedSource(inner, mark);
+    }
+
+    private record MarkedSource(Source inner, StatementOrigin mark) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            return inner.open(target);
+        }
+
+        @Override
+        public Sessions.Session openToChange(ExecutionPlan.Target target) {
+            return inner.openToChange(target);
+        }
     }
 
     /** The sessions kept by a target's content: a platform database or a held in-memory one, set up once. */
@@ -120,9 +144,7 @@ public final class PlanSessions {
             throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
                     + " database has none (" + Sessions.product(session) + ")");
         }
-        try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
-            PlanRunner.setUpIn(target.setup(), target, of(session), null);
-        }
+        PlanRunner.setUpIn(target.setup(), target, marked(of(session), StatementOrigin.SEED), null);
     }
 
     /** A session on the target's database kept by the target's content (its setup run once when opened): a view of a
@@ -249,9 +271,7 @@ public final class PlanSessions {
         return closedOnFailure(session, () -> {
             ExecutionPlan.Target filling = new ExecutionPlan.Target(target.database(), target.session(),
                     project.made());
-            try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
-                PlanRunner.setUp(filling.setup(), filling, of(session), null);
-            }
+            PlanRunner.setUp(filling.setup(), filling, marked(of(session), StatementOrigin.SEED), null);
         });
     }
 

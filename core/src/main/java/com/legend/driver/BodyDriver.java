@@ -708,8 +708,12 @@ public final class BodyDriver {
                     inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1)));
         }
         BarePlan b;
-        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+        // a side the judge evaluates outside the body's statement: SIDE, where no arm has marked the texts it reads
+        String priorOrigin = SqlTextVerdicts.marking(env, "SIDE", true);
+        try {
             b = planStaged(com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan()), value, env, null, identity, true);
+        } finally {
+            SqlTextVerdicts.restoreMarking(env, priorOrigin);
         }
         if (fold && b.answered() == null) {
             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)

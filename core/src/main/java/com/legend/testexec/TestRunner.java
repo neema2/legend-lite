@@ -42,7 +42,7 @@ public final class TestRunner {
             Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
             com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
-            @Nullable Answer answer) {
+            @Nullable Answer answer, com.legend.exec.StatementOrigin origin) {
         // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
         // judges tell the caller's listener through it, its reports kept back while an appeal is held
         Appeals appeals = new Appeals(callers);
@@ -65,7 +65,8 @@ public final class TestRunner {
                     com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
                             golden, ours, textEqual, referee, l, reader, sessions);
             try {
-                TestRun.run(plan, Map.of(), PlanSessions.of(session, null, systemSessions), moved::textOrigin,
+                TestRun.run(plan, Map.of(), PlanSessions.marked(PlanSessions.of(session, null, systemSessions), origin),
+                        moved::textOrigin,
                         moved, moved);
             } catch (RuntimeException runFailed) {
                 // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is the

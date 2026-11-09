@@ -149,10 +149,9 @@ public final class TestDataGenerator {
         // per-call temp-name counter (temps drop in finally, so names
         // never collide across sequential invocations)
         List<String> temps = new ArrayList<>();
-        Session st = new Session(sessions, target, dialect);
-        // the temps drop when the run ends, under the TDG origin still (the resources close in reverse order)
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.TDG);
-                var __t = new Temps(st, temps)) {
+        // the generator's statements, its temps' drops among them, counted under TDG (the mark on its sessions)
+        Session st = new Session(PlanSessions.marked(sessions, com.legend.exec.StatementOrigin.TDG), target, dialect);
+        try (var __t = new Temps(st, temps)) {
             for (ScanRelations.Rel r : roots) {
                 fetchRoot(ctx, r, rowIds, st, sqls, fetches, fetched,
                         temps, colMap, dates, viewSql);

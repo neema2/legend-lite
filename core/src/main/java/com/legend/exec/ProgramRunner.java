@@ -188,7 +188,8 @@ public final class ProgramRunner {
             }
         } else {
             try (Sessions.Session session = shape.changes() ? sessions.openToChange(on) : sessions.open(on)) {
-                Statements st = PlanRunner.opened(session, on);
+                // the caller's mark, on the sessions it handed (a fixture's seeding: SEED), every step's mark under it
+                Statements st = PlanRunner.opened(session, on, sessions.mark());
                 ExecutionPlan.Target system = shape.system();
                 if (system == null) {
                     boolean homeIsSystem = on.database() instanceof ExecutionPlan.Database.System;
@@ -215,7 +216,8 @@ public final class ProgramRunner {
                     // only, outside the program's transaction (the walker-deletion program's per-statement routing,
                     // 2026-11-03: the first step to a program over two stores)
                     try (Sessions.Session systemSession = sessions.open(system)) {
-                        Routes rt = new Routes(st, false, PlanRunner.opened(systemSession, system), systemSession,
+                        Routes rt = new Routes(st, false, PlanRunner.opened(systemSession, system, sessions.mark()),
+                                systemSession,
                                 null);
                         Open open = new Open(declared, live, rt);
                         try {
@@ -241,6 +243,9 @@ public final class ProgramRunner {
         private final Map<String, PlanParameters.Checked> live;
         private final @Nullable Routes routes;
         private boolean closed;
+        /** The mark of the step whose callback is reading: the program's own outside one (explicit since slice 5,
+         *  2026-11-09: the reads ran under a thread-scoped mark). */
+        private StatementOrigin stepMark = StatementOrigin.OTHER;
 
         Open(Set<ExecutionPlan.Node> declared, Map<String, PlanParameters.Checked> live, @Nullable Routes routes) {
             this.declared = declared;
@@ -271,17 +276,16 @@ public final class ProgramRunner {
                 values = new HashMap<>(live);
                 values.putAll(bindings);
             }
-            try (var mark = origin == null ? StatementOrigin.enter(StatementOrigin.current())
-                    : StatementOrigin.enterIfUnmarked(origin)) {
-                PlanRunner.Held h = new PlanRunner.Held();
-                switch (read) {
-                    case ExecutionPlan.TdsResult t -> PlanRunner.result(t, values, rt.on(t.sql()), h);
-                    case ExecutionPlan.Keyed k -> PlanRunner.keyedOn(k, values, rt.on(k.keys()),
-                            PlanRunner.heldSink(h));
-                    default -> throw new IllegalStateException("a program's read is a typed or keyed result");
-                }
-                return PlanRunner.collected(h);
+            StatementOrigin mark = origin == null ? stepMark : StatementOrigin.under(stepMark, origin);
+            PlanRunner.Held h = new PlanRunner.Held();
+            switch (read) {
+                case ExecutionPlan.TdsResult t -> PlanRunner.result(t, values,
+                        Statements.marked(rt.on(t.sql()), mark), h);
+                case ExecutionPlan.Keyed k -> PlanRunner.keyedOn(k, values, Statements.marked(rt.on(k.keys()), mark),
+                        PlanRunner.heldSink(h));
+                default -> throw new IllegalStateException("a program's read is a typed or keyed result");
             }
+            return PlanRunner.collected(h);
         }
 
         @Override
@@ -301,7 +305,7 @@ public final class ProgramRunner {
                     return failed.failed(e);
                 }
             }
-            Statements home = rt.home();
+            Statements home = Statements.marked(rt.home(), stepMark);
             PlanRunner.sendStatement(savepoint.set(), home);
             T out;
             try {
@@ -469,19 +473,26 @@ public final class ProgramRunner {
                 case Node n -> n.origin();
                 case Callback c -> c.origin();
             };
-            try (var origin = named == null ? StatementOrigin.enter(StatementOrigin.current())
-                    : StatementOrigin.enterIfUnmarked(named)) {
-                switch (step) {
-                    case Node n -> runStep(n.node(), i, live, session, rt, held, sink);
-                    case Callback c -> callbacks.step(c.id(), open);
+            // the step's mark: its own under the program's, where it names one
+            StatementOrigin mark = named == null ? rt.home().mark() : StatementOrigin.under(rt.home().mark(), named);
+            switch (step) {
+                case Node n -> runStep(n.node(), i, live, session, rt, held, sink, mark);
+                case Callback c -> {
+                    open.stepMark = mark;
+                    try {
+                        callbacks.step(c.id(), open);
+                    } finally {
+                        open.stepMark = rt.home().mark();
+                    }
                 }
             }
         }
     }
 
     private static void runStep(ExecutionPlan.Node step, int i, Map<String, PlanParameters.Checked> live,
-            Sessions.Session session, Routes rt, PlanRunner.Held held, ProgramSink sink) throws IOException {
-        Statements st = rt.home();
+            Sessions.Session session, Routes rt, PlanRunner.Held held, ProgramSink sink, StatementOrigin mark)
+            throws IOException {
+        Statements st = Statements.marked(rt.home(), mark);
         switch (step) {
             case ExecutionPlan.Update u -> {
                 // a store write may change a seeded table: every seed establishes again after it, as after an effect
@@ -494,9 +505,8 @@ public final class ProgramRunner {
                 // a statement of the body run for what it raises, its rows dropped: a statement on its own, as the
                 // walk marks a value statement it runs (an unread let's, the user's ruling of 2026-11-02); a mark in
                 // force (a frame's eager run, LET) stands
-                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    PlanRunner.check(k, live, rt.on(k.sql()));
-                }
+                PlanRunner.check(k, live, Statements.marked(rt.on(k.sql()),
+                        StatementOrigin.under(mark, StatementOrigin.STATEMENT)));
             }
             case ExecutionPlan.Effect e -> {
                 // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves the
@@ -514,20 +524,19 @@ public final class ProgramRunner {
                 boolean beside = rt.systemSession() != null
                         && u.target().database() instanceof ExecutionPlan.Database.System;
                 PlanRunner.seed(u, beside ? Objects.requireNonNull(rt.systemSession()) : session,
-                        beside ? Objects.requireNonNull(rt.system()) : st, answered -> sink.seeded(i, answered));
+                        beside ? Statements.marked(Objects.requireNonNull(rt.system()), mark) : st,
+                        answered -> sink.seeded(i, answered));
             }
             case ExecutionPlan.TdsResult t -> {
                 // the program's answering statement is a statement of the body on its own, as the walk marks a value
                 // statement (BodyDriver.answerValue); a mark in force (a judge's, a fixture's) stands
-                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    PlanRunner.result(t, live, rt.on(t.sql()), held);
-                }
+                PlanRunner.result(t, live, Statements.marked(rt.on(t.sql()),
+                        StatementOrigin.under(mark, StatementOrigin.STATEMENT)), held);
             }
             case ExecutionPlan.Constant c -> PlanRunner.constant(c, held);
             case ExecutionPlan.Keyed k -> {
-                try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
-                    PlanRunner.keyedOn(k, live, rt.on(k.keys()), PlanRunner.heldSink(held));
-                }
+                PlanRunner.keyedOn(k, live, Statements.marked(rt.on(k.keys()),
+                        StatementOrigin.under(mark, StatementOrigin.STATEMENT)), PlanRunner.heldSink(held));
             }
             case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a program");
         }
@@ -586,7 +595,7 @@ public final class ProgramRunner {
             Opened o = opened.get();
             if (o == null) {
                 Sessions.Session s = sessions.open(t);
-                o = new Opened(s, PlanRunner.opened(s, t), t);
+                o = new Opened(s, PlanRunner.opened(s, t, sessions.mark()), t);
                 opened.set(o);
             } else if (!t.equals(o.target())) {
                 throw new IllegalStateException("a program names two databases beside its own (" + o.target() + ", "

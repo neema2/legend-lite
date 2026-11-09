@@ -234,7 +234,7 @@ public final class PlanRunner {
         }
         // a run of one statement (THE WALL, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter(); Sessions.Session session = sessions.open(sql.target())) {
-            return read.apply(opened(session, sql.target()), sql.statement());
+            return read.apply(opened(session, sql.target(), sessions.mark()), sql.statement());
         }
     }
 
@@ -278,10 +278,12 @@ public final class PlanRunner {
                 }
                 case ExecutionPlan.SetupStep.Rows r -> {
                     try (Sessions.Session session = sessions.open(target)) {
-                        if (!opened(session, target).load(r)) {
+                        if (!opened(session, target, sessions.mark()).load(r)) {
                             throw new IllegalStateException("the setup has rows for a bulk loader, and the session's"
                                     + " database has none (" + r.stagingTable() + ")");
                         }
+                        // the bulk load's one statement, counted under the caller's mark
+                        StatementOrigin.count(sessions.mark());
                     }
                     yield false;
                 }
@@ -445,7 +447,7 @@ public final class PlanRunner {
         }
         ExecutionPlan.Target on = Objects.requireNonNull(target, "a sequence has a step");
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
-            Statements st = opened(session, on);
+            Statements st = opened(session, on, sessions.mark());
             if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
                 // a keyed step's snapshot is the sequence's own transaction, at the isolation the step asks, set
                 // before its first statement (Postgres refuses an isolation changed mid-transaction); a transaction a
@@ -513,7 +515,7 @@ public final class PlanRunner {
             throws IOException {
         unstamped(u.sql());   // a write is sent with no trace comment (JdbcStatements.update): it binds none
         String statement = statement(u.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
         if (u.count() != null) {
             // (the database's count: a value it produced, bound where a later step reads it)
@@ -526,7 +528,7 @@ public final class PlanRunner {
             throws IOException {
         stamp(k.sql(), values, st);
         String statement = statement(k.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
     }
 
@@ -534,7 +536,7 @@ public final class PlanRunner {
     private static void effect(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st) {
         unstamped(e.sql());
         String statement = statement(e.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         st.execute(statement);
     }
 
@@ -546,16 +548,13 @@ public final class PlanRunner {
         unstamped(e.sql());
         ExecutionPlan.Effect.Script script = e.script();
         // the script is the body's statement, whatever mark is in force (a fixture's seeding); its abort is not
+        Statements body = Statements.marked(st, StatementOrigin.BODY);
         if (script == null || inTransaction) {
-            try (var origin = StatementOrigin.enter(StatementOrigin.BODY)) {
-                effect(e, values, st);
-            }
+            effect(e, values, body);
             return;
         }
         try {
-            try (var origin = StatementOrigin.enter(StatementOrigin.BODY)) {
-                sendStatement(script.bracketed(), st);
-            }
+            sendStatement(script.bracketed(), body);
         } catch (DataError failed) {
             if (script.abort() != null) {
                 sendStatement(script.abort(), st);
@@ -566,7 +565,7 @@ public final class PlanRunner {
 
     /** A statement the plan wrote as text (a script, a savepoint's), sent for what it does. */
     static void sendStatement(String statement, Statements st) {
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         st.execute(statement);
     }
 
@@ -597,18 +596,21 @@ public final class PlanRunner {
         }
         List<Boolean> answered = new ArrayList<>(seeds.steps().size());
         boolean system = seeds.target().database() instanceof ExecutionPlan.Database.System;
-        try (var origin = StatementOrigin.enter(system ? StatementOrigin.SYSTEM : StatementOrigin.SEED)) {
+        Statements seeding = Statements.marked(st, system ? StatementOrigin.SYSTEM : StatementOrigin.SEED);
+        try {
             for (ExecutionPlan.SetupStep each : seeds.steps()) {
                 switch (each) {
                     case ExecutionPlan.SetupStep.Statement s -> {
-                        StatementOrigin.sent(s.sql());
-                        answered.add(st.execute(s.sql()));
+                        StatementOrigin.sent(seeding.mark(), s.sql());
+                        answered.add(seeding.execute(s.sql()));
                     }
                     case ExecutionPlan.SetupStep.Rows r -> {
-                        if (!st.load(r)) {
+                        if (!seeding.load(r)) {
                             throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
                                     + " database has none (" + r.stagingTable() + ")");
                         }
+                        // the bulk load's one statement, counted under the seeds' mark
+                        StatementOrigin.count(seeding.mark());
                         answered.add(false);
                     }
                 }
@@ -659,7 +661,7 @@ public final class PlanRunner {
             Held held) throws IOException {
         stamp(t.sql(), values, st);
         String statement = statement(t.sql(), values);
-        StatementOrigin.sent(statement);
+        StatementOrigin.sent(st.mark(), statement);
         if (reported(t)) {
             st.reportedRows(statement, t.sql().slots(), valuesOf(t.sql(), values), columns -> held.columns = columns,
                     held.rows::add);
@@ -721,7 +723,7 @@ public final class PlanRunner {
         nullTypes(keyed.keys());
         nullTypes(keyed.body());
         try (Sessions.Session session = sessions.open(keyed.keys().target())) {
-            Statements st = opened(session, keyed.keys().target());
+            Statements st = opened(session, keyed.keys().target(), sessions.mark());
             st.inSnapshot(keyed.snapshot(), () -> keyedOn(keyed, checked, st, sink));
         }
     }
@@ -808,7 +810,7 @@ public final class PlanRunner {
         }
         Expanded body = expand(keyed.body(), keys, checked);
         sink.columns(inOrder);
-        StatementOrigin.sent(body.statement());
+        StatementOrigin.sent(st.mark(), body.statement());
         st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
             List<Object> placed = new ArrayList<>(Collections.nCopies(columns, null));
             for (int i = 0; i < columns; i++) {
@@ -946,7 +948,7 @@ public final class PlanRunner {
         // the session's own statements (JDBC's, or a connector's: Statements), 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md
         // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
-            Statements st = opened(session, sql.target());
+            Statements st = opened(session, sql.target(), sessions.mark());
             Map<String, PlanParameters.Checked> bound = checked;
             if (sql.stamp() != null) {
                 bound = new HashMap<>(checked);
@@ -959,7 +961,7 @@ public final class PlanRunner {
             String statement = statement(sql, bound);
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
             // each statement a second time, 2026-10-21)
-            StatementOrigin.sent(statement);
+            StatementOrigin.sent(st.mark(), statement);
             ask.of(st, statement, values);
         }
     }
@@ -973,16 +975,19 @@ public final class PlanRunner {
      *  statements are taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}),
      *  on every path: a statement, a schema read, a setup step, a sequence, a keyed plan. */
     static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
-        Statements st = session.statements();
+        return opened(session, target, StatementOrigin.OTHER);
+    }
+
+    /** {@link #opened(Sessions.Session, ExecutionPlan.Target)}, the statements counted under {@code mark}. */
+    static Statements opened(Sessions.Session session, ExecutionPlan.Target target, StatementOrigin mark) {
+        Statements st = Statements.marked(session.statements(), mark);
         st.check(target);
         if (!target.session().isEmpty()) {
             boolean memo = st.ownsTransaction();
             if (!memo || session.state().needsSessionStatements(target.session())) {
-                try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
-                    for (String s : target.session()) {
-                        StatementOrigin.sent(s);
-                        st.execute(s);
-                    }
+                for (String s : target.session()) {
+                    StatementOrigin.sent(StatementOrigin.SESSION, s);
+                    st.execute(s);
                 }
                 if (memo) {
                     // recorded after every statement ran: one that failed leaves the list to run again

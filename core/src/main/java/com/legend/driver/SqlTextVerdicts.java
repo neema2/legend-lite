@@ -77,6 +77,9 @@ final class SqlTextVerdicts {
     private abstract static class Deferring implements Collector {
         boolean readingOurs;
         boolean readingGolden;
+        /** The statement origin the arm reading now marks its texts with, by name (null: none) -- held on the collector
+         *  the planning environment carries, explicit (a thread-scoped mark until slice 5, 2026-11-09). */
+        @com.legend.base.Nullable String originInForce;
 
         /** Whether {@code side}, planned as {@code planned} under {@code at}, is a text this collector may defer: a
          *  {@code VALUES} side declared a String to one. A side the arm plans under an environment of its own (the
@@ -92,6 +95,25 @@ final class SqlTextVerdicts {
         }
     }
 
+    /** The origin {@code origin} put in force on the environment's text collector, by the statement origin's own rule
+     *  ({@code StatementOrigin.under} where {@code ifUnmarked}, else set): what was in force before, to restore. */
+    static @com.legend.base.Nullable String marking(BodyDriver.ExecEnv env, String origin, boolean ifUnmarked) {
+        if (!(env.engineText() instanceof Deferring d)) {
+            return null;
+        }
+        String prior = d.originInForce;
+        d.originInForce = !ifUnmarked || prior == null || "STATEMENT".equals(prior) && !"STATEMENT".equals(origin)
+                ? origin : prior;
+        return prior;
+    }
+
+    /** The origin in force on the environment's text collector restored to {@code prior}. */
+    static void restoreMarking(BodyDriver.ExecEnv env, @com.legend.base.Nullable String prior) {
+        if (env.engineText() instanceof Deferring d) {
+            d.originInForce = prior;
+        }
+    }
+
     /** One engine-text comparison as the arm planned it: the two texts (the golden's a constant of the plan, the verdict
      *  step's base; ours a constant, or NULL where the arm's actual side is a side the step runs and reads --
      *  {@code oursOrigin} then the statement origin the arm marked for it, or null for the step's own), whether they
@@ -100,7 +122,7 @@ final class SqlTextVerdicts {
      *  text alone and decided after the run. Planning's record alone: the plan carries its data ({@code EngineText}). */
     record Collected(String name, @com.legend.base.Nullable String golden, @com.legend.base.Nullable String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal,
-            com.legend.exec.@com.legend.base.Nullable StatementOrigin oursOrigin) {
+            @com.legend.base.Nullable String oursOrigin) {
     }
 
     /** Raised while an arm is PLANNED for the program road where a text side is not a constant of the plan (it would
@@ -144,7 +166,7 @@ final class SqlTextVerdicts {
          *  (2026-11-04, the core program) -- and the origin the arm marked when it read them (one for both). */
         HostSides.@com.legend.base.Nullable Ask deferred;
         HostSides.@com.legend.base.Nullable Ask deferredGolden;
-        com.legend.exec.@com.legend.base.Nullable StatementOrigin deferredOrigin;
+        @com.legend.base.Nullable String deferredOrigin;
         /** The texts the arm holds for the deferred sides: compared by identity, never a text a program spells. */
         final String token = new String("\u0000 our text, read at the verdict step");
         final String goldenToken = new String("\u0000 the golden, read at the verdict step");
@@ -179,8 +201,7 @@ final class SqlTextVerdicts {
             if (readingGolden ? deferredGolden != null : deferred != null) {
                 throw new IllegalStateException("a text deferred twice to one verdict step: the arms read each text once");
             }
-            com.legend.exec.StatementOrigin now = com.legend.exec.StatementOrigin.current();
-            com.legend.exec.StatementOrigin origin = now == com.legend.exec.StatementOrigin.OTHER ? null : now;
+            String origin = originInForce;
             if ((deferred != null || deferredGolden != null) && origin != deferredOrigin) {
                 // the step reads both texts under one origin: the arm marked them alike, or the body is the walk's
                 throw new NotAConstant(NotAConstant.LABEL + "two texts the plan reads under different statement origins");
@@ -315,7 +336,7 @@ final class SqlTextVerdicts {
         // names none -- the slice 2 invariant audit's D2, 2026-11-08)
         int appeal = appeals(env) ? env.appeals().add(c.appeal()) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
         return new HostSides.Check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
-                c.textEqual(), c.decline(), c.oursOrigin() == null ? null : c.oursOrigin().name(), appeal, routed));
+                c.textEqual(), c.decline(), c.oursOrigin(), appeal, routed));
     }
 
     /** Whether {@code bare} is {@code assertEquals} or {@code assertNotEquals}: the equality arm's family. */
@@ -571,9 +592,13 @@ final class SqlTextVerdicts {
         // OUR TEXT + GOLDEN TEXT: ordinary evaluation, the one router
         String golden;
         String ours;
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+        // the arm's texts read under REFEREE_OURS, the origin the step that reads a deferred one sends it under
+        String priorOrigin = marking(env, "REFEREE_OURS", false);
+        try {
             golden = readText(goldenSide, letPrefix, specs, env, hook, true);
             ours = oursText(producerSide, letPrefix, specs, env, hook);
+        } finally {
+            restoreMarking(env, priorOrigin);
         }
         if (golden == null || ours == null) {
             return null;
@@ -1194,9 +1219,13 @@ final class SqlTextVerdicts {
                 && producer.args().get(1) instanceof TypedPackageableRef m ? m : null;
         String golden;
         String ours;
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+        // the arm's texts read under REFEREE_OURS, the origin the step that reads a deferred one sends it under
+        String priorOrigin = marking(env, "REFEREE_OURS", false);
+        try {
             golden = readText(goldenSide, letPrefix, specs, env, hook, true);
             ours = oursText(actualSide, letPrefix, specs, env, hook);
+        } finally {
+            restoreMarking(env, priorOrigin);
         }
         if (golden == null || ours == null) {
             return null;

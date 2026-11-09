@@ -166,7 +166,9 @@ final class Appeals {
             failed(held.get(0), told(held.get(0)), refused);
             throw refused;
         }
-        PlanSessions.Source source = PlanSessions.of(session, null, systemSessions);
+        // our rows read for the referee: counted under REFEREE_OURS (the reader's own mark, on its sessions)
+        PlanSessions.Source source = PlanSessions.marked(PlanSessions.of(session, null, systemSessions),
+                com.legend.exec.StatementOrigin.REFEREE_OURS);
         // the edge's reader: each planned side a plan of its own, run on the body's sessions after its run
         com.legend.testexec.SideReader own = side -> switch (side) {
             case TestPlan.Side.Rows r -> PlanRunner.rows(new ExecutionPlan(List.of(), r.result()), Map.of(),

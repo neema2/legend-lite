@@ -249,9 +249,18 @@ public final class Execution {
             @com.legend.base.Nullable com.legend.testexec.Answer answer) {
         // a plan naming an appeal it does not carry is refused before anything runs, whoever made it (the slice 3
         // invariant audit, 2026-11-08: the planning door checked it, a plan handed in did not)
+        runBody(planned, session, listener, referee, options, answer, com.legend.exec.StatementOrigin.OTHER);
+    }
+
+    /** {@link #runBody}, its statements counted under {@code origin} (a fixture's seeding: SEED) -- the census's mark,
+     *  passed explicitly (a thread-scoped mark until slice 5, 2026-11-09). */
+    public static void runBody(PlannedProgram planned, com.legend.exec.Sessions.Session session,
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
+            com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee, ExecuteOptions options,
+            com.legend.testexec.@com.legend.base.Nullable Answer answer, com.legend.exec.StatementOrigin origin) {
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(planned.plan());
         com.legend.testexec.TestRunner.run(planned.plan(), session, systemConnectionsByEngine(options), options.edge(),
-                listener, referee, answer);
+                listener, referee, answer, origin);
     }
 
     /** The host's system connections keyed by the plan's engine (the options name the model's engine): the run finds a
