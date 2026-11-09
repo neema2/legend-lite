@@ -1,9 +1,8 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
-import com.legend.testplan.TestDoor;
 
 
 import com.legend.Compiler;
@@ -47,7 +46,7 @@ class VerdictIdsTest {
         String rt = StorelessRuntime.RUNTIME;
         for (ExecuteOptions.JudgeMode mode : ExecuteOptions.JudgeMode.values()) {
             ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
-            BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, rt, Databases.dialect(Databases.PLATFORM), options);
+            BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, rt, Databases.dialect(Databases.PLATFORM), options.planning());
             TestDoor.Asserts asserts = switch (mode) {
                 case HOST -> HostAsserts.plan(typed, rt, env);
                 case DATABASE -> DatabaseAsserts.plan(typed, rt, env);

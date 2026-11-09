@@ -79,7 +79,7 @@ public enum BodyClass {
      * with at least one effect, no assert, and nothing that seeds: no statement names test data (a {@code from()}),
      * and the runtime declares none (the walk keys its seed memo by the seed's sources, the runner by the seeds'
      * content, and orders a statement's seeds against an open script the other way round: the M5 audit's B1). The
-     * test door plans each as the walk sends it (M3d: every script byte-identical; {@code BodyRouterParityTest}).
+     * test door plans each as the walk sends it (M3d: every script byte-identical; {@code TestPlannerParityTest}).
      */
     EFFECT_PROGRAM,
 
@@ -1155,7 +1155,7 @@ public enum BodyClass {
      *  lowering plans another way than the walk's ({@link #anotherWay}) but a temporal class read and a graph fetch,
      *  whose eager runs the two lowerings spell alike (M9d for a temporal read; M10c item 12 for a graph fetch and its
      *  serialize -- the frame's one JSON value, the same statement on both roads -- pinned byte-identical by
-     *  {@code BodyRouterParityTest} on every in-process database, a tree's qualifier arguments bound on the product's
+     *  {@code TestPlannerParityTest} on every in-process database, a tree's qualifier arguments bound on the product's
      *  road since that item). */
     static @Nullable Kind frameQueryKind(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
         Kind kind = anotherWay(n, systemClasses, ctx);

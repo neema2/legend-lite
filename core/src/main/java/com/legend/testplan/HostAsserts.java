@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
 import com.legend.testexecutionplan.Failure;
 
@@ -17,7 +17,6 @@ import com.legend.testexecutionplan.TestPlan;
 import com.legend.planner.LetPlanner;
 import com.legend.planner.PlanAllocations;
 import com.legend.planner.QueryDoor;
-import com.legend.testplan.TestDoor;
 
 import java.util.ArrayList;
 import java.util.Collections;

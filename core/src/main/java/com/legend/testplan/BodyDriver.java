@@ -1,12 +1,9 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
-import com.legend.testplan.VerdictBatch;
 
-import com.legend.ExecuteOptions;
-import com.legend.Execution;
 import com.legend.TypedQuery;
 
 import com.legend.compiler.element.ModelContext;
@@ -25,7 +22,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * frames and sides, and the shared environment its judges plan on ({@link ExecEnv}); the run opens the sessions.
  * Connection-valued expressions are never evaluated.
  *
- * <p>Public since step C (D73, 2026-10-30), for ONE caller: the body router ({@link BodyRouter}, since the
+ * <p>Public since step C (D73, 2026-10-30), for ONE caller: the body router ({@link TestPlanner}, since the
  * test-is-the-product plan's M5, 2026-11-01), which walks here every body of a class not yet moved onto the program
  * road; the execution door (Execution.runProgram) calls the router. The class was package-private by design while it
  * shared the root package with the door; ArchitectureTest.theDriverHasOneCaller keeps the design across the package
@@ -42,7 +39,7 @@ public final class BodyDriver {
      *  plan's M6). No listener and no referee: planning tells no one anything and depends on no run-time service
      *  (holes 4 and 5, 2026-11-08). */
     static ExecEnv bodyEnv(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.SqlDialect dialect, ExecuteOptions options) {
+            com.legend.sql.dialect.SqlDialect dialect, PlanningOptions options) {
         ExecEnv env = ExecEnv.of(typed.context(), runtimeFqn, dialect, options);
         if (typed.resolved() instanceof com.legend.protocol.spec.LambdaFunction rlf
                 && rlf.parameters().isEmpty()) {
@@ -62,8 +59,8 @@ public final class BodyDriver {
      * PlanSessions.Source maps one to the other), the trace, the verdict batch and the caller's execute options. Split in two by the seam program's S2g (2026-10-31) so planning helpers can leave the driver. */
     record ExecEnv(com.legend.planner.PlanEnv plan,
             com.legend.executionplan.ExecutionPlan.Target target,
-            ExecuteOptions options,
-            com.legend.exec.ExecutionTrace trace,
+            PlanningOptions options,
+            ActivityComments activity,
             com.legend.testplan.@com.legend.base.Nullable VerdictBatch verdictBatch,
             SqlTextVerdicts.@com.legend.base.Nullable Collector engineText,
             com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage,
@@ -78,14 +75,14 @@ public final class BodyDriver {
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), a fresh trace, no batch. */
         static ExecEnv of(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
-                com.legend.sql.dialect.SqlDialect dialect, ExecuteOptions options) {
+                com.legend.sql.dialect.SqlDialect dialect, PlanningOptions options) {
             return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.features(),
                     // the generator's plan names the engine's test connection, as every engine test of it does (its
                     // runtime argument is not read)
                     tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, ENGINE_TEXT,
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
-                    options, new com.legend.exec.ExecutionTrace(), null, null, null, null,
+                    options, new ActivityComments(), null, null, null, null,
                     new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
         }
 
@@ -124,17 +121,17 @@ public final class BodyDriver {
         /** The same environment over another planning half. */
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
-                    : new ExecEnv(p, target, options, trace, verdictBatch,
+                    : new ExecEnv(p, target, options, activity, verdictBatch,
                             engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.testplan.VerdictBatch b) {
-            return new ExecEnv(plan, target, options, trace, b, engineText,
+            return new ExecEnv(plan, target, options, activity, b, engineText,
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
-        ExecEnv withOptions(ExecuteOptions o) {
-            return new ExecEnv(plan.withFeatures(o.features()), target, o, trace,
+        ExecEnv withOptions(PlanningOptions o) {
+            return new ExecEnv(plan.withFeatures(o.features()), target, o, activity,
                     verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** The executing frame's bound context (post-processors, time zone,
@@ -148,14 +145,14 @@ public final class BodyDriver {
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
-            return new ExecEnv(plan, target, options, trace, verdictBatch, c,
+            return new ExecEnv(plan, target, options, activity, verdictBatch, c,
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
-            return new ExecEnv(plan, target, options, trace, verdictBatch,
+            return new ExecEnv(plan, target, options, activity, verdictBatch,
                     engineText, m, appealOn, verdictIds, appeals);
         }
         /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
@@ -163,7 +160,7 @@ public final class BodyDriver {
          *  body's own environment while its verdict row runs on the program's; the walk deletion's step 3,
          *  2026-11-06), or none: the appeal planned under this environment. */
         ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
-            return new ExecEnv(plan, target, options, trace, verdictBatch,
+            return new ExecEnv(plan, target, options, activity, verdictBatch,
                     engineText, failureMessage, on, verdictIds, appeals);
         }
 
@@ -171,7 +168,7 @@ public final class BodyDriver {
          *  metamodel (targets compare by value: two sides on one database name one target). */
         ExecEnv withTarget(com.legend.executionplan.ExecutionPlan.Target other) {
             return other.equals(target) ? this
-                    : new ExecEnv(plan, other, options, trace, verdictBatch,
+                    : new ExecEnv(plan, other, options, activity, verdictBatch,
                             engineText, failureMessage, appealOn, verdictIds, appeals);
         }
 
@@ -374,7 +371,7 @@ public final class BodyDriver {
     /** The activity's execution-trace comment: under a verdict batch, the comment RESERVED for the body's fused
      * statement -- the statement that will run the frame. */
     private static @com.legend.base.Nullable String activityComment(ExecEnv env) {
-        return env.verdictBatch() != null ? env.trace().reserve() : null;
+        return env.verdictBatch() != null ? env.activity().reserve() : null;
     }
 
     private static ExecFrame buildFrame(

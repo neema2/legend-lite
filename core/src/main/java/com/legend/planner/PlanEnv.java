@@ -26,7 +26,7 @@ import java.util.function.Function;
  * the compiled model, the driver runtime, the dialect the plan is written in, the query's lets and the handles' rows
  * the resolver reads, the frame's table renames and bound context, the run's feature flags, the body's one site-id
  * minter (the program's, B9: every statement and both sides of every verdict share it). No session, no trace, no
- * verdict batch: those are the driver's half ({@code com.legend.driver.BodyDriver.ExecEnv}), which composes this one. Until S2g both halves were one record of
+ * verdict batch: those are the driver's half ({@code com.legend.testplan.BodyDriver.ExecEnv}), which composes this one. Until S2g both halves were one record of
  * the driver's, so no planning helper could leave the driver.
  *
  * <p>{@code queryLets} and {@code planRows} are the body's run-scoped accumulators (the inliner's consumed lets, the

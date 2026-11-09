@@ -1,12 +1,11 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
 import static com.legend.testexecutionplan.Verdicts.constantValue;
 
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.planner.PlanMaker;
 
 import com.legend.compiler.element.type.ExprType;
@@ -16,7 +15,6 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.testexecutionplan.Column;
 import com.legend.testexecutionplan.TypedSide;
-import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.lowering.TypedRows;
@@ -258,7 +256,7 @@ final class JudgePlans {
 
     /** A constant side's rows: its text cells, as the runner hands a constant side's (I2, 2026-11-07: the one-side
      *  route that ran a planned side in place deleted with the walk -- a side's rows are a verdict step's). */
-    static PlanRunner.Rows constantRows(PlannedSide p) {
+    static List<List<Object>> constantRows(PlannedSide p) {
         if (!(p.side() instanceof TestPlan.Side.Constant c)) {
             throw new IllegalStateException("a planned side's rows are read by its verdict step, never in place");
         }
@@ -266,7 +264,7 @@ final class JudgePlans {
         for (List<String> row : c.cells()) {
             rows.add(new ArrayList<Object>(row));
         }
-        return new PlanRunner.Rows(c.columns(), rows);
+        return rows;
     }
 
     /** {@code p}'s shape as the plan carries it (the plan-as-data design's step 4, 2026-11-08): every fact its
@@ -446,10 +444,10 @@ final class JudgePlans {
     /** A constant side's cells read back by its column's declared type -- the plan's text, not the compiler's value
      *  -- and checked against that value: a difference is the plan's text being wrong, raised by name, never a
      *  fallback to the value. */
-    static TypedSide decodeConstant(TestPlan.Side.Constant c, TypedSide answered, PlanRunner.Rows rows) {
+    static TypedSide decodeConstant(TestPlan.Side.Constant c, TypedSide answered, List<List<Object>> rows) {
         String type = c.columns().get(0).type();
-        List<Object> values = new ArrayList<>(rows.rows().size());
-        for (List<Object> row : rows.rows()) {
+        List<Object> values = new ArrayList<>(rows.size());
+        for (List<Object> row : rows) {
             Object cell = row.get(0);
             values.add(switch (cell) {
                 case null -> null;

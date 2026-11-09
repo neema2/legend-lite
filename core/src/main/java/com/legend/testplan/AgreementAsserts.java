@@ -1,15 +1,13 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
 import com.legend.testexecutionplan.HostJudgment;
-import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.testplan.TestDoor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,7 +18,7 @@ import java.util.Map;
 /**
  * THE AGREEMENT JUDGE'S ASSERTS, PLANNED BEFORE THE PROGRAM IS (the walker-deletion program, 2026-11-02; the plan path
  * program's agreement gate, step 6, on the program road): every statement-root assert of a body judged by BOTH judges
- * ({@link ExecuteOptions.JudgeMode#BOTH}, channel B) is ONE verdict step of the body's plan that carries what both
+ * ({@link PlanningOptions.JudgeMode#BOTH}, channel B) is ONE verdict step of the body's plan that carries what both
  * judges need -- the host judge's base sides ({@link HostAsserts}) and the database judge's verdict statement over
  * them ({@link DatabaseAsserts#planEach}: the assert's own root, its wrapper and, where it has several members, their
  * fused statement), the host's judgment beside the plan with its judge. The runner reads the sides for the host and the
@@ -109,14 +107,14 @@ final class AgreementAsserts implements TestDoor.Asserts {
      */
     static @Nullable AgreementAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             BodyDriver.@Nullable ExecEnv bodyEnv, boolean systemRouted) {
-        BodyDriver.ExecEnv hostEnv = env.withOptions(env.options().withJudgeMode(ExecuteOptions.JudgeMode.HOST));
+        BodyDriver.ExecEnv hostEnv = env.withOptions(env.options().withJudgeMode(PlanningOptions.JudgeMode.HOST));
         HostAsserts host = HostAsserts.plan(typed, runtime, hostEnv, bodyEnv == null ? null
-                : bodyEnv.withOptions(bodyEnv.options().withJudgeMode(ExecuteOptions.JudgeMode.HOST)));
+                : bodyEnv.withOptions(bodyEnv.options().withJudgeMode(PlanningOptions.JudgeMode.HOST)));
         if (host == null) {
             return null;
         }
         BodyDriver.ExecEnv databaseEnv = env.withOptions(env.options().withJudgeMode(
-                ExecuteOptions.JudgeMode.DATABASE));
+                PlanningOptions.JudgeMode.DATABASE));
         return assemble(host, typed, runtime, databaseEnv, systemRouted, List.of());
     }
 

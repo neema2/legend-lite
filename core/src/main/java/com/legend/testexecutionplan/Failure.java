@@ -54,7 +54,7 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         DIALECT_CAPABILITY("com.legend.sql.DialectCapability"),
         /** the engine-text arm's refusal of a text side that is not a constant: answered at planning (the body is
          *  refused by name), never raised at run */
-        NOT_A_CONSTANT("com.legend.driver.SqlTextVerdicts$NotAConstant"),
+        NOT_A_CONSTANT("com.legend.testplan.SqlTextVerdicts$NotAConstant"),
         ILLEGAL_STATE("java.lang.IllegalStateException"),
         ILLEGAL_ARGUMENT("java.lang.IllegalArgumentException"),
         UNSUPPORTED_OPERATION("java.lang.UnsupportedOperationException"),

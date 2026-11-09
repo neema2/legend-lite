@@ -8,7 +8,7 @@ import com.legend.testexecutionplan.AssertListener;
 import com.legend.testexec.SqlReplayReferee;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.driver.BodyRouter;
+import com.legend.testplan.TestPlanner;
 
 /**
  * THE EXECUTION FRONT DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a query planned by
@@ -125,7 +125,7 @@ public final class Execution {
 
     /** G11's guard on the product door: a plan that does not survive its JSON is refused. Checked where the test lanes
      *  ask for it ({@code -Dlegend.plan.roundtrip=true}, every junit lane: tools/junit/defs.bzl), so a product query pays
-     *  nothing; the test-body door checks every plan it makes (BodyRouter). */
+     *  nothing; the test-body door checks every plan it makes (TestPlanner). */
     static void roundTrip(com.legend.executionplan.ExecutionPlan plan) {
         if (Boolean.getBoolean("legend.plan.roundtrip")) {
             com.legend.executionplan.PlanJson.requireRoundTrip(plan);
@@ -225,14 +225,7 @@ public final class Execution {
      */
     public static PlannedProgram planBody(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             ExecuteOptions options) {
-        ModelContext ctx = typed.context();
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
-        // an unread let IS the statement it binds (the user's ruling, 2026-11-02): it runs at its turn, on every road
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
-                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
-        return new PlannedProgram(BodyRouter.plan(program != body ? typed.withBody(program) : typed, runtimeFqn,
-                dialect, options));
+        return new PlannedProgram(TestPlanner.plan(typed, runtimeFqn, options.planning()));
     }
 
     /**
@@ -280,11 +273,7 @@ public final class Execution {
      *  body that cannot be planned ahead -- one holding an assert, or of no moved class (the walk's). */
     public static @com.legend.base.Nullable PlannedProgram planProgram(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn, ExecuteOptions options) {
-        ModelContext ctx = typed.context();
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> body = typed.body();
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> program =
-                com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(), ctx);
-        return BodyRouter.planned(program != body ? typed.withBody(program) : typed, runtimeFqn, dialect, options);
+        com.legend.testexecutionplan.TestPlan ahead = TestPlanner.planAhead(typed, runtimeFqn, options.planning());
+        return ahead == null ? null : new PlannedProgram(ahead);
     }
 }

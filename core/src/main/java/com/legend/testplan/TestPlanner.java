@@ -1,21 +1,15 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
-import com.legend.exec.StatementOrigin;
 
-import com.legend.Execution;
-import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.diagnostics.Census;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.sql.dialect.SqlDialect;
-import com.legend.testplan.BodyClass;
-import com.legend.testplan.BodyKinds;
-import com.legend.testplan.TestDoor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,9 +22,9 @@ import java.util.Map;
  * session; every other body is walked by the body driver, until M10 moves the last class and deletes the walk and
  * this router. A moved body the test door refuses fails (R14), never falls back to the walk.
  */
-public final class BodyRouter {
+public final class TestPlanner {
 
-    private BodyRouter() {
+    private TestPlanner() {
     }
 
     /**
@@ -39,9 +33,32 @@ public final class BodyRouter {
      * 2026-11-08: planning is handed no listener and no referee, so what it decides reaches the caller only as the
      * plan's data, at its turn in the run). A body the program road does not plan is refused by name.
      */
-    public static TestPlan plan(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
-            ExecuteOptions options) {
-        ExecuteOptions.JudgeMode mode = options.judgeMode();
+    /** {@code typed} PLANNED whole for a session of its runtime's database (the door's {@code planBody}): the
+     *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
+     *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
+    public static TestPlan plan(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
+        return plan(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
+                options);
+    }
+
+    /** {@code typed} planned AHEAD, to run later (the door's {@code planProgram}): as {@link #plan} plans it, or null
+     *  for a body that cannot be planned ahead ({@link #planned}). */
+    public static @Nullable TestPlan planAhead(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
+        return planned(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
+                options);
+    }
+
+    /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */
+    private static TypedQuery withUnreadLets(TypedQuery typed) {
+        List<TypedSpec> body = typed.body();
+        List<TypedSpec> program = com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(),
+                typed.context());
+        return program != body ? typed.withBody(program) : typed;
+    }
+
+    static TestPlan plan(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
+            PlanningOptions options) {
+        PlanningOptions.JudgeMode mode = options.judgeMode();
         TypedQuery typed;
         BodyClass bodyClass;
         boolean systemRouted;
@@ -54,7 +71,7 @@ public final class BodyRouter {
         // THE WALL's rule 2 (2026-11-06): the body is PLANNED -- lifted, classed, its environment made, its asserts
         // planned -- with no run started, no session opened and no statement sent, each refused by name (until then
         // only the asserts' planning was scoped, and the system database's session was opened just before it)
-        try (var planning = com.legend.exec.StatementOrigin.planning("a test body")) {
+        try (var planning = com.legend.base.RunScope.plans("a test body")) {
             typed = lifted(given, options);
             // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
             // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
@@ -93,7 +110,7 @@ public final class BodyRouter {
                 // planner composes frames into verdict statements and splices none into an answer (ExecuteFrameTest
                 // under the database judge alone)
                 boolean judgesNothing = bodyClass == BodyClass.FRAME_PROGRAM && !BodyClass.anAssert(typed, runtime);
-                switch (judgesNothing ? ExecuteOptions.JudgeMode.HOST : mode) {
+                switch (judgesNothing ? PlanningOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     // both judges in one plan: each assert's step carries the host's sides and the database's
@@ -117,7 +134,7 @@ public final class BodyRouter {
         // the census of the bodies the test door plans whole (a measurement: counted where the class admits the body)
         Census.inc(Census.Key.BODIES_MOVED);
         TestPlan plan;
-        try (var p = com.legend.exec.StatementOrigin.planning("a test body's program")) {
+        try (var p = com.legend.base.RunScope.plans("a test body's program")) {
             plan = TestDoor.planned(typed, runtimeFqn, options.features(),
                     asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.resources(),
                     options.edge());
@@ -151,7 +168,7 @@ public final class BodyRouter {
      *  position is a statement of its own at its place, true where it stood), and register S137 (the user's ruling,
      *  2026-11-05: a relation passed to assertSize, assertEmpty or assertNotEmpty is ONE value upstream -- lite's own
      *  rules refuse it, the compatibility rules count it as upstream does). */
-    private static TypedQuery lifted(TypedQuery given, ExecuteOptions options) {
+    private static TypedQuery lifted(TypedQuery given, PlanningOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
         if (options.judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE) {
             com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
@@ -168,8 +185,8 @@ public final class BodyRouter {
      * or query program, no assert) planned whole by the test door as {@link #plan} plans it; null for any other
      * (the walk's, an assert's, a system-routed body's), which the caller cannot plan ahead.
      */
-    public static @Nullable Execution.PlannedProgram planned(TypedQuery given, @Nullable String runtimeFqn,
-            SqlDialect dialect, ExecuteOptions options) {
+    public static @Nullable TestPlan planned(TypedQuery given, @Nullable String runtimeFqn,
+            SqlDialect dialect, PlanningOptions options) {
         TypedQuery typed = lifted(given, options);
         BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
         if (runtimeFqn == null || bodyClass == null || bodyClass == BodyClass.ASSERT_PROGRAM
@@ -179,7 +196,7 @@ public final class BodyRouter {
         // counted where it is planned, as a body is (plan; until hole 4 a program planned ahead counted when it ran)
         Census.inc(Census.Key.BODIES_MOVED);
         TestPlan planned;
-        try (var p = com.legend.exec.StatementOrigin.planning("a program planned ahead")) {
+        try (var p = com.legend.base.RunScope.plans("a program planned ahead")) {
             planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
                     options.resources(), options.edge());
         }
@@ -188,6 +205,6 @@ public final class BodyRouter {
                 // guard 3 in report mode on a program planned ahead too (the slice 1 audit, 2026-11-08)
                 ? com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(planned))
                 : planned;
-        return new Execution.PlannedProgram(ahead);
+        return ahead;
     }
 }

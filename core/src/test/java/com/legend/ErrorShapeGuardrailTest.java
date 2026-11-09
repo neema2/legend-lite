@@ -159,7 +159,7 @@ class ErrorShapeGuardrailTest {
             // held -- the catch always rethrows: the run's own failure, the first held appeal's failure (which
             // precedes it, the run's suppressed in it), or a named refusal where the failed run wrote (its rollback
             // undid what the appeals read). An Error (the wall's refusal) is not caught. Nothing swallowed
-            Map.entry("BodyRouter.java", 1),
+            Map.entry("TestPlanner.java", 1),
             // M7 (2026-11-01): the database judge's planner -- AssertVerdicts.planDatabase records an arm's WALL as a
             // step raised at the root's turn (the walk discards the root and surfaces the wall after its flush;
             // nothing may run at planning, so the raise is planned, its exit counted there: 1 more); DatabaseAsserts

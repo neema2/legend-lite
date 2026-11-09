@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
 import static com.legend.testexecutionplan.Verdicts.textsDiffer;
@@ -9,7 +9,6 @@ import static com.legend.testexecutionplan.Verdicts.isPopulationGolden;
 import static com.legend.testexecutionplan.Verdicts.stripChainedPlanWarning;
 import static com.legend.testexecutionplan.Verdicts.scalarString;
 
-import com.legend.exec.StatementOrigin;
 
 import com.legend.testexecutionplan.HostJudgment;
 import com.legend.compiler.spec.SpecCompiler;

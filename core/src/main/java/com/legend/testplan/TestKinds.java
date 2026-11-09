@@ -265,7 +265,7 @@ final class TestKinds implements ProgramKinds {
     private String resourceFile(String path) {
         if (resources == null) {
             throw new NotImplementedException("test resource '" + path + "': this execution carries no"
-                    + " resource resolver (ExecuteOptions.resources)");
+                    + " resource resolver (PlanningOptions.resources)");
         }
         java.nio.file.Path file = resources.apply(path);
         if (!java.nio.file.Files.isRegularFile(file)) {

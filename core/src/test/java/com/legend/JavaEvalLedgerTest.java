@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.driver.BodyDriver;
+import com.legend.testplan.BodyDriver;
 
 import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
@@ -1578,7 +1578,7 @@ class JavaEvalLedgerTest {
                     // ran). Since M5f (2026-11-01) it holds on a moved body's answer the row-count contract the walk
                     // holds (com.legend.testexec.SideShapes.holding: at most one row, at least one, exactly one for a to-one reader),
                     // counting rows, never computing a cell -- the D30 residue until the plan carries the contract
-                    "BodyRouter.java",
+                    "TestPlanner.java",
                     // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): a test plan run -- lowered to the runner's program, each verdict step read as its judge
                     // asks through the callback and handed to the judges; it reads and hands on, it decides nothing
                     "TestRun.java",

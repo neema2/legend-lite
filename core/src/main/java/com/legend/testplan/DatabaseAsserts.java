@@ -1,6 +1,6 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
-package com.legend.driver;
+package com.legend.testplan;
 
 import com.legend.testexecutionplan.Verdicts;
 
@@ -15,12 +15,10 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
-import com.legend.testplan.VerdictBatch;
 import com.legend.planner.LetPlanner;
 import com.legend.planner.PlanAllocations;
 import com.legend.planner.ProgramFrames;
 import com.legend.planner.QueryDoor;
-import com.legend.testplan.TestDoor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,7 +57,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
 
     /** (the plan-as-data design's step 5, 2026-11-08: the planner's run-side maps -- each verdict's segment, the
      *  assertErrors' steps by verdict -- deleted; the run reads each segment's root loop, a verdict's host facts and its
-     *  statement from the plan: BodyRouter, RootLoops) */
+     *  statement from the plan: TestPlanner, RootLoops) */
     private DatabaseAsserts(Map<Integer, List<TestPlan.Verdicts>> byStatement, Map<Integer, String> frameStamps,
             Map<Integer, TestPlan.Branch> branches) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));

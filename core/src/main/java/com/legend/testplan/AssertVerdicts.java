@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
 import com.legend.testexecutionplan.Failure;
 
@@ -11,7 +11,6 @@ import static com.legend.testexecutionplan.Verdicts.fail;
 
 import com.legend.testexecutionplan.HostJudgment;
 import com.legend.testexecutionplan.KindClass;
-import com.legend.ExecuteOptions;
 
 import com.legend.builtin.NativeFn;
 
@@ -477,7 +476,7 @@ final class AssertVerdicts {
         }
         // a caller's failure message (the asserts-as-plan-nodes program, step 2, 2026-11-04): the family's arm judges the
         // base overload; under the database judge its verdict row fails with the message's text (DatabaseJudge.runVerdict)
-        com.legend.compiler.spec.AssertMessages.Split split = env.options().judgeMode() == ExecuteOptions.JudgeMode.HOST
+        com.legend.compiler.spec.AssertMessages.Split split = env.options().judgeMode() == PlanningOptions.JudgeMode.HOST
                 ? null : com.legend.compiler.spec.AssertMessages.split(bare, specs);
         if (split != null) {
             DatabaseJudge.PlannedMessage message;
@@ -1569,12 +1568,12 @@ final class AssertVerdicts {
         return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, msg, letPrefix, specs, env, hook);
     }
 
-    /** The run's judge mode rides its options (ExecuteOptions.JudgeMode):
+    /** The run's judge mode rides its options (PlanningOptions.JudgeMode):
      * one mode per run, read from the execution environment — never a JVM
      * global. HOST is the verdict of record; DATABASE plans both sides and
      * lets the database return the verdict row. */
     static boolean databaseMode(BodyDriver.ExecEnv env) {
-        return env.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE;
+        return env.options().judgeMode() == PlanningOptions.JudgeMode.DATABASE;
     }
 
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
@@ -1583,7 +1582,7 @@ final class AssertVerdicts {
         // the host judge's asserts are planned by its own planner (HostAsserts) and judged at their verdict steps; the
         // agreement judge plans each half with its judge's planner: an arm judged in place is the database planner's
         // alone (I2, 2026-11-07: the host arm in place and the agreement arm deleted with the walk, measured unreached)
-        if (env.options().judgeMode() != ExecuteOptions.JudgeMode.DATABASE) {
+        if (env.options().judgeMode() != PlanningOptions.JudgeMode.DATABASE) {
             throw new IllegalStateException("the arms are the database judge's planner's; a " + env.options().judgeMode()
                     + " judge plans its asserts with its own planner");
         }

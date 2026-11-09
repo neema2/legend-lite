@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.testplan;
 
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
@@ -18,7 +18,6 @@ import com.legend.sql.dialect.RawSqlBoundary;
 import com.legend.test.StorelessRuntime;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
-import com.legend.testplan.BodyClass;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;

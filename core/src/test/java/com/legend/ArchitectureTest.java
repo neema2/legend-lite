@@ -228,7 +228,7 @@ final class ArchitectureTest {
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
-                    com.legend.driver.BodyDriver.class)
+                    com.legend.testplan.BodyDriver.class)
             .as("Invariant 4c: the root's doors, the planner and the driver are the top"
                     + " layer — audit 19; step C, D73")
             .check(CORE_PROD_CLASSES);
@@ -564,7 +564,7 @@ final class ArchitectureTest {
      * test-is-the-product plan's M5, 2026-11-01, the M5 audit's S5).</strong> {@code BodyDriver} was package-private
      * by design while it shared the root package with the execution door; the driver's machinery is its own package
      * now ({@code com.legend.driver}). The execution door ({@code Execution.runProgram}) calls the body router
-     * ({@code BodyRouter}), which runs a body of a moved class on the program road and walks every other with the
+     * ({@code TestPlanner}), which runs a body of a moved class on the program road and walks every other with the
      * body driver: the walk is reached from the driver package alone, and the router from the door alone.
      */
     @Test
@@ -578,7 +578,7 @@ final class ArchitectureTest {
         noClasses()
             .that().resideOutsideOfPackage("com.legend.driver")
             .and().doNotHaveFullyQualifiedName("com.legend.Execution")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyRouter(\\$.*)?")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.TestPlanner(\\$.*)?")
             .as("M5: the body router is the execution door's alone (Execution.runProgram)")
             .check(CORE_PROD_CLASSES);
     }
@@ -1201,7 +1201,7 @@ final class ArchitectureTest {
                 String tName = t.getName();
                 String tTop = topLevel(t);
                 // a run-only nested class keyed by its own name (the slice 3 invariant audit: Moved hid under
-                // BodyRouter's planning pins)
+                // TestPlanner's planning pins)
                 String key = runKey(c);
                 String tKey = runKey(t);
                 if (run && !tKey.equals(key) && (planningTarget.test(t) || tKey.equals(tTop) && mixed.contains(tTop))) {
@@ -1234,10 +1234,10 @@ final class ArchitectureTest {
     /** The driver's and the judges' classes that hold planning code alone, never measured as the run's (R1): the
      *  judges' planners, the test door's helpers they call, the planning registries and the facts read at planning. A
      *  class holding any run code is never listed here (it is MIXED until the split extracts its halves). */
-    private static final java.util.Set<String> PLANNING_ONLY = java.util.Set.of("com.legend.driver.HostAsserts",
-            "com.legend.driver.DatabaseAsserts", "com.legend.driver.AgreementAsserts", "com.legend.driver.AssertBranch",
-            "com.legend.driver.SeedSqlForms", "com.legend.driver.LiteralFold", "com.legend.driver.EngineTextAppeals",
-            "com.legend.driver.AppealsByVerdict", "com.legend.driver.JudgmentFacts", "com.legend.testplan.VerdictIds");
+    private static final java.util.Set<String> PLANNING_ONLY = java.util.Set.of("com.legend.testplan.HostAsserts",
+            "com.legend.testplan.DatabaseAsserts", "com.legend.testplan.AgreementAsserts", "com.legend.testplan.AssertBranch",
+            "com.legend.testplan.SeedSqlForms", "com.legend.testplan.LiteralFold", "com.legend.testplan.EngineTextAppeals",
+            "com.legend.testplan.AppealsByVerdict", "com.legend.testplan.JudgmentFacts", "com.legend.testplan.VerdictIds");
 
     /** R1's pinned crossings, by source (the first measure of every class, 2026-11-08, the plan-as-data design's slice
      *  3: 14 mixed classes, 266 crossings; 281 the same day once the slice 3 invariant audit's fix keyed the run-only
@@ -1290,12 +1290,12 @@ final class ArchitectureTest {
                 lowering.CanonRider lowering.VerdictSql planner.BodyPlanner planner.ConnectionPlans planner.EnginePlans
                 planner.EngineText planner.FramePlanner planner.PlanAllocations planner.PlanEnv planner.Prepared
                 planner.SidePlanner planner.SystemRoutes resolver.StagedRows testdatagen.TestDataGenerationNatives
-            driver.BodyRouter ->
+            driver.TestPlanner ->
                 TypedQuery compiler.spec.AssertLift compiler.spec.RelationCountAsserts
                 driver.AgreementAsserts driver.AppealsByVerdict driver.BodyDriver driver.DatabaseAsserts driver.HostAsserts
                 driver.JudgePlans driver.SqlTextVerdicts driver.SystemDatabase testplan.BodyClass testplan.BodyKinds
                 testplan.TestDoor
-            driver.BodyRouter$Moved ->
+            driver.TestPlanner$Moved ->
                 compiler.element.type.Multiplicity driver.AssertVerdicts driver.DatabaseJudge driver.HostSides
                 driver.JudgePlans driver.SqlTextVerdicts judge.VerdictBatch
             driver.DatabaseJudge ->
@@ -1373,7 +1373,7 @@ final class ArchitectureTest {
      *  R1's are {@link #R1_CROSSINGS}). */
     private static final java.util.Set<String> SPLIT_CROSSINGS = java.util.Set.of(
             // R1's pins moved to R1_CROSSINGS (2026-11-08, slice 3: R1 measures every class, its crossings by top-level
-            // source: Moved's and AgreementRuns$Run's four pins are BodyRouter's and AgreementRuns' there)
+            // source: Moved's and AgreementRuns$Run's four pins are TestPlanner's and AgreementRuns' there)
             // R2: the test-data generator's own run (generate(), kept for its one test and the generator's redesign,
             // S143) runs plans while it plans
             "R2 com.legend.testdatagen.TestDataGenerator -> com.legend.exec.PlanRunner",
@@ -1444,18 +1444,18 @@ final class ArchitectureTest {
      *  own session's ({@code Source.given}) and the server's ({@code ConnectionResolver.open}): the contract is
      *  implemented by lambdas and method references, which no call site expands (the slice 3 follow-up audit,
      *  2026-11-08). */
-    private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#run",
+    private static final java.util.Set<String> RUN_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#run",
             "com.legend.Execution#runBody", "com.legend.Execution$Source#open", "com.legend.Execution$Source#given",
             "com.legend.exec.PlanSessions#projectDatabase");
 
     /** Where planning begins: the router's planning halves and the doors'. */
-    private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.driver.BodyRouter#plan",
-            "com.legend.driver.BodyRouter#planned", "com.legend.Execution#planBody", "com.legend.Execution#planProgram");
+    private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#plan",
+            "com.legend.testplan.TestPlanner#planned", "com.legend.Execution#planBody", "com.legend.Execution#planProgram");
 
     /** The run's own classes, whole: R1 keys a crossing from one of these by its own name, never folded into its
-     *  enclosing class's (the slice 3 invariant audit, 2026-11-08: {@code Moved} hid under {@code BodyRouter}'s
+     *  enclosing class's (the slice 3 invariant audit, 2026-11-08: {@code Moved} hid under {@code TestPlanner}'s
      *  planning pins). */
-    private static final java.util.Set<String> RUN_ONLY_NESTED = java.util.Set.of("com.legend.driver.BodyRouter$Moved");
+    private static final java.util.Set<String> RUN_ONLY_NESTED = java.util.Set.of("com.legend.testplan.TestPlanner$Moved");
 
     /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
      *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's
@@ -1587,7 +1587,7 @@ final class ArchitectureTest {
                 "unjudged(java.lang.String,java.lang.String)", "refereed(java.lang.String,java.lang.String)");
         java.util.Set<String> handed = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
                 "com.legend.testexec.SqlReplayReferee");
-        java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.driver.BodyDriver$ExecEnv",
+        java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.testplan.BodyDriver$ExecEnv",
                 "com.legend.planner.PlanEnv");
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
             if (c.getName().equals("com.legend.testexecutionplan.AssertListener")) {
@@ -1613,7 +1613,7 @@ final class ArchitectureTest {
         }
         java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
                 "com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
-                "com.legend.driver.SqlTextVerdicts#declinedNow", "com.legend.driver.SqlTextVerdicts#declinedTo",
+                "com.legend.testplan.SqlTextVerdicts#declinedNow", "com.legend.testplan.SqlTextVerdicts#declinedTo",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
                 "com.legend.testexec.CanonicalDivergence#sqlUnjudged", "com.legend.testexec.CanonicalDivergence#sqlRaised",
                 "com.legend.testexec.CanonicalDivergence#sqlRaisedAt", "com.legend.testexec.CanonicalDivergence#sqlEnter");
@@ -1950,8 +1950,8 @@ final class ArchitectureTest {
     @Test
     void theCompatibilityJsonReaderIsTheJudgesAlone() {
         noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.driver.HostJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.DatabaseJudge")
+            .that().doNotHaveFullyQualifiedName("com.legend.testplan.HostJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.DatabaseJudge")
             .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson")
             .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple")
             .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple$Kind")
@@ -1963,13 +1963,13 @@ final class ArchitectureTest {
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
         noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.driver.AssertVerdicts")
+            .that().doNotHaveFullyQualifiedName("com.legend.testplan.AssertVerdicts")
             // task #27 (2026-09-21): the verdict seam's two arms — the host judge
             // (Java compare over database rows) and the database judge (the verdict
             // statement) — split out of the router
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.HostJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.DatabaseJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.driver.AssertErrorNative")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.HostJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.DatabaseJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.testplan.AssertErrorNative")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.PureAsserts")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")

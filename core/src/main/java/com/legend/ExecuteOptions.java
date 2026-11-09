@@ -57,6 +57,15 @@ public record ExecuteOptions(
 
     public static final ExecuteOptions NONE = new ExecuteOptions(null, null, java.util.Set.of());
 
+    /** What a test body's planning reads of these options (slice 5, 2026-11-09: planning reads no run option). */
+    public com.legend.testplan.PlanningOptions planning() {
+        return new com.legend.testplan.PlanningOptions(edge, resources, features, switch (judgeMode) {
+            case HOST -> com.legend.testplan.PlanningOptions.JudgeMode.HOST;
+            case DATABASE -> com.legend.testplan.PlanningOptions.JudgeMode.DATABASE;
+            case BOTH -> com.legend.testplan.PlanningOptions.JudgeMode.BOTH;
+        }, judgingRules());
+    }
+
     public ExecuteOptions withJudgeMode(JudgeMode mode) {
         return new ExecuteOptions(edge, resources, features, mode, systemConnections, engineCompat);
     }

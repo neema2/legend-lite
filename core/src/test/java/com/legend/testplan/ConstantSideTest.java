@@ -1,12 +1,11 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
-package com.legend.driver;
+package com.legend.testplan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.TestPlan;
 import com.legend.testexecutionplan.TypedSide;
@@ -26,12 +25,12 @@ import org.junit.jupiter.api.Test;
  */
 class ConstantSideTest {
 
-    private static PlanRunner.Rows handed(TestPlan.Side.Constant c) {
+    private static List<List<Object>> handed(TestPlan.Side.Constant c) {
         List<List<Object>> rows = new ArrayList<>();
         for (List<String> row : c.cells()) {
             rows.add(new ArrayList<Object>(row));
         }
-        return new PlanRunner.Rows(c.columns(), rows);
+        return rows;
     }
 
     @Test
@@ -88,7 +87,7 @@ class ConstantSideTest {
 
         TypedSide i = new TypedSide.Scalar(7L, "Integer");
         TestPlan.Side.Constant ci = JudgePlans.constantSide(i, false);
-        PlanRunner.Rows drifted = new PlanRunner.Rows(ci.columns(), List.of(List.of("8")));
+        List<List<Object>> drifted = List.of(List.of("8"));
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> JudgePlans.decodeConstant(ci, i, drifted));
         assertTrue(e.getMessage().contains("differs from the compiler's value"), e.getMessage());

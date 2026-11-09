@@ -72,14 +72,14 @@ class ReservedNamesGenerationTest {
                     s.execute(sql);
                 }
             }
-            TestDataGenerator.Result order = TestDataGenerator.generate(ctx,
+            TestDataGeneratorRun.Result order = TestDataGeneratorRun.generate(ctx,
                     query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("default", "order",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))),
                     null, false, com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), target(type), dialect, NO_VIEWS);
             assertFalse(order.sqls().isEmpty(), type.name());
             assertEquals("default\norder\nID,NAME\n1,a\n-----\n", order.dataCsvString(), type.name());
-            TestDataGenerator.Result item = TestDataGenerator.generate(ctx,
+            TestDataGeneratorRun.Result item = TestDataGeneratorRun.generate(ctx,
                     query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("select", "T",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L))))),
@@ -100,7 +100,7 @@ class ReservedNamesGenerationTest {
     }
 
     /** No view is fetched here. */
-    private static final TestDataGenerator.ViewSql NO_VIEWS = (db, view, temps) -> {
+    private static final TestDataGeneratorRun.ViewSql NO_VIEWS = (db, view, temps) -> {
         throw new AssertionError("no view in this model: " + view);
     };
 }
