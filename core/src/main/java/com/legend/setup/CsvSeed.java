@@ -65,7 +65,7 @@ public final class CsvSeed {
 
     /** A step as the plan runs it, beside the text a referee's ledger records for it: a statement of a SQL step
      *  (the text as its author wrote it, before the dialect's translation), a rows step's INSERT text. */
-    public record Planned(com.legend.executionplan.ExecutionPlan.SetupStep step, String text) {
+    public record Planned(com.legend.executionplan.ExecutionPlan.LoadStep step, String text) {
     }
 
     /**
@@ -83,7 +83,7 @@ public final class CsvSeed {
             switch (step) {
                 case Step.Sql blob -> {
                     for (String statement : com.legend.sql.RawSql.splitStatements(blob.text())) {
-                        out.add(new Planned(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
+                        out.add(new Planned(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
                                 new Step.Sql(statement, blob.writtenFor()).runOn(dialect)), statement));
                     }
                 }
@@ -92,7 +92,7 @@ public final class CsvSeed {
                     if (!load.rows().isEmpty()) {
                         String insert = dialect.render(load.values());
                         out.add(new Planned(bulk ? load.staged(dialect)
-                                : new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(insert), insert));
+                                : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(insert), insert));
                     }
                 }
             }

@@ -79,16 +79,17 @@ public final class SystemRoutes {
      *  ({@code Ddl.metamodelTemporary}, {@link #renames}). The runner runs it on the system database's session and
      *  records its key there (the seeds' memo), so the session holds the store once, whichever plan reaches it first.
      *  Knowledge, derived once per graph and engine. */
-    public static com.legend.executionplan.ExecutionPlan.Setup seeds(com.legend.compiler.element.ModelContext ctx,
+    public static com.legend.executionplan.ExecutionPlan.Load seeds(com.legend.compiler.element.ModelContext ctx,
             com.legend.executionplan.ExecutionPlan.Target system, com.legend.sql.dialect.SqlDialect dialect) {
         if (!(system.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System s)) {
             throw new IllegalArgumentException("the system store's seeds go to the graph's system database, not "
                     + system.database());
         }
-        java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> steps = ctx.derived(SeedMemo.class,
+        java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> steps = ctx.derived(SeedMemo.class,
                 c -> new SeedMemo()).steps.computeIfAbsent(s.type(), engine -> seedSteps(ctx, dialect));
-        return new com.legend.executionplan.ExecutionPlan.Setup(
-                com.legend.executionplan.ExecutionPlan.Setup.SYSTEM_STORE, steps, system);
+        return new com.legend.executionplan.ExecutionPlan.Load(
+                com.legend.executionplan.ExecutionPlan.Load.SYSTEM_STORE,
+                com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, steps, system);
     }
 
     /** The graph's system store's KEY (the plan-as-data design's step 7, 2026-11-08, 2.6): a hash of its content -- each
@@ -145,15 +146,15 @@ public final class SystemRoutes {
     /** The store's seed steps, per engine, of one graph ({@code ModelContext.derived}). */
     private static final class SeedMemo {
         private final java.util.Map<com.legend.executionplan.DatabaseType,
-                java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep>> steps =
+                java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep>> steps =
                 new java.util.concurrent.ConcurrentHashMap<>();
     }
 
-    private static java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> seedSteps(
+    private static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> seedSteps(
             com.legend.compiler.element.ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
         var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
                 new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
-        java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> out = new java.util.ArrayList<>();
+        java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> out = new java.util.ArrayList<>();
         for (var schema : store.schemas()) {
             for (var def : schema.tables()) {
                 java.util.List<java.util.List<String>> rows = MetamodelSeeds.rows(def.name(), ctx);
@@ -162,7 +163,7 @@ public final class SystemRoutes {
                 } else {
                     for (String statement : com.legend.setup.Ddl.metamodelTemporary(def, schema.name(), rows,
                             dialect)) {
-                        out.add(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(statement));
+                        out.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(statement));
                     }
                 }
             }

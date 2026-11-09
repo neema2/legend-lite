@@ -796,13 +796,14 @@ public final class DuckDb extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
-    /** {@inheritDoc} DuckDB's own CSV reader over the file (2026-11-06). */
+    /** {@inheritDoc} DuckDB's own CSV reader over the runner's copy of the file, its path a bound parameter (2026-11-06;
+     *  the path bound since 2026-11-09, measured). */
     @Override
-    protected String csvSource(String file) {
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
         // the embedded database reads the file itself: comma-separated, its first line a header, every cell text
         // (the INSERT casts each into its column, as a seed's cells are cast)
-        return "read_csv(" + stringLit(file) + ", header = true, delim = ',', quote = '\"', escape = '\"',"
-                + " all_varchar = true)";
+        return csvReadsFile(load, "read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"',"
+                + " all_varchar = true)");
     }
 
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's

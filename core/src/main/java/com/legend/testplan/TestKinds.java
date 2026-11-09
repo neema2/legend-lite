@@ -92,16 +92,15 @@ final class TestKinds implements ProgramKinds {
     /** The body this program plans: a statement's stores decide its target (per-statement routing). */
     private final TypedQuery body;
 
-    /** The test-input resource resolver (a resource's path to its local file; null: none), which a CSV load's
-     *  statement names the file through (2026-11-06). */
-    private final java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources;
+    /** Where a CSV load's file is read at planning, for its reference's digest and size (data:
+     *  docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09; a resolver function to a local path until then). */
+    private final com.legend.executionplan.DataStores stores;
 
-    TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts,
-            java.util.function.@com.legend.base.Nullable Function<String, java.nio.file.Path> resources) {
+    TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts, com.legend.executionplan.DataStores stores) {
         this.scan = new QueryDoor.Scan(body, runtime);
         this.asserts = asserts;
         this.body = body;
-        this.resources = resources;
+        this.stores = stores;
     }
 
     /** A statement reading the system metamodel store alone, in a program whose target is the user's: the graph's
@@ -260,19 +259,24 @@ final class TestKinds implements ProgramKinds {
                 lazy ? stamp : null));
     }
 
-    /** The local file the test-input resource {@code path} names, refused by name where the run has no resolver or
-     *  the file is missing (at planning, before anything is sent). */
-    private String resourceFile(String path) {
-        if (resources == null) {
-            throw new NotImplementedException("test resource '" + path + "': this execution carries no"
-                    + " resource resolver (PlanningOptions.resources)");
+    /** The bytes the test-input resource {@code path} names (a Pure resource path: its leading {@code /} the
+     *  resources' root) and their reference, read once at planning for the digest; refused by name where the run was
+     *  given no store for resources or the file is missing (before anything is sent). */
+    private Resource resource(String path) {
+        String name = path.startsWith("/") ? path.substring(1) : path;
+        byte[] bytes;
+        try {
+            bytes = stores.read(com.legend.executionplan.DataRef.Namespace.RESOURCE, name);
+        } catch (IllegalStateException | java.io.UncheckedIOException e) {
+            throw new com.legend.error.DataError("test resource '" + path + "': " + e.getMessage(), e);
         }
-        java.nio.file.Path file = resources.apply(path);
-        if (!java.nio.file.Files.isRegularFile(file)) {
-            throw new com.legend.error.DataError("test resource '" + path + "': no file at " + file,
-                    new java.io.FileNotFoundException(file.toString()));
-        }
-        return file.toAbsolutePath().toString();
+        return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
+                name, com.legend.executionplan.DataStores.sha256(bytes), bytes.length,
+                com.legend.executionplan.DataRef.Format.CSV), bytes);
+    }
+
+    /** A resource's reference and the bytes it digests. */
+    private record Resource(com.legend.executionplan.DataRef ref, byte[] bytes) {
     }
 
     /** Each {@code size(execute(...))} in {@code statement} (BodyClass.eagerInlineExecute): the execute's query run
@@ -357,7 +361,7 @@ final class TestKinds implements ProgramKinds {
 
     /**
      * {@code statement}'s seeds (D35, M3e): its sources -- each {@code from()}'s inline test data and named runtime,
-     * the program's runtime -- planned as a {@link ExecutionPlan.Setup} step before it, unless the program placed
+     * the program's runtime -- planned as a {@link ExecutionPlan.Load} step before it, unless the program placed
      * the same sources since its last write (the walk's established state, within the program; across programs the
      * runner skips a key the session holds clean). The steps are generated once per sources value, never per
      * statement (their key is their content). A statement that is not an effect has closed the open script first
@@ -383,8 +387,9 @@ final class TestKinds implements ProgramKinds {
                     + " follows another, and its sources name test data): their order against the run's script is"
                     + " not designed");
         }
-        List<ExecutionPlan.SetupStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
-        ExecutionPlan.Setup setup = new ExecutionPlan.Setup(Seeds.key(steps), steps, program.target());
+        List<ExecutionPlan.LoadStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
+        ExecutionPlan.Load setup = new ExecutionPlan.Load(Seeds.key(steps), ExecutionPlan.Load.Cadence.BEFORE_STEP,
+                steps, program.target());
         program.add(setup);
         seeds.put(setup, planned.stream().map(CsvSeed.Planned::text).toList());
     }
@@ -452,9 +457,13 @@ final class TestKinds implements ProgramKinds {
                             + " lite does not have -- write a computed value with a store write (the user's ruling,"
                             + " 2026-11-04)");
                 }
-                // a CSV load names its resource's LOCAL FILE, which the database reads (the user's ruling,
-                // 2026-11-06: the plan holds the file's path, never its rows)
-                values.add(effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE ? resourceFile(folded) : folded);
+                values.add(folded);
+            }
+            if (effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
+                // a CSV load is a LOAD at its place (docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09): the file by
+                // its reference, never its path or its rows; the effects before it are their own step
+                load(program, e, resource(values.get(0)));
+                continue;
             }
             script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
                     e.env().withDialect(program.dialect())));
@@ -484,6 +493,27 @@ final class TestKinds implements ProgramKinds {
     /** The places of the frame lets' eager-run steps this program planned (M9). */
     Set<Integer> frameRuns() {
         return Collections.unmodifiableSet(frameRuns);
+    }
+
+    /** A CSV file's load {@code e}, placed after the open script as a load of its own, run every time it is reached
+     *  ({@code AT_STEP}), the referee's copy of its rows beside it as a seed's; a file of no row loads nothing and
+     *  places nothing. Its identity: the file's digest and the statement it is delivered by. */
+    private void load(ProgramState program, Prepared.Effect e, Resource resource) {
+        EffectPlanner.PlannedLoad planned = EffectPlanner.loadCsv(e.call(), resource.ref(), resource.bytes(),
+                e.body(), e.env().withDialect(program.dialect()));
+        close(program);
+        if (planned == null) {
+            return;
+        }
+        String delivered = switch (planned.step().delivery()) {
+            case ExecutionPlan.LoadStep.Delivery.DatabaseReads r -> r.sql();
+            case ExecutionPlan.LoadStep.Delivery.Streamed st -> st.insert();
+        };
+        ExecutionPlan.Load load = new ExecutionPlan.Load(com.legend.executionplan.DataStores.sha256(
+                (resource.ref().digest() + "\n" + delivered).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                ExecutionPlan.Load.Cadence.AT_STEP, List.of(planned.step()), program.target());
+        program.add(load);
+        seeds.put(load, List.of(planned.recorded()));
     }
 
     /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)

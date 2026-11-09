@@ -29,8 +29,10 @@ public final class TestPlanJson {
      *  edge's records by step and by verdict, each through its codec; 6 (slice 3): whether the body's last statement
      *  answers a verdict; 7 (slice 3, hole 5): a root loop's row carries the decline its arm decided; 8 (slice 4,
      *  hole 1): an appeal's rows carry the enumerations the referee decodes; 9 (A1): an appeal names the appeal it is a
-     *  second hearing of; 10 (slice 5, 2026-11-09): the target of the session the body runs on. */
-    public static final int VERSION = 10;
+     *  second hearing of; 10 (slice 5, 2026-11-09): the target of the session the body runs on; 11 (2026-11-09, the
+     *  data-in-the-plan design's L1): a program's steps in the product's format version 31 -- the load node, a file
+     *  load by its data reference. */
+    public static final int VERSION = 11;
 
     private TestPlanJson() {
     }

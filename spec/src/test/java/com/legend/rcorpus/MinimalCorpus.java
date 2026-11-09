@@ -602,11 +602,10 @@ public final class MinimalCorpus {
             recorder = new com.legend.sql.dialect.RawSqlBoundary.Recorder(
                     shared ? seedLedger : List.of());
             referee = new com.legend.harness.ReplayReferee(recorder);
-            // the test-input resource resolver rides the same options (Phase 2d): a resource's path to its local file,
-            // which a CSV load's statement names for the database to read (2026-11-06)
+            // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
+            // 2026-11-09): a CSV load's plan names its file by reference and digest, the run reads it from here
             return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder),
-                            path -> Corpus.RELATIONAL.getParent().getParent()
-                            .resolve(path.startsWith("/") ? path.substring(1) : path))
+                            com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()))
                     // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
                     // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                     .withEngineCompat(true);

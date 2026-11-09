@@ -61,7 +61,7 @@ class RowLoadDuckDbTest {
 
     /** {@code load}'s one INSERT on {@code c} through the plan runner: the text path. */
     private static void text(Connection c, RowLoad load) {
-        PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
+        PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
                 DUCK.render(load.values()))), TARGET, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), null);
     }
 

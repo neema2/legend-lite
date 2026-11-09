@@ -132,15 +132,15 @@ public final class PlanRunner {
                     + " plan's answer is a result");
             case ExecutionPlan.Effect effect -> throw new IllegalStateException("a plan whose answer is an effect: a"
                     + " plan's answer is a result (an effect alone is sent by effect(...))");
-            case ExecutionPlan.Setup seeds -> throw new IllegalStateException("a plan whose root is a seed step: a"
+            case ExecutionPlan.Load seeds -> throw new IllegalStateException("a plan whose root is a seed step: a"
                     + " program's step, run by the program runner (ProgramRunner.run)");
         }
     }
 
-    /** A seed step on the graph's system database is the system store's own ({@link ExecutionPlan.Setup#SYSTEM_STORE},
+    /** A seed step on the graph's system database is the system store's own ({@link ExecutionPlan.Load#SYSTEM_STORE},
      *  the planner's), never a body's test data: refused by name otherwise. */
-    static void systemStore(ExecutionPlan.Setup seeds) {
-        if (!seeds.key().equals(ExecutionPlan.Setup.SYSTEM_STORE)) {
+    static void systemStore(ExecutionPlan.Load seeds) {
+        if (!seeds.identity().equals(ExecutionPlan.Load.SYSTEM_STORE)) {
             throw new IllegalStateException("a seed step on the graph's system database that is not the system store's"
                     + " own: the database holds the graph's metamodel and nothing else");
         }
@@ -255,7 +255,7 @@ public final class PlanRunner {
      * itself); a session the host opens is set up by its owner ({@link PlanSessions#setUp}). Counted under the
      * caller's statement origin. No step streams to a sink, so none raises an {@code IOException} of its own.
      */
-    public static void setUp(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
+    public static void setUp(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
             PlanSessions.Source sessions, @Nullable Ran ran) {
         // a run of its steps (THE WALL, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
@@ -265,18 +265,22 @@ public final class PlanRunner {
 
     /** {@link #setUp} inside the run in progress: a session the runner opened for a target, set up as it opens
      *  ({@link PlanSessions}). */
-    static void setUpIn(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
+    static void setUpIn(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
             PlanSessions.Source sessions, @Nullable Ran ran) {
         for (int i = 0; i < steps.size(); i++) {
             boolean answeredRows = switch (steps.get(i)) {
-                case ExecutionPlan.SetupStep.Statement s -> {
+                case ExecutionPlan.LoadStep.Statement s -> {
                     try {
                         yield effectIn(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }
-                case ExecutionPlan.SetupStep.Rows r -> {
+                // a target's setup holds statements and rows; its loads by reference arrive with the design's L2
+                case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("a file's load in a target's"
+                        + " setup (" + f.ref().name() + "): a target's loads by reference arrive with"
+                        + " docs/DATA_IN_THE_PLAN_2026_11_09.md L2");
+                case ExecutionPlan.LoadStep.Rows r -> {
                     try (Sessions.Session session = sessions.open(target)) {
                         if (!opened(session, target, sessions.mark()).load(r)) {
                             throw new IllegalStateException("the setup has rows for a bulk loader, and the session's"
@@ -413,7 +417,7 @@ public final class PlanRunner {
                     changes = true;
                     yield e.sql();
                 }
-                case ExecutionPlan.Setup u -> throw new NotImplementedException("a seed step in a"
+                case ExecutionPlan.Load u -> throw new NotImplementedException("a seed step in a"
                         + " plan the query door runs: seeds are the test door's (the program runner's, ProgramRunner.run)");
                 case ExecutionPlan.TdsResult t -> {
                     results++;
@@ -500,7 +504,7 @@ public final class PlanRunner {
                 case ExecutionPlan.Update u -> update(u, values, st);
                 case ExecutionPlan.Check k -> check(k, values, st);
                 case ExecutionPlan.Effect e -> effect(e, values, st);
-                case ExecutionPlan.Setup u -> throw new IllegalStateException("a seed step in a plan's steps: the"
+                case ExecutionPlan.Load u -> throw new IllegalStateException("a seed step in a plan's steps: the"
                         + " program runner's (ProgramRunner.run)");
                 case ExecutionPlan.TdsResult t -> result(t, values, st, held);
                 case ExecutionPlan.Constant c -> constant(c, held);
@@ -569,42 +573,51 @@ public final class PlanRunner {
         st.execute(statement);
     }
 
-    /** The graph's system store's seed step ({@link ExecutionPlan.Setup#SYSTEM_STORE}) on {@code system}, the graph's
+    /** The graph's system store's seed step ({@link ExecutionPlan.Load#SYSTEM_STORE}) on {@code system}, the graph's
      *  system database's session, once (the seeds' memo): the body driver's walk reaching that session runs the program
      *  road's own step through here, so whichever road comes first writes the store, once. Deleted with the walk. */
-    public static void seedSystemStore(ExecutionPlan.Setup seeds, Sessions.Session system) {
+    public static void seedSystemStore(ExecutionPlan.Load seeds, Sessions.Session system) {
         if (!(seeds.target().database() instanceof ExecutionPlan.Database.System)) {
             throw new IllegalStateException("the system store's seeds name the graph's system database");
         }
         systemStore(seeds);
         // a run of the seed step (THE WALL, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
-            seed(seeds, system, opened(system, seeds.target()), answered -> { });
+            // the system store's load holds rows and statements, never a file: it is given no store
+            seed(seeds, system, opened(system, seeds.target()), com.legend.executionplan.DataStores.none(),
+                    answered -> { });
         }
     }
 
-    /** A program's seed step (B12): skipped where the session holds its key's seeds and has run no write since; run
-     *  otherwise, step by step as a target's setup is, and its key recorded. {@code ran} is told which of its
-     *  statements ran, and whether each answered rows -- on a failure, those before it, as the walk records a setup's
-     *  statements as each runs (the M5 audit's S1). The system store's seeds are sent under the SYSTEM mark, as its
-     *  holder sent them; every other seed under SEED. */
-    static void seed(ExecutionPlan.Setup seeds, Sessions.Session session, Statements st,
-            java.util.function.Consumer<List<Boolean>> ran) {
-        SeedKey key = new SeedKey(seeds.key());
-        if (session.state().established(key)) {
+    /** A program's load (B12; docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2): a {@code BEFORE_STEP} load (the seeds) skipped
+     *  where the session holds its identity and has run no write since, and its identity recorded once run; an
+     *  {@code AT_STEP} load (a program's own, {@code loadCsvToDbTable}) run every time, a write, recording nothing. Its
+     *  steps run as a target's setup's are, a file's through {@link DataLoads} over {@code stores}. {@code ran} is told
+     *  which of its steps ran, and whether each answered rows -- on a failure, those before it, as the walk records a
+     *  setup's statements as each runs (the M5 audit's S1). The system store's load is sent under the SYSTEM mark, as
+     *  its holder sent it; every other under SEED. */
+    static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
+            com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
+        boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        SeedKey key = new SeedKey(seeds.identity());
+        if (memo && session.state().established(key)) {
             return;
+        }
+        if (!memo) {
+            // a program's own load writes, as an effect does: a seed established before it is established no more
+            session.state().markWriting();
         }
         List<Boolean> answered = new ArrayList<>(seeds.steps().size());
         boolean system = seeds.target().database() instanceof ExecutionPlan.Database.System;
         Statements seeding = Statements.marked(st, system ? StatementOrigin.SYSTEM : StatementOrigin.SEED);
         try {
-            for (ExecutionPlan.SetupStep each : seeds.steps()) {
+            for (ExecutionPlan.LoadStep each : seeds.steps()) {
                 switch (each) {
-                    case ExecutionPlan.SetupStep.Statement s -> {
+                    case ExecutionPlan.LoadStep.Statement s -> {
                         StatementOrigin.sent(seeding.mark(), s.sql());
                         answered.add(seeding.execute(s.sql()));
                     }
-                    case ExecutionPlan.SetupStep.Rows r -> {
+                    case ExecutionPlan.LoadStep.Rows r -> {
                         if (!seeding.load(r)) {
                             throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
                                     + " database has none (" + r.stagingTable() + ")");
@@ -613,12 +626,34 @@ public final class PlanRunner {
                         StatementOrigin.count(seeding.mark());
                         answered.add(false);
                     }
+                    case ExecutionPlan.LoadStep.File f -> {
+                        // the file by its reference: its verified bytes, delivered as the plan says (DataLoads)
+                        byte[] bytes = DataLoads.verified(f.ref(), stores);
+                        switch (f.delivery()) {
+                            case ExecutionPlan.LoadStep.Delivery.DatabaseReads reads -> {
+                                try (DataLoads.Staged staged = DataLoads.stage(bytes)) {
+                                    seeding.readsFile(reads.sql(), staged.path());
+                                }
+                            }
+                            case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
+                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns());
+                                if (!cells.isEmpty()) {
+                                    seeding.streams(streamed.insert(), cells);
+                                }
+                            }
+                        }
+                        // the load's one statement (its batch, or the read), counted under the seeds' mark
+                        StatementOrigin.count(seeding.mark());
+                        answered.add(false);
+                    }
                 }
             }
         } finally {
             ran.accept(List.copyOf(answered));
         }
-        session.state().establish(key);
+        if (memo) {
+            session.state().establish(key);
+        }
     }
 
     /** A seed step's key as the session's seeds' memo holds it. */

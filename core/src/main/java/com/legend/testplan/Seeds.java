@@ -223,14 +223,14 @@ public final class Seeds {
     /** The seeds' name in a plan: the content of the steps the session runs (a step's executed text, a load's rows),
      *  so equal seeds share it and seeds that run differently never do (the M3 audit: the authored text alone named
      *  two languages' runs of one text alike). */
-    public static String key(List<ExecutionPlan.SetupStep> steps) {
+    public static String key(List<ExecutionPlan.LoadStep> steps) {
         // each field length-prefixed, a cell's absence marked (the design audit's H1, 2026-11-02: a record's toString
         // joins fields with no escape, so two different seeds could spell one key and the second be skipped)
         StringBuilder sb = new StringBuilder();
-        for (ExecutionPlan.SetupStep step : steps) {
+        for (ExecutionPlan.LoadStep step : steps) {
             switch (step) {
-                case ExecutionPlan.SetupStep.Statement st -> field(sb.append('S'), st.sql());
-                case ExecutionPlan.SetupStep.Rows r -> {
+                case ExecutionPlan.LoadStep.Statement st -> field(sb.append('S'), st.sql());
+                case ExecutionPlan.LoadStep.Rows r -> {
                     field(field(field(field(sb.append('R'), r.stagingTable()), r.createStaging()), r.copy()),
                             r.dropStaging());
                     sb.append(r.rows().size()).append(':');
@@ -245,6 +245,9 @@ public final class Seeds {
                         }
                     }
                 }
+                // a seed is statements and rows; a file is a program's own load, never a seed
+                case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("a file's load among a seed's"
+                        + " steps: " + f.ref().name());
             }
         }
         return "seeds:" + Hash.ofUtf8(sb.toString()).hex();

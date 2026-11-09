@@ -57,7 +57,10 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // project database, which only the server's plans name; a host runs on its own session and reads none of it
 // 30 since 2026-11-09: whether the plan writes (`writes`: where Java's run sends it) and a project's refusal
 // (`refused`) -- this runner runs every step on the host's one session, a write in its transaction, so it reads neither
-const PLAN_VERSION = 30;
+// 31 since 2026-11-09: the setup node is the load node (identity, cadence) and a load step may be a file by its data
+// reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1) -- a load node is refused by name, as the setup node was, and a
+// target's setup steps are refused whatever their kind (below)
+const PLAN_VERSION = 31;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

@@ -43,7 +43,7 @@ class TypedPlanTest {
             case ExecutionPlan.Update u -> u.sql().target();
             case ExecutionPlan.Check k -> k.sql().target();
             case ExecutionPlan.Effect e -> e.sql().target();
-            case ExecutionPlan.Setup u -> throw new IllegalStateException("a typed plan here has no seed step");
+            case ExecutionPlan.Load u -> throw new IllegalStateException("a typed plan here has no seed step");
             case ExecutionPlan.Constant c -> throw new IllegalStateException("a typed plan here reads a database: a"
                     + " constant answer names no target");
         };

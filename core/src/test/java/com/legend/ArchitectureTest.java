@@ -1419,13 +1419,15 @@ final class ArchitectureTest {
     }
 
     /** The calls a door may make (the doors' shape, below): planning's entries, the runs' entries, and the test door's
-     *  options' three accessors. */
+     *  options' accessors -- {@code stores} since 2026-11-09 (docs/DATA_IN_THE_PLAN_2026_11_09.md L1: the data stores a
+     *  run's loads resolve through, a run input as the system connections are; the resolver function planning called
+     *  until then is deleted). */
     private static final java.util.Set<String> DOOR_PLANNING_CALLS = java.util.Set.of(
             "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
             "com.legend.TypedQuery#projectPlan",
             "com.legend.testplan.TestPlanner#plan", "com.legend.testplan.TestPlanner#planAhead",
             "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
-            "com.legend.ExecuteOptions#systemConnections");
+            "com.legend.ExecuteOptions#systemConnections", "com.legend.ExecuteOptions#stores");
 
     private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
             "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",

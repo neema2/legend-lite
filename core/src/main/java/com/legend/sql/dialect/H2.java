@@ -168,12 +168,13 @@ public class H2 extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
-    /** {@inheritDoc} H2's {@code CSVREAD} over the file (2026-11-06). */
+    /** {@inheritDoc} The runner streams the cells, one row's insert each (2026-11-09): H2's {@code CSVREAD}, which
+     *  read the file until then (as legend-engine's H2 loads one, loadValuesToDbTableForH2), takes no bound path
+     *  (measured 2026-11-09), and a path written into the statement is a machine's path in the plan. The runner splits
+     *  the text by {@code CSVREAD}'s own rule ({@code base.CsvCells}). */
     @Override
-    protected String csvSource(String file) {
-        // H2's CSVREAD, as legend-engine's H2 loads a CSV file (loadValuesToDbTableForH2): the first line the column
-        // names (no column list given), every cell text the INSERT casts into its column
-        return "CSVREAD(" + stringLit(file) + ", NULL, 'charset=UTF-8')";
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        return csvStreamed(load);
     }
 
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's

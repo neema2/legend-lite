@@ -37,8 +37,8 @@ class PlanMakerH2Test {
                 com.legend.testcases.PlanCases.Written.JSON));
         assertEquals(List.of(), h2.session());
         // H2's rows are one INSERT
-        assertInstanceOf(ExecutionPlan.SetupStep.Statement.class, h2.setup().get(h2.setup().size() - 1));
-        assertTrue(h2.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.SetupStep.Rows), h2.setup().toString());
+        assertInstanceOf(ExecutionPlan.LoadStep.Statement.class, h2.setup().get(h2.setup().size() - 1));
+        assertTrue(h2.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Rows), h2.setup().toString());
     }
 
     @Test

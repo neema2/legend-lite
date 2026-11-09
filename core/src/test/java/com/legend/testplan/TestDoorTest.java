@@ -66,7 +66,7 @@ class TestDoorTest {
         assertEquals(query.answerSql().statement(), answer.sql().statement());
         assertFalse(query.answerSql().target().setup().isEmpty(), "the query door's target: the declared rows");
         // M3e: the runtime's seeds are a step of the program, the same steps the query door's target carries
-        ExecutionPlan.Setup seeds = assertInstanceOf(ExecutionPlan.Setup.class, seq.steps().get(0));
+        ExecutionPlan.Load seeds = assertInstanceOf(ExecutionPlan.Load.class, seq.steps().get(0));
         assertEquals(query.answerSql().target().setup(), seeds.steps());
     }
 
@@ -85,7 +85,7 @@ class TestDoorTest {
         ExecutionPlan plan = productPlan(body, "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(plan, "seeds, an effect, seeds again");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
-        assertEquals(List.of("Setup", "Effect", "Setup", "TdsResult"),
+        assertEquals(List.of("Load", "Effect", "Load", "TdsResult"),
                 steps.stream().map(n -> n.getClass().getSimpleName()).toList());
         assertEquals(steps.get(0), steps.get(2), "the same sources, the same seeds");
         try (Connection c = TestBackends.platform().open()) {
@@ -141,7 +141,7 @@ class TestDoorTest {
         List<com.legend.exec.ProgramRunner.Step> steps = new java.util.ArrayList<>();
         nodes.forEach(n -> steps.add(new com.legend.exec.ProgramRunner.Node(n, null)));
         com.legend.exec.ProgramRunner.run(new com.legend.exec.ProgramRunner.Program(plan.parameters(), steps), Map.of(),
-                PlanSessions.of(TestSessions.over(c)), (id, open) -> {
+                PlanSessions.of(TestSessions.over(c)), com.legend.executionplan.DataStores.none(), (id, open) -> {
                     throw new AssertionError("no verdict in these programs");
                 }, new com.legend.exec.ProgramRunner.ProgramSink() {
                     @Override
@@ -264,7 +264,7 @@ class TestDoorTest {
         ExecutionPlan plan = productPlan(body, "x::RT", Set.of());
         PlanRoundTrip.assertRoundTrips(plan, "a frame let");
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
-        assertEquals(List.of("Setup", "Check", "TdsResult"),
+        assertEquals(List.of("Load", "Check", "TdsResult"),
                 steps.stream().map(n -> n.getClass().getSimpleName()).toList());
         assertNull(((ExecutionPlan.Check) steps.get(1)).sql().stamp(),
                 "no later statement reads the run's comment: it binds no stamp (the M3 audit's B7a)");
@@ -323,7 +323,7 @@ class TestDoorTest {
     void aConstantOnASeededRuntimeSeedsAndAnswers() throws Exception {
         ExecutionPlan plan = productPlan(Compiler.query(Compiler.compileModel(DUCK), "|'x'"), "x::RT", Set.of());
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
-        assertEquals(List.of("Setup", "Constant"), steps.stream().map(n -> n.getClass().getSimpleName()).toList());
+        assertEquals(List.of("Load", "Constant"), steps.stream().map(n -> n.getClass().getSimpleName()).toList());
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(List.of(List.of("x")), run(plan, c));
         }
@@ -459,9 +459,9 @@ class TestDoorTest {
      *  and a session holding the first skipped it. */
     @Test
     void twoSeedsThatPrintAlikeHaveTwoKeys() {
-        ExecutionPlan.SetupStep one = new ExecutionPlan.SetupStep.Rows("t", "create", "copy", "drop",
+        ExecutionPlan.LoadStep one = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
                 java.util.List.of(java.util.List.of("a, b")));
-        ExecutionPlan.SetupStep two = new ExecutionPlan.SetupStep.Rows("t", "create", "copy", "drop",
+        ExecutionPlan.LoadStep two = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
                 java.util.List.of(java.util.List.of("a", "b")));
         assertEquals(one.toString(), two.toString(), "the two steps print alike");
         assertFalse(Seeds.key(java.util.List.of(one)).equals(Seeds.key(java.util.List.of(two))),

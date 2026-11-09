@@ -4,7 +4,6 @@
 package com.legend.sql.dialect;
 
 import com.legend.sql.DialectCapability;
-
 import com.legend.sql.NameQuoting;
 import com.legend.sql.SqlDml;
 import org.junit.jupiter.api.Test;
@@ -16,8 +15,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,50 +25,57 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A CSV file's load ({@link SqlDml.LoadCsv}, {@code loadCsvToDbTable}; the user's ruling, 2026-11-06): the statement
- * names the file and the DATABASE reads and parses it -- DuckDB's {@code read_csv}, H2's {@code CSVREAD}, as
- * legend-engine's H2 loads one -- its header dropped, its cells cast into the table's columns positionally. A dialect
- * whose database reads no file refuses it by name.
+ * A CSV file's load as each dialect spells it ({@link SqlDialect#csvLoad}; docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
+ * 2026-11-09): no statement names a file or holds a row. DuckDB reads the runner's copy through its statement's one
+ * bound {@code ?}; H2's {@code CSVREAD} takes no bound path, so the runner streams the cells through one row's insert;
+ * a dialect whose database takes neither refuses it by name. The loads themselves run in {@code exec.DataLoadsTest}.
  */
 class CsvLoadRenderTest {
 
-    private static SqlDml.LoadCsv load(Path file) {
-        return new SqlDml.LoadCsv(null, "people", NameQuoting.BARE, List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of(),
-                file.toString());
+    private static final SqlDml.LoadCsv LOAD = new SqlDml.LoadCsv(null, "people", NameQuoting.BARE,
+            List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of());
+
+    @Test
+    void duckDbReadsTheRunnersCopyThroughABoundPath() {
+        SqlDialect.CsvLoad load = new DuckDb().csvLoad(LOAD);
+        assertTrue(load.readsFile());
+        assertEquals("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT * FROM read_csv(?, header = true,"
+                + " delim = ',', quote = '\"', escape = '\"', all_varchar = true)", load.sql());
     }
 
     @Test
-    void theEmbeddedDatabasesReadTheFileThemselves(@TempDir Path dir) throws Exception {
-        // the corpus's file as it is: a header, two rows, no newline after the last
-        Path file = Files.writeString(dir.resolve("employees.csv"), "Firstname,Lastname,Age\nJoe,Bloggs,21\nJill,Smith,31");
-        for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new H2(), "jdbc:h2:mem:csv_load"),
-                Map.entry(new DuckDb(), "jdbc:duckdb:"))) {
-            SqlDialect d = db.getKey();
-            String name = d.getClass().getSimpleName();
-            String sql = d.render(load(file));
-            assertTrue(sql.startsWith("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT * FROM "), name + ": " + sql);
-            assertTrue(sql.contains(file.toString()), name + " names the file, never its rows: " + sql);
-            try (Connection c = DriverManager.getConnection(db.getValue()); Statement st = c.createStatement()) {
-                st.execute("CREATE TABLE people (FIRSTNAME VARCHAR(200), LASTNAME VARCHAR(200), AGE INT)");
-                st.execute(sql);
-                try (ResultSet rs = st.executeQuery("SELECT FIRSTNAME, LASTNAME, AGE FROM people ORDER BY AGE")) {
-                    assertTrue(rs.next(), name);
-                    assertEquals("Joe", rs.getString(1), name);
-                    assertEquals("Bloggs", rs.getString(2), name);
-                    assertEquals(21, rs.getInt(3), name);
-                    assertTrue(rs.next(), name);
-                    assertEquals("Jill", rs.getString(1), name);
-                    assertEquals(31, rs.getInt(3), name);
-                    assertFalse(rs.next(), name);
+    void h2TakesTheCellsTheRunnerStreams() {
+        SqlDialect.CsvLoad load = new H2().csvLoad(LOAD);
+        assertFalse(load.readsFile());
+        assertEquals("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) VALUES (?, ?, ?)", load.sql());
+    }
+
+    /** The cells the runner streams to H2 are the cells H2's own {@code CSVREAD} read until 2026-11-09 (as
+     *  legend-engine's H2 loads a file): the split rule ({@code base.CsvCells}) measured against the reader itself. */
+    @Test
+    void theStreamedCellsAreTheCellsCsvreadReads(@TempDir Path dir) throws Exception {
+        String text = "A,B,C\r\n \"x, \"\"y\"\"\" , z ,\n\nlast\r\n\"\",,  \n  padded  ,\"q\"\t,9,extra\n";
+        Path file = Files.writeString(dir.resolve("cells.csv"), text);
+        List<List<String>> read = new ArrayList<>();
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:csv_cells"); Statement st = c.createStatement();
+                ResultSet rs = st.executeQuery("SELECT * FROM CSVREAD('" + file + "', NULL, 'charset=UTF-8')")) {
+            int width = rs.getMetaData().getColumnCount();
+            while (rs.next()) {
+                List<String> row = new ArrayList<>();
+                for (int i = 1; i <= width; i++) {
+                    row.add(rs.getString(i));
                 }
+                read.add(row);
             }
         }
+        List<List<String>> rows = com.legend.base.CsvCells.rows(text);
+        assertEquals(read, com.legend.base.CsvCells.body(rows, rows.get(0).size()));
     }
 
     @Test
-    void aDatabaseThatReadsNoFileRefusesByName(@TempDir Path dir) {
+    void aDatabaseThatTakesNoFileRefusesByName() {
         for (SqlDialect d : List.of(new SQLite(), new Postgres(), new MongoDb())) {
-            DialectCapability e = assertThrows(DialectCapability.class, () -> d.render(load(dir.resolve("x.csv"))),
+            DialectCapability e = assertThrows(DialectCapability.class, () -> d.csvLoad(LOAD),
                     d.getClass().getSimpleName());
             assertTrue(e.getMessage().contains("CSV file's load"), e.getMessage());
         }

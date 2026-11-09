@@ -259,7 +259,7 @@ public final class PlanMaker {
             case ExecutionPlan.Update u -> List.of(u.sql());
             case ExecutionPlan.Effect e -> List.of(e.sql());
             case ExecutionPlan.Keyed k -> List.of(k.keys(), k.body());
-            case ExecutionPlan.Setup u -> List.of();
+            case ExecutionPlan.Load u -> List.of();
             case ExecutionPlan.Constant c -> List.of();
             case ExecutionPlan.Sequence q -> throw new IllegalStateException("a sequence inside a sequence");
         };
@@ -854,7 +854,7 @@ public final class PlanMaker {
             ModelContext ctx, SqlDialect dialect,
             Metamodel metamodel, boolean projectDatabase) {
         ExecutionPlan.Database database = database(decided, projectDatabase ? project(decided, ctx, dialect) : null);
-        List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
+        List<ExecutionPlan.LoadStep> steps = new ArrayList<>(
                 setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect));
         steps.addAll(metamodel.setup());
         List<String> session = new ArrayList<>(dialect.sessionSetup());
@@ -893,10 +893,10 @@ public final class PlanMaker {
                     // database is made (slice 5, 2026-11-09: refused here, at planning, it failed every query of the
                     // model, those on another database too -- the stress lanes' 5,795 bodies)
                     String refused = platform ? null : com.legend.setup.ProjectData.refusal(ctx);
-                    List<ExecutionPlan.SetupStep> made = new ArrayList<>();
+                    List<ExecutionPlan.LoadStep> made = new ArrayList<>();
                     if (!platform && refused == null) {
                         for (String sql : com.legend.setup.ProjectData.fill(ctx, dialect)) {
-                            made.add(new ExecutionPlan.SetupStep.Statement(sql));
+                            made.add(new ExecutionPlan.LoadStep.Statement(sql));
                         }
                     }
                     return new ExecutionPlan.Project(key, made, refused);
@@ -916,7 +916,7 @@ public final class PlanMaker {
      * {@code inline}, on a database with no temporary table, each table referenced as the query's own rows (the
      * relation for an alias).
      */
-    record Metamodel(List<ExecutionPlan.SetupStep> setup, List<String> session, Map<String, String> renames,
+    record Metamodel(List<ExecutionPlan.LoadStep> setup, List<String> session, Map<String, String> renames,
             Map<String, Function<String, SqlSource>> inline) {
         static final Metamodel NONE = new Metamodel(List.of(), List.of(), Map.of(), Map.of());
 
@@ -963,7 +963,7 @@ public final class PlanMaker {
                 .findDatabase(SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
         boolean inProcess = dialect.inProcess();
-        List<ExecutionPlan.SetupStep> setup = new ArrayList<>();
+        List<ExecutionPlan.LoadStep> setup = new ArrayList<>();
         List<String> session = new ArrayList<>();
         Map<String, String> renames = new LinkedHashMap<>();
         Map<String, Function<String, SqlSource>> inline =
@@ -1083,7 +1083,7 @@ public final class PlanMaker {
      * database's bulk loader ({@link SqlDialect#loadsRowsInBulk}) with the statements that stage them, or as the one
      * INSERT the database runs. A table of no rows is no step.
      */
-    private static List<ExecutionPlan.SetupStep> setup(List<CsvSeed.Step> steps, SqlDialect dialect) {
+    private static List<ExecutionPlan.LoadStep> setup(List<CsvSeed.Step> steps, SqlDialect dialect) {
         // the one owner of the steps' form (the doors, 2026-10-29): the body driver's seeds take the same
         return CsvSeed.planned(steps, dialect).stream().map(CsvSeed.Planned::step).toList();
     }

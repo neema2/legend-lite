@@ -5,6 +5,9 @@ plan - including provably deleting all other 17 mechanisms please that's the rea
 everything"). Its open decisions are in §8; nothing in §1-§7 waits on them. It closes D3 of
 `docs/PLAN_AS_DATA_2026_11_07.md` §11 and replaces hole 7 v1's inline project fill.
 
+**Progress:** L1 built 2026-11-09 (§4's L1 row, "as built"): D3 is a `File` load by reference, the Windows long path
+gone with it; the deletion census (§6, P4) is on with M8's row deleted.
+
 **Evidence:** `docs/data-in-the-plan-homework/` -- `inventory.md` (the 17 mechanisms lite has today, with file:line
 and measured sizes), `upstream.md` (what legend-pure and legend-engine do, read from the pinned sources), `usage.md`
 (sixteen workflows of the platform's users and what each needs of data in a plan).
@@ -53,11 +56,13 @@ Load(identity, cadence, target, steps)
 
 identity  SHA-256 of a canonical encoding of the load's steps: the declared shapes and every digest in it
           (one scheme for every load, carried in the plan, never recomputed at run)
-cadence   ONCE             made once per identity and kept
-          PER_ACQUISITION  established on every session acquisition
-          PER_TRANSACTION  inside a transaction that is rolled back
-          AT_STEP          a program's load step: run at its turn unless the session holds its identity and has run
-                           no write since (today's seed-step rule)
+cadence   BEFORE_STEP      the seeds a program's next statement reads: skipped where the session holds the identity
+                           and has run no write since (the seed step's memo), else run and the identity recorded (L1)
+          AT_STEP          a program's own load at its place (loadCsvToDbTable): run every time it is reached, a
+                           write as an effect is (L1)
+          PER_ACQUISITION  established on every session acquisition (a target's setup: L2)
+          ONCE             made once per identity and kept (a project's Data: L3)
+          PER_TRANSACTION  inside a transaction that is rolled back (the catalog in tests: L4)
 target    the database it loads into (the plan's Target)
 steps     LoadStep...
 ```
@@ -102,9 +107,11 @@ carriage; the database casts every value.
 
 ### 2.6 Where loads live in a plan
 
-- **One load section per plan,** keyed by identity: the product's `ExecutionPlan` and the test's `TestPlan` alike. A
-  target names the identities it needs; a program step names the identity it runs (`AT_STEP`). A load is written once
-  in a plan however many statements need it.
+- **A program's own loads are nodes at their place** (`ExecutionPlan.Load`, `BEFORE_STEP` and `AT_STEP`: L1; until
+  then the `Setup` node, the seeds alone).
+- **One load section per plan** for the loads a target needs (`PER_ACQUISITION`, `ONCE`), keyed by identity: the
+  product's `ExecutionPlan` and the test's `TestPlan` alike. A target names the identities it needs. A load is written
+  once in a plan however many statements need it (L2, L3).
 - **A portable plan is a package:** the plan, its loads and the bytes of its `bundle` references. A plan alone stays
   small (G3); the package runs from nothing (G11).
 - **Plan JSON:** a new version of `PlanJson` and `TestPlanJson`; every runner reads it (§6, P7).
@@ -160,7 +167,7 @@ that cannot delete what it replaces is not done.
 | Slice | What | Deletes | Guard turned on |
 |---|---|---|---|
 | **L0** | this spec; the homework kept | -- | -- |
-| **L1** | `DataRef`, `Load`, `LoadStep` (`Statement`, `Rows`, `File`), the deliveries `DatabaseReads` and `Streamed`; exec's resolver, digest check and staging; stores as run data; plan JSON versions; **M8 (D3) onto a `File` step**. Fixes PR #92's Windows job as a byproduct | M8's list | P5 (no machine path), P6 (digests verified) |
+| **L1** | `DataRef`, `Load`, `LoadStep` (`Statement`, `Rows`, `File`), the deliveries `DatabaseReads` and `Streamed`; exec's resolver, digest check and staging; stores as run data; plan JSON versions; **M8 (D3) onto a `File` step**. Fixes PR #92's Windows job as a byproduct | M8's list | P5 (no machine path), P6 (digests verified), P4 started (the census, M8's row) |
 | **L2** | M2, M3, M4 and M7's seed forms onto loads: one road for test data | their lists | P1 (one record family), P2 (one constructor) |
 | **L3** | M1 onto `Load(ONCE)` in the load section | M1's list | P4 census rows M1-M4, M7, M8 |
 | **L4** | M5, M6: the catalog design, on loads | their lists | census rows M5, M6 |
@@ -168,6 +175,32 @@ that cannot delete what it replaces is not done.
 | **L6** | M10: JSON model data as references and views | M10's list | census row M10 |
 | **L7** | M14: the TypeScript and Python runners execute loads; the cross-runner version guard | M14's list | P7, census row M14 |
 | **L8** | M15, M17, M13's output: harnesses and the referee through loads; the never-loaded refused or loaded | their lists | P8, census rows M13, M15, M17; the census complete |
+
+### L1 as built (2026-11-09)
+
+- **Records** (`executionplan`): `DataRef` (refuses an absolute name, a drive letter, a backslash, an empty, `.` or `..`
+  segment); `ExecutionPlan.Load(identity, cadence, steps, target)` (the `Setup` node renamed, `BEFORE_STEP` its old
+  rule, `AT_STEP` new); `LoadStep` (`SetupStep` renamed) gains `File(ref, delivery)`; `Delivery.DatabaseReads(sql)`,
+  `Delivery.Streamed(insert, columns)`. `DataStores` (a directory per namespace) is the runner's and the planner's
+  configuration, never in a plan. Plan JSON v31, test plan JSON v11; the TypeScript runner reads v31 (it refuses a
+  load node and any target setup, as it refused the setup node).
+- **Planning:** `PlanningOptions.resources` (a function) is gone: planning reads the file once through the stores for
+  its digest and size; the dialect chooses the delivery (`SqlDialect.csvLoad`: DuckDB reads, H2 streams, every other
+  refuses by name). `SqlDml.LoadCsv` holds no file. A file of no row plans no load (it loads what it was planned against:
+  nothing). A header whose width is not the table's is refused at planning.
+- **Run:** `PlanRunner.seed` runs a `File` step: `DataLoads.verified` (size and SHA-256 against the plan), then
+  `DataLoads.stage` (the runner's own temporary copy, deleted after) bound to DuckDB's one `?`, or `DataLoads.cells`
+  streamed to H2's insert in one batch. The stores reach the run through the test door (`ExecuteOptions.stores`).
+- **The CSV rule** (`base.CsvCells`) is H2's `CSVREAD`'s, measured equal on quoted, padded, short, empty and CRLF input
+  (`CsvLoadRenderTest.theStreamedCellsAreTheCellsCsvreadReads`), so the H2 lane loads the rows it loaded before.
+- **Interim, named:** the compatibility referee's copy of a loaded file's rows rides the edge's ledger texts at the
+  load's step (one insert, the rows split at planning), as every seed's referee copy does today (M15); L8 replaces it
+  with the referee replaying the plan's loads.
+- **Proof:** `DataLoadsTest` (both deliveries end to end on every in-process database that spells one, through a store
+  at a long path; the plan JSON holds no path and reads back; a digest that differs and a run with no store refused by
+  name; path-shaped names refused); `PlanTypesAreDataTest` already refuses a `Path` in any plan record;
+  `DataMechanismCensusTest` (the 17 rows, M8 deleted, its symbols at zero in every source tree); the corpus's
+  `testLoadCsv` passes on the DuckDB and H2 lanes.
 
 ## 5. Upstream
 
@@ -214,7 +247,13 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
 3. **Its cadence.** Recommended: `ONCE` per identity, kept (a register row for the user's ruling).
 4. **The runners' default admission policy.** Recommended: `resource`, `content` and `bundle` everywhere; `url` only
    where the host enables it, never a local `file:`.
-5. **Staging cache.** Recommended: by digest, per process; dropping it is always correct.
+5. **Staging cache.** Recommended: by digest, per process; dropping it is always correct. (L1 stages per load and
+   deletes the copy after it; no cache.)
+6. **One CSV rule for every database** (found building L1). DuckDB's `read_csv` and H2's `CSVREAD` (now the streamed
+   rule) differ on a padded unquoted cell (H2 trims it) and a quoted empty cell (DuckDB reads NULL, H2 an empty
+   string), so one file can load differently on the two lanes, as it did before L1. Recommended: one rule, stated as
+   data in the plan's file reference, with DuckDB's reader configured to it; a register row if it differs from
+   legend-engine's H2 (which trims).
 
 ## 9. Measurements to take (L1 and L3)
 

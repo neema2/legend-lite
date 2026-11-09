@@ -200,7 +200,7 @@ public final class PlanSessions {
      *  {@link PlanRunner#setUpIn}); refused by name before any statement where its rows need a bulk loader the
      *  session's database has none of. */
     private static void establish(Sessions.Session session, ExecutionPlan.Target target) {
-        if (target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)
+        if (target.setup().stream().anyMatch(ExecutionPlan.LoadStep.Rows.class::isInstance)
                 && !Sessions.loadsRows(session)) {
             throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
                     + " database has none (" + Sessions.product(session) + ")");

@@ -143,18 +143,19 @@ public final class ProgramRunner {
     /**
      * Runs {@code program}: its steps in order on one session, in one transaction where one changes the database (a
      * keyed step's or a declared keyed read's snapshot the same), each callback at its place, and the program's answer
-     * -- its one result step's typed rows, if it has one -- streamed to the sink once the steps have run.
+     * -- its one result step's typed rows, if it has one -- streamed to the sink once the steps have run. A load's
+     * data references resolve through {@code stores} (data: docs/DATA_IN_THE_PLAN_2026_11_09.md 2.7).
      */
     public static void run(Program program, Map<String, ?> values, PlanSessions.Source sessions,
-            Callbacks callbacks, ProgramSink sink) throws IOException {
+            com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
         // the runtime wall (the deep audit, 2026-11-05): while the program runs, nothing on this thread plans
         try (var run = com.legend.base.RunScope.enter()) {
-            programRun(program, values, sessions, callbacks, sink);
+            programRun(program, values, sessions, stores, callbacks, sink);
         }
     }
 
     private static void programRun(Program program, Map<String, ?> values, PlanSessions.Source sessions,
-            Callbacks callbacks, ProgramSink sink) throws IOException {
+            com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(program.parameters(), values);
         Shape shape = shapeOf(program, checked);
         PlanRunner.Held held = new PlanRunner.Held();
@@ -201,7 +202,7 @@ public final class ProgramRunner {
                         Routes rt = new Routes(st, homeIsSystem, null, null, user);
                         Open open = new Open(declared, live, rt);
                         try {
-                            bracketed(shape, st, () -> runSteps(program, live, callbacks, session, rt, held, sink,
+                            bracketed(shape, st, () -> runSteps(program, live, callbacks, session, rt, stores, held, sink,
                                     open));
                         } finally {
                             open.close();
@@ -221,7 +222,7 @@ public final class ProgramRunner {
                                 null);
                         Open open = new Open(declared, live, rt);
                         try {
-                            bracketed(shape, st, () -> runSteps(program, live, callbacks, session, rt, held, sink,
+                            bracketed(shape, st, () -> runSteps(program, live, callbacks, session, rt, stores, held, sink,
                                     open));
                         } finally {
                             open.close();
@@ -370,7 +371,7 @@ public final class ProgramRunner {
                             writesHome(e.sql().target(), "an effect");
                             sqls.add(e.sql());
                         }
-                        case ExecutionPlan.Setup u -> {
+                        case ExecutionPlan.Load u -> {
                             if (u.target().database() instanceof ExecutionPlan.Database.System) {
                                 // the graph's system store's own seeds: the one write its database takes, once per
                                 // session
@@ -464,7 +465,8 @@ public final class ProgramRunner {
     /** The program's steps run in order, each under its origin where none is marked; its answer held in
      *  {@code held}. */
     private static void runSteps(Program program, Map<String, PlanParameters.Checked> live, Callbacks callbacks,
-            Sessions.Session session, Routes rt, PlanRunner.Held held, ProgramSink sink, Open open)
+            Sessions.Session session, Routes rt, com.legend.executionplan.DataStores stores, PlanRunner.Held held,
+            ProgramSink sink, Open open)
             throws IOException {
         List<Step> steps = program.steps();
         for (int i = 0; i < steps.size(); i++) {
@@ -476,7 +478,7 @@ public final class ProgramRunner {
             // the step's mark: its own under the program's, where it names one
             StatementOrigin mark = named == null ? rt.home().mark() : StatementOrigin.under(rt.home().mark(), named);
             switch (step) {
-                case Node n -> runStep(n.node(), i, live, session, rt, held, sink, mark);
+                case Node n -> runStep(n.node(), i, live, session, rt, stores, held, sink, mark);
                 case Callback c -> {
                     open.stepMark = mark;
                     try {
@@ -490,7 +492,8 @@ public final class ProgramRunner {
     }
 
     private static void runStep(ExecutionPlan.Node step, int i, Map<String, PlanParameters.Checked> live,
-            Sessions.Session session, Routes rt, PlanRunner.Held held, ProgramSink sink, StatementOrigin mark)
+            Sessions.Session session, Routes rt, com.legend.executionplan.DataStores stores, PlanRunner.Held held,
+            ProgramSink sink, StatementOrigin mark)
             throws IOException {
         Statements st = Statements.marked(rt.home(), mark);
         switch (step) {
@@ -518,13 +521,17 @@ public final class ProgramRunner {
                 PlanRunner.script(e, live, st, !st.ownsTransaction());
                 sink.effectRan(i);
             }
-            case ExecutionPlan.Setup u -> {
-                // the system store's seeds on the system database's session where it is a second one; every other seed
-                // step on the program's
+            case ExecutionPlan.Load u -> {
+                // the system store's load on the system database's session where it is a second one; every other load
+                // on the program's
                 boolean beside = rt.systemSession() != null
                         && u.target().database() instanceof ExecutionPlan.Database.System;
+                if (u.cadence() == ExecutionPlan.Load.Cadence.AT_STEP) {
+                    // a program's own load writes, as an effect does
+                    sink.writing(i);
+                }
                 PlanRunner.seed(u, beside ? Objects.requireNonNull(rt.systemSession()) : session,
-                        beside ? Statements.marked(Objects.requireNonNull(rt.system()), mark) : st,
+                        beside ? Statements.marked(Objects.requireNonNull(rt.system()), mark) : st, stores,
                         answered -> sink.seeded(i, answered));
             }
             case ExecutionPlan.TdsResult t -> {

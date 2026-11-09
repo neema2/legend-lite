@@ -7,7 +7,7 @@ import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Node;
 import com.legend.executionplan.ExecutionPlan.Parameter;
 import com.legend.executionplan.ExecutionPlan.Sequence;
-import com.legend.executionplan.ExecutionPlan.SetupStep;
+import com.legend.executionplan.ExecutionPlan.LoadStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
@@ -80,19 +80,23 @@ public final class PlanJson {
      *  ({@code graphKey}, step 7); 29 the same day: a declared or platform database carries its project's identity
      *  ({@code project}: the plan-as-data design's hole 7); 30 since 2026-11-09: whether the plan writes
      *  ({@code writes}: the plan-as-data design's slice 5 -- the run reads it from the plan, never from the query), and a
-     *  project database's refusal ({@code refused}: why its Data rows cannot make it, raised where it is made). */
-    public static final int VERSION = 30;
+     *  project database's refusal ({@code refused}: why its Data rows cannot make it, raised where it is made); 31 since
+     *  2026-11-09: the {@code setup} node is the {@code load} node, with its {@code identity} and {@code cadence}, and a
+     *  load step may be a {@code file} -- its data reference (namespace, name, digest, size, format: never a path) and
+     *  its delivery (the database reads the runner's copy, or the runner streams its cells), the data-in-the-plan
+     *  design's L1 (docs/DATA_IN_THE_PLAN_2026_11_09.md). */
+    public static final int VERSION = 31;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, setup, constant }
+    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, load, constant }
 
     enum OutputTag { fixed, perKey }
 
-    enum SetupTag { statement, rows }
+    enum SetupTag { statement, rows, file }
 
     enum BindingTag { one, array, key }
 
@@ -235,11 +239,12 @@ public final class PlanJson {
                     o.put("script", so);
                 }
             }
-            case ExecutionPlan.Setup u -> {
-                o.put("_type", NodeTag.setup.name());
-                o.put("key", u.key());
+            case ExecutionPlan.Load u -> {
+                o.put("_type", NodeTag.load.name());
+                o.put("identity", u.identity());
+                o.put("cadence", u.cadence().name());
                 List<Object> steps = new ArrayList<>();
-                for (SetupStep step : u.steps()) {
+                for (LoadStep step : u.steps()) {
                     steps.add(setupStep(step));
                 }
                 o.put("steps", steps);
@@ -411,20 +416,43 @@ public final class PlanJson {
         return o;
     }
 
-    private static Map<String, Object> setupStep(SetupStep step) {
+    private static Map<String, Object> setupStep(LoadStep step) {
         Map<String, Object> o = new LinkedHashMap<>();
         switch (step) {
-            case SetupStep.Statement s -> {
+            case LoadStep.Statement s -> {
                 o.put("_type", SetupTag.statement.name());
                 o.put("sql", s.sql());
             }
-            case SetupStep.Rows r -> {
+            case LoadStep.Rows r -> {
                 o.put("_type", SetupTag.rows.name());
                 o.put("stagingTable", r.stagingTable());
                 o.put("createStaging", r.createStaging());
                 o.put("copy", r.copy());
                 o.put("dropStaging", r.dropStaging());
                 o.put("rows", r.rows());
+            }
+            case LoadStep.File f -> {
+                o.put("_type", SetupTag.file.name());
+                Map<String, Object> ref = new LinkedHashMap<>();
+                ref.put("namespace", f.ref().namespace().name());
+                ref.put("name", f.ref().name());
+                ref.put("digest", f.ref().digest());
+                ref.put("size", f.ref().size());
+                ref.put("format", f.ref().format().name());
+                o.put("ref", ref);
+                Map<String, Object> delivery = new LinkedHashMap<>();
+                switch (f.delivery()) {
+                    case LoadStep.Delivery.DatabaseReads r -> {
+                        delivery.put("_type", "databaseReads");
+                        delivery.put("sql", r.sql());
+                    }
+                    case LoadStep.Delivery.Streamed st -> {
+                        delivery.put("_type", "streamed");
+                        delivery.put("insert", st.insert());
+                        delivery.put("columns", st.columns());
+                    }
+                }
+                o.put("delivery", delivery);
             }
         }
         return o;
@@ -525,12 +553,14 @@ public final class PlanJson {
                 yield new ExecutionPlan.Effect(readSql(o.getObj("sql")), new ExecutionPlan.Effect.Script(statements,
                         so.getString("bracketed"), so.getOr("abort", null) == null ? null : so.getString("abort")));
             }
-            case setup -> {
-                List<SetupStep> steps = new ArrayList<>();
+            case load -> {
+                List<LoadStep> steps = new ArrayList<>();
                 for (Json.Node n : o.getArr("steps").items()) {
-                    steps.add(readSetupStep((Json.Obj) n));
+                    steps.add(readLoadStep((Json.Obj) n));
                 }
-                yield new ExecutionPlan.Setup(o.getString("key"), steps, readTarget(o.getObj("target")));
+                yield new ExecutionPlan.Load(o.getString("identity"),
+                        ExecutionPlan.Load.Cadence.valueOf(o.getString("cadence")), steps,
+                        readTarget(o.getObj("target")));
             }
             case constant -> {
                 List<List<String>> cells = new ArrayList<>();
@@ -652,9 +682,9 @@ public final class PlanJson {
     }
 
     private static Target readTarget(Json.Obj t) {
-        List<SetupStep> setup = new ArrayList<>();
+        List<LoadStep> setup = new ArrayList<>();
         for (Json.Node n : t.getArr("setup").items()) {
-            setup.add(readSetupStep((Json.Obj) n));
+            setup.add(readLoadStep((Json.Obj) n));
         }
         return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), setup);
     }
@@ -679,7 +709,7 @@ public final class PlanJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("key", project.key());
         List<Object> made = new ArrayList<>();
-        for (SetupStep step : project.made()) {
+        for (LoadStep step : project.made()) {
             made.add(setupStep(step));
         }
         o.put("made", made);
@@ -694,16 +724,16 @@ public final class PlanJson {
         if (!(database.get("project") instanceof Json.Obj o)) {
             return null;
         }
-        List<SetupStep> made = new ArrayList<>();
+        List<LoadStep> made = new ArrayList<>();
         for (Json.Node n : o.getArr("made").items()) {
-            made.add(readSetupStep((Json.Obj) n));
+            made.add(readLoadStep((Json.Obj) n));
         }
         return new ExecutionPlan.Project(o.getString("key"), made, o.getStringOr("refused", null));
     }
 
-    private static SetupStep readSetupStep(Json.Obj o) {
+    private static LoadStep readLoadStep(Json.Obj o) {
         return switch (tag(SetupTag.class, o, "setup step")) {
-            case statement -> new SetupStep.Statement(o.getString("sql"));
+            case statement -> new LoadStep.Statement(o.getString("sql"));
             case rows -> {
                 List<List<String>> rows = new ArrayList<>();
                 for (Json.Node r : o.getArr("rows").items()) {
@@ -724,8 +754,22 @@ public final class PlanJson {
                     }
                     rows.add(row);
                 }
-                yield new SetupStep.Rows(o.getString("stagingTable"), o.getString("createStaging"), o.getString("copy"),
+                yield new LoadStep.Rows(o.getString("stagingTable"), o.getString("createStaging"), o.getString("copy"),
                         o.getString("dropStaging"), rows);
+            }
+            case file -> {
+                // the reference refuses a path-shaped name as it is read (DataRef: never a machine's path in a plan)
+                Json.Obj ref = o.getObj("ref");
+                DataRef data = new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")), ref.getString("name"),
+                        ref.getString("digest"), ref.getLong("size"), DataRef.Format.valueOf(ref.getString("format")));
+                Json.Obj d = o.getObj("delivery");
+                LoadStep.Delivery delivery = switch (d.getString("_type")) {
+                    case "databaseReads" -> new LoadStep.Delivery.DatabaseReads(d.getString("sql"));
+                    case "streamed" -> new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
+                    default -> throw new IllegalArgumentException("a file load's delivery is databaseReads or"
+                            + " streamed: " + d.getString("_type"));
+                };
+                yield new LoadStep.File(data, delivery);
             }
         };
     }

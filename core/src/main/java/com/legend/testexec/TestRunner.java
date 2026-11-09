@@ -48,13 +48,14 @@ public final class TestRunner {
      * {@code runProgram}: no fixture is provided between the body's plan and its run.
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
-            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections, @Nullable Edge edge,
+            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
+            com.legend.executionplan.DataStores stores, @Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer) {
         lites(answer);
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
-            run(plan, session, systemConnections, edge, callers, referee, answer, StatementOrigin.OTHER);
+            run(plan, session, systemConnections, stores, edge, callers, referee, answer, StatementOrigin.OTHER);
         }
     }
 
@@ -70,7 +71,7 @@ public final class TestRunner {
      */
     public static void run(TestPlan plan, Sessions.Session session,
             Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
-            com.legend.testexecutionplan.@Nullable Edge edge,
+            com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin) {
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
@@ -100,7 +101,7 @@ public final class TestRunner {
                                 golden, ours, textEqual, referee, l, reader, sessions);
                 try {
                     TestRun.run(plan, Map.of(), PlanSessions.marked(PlanSessions.of(session, null, systemSessions), origin),
-                            moved::textOrigin,
+                            stores, moved::textOrigin,
                             moved, moved);
                 } catch (RuntimeException runFailed) {
                     // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is the
@@ -397,7 +398,7 @@ public final class TestRunner {
         /** Whether the program's step {@code step} is the graph's system store's seed step (the planner's). */
         private boolean systemStore(int step) {
             return planned.steps().get(step) instanceof TestPlan.Run r
-                    && r.node() instanceof ExecutionPlan.Setup u && u.key().equals(ExecutionPlan.Setup.SYSTEM_STORE);
+                    && r.node() instanceof ExecutionPlan.Load u && u.identity().equals(ExecutionPlan.Load.SYSTEM_STORE);
         }
 
         @Override

@@ -64,7 +64,7 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> new ExecutionPlan.Update(withoutTree(u.sql()), u.count());
             case ExecutionPlan.Check c -> new ExecutionPlan.Check(withoutTree(c.sql()));
             case ExecutionPlan.Effect e -> new ExecutionPlan.Effect(withoutTree(e.sql()), e.script());
-            case ExecutionPlan.Setup u -> u;
+            case ExecutionPlan.Load u -> u;
             case ExecutionPlan.Constant c -> c;
         };
     }
@@ -81,7 +81,7 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> u.sql().statement().length();
             case ExecutionPlan.Check c -> c.sql().statement().length();
             case ExecutionPlan.Effect e -> e.sql().statement().length();
-            case ExecutionPlan.Setup u -> 0;
+            case ExecutionPlan.Load u -> 0;
             case ExecutionPlan.Constant c -> 0;
         };
     }
@@ -107,7 +107,7 @@ public final class PlanRoundTrip {
                     assertRenders(e.sql(), what);
                 }
             }
-            case ExecutionPlan.Setup u -> {
+            case ExecutionPlan.Load u -> {
                 // seed steps are their sources' texts, rendered nowhere
             }
             case ExecutionPlan.Constant c -> {

@@ -94,7 +94,7 @@ class RowLoadH2Test {
             // the one INSERT the plan side writes for a database with no bulk loader, run by the plan runner (the
             // doors, 2026-10-29; SetupRunner's load until then)
             RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a")));
-            PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
+            PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
                     new com.legend.sql.dialect.H2().render(load.values()))),
                     new com.legend.executionplan.ExecutionPlan.Target(
                             new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null),

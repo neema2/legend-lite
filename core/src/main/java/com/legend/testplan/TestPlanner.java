@@ -139,7 +139,7 @@ public final class TestPlanner {
         TestPlan plan;
         try (var p = com.legend.base.RunScope.plans("a test body's program")) {
             plan = TestDoor.planned(typed, runtimeFqn, options.features(),
-                    asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.resources(),
+                    asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.stores(),
                     options.edge());
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
@@ -201,7 +201,7 @@ public final class TestPlanner {
         TestPlan planned;
         try (var p = com.legend.base.RunScope.plans("a program planned ahead")) {
             planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
-                    options.resources(), options.edge());
+                    options.stores(), options.edge());
         }
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(planned);
         TestPlan ahead = com.legend.diagnostics.Diagnostics.on("decoded-plan")

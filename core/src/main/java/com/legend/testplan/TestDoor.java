@@ -105,16 +105,16 @@ public final class TestDoor {
      *  M10a), which the caller's sessions source opens. */
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted) {
-        return planned(body, runtime, features, asserts, systemRouted, null, null);
+        return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(), null);
     }
 
-    /** {@link #planned(TypedQuery, String, Set, Asserts, boolean)} with the run's test-input resource resolver (a
-     *  resource's path to its local file), which a CSV load's statement names the file through (2026-11-06). */
+    /** {@link #planned(TypedQuery, String, Set, Asserts, boolean)} with the stores a CSV load's file is read from at
+     *  planning, for its reference's digest (docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09). */
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted,
-            java.util.function.@Nullable Function<String, java.nio.file.Path> resources,
+            com.legend.executionplan.DataStores stores,
             com.legend.testexecutionplan.@Nullable Edge edge) {
-        TestKinds kinds = new TestKinds(body, runtime, asserts, resources);
+        TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
         PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
         List<PlannedStep> planned = program.steps();
         for (int place : kinds.frameRuns()) {

@@ -184,7 +184,8 @@ class ProductStatementsTest {
         // a product plan of one constant: a program of that one step (the plan-as-data design's step 3, 2026-11-08: exec's
         // program runner, its verdict steps the test plan's)
         com.legend.exec.ProgramRunner.run(new com.legend.exec.ProgramRunner.Program(plan.parameters(),
-                List.of(new com.legend.exec.ProgramRunner.Node(plan.root(), null))), Map.of(), none, (id, open) -> {
+                List.of(new com.legend.exec.ProgramRunner.Node(plan.root(), null))), Map.of(), none,
+                com.legend.executionplan.DataStores.none(), (id, open) -> {
                     throw new AssertionError("no callback");
                 }, new com.legend.exec.ProgramRunner.ProgramSink() {
                     @Override

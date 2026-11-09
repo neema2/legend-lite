@@ -192,8 +192,8 @@ class PlanRunnerTest {
 
     static ExecutionPlan counting(ConnectionDefinition connection, String table) {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                List.of(), List.of(new ExecutionPlan.SetupStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
-                        new ExecutionPlan.SetupStep.Statement("INSERT INTO " + table + " VALUES (1)")));
+                List.of(), List.of(new ExecutionPlan.LoadStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
+                        new ExecutionPlan.LoadStep.Statement("INSERT INTO " + table + " VALUES (1)")));
         return ExecutionPlan.reading(List.of(), cell(
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
@@ -253,12 +253,12 @@ class PlanRunnerTest {
         return ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(statement, List.of(), target, null)));
     }
 
-    static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.SetupStep... setup) {
+    static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.LoadStep... setup) {
         return new ExecutionPlan.Target(database, List.of(), List.of(setup));
     }
 
-    static ExecutionPlan.SetupStep.Statement statement(String sql) {
-        return new ExecutionPlan.SetupStep.Statement(sql);
+    static ExecutionPlan.LoadStep.Statement statement(String sql) {
+        return new ExecutionPlan.LoadStep.Statement(sql);
     }
 
     /** A setup that fails leaves nothing behind: the next run of the target sets up a new database, and fails the same
@@ -278,8 +278,8 @@ class PlanRunnerTest {
     }
 
     /** Rows for a bulk loader, into table K (A, B). */
-    static ExecutionPlan.SetupStep.Rows kRows(List<String> row) {
-        return new ExecutionPlan.SetupStep.Rows("K_STAGE", "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)",
+    static ExecutionPlan.LoadStep.Rows kRows(List<String> row) {
+        return new ExecutionPlan.LoadStep.Rows("K_STAGE", "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)",
                 "INSERT INTO K SELECT A, B FROM K_STAGE", "DROP TABLE K_STAGE", List.of(row));
     }
 

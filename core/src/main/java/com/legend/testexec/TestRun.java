@@ -60,11 +60,11 @@ final class TestRun {
      *  answer and its steps' doings to {@code sink}. {@code textOrigin}: the origin a verdict step at a place reads
      *  our text under (an engine-text assert's, M10c item 8), or null. */
     static void run(TestPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            IntFunction<@Nullable StatementOrigin> textOrigin, Judges judges, ProgramRunner.ProgramSink sink)
-            throws IOException {
+            com.legend.executionplan.DataStores stores, IntFunction<@Nullable StatementOrigin> textOrigin,
+            Judges judges, ProgramRunner.ProgramSink sink) throws IOException {
         Handler handler = new Handler(plan, judges);
         try {
-            ProgramRunner.run(program(plan, textOrigin), values, sessions, handler, sink);
+            ProgramRunner.run(program(plan, textOrigin), values, sessions, stores, handler, sink);
         } finally {
             judges.reader(null);
         }

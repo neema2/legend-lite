@@ -1884,18 +1884,31 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
             case com.legend.sql.SqlDml.Merge m -> merge(m).text();
-            case com.legend.sql.SqlDml.LoadCsv lc -> "INSERT INTO " + ddlQualified(lc.schema(), lc.table(), lc.quoting())
-                    + dmlColumns(lc.columns(), lc.quotedColumns()) + " SELECT * FROM " + csvSource(lc.file()) + ";";
+            case com.legend.sql.SqlDml.LoadCsv lc -> csvLoad(lc).sql();
         };
     }
 
-    /** The table this dialect's database reads a CSV file's rows from ({@link com.legend.sql.SqlDml.LoadCsv}): every
-     *  cell text, the first line a header. Refused by the base: a dialect whose database reads a local file spells its
-     *  own reader (DuckDB's {@code read_csv}, H2's {@code CSVREAD}); a remote database's is its bulk load, designed
-     *  when its lane needs one (the user, 2026-11-06). */
-    protected String csvSource(String file) {
+    /** {@inheritDoc} Refused by the base: a dialect whose database reads a file through a bound path spells its reader
+     *  ({@link #csvReadsFile}: DuckDB's), one whose rows the runner streams its row's insert ({@link #csvStreamed}:
+     *  H2's); a remote database's is its bulk load, designed when its lane needs one (the user, 2026-11-06). */
+    @Override
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
         throw new DialectCapability("a CSV file's load reached " + getClass().getSimpleName() + ": this dialect's"
-                + " database reads no file yet");
+                + " database takes no file yet");
+    }
+
+    /** {@code load} as its database reads it: {@code INSERT INTO t (columns) SELECT * FROM <reader>}, {@code reader}
+     *  the database's CSV reader over the statement's one {@code ?}, the runner's copy of the file. */
+    protected CsvLoad csvReadsFile(com.legend.sql.SqlDml.LoadCsv load, String reader) {
+        return new CsvLoad(true, "INSERT INTO " + ddlQualified(load.schema(), load.table(), load.quoting())
+                + dmlColumns(load.columns(), load.quotedColumns()) + " SELECT * FROM " + reader);
+    }
+
+    /** {@code load} as the runner streams it: one row's insert, a {@code ?} per column. */
+    protected CsvLoad csvStreamed(com.legend.sql.SqlDml.LoadCsv load) {
+        return new CsvLoad(false, "INSERT INTO " + ddlQualified(load.schema(), load.table(), load.quoting())
+                + dmlColumns(load.columns(), load.quotedColumns()) + " VALUES ("
+                + String.join(", ", java.util.Collections.nCopies(load.columns().size(), "?")) + ")");
     }
 
     @Override
@@ -1912,7 +1925,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.Update u -> update(u).statement();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).statement();
             case com.legend.sql.SqlDml.Merge m -> merge(m).statement();
-            case com.legend.sql.SqlDml.LoadCsv lc -> new RenderedStatement(render(lc), List.of());
+            // its placeholders are the runner's to bind (the file's copy, or a row's cells): never values the plan binds
+            case com.legend.sql.SqlDml.LoadCsv lc -> throw new IllegalStateException("a CSV file's load is spelled by"
+                    + " csvLoad, its placeholders bound by the runner: " + lc.table());
         };
     }
 

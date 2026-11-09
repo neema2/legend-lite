@@ -692,7 +692,7 @@ class PlanMakerTest {
             String sql = plan.answerSql().statement();
             if (dialect.inProcess()) {
                 forms.add("setup");
-                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                         && st.sql().contains("classes")), type + ": " + target.setup());
                 assertEquals(dialect.sessionSetup(), target.session(), type.name());
                 assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
@@ -703,7 +703,7 @@ class PlanMakerTest {
                 }
                 continue;
             }
-            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                     && st.sql().contains("classes")), type + ": " + target.setup());
             if (!dialect.temporaryTables()) {
                 forms.add("inline");

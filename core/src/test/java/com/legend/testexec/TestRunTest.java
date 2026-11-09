@@ -178,7 +178,7 @@ final class TestRunTest {
     }
 
     private static void run(TestPlan plan, PlanSessions.Source sessions, Recording sink) throws IOException {
-        TestRun.run(plan, Map.of(), sessions, step -> null, sink, sink);
+        TestRun.run(plan, Map.of(), sessions, com.legend.executionplan.DataStores.none(), step -> null, sink, sink);
     }
 
     @Test

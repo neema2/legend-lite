@@ -107,7 +107,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
             case Effect e -> throw new IllegalStateException("a plan that only sends an effect answers no rows");
             case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
-            case Setup u -> throw new IllegalStateException("a plan that only seeds answers no rows");
+            case Load u -> throw new IllegalStateException("a plan that only seeds answers no rows");
         };
     }
 
@@ -158,7 +158,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
     /** A node of the plan. A test body's verdict groups and branches are its test plan's (the plan-as-data design's
      *  step 3, 2026-11-08: {@code testexecutionplan.TestPlan}), never the product's. */
-    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Setup, Constant {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Load, Constant {
     }
 
     /**
@@ -264,31 +264,42 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     }
 
     /**
-     * The SEEDS a program's next statement reads (the test-is-the-product plan's B12, D35): a {@code from()}'s inline
-     * test data, its named runtime's, the program's runtime's -- each step as {@link Target#setup}'s, run on the
-     * program's session. {@code key} names the seeds' sources (the planner's spelling of their value): a session that
-     * holds those seeds and has run no write since skips the step (the seeds' memo, {@code SessionState}); otherwise
-     * the runner runs the steps and records the key. {@code target} is the program's (the M3 audit's B3: a program
-     * of seeds and a constant answer opens its session by it). A test door's step (refused on the product's query
-     * door, B6).
+     * A LOAD (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2): data entering a program's database at its turn, run on the
+     * program's session (the system metamodel store's on the system database's). {@code cadence} says when it runs;
+     * {@code identity} names what it loads (today the planner's spelling of its sources, or of its file's digest);
+     * {@code target} is the program's (the M3 audit's B3: a program of loads and a constant answer opens its session by
+     * it). A test door's step (refused on the product's query door, B6). Until 2026-11-09 the program's seed step
+     * ({@code Setup}), the seeds' cadence alone.
      */
-    public record Setup(String key, List<SetupStep> steps, Target target) implements Node {
-        /** The key of the graph's SYSTEM metamodel store's seed step (the planner's {@code SystemRoutes.seeds}, the
-         *  walker-deletion program, 2026-11-03: planning sends nothing, the plan seeds the store): the one seed step a
-         *  plan may name the graph's system database for. That database holds the store and nothing else, one per
-         *  graph per engine, so the one key names its seeds unambiguously; the runner refuses any other seed there. */
+    public record Load(String identity, Cadence cadence, List<LoadStep> steps, Target target) implements Node {
+        /** The identity of the graph's SYSTEM metamodel store's load (the planner's {@code SystemRoutes.seeds}, the
+         *  walker-deletion program, 2026-11-03: planning sends nothing, the plan seeds the store): the one load a plan
+         *  may name the graph's system database for. That database holds the store and nothing else, one per graph per
+         *  engine, so the one identity names its rows unambiguously; the runner refuses any other load there. */
         public static final String SYSTEM_STORE = "the graph's system metamodel store";
 
-        public Setup {
+        public Load {
             Objects.requireNonNull(target, "target");
-            Objects.requireNonNull(key, "key");
-            if (key.isEmpty()) {
-                throw new IllegalArgumentException("a seed step names its seeds' key");
+            Objects.requireNonNull(cadence, "cadence");
+            Objects.requireNonNull(identity, "identity");
+            if (identity.isEmpty()) {
+                throw new IllegalArgumentException("a load names its identity");
             }
             steps = List.copyOf(steps);
             if (steps.isEmpty()) {
-                throw new IllegalArgumentException("a seed step with no step: plan none");
+                throw new IllegalArgumentException("a load with no step: plan none");
             }
+        }
+
+        /** When a load runs (the design's 2.2; the cadences a target's loads take arrive with its slice L2). */
+        public enum Cadence {
+            /** The SEEDS a program's next statement reads (B12, D35: a {@code from()}'s inline test data, its named
+             *  runtime's, the program's runtime's): skipped where the session holds {@code identity} and has run no
+             *  write since (the seeds' memo, {@code SessionState}); else run, and the identity recorded. */
+            BEFORE_STEP,
+            /** A program's own load at its place ({@code loadCsvToDbTable}): run every time it is reached, a write as
+             *  an effect is, never skipped. */
+            AT_STEP
         }
     }
 
@@ -740,7 +751,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9). No server version: every database's statements are spelled alike
      * for every version lite runs (2026-11-05, one H2; until then H2's plans named the versions they were written for).
      */
-    public record Target(Database database, List<String> session, List<SetupStep> setup) {
+    public record Target(Database database, List<String> session, List<LoadStep> setup) {
         public Target {
             Objects.requireNonNull(database, "database");
             session = List.copyOf(session);
@@ -761,7 +772,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      *                plan-as-data design's slice 5, 2026-11-09: planned as a failure until then, every query of such
      *                a model refused at planning; before hole 7 the server refused it as it made the database)
      */
-    public record Project(String key, List<SetupStep> made, @com.legend.base.Nullable String refused) {
+    public record Project(String key, List<LoadStep> made, @com.legend.base.Nullable String refused) {
         public Project {
             Objects.requireNonNull(key, "key");
             made = List.copyOf(made);
@@ -816,11 +827,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
-    /** One step that establishes a target: a statement, or rows the database's own bulk loader takes. */
-    public sealed interface SetupStep permits SetupStep.Statement, SetupStep.Rows {
+    /** One step of a load or of a target's setup: a statement, rows the database's own bulk loader takes, or a file
+     *  by its reference (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
+    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Rows, LoadStep.File {
 
         /** A statement, run as it is. */
-        record Statement(String sql) implements SetupStep {
+        record Statement(String sql) implements LoadStep {
             public Statement {
                 Objects.requireNonNull(sql, "sql");
             }
@@ -837,7 +849,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          * @param dropStaging   drops it
          */
         record Rows(String stagingTable, String createStaging, String copy, String dropStaging,
-                List<List<String>> rows) implements SetupStep {
+                List<List<String>> rows) implements LoadStep {
             public Rows {
                 Objects.requireNonNull(stagingTable, "stagingTable");
                 Objects.requireNonNull(createStaging, "createStaging");
@@ -860,6 +872,49 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                     copied.add(java.util.Collections.unmodifiableList(new java.util.ArrayList<>(row)));
                 }
                 rows = java.util.Collections.unmodifiableList(copied);
+            }
+        }
+
+        /**
+         * A FILE'S ROWS into a table, the file named by its reference, never by a machine's path and never by its rows
+         * (the design's 2.1 and 2.5, the user's go of 2026-11-09): the runner resolves {@code ref} through the stores
+         * it is given, refuses bytes whose digest is not the reference's, and delivers exactly the verified bytes as
+         * {@code delivery} says, which the planner chose for the target's database. A CSV file's first line is its
+         * header; its cells are text the database casts into the table's columns, positionally.
+         */
+        record File(DataRef ref, Delivery delivery) implements LoadStep {
+            public File {
+                Objects.requireNonNull(ref, "ref");
+                Objects.requireNonNull(delivery, "delivery");
+            }
+        }
+
+        /** How a file's verified bytes reach its database: chosen at planning for the target's database, as every
+         *  spelling is; no delivery edits a statement at run (a path is bound, cells are bound). */
+        sealed interface Delivery permits Delivery.DatabaseReads, Delivery.Streamed {
+
+            /** The DATABASE reads the file itself: {@code sql}'s one {@code ?} is bound to the path of the runner's
+             *  own copy of the verified bytes (DuckDB's {@code read_csv}, which takes its path as a bound parameter:
+             *  measured 2026-11-09). */
+            record DatabaseReads(String sql) implements Delivery {
+                public DatabaseReads {
+                    Objects.requireNonNull(sql, "sql");
+                }
+            }
+
+            /**
+             * The runner splits the verified text into cells and sends {@code insert}, whose {@code columns}
+             * {@code ?}s take one row's cells, once per row (a database that cannot read the runner's file, or whose
+             * reader takes no bound path: H2's {@code CSVREAD}, measured 2026-11-09). The split is the CSV rule of
+             * {@code com.legend.base.CsvCells}; the database casts every cell.
+             */
+            record Streamed(String insert, int columns) implements Delivery {
+                public Streamed {
+                    Objects.requireNonNull(insert, "insert");
+                    if (columns < 1) {
+                        throw new IllegalArgumentException("a streamed load of no column");
+                    }
+                }
             }
         }
     }

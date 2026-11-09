@@ -4,6 +4,7 @@
 package com.legend.exec;
 
 import com.legend.database.Databases;
+import com.legend.executionplan.DataStores;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.PlanJson;
 import com.legend.testbackend.TestBackends;
@@ -139,7 +140,7 @@ final class ProgramRunnerTest {
 
     private static Recording run(ProgramRunner.Program program) throws IOException {
         Recording sink = new Recording();
-        ProgramRunner.run(program, Map.of(), sessions(), NONE, sink);
+        ProgramRunner.run(program, Map.of(), sessions(), DataStores.none(), NONE, sink);
         return sink;
     }
 
@@ -157,7 +158,7 @@ final class ProgramRunnerTest {
         ProgramRunner.run(new ProgramRunner.Program(List.of(), List.of(
                 new ProgramRunner.Callback(1, List.of(declared), null),
                 new ProgramRunner.Node(answer, null),
-                new ProgramRunner.Callback(2, List.of(), null))), Map.of(), sessions(), (id, o) -> {
+                new ProgramRunner.Callback(2, List.of(), null))), Map.of(), sessions(), DataStores.none(), (id, o) -> {
                     open[id - 1] = o;
                     if (id == 1) {
                         read.add(o.read(declared, null, Map.of()).rows().get(0).get(0));
@@ -180,7 +181,7 @@ final class ProgramRunnerTest {
                 List.of(col("value", "Integer", "INTEGER")));
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> ProgramRunner.run(
                 new ProgramRunner.Program(List.of(), List.of(new ProgramRunner.Callback(1, List.of(declared), null))),
-                Map.of(), sessions(), (id, o) -> o.read(other, null, Map.of()), new Recording()));
+                Map.of(), sessions(), DataStores.none(), (id, o) -> o.read(other, null, Map.of()), new Recording()));
         assertTrue(e.getMessage().contains("no step of the program declared"), e.getMessage());
     }
 
@@ -200,7 +201,7 @@ final class ProgramRunnerTest {
         ProgramRunner.run(new ProgramRunner.Program(List.of(), List.of(
                 new ProgramRunner.Node(new ExecutionPlan.Update(ExecutionPlan.Sql.of("INSERT INTO m3c_w VALUES (1)",
                         target), null), null),
-                new ProgramRunner.Callback(1, List.of(good, bad), null))), Map.of(), sessions(), (id, o) -> {
+                new ProgramRunner.Callback(1, List.of(good, bad), null))), Map.of(), sessions(), DataStores.none(), (id, o) -> {
                     assertTrue(o.insideATransaction(), "a program that writes runs in one transaction");
                     o.guarded(sp, () -> o.read(good, null, Map.of()), e -> {
                         throw new AssertionError(e);
@@ -261,7 +262,7 @@ final class ProgramRunnerTest {
     @Test
     @DisplayName("a seed step runs once on a session, is skipped while the session holds its seeds, re-runs after a write")
     void aSeedStepRunsOnceUntilAWrite() throws Exception {
-        ExecutionPlan.Setup seeds = new ExecutionPlan.Setup("m3b-seeds", List.of(new ExecutionPlan.SetupStep.Statement(
+        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3b-seeds", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE OR REPLACE TABLE m3b_seed AS SELECT 1 AS a")), target);
         ExecutionPlan.TdsResult read = relation("SELECT count(*) AS n FROM m3b_seed",
                 List.of(col("n", "Integer", "BIGINT")));
@@ -300,7 +301,7 @@ final class ProgramRunnerTest {
     @Test
     @DisplayName("seeds before a constant answer: the seed step opens the program's session")
     void seedsBeforeAConstantOpenTheSession() throws Exception {
-        ExecutionPlan.Setup seeds = new ExecutionPlan.Setup("m3x-seeds", List.of(new ExecutionPlan.SetupStep.Statement(
+        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3x-seeds", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE OR REPLACE TABLE m3x_c AS SELECT 1 AS a")), target);
         ExecutionPlan.Constant answer = new ExecutionPlan.Constant(List.of(new ExecutionPlan.Column("value", "String",
                 new ExecutionPlan.Multiplicity(1, 1), null, null, null)), List.of(List.of("x")));
@@ -314,7 +315,7 @@ final class ProgramRunnerTest {
     @DisplayName("a seed step undone by a rollback runs again in the next program")
     void aSeedUndoneByARollbackRunsAgain() throws Exception {
         exec("DROP TABLE IF EXISTS m3x_r");
-        ExecutionPlan.Setup seeds = new ExecutionPlan.Setup("m3x-rollback", List.of(new ExecutionPlan.SetupStep.Statement(
+        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3x-rollback", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE TABLE m3x_r AS SELECT 1 AS a")), target);
         ExecutionPlan.Update failing = new ExecutionPlan.Update(ExecutionPlan.Sql.of(
                 "INSERT INTO no_such_table_m3x VALUES (1)", target), null);

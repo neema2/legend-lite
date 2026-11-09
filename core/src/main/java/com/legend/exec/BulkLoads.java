@@ -31,7 +31,7 @@ final class BulkLoads {
     }
 
     /** Loads a plan's rows step on {@code connection} through {@code bulk}, its engine's loader ({@link #of}). */
-    static void load(BulkLoad bulk, Connection connection, ExecutionPlan.SetupStep.Rows rows) throws SQLException {
+    static void load(BulkLoad bulk, Connection connection, ExecutionPlan.LoadStep.Rows rows) throws SQLException {
         Census.inc(Census.Key.SQL_ROUND_TRIPS);
         Census.inc(Census.Key.BULK_LOADS);
         // its statement counted by the runner, under the mark it loads under (PlanRunner; slice 5, 2026-11-09)
