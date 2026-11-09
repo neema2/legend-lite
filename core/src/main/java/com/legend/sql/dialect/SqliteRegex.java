@@ -3,6 +3,9 @@
 
 package com.legend.sql.dialect;
 
+
+import com.legend.sql.DialectCapability;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;

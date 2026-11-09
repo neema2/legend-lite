@@ -1080,9 +1080,9 @@ public final class MirJson {
     private static SqlExpr.WindowCall.Frame.Bound readBound(Json.Obj o) {
         return switch (tagOf(BoundTag.class, o, "window bound")) {
             case unboundedPreceding -> new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
-            case preceding -> new SqlExpr.WindowCall.Frame.Bound.Preceding(readNumber(o));
+            case preceding -> SqlExpr.WindowCall.Frame.Bound.Preceding.of(readNumber(o));
             case currentRow -> new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
-            case following -> new SqlExpr.WindowCall.Frame.Bound.Following(readNumber(o));
+            case following -> SqlExpr.WindowCall.Frame.Bound.Following.of(readNumber(o));
             case unboundedFollowing -> new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
             case intervalPreceding -> new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(o.getLong("n"),
                     o.getString("unit"));

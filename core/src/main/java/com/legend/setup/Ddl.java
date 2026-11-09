@@ -433,17 +433,17 @@ public final class Ddl {
      *  ({@link com.legend.sql.dialect.SqlDialect#loadsRowsInBulk}), else as the one INSERT; a table of no rows adds no
      *  rows step. The one owner of that choice for the plan's target and the system database's session (the doors,
      *  2026-10-29; until then {@code PlanMaker} and {@code SystemDatabase} each made it). */
-    public static java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> metamodelSteps(
+    public static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> metamodelSteps(
             DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
             com.legend.sql.dialect.SqlDialect dialect) {
-        java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> out = new java.util.ArrayList<>();
+        java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> out = new java.util.ArrayList<>();
         for (String statement : metamodelSeed(def, schema, dialect)) {
-            out.add(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(statement));
+            out.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(statement));
         }
         if (!rows.isEmpty()) {
             RowLoad load = metamodelRows(def, schema, rows);
             out.add(dialect.loadsRowsInBulk() ? load.staged(dialect)
-                    : new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
+                    : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(dialect.render(load.values())));
         }
         return out;
     }

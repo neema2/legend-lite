@@ -317,6 +317,26 @@ public final class StoreResolver {
     // The context walk
     // =====================================================================
 
+    /** An ANCHORED if(): a RUNTIME condition choosing between two VALUES (a primitive or an enum of at most one --
+     *  never a class, a relation or a collection, which no CASE can choose between) resolves part by part and the
+     *  database decides it, CASE WHEN
+     *  (2026-11-07, the DuckDB judges' parity: upstream's getQualifiedTableName, {@code if($t.schema.name ==
+     *  'default', ...)} over a metamodel table, in a test helper's assert message the host judge plans); any other
+     *  needs a condition decidable at planning ({@link #resolveStaticIf}). */
+    private TypedSpec anchoredIf(TypedIf i, Context context) {
+        if (LiteralFolds.staticBool(i.condition()) == null && !i.info().multiplicity().isMany()
+                && (i.info().type() instanceof Type.Primitive || i.info().type() instanceof Type.EnumType)) {
+            return structural(i, context);
+        }
+        TypedSpec st = resolveStaticIf(i, context);
+        if (st == null) {   // pre-gate: silent null for non-static if
+            throw new com.legend.error.NotImplementedException(
+                    "class-typed if with a non-static condition"
+                    + " is not supported yet");
+        }
+        return st;
+    }
+
     /** if() over class queries: the condition must be STATICALLY
      * decidable — the chosen branch's thunk body resolves. */
     private @com.legend.base.Nullable TypedSpec resolveStaticIf(TypedIf i, Context context) {
@@ -453,15 +473,7 @@ public final class StoreResolver {
                                 p.info()), context),
                         p.info());
             }
-            case TypedIf i -> {
-                TypedSpec st = resolveStaticIf(i, context);
-                if (st == null) {   // pre-gate: silent null for non-static if
-                    throw new com.legend.error.NotImplementedException(
-                            "class-typed if with a non-static condition"
-                            + " is not supported yet");
-                }
-                yield st;
-            }
+            case TypedIf i -> anchoredIf(i, context);
             // size()/count() over a class extent = row count (engine
             // emits select count(*)); classExtentCount projects ONE const
             case TypedNativeCall nc

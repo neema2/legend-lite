@@ -91,7 +91,7 @@ public final class ArrowWriter implements ResultSink {
 
     @Override
     public void end() throws IOException {
-        out.write(ArrowIpc.END);
+        out.write(ArrowIpc.end());
         out.flush();
     }
 

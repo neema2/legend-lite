@@ -55,7 +55,7 @@ class ProgramObjectSitesTest {
         List<List<String>> out = new ArrayList<>();
         for (ExecutionPlan.Node step : seq.steps()) {
             List<String> ids = new ArrayList<>();
-            Matcher m = ID.matcher(com.legend.executionplan.PlanJson.write(new ExecutionPlan(List.of(), step)));
+            Matcher m = ID.matcher(com.legend.executionplan.PlanJson.write(ExecutionPlan.reading(List.of(), step)));
             while (m.find()) {
                 ids.add(m.group(1));
             }

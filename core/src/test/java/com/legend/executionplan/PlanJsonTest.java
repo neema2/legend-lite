@@ -9,7 +9,7 @@ import com.legend.executionplan.ExecutionPlan.Database;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Parameter;
 import com.legend.executionplan.ExecutionPlan.Sequence;
-import com.legend.executionplan.ExecutionPlan.SetupStep;
+import com.legend.executionplan.ExecutionPlan.LoadStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
@@ -31,15 +31,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
-        return new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
-                spec, auth)), List.of(),
-                List.of(new SetupStep.Statement("create table T(ID INT)")));
+        return new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
+                spec, auth)), null), List.of(),
+                List.of(new LoadStep.Statement("create table T(ID INT)")));
     }
 
     @Test
     void everyNodeKindAndParameterReadsBack() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
-        ExecutionPlan plan = new ExecutionPlan(
+        ExecutionPlan plan = ExecutionPlan.reading(
                 List.of(new Parameter("name", "String", new Multiplicity(1, 1), List.of()),
                         new Parameter("ids", "Integer", new Multiplicity(0, null), List.of()),
                         new Parameter("status", "model::Status", new Multiplicity(1, 1), List.of("ACTIVE", "CLOSED"))),
@@ -85,25 +85,25 @@ class PlanJsonTest {
     }
 
     @Test
-    void bothSetupStepKindsReadBack_aNullCellStaysNull() {
-        Target t = new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB",
-                Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())),
+    void bothLoadStepKindsReadBack_aNullCellStaysNull() {
+        Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
+                Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
                 List.of("SET TimeZone='UTC'"),
-                List.of(new SetupStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
-                        new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
+                List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
+                        new LoadStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
                                 "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
                                 List.of(List.of("1", "O'Brien"), Arrays.asList("2", null)))));
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
-        SetupStep.Rows rows = (SetupStep.Rows) ((TdsResult) back.root()).sql().target().setup().get(1);
+        LoadStep.Rows rows = (LoadStep.Rows) ((TdsResult) back.root()).sql().target().setup().get(1);
         assertEquals(null, rows.rows().get(1).get(1));
     }
 
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
-        Target t = new Target(new Database.Platform(Databases.PLATFORM), List.of("SET TimeZone='UTC'"), List.of());
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.VALUE,
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of("SET TimeZone='UTC'"), List.of());
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.VALUE,
                 List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
@@ -112,8 +112,9 @@ class PlanJsonTest {
     void theGraphsSystemDatabaseReadsBack() {
         // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system
         // database on its engine; the plan names it by type alone (the one who opens it holds the session)
-        Target t = new Target(new Database.System(Databases.PLATFORM), List.of(), List.of());
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+        Target t = new Target(new Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
+                List.of(), List.of());
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
         assertTrue(PlanJson.write(plan).contains("\"_type\":\"system\""), PlanJson.write(plan));
@@ -121,7 +122,7 @@ class PlanJsonTest {
 
     @Test
     void rowsOfDifferentWidthsAreRefused() {
-        var refused = assertThrows(IllegalArgumentException.class, () -> new SetupStep.Rows("s", "c", "i", "d",
+        var refused = assertThrows(IllegalArgumentException.class, () -> new LoadStep.Rows("s", "c", "i", "d",
                 List.of(List.of("1", "a"), List.of("2"))));
         assertTrue(refused.getMessage().contains("a row of 1 cells among rows of 2"), refused.getMessage());
     }
@@ -129,7 +130,7 @@ class PlanJsonTest {
     @Test
     void theTypedTreeIsNotWrittenYet() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
-        String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null))));
         // 8 since 2026-10-20: the keyed result, per-key regions, a key's cell (the dynamic pivot's probe plan); 9 the
         // same day: the keyed result's cells named as its statements write them (keyFields, an output's field); 12
@@ -142,21 +143,25 @@ class PlanJsonTest {
         // 2026-10-30: the verdicts node (the planner-driver seam program's S1b); 21 the same day: a constant side's
         // folded flag (S2f); 22 the same day: a keyed result's key source, a statement's rows or its reported columns
         // (S3c, a raw grid's); 23 since 2026-10-31: the constant node (the test-is-the-product plan's M2, MV12); 24 the
-        // same day: an effect's script, the seed step, a verdict group's savepoint (M3b, B12)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":26,"), json);
+        // same day: an effect's script, the seed step, a verdict group's savepoint (M3b, B12); 27 since 2026-11-08: the
+        // verdict group and the branch leave for the test plan's own format (the plan-as-data design's step 3); 28 the
+        // same day: the system database names its store by its content's key (step 7); 29 the same day: a declared or
+        // platform database carries its project's identity (hole 7); 30 since 2026-11-09: whether the plan writes (slice 5);
+        // 31 the same day: the load node and a file's load by reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":31,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v26 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v31 plan"), refused.getMessage());
     }
 
     @Test
     void aParameterWithoutItsEnumValuesIsRefused_neverReadAsNone() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
-        String json = PlanJson.write(new ExecutionPlan(List.of(new Parameter("s", "model::Status",
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(new Parameter("s", "model::Status",
                 new Multiplicity(1, 1), List.of("A"))), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null))))
                 .replace(",\"enumValues\":[\"A\"]", "");
         assertThrows(RuntimeException.class, () -> PlanJson.read(json));

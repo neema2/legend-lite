@@ -21,4 +21,10 @@ public final class DataError extends RuntimeException {
     public DataError(String message, Throwable cause) {
         super(message, cause);
     }
+
+    /** An error decided at planning, raised at its turn from the test plan's data (docs/PLAN_AS_DATA_2026_11_07.md
+     *  2.4, 2026-11-08): the message as it was planned, no cause (planning sends no statement). */
+    public DataError(String message) {
+        super(message);
+    }
 }

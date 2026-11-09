@@ -1,0 +1,70 @@
+import com.legend.compiler.element.ModelContext;
+import java.nio.file.*;
+import java.util.*;
+
+/** The system store's seed for the stress corpus's model, assembled as StressCorpus assembles it. */
+public class StressSeed {
+    public static ModelContext build() throws Exception {
+        return buildAndReport(false);
+    }
+
+    public static void main(String[] args) throws Exception {
+        buildAndReport(true);
+    }
+
+    static ModelContext buildAndReport(boolean report) throws Exception {
+        Path res = Path.of("/home/user/legend-lite/core/src/test/resources");
+        List<String> linked = List.of("core-types", "core-tenor", "core-fx", "core-ratings", "core-instrument",
+                "core-calendar", "core-units", "core-account", "core-geo", "fee-core", "index-core");
+        Set<String> excluded = Set.of("29-money.pure", "55-canonical-store.pure", "71-mapping-surface2.pure",
+                "75-surface-gaps.pure", "94-canonical-services.pure", "8115-m2m-gaps.pure", "94-gap-services.pure", "74-path-surface.pure");
+        List<com.legend.Compiler.ModelSource> sources = new ArrayList<>();
+        for (String p : linked) {
+            for (String f : List.of("model.pure", "store.pure", "mapping.pure")) {
+                Path file = Path.of("/home/user/legend-lite/projects/" + p + "/" + f);
+                if (Files.exists(file)) {
+                    sources.add(new com.legend.Compiler.ModelSource(f, Files.readString(file)));
+                }
+            }
+        }
+        try (var files = Files.list(res.resolve("stress"))) {
+            for (Path f : files.filter(x -> x.toString().endsWith(".pure")).sorted().toList()) {
+                if (!excluded.contains(f.getFileName().toString())) {
+                    sources.add(new com.legend.Compiler.ModelSource(f.getFileName().toString(), Files.readString(f)));
+                }
+            }
+        }
+        long t0 = System.nanoTime();
+        var module = com.legend.Compiler.parseSources(sources);
+        ModelContext ctx = com.legend.Compiler.buildModel(module.model());
+        if (!report) {
+            return ctx;
+        }
+        System.out.printf("sources=%d elements=%d build=%d ms%n", sources.size(), module.model().elements().size(),
+                (System.nanoTime() - t0) / 1_000_000);
+        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow();
+        long rows = 0, chars = 0;
+        Map<String, long[]> per = new TreeMap<>();
+        long t1 = System.nanoTime();
+        for (var schema : store.schemas()) {
+            for (var def : schema.tables()) {
+                long r = 0, c = 0;
+                for (List<String> row : com.legend.planner.MetamodelSeeds.rows(def.name(), ctx)) {
+                    for (String cell : row) {
+                        c += cell == null ? 4 : cell.length() + 3;
+                    }
+                    r++;
+                }
+                per.put(def.name(), new long[] {r, c});
+                rows += r;
+                chars += c;
+            }
+        }
+        System.out.printf("tables=%d rows=%d chars=%d (rows derived in %d ms)%n", per.size(), rows, chars,
+                (System.nanoTime() - t1) / 1_000_000);
+        per.entrySet().stream().sorted((a, b) -> Long.compare(b.getValue()[1], a.getValue()[1])).limit(10)
+                .forEach(e -> System.out.printf("  %-28s rows=%8d chars=%11d%n", e.getKey(), e.getValue()[0],
+                        e.getValue()[1]));
+        return ctx;
+    }
+}

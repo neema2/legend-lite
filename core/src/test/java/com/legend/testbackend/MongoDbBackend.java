@@ -4,7 +4,7 @@
 package com.legend.testbackend;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 import com.legend.testing.EmbeddedMongoDb;
 
 import java.sql.Connection;
@@ -76,7 +76,10 @@ final class MongoDbBackend implements TestBackend {
         System.setProperty(PASSWORD_PROPERTY, EmbeddedMongoDb.PASSWORD);
         // legend-engine's own MongoDBConnection naming the server, its database and a user whose password the system
         // property holds (the engine's SystemPropertiesSecret; a MongoDBConnection always declares an authentication)
-        return StorelessRuntime.declaringConnection(model, "MongoDB", String.format(java.util.Locale.ROOT, """
+        return StorelessRuntime.declaringConnection(model, String.format(java.util.Locale.ROOT, """
+                ###MongoDB
+                Database storeless::Store ( )
+                ###Connection
                 MongoDBConnection storeless::Connection
                 {
                   database: %s;

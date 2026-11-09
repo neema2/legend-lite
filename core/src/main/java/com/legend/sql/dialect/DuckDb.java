@@ -1,5 +1,7 @@
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
@@ -792,6 +794,16 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter catalog(SqlWriter writer, SqlSource.Catalog c) {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
+    }
+
+    /** {@inheritDoc} DuckDB's own CSV reader over the runner's copy of the file, its path a bound parameter (2026-11-06;
+     *  the path bound since 2026-11-09, measured). */
+    @Override
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        // the embedded database reads the file itself: comma-separated, its first line a header, every cell text
+        // (the INSERT casts each into its column, as a seed's cells are cast)
+        return csvReadsFile(load, "read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"',"
+                + " all_varchar = true)");
     }
 
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's

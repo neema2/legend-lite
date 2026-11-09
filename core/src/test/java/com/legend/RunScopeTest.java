@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * THE WALL's proof ({@link RunScope}; made total 2026-11-06): each crossing tried, each refused by name -- through
  * the real seam (a session opened by {@link Sessions}, its statements taken through its one door), not a model of it.
  * Rule 1: a run plans nothing. Rule 2: planning opens no session, starts no run, sends nothing. Rule 3: a session's
- * statements and its check are a run's alone. Rule 4: a run starts no run, but for a named residue whose door the
- * lane opens. A refusal names the callers that asked (read off a throwable's trace since 2026-11-05, which the
+ * statements and its check are a run's alone. Rule 4: a run starts no run, with no exception (the named residue door
+ * went 2026-11-06). A refusal names the callers that asked (read off a throwable's trace since 2026-11-05, which the
  * WebAssembly planner's class library has).
  */
 class RunScopeTest {
@@ -48,12 +48,40 @@ class RunScopeTest {
         RunScope.planning("lower a spec");
     }
 
+    /** A run's caller called back (a sink, a session source) plans nothing: the full audit's must-fix, 2026-11-09 --
+     *  a session source planned the query again inside the run, where the wall did not look. */
+    @Test
+    void aRunsCallerCalledBackPlansNothing() {
+        try (var called = RunScope.callingBack()) {
+            assertThrows(RunScope.Refused.class, () -> RunScope.planning("lower a spec"));
+            assertThrows(RunScope.Refused.class, () -> RunScope.plans("a query"));
+        }
+        RunScope.planning("lower a spec");
+    }
+
+    /** A held appeal decided after its body's run (P1.2, 2026-11-07): it plans nothing and plans no body, but it may
+     *  run the plans planned ahead for it, each a run of its own. */
+    @Test
+    void aJudgmentAfterARunPlansNothingButRunsItsPlans() {
+        try (var judging = RunScope.judging()) {
+            RunScope.Refused refused = assertThrows(RunScope.Refused.class, () -> RunScope.planning("lower a spec"));
+            assertTrue(refused.getMessage().startsWith(
+                    "the runtime wall: lower a spec while a judgment is decided after its run, or a run's caller is "
+                            + "called back for it ("), refused.getMessage());
+            assertThrows(RunScope.Refused.class, () -> RunScope.plans("a test body"));
+            try (var run = RunScope.enter()) {
+                assertTrue(RunScope.running());
+            }
+        }
+        RunScope.planning("lower a spec");
+    }
+
     @Test
     void rule2PlanningOpensNoSessionStartsNoRunAndSendsNothing() {
         try (var planning = RunScope.plans("a test body")) {
             assertTrue(RunScope.isPlanning());
             RunScope.Refused opened = assertThrows(RunScope.Refused.class,
-                    () -> Sessions.openPrivate(PLATFORM));
+                    () -> Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM)));
             assertTrue(opened.getMessage().contains("a session opened while a test body is planned"),
                     opened.getMessage());
             RunScope.Refused ran = assertThrows(RunScope.Refused.class, RunScope::enter);
@@ -72,7 +100,7 @@ class RunScopeTest {
         int[] opened = {0};
         try (Sessions.Session lazy = Sessions.lazy(() -> {
             opened[0]++;
-            return Sessions.openPrivate(PLATFORM);
+            return Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM));
         })) {
             try (var planning = RunScope.plans("a system-routed body")) {
                 // a planner names the session (its state is its own) and opens nothing
@@ -93,14 +121,14 @@ class RunScopeTest {
 
     @Test
     void rule3ASessionsStatementsAndItsCheckAreARunsAlone() throws Exception {
-        try (Sessions.Session session = Sessions.openPrivate(PLATFORM)) {
+        try (Sessions.Session session = Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM))) {
             RunScope.Refused sent = assertThrows(RunScope.Refused.class, session::statements);
             assertTrue(sent.getMessage().contains("a session's statements outside a plan's run"), sent.getMessage());
             assertThrows(RunScope.Refused.class, () -> session.statements(null));
-            assertThrows(RunScope.Refused.class, () -> Sessions.check(session, PLATFORM));
+            assertThrows(RunScope.Refused.class, () -> Sessions.check(session, com.legend.planner.ConnectionPlans.type(PLATFORM)));
             assertThrows(RunScope.Refused.class, () -> Sessions.view(session).statements());
             try (var run = RunScope.enter()) {
-                Sessions.check(session, PLATFORM);
+                Sessions.check(session, com.legend.planner.ConnectionPlans.type(PLATFORM));
                 session.statements().execute("SELECT 1");
             }
             // the owner's bracket is the owner's: free outside a run, refused while planning
@@ -120,35 +148,5 @@ class RunScopeTest {
             assertThrows(RunScope.Refused.class, () -> RunScope.planning("render a statement"));
         }
         assertEquals(false, RunScope.running());
-    }
-
-    @Test
-    void rule4ANamedResidueRunsOnlyWhereItsDoorIsOpen() {
-        String doors = System.getProperty("legend.wall.residue");
-        try {
-            System.clearProperty("legend.wall.residue");
-            try (var outer = RunScope.enter(); var residue = RunScope.residue("a-residue")) {
-                RunScope.Refused closed = assertThrows(RunScope.Refused.class, RunScope::enter);
-                assertTrue(closed.getMessage().contains("the residue 'a-residue' is closed on this lane"),
-                        closed.getMessage());
-            }
-            System.setProperty("legend.wall.residue", "another,a-residue");
-            try (var outer = RunScope.enter(); var residue = RunScope.residue("a-residue")) {
-                try (var inner = RunScope.enter()) {
-                    assertTrue(RunScope.running());
-                }
-            }
-            // the door names the residue: another nested run is refused on the same lane
-            try (var outer = RunScope.enter()) {
-                assertThrows(RunScope.Refused.class, RunScope::enter);
-            }
-        } finally {
-            if (doors == null) {
-                System.clearProperty("legend.wall.residue");
-            } else {
-                System.setProperty("legend.wall.residue", doors);
-            }
-        }
-        assertFalse(RunScope.running());
     }
 }

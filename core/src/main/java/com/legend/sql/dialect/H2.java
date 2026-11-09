@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
@@ -78,24 +80,6 @@ public class H2 extends AnsiSqlRenderer {
         // references take their source's spelling (Phase 1, batch 135)
         ps.add(new SourceSpelling());
         return java.util.List.copyOf(ps);
-    }
-
-    /** H2 names the failing statement of a script ({@code SQL statement: <text>};
-     *  a later failure quotes the script from that statement on): the index of the
-     *  statement the quote starts with. */
-    @Override
-    public java.util.OptionalInt failingStatement(String message, java.util.List<String> statements) {
-        int at = message.indexOf("SQL statement: ");
-        if (at < 0) {
-            return java.util.OptionalInt.empty();
-        }
-        String quoted = message.substring(at + "SQL statement: ".length()).strip();
-        for (int i = 0; i < statements.size(); i++) {
-            if (quoted.startsWith(statements.get(i).strip())) {
-                return java.util.OptionalInt.of(i);
-            }
-        }
-        return java.util.OptionalInt.empty();
     }
 
     /** H2 2.1.214 reserved words — the ENGINE's own list
@@ -182,6 +166,15 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected SqlWriter catalog(SqlWriter writer, com.legend.sql.SqlSource.Catalog c) {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
+    }
+
+    /** {@inheritDoc} The runner streams the cells, one row's insert each (2026-11-09): H2's {@code CSVREAD}, which
+     *  read the file until then (as legend-engine's H2 loads one, loadValuesToDbTableForH2), takes no bound path
+     *  (measured 2026-11-09), and a path written into the statement is a machine's path in the plan. The runner splits
+     *  the text by {@code CSVREAD}'s own rule ({@code base.CsvCells}). */
+    @Override
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        return csvStreamed(load);
     }
 
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
@@ -1138,7 +1131,7 @@ public class H2 extends AnsiSqlRenderer {
                     .append(castTypeName(c.target())).append(")");
         }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
-        // the two rows host mode lost when the byte channel judged): a
+        // two rows the since-deleted byte channel lost): a
         // value whose TYPE FACT is BOOLEAN takes the reference spelling
         // too, not only a boolean-SHAPED expression
         boolean booleanFact = c.value().type() instanceof com.legend.sql.TypeFact.Typed tf

@@ -1,7 +1,7 @@
 package com.legend.resolver;
 
 import com.legend.testbackend.TestBackends;
-import com.legend.compiler.spec.TypeInferenceException;
+import com.legend.error.TypeInferenceException;
 import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

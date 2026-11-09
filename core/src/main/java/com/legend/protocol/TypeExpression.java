@@ -1,5 +1,6 @@
 package com.legend.protocol;
 
+
 import java.util.List;
 import java.util.Objects;
 

@@ -5,9 +5,9 @@ package com.legend.testing;
 
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.compiler.element.ModelContext;
-import com.legend.judge.AssertListener;
+import com.legend.testexecutionplan.AssertListener;
 import com.legend.exec.Sessions;
 
 import java.sql.Connection;
@@ -60,8 +60,8 @@ public final class Program {
      *  with no property): core's tests of verdicts run under each judge alone and under both, as channel B's suites
      *  do (the core parity program, 2026-11-03: the user's "100% parity on host+database on our core tests"). A test
      *  that passes its own options keeps its own judge. */
-    public static ExecuteOptions.JudgeMode laneJudge() {
-        return ExecuteOptions.JudgeMode.valueOf(System.getProperty("legend.test.judge", "HOST"));
+    public static com.legend.testplan.PlanningOptions.JudgeMode laneJudge() {
+        return com.legend.testplan.PlanningOptions.JudgeMode.valueOf(System.getProperty("legend.test.judge", "HOST"));
     }
 
     /** The last statement's side of {@code body} run through the program entry, read through the twin's reader: for
@@ -99,8 +99,8 @@ public final class Program {
         // reader a query's answer is read by (the doors, 2026-10-29; until then the collected side re-read here)
         java.io.StringWriter out = new java.io.StringWriter();
         Lean.Capturing sink = new Lean.Capturing(out);
-        Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
-                options, sink::of);
+        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
+                options, new com.legend.result.Output.Rows(sink));
         return new Report(List.copyOf(verdicts), sink.answered());
     }
 }

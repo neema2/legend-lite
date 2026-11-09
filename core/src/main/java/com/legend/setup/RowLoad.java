@@ -88,9 +88,9 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, com
 
     /** This load for a bulk loader, every statement rendered by {@code dialect}: its rows, and the staging table they
      *  are appended to as text, created (temporary, one text column per cell), copied into the target table (the
-     *  database casts each cell) and dropped — a plan's setup step ({@code ExecutionPlan.SetupStep.Rows}), which the
+     *  database casts each cell) and dropped — a plan's setup step ({@code ExecutionPlan.LoadStep.Rows}), which the
      *  execution side's loader runs. Its rows are not empty. */
-    public com.legend.executionplan.ExecutionPlan.SetupStep.Rows staged(com.legend.sql.dialect.SqlDialect dialect) {
+    public com.legend.executionplan.ExecutionPlan.LoadStep.Rows staged(com.legend.sql.dialect.SqlDialect dialect) {
         if (!casts.isEmpty()) {
             // the stage's copy is one INSERT ... SELECT *: it casts nothing, so a cast would be dropped
             throw new IllegalStateException("row load into " + table + ": a load with casts has no staged form");
@@ -101,7 +101,7 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, com
                     new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR),
                     false, false));
         }
-        return new com.legend.executionplan.ExecutionPlan.SetupStep.Rows(STAGE,
+        return new com.legend.executionplan.ExecutionPlan.LoadStep.Rows(STAGE,
                 dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, com.legend.sql.NameQuoting.BARE, text,
                         true)),
                 dialect.render(fromStage(STAGE)),

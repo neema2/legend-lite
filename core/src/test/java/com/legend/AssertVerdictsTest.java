@@ -7,7 +7,7 @@ import com.legend.testing.Lean;
 import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -130,7 +130,7 @@ class AssertVerdictsTest {
     /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
     private static Lean.Result runBoth(String query) throws SQLException {
         return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
-                ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH));
+                ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
     }
 
     @Test
@@ -139,13 +139,13 @@ class AssertVerdictsTest {
     void enumUnderAnyDeclinesToHost() throws Exception {
         // 2026-10-18 (step 6): the byte channel that rode the side query is retired; the agreement gate judges
         // the pair twice and the two verdicts must agree
-        long judged = com.legend.judge.CanonicalDivergence.sqlJudgedInDatabaseCount();
+        long judged = com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount();
         assertEquals(Boolean.TRUE, (runBoth(
                 "{|assertEquals(t::Kind.CITY, t::Kind.CITY->cast(@Any))}"))
                 .value());
-        assertEquals(judged + 1, com.legend.judge.CanonicalDivergence.sqlJudgedInDatabaseCount(),
+        assertEquals(judged + 1, com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabaseCount(),
                 "enum-under-Any pair must be JUDGED by the database judge, in agreement with the host: "
-                        + com.legend.judge.CanonicalDivergence.summary());
+                        + com.legend.testexec.CanonicalDivergence.summary());
     }
 
     @Test

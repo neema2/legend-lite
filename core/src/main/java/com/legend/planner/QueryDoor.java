@@ -26,7 +26,7 @@ import java.util.Map;
  * THE QUERY DOOR (the test-is-the-product plan's B6, R13's N1; M3's brief B12 item 1, narrowed by M3a's measurements):
  * what a test's program may hold and a product query may not, found by one scan of the typed body and refused by
  * name at the first statement holding it, before anything is planned. The kinds ({@link TestOnly}) are what only the
- * test door ({@code Execution.runProgram}, its program planned by the test-planning library) plans: an effect; a
+ * test door ({@code TestExecution.runProgram}, its program planned by the test-planning library) plans: an effect; a
  * {@code from()}'s inline test data, or the test data of a named runtime OTHER than the plan's own (the plan's own
  * runtime's test data is its target's setup already, {@code PlanMaker.target}: M3a found 47 working server queries
  * naming it); a let-bound {@code execute(...)} (Pure runs it at the let, a test's eager run; an inline lazy read stays
@@ -109,7 +109,9 @@ public final class QueryDoor {
                     && NativeFn.ContextOwner.of(nc.callee().id()).isPresent(), specs, catches)) {
                 kinds.add(TestOnly.ASSERT_ERROR);
             }
-            if (StatementEffects.reaches(statement, QueryDoor::isAssert, specs, verdicts)) {
+            // what running the statement reaches: a verdict inside a lambda a construction stores (a runtime's SQL
+            // post-processor) is none of the statement's (StatementEffects.reachesRunning, 2026-11-06)
+            if (StatementEffects.reachesRunning(statement, QueryDoor::isAssert, specs, verdicts)) {
                 kinds.add(TestOnly.ASSERT);
             }
             return kinds;

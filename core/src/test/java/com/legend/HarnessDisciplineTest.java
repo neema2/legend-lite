@@ -128,7 +128,7 @@ class HarnessDisciplineTest {
             // DISPLAY ordering of statement counts (largest first) — no verdict, no comparison policy
             // 2 -> 3 (2026-11-01, the test-is-the-product plan's M9, the kind census): the bodies the router left on
             // the walk DISPLAYED by kinds, most frequent first — a report line, no verdict, no comparison policy
-            Map.entry("MinimalCorpusTest.java", 3),
+            Map.entry("MinimalCorpusTest.java", 2),   // 3 -> 2 (2026-11-06, the walk deletion: the body-router stayed-kinds histogram and its sort deleted with the walk)
             // the eager corpus compile PROBE (COMPILE_EVERYTHING_HOMEWORK §10, run
             // by name, not a gate): sorted REPORT lines — failures by reason,
             // package, source file, name — a display, never a verdict
@@ -157,6 +157,10 @@ class HarnessDisciplineTest {
             // and the row-multiset match moved here from PureAsserts /
             // TdsCompare; two-sided comparison policy, never a result order
             Map.entry("Equality.java", 4),
+            // 2026-11-09 (slice 5: the test's planner scanned in the driver's place): the body's kinds named in the
+            // program road's refusal message, sorted so the message reads the same each run -- a diagnostic's text,
+            // never a result's order
+            Map.entry("BodyKinds.java", 1),
             // TYPED-IR Slice 1: census-class DISPLAY ordering
             // (largest-first report lines) — reporting, never a result
             // reordering; two-sided by construction (both sides of no
@@ -165,7 +169,8 @@ class HarnessDisciplineTest {
             // map largest-first. 2 -> 3 (§E3 slack census): the slack
             // report, same display-only shape. 3 -> 2 (2026-10-29, the doors' audit D64): the slack report
             // deleted with the wire census's arm, callerless since the plan runner.
-            Map.entry("SqlTypeCensus.java", 2),
+            // (SqlTypeCensus.java 2 -> deleted 2026-11-09, the full audit: the census had no feeder; with its static
+            // state, the class went)
             // CanonicalDivergence: the assertSameElements byte-channel
             // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
             // comparison policy — the census-side mirror of R2's
@@ -215,7 +220,8 @@ class HarnessDisciplineTest {
             // (2026-11-03, the user's ruling: the flat-cells byte channel compares in order -- assertSameElements
             // keeps its own sort, upstream's sort-then-compare); 2 -> 4 (2026-11-03, the user's ruling "no sort can be
             // multiset compare" restored: an INCIDENTAL actual side's flat-cells byte channel sorts both sides again)
-            Map.entry("HostJudge.java", 4),
+            // 4 -> 0 (2026-11-07, P1: the four sorts were the byte channel's, a canon rider built and declined at run
+            // since 2026-10-18; deleted with it -- the host lattice's own order policy is Equality's)
             // (BodyDriver: 2 -> 1 (2026-10-31, the seam program's S2g): its distinct() over a plan's chain mappings
             // left for the planner with the engine's plan text (EnginePlans, below); 1 -> 0 (2026-10-31, S4a): the
             // canon's JSON key order left for the planner with the side's plan (SidePlanner, below))
@@ -281,11 +287,11 @@ class HarnessDisciplineTest {
                 // from the harness) — the discipline follows the code
                 "core/src/main/java/com/legend/exec",
                 // D71 (2026-10-30): the comparison policy moved on, out of exec into
-                // the judge layer (com.legend.judge) -- the discipline follows it
-                "core/src/main/java/com/legend/judge",
-                // step C (D73, 2026-10-30): the judges' arms, the body driver and the
-                // plan allocations in the driver package -- the discipline follows the code
-                "core/src/main/java/com/legend/driver",
+                // the judge layer, and with slice 5 (2026-11-09) into the test's run -- the discipline follows it
+                "core/src/main/java/com/legend/testexec",
+                // step C (D73, 2026-10-30): the judges' arms, the body driver and the plan allocations in the driver
+                // package, the test's planner's since slice 5 -- the discipline follows the code
+                "core/src/main/java/com/legend/testplan",
                 // the seam program's S2g (2026-10-31): the driver's planning helpers in the planner package
                 "core/src/main/java/com/legend/planner"}) {
             try (Stream<Path> files = SourceFiles.under(root).stream()) {

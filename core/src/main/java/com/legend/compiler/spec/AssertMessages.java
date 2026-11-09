@@ -93,8 +93,8 @@ public final class AssertMessages {
      *  (a message reading what the planner cannot plan): upstream evaluates the message only where the assert fails,
      *  so the assert holds where it holds, and fails with this text where it fails -- both judges alike (2026-11-04,
      *  the assert bar). */
-    public static String unevaluated(RuntimeException failure) {
-        return "Assert failed; its message could not be evaluated: " + failure.getMessage();
+    public static String unevaluated(@com.legend.base.Nullable String failure) {
+        return "Assert failed; its message could not be evaluated: " + failure;
     }
 
     /** {@code assert(true)}: an assert the compiler decided holds (a helper whose asserts fold over spelled values),

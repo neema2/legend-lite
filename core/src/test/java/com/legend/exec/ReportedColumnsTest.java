@@ -31,9 +31,9 @@ final class ReportedColumnsTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     void theColumnsAreTheRealRunsAndTheCellsTyped(TestBackend backend) throws Exception {
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(backend.type()),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(backend.type()), null),
                 List.of(), List.of());
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, List.of(),
                 ExecutionPlan.Sql.of("SELECT CAST(7 AS BIGINT) AS N, CAST('a' AS VARCHAR(10)) AS S", target)));
         List<ExecutionPlan.Column> columns = new ArrayList<>();

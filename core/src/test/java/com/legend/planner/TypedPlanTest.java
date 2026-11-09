@@ -39,13 +39,11 @@ class TypedPlanTest {
         return switch (plan.root()) {
             case ExecutionPlan.TdsResult t -> t.sql().target();
             case ExecutionPlan.Keyed k -> k.keys().target();
-            case ExecutionPlan.Sequence s -> target(new ExecutionPlan(List.of(), s.steps().get(0)));
+            case ExecutionPlan.Sequence s -> target(ExecutionPlan.reading(List.of(), s.steps().get(0)));
             case ExecutionPlan.Update u -> u.sql().target();
             case ExecutionPlan.Check k -> k.sql().target();
             case ExecutionPlan.Effect e -> e.sql().target();
-            case ExecutionPlan.Setup u -> throw new IllegalStateException("a typed plan here has no seed step");
-            case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a typed plan here is never a verdict group");
-            case ExecutionPlan.Branch b -> throw new IllegalStateException("a typed plan here is never a branch");
+            case ExecutionPlan.Load u -> throw new IllegalStateException("a typed plan here has no seed step");
             case ExecutionPlan.Constant c -> throw new IllegalStateException("a typed plan here reads a database: a"
                     + " constant answer names no target");
         };

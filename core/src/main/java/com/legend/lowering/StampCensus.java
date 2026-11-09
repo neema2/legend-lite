@@ -42,11 +42,7 @@ public final class StampCensus {
     private static final boolean COUNT_MODE =
             System.getenv("LL_STAMP_COUNT") != null;
 
-    /** The test/query currently compiling — set by harness runners so a
-     * census line names its witness (the RefereeVerify.CURRENT_TEST pattern;
-     * main-scope holder because the lowering cannot see test classes). */
-    public static final ThreadLocal<String> CONTEXT =
-            ThreadLocal.withInitial(() -> "<unattributed>");
+    // (the test label is base's one, Attribution.now(): 2026-11-09, one label for every census)
 
 
     /** The scalar-funnel hook: spec's stamp vs the lowered expression's
@@ -57,7 +53,7 @@ public final class StampCensus {
             // a VARIABLE stamp surviving to lowering is its own finding —
             // lowering should only ever see concrete bounds
             fire("VAR-STAMP-AT-LOWERING " + digest(spec)
-                    + " test=" + CONTEXT.get());
+                    + " test=" + com.legend.base.Attribution.now());
             return;
         }
         boolean scalarStamp = b.upper() != null && b.upper() <= 1;
@@ -101,14 +97,14 @@ public final class StampCensus {
         if (scalarStamp && !designedListCarrier && listShaped(e)) {
             fire("ONE-STAMP/LIST-SHAPE mult=[" + b.lower() + ".."
                     + b.upper() + "] sql=" + e.getClass().getSimpleName()
-                    + " " + digest(spec) + " test=" + CONTEXT.get());
+                    + " " + digest(spec) + " test=" + com.legend.base.Attribution.now());
             return;
         }
         if (!scalarStamp && definitelyScalar(e)) {
             fire("MANY-STAMP/SCALAR-SHAPE mult=[" + b.lower() + ".."
                     + (b.upper() == null ? "*" : b.upper()) + "] sql="
                     + e.getClass().getSimpleName() + " " + digest(spec)
-                    + " test=" + CONTEXT.get());
+                    + " test=" + com.legend.base.Attribution.now());
         }
     }
 

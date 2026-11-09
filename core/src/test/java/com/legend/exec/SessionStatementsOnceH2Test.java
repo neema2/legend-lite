@@ -27,7 +27,7 @@ class SessionStatementsOnceH2Test {
     private static final List<String> SESSION = List.of("SET @legend_session = 1");
 
     private static ExecutionPlan plan(ExecutionPlan.Target target, String statement) {
-        return new ExecutionPlan(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(statement, target)));
+        return ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(statement, target)));
     }
 
     private static long sessionStatements() {
@@ -38,7 +38,7 @@ class SessionStatementsOnceH2Test {
     void aTargetsSessionStatementsRunOncePerConnection_andAgainAfterARollback() throws Exception {
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
             PlanSessions.Source on = PlanSessions.of(com.legend.testbackend.TestSessions.over(c));
-            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
+            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null),
                     SESSION, List.of());
             ExecutionPlan read = plan(target, "SELECT CAST(@legend_session AS VARCHAR)");
             long before = sessionStatements();
@@ -47,7 +47,7 @@ class SessionStatementsOnceH2Test {
             assertEquals("1", PlanRunnerTest.run(read, on));
             assertEquals(1, sessionStatements() - before, "three statements, the session statements once");
             // another target's list on the same connection: its own, once
-            ExecutionPlan.Target other = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
+            ExecutionPlan.Target other = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null),
                     List.of("SET @legend_other = 2"), List.of());
             assertEquals("2", PlanRunnerTest.run(plan(other, "SELECT CAST(@legend_other AS VARCHAR)"), on));
             assertEquals("2", PlanRunnerTest.run(plan(other, "SELECT CAST(@legend_other AS VARCHAR)"), on));
@@ -70,7 +70,7 @@ class SessionStatementsOnceH2Test {
     void insideATransactionTheCallerHolds_theListRunsBeforeEveryStatement_andIsNotRemembered() throws Exception {
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
             PlanSessions.Source on = PlanSessions.of(com.legend.testbackend.TestSessions.over(c));
-            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
+            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null),
                     SESSION, List.of());
             ExecutionPlan read = plan(target, "SELECT CAST(@legend_session AS VARCHAR)");
             long before = sessionStatements();
@@ -92,7 +92,7 @@ class SessionStatementsOnceH2Test {
     @Test
     void aTargetWithNoSessionStatementsSendsNone() throws Exception {
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
-            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
+            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null),
                     List.of(), List.of());
             long before = sessionStatements();
             assertEquals("1", PlanRunnerTest.run(plan(target, "SELECT '1'"), Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(c))));

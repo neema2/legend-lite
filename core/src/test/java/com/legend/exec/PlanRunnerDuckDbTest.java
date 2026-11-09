@@ -31,8 +31,8 @@ class PlanRunnerDuckDbTest {
      *  {@code ["a, b", "c"]} and {@code ["a", "b, c"]} one database). */
     @Test
     void aTargetIsKeyedByItsWholeContent_soLookAlikeCellsNeverShareADatabase() throws Exception {
-        var duck = new ExecutionPlan.Database.Declared(inMemory("s::Duck", DatabaseType.DuckDB,
-                new ConnectionSpecification.InMemory()));
+        var duck = new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::Duck", DatabaseType.DuckDB,
+                new ConnectionSpecification.InMemory())), null);
         String read = "SELECT string_agg(COALESCE(A, '<none>') || '/' || COALESCE(B, '<none>'), ';') FROM K";
         Map<List<String>, String> rows = new java.util.LinkedHashMap<>();
         rows.put(List.of("a, b", "c"), "a, b/c");

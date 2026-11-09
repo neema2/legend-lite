@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.GraphEdges;
 import com.legend.compiler.element.ModelContext;

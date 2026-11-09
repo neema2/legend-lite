@@ -52,6 +52,8 @@ def junit_test(
         "-Duser.language=en",
         "-Duser.country=US",
         "-Dfile.encoding=UTF-8",
+        # G11 (the goals of record, 2026-11-07): every plan the product door makes survives its JSON (Execution.roundTrip)
+        "-Dlegend.plan.roundtrip=true",
         "-Xmx%dm" % memory_mb,
     ] + jvm_flags
     inputs = list(data)

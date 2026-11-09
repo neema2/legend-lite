@@ -116,10 +116,9 @@ class StreamingIntegrationTest {
     private static void execute(String model, String query, Connection c, OutputStream out, boolean csv)
             throws java.io.IOException {
         java.io.Writer w = new java.io.OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Execution.run(model, query, "test::TestRuntime", com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)),
-                com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), plan -> csv
-                        ? new com.legend.result.CsvWriter(w, plan.answerShape())
-                        : new com.legend.result.JsonRowsWriter(w, plan.answerShape()));
+        com.legend.Execution.run(model, query, "test::TestRuntime", com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                csv ? new com.legend.result.Output.Csv(w) : new com.legend.result.Output.JsonRows(w));
         w.flush();
     }
 
@@ -128,9 +127,9 @@ class StreamingIntegrationTest {
     private static void stream(String model, String query, Connection c, OutputStream out, int batchRows)
             throws java.io.IOException {
         java.io.Writer w = new java.io.OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Execution.run(model, query, "test::TestRuntime", com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)),
+        com.legend.Execution.run(model, query, "test::TestRuntime", com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
                 com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                plan -> new com.legend.result.JsonRowsWriter(w, plan.answerShape()), batchRows);
+                new com.legend.result.Output.JsonRows(w), batchRows);
         w.flush();
     }
 

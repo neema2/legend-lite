@@ -14,9 +14,11 @@ package com.legend.base;
  *   <li><b>Every statement is a run's.</b> A session's statements -- a send, a load, a metadata read, a session's
  *   check -- are taken inside a plan's run alone ({@link #statement}: the session's one door to them).</li>
  *   <li><b>A run starts no run.</b> A run started inside a run is refused ({@link #enter}): every statement a run
- *   sends is a step of its plan, read by the runner (a caller's message, a split rung's row: the program's reader).
- *   The one exception is a NAMED RESIDUE ({@link #residue}): a crossing the platform still carries, closed unless the
- *   lane opens its door ({@code -Dlegend.wall.residue=<name>,...}), deleted by name with the code that needs it.</li>
+ *   sends is a step of its plan (a caller's message and a split rung's statement are planned sides and verdicts of
+ *   the program, P1.2, 2026-11-07). No exception: the engine-text appeal's runs inside a body's run were deleted on
+ *   2026-11-06, and a held appeal is decided after the body's run, its rows read as plans of their own.</li>
+ *   <li><b>A judgment plans nothing.</b> While a held appeal is decided after the body's run ({@link #judging}), the
+ *   planning seams refuse as they do inside a run, and no body is planned ({@link #plans}).</li>
  * </ol>
  *
  * <p>Nothing turns the wall off: there is no report mode (the measurement of 2026-11-06 listed every crossing over
@@ -32,20 +34,19 @@ public final class RunScope implements AutoCloseable {
 
     private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
     private static final ThreadLocal<Slot> PLANNING = ThreadLocal.withInitial(Slot::new);
-    private static final ThreadLocal<Slot> RESIDUE = ThreadLocal.withInitial(Slot::new);
     private static final RunScope SCOPE = new RunScope();
 
     private RunScope() {
     }
 
-    /** A thread's named scope: what it plans, or the residue in force; null for none. */
+    /** A thread's named scope: what it plans; null for none. */
     private static final class Slot {
         @Nullable String name;
     }
 
     /**
      * A plan starts running on this thread; close it when the run ends. Refused while this thread plans (rule 2), and
-     * inside a run (rule 4) unless a residue whose door is open is in force.
+     * inside a run (rule 4).
      */
     public static RunScope enter() {
         String planning = PLANNING.get().name;
@@ -54,12 +55,8 @@ public final class RunScope implements AutoCloseable {
                     + " <- " + callers(12));
         }
         if (DEPTH.get()[0] > 0) {
-            String residue = RESIDUE.get().name;
-            if (residue == null || !open(residue)) {
-                throw new Refused("the wall: a run started inside a run (every statement a run sends is a step of its"
-                        + " plan)" + (residue == null ? "" : "; the residue '" + residue + "' is closed on this lane")
-                        + " <- " + callers(12));
-            }
+            throw new Refused("the wall: a run started inside a run (every statement a run sends is a step of its"
+                    + " plan) <- " + callers(12));
         }
         DEPTH.get()[0]++;
         return SCOPE;
@@ -87,18 +84,51 @@ public final class RunScope implements AutoCloseable {
         return DEPTH.get()[0] > 0;
     }
 
-    /** Rule 1: a planning seam is about to do {@code what}, refused while a plan runs. */
+    /** Rule 1: a planning seam is about to do {@code what}, refused while a plan runs, and while a judgment made after
+     *  a run is decided ({@link #judging}). */
     public static void planning(String what) {
-        if (DEPTH.get()[0] > 0) {
-            throw new Refused("the runtime wall: " + what + " while a plan runs (" + what + " <- " + callers(24) + ")");
+        if (DEPTH.get()[0] > 0 || JUDGING.get()[0] > 0) {
+            throw new Refused("the runtime wall: " + what + " while " + busy() + " (" + what + " <- " + callers(24)
+                    + ")");
         }
+    }
+
+    private static final ThreadLocal<int[]> JUDGING = ThreadLocal.withInitial(() -> new int[1]);
+
+    /** What refuses planning on this thread: a run, or a judgment decided after one, or a run's caller called back. */
+    private static String busy() {
+        return DEPTH.get()[0] > 0 ? "a plan runs"
+                : "a judgment is decided after its run, or a run's caller is called back for it";
+    }
+
+    /** A judgment decided AFTER a run (a held compatibility appeal, P1, 2026-11-07): it plans nothing -- the planning
+     *  seams refuse as inside a run -- and reads only plans planned ahead, each a run of its own. Close it when the
+     *  judgment ends. */
+    public static Judging judging() {
+        JUDGING.get()[0]++;
+        return () -> JUDGING.get()[0]--;
+    }
+
+    /** A run's caller called back around it (the full audit's must-fix, 2026-11-09: the wall's blind spot at exec's
+     *  entry): the sink a caller makes from the plan, the session it opens for the plan's target, the answer's sink --
+     *  each called before the plan's run scope opens ({@link #enter}) -- plan nothing; planning is refused as inside a
+     *  run. Exec's runs hold it from their entry to their end. Close it when the run ends. */
+    public static Judging callingBack() {
+        JUDGING.get()[0]++;
+        return () -> JUDGING.get()[0]--;
+    }
+
+    /** A judgment's scope ({@link #judging}). */
+    public interface Judging extends AutoCloseable {
+        @Override
+        void close();
     }
 
     /** Rule 2: this thread plans {@code what} until the scope closes (an inner scope keeps the outer's name). Refused
      *  inside a run: a run plans nothing (rule 1). */
     public static Planning plans(String what) {
-        if (DEPTH.get()[0] > 0) {
-            throw new Refused("the runtime wall: planning " + what + " while a plan runs <- " + callers(24));
+        if (DEPTH.get()[0] > 0 || JUDGING.get()[0] > 0) {
+            throw new Refused("the runtime wall: planning " + what + " while " + busy() + " <- " + callers(24));
         }
         Slot slot = PLANNING.get();
         String previous = slot.name;
@@ -148,44 +178,6 @@ public final class RunScope implements AutoCloseable {
             throw new Refused("the wall: " + act + " outside a plan's run"
                     + (planning == null ? "" : " (while " + planning + " is planned)") + " <- " + callers(12));
         }
-    }
-
-    /**
-     * Rule 4's exception: the NAMED RESIDUE {@code name} is in force until the scope closes -- a run it starts inside
-     * a run is admitted where the lane opens its door ({@code -Dlegend.wall.residue} lists it), refused by name
-     * elsewhere. A residue is a crossing the platform still carries, named here so it cannot hide and deleted with the
-     * code that needs it.
-     */
-    public static Residue residue(String name) {
-        Slot slot = RESIDUE.get();
-        String previous = slot.name;
-        slot.name = name;
-        return new Residue(previous);
-    }
-
-    /** A residue scope; closing restores the one before it. */
-    public static final class Residue implements AutoCloseable {
-        private final @Nullable String previous;
-
-        private Residue(@Nullable String previous) {
-            this.previous = previous;
-        }
-
-        @Override
-        public void close() {
-            RESIDUE.get().name = previous;
-        }
-    }
-
-    /** Whether the lane opens the door of residue {@code name}. */
-    private static boolean open(String name) {
-        String doors = System.getProperty("legend.wall.residue", "");
-        for (String d : doors.split(",")) {
-            if (d.strip().equals(name)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** The nearest callers outside the wall's own seams, for a refusal's message. */

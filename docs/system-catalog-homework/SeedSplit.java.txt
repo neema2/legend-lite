@@ -1,0 +1,37 @@
+import com.legend.compiler.element.ModelContext;
+import java.util.*;
+
+/** Measures the system store's seed: rows and characters per table, for a model's text (args[0] is a file). */
+public class SeedSplit {
+    public static void main(String[] args) throws Exception {
+        String text = new String(java.nio.file.Files.readAllBytes(java.nio.file.Path.of(args[0])));
+        ModelContext ctx = com.legend.Compiler.compileModel(text);
+        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow();
+        long rows = 0, chars = 0, userRows = 0, userChars = 0;
+        Map<String, long[]> per = new TreeMap<>();
+        for (var schema : store.schemas()) {
+            for (var def : schema.tables()) {
+                long r = 0, c = 0, ur = 0, uc = 0;
+                for (List<String> row : com.legend.planner.MetamodelSeeds.rows(def.name(), ctx)) {
+                    long rc = 0;
+                    boolean user = false;
+                    for (String cell : row) {
+                        rc += cell == null ? 4 : cell.length() + 3;
+                        if (cell != null && (cell.startsWith("test::") || cell.contains("::test::") || cell.startsWith("u::"))) {
+                            user = true;
+                        }
+                    }
+                    r++; c += rc;
+                    if (user) { ur++; uc += rc; }
+                }
+                per.put(def.name(), new long[] {r, c, ur, uc});
+                rows += r; chars += c; userRows += ur; userChars += uc;
+            }
+        }
+        System.out.printf("tables=%d rows=%d chars=%d | rows naming the user's package: %d (%d chars)%n",
+                per.size(), rows, chars, userRows, userChars);
+        per.entrySet().stream().sorted((a, b) -> Long.compare(b.getValue()[1], a.getValue()[1])).limit(8)
+                .forEach(e -> System.out.printf("  %-28s rows=%6d chars=%9d  user rows=%d%n", e.getKey(),
+                        e.getValue()[0], e.getValue()[1], e.getValue()[2]));
+    }
+}

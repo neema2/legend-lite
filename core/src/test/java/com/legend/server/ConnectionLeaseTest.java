@@ -105,10 +105,10 @@ class ConnectionLeaseTest {
     private static byte[] written(String query, boolean csv) throws java.io.IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         java.io.Writer w = new java.io.OutputStreamWriter(out, java.nio.charset.StandardCharsets.UTF_8);
-        com.legend.Execution.run(duckModel, query, "test::TestRuntime", ConnectionResolver.SOURCE,
-                com.legend.exec.PlanSessions.shared(), plan -> csv
-                        ? new com.legend.result.CsvWriter(w, plan.answerShape())
-                        : new com.legend.result.JsonRowsWriter(w, plan.answerShape()));
+        // the server's own route (2026-11-09: the server's plans alone name the project's database)
+        com.legend.Execution.runOnProjectDatabases(
+                com.legend.Compiler.query(com.legend.Compiler.compileModel(duckModel), query), "test::TestRuntime",
+                csv ? new com.legend.result.Output.Csv(w) : new com.legend.result.Output.JsonRows(w));
         w.flush();
         return out.toByteArray();
     }
@@ -158,7 +158,7 @@ class ConnectionLeaseTest {
         // showed as an undeletable file, and says what we actually mean.
         com.legend.exec.Sessions.Session owned;
         try (com.legend.exec.Sessions.Session session =
-                ConnectionResolver.session(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
+                ServerSessions.session(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
             owned = session;
             assertTrue(!com.legend.exec.Sessions.closed(owned), "a session must hand out a live connection");
         }
@@ -169,7 +169,7 @@ class ConnectionLeaseTest {
 
         com.legend.exec.Sessions.Session borrowed;
         try (com.legend.exec.Sessions.Session session =
-                ConnectionResolver.session(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
+                ServerSessions.session(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
             borrowed = session;
         }
         assertTrue(!com.legend.exec.Sessions.closed(borrowed),

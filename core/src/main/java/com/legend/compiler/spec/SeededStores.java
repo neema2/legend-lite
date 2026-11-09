@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.builtin.Subsumed;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.typed.TypedNativeCall;

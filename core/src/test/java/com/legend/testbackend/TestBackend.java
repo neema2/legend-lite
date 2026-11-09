@@ -6,7 +6,7 @@ package com.legend.testbackend;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.SqlDialect;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -23,6 +23,12 @@ public interface TestBackend {
 
     /** The database type its sessions are on. */
     DatabaseType type();
+
+    /** The plan's name for this backend's database type (the same constant): what a plan's target and the run's system
+     *  connections are keyed by (slice 5, 2026-11-09). */
+    default com.legend.executionplan.DatabaseType planType() {
+        return com.legend.executionplan.DatabaseType.valueOf(type().name());
+    }
 
     /** Its name as a lane spells it ({@code LEGENDLITE_PCT_BACKEND}): lower case. */
     String name();

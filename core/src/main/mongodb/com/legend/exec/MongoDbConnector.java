@@ -3,9 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.AuthenticationSpec;
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.AuthenticationSpec;
+import com.legend.executionplan.ConnectionSpecification;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
@@ -29,8 +28,8 @@ public final class MongoDbConnector implements DatabaseConnector {
     }
 
     @Override
-    public ConnectionDefinition.DatabaseType type() {
-        return ConnectionDefinition.DatabaseType.MongoDB;
+    public com.legend.executionplan.DatabaseType type() {
+        return com.legend.executionplan.DatabaseType.MongoDB;
     }
 
     /** {@inheritDoc} Yes: a MongoDB speaks no JDBC. */
@@ -48,7 +47,7 @@ public final class MongoDbConnector implements DatabaseConnector {
 
     /** {@inheritDoc} None: no JDBC opening reaches a MongoDB ({@link #open} does). */
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         throw new com.legend.error.NotImplementedException("connection '" + def.qualifiedName() + "' declares MongoDB,"
                 + " which no JDBC opening reaches: its connector opens it, through the plan runner");
     }
@@ -73,7 +72,7 @@ public final class MongoDbConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Session open(ConnectionDefinition connection) {
+    public Sessions.Session open(com.legend.executionplan.Connection connection) {
         if (!(connection.specification() instanceof ConnectionSpecification.StaticDatasource(String host, int port,
                 String database))) {
             throw new com.legend.error.NotImplementedException("connection '" + connection.qualifiedName()
@@ -98,7 +97,7 @@ public final class MongoDbConnector implements DatabaseConnector {
 
     /** The password a vault reference names: {@code systemproperties:<name>} reads the JVM's system property, set by
      *  the host; any other vault is refused by name. The value is handed to the driver and never carried further. */
-    private static String secret(ConnectionDefinition connection, String reference) {
+    private static String secret(com.legend.executionplan.Connection connection, String reference) {
         int colon = reference.indexOf(':');
         String kind = colon < 0 ? reference : reference.substring(0, colon);
         if (!"systemproperties".equals(kind)) {

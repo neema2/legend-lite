@@ -17,6 +17,7 @@ import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.database.Databases;
 import com.legend.error.NotImplementedException;
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.RelationalDataType;
 import com.legend.planner.PlanEnv;
@@ -24,6 +25,7 @@ import com.legend.setup.Ddl;
 import com.legend.sql.NameQuoting;
 import com.legend.sql.RawSql;
 import com.legend.sql.SqlDdl;
+import com.legend.sql.SqlDml;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
@@ -55,8 +57,10 @@ public final class EffectPlanner {
     }
 
     /** The replay ledger records DDL in its referee database's spelling on EVERY session. */
-    private static final SqlDialect REFEREE_DDL =
-            Databases.dialect(Databases.REPLAY_REFEREE);
+    private static SqlDialect refereeDdl() {
+        // one per use (2026-11-09): a dialect keeps state while it writes a statement, so none is shared statically
+        return Databases.dialect(Databases.REPLAY_REFEREE);
+    }
 
     /** The String arguments {@code call} needs, in the order {@link #statements} takes their values; a call this
      *  planner does not write is refused by name. */
@@ -64,6 +68,8 @@ public final class EffectPlanner {
         return switch (effectOf(call)) {
             case EXECUTE_IN_DB, DROP_AND_CREATE_SCHEMA_IN_DB, CREATE_TEMP_TABLE, DROP_TEMP_TABLE ->
                     List.of(call.args().get(0));
+            // the CSV's resource path: its value, the file's name under the run's resources (loadCsv, below)
+            case LOAD_CSV_TO_DB_TABLE -> List.of(call.args().get(0));
             case DROP_AND_CREATE_TABLE_IN_DB -> {
                 // the store is read before any argument is evaluated: a call that names none is refused first
                 storeOf(call);
@@ -140,14 +146,81 @@ public final class EffectPlanner {
                         NameQuoting.BARE, cols, true), env));
             }
             case DROP_TEMP_TABLE -> List.of(ddl(Ddl.dropTable(null, values.get(0)), env));
+            // a load, not a statement: planned by loadCsv as its own step (docs/DATA_IN_THE_PLAN_2026_11_09.md, L1)
+            case LOAD_CSV_TO_DB_TABLE -> throw new IllegalStateException("loadCsvToDbTable is planned as a load"
+                    + " (EffectPlanner.loadCsv), never as an effect's statements");
             default -> throw new IllegalStateException("not an effect whose statements the planner writes: "
                     + call.callee().qualifiedName());
         };
     }
 
+    /** A CSV file's load as the program runs it ({@code step}), with the text the replay ledger records for it
+     *  ({@code recorded}: the referee's insert of the file's rows -- the referee's copy of the data, as every seed's is
+     *  until the design's L8 replays the plan's loads), or none where the file holds no row (no load is planned). */
+    public record PlannedLoad(ExecutionPlan.LoadStep.File step, String recorded) {
+    }
+
+    /**
+     * {@code loadCsvToDbTable(path, table, connection)} (the user's ruling, 2026-11-06; a load by reference since
+     * 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L1): the file by its reference {@code ref} -- never its path, never
+     * its rows -- delivered as the program's database takes it ({@link SqlDialect#csvLoad}); the table the store
+     * navigation the call names, its columns in declared order, the file's cells loaded positionally after its header
+     * (legend-engine's native drops the header and inserts each row into the table's columns). {@code bytes} are the
+     * bytes {@code ref} digests, read at planning: the referee's copy is their rows (null where there are none: a file
+     * of no row loads nothing, and no load is planned).
+     */
+    public static @com.legend.base.Nullable PlannedLoad loadCsv(TypedNativeCall call,
+            com.legend.executionplan.DataRef ref, byte[] bytes, List<TypedSpec> body, PlanEnv env) {
+        var table = com.legend.compiler.spec.typed.StoreElementIdentity.tableRef(call.args().get(1),
+                x -> peelToOne(x, body));
+        if (table == null) {
+            throw new NotImplementedException("loadCsvToDbTable: the table argument is not a"
+                    + " db->schema(...)->table(...) navigation");
+        }
+        String schema = "default".equals(table.schema()) ? null : table.schema();
+        String qualified = schema == null ? table.table() : schema + "." + table.table();
+        DatabaseDefinition.TableDefinition def = env.ctx().findTableDefinition(table.dbFqn(), qualified)
+                .orElseThrow(() -> new IllegalStateException("loadCsvToDbTable: no table '" + qualified
+                        + "' in store " + table.dbFqn()));
+        List<String> columns = env.ctx().findTable(table.dbFqn(), table.table()).orElseThrow(() ->
+                new IllegalStateException("loadCsvToDbTable: no table '" + table.table() + "' in store "
+                        + table.dbFqn())).columns().stream().map(c -> c.name()).toList();
+        List<List<String>> rows = com.legend.base.CsvCells.rows(
+                new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+        if (rows.size() < 2) {
+            // a header alone, or nothing: no row loads, and the plan loads what it was planned against
+            return null;
+        }
+        if (rows.get(0).size() != columns.size()) {
+            throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name() + "' names "
+                    + rows.get(0).size() + " column(s) in its header, and table '" + qualified + "' takes "
+                    + columns.size(), new IllegalArgumentException(ref.name()));
+        }
+        java.util.Set<String> quoted = com.legend.setup.CsvSeed.quotedColumns(def);
+        com.legend.sql.NameQuoting quoting = Ddl.quoting(def, schema);
+        SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted);
+        SqlDialect.CsvLoad spelled = env.writtenIn().csvLoad(load);
+        ExecutionPlan.LoadStep.Delivery delivery = spelled.readsFile()
+                ? new ExecutionPlan.LoadStep.Delivery.DatabaseReads(spelled.sql())
+                : new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(), columns.size());
+        String recorded = refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns,
+                quoted, columns.size(), com.legend.base.CsvCells.body(rows, columns.size())).values());
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery), recorded);
+    }
+
+    /** {@code n} with its lets chased and its {@code toOne()}s peeled (a store navigation's links). */
+    private static TypedSpec peelToOne(TypedSpec n, List<TypedSpec> body) {
+        TypedSpec cur = Lets.bound(n, body);
+        while (cur instanceof TypedNativeCall nc && nc.args().size() == 1
+                && com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())) {
+            cur = Lets.bound(nc.args().get(0), body);
+        }
+        return cur;
+    }
+
     /** A DDL statement: the session's dialect's text sent, the referee's recorded. */
     private static Statement ddl(SqlDdl ddl, PlanEnv env) {
-        return new Statement(env.writtenIn().render(ddl), REFEREE_DDL.render(ddl), true);
+        return new Statement(env.writtenIn().render(ddl), refereeDdl().render(ddl), true);
     }
 
     /** {@code dropAndCreateTableInDb}'s store: its first argument, a store reference, or refused by name. */

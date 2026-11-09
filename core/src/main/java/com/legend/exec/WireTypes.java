@@ -53,6 +53,11 @@ public final class WireTypes {
         return t;
     }
 
+    /** The Pure primitives' names this table gives a reported column (2026-11-09: a test's run checks a raw grid's
+     *  reported column by it, and names no compiler type). */
+    public static final java.util.Set<String> NAMES = java.util.Set.of("Integer", "Float", "Boolean", "StrictDate",
+            "DateTime", "Decimal", "String");
+
     /** {@link #pureTypeNameOf}'s lookup: null for an unmapped SQL type (a raw grid's reported column of it refused
      *  by name: {@link #column}). The parameter suffix strips once ({@code DECIMAL(38,9)} is {@code DECIMAL}); the
      *  table is exact-match. */

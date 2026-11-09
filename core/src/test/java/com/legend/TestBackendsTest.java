@@ -51,7 +51,7 @@ class TestBackendsTest {
             assertTrue(names.add(backend.name()), backend.name());
             assertEquals(backend.name().toLowerCase(java.util.Locale.ROOT), backend.name());
             assertSame(backend, TestBackends.named(backend.name()));
-            assertEquals(Sessions.inProcess(type), backend.inProcess(), backend.name());
+            assertEquals(Sessions.inProcess(com.legend.planner.ConnectionPlans.type(type)), backend.inProcess(), backend.name());
         }
         assertEquals(Databases.implemented(), TestBackends.all().stream().map(TestBackend::type).toList());
         assertSame(TestBackends.of(Databases.PLATFORM), TestBackends.platform());
@@ -78,7 +78,7 @@ class TestBackendsTest {
         for (TestBackend backend : inProcess) {
             // a session's check is a statement act: a run's alone (THE WALL's rule 3, 2026-11-06)
             try (var session = backend.openSession(); var run = com.legend.base.RunScope.enter()) {
-                Sessions.check(session, backend.type());
+                Sessions.check(session, com.legend.planner.ConnectionPlans.type(backend.type()));
             }
             assertThrows(IllegalStateException.class, backend::openSystem, backend.name());
             assertTrue(backend.withStorelessRuntime("").contains("Runtime"), backend.name());

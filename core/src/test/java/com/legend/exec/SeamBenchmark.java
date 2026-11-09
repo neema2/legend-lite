@@ -107,15 +107,15 @@ final class SeamBenchmark {
         // the honest floor: the same statement the product's plan sends, read raw by the same getters' kinds
         measure(db, "1' raw typed read of the product's own statement", rows, mustDrain, () -> typedColumns(c, plain));
         measure(db, "6 product runner, typed batches, no writer (again, beside 1')", rows, mustDrain,
-                () -> productDrain(c, new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
+                () -> productDrain(c, ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                         ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(),
-                                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
+                                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                                         com.legend.database.Databases.dialect(type).sessionSetup(), List.of()),
                                 null))), null, null));
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
                 List.of());
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(), target,
                         null)));
         measure(db, "6 product runner, typed batches, no writer", rows, mustDrain,
@@ -190,13 +190,13 @@ final class SeamBenchmark {
             throws Exception {
         long warmNs = Long.getLong("seam.small.warmMs", 1000L) * 1_000_000L;
         long measureNs = Long.getLong("seam.small.measureMs", 2000L) * 1_000_000L;
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
                 List.of());
         for (int n : smallSizes()) {
             String sql = "SELECT id, name, CAST(amount AS DECIMAL(18,2)) AS amount, ts, bucket FROM bench WHERE id < "
                     + n;
-            ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
+            ExecutionPlan plan = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                     ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(sql, List.of(), target,
                             null)));
             java.util.Map<String, java.util.function.Function<Boolean, Path>> paths = new java.util.LinkedHashMap<>();

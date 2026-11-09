@@ -29,6 +29,118 @@ public final class PureV1Writer implements ResultSink {
         }
     }
 
+    /** A column's type as the engine's TDS builder spells it ({@code type}, {@code relationalType}), or why the engine
+     *  has no spelling of it ({@code refusal}, raised where the column is answered). */
+    public record ColumnType(@com.legend.base.Nullable String type, @com.legend.base.Nullable String relationalType,
+            @com.legend.base.Nullable String refusal) {
+        public ColumnType {
+            if ((refusal == null) == (type == null || relationalType == null)) {
+                throw new IllegalArgumentException("a column type is its two spellings or a refusal, not both");
+            }
+        }
+
+        public static ColumnType spelled(String type, String relationalType) {
+            return new ColumnType(type, relationalType, null);
+        }
+
+        public static ColumnType refused(String why) {
+            return new ColumnType(null, null, why);
+        }
+    }
+
+    /**
+     * WHAT THE ENVELOPE KNOWS OF THE QUERY, as data read before the run (2026-11-09, the user's question "why do we have
+     * any callbacks?": the writer was a factory the run called with the plan, reading the compiled query): each column
+     * the compiler typed, by name, its builder spelling; each primitive by the plan's short name, for a column only the
+     * data names (a dynamic pivot's generated one, named with {@code pivotSeparator}); and the refusal of a value's
+     * answer, whose serialization by the engine is unprobed.
+     */
+    public record Facts(java.util.Map<String, ColumnType> declared, java.util.Map<String, ColumnType> primitives,
+            String pivotSeparator, String valueRefusal) {
+        public Facts {
+            declared = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(declared));
+            primitives = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(primitives));
+            java.util.Objects.requireNonNull(pivotSeparator, "pivotSeparator");
+            java.util.Objects.requireNonNull(valueRefusal, "valueRefusal");
+        }
+    }
+
+    /** A relation's envelope for the columns the run announced: each column's builder entry by the type the compiler
+     *  gave it (a column only the data names -- a dynamic pivot's -- by its plan type, a primitive), the relational
+     *  activity carrying {@code sql}, and the columns' names as the engine labels them. Moved from the server's
+     *  pure/v1 API with the facts it reads (2026-11-09). */
+    public static Envelope envelope(Facts facts, String sql, List<ExecutionPlan.Column> columns) {
+        List<java.util.Map<String, Object>> builderColumns = new java.util.ArrayList<>();
+        List<String> names = new java.util.ArrayList<>();
+        for (var c : columns) {
+            // a column's type is the compiler's, under its name as the plan spells it or as a cast presents it (a
+            // pivot's generated name quoted); a column only the data names -- a dynamic pivot's generated one -- has
+            // none, and is typed by its plan type, a primitive; any other column the compiler did not type is refused
+            String name = CellText.presentedName(c.name());
+            ColumnType t = facts.declared().containsKey(c.name()) ? facts.declared().get(c.name())
+                    : facts.declared().containsKey(name) ? facts.declared().get(name)
+                    : c.name().contains(facts.pivotSeparator())
+                            // (the plan names a primitive by its short name, the table by its path: every dynamic
+                            // pivot's engine answer was refused until 2026-10-27, found by the PCT read as the engine's
+                            // adapter reads it, the result boundary program's stage 1, step 3)
+                            ? primitive(facts, c)
+                            : null;
+            if (t == null) {
+                throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: "
+                        + facts.declared().keySet());
+            }
+            if (t.refusal() != null) {
+                throw new com.legend.error.NotImplementedException(t.refusal());
+            }
+            java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
+            col.put("name", name);
+            col.put("type", t.type());
+            col.put("relationalType", t.relationalType());
+            builderColumns.add(col);
+            names.add(name);
+        }
+        java.util.Map<String, Object> builder = new java.util.LinkedHashMap<>();
+        builder.put("_type", "tdsBuilder");
+        builder.put("columns", builderColumns);
+        return new Envelope(Json.toCompact(builder), Json.toCompact(List.of(activity(sql, true))), names);
+    }
+
+    /** The Arrow answer's schema metadata for the columns the run announced (measured against legend-engine 4.145.0,
+     *  2026-10-08): {@code legend.builder}, the TDS builder as the JSON answer's; {@code legend.activities}, the
+     *  activities WITHOUT their {@code _type}; {@code legend.columns}, the column names. */
+    public static java.util.Map<String, String> arrowMetadata(Facts facts, String sql,
+            List<ExecutionPlan.Column> columns) {
+        Envelope e = envelope(facts, sql, columns);
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        m.put("legend.builder", e.builder());
+        m.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
+        m.put("legend.columns", Json.toCompact(e.names()));
+        return m;
+    }
+
+    /**
+     * The relational activity, carrying the SQL: with its {@code _type} first, as the JSON answer writes it, or
+     * without, as the Arrow answer's metadata does (measured, 4.145.0).
+     */
+    public static java.util.Map<String, Object> activity(String sql, boolean typed) {
+        java.util.Map<String, Object> activity = new java.util.LinkedHashMap<>();
+        if (typed) {
+            activity.put("_type", "relational");
+        }
+        activity.put("comment", "-- \"executionTraceID\" : \"" + java.util.UUID.randomUUID() + "\"");
+        activity.put("sql", sql);
+        return activity;
+    }
+
+    private static ColumnType primitive(Facts facts, ExecutionPlan.Column c) {
+        ColumnType t = facts.primitives().get(c.type());
+        if (t == null) {
+            throw new IllegalStateException("the generated column '" + c.name() + "' of type " + c.type()
+                    + " is no primitive");
+        }
+        return t;
+    }
+
     private final Writer out;
     private final ExecutionPlan.TdsResult.Shape shape;
     private final java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope;

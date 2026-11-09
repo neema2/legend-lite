@@ -3,13 +3,14 @@
 
 package com.legend.test;
 
+
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.ExecuteOptions;
 import com.legend.planner.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
-import com.legend.judge.AssertListener;
-import com.legend.judge.SqlReplayReferee;
+import com.legend.testexecutionplan.AssertListener;
+import com.legend.testexec.SqlReplayReferee;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
@@ -122,7 +123,7 @@ public final class PureTestRunner implements AutoCloseable {
     /**
      * @param ctx            the compiled model the tests live in (with its execution overlay)
      * @param runtimeFqn     the runtime the bodies execute against: a test executes on its declared
-     *                       connection, as any query does (a storeless model's: {@link StorelessRuntime})
+     *                       connection, as any query does (a storeless model's: the tests' {@code testbackend.StorelessRuntime})
      * @param sessions       how a package session opens (a session the runner owns)
      * @param sharedSetups   zero-parameter functions every package's session runs first
      *                       (a corpus-wide fixture); may be empty
@@ -131,25 +132,24 @@ public final class PureTestRunner implements AutoCloseable {
      */
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer) {
-        this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer,
-                ExecuteOptions.JudgeMode.HOST);
+        this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer, ExecuteOptions.NONE);
     }
 
-    /** @param judgeMode the run's assert judge (one mode per run, on every
-     *                   test's options — {@link ExecuteOptions.JudgeMode}) */
+    /** @param judging the run's assert judge, as the door's options carry it: every test's own options take its judge
+     *                 mode (one mode per run; the runner names no planning type, B4: 2026-11-09) */
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer,
-            ExecuteOptions.JudgeMode judgeMode) {
+            ExecuteOptions judging) {
         this.ctx = ctx;
         this.runtimeFqn = runtimeFqn;
         this.sessions = sessions;
         this.sharedSetups = List.copyOf(sharedSetups);
         this.setupsByPackage = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(setupsByPackage));
         this.observer = observer;
-        this.judgeMode = judgeMode;
+        this.judging = judging;
     }
 
-    private final ExecuteOptions.JudgeMode judgeMode;
+    private final ExecuteOptions judging;
 
     /** The setups the platform derived as INERT (no statement effects) and
      *  so never ran — a caller pins the count: an effect analysis that wrongly
@@ -277,8 +277,58 @@ public final class PureTestRunner implements AutoCloseable {
         return out;
     }
 
-    /** {@link AssertListener#provideStore}: run, in this session, THE
-     * setup that seeds {@code storeFqn}. False when no setup seeds it, or
+    /** The fixtures of the {@code stores} a body's planned appeals name ({@code PlannedAppeals.stores}; zero
+     *  exemptions, the owner, 2026-11-05; the plan-as-data design's step 8c), provided after the body is planned and
+     *  before it runs -- each the one setup that seeds the store, planned as a program of its own and run by
+     *  {@link #provideFixture}'s rules, never a run inside the body's (THE WALL's rule 4). A store no one setup seeds,
+     *  or whose setup cannot be planned ahead, or that a setup the body calls itself seeds (where the body seeds it:
+     *  2026-11-06, a fixture set aside before the body's own setup puts its tables where that setup's drops resolve),
+     *  gets none. The caller does this between the two halves (hole 4, 2026-11-08: until then the run asked the body's
+     *  listener for each fixture, mid-run). */
+    private void provideFixtures(PureTests.TestCase t, ProgramFacts facts, com.legend.exec.Sessions.Session conn,
+            ExecuteOptions options, Set<String> stores) {
+        if (stores.isEmpty()) {
+            return;
+        }
+        boolean shared = !facts.seedsInlineCsv();
+        java.util.Collection<String> ran = shared ? setupsDone : setupCandidates(t.pkg());
+        Set<String> called = setupsCalled(t);
+        for (String store : stores) {
+            // a fixture is planned only where it may be provided now ({@link #mayProvide}, read again when it runs):
+            // a setup already run, or one whose tables clash, is never planned
+            List<String> setups = fixturesByStore().getOrDefault(store, List.of());
+            if (called.containsAll(setups) || !mayProvide(store, ran)) {
+                continue;
+            }
+            com.legend.testexecutionplan.TestPlan fixture = TestExecution.planProgram(
+                    Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
+            if (fixture != null) {
+                provideFixture(store, conn, ran, shared,
+                        (fqn, target) -> TestExecution.runFixture(fixture, target, options));
+            }
+        }
+    }
+
+    /** The setups {@code body} calls at its top level (testGroupByWithWindowSubset runs
+     *  {@code contractmoneyscenario::setUp()} as its first statement): the stores such a call seeds are the body's
+     *  own, seeded where the body seeds them, never a fixture's provided ahead of its run (2026-11-06: a fixture set
+     *  aside before the body's own setup puts its tables where that setup's drops resolve). */
+    private Set<String> setupsCalled(PureTests.TestCase t) {
+        Set<String> setups = new LinkedHashSet<>();
+        fixturesByStore().values().forEach(setups::addAll);
+        // the body's names resolved, before any inlining (Compiler.resolveQuery inlines a user call's statements)
+        Set<String> called = new LinkedHashSet<>();
+        for (ValueSpecification s : Compiler.resolveNames(List.copyOf(t.fn().body()), t.imports(), ctx)) {
+            if (s instanceof com.legend.protocol.spec.AppliedFunction f && f.parameters().isEmpty()
+                    && setups.contains(f.function())) {
+                called.add(f.function());
+            }
+        }
+        return called;
+    }
+
+    /** Run, in this session, THE setup that seeds {@code storeFqn} ({@code program}: the setup's planned run on
+     * the session it is given). False when no setup seeds it, or
      * when several do (the shared test database is seeded by many
      * packages' fixtures with different contents — which one the golden
      * meant is not a fact, and an order-dependent pick judged
@@ -289,48 +339,17 @@ public final class PureTestRunner implements AutoCloseable {
      * rows on the first measurement. A setup that fails raises: a fixture
      * the platform named but could not seed is a fault of ours, never a
      * quiet decline. */
-    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
-            java.util.Collection<String> ran, boolean shared, ExecuteOptions options) {
-        return provideFixture(storeFqn, conn, ran, shared,
-                (fqn, target) -> runSetup(deriveSetup(fqn), target, options));
-    }
-
-    /** {@link #provideFixture} PLANNED AHEAD ({@link AssertListener#fixtureAhead}; zero exemptions, the owner,
-     *  2026-11-05): the one setup that seeds {@code storeFqn} planned now, while the assert that asks is planned, and
-     *  provided -- by {@link #provideFixture}'s rules, read when it runs -- where the rows leg reads, inside the body's
-     *  run, which plans nothing. Null where no one setup seeds the store, or its program cannot be planned ahead. */
-    private java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(String storeFqn,
-            com.legend.exec.Sessions.Session conn, java.util.Collection<String> ran, boolean shared,
-            ExecuteOptions options) {
+    /** Whether THE setup that seeds {@code storeFqn} may be provided now ({@link #provideFixture}'s rules, which read
+     *  them again when it runs): exactly one setup seeds it, no setup run in this session ({@code ran}) is it, and no
+     *  such setup's store declares a table it declares -- a fixture whose DECLARED footprint clashes with a seeded
+     *  store is refused (the engine judges such goldens by text too); the ones that pass still run in an aside,
+     *  because the footprint a fixture reaches through a runtime's connection value is not a static fact
+     *  (objectReferenceIn::setUp, 2026-09-17). */
+    private boolean mayProvide(String storeFqn, java.util.Collection<String> ran) {
         List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
-        if (setups.size() != 1) {
-            return null;
-        }
-        Execution.PlannedProgram planned = Execution.planProgram(
-                Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
-        if (planned == null) {
-            return null;
-        }
-        return () -> provideFixture(storeFqn, conn, ran, shared, (fqn, target) -> planned.run(target));
-    }
-
-    /** {@link #provideFixture} with {@code program} the setup's run on the session it is given. */
-    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
-            java.util.Collection<String> ran, boolean shared,
-            java.util.function.BiConsumer<String, com.legend.exec.Sessions.Session> program) {
-        List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
-        if (setups.size() != 1) {
+        if (setups.size() != 1 || ran.contains(setups.get(0))) {
             return false;
         }
-        String fqn = setups.get(0);
-        if (ran.contains(fqn)) {
-            return false;
-        }
-        // a fixture whose DECLARED footprint clashes with a seeded store is
-        // refused (the engine judges such goldens by text too); the ones
-        // that pass this check still run in an aside, because the
-        // footprint a fixture reaches through a runtime's connection value
-        // is not a static fact (objectReferenceIn::setUp, 2026-09-17)
         Set<String> mine = tablesOf(storeFqn, new LinkedHashSet<>());
         for (String done : ran) {
             for (String store : setupStores.getOrDefault(done, Set.of())) {
@@ -339,6 +358,16 @@ public final class PureTestRunner implements AutoCloseable {
                 }
             }
         }
+        return true;
+    }
+
+    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
+            java.util.Collection<String> ran, boolean shared,
+            java.util.function.BiConsumer<String, com.legend.exec.Sessions.Session> program) {
+        if (!mayProvide(storeFqn, ran)) {
+            return false;
+        }
+        String fqn = fixturesByStore().getOrDefault(storeFqn, List.of()).get(0);   // mayProvide: exactly one
         if (!runFixture(fqn, target -> program.accept(fqn, target), conn, true)) {
             return false;   // a clashing fixture the caller cannot isolate
         }
@@ -379,7 +408,8 @@ public final class PureTestRunner implements AutoCloseable {
             // as it always did — the declared-footprint guard above still
             // refuses the known clashes
         }
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+        try {
+            // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's origin)
             program.accept(target);
         } finally {
             if (isolated) {
@@ -389,11 +419,12 @@ public final class PureTestRunner implements AutoCloseable {
         return true;
     }
 
-    /** The setup {@code call} run on {@code target}: the one entry for a program (track C, 2026-10-29), the setup's
-     *  body typed once. */
+    /** The setup {@code call} run on {@code target} as a fixture (track C, 2026-10-29: the setup's body typed once):
+     *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
+     *  where a thread-scoped SEED mark around the program counted them until then). */
     private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options) {
-        Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn, com.legend.Execution.Source.given(target),
-                null, null, options);
+        TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
+                options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
@@ -463,7 +494,7 @@ public final class PureTestRunner implements AutoCloseable {
         boolean shared = !facts.seedsInlineCsv();
         observer.privateWorkspace(!shared);
         com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
-        ExecuteOptions options = observer.options(t, shared).withJudgeMode(judgeMode);
+        ExecuteOptions options = observer.options(t, shared).judgedAs(judging);
         SqlReplayReferee referee = observer.referee(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's
@@ -505,8 +536,14 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             String failure = null;
             try {
-                Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
-                        com.legend.Execution.Source.given(conn),
+                // the body planned whole, nothing told to anyone; the fixtures its appeals name provided; then run,
+                // its listener told each verdict at its turn (hole 4, 2026-11-08: the two halves, the fixtures
+                // between them -- until then the run asked the listener for them)
+                com.legend.testexecutionplan.TestPlan planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved),
+                        runtimeFqn, options);
+                provideFixtures(t, facts, conn, options,
+                        com.legend.testexecutionplan.PlannedAppeals.stores(planned));
+                TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {
@@ -541,25 +578,8 @@ public final class PureTestRunner implements AutoCloseable {
                                 observer.refereed(name, outcome);
                             }
 
-                            @Override
-                            public boolean provideStore(String storeFqn) {
-                                boolean shared = !facts.seedsInlineCsv();
-                                // a private workspace ran every candidate
-                                // of its package fresh (runSetups)
-                                return provideFixture(storeFqn, conn,
-                                        shared ? setupsDone : setupCandidates(t.pkg()),
-                                        shared, options);
-                            }
-
-                            @Override
-                            public java.util.function.@com.legend.base.Nullable BooleanSupplier fixtureAhead(
-                                    String storeFqn) {
-                                boolean shared = !facts.seedsInlineCsv();
-                                return PureTestRunner.this.fixtureAhead(storeFqn, conn,
-                                        shared ? setupsDone : setupCandidates(t.pkg()), shared, options);
-                            }
                         },
-                        referee, options);
+                        referee, options, null);
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();

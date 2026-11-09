@@ -17,6 +17,11 @@ import java.util.List;
  */
 public interface ResultSink {
 
+    /** The answer's shape, before its columns: told to a caller's own receiver ({@link Output.Rows}) as data, where
+     *  the caller's factory was handed the plan until 2026-11-09. A writer the result library makes knows it already. */
+    default void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
+    }
+
     /** The result's columns, in order, before any batch. */
     void columns(List<ExecutionPlan.Column> columns) throws IOException;
 

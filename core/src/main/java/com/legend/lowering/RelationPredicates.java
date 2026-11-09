@@ -25,9 +25,9 @@ final class RelationPredicates {
 
     /** Rows-level ->toOne() over a relation ($r.values.rows->toOne(),
      * the corpus's single-ROW claim): row-identical to the relation
-     * itself. The exactly-one contract is enforced where the value
-     * is CONSUMED (the executor's scalar second-row guard, audit
-     * 21b F10) — engine toOne throws at the reader, never in SQL.
+     * itself. The exactly-one contract is checked at a statement's
+     * ROOT, by the database ({@link ToOneGuard}, decision D2,
+     * 2026-11-07); mid-expression the position looks through.
      * ANY 1-arg toOne in relation position looks through — the
      * POSITION is the contract (a class-typed nav arg arrives
      * here after resolution; the inner dispatch stays loud when
@@ -239,8 +239,8 @@ final class RelationPredicates {
             // relation != one row — a value-mult constant fold here broke
             // three correlated-count pins). rows->toOne()->size() therefore
             // still answers the row count when toOne sits mid-expression;
-            // the exactly-one contract is reader-enforced at toOne ROOTS
-            // only. Documented residual, not silently folded.
+            // the exactly-one contract is checked at toOne ROOTS only
+            // (ToOneGuard). Documented residual, not silently folded.
             // COUNT(*) is a zero-key aggregation: a grouped/deduped/truncated
             // source must count from OUTSIDE (COUNT(*) per group is a row per
             // group — a multi-row scalar subquery).

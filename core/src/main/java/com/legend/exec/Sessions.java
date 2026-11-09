@@ -3,8 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -39,7 +38,7 @@ public final class Sessions {
     private Sessions() {
     }
 
-    /** A session handed to execution for a target (the driver's {@code Execution.Source} since D72, 2026-10-30): closing it releases it -- for a session the caller owns,
+    /** A session handed to execution for a target (the driver's {@code com.legend.exec.SessionSource} since D72, 2026-10-30): closing it releases it -- for a session the caller owns,
      *  nothing; for one the source opened, whatever that source's lease says. Its state ({@link SessionState}: the
      *  seeds established on it, the database's reported column types, the session statements run, D66) is the owning
      *  session's own, one per connection, shared by every {@link #view} of it -- until D70 a process-wide weak map
@@ -477,7 +476,7 @@ public final class Sessions {
     /** The opening for {@code def}: its database's connector's, from its specification, with its authentication
      *  checked first: one that carries a credential is refused by name, never ignored (no session the platform opens
      *  reads one yet). */
-    public static Opening openingFor(ConnectionDefinition def) {
+    public static Opening openingFor(com.legend.executionplan.Connection def) {
         if (!def.authentication().credentialFree()) {
             throw new com.legend.error.NotImplementedException(def.authentication().getClass().getSimpleName()
                     + " authentication is not implemented (connection '" + def.qualifiedName() + "')");

@@ -42,7 +42,7 @@ public final class PlanRoundTrip {
         if (dir == null) {
             return;
         }
-        ExecutionPlan bare = new ExecutionPlan(plan.parameters(), withoutTrees(plan.root()));
+        ExecutionPlan bare = ExecutionPlan.reading(plan.parameters(), withoutTrees(plan.root()));
         long statementChars = statementChars(plan.root());
         String line = what.replace('\t', ' ') + "\t" + json.length() + "\t" + PlanJson.write(bare).length() + "\t"
                 + statementChars + "\n";
@@ -64,26 +64,8 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> new ExecutionPlan.Update(withoutTree(u.sql()), u.count());
             case ExecutionPlan.Check c -> new ExecutionPlan.Check(withoutTree(c.sql()));
             case ExecutionPlan.Effect e -> new ExecutionPlan.Effect(withoutTree(e.sql()), e.script());
-            case ExecutionPlan.Setup u -> u;
+            case ExecutionPlan.Load u -> u;
             case ExecutionPlan.Constant c -> c;
-            case ExecutionPlan.Verdicts v -> new ExecutionPlan.Verdicts(v.verdicts().stream().map(each ->
-                    new ExecutionPlan.Verdict(each.name(), each.arm(),
-                            each.base().stream().map(PlanRoundTrip::withoutTrees).toList(),
-                            each.wrapper() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(each.wrapper()),
-                            each.message() == null ? null : withoutTrees(each.message())))
-                    .toList(), v.fused() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(v.fused()),
-                    v.savepoint(), v.rules());
-            case ExecutionPlan.Branch b -> new ExecutionPlan.Branch(withoutTrees(b.condition()),
-                    b.then().stream().map(PlanRoundTrip::withoutTrees).toList(),
-                    b.otherwise().stream().map(PlanRoundTrip::withoutTrees).toList());
-        };
-    }
-
-    private static ExecutionPlan.Side withoutTrees(ExecutionPlan.Side side) {
-        return switch (side) {
-            case ExecutionPlan.Side.Rows r -> new ExecutionPlan.Side.Rows((ExecutionPlan.TdsResult) withoutTrees(r.result()));
-            case ExecutionPlan.Side.KeyedRows k -> new ExecutionPlan.Side.KeyedRows((ExecutionPlan.Keyed) withoutTrees(k.keyed()));
-            case ExecutionPlan.Side.Constant c -> c;
         };
     }
 
@@ -99,28 +81,8 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> u.sql().statement().length();
             case ExecutionPlan.Check c -> c.sql().statement().length();
             case ExecutionPlan.Effect e -> e.sql().statement().length();
-            case ExecutionPlan.Setup u -> 0;
+            case ExecutionPlan.Load u -> 0;
             case ExecutionPlan.Constant c -> 0;
-            case ExecutionPlan.Verdicts v -> {
-                long chars = v.fused() == null ? 0 : statementChars(v.fused());
-                for (ExecutionPlan.Verdict each : v.verdicts()) {
-                    chars += each.wrapper() == null ? 0 : statementChars(each.wrapper());
-                    for (ExecutionPlan.Side side : each.base()) {
-                        chars += switch (side) {
-                            case ExecutionPlan.Side.Rows r -> statementChars(r.result());
-                            case ExecutionPlan.Side.KeyedRows k -> statementChars(k.keyed());
-                            case ExecutionPlan.Side.Constant c -> 0;
-                        };
-                    }
-                }
-                yield chars;
-            }
-            case ExecutionPlan.Branch b -> (switch (b.condition()) {
-                case ExecutionPlan.Side.Rows r -> statementChars(r.result());
-                case ExecutionPlan.Side.KeyedRows k -> statementChars(k.keyed());
-                case ExecutionPlan.Side.Constant c -> 0L;
-            }) + b.then().stream().mapToLong(PlanRoundTrip::statementChars).sum()
-                    + b.otherwise().stream().mapToLong(PlanRoundTrip::statementChars).sum();
         };
     }
 
@@ -145,52 +107,22 @@ public final class PlanRoundTrip {
                     assertRenders(e.sql(), what);
                 }
             }
-            case ExecutionPlan.Setup u -> {
+            case ExecutionPlan.Load u -> {
                 // seed steps are their sources' texts, rendered nowhere
             }
             case ExecutionPlan.Constant c -> {
                 // a value the program wrote: no statement to render
-            }
-            case ExecutionPlan.Verdicts v -> {
-                if (v.fused() != null) {
-                    assertRenders(v.fused(), what);
-                }
-                for (ExecutionPlan.Verdict each : v.verdicts()) {
-                    if (each.wrapper() != null) {
-                        assertRenders(each.wrapper(), what);
-                    }
-                    for (ExecutionPlan.Side side : each.base()) {
-                        switch (side) {
-                            case ExecutionPlan.Side.Rows r -> assertRenders(r.result(), what);
-                            case ExecutionPlan.Side.KeyedRows k -> assertRenders(k.keyed(), what);
-                            case ExecutionPlan.Side.Constant c -> {
-                                // a constant is the program's text: no statement, no tree
-                            }
-                        }
-                    }
-                }
-            }
-            case ExecutionPlan.Branch b -> {
-                switch (b.condition()) {
-                    case ExecutionPlan.Side.Rows r -> assertRenders(r.result(), what);
-                    case ExecutionPlan.Side.KeyedRows k -> assertRenders(k.keyed(), what);
-                    case ExecutionPlan.Side.Constant c -> {
-                        // the program's text
-                    }
-                }
-                b.then().forEach(step -> assertRenders(step, what));
-                b.otherwise().forEach(step -> assertRenders(step, what));
             }
         }
     }
 
     private static void assertRenders(ExecutionPlan.Sql sql, String what) {
         assertTrue(sql.tree() != null, what + ": the plan carries no typed tree");
-        DatabaseType type = switch (sql.target().database()) {
+        DatabaseType type = com.legend.planner.ConnectionPlans.model(switch (sql.target().database()) {
             case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
             case ExecutionPlan.Database.Platform p -> p.type();
             case ExecutionPlan.Database.System sys -> sys.type();
-        };
+        });
         RenderedStatement rendered = Databases.dialect(type).renderStatement(sql.tree());
         assertEquals(sql.statement(), rendered.sql(), what + ": the tree read back renders differently");
         assertEquals(sql.slots().size(), rendered.binds().size(), what + ": the tree read back binds differently");

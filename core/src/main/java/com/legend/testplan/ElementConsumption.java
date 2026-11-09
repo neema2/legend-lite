@@ -248,7 +248,7 @@ final class ElementConsumption {
                             Set.of(pname), parameters);
                     known[p] = inner.consumedName(pname);
                 }
-            } catch (com.legend.compiler.spec.TypeInferenceException e) {
+            } catch (com.legend.error.TypeInferenceException e) {
                 // an un-typeable callee: not consumed (the scan does not decide on it)
             }
         }

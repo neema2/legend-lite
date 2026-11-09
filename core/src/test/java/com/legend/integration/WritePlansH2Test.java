@@ -75,10 +75,11 @@ class WritePlansH2Test {
             var delete = com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
                     com.legend.Compiler.parseQuery("|#>{w::DB.T}#->delete(r|true)"));
             NotImplementedException refused = assertThrows(NotImplementedException.class,
-                    () -> com.legend.Execution.run(delete, "w::RT", (target, ctx) -> {
-                        throw new AssertionError("a program that writes opens no query session");
-                    }, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), com.legend.Execution.Establish.DECLARED_SETUP,
-                            plan -> com.legend.server.PureV1Api.engineWriter(delete, plan, new StringWriter())));
+                    () -> com.legend.Execution.run(delete, "w::RT",
+                            new com.legend.exec.SessionSource.None("a program that writes opens no query session"),
+                            PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                            com.legend.exec.ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Engine(
+                                    new StringWriter(), com.legend.server.PureV1Api.facts(delete))));
             assertTrue(refused.getMessage().contains("SCALAR result's serialization is unprobed"),
                     refused.getMessage());
             try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM T")) {

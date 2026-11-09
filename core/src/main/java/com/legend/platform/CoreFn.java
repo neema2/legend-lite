@@ -205,7 +205,8 @@ public enum CoreFn {
     /** {@code over(~partition [, asc(~key)…])} &mdash; a window definition ({@code _Window<T>[1]}). */
     OVER("over");
 
-    private static final Map<String, CoreFn> BY_NAME = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<String, CoreFn> BY_NAME =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     /** Every parse-time name (aliases included) with its construct — the
      *  CoreFn CLAIMS ({@link com.legend.builtin.Claims}, kind CORE_FN): every
@@ -470,5 +471,10 @@ public enum CoreFn {
         // no name-tail fallback is needed (deleted 2026-09-25 with its three
         // alias arms, all of which OWNS already covered)
         return Optional.ofNullable(OWNER_OF.get(parseName));
+    }
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        BY_NAME.seal();
     }
 }

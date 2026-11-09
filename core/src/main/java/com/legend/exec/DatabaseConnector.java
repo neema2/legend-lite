@@ -3,8 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -29,7 +28,7 @@ public interface DatabaseConnector {
     /** How {@code def}, a connection declared on this database, is opened; a specification this database is not opened
      *  from is refused by name ({@link #refused}). Its authentication is checked before
      *  ({@link Sessions#openingFor}). */
-    Sessions.Opening opening(ConnectionDefinition def);
+    Sessions.Opening opening(com.legend.executionplan.Connection def);
 
     /** Whether it has a private in-process instance ({@link #openPrivate}). A server has none: its system database is
      *  on a system connection the host configures ({@link Sessions.Opener}). Each connector answers: a default would
@@ -88,13 +87,13 @@ public interface DatabaseConnector {
 
     /** A session of its own on {@code def} ({@link #ownSessions}), owned by the caller: closing it releases it. A
      *  specification or an authentication the connector does not open is refused by name. */
-    default Sessions.Session open(ConnectionDefinition def) {
+    default Sessions.Session open(com.legend.executionplan.Connection def) {
         throw new IllegalStateException(type() + "'s sessions are JDBC's, opened by Sessions.openingFor (connection '"
                 + def.qualifiedName() + "')");
     }
 
     /** The specification and authentication a storeless runtime declares for this database's in-process session
-     *  ({@code test.StorelessRuntime}), in the model's connection grammar. */
+     *  ({@code testbackend.StorelessRuntime}, the tests'), in the model's connection grammar. */
     default String storelessDeclaration() {
         throw new IllegalArgumentException("no storeless runtime on " + type()
                 + ": the platform does not execute on it");
@@ -118,7 +117,7 @@ public interface DatabaseConnector {
     }
 
     /** {@code def}'s specification, refused: this database is not opened from it. */
-    static Sessions.Opening refused(ConnectionDefinition def) {
+    static Sessions.Opening refused(com.legend.executionplan.Connection def) {
         throw new com.legend.error.NotImplementedException("a " + def.databaseType() + " connection with a "
                 + def.specification().getClass().getSimpleName() + " specification is not implemented (connection '"
                 + def.qualifiedName() + "')");
@@ -126,7 +125,7 @@ public interface DatabaseConnector {
 
     /** {@code def}, refused: the platform opens no declared connection to its database yet (its sessions are the
      *  test harnesses' or a host's). */
-    static Sessions.Opening notOpened(ConnectionDefinition def) {
+    static Sessions.Opening notOpened(com.legend.executionplan.Connection def) {
         throw new com.legend.error.NotImplementedException("connections to database type '" + def.databaseType()
                 + "' are not implemented (connection '" + def.qualifiedName() + "')");
     }

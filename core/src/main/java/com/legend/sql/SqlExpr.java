@@ -1,5 +1,6 @@
 package com.legend.sql;
 
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -33,6 +34,13 @@ public sealed interface SqlExpr
      * {@code PlatformTypes.TDS_NULL_CELL} is this same constant.
      */
     public static final String TDS_NULL_CELL = "TDSNull";
+
+    /** An identity layout's synthetic fields, as a class instance's JSON object carries them: its identity
+     *  ({@code __id}) and its class ({@code __type}). The compiler's {@code ClassLayouts.SYNTHETIC_ID} and
+     *  {@code SYNTHETIC_TYPE} are these same constants; here so a test's run reads an object by them without the
+     *  compiler (the plan-as-data design's slice 5, 2026-11-09). */
+    public static final String SYNTHETIC_ID = "__id";
+    public static final String SYNTHETIC_TYPE = "__type";
 
     /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
@@ -1417,13 +1425,76 @@ public sealed interface SqlExpr
                 record UnboundedPreceding() implements Bound {
                 }
 
-                record Preceding(Number n) implements Bound {
+                record Preceding(Offset offset) implements Bound {
+                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
+                    public static Preceding of(Number n) {
+                        return new Preceding(Offset.of(n));
+                    }
+
+                    /** The offset as the number it is. */
+                    public Number n() {
+                        return offset.value();
+                    }
                 }
 
                 record CurrentRow() implements Bound {
                 }
 
-                record Following(Number n) implements Bound {
+                record Following(Offset offset) implements Bound {
+                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
+                    public static Following of(Number n) {
+                        return new Following(Offset.of(n));
+                    }
+
+                    /** The offset as the number it is. */
+                    public Number n() {
+                        return offset.value();
+                    }
+                }
+
+                /** A ROWS or RANGE frame side's offset, the number the program wrote -- an integer, a float or a decimal
+                 *  (the plan-as-data design's step 9, 2026-11-08: guard 1 at zero; an abstract {@code Number} is no type
+                 *  a plan holds). */
+                sealed interface Offset permits Offset.Int, Offset.Float, Offset.Dec {
+
+                    /** The offset as the Java number it was written as. */
+                    Number value();
+
+                    /** {@code n}'s offset: refused by name for a number of another kind. */
+                    static Offset of(Number n) {
+                        return switch (n) {
+                            case Long l -> new Int(l);
+                            case Integer i -> new Int(i);
+                            case Double d -> new Float(d);
+                            case java.math.BigDecimal b -> new Dec(b);
+                            default -> throw new IllegalArgumentException("a window frame offset is an integer, a float"
+                                    + " or a decimal, not a " + n.getClass().getSimpleName());
+                        };
+                    }
+
+                    /** An integer offset. */
+                    record Int(long n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
+
+                    /** A float offset (a RANGE frame's). */
+                    record Float(double n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
+
+                    /** A decimal offset (a RANGE frame's). */
+                    record Dec(java.math.BigDecimal n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
                 }
 
                 record UnboundedFollowing() implements Bound {

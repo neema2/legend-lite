@@ -167,12 +167,10 @@ class PlanRunnerTest {
     /** A plan whose parameters fail is refused before any session is opened. */
     @Test
     void aPlanWhoseParametersFailOpensNoSession() {
-        ExecutionPlan given = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)),
+        ExecutionPlan given = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)),
                 counting(inMemory("s::C", Databases.PLATFORM, new ConnectionSpecification.InMemory()), "UNOPENED_T").root());
         var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.rows(given, Map.of("n", "1"),
-                target -> {
-                    throw new AssertionError("a session was opened");
-                }));
+                com.legend.exec.PlanSessions.refusing("a session was opened")));
         assertEquals(invalid("parameter 'n' (Integer[1]): given \"1\" (String): an Integer is a Long"),
                 refused.getMessage());
     }
@@ -180,24 +178,23 @@ class PlanRunnerTest {
     /** A slot's null type is a JDBC type's name, or the plan is refused by name before any session is opened. */
     @Test
     void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(Databases.PLATFORM),
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
                 List.of(), List.of());
-        ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), cell(
+        ExecutionPlan bad = ExecutionPlan.reading(List.of(declared("n", "Integer", 0, 1)), cell(
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
-        var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(), t -> {
-            throw new AssertionError("a session was opened");
-        }));
+        var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(),
+                com.legend.exec.PlanSessions.refusing("a session was opened")));
         assertEquals("slot of 'n': its null type 'NOT_A_TYPE' is no JDBC type", refused.getMessage());
     }
 
     // ---- sessions -------------------------------------------------------------------------------------------------
 
     static ExecutionPlan counting(ConnectionDefinition connection, String table) {
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(connection),
-                List.of(), List.of(new ExecutionPlan.SetupStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
-                        new ExecutionPlan.SetupStep.Statement("INSERT INTO " + table + " VALUES (1)")));
-        return new ExecutionPlan(List.of(), cell(
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
+                List.of(), List.of(new ExecutionPlan.LoadStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
+                        new ExecutionPlan.LoadStep.Statement("INSERT INTO " + table + " VALUES (1)")));
+        return ExecutionPlan.reading(List.of(), cell(
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
 
@@ -253,15 +250,15 @@ class PlanRunnerTest {
     }
 
     static ExecutionPlan plan(String statement, ExecutionPlan.Target target) {
-        return new ExecutionPlan(List.of(), cell(new ExecutionPlan.Sql(statement, List.of(), target, null)));
+        return ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(statement, List.of(), target, null)));
     }
 
-    static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.SetupStep... setup) {
+    static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.LoadStep... setup) {
         return new ExecutionPlan.Target(database, List.of(), List.of(setup));
     }
 
-    static ExecutionPlan.SetupStep.Statement statement(String sql) {
-        return new ExecutionPlan.SetupStep.Statement(sql);
+    static ExecutionPlan.LoadStep.Statement statement(String sql) {
+        return new ExecutionPlan.LoadStep.Statement(sql);
     }
 
     /** A setup that fails leaves nothing behind: the next run of the target sets up a new database, and fails the same
@@ -270,7 +267,7 @@ class PlanRunnerTest {
     void aFailedSetupLeavesNothing_theNextRunSetsUpAfresh() {
         for (var connection : inMemoryConnections()) {
             ExecutionPlan p = plan("SELECT 'never'",
-                    target(new ExecutionPlan.Database.Declared(connection), statement("CREATE TABLE FAILS_T (ID INTEGER)"), statement("INSERT INTO FAILS_T VALUES (1)"),
+                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null), statement("CREATE TABLE FAILS_T (ID INTEGER)"), statement("INSERT INTO FAILS_T VALUES (1)"),
                             statement("SELECT * FROM NO_SUCH_TABLE")));
             for (int attempt = 1; attempt <= 2; attempt++) {
                 var failed = assertThrows(com.legend.error.DataError.class, () -> run(p, PlanSessions.shared()));
@@ -281,8 +278,8 @@ class PlanRunnerTest {
     }
 
     /** Rows for a bulk loader, into table K (A, B). */
-    static ExecutionPlan.SetupStep.Rows kRows(List<String> row) {
-        return new ExecutionPlan.SetupStep.Rows("K_STAGE", "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)",
+    static ExecutionPlan.LoadStep.Rows kRows(List<String> row) {
+        return new ExecutionPlan.LoadStep.Rows("K_STAGE", "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)",
                 "INSERT INTO K SELECT A, B FROM K_STAGE", "DROP TABLE K_STAGE", List.of(row));
     }
 
@@ -297,7 +294,7 @@ class PlanRunnerTest {
             }
             checked++;
             ExecutionPlan p = plan("SELECT 'never'",
-                    target(new ExecutionPlan.Database.Declared(connection),
+                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
                             statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
             for (int attempt = 1; attempt <= 2; attempt++) {
                 var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
@@ -325,7 +322,7 @@ class PlanRunnerTest {
     @Test
     void aPlatformTargetIsSharedAndSetUpOnce() throws Exception {
         ExecutionPlan p = plan("SELECT CAST(COUNT(*) AS VARCHAR) FROM PLATFORM_T",
-                target(new ExecutionPlan.Database.Platform(Databases.PLATFORM), statement("CREATE TABLE PLATFORM_T (ID INTEGER)"), statement("INSERT INTO PLATFORM_T VALUES (1)")));
+                target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), statement("CREATE TABLE PLATFORM_T (ID INTEGER)"), statement("INSERT INTO PLATFORM_T VALUES (1)")));
         long before = setupStatements();
         assertEquals("1", run(p, PlanSessions.shared()));
         assertEquals("1", run(p, PlanSessions.shared()));

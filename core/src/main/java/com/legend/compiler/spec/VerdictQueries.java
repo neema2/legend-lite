@@ -83,6 +83,7 @@ public final class VerdictQueries {
     public static TypedSpec fromWrapped(TypedSpec query,
             com.legend.compiler.spec.typed.TypedPackageableRef mapping,
             com.legend.compiler.spec.typed.ExecutionContext base) {
+        com.legend.base.RunScope.planning("wrap a verdict's read");
         return new com.legend.compiler.spec.typed.TypedFrom(query,
                 base.withMapping(java.util.Optional.of(mapping)), query.info());
     }
@@ -614,21 +615,9 @@ public final class VerdictQueries {
         return cur;
     }
 
-    /** A JSON golden in its CANONICAL text (compact, keys sorted —
-     * {@code Json.canonical}); {@code rootMany} = the query's root is
-     * many-valued, so a golden written as a bare object stands for the
-     * engine's single-result print of a one-element array and is wrapped
-     * {@code [...]} — the same verdict as the engine's {@code [x] ≡ x}
-     * root rule, decided at compile time. Null when the text does not
-     * parse (the golden itself is defective — named, never guessed). */
-    public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedCString
-            canonicalJsonGolden(String text) {
-        Object parsed;
-        try {
-            parsed = com.legend.sql.Json.parseOne(text);
-        } catch (IllegalStateException malformed) {
-            return null;   // the parser's own refusal; anything else stays loud
-        }
+    /** A JSON golden, as its judge read it ({@code testexecutionplan.JudgeJson}, register S144), in its CANONICAL text (compact,
+     * keys sorted — {@code Json.canonical}). */
+    public static com.legend.compiler.spec.typed.TypedCString canonicalJsonGolden(@com.legend.base.Nullable Object parsed) {
         String canon = com.legend.sql.Json.canonical(parsed);
         return new com.legend.compiler.spec.typed.TypedCString(canon,
                 new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE));
@@ -638,13 +627,7 @@ public final class VerdictQueries {
      * literal String collection) — the peer of a document whose root order
      * the chain does not define (an unsorted graph fetch: the root objects
      * are a multiset). Null when the golden is not an array. */
-    public static @com.legend.base.Nullable TypedSpec jsonRootElements(String text) {
-        Object parsed;
-        try {
-            parsed = com.legend.sql.Json.parseOne(text);
-        } catch (IllegalStateException malformed) {
-            return null;
-        }
+    public static @com.legend.base.Nullable TypedSpec jsonRootElements(@com.legend.base.Nullable Object parsed) {
         if (!(parsed instanceof List<?> elements)) {
             return null;
         }

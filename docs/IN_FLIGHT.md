@@ -3,6 +3,11 @@
 This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
 in its own plan (plan rule 0b.16).
 
+**The goals of record, P1, 2026-11-08 (branch `claude/corpus-walk-deletion`):** the plan as data, designed and ruled in
+`docs/PLAN_AS_DATA_2026_11_07.md`; step 0 under way (the census moved to `diagnostics`). It touches `core/` widely
+(driver, judge, exec, testplan, executionplan, planner) over its steps, and lands in slices through PRs on the user's
+word. The milestone lanes' baseline is GATES 2026-11-07.
+
 **The test-is-the-product program, 2026-11-06:** PCT and core at 100% landed (PR #83 merged, `1aa9a34b`). Active now:
 **the corpus burn-down** (branch `claude/wizardly-dirac-rw6tim-seam`, restarted from `main`), then the walk's deletion.
 A session picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` (§0 the state, §10 the order).

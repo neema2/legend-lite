@@ -48,9 +48,11 @@ public final class ProgramFrames {
 
     /** A frame bound by a let: its chain (from-wrapped, unresolved: its readers compose over it), whether its query's
      *  root is relation-shaped, the {@code execute(...)} call it came from, the table renames its runtime runs its
-     *  query under. */
+     *  query under; {@code lazyStamp}, for a frame NOT run at its let (the database judge's, read by a check:
+     *  2026-11-06), the stamp its activity rows record -- a statement reading it runs it and binds that stamp as its
+     *  own, as an inline run's reader does -- null for a frame run at its let. */
     public record Frame(TypedSpec chain, boolean relationRooted, TypedNativeCall source,
-            Map<String, String> tableReplace, FramePlanner.Cte cte) {
+            Map<String, String> tableReplace, FramePlanner.Cte cte, @Nullable String lazyStamp) {
         public Frame {
             tableReplace = Collections.unmodifiableMap(new LinkedHashMap<>(tableReplace));
         }
@@ -301,6 +303,13 @@ public final class ProgramFrames {
                 return null;
             }
             asked.add(name);
+            if (f.lazyStamp() != null && ownStamp == null) {
+                // a frame not run at its let: this statement runs it, its activity comment this statement's stamp
+                // (bound only where the statement reads it: PlanMaker.stampedIfRead). A statement binds one stamp: a
+                // second such frame it reads keeps its stamp as an earlier reader bound it -- a statement that reads
+                // the activity comment of one no statement bound raises at its run, never reads a guess
+                ownStamp = f.lazyStamp();
+            }
             if (!asCte.contains(name)) {
                 return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source());
             }

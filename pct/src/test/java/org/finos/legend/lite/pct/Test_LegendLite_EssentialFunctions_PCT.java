@@ -166,7 +166,7 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
 
     public static Test suite() {
-        // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
+        // M4 §3.4: the census gate (its SqlTypeCensus pins deleted 2026-11-09: the census had no feeder)
         // invariants at suite teardown (PctCensusGate)
         return PctCensusGate.wrap("Essential", wrapSuite(
                 () -> true,
