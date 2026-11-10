@@ -374,9 +374,14 @@ Pure form is spelled in SQL by the edge's own rule (the database still computes)
 
 ### 13.5 Questions on print forms
 
-- **Q10.** Float's product text: A (each database's own cast, ruled per database, answers differ as §13.4), or one
+Q10 and Q11 are ruled (below); the rest wait for the user (the design's §6.2). The eleven-database measurement is
+`docs/data-delivery-homework/PRINT_FORM_PROBE_2026_11_10.md` on `claude/data-delivery-design`. Errors are ruled strict
+and typed, with safe versions (§6.1), which answers the direction of Q1 and §14.
+
+
+- **Q10. RULED (the user, 2026-11-10; `docs/DATA_DELIVERY_DESIGN_2026_11_10.md` §6.1 on `claude/data-delivery-design` (`50c6550b`)):** Float is 6 decimals with trailing zeros (and a trailing `.`) trimmed; Decimal at its declared scale for exact amounts. The original question follows. Float's product text: A (each database's own cast, ruled per database, answers differ as §13.4), or one
   portable rule? Name the rule if portable.
-- **Q11.** DateTime's product text: `YYYY-MM-DDTHH:MM:SS.fff` with a fixed three-digit fraction (one call everywhere,
+- **Q11. RULED (the user, 2026-11-10; `docs/DATA_DELIVERY_DESIGN_2026_11_10.md` §6.1 on `claude/data-delivery-design` (`50c6550b`)):** DateTime is ISO 8601 UTC, six fraction digits and `Z`, nanoseconds only on the databases that store them. The original question follows. DateTime's product text: `YYYY-MM-DDTHH:MM:SS.fff` with a fixed three-digit fraction (one call everywhere,
   sub-millisecond digits dropped from the TEXT, not the value), or the fraction's own digits trimmed (a `CASE`); and
   the zone: none, `Z`, or `+0000`?
 - **Q12.** Structures (lists, pairs, maps, instances, a relation) have no product `toString`: refused by name in the
