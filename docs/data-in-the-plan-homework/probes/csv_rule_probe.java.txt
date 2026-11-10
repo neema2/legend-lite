@@ -1,0 +1,41 @@
+import org.apache.commons.csv.*; import java.nio.file.*; import java.sql.*; import java.util.*;
+public class Upstream {
+    static String show(String v) { return v == null ? "NULL" : "[" + v + "]"; }
+    public static void main(String[] a) throws Exception {
+        String[] cases = {
+            "A,B,C\n  Joe  ,\"\",\n",          // padded, quoted empty, trailing empty
+            "A,B,C\nx,y,z\n\nq,r,s\n",          // an empty line between rows
+            "A,B,C\nx,y\n",                     // a short row
+            "A,B,C\nx,y,z,w\n",                 // a long row
+            "A,B,C\r\nx,\"a \"\"q\"\" b\",z\r\n", // CRLF, doubled quote inside quotes
+            "A,B,C\n\"x\" ,y,z\n",               // a space after a closing quote
+        };
+        for (String text : cases) {
+            System.out.println("== " + text.replace("\n", "\\n").replace("\r", "\\r"));
+            // upstream: legend-pure's CsvReader (CSVFormat.EXCEL), header dropped, an empty string NULL (LoadToDbTableHelper)
+            try {
+                List<String> rows = new ArrayList<>();
+                boolean header = true;
+                for (CSVRecord r : CSVParser.parse(text, CSVFormat.EXCEL)) {
+                    if (header) { header = false; continue; }
+                    StringBuilder sb = new StringBuilder();
+                    for (String s : r) sb.append(' ').append(s == null || s.isEmpty() ? "NULL" : "[" + s + "]");
+                    rows.add("(" + r.size() + ")" + sb);
+                }
+                System.out.println("  upstream: " + rows);
+            } catch (Exception e) { System.out.println("  upstream: ERROR " + e.getMessage()); }
+            Path p = Files.createTempFile("csvrule", ".csv"); Files.writeString(p, text);
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                 PreparedStatement st = c.prepareStatement("SELECT * FROM read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"', all_varchar = true)")) {
+                st.setString(1, p.toString());
+                List<String> rows = new ArrayList<>();
+                try (ResultSet rs = st.executeQuery()) {
+                    int n = rs.getMetaData().getColumnCount();
+                    while (rs.next()) { StringBuilder sb = new StringBuilder(); for (int i = 1; i <= n; i++) sb.append(' ').append(show(rs.getString(i))); rows.add("(" + n + ")" + sb); }
+                }
+                System.out.println("  duckdb:   " + rows);
+            } catch (Exception e) { System.out.println("  duckdb:   ERROR " + e.getMessage().split("\n")[0]); }
+            Files.delete(p);
+        }
+    }
+}

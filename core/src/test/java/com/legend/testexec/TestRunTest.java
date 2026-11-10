@@ -243,8 +243,10 @@ final class TestRunTest {
                         sink));
         assertEquals(1, sink.events.size(), sink.events.toString());
         assertTrue(sink.events.get(0).startsWith("fused rejected: "), sink.events.get(0));
-        assertTrue(e.getMessage().startsWith("the database rejected the verdict statement of [assertEquals@2,"
-                + " assertEquals@3]: "), e.getMessage());
+        // the database's own error first, the verdicts named after it (round 25, 2026-11-09)
+        assertTrue(e.getMessage().startsWith(e.getCause().getMessage()), e.getMessage());
+        assertTrue(e.getMessage().endsWith(" (the database rejected the verdict statement of [assertEquals@2,"
+                + " assertEquals@3])"), e.getMessage());
         assertTrue(sink.verdictRows.isEmpty(), "no wrapper ran in the fused statement's place");
     }
 

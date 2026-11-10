@@ -50,8 +50,9 @@ class CsvLoadRenderTest {
         assertEquals("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) VALUES (?, ?, ?)", load.sql());
     }
 
-    /** The cells the runner streams to H2 are the cells H2's own {@code CSVREAD} read until 2026-11-09 (as
-     *  legend-engine's H2 loads a file): the split rule ({@code base.CsvCells}) measured against the reader itself. */
+    /** The cells the runner streams to H2 are the cells H2's own {@code CSVREAD} read until 2026-11-09: the split
+     *  rule ({@code base.CsvCells}) measured against the reader itself. (Not upstream's reader: register row S172; the
+     *  design's L2 moves the rule to the declared format's default and this test to that reader.) */
     @Test
     void theStreamedCellsAreTheCellsCsvreadReads(@TempDir Path dir) throws Exception {
         String text = "A,B,C\r\n \"x, \"\"y\"\"\" , z ,\n\nlast\r\n\"\",,  \n  padded  ,\"q\"\t,9,extra\n";
