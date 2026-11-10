@@ -113,8 +113,12 @@ public final class SystemDatabase {
             }
             boolean catalog = !target.loads().isEmpty();
             StringBuilder key = new StringBuilder(system.graphKey());
+            // the catalog is named by what it is made with (its ONCE loads): a product query's model registration
+            // (PER_ACQUISITION, L4's product half) is the run's own, run in its turn, and names no other catalog
             for (var load : target.loads()) {
-                key.append(' ').append(load.identity());
+                if (load.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE) {
+                    key.append(' ').append(load.identity());
+                }
             }
             Held current;
             synchronized (SystemDatabase.class) {
@@ -165,7 +169,9 @@ public final class SystemDatabase {
                 if (!catalog.made) {
                     catalog.broken = true;
                     for (var load : target.loads()) {
-                        PlanRunner.establishOn(load, catalog.session);
+                        if (load.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE) {
+                            PlanRunner.establishOn(load, catalog.session);
+                        }
                     }
                     catalog.broken = false;
                     catalog.made = true;
@@ -173,6 +179,17 @@ public final class SystemDatabase {
                 Sessions.beginTurn(catalog.session);
                 turns.add(catalog);
                 taken = true;
+                // the run's own loads (a product query's model registration, PER_ACQUISITION; L4's product half,
+                // 2026-11-10): inside the turn, rolled back with it -- no other run sees them
+                for (var load : target.loads()) {
+                    switch (load.cadence()) {
+                        case ONCE -> {
+                        }
+                        case PER_ACQUISITION -> PlanRunner.establishOn(load, catalog.session);
+                        case BEFORE_STEP, AT_STEP, PER_TRANSACTION -> throw new IllegalStateException("a " + load.cadence()
+                                + " load on the catalog's target: a program's step, never the target's");
+                    }
+                }
             } finally {
                 if (!taken) {
                     catalog.turn.unlock();

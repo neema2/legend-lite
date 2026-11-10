@@ -69,6 +69,16 @@ public final class ProductRun {
             return;
         }
         ExecutionPlan.Target target = plan.answerSql().target();
+        if (target.database() instanceof ExecutionPlan.Database.System) {
+            // a query reading the metamodel alone, answered on the process's catalog (L4's product half, 2026-11-10):
+            // the run's turn on it, the model's registration inside it, rolled back when the run ends -- never the
+            // caller's session, which holds no catalog
+            try (SystemDatabase.Leases leases = SystemDatabase.leases(Map.of())) {
+                PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(PlanSessions.system(leases),
+                        planSessions.admitted()), sink, batchRows);
+            }
+            return;
+        }
         try (Sessions.Session session = sessions.open(target)) {
             PlanSessions.Source on = switch (establish) {
                 // a project's database was made with its ONCE loads (PlanSessions.projectDatabase); every other session

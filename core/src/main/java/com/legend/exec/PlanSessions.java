@@ -24,7 +24,7 @@ public final class PlanSessions {
      *  a write runs on a database of its own, a database the user names or a URL reaches keeps it). A closed set of
      *  exec's own (2026-11-09, the user's question "why do we have any callbacks?"): a caller names one, exec decides by
      *  its rule; until then a caller's function decided, inside the run, which session a statement went to. */
-    public sealed interface Source permits Marked, Admitting, Shared, Given, Acquired, Refusing, Lane {
+    public sealed interface Source permits Marked, Admitting, Shared, Given, Acquired, Refusing, Lane, OnCatalog {
         Sessions.Session open(ExecutionPlan.Target target);
 
         default Sessions.Session openToChange(ExecutionPlan.Target target) {
@@ -122,6 +122,24 @@ public final class PlanSessions {
      *  runs on it. */
     public static Source refusing(String why) {
         return new Refusing(why);
+    }
+
+    /** A source whose every target names the graph's SYSTEM database, opened through {@code system}'s leases (the
+     *  process's catalog, its run's turn taken; L4's product half, 2026-11-10: a product query reading the metamodel
+     *  alone); any other target refused by name. */
+    public static Source system(SystemDatabase.Leases system) {
+        return new OnCatalog(system);
+    }
+
+    private record OnCatalog(SystemDatabase.Leases system) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            if (!(target.database() instanceof ExecutionPlan.Database.System)) {
+                throw new IllegalStateException("a plan answered on the system catalog names another database: "
+                        + target.database());
+            }
+            return Sessions.view(system.sessionFor(target));
+        }
     }
 
     private record Refusing(String why) implements Source {

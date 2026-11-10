@@ -384,6 +384,87 @@ The orchestrator's ruling (2026-11-10): (a), the bundle. A write at planning, (b
   - a bundle that lacks a digest is refused by name;
   - rows below the threshold ride inline.
 
+### L4, the catalog's product half: the plan (written 2026-11-10, before building)
+
+The design is `docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md` §4.4 and §4.6, ruled by the user (S178). The test half (L4b)
+built the catalog: one per process per in-process engine, the platform's rows committed once (a `ONCE` load), and a
+model's rows registered in a rolled-back transaction (`PER_TRANSACTION`). The product half moves the product road onto
+it. Census M6 lists three forms of the metamodel tables in a product plan; this half removes the first and bounds the
+other two.
+
+**Today (`PlanMaker.metamodel`):** a product query that reads `Class.all()` carries the metamodel tables it reads in its
+own plan:
+- on an in-process engine, as the target's `PER_ACQUISITION` setup in the query's own database (form 1);
+- on a server engine with temporary tables, as the session's TEMP tables (form 2);
+- on a server with none (Trino, MongoDB), inline as rows (form 3).
+
+**The plan, in three steps:**
+1. **The one-request model, on an in-process engine** (§4.4's ad-hoc row; `Execution.run` with model text):
+   - the planner routes the metamodel read to the catalog, `SystemCatalog.target(ctx, type, session)`, exactly as the
+     test road does;
+   - the plan carries the platform's `ONCE` load and the model's `PER_TRANSACTION` registration;
+   - `ProductRun` opens a `System` target through `SystemDatabase.Leases`, a turn that rolls back.
+   - Deletes form 1 (`Ddl.metamodelSteps` on the product road; `Metamodel.setup`).
+   - Files: `planner/PlanMaker` (`query`, `target`, `metamodel`), `planner/SystemCatalog`, `exec/ProductRun`,
+     `exec/SessionSource` (a `System` target), `exec/SystemDatabase`.
+   - Tests: a product `Class.all()` lists the platform's classes plus the model's own, and a second model's query in the
+     same process does not see the first's.
+2. **A held project, on the server** (§4.4's loaded project, committed):
+   - `HeldModels.hold` registers the project's rows in the catalog, committed, keyed by the model's content;
+   - a re-hold whose content changed replaces them in one transaction (the old key deleted, the new inserted);
+   - `release` deletes them.
+   - The server's plans for a held model carry the same registration, and exec skips it where the catalog already holds
+     the key committed (§4.3: "idempotent") -- a memo of committed keys in `SystemDatabase`, read before the turn.
+   - The registration is a plan the server runs through the execution door (`HeldModels` is the planner's; it plans,
+     and the server's holder runs).
+   - Files: `HeldModels`, `server/...` (the holder), `exec/SystemDatabase` (commit, replace, delete), `planner/SystemCatalog`
+     (a registration plan by key, and its delete).
+   - Tests: a held project's classes are listed by another request's `Class.all()`; a re-hold shows the new version
+     alone, never both; a release removes them.
+3. **Server engines** (Postgres, Snowflake, ...) and engines with no temporary table keep forms 2 and 3. The catalog for
+   a server engine is M5's "a server engine's whole store per graph" (the catalog design's check 3), not designed. Census
+   M6 becomes BOUNDED: form 1 deleted; forms 2 and 3 bounded by a guard that a product plan's metamodel tables reach a
+   server only as the session's own TEMP tables or inline rows.
+
+**Order:** step 1, then step 2, each its own commit with its lanes; then the M6 row.
+
+### L5b, the seed forms (census M7-seed): the plan (written 2026-11-10, before building)
+
+**Today:** a seed form mapped over `executeInDb` (`setUpDataSQLs(csv, db)->map(s|executeInDb(s, ...))`) folds its data
+at planning, and its statements -- the DDL and the INSERTs whose literals are the CSV's rows -- go into the program's
+effect script (`ExecutionPlan.Effect`: its transaction bracket, its abort, its ledger on failure, the B8 refusal). L2
+made them a load, and the M1 correctness audit's C3 put them back the same day: as a load they lost all four.
+
+**The plan:** the rows become a load step INSIDE the effect script, so they keep the bracket.
+- `ExecutionPlan.Effect.Script` items become a statement or a load step (`LoadStep.Statement` or `LoadStep.Rows`/`File`,
+  by `ContentRows`: inline below 16 KB, the bundle above).
+- The runner runs the script as now (bracket, abort, ledger), each load item through the one deliverer
+  (`PlanRunner.seed`'s step arms) on the script's own `Statements`, inside its transaction.
+- The seed-form arm (`TestKinds`, the `EffectPlanner.statements` seed arm) emits the form's DDL as statements and each
+  table's rows as a `RowLoad`, never as INSERT text.
+- The referee's ledger texts stay the form's own text (census M15, until L8).
+- Deletes the INSERT-literal path of a seed form; census M7-seed becomes DELETED.
+- Files: `executionplan/ExecutionPlan` (`Effect.Script`), `PlanJson` (the script's items), `exec/PlanRunner.script`,
+  `testplan/TestKinds`, `testplan/EffectPlanner`, `setup/CsvSeed` (the form's steps), the census.
+- Tests: a seed form's rows load inside the script's transaction; an abort after them rolls them back; a failing step's
+  ledger names the step; the B8 refusal stands; the corpus and PCT lanes' seed-form bodies are unmoved.
+
+### L4 product half, step 1 as built: the one-request model on the catalog (2026-11-10, branch `claude/total-wall`)
+
+- `PlanMaker.query`: a product query on an engine in this process whose SQL reads the system metamodel store's tables
+  and no other source (`readsOnlySystemTables`: a user's table, a file, a payload, a store's own SQL each keep the old
+  road) names the process's catalog, `SystemCatalog.forQuery`: the platform's `ONCE` load (`SystemCatalog.target`'s) and
+  the model's own rows as a `PER_ACQUISITION` registration (inserts, no DDL; none where the model adds no row).
+- `SystemDatabase.Leases`: the catalog is keyed by its `ONCE` loads alone, so every model shares one catalog per engine;
+  a target's `PER_ACQUISITION` loads run inside the run's turn, after `beginTurn`, and roll back with it.
+- `ProductRun`: an answer whose target names the system database runs on `PlanSessions.system(leases)`, a lease of the
+  catalog for the run, never on the caller's session.
+- Not yet moved: a held project's metamodel read on the server (`projectDatabase`, step 2) keeps form 1, so census M6
+  stays PENDING.
+- Tests: `exec/CatalogProductTest` (the target's two loads; the model's class listed, the platform's once, a second
+  model's run seeing none of the first's, a re-run registering once); `PlanMakerTest`'s forms test now names the
+  in-process form `catalog`.
+
 ### L5 as built: no fixture between a body's plan and its run (2026-11-10, branch `claude/total-wall`)
 
 Option C, upstream's shape (the orchestrator's word, 2026-11-10): legend-engine runs a package's setups at the package's

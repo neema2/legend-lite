@@ -106,7 +106,10 @@ class DataMechanismCensusTest {
                     new Bounded("L2", List.of(), "ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad")),
             new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4 (a server"
                     + " engine's whole store per graph: the catalog design's check 3)")),
-            new Row("M6", "the system metamodel store on the product road", new Pending("L4")),
+            // L4's product half, step 1 (2026-11-10): an in-process metamodel-only query reads the process's catalog;
+            // a held project's (the server's, step 2) still makes the tables in its own database, form 1
+            new Row("M6", "the system metamodel store on the product road", new Pending("L4 (step 2: a held project on"
+                    + " the catalog, committed; step 3: forms 2 and 3 bounded)")),
             // PENDING (the M1 correctness audit's C3, 2026-11-09): a seed form mapped over executeInDb was made a load
             // at L2 and put back the same day -- as a load it lost the effect script's transaction bracket and abort, its
             // ledger on failure and the B8 refusal. Its move is designed with the runner's transaction for loads

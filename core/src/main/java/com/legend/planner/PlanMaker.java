@@ -122,6 +122,17 @@ public final class PlanMaker {
         Decided decided = decide(l.ctx(), runtime);
         SqlDialect dialect = decided.dialect();
         Metamodel metamodel = metamodel(l, dialect);
+        if (!projectDatabase && dialect.inProcess() && !metamodel.setup().isEmpty()
+                && readsOnlySystemTables(l.plan(), l.ctx())) {
+            // a query that reads the metamodel alone, on an engine in this process: on the process's CATALOG, the
+            // model's rows registered in the run's turn and rolled back with it (L4's product half, 2026-11-10,
+            // docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.4: the one-request model; until then the metamodel's tables
+            // were made in the query's own database, census M6's first form)
+            ExecutionPlan.Target catalog = SystemCatalog.forQuery(l.ctx(),
+                    ConnectionPlans.type(decided.target().type()), dialect.sessionSetup(), dialect);
+            return ExecutionPlan.reading(declarations(declared, l.ctx()), stampedIfRead(typed(l.root(),
+                    EnumValueTables.apply(l.plan()), dialect, catalog), st.reads().ownStamp()));
+        }
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames); each data: source read from the
         // session table the target's load makes of it (L6b, 2026-11-10)
@@ -1079,6 +1090,44 @@ public final class PlanMaker {
             default -> throw new IllegalStateException("system table column " + column + ": '" + text + "' is no BIT"
                     + " fact (true or false)");
         };
+    }
+
+    /** Whether {@code q} reads the system metamodel store's tables and no other table: a query the process's catalog
+     *  answers alone (a query that joins a user's table with the metamodel keeps the metamodel's tables in its own
+     *  database). */
+    private static boolean readsOnlySystemTables(SqlQuery q, ModelContext ctx) {
+        DatabaseDefinition store = ctx.findDatabase(SystemMetamodel.STORE_FQN)
+                .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
+        Set<String> system = new HashSet<>();
+        for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
+            for (DatabaseDefinition.TableDefinition def : schema.tables()) {
+                system.add(schema.name() + "." + def.name());
+                system.add(def.name());
+            }
+        }
+        boolean[] reads = {false, false};
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                switch (s) {
+                    case SqlSource.Table t -> reads[!t.call() && system.contains(t.name()) ? 0 : 1] = true;
+                    // a source the catalog's turn does not hold: a file, a payload, a store's own SQL
+                    case SqlSource.SourceUrl u -> reads[1] = true;
+                    case SqlSource.RawSql r -> reads[1] = true;
+                    case SqlSource.Catalog c -> reads[1] = true;
+                    case SqlSource.VarSetPlaceholder v -> reads[1] = true;
+                    case SqlSource.GridReport g -> reads[1] = true;
+                    case SqlSource.Pivot p -> { }
+                    case SqlSource.Cte c -> { }
+                    case SqlSource.Dual d -> { }
+                    case SqlSource.Subselect sub -> { }
+                    case SqlSource.Values v -> { }
+                    case SqlSource.Join j -> { }
+                }
+                return s;
+            }
+        }.rewrite(q);
+        return reads[0] && !reads[1];
     }
 
     private static void collectSystemTables(TypedSpec n, Set<String> out) {

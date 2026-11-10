@@ -757,7 +757,8 @@ class PlanMakerTest {
 
     /**
      * The system metamodel store's tables, in the form the plan's database takes (the plan path program's step 9):
-     * on an engine in this process, the target's setup, in their schema (2026-10-18); on a SERVER engine, the
+     * on an engine in this process, the process's catalog (L4's product half, 2026-11-10; until then the target's
+     * setup, in their schema, 2026-10-18); on a SERVER engine, the
      * session's own TEMPORARY tables (the legacy system database's form, the user's design of 2026-10-11), made by
      * the session's statements and read by the query under their session names, with no setup for the user's
      * database (2026-10-19: every server lane had pinned {@code testBasic} by "the plan has setup for it: never run
@@ -776,16 +777,15 @@ class PlanMakerTest {
             ExecutionPlan.Target target = target(plan);
             String sql = plan.answerSql().statement();
             if (dialect.inProcess()) {
-                forms.add("setup");
-                assertTrue(target.loads().stream().flatMap(l -> l.steps().stream()).anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
+                // the process's catalog (L4's product half, 2026-11-10): its ONCE load makes the tables; the query's
+                // own database holds none (CatalogProductTest runs it)
+                forms.add("catalog");
+                assertTrue(target.database() instanceof ExecutionPlan.Database.System, type + ": " + target);
+                assertTrue(target.loads().stream().filter(l -> l.cadence() == ExecutionPlan.Load.Cadence.ONCE)
+                        .flatMap(l -> l.steps().stream()).anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                         && st.sql().contains("classes")), type + ": " + target.loads());
                 assertEquals(dialect.sessionSetup(), target.session(), type.name());
                 assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
-                if (type == Databases.PLATFORM) {
-                    try (Connection c = fresh(type)) {
-                        assertEquals("value\r\nfalse\r\n", csv(plan, c));
-                    }
-                }
                 continue;
             }
             assertTrue(target.loads().stream().flatMap(l -> l.steps().stream()).noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
@@ -821,7 +821,7 @@ class PlanMakerTest {
             }
             assertTrue(sql.contains("metamodel_classes") && !sql.contains("metamodel.classes"), type + ": " + sql);
         }
-        assertEquals(java.util.Set.of("inline", "session", "setup"), forms);
+        assertEquals(java.util.Set.of("catalog", "inline", "session"), forms);
     }
 
     static ExecutionPlan plan(DatabaseType type, String query, Written output) {

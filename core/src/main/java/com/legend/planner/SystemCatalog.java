@@ -207,5 +207,36 @@ public final class SystemCatalog {
                 new java.util.concurrent.ConcurrentHashMap<>();
         private final java.util.Map<com.legend.executionplan.DatabaseType, Seeded> platform =
                 new java.util.concurrent.ConcurrentHashMap<>();
+        private final java.util.Map<com.legend.executionplan.DatabaseType, Seeded> acquired =
+                new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
+    /**
+     * The process's CATALOG as a PRODUCT query names it (L4's product half, 2026-11-10,
+     * docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.4, the one-request model): {@link #target}'s, with the model's
+     * registration -- its own rows, as {@link #seeds} writes them -- as the target's acquisition load
+     * ({@code PER_ACQUISITION}), which the catalog's lease runs inside the run's turn, rolled back when the run ends
+     * ({@code SystemDatabase.Leases}). A model that adds no row registers nothing. On a database the platform runs in
+     * process only (a server engine's catalog is M5's, not designed).
+     */
+    public static com.legend.executionplan.ExecutionPlan.Target forQuery(com.legend.compiler.element.ModelContext ctx,
+            com.legend.executionplan.DatabaseType type, java.util.List<String> session,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        if (!dialect.inProcess()) {
+            throw new IllegalArgumentException("a product query's catalog on " + type + ": the process's catalog is"
+                    + " made on a database the platform runs in process");
+        }
+        var catalog = target(ctx, type, session);
+        var acquisition = com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION;
+        Seeded own = ctx.derived(SeedMemo.class, c -> new SeedMemo()).acquired.computeIfAbsent(type, engine -> {
+            var steps = steps(store(ctx), dialect, false, table -> ownRows(ctx, table));
+            return new Seeded(steps.isEmpty() ? "" : LoadPlanner.identity(acquisition, steps), steps);
+        });
+        if (own.steps().isEmpty()) {
+            return catalog;
+        }
+        java.util.List<com.legend.executionplan.ExecutionPlan.Load> loads = new java.util.ArrayList<>(catalog.loads());
+        loads.add(LoadPlanner.load(own.identity(), acquisition, own.steps(), catalog.bare()));
+        return new com.legend.executionplan.ExecutionPlan.Target(catalog.database(), catalog.session(), loads);
     }
 }
