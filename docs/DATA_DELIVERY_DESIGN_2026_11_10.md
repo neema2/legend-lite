@@ -121,6 +121,24 @@ Deleted from the plan:
   - the Java test fixtures' JDBC seeding unreachable from any product or test-door path.
 - **Timing:** the corpus and stress suites, against their last times.
 
+### A1 as built (2026-11-10)
+
+- `core/src/test/java/com/legend/integration/DataDeliveryMatrixTest.java` (in `core_tests_integration`): the six doors
+  by the nine data kinds on DuckDB, H2 and SQLite (162 cells); the failure cases (a bad value, a malformed record, a
+  missing and a changed file, a failure then a clean load, a bad payload then a clean one, 80 concurrent requests on the
+  server's kept database); the type round trip (String, Integer, BIGINT, Float, Decimal, Boolean, StrictDate, DateTime
+  through test data and a project's Data, and the referee's H2 copy).
+- `DataDeliveryMatrixPostgresTest` (`//core:data_delivery_matrix_postgres_test`, run unprivileged): the same on the
+  embedded Postgres, each cell its own workspace database. The server's project road is not run there: the harness's
+  declared test connection authenticates as the operating system's user, which the embedded server has no role for.
+- A cell expects its rows, or a refusal by name (an internal exception is a crash; a file's refusal must name the
+  file). The cells that fail are pinned in each class's `RED`, grouped by the step that clears them; a cell that turns
+  green fails the test until it is taken off, and the lists only shrink. One race (two concurrent requests dropping
+  one payload's table, the correctness audit's S8) is reported, not compared, until A4.
+- Measured at A1: 41 red in process (the from() seed on every door, the write door on declared test data and the
+  catalog, `data:` and `file:` on every door but the read, SQLite's boolean, the referee's copy, refusals that name no
+  table or payload, SQLite's file load) and 11 on Postgres.
+
 ## 6. The whole plan, in order
 
 | # | Step | Ends with |

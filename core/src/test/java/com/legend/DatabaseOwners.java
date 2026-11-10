@@ -176,6 +176,10 @@ final class DatabaseOwners {
             // declared recovery by design (MariaDB's and MySQL's the two statements, every other none) and measures
             // the seam's read on H2's own session variables
             "core/src/test/java/com/legend/exec/RaiseRecoveryTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A1: the data delivery matrix, which runs every door and
+            // data kind on each in-process database (and its Postgres leg) by design, its expectations each database's
+            // reading of a file or a payload, as ConnectorsTest compares their connectors
+            "core/src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

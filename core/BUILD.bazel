@@ -546,6 +546,8 @@ legend_java_library(
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
+            # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
+            "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
@@ -1077,6 +1079,33 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the data delivery matrix (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5, A1) on the embedded Postgres 16, run as an
+# unprivileged user: every door, data kind and failure case, with Postgres's own red list
+junit_test(
+    name = "data_delivery_matrix_postgres_test",
+    memory_mb = 1536,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
+        "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.DataDeliveryMatrixPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":core_tests_lib",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
