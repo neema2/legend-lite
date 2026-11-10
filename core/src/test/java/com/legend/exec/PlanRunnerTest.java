@@ -285,10 +285,25 @@ class PlanRunnerTest {
         }
     }
 
-    /** Rows for a bulk loader, into table K (A, B). */
-    static ExecutionPlan.LoadStep.Rows kRows(List<String> row) {
-        return new ExecutionPlan.LoadStep.Rows("K_STAGE", "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)",
-                "INSERT INTO K SELECT A, B FROM K_STAGE", "DROP TABLE K_STAGE", List.of(row));
+    /** {@code database}'s target making table K (A, B) and loading {@code row} into it through a bulk loader: the
+     *  rows from the load's bundle, staged (the checkpoint audits of 2026-11-10: the model's rows are bound, never a
+     *  literal). */
+    static ExecutionPlan.Target kTarget(ExecutionPlan.Database database, List<String> row) {
+        String json = com.legend.setup.RowLoad.json(List.of(row));
+        String digest = com.legend.cache.Hash.ofUtf8(json).hex();
+        var ref = new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.CONTENT,
+                "rows/" + digest + ".json", digest, json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                com.legend.executionplan.DataRef.Rows.JSON);
+        var staged = new ExecutionPlan.LoadStep.Delivery.Staged("K_STAGE",
+                "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)", "INSERT INTO K SELECT A, B FROM K_STAGE",
+                "DROP TABLE IF EXISTS K_STAGE");
+        String insert = "INSERT INTO K (A, B) VALUES (?, ?)";
+        var rows = new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Streamed(insert, 2, insert,
+                1, staged), 1);
+        var bare = new ExecutionPlan.Target(database, List.of(), List.of());
+        return new ExecutionPlan.Target(database, List.of(), List.of(com.legend.planner.LoadPlanner.load(
+                ExecutionPlan.Load.Cadence.PER_ACQUISITION, List.of(statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"),
+                        rows), bare, java.util.Map.of(digest, json))));
     }
 
     /** A setup refused before any statement runs -- rows for a bulk loader, on a database with none -- fails the same
@@ -302,8 +317,8 @@ class PlanRunnerTest {
             }
             checked++;
             ExecutionPlan p = plan("SELECT 'never'",
-                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                            statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
+                    kTarget(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
+                            List.of("a", "b")));
             for (int attempt = 1; attempt <= 2; attempt++) {
                 var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
                 assertEquals("the plan's load has rows for a bulk loader, and the session's database has none ("

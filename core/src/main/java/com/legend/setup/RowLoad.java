@@ -27,15 +27,30 @@ import java.util.List;
  *                column of another type (MariaDB and MySQL take no {@code 'true'} into a BOOLEAN; BigQuery takes no
  *                string into an INT64 or a BOOL; measured 2026-10-11). The DATABASE still does the typing: the
  *                dialect spells its own conversion.
+ * @param types   per cell position, its column's declared type (null: the store declares none), or empty for none
+ *                known: what each bound cell's placeholder is typed by ({@link #steps})
  */
 public record RowLoad(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
                       List<String> columns, java.util.Set<String> quotedColumns, int width, List<List<String>> rows,
-                      List<com.legend.sql.@com.legend.base.Nullable SqlType> casts) {
+                      List<com.legend.sql.@com.legend.base.Nullable SqlType> casts,
+                      List<com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType> types) {
 
     /** A load whose cells the database takes as text. */
     public RowLoad(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
             List<String> columns, java.util.Set<String> quotedColumns, int width, List<List<String>> rows) {
-        this(schema, table, quoting, columns, quotedColumns, width, rows, List.of());
+        this(schema, table, quoting, columns, quotedColumns, width, rows, List.of(), List.of());
+    }
+
+    /** A load whose cells are CAST in the database ({@link #casts}): a server session table's rows. */
+    public RowLoad(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
+            List<String> columns, java.util.Set<String> quotedColumns, int width, List<List<String>> rows,
+            List<com.legend.sql.@com.legend.base.Nullable SqlType> casts) {
+        this(schema, table, quoting, columns, quotedColumns, width, rows, casts, List.of());
+    }
+
+    /** This load with its columns' declared types ({@link #types}). */
+    public RowLoad typed(List<com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType> declared) {
+        return new RowLoad(schema, table, quoting, columns, quotedColumns, width, rows, casts, declared);
     }
 
     public RowLoad {
@@ -43,6 +58,11 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, com
         quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
         rows = List.copyOf(rows);
         casts = java.util.Collections.unmodifiableList(new ArrayList<>(casts));
+        types = java.util.Collections.unmodifiableList(new ArrayList<>(types));
+        if (!types.isEmpty() && types.size() != width) {
+            throw new IllegalArgumentException("row load into " + table + ": " + types.size() + " types for rows of "
+                    + width);
+        }
         if (!casts.isEmpty() && casts.size() != width) {
             throw new IllegalArgumentException("row load into " + table + ": "
                     + casts.size() + " casts for rows of " + width);
@@ -82,29 +102,107 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, com
         return new SqlDml.InsertFromTable(schema, table, quoting, columns, quotedColumns, stage);
     }
 
-    /** The staging table a bulk load appends its cells to: temporary, so one per session, created and dropped inside
-     *  the one load. */
+    /** The staging table a bulk load appends its cells to: temporary, so one per session, dropped first and after. */
     public static final String STAGE = "legend_row_load";
 
-    /** This load for a bulk loader, every statement rendered by {@code dialect}: its rows, and the staging table they
-     *  are appended to as text, created (temporary, one text column per cell), copied into the target table (the
-     *  database casts each cell) and dropped — a plan's setup step ({@code ExecutionPlan.LoadStep.Rows}), which the
-     *  execution side's loader runs. Its rows are not empty. */
-    public com.legend.executionplan.ExecutionPlan.LoadStep.Rows staged(com.legend.sql.dialect.SqlDialect dialect) {
+    /** A load's steps and the bundle they read. */
+    public record Steps(List<com.legend.executionplan.ExecutionPlan.LoadStep> steps,
+            java.util.Map<String, String> content) {
+    }
+
+    /**
+     * THE MODEL'S ROWS AS A LOAD'S STEP (the checkpoint audits of 2026-11-10: tenets M-5, S-1, S-7; correctness M2 and
+     * S8): the rows a {@code DataRef.Rows} text in the load's bundle, by digest, and one file step that STREAMS them --
+     * each row's cells bound as text to its column's placeholder (the dialect's, typed by the column's declared type),
+     * in chunks of the dialect's size, never a literal at any size. Where the database has a bulk loader the step names
+     * its staged form (a temporary staging table of text columns, dropped first and after, copied into the table). Where
+     * the bundle travels -- inline in the plan's JSON or a blob beside it -- is the plan writer's, by its size over the
+     * whole plan ({@code PlanJson.writeBundle}). The one maker of the model's rows' steps: a project's Data, a
+     * payload's elements, the catalog's rows, a connection's test data. None for a load of no row.
+     */
+    public Steps steps(com.legend.sql.dialect.SqlDialect dialect) {
         if (!casts.isEmpty()) {
-            // the stage's copy is one INSERT ... SELECT *: it casts nothing, so a cast would be dropped
-            throw new IllegalStateException("row load into " + table + ": a load with casts has no staged form");
+            throw new IllegalStateException("row load into " + table + ": a load with casts is a server session"
+                    + " table's rows (Ddl.metamodelTemporary), never a load's step");
         }
-        List<com.legend.sql.SqlDdl.Column> text = new ArrayList<>(width);
-        for (int c = 0; c < width; c++) {
-            text.add(new com.legend.sql.SqlDdl.Column("c" + c, false,
-                    new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR),
-                    false, false));
+        if (rows.isEmpty()) {
+            return new Steps(List.of(), java.util.Map.of());
         }
-        return new com.legend.executionplan.ExecutionPlan.LoadStep.Rows(STAGE,
-                dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, com.legend.sql.NameQuoting.BARE, text,
-                        true)),
-                dialect.render(fromStage(STAGE)),
-                dialect.render(new com.legend.sql.SqlDdl.DropTable(null, STAGE, com.legend.sql.NameQuoting.BARE)), rows);
+        if (columns.isEmpty()) {
+            throw new IllegalStateException("row load into " + table + ": a load's step names its columns");
+        }
+        String json = json(rows);
+        String digest = com.legend.cache.Hash.ofUtf8(json).hex();
+        long size = json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        var ref = new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.CONTENT,
+                "rows/" + digest + ".json", digest, size, com.legend.executionplan.DataRef.Rows.JSON);
+        List<com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType> declared = types.isEmpty()
+                ? java.util.Collections.nCopies(width, null) : types;
+        SqlDml.LoadCsv into = new SqlDml.LoadCsv(schema, table, quoting, columns, quotedColumns, declared, ',', '"');
+        int chunk = dialect.rowsPerInsert(width);
+        com.legend.executionplan.ExecutionPlan.LoadStep.Delivery.@com.legend.base.Nullable Staged staged = null;
+        if (dialect.loadsRowsInBulk()) {
+            List<com.legend.sql.SqlDdl.Column> text = new ArrayList<>(width);
+            for (int c = 0; c < width; c++) {
+                text.add(new com.legend.sql.SqlDdl.Column("c" + c, false,
+                        new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR),
+                        false, false));
+            }
+            staged = new com.legend.executionplan.ExecutionPlan.LoadStep.Delivery.Staged(STAGE,
+                    dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, com.legend.sql.NameQuoting.BARE,
+                            text, true)),
+                    dialect.render(fromStage(STAGE)), dialect.dropTemporary(STAGE));
+        }
+        var step = new com.legend.executionplan.ExecutionPlan.LoadStep.File(ref,
+                new com.legend.executionplan.ExecutionPlan.LoadStep.Delivery.Streamed(dialect.rowsInsert(into, 1), width,
+                        dialect.rowsInsert(into, chunk), chunk, staged),
+                Math.max(1, (int) Math.ceil(size / (1024.0 * 1024.0))));
+        return new Steps(List.of(step), java.util.Map.of(digest, json));
+    }
+
+    /** {@code rows} as {@code DataRef.Rows} text: a JSON array of arrays of strings, a null cell {@code null}. */
+    public static String json(List<List<String>> rows) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int r = 0; r < rows.size(); r++) {
+            sb.append(r == 0 ? "[" : ",[");
+            List<String> row = rows.get(r);
+            for (int c = 0; c < row.size(); c++) {
+                if (c > 0) {
+                    sb.append(',');
+                }
+                String cell = row.get(c);
+                if (cell == null) {
+                    sb.append("null");
+                } else {
+                    quote(sb, cell);
+                }
+            }
+            sb.append(']');
+        }
+        return sb.append(']').toString();
+    }
+
+    private static void quote(StringBuilder sb, String s) {
+        sb.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            switch (ch) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                default -> {
+                    if (ch < 0x20) {
+                        sb.append("\\u").append(String.format(java.util.Locale.ROOT, "%04x", (int) ch));
+                    } else {
+                        sb.append(ch);
+                    }
+                }
+            }
+        }
+        sb.append('"');
     }
 }

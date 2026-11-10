@@ -77,20 +77,17 @@ public interface Statements {
             boolean nullable) {
     }
 
-    /** {@code rows} loaded through the session's database's bulk loader where it has one ({@link BulkLoad}): false
-     *  when it has none, and the caller sends the one INSERT its dialect writes instead. A body's seeds and the system
-     *  database's rows load so (B1a). */
-    boolean load(ExecutionPlan.LoadStep.Rows rows);
-
     /** A file's load statement, its database reading the runner's verified copy ({@code ExecutionPlan.LoadStep
      *  .Delivery.Reads}, the user's ruling of 2026-11-09): {@code statement} sent once, its one {@code ?} -- if it has one
      *  -- bound to {@code path}, the copy's. Until then (L2) the runner streamed the file's cells itself. */
     void readsFile(String statement, String path);
 
-    /** A file's load the runner STREAMS ({@code ExecutionPlan.LoadStep.Delivery.Streamed}): {@code insert} sent once per
-     *  row of {@code rows} in one batch, each row's cells bound to its {@code ?}s in order as text (a null cell SQL
-     *  NULL), the database casting each. */
-    void streams(String insert, List<List<String>> rows);
+    /** Rows the runner STREAMS ({@code ExecutionPlan.LoadStep.Delivery.Streamed}): through the database's bulk
+     *  loader where the delivery names its staged form (refused by name where the session's database has none), else
+     *  each full chunk by the delivery's chunk insert and the rest by its one row's insert, each cell bound as text (a
+     *  null cell SQL NULL), the database casting each -- as upstream's own load, with no transaction of its own
+     *  (legend-pure's {@code bulkInsertInDb}: autocommit, one batch). */
+    void streams(ExecutionPlan.LoadStep.Delivery.Streamed delivery, List<List<String>> rows);
 
     @FunctionalInterface
     interface Rows {
@@ -214,18 +211,13 @@ public interface Statements {
         }
 
         @Override
-        public boolean load(ExecutionPlan.LoadStep.Rows rows) {
-            return inner.load(rows);
-        }
-
-        @Override
         public void readsFile(String statement, String path) {
             inner.readsFile(statement, path);
         }
 
         @Override
-        public void streams(String insert, List<List<String>> rows) {
-            inner.streams(insert, rows);
+        public void streams(ExecutionPlan.LoadStep.Delivery.Streamed delivery, List<List<String>> rows) {
+            inner.streams(delivery, rows);
         }
 
         @Override

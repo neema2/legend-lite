@@ -1905,11 +1905,64 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return new CsvLoad.Streamed(rowsInsert(load));
     }
 
-    /** {@inheritDoc} The base: {@code INSERT INTO t (columns) VALUES (?, ...)}, the database casting each bound text. */
+    /** {@inheritDoc} The base: {@code INSERT INTO t (columns) VALUES (p, ...), ...}, each cell's placeholder this
+     *  dialect's for its column's declared type ({@link #cellPlaceholder}). */
     @Override
-    public String rowsInsert(com.legend.sql.SqlDml.LoadCsv load) {
-        return csvInsertInto(load) + " VALUES ("
-                + String.join(", ", java.util.Collections.nCopies(load.columns().size(), "?")) + ")";
+    public String rowsInsert(com.legend.sql.SqlDml.LoadCsv load, int rows) {
+        if (rows < 1) {
+            throw new IllegalArgumentException("an insert of " + rows + " rows");
+        }
+        java.util.List<String> cells = new java.util.ArrayList<>(load.types().size());
+        for (com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t : load.types()) {
+            cells.add(cellPlaceholder(t));
+        }
+        String row = "(" + String.join(", ", cells) + ")";
+        return csvInsertInto(load) + " VALUES " + String.join(", ", java.util.Collections.nCopies(rows, row));
+    }
+
+    /** A bound text cell's placeholder for a column of declared type {@code t} (null: the table is not declared). The
+     *  base: {@code ?}, the database casting the text on assignment (DuckDB, H2, SQLite: measured). */
+    protected String cellPlaceholder(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
+        return "?";
+    }
+
+    /** {@code ?} CAST to {@code t} with its length dropped (a text type unsized: an explicit cast to
+     *  {@code VARCHAR(n)} truncates silently where assignment refuses a value too long -- the correctness audit's M3,
+     *  2026-11-10, measured on Postgres), the column's own assignment enforcing the length; a column of no declared type
+     *  refused by name: the database takes no bound text into another type. */
+    protected final String castCell(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
+        if (t == null) {
+            throw new DialectCapability("a bound cell into a column of no declared type: this database takes no text"
+                    + " into another type, and the store declares none to cast it to");
+        }
+        return "CAST(? AS " + unsizedType(t) + ")";
+    }
+
+    /** {@code t} spelled for a cast with a text type's length dropped. */
+    protected String unsizedType(com.legend.sql.SqlDdl.ColumnType t) {
+        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Sized z) {
+            String kind = z.kind().toUpperCase(java.util.Locale.ROOT);
+            if (kind.equals("VARCHAR") || kind.equals("CHAR") || kind.equals("CHARACTER")
+                    || kind.equals("CHARACTER VARYING") || kind.equals("NVARCHAR") || kind.equals("NCHAR")) {
+                return ddlType(new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR));
+            }
+        }
+        return ddlType(t);
+    }
+
+    /** A placeholder for a text column only (VARCHAR, CHAR): {@code ?}; any other declared type refused by name, for
+     *  a database known to take no bound text into it whose cast is not yet written (the correctness audit's S8,
+     *  2026-11-10: never a statement the database is known to refuse). */
+    protected final String textCellOnly(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t, String database) {
+        boolean text = t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
+                ? p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR
+                : t instanceof com.legend.sql.SqlDdl.ColumnType.Sized z
+                        && z.kind().toUpperCase(java.util.Locale.ROOT).contains("CHAR");
+        if (!text) {
+            throw new DialectCapability("a bound text cell into a column of type " + t + " on " + database + ": it"
+                    + " takes no text into another type, and its cast is not written");
+        }
+        return "?";
     }
 
     /** {@code load}'s target, as an INSERT names it: the table and its columns. */

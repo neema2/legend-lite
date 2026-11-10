@@ -43,7 +43,7 @@ public final class LoadPlanner {
 
     /** {@code steps} as a load of {@code cadence} into {@code target} reading {@code content}, named by its steps'
      *  content (the digests stand for the bundle's bytes). */
-    static ExecutionPlan.Load load(ExecutionPlan.Load.Cadence cadence, List<ExecutionPlan.LoadStep> steps,
+    public static ExecutionPlan.Load load(ExecutionPlan.Load.Cadence cadence, List<ExecutionPlan.LoadStep> steps,
             ExecutionPlan.Target target, java.util.Map<String, String> content) {
         return new ExecutionPlan.Load(identity(cadence, steps), cadence, steps, target, content);
     }

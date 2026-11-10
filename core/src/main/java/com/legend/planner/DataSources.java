@@ -40,6 +40,7 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
      *  database (a dialect with no JSON source refuses by name, as it refused the source until then). */
     static DataSources of(SqlQuery q, SqlDialect dialect) {
         Map<String, String> tables = new LinkedHashMap<>();
+        Map<String, String> contentOf = new LinkedHashMap<>();
         List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
         Map<String, String> bundle = new LinkedHashMap<>();
         SqlQuery read = new SqlRewriter() {
@@ -52,17 +53,26 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
                 String content = content(u.url());
                 String table = tables.computeIfAbsent(content, c -> {
                     String name = "legend_data_" + com.legend.cache.Hash.ofUtf8(c).hex().substring(0, 16);
-                    steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(
-                            new SqlDdl.DropTable(null, name, NameQuoting.BARE))));
+                    // two contents of one 16-hex name would read one table: refused by name (the correctness audit's
+                    // note, 2026-11-10)
+                    String other = contentOf.putIfAbsent(name, c);
+                    if (other != null && !other.equals(c)) {
+                        throw new IllegalStateException("two data: payloads of one plan share the table name " + name
+                                + ": their digests' first 16 hex digits collide");
+                    }
+                    // the session's own table only, never a persistent one of the name (the correctness audit's note)
+                    steps.add(new ExecutionPlan.LoadStep.Statement(dialect.dropTemporary(name)));
                     steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(new SqlDdl.CreateTable(null, name,
                             NameQuoting.BARE, List.of(new SqlDdl.Column(COLUMN, false, type, false, false)), true))));
                     List<List<String>> rows = new ArrayList<>();
                     for (String element : elements(c, u.url())) {
                         rows.add(List.of(element));
                     }
-                    // the elements inline, or from the load's bundle above the inline threshold (L6c)
-                    ContentRows planned = ContentRows.of(new com.legend.setup.RowLoad(null, name, NameQuoting.BARE,
-                            List.of(COLUMN), Set.of(), 1, rows), dialect);
+                    // the elements bound from the load's bundle, typed by the table's column (RowLoad.steps: never a
+                    // literal, the checkpoint audits of 2026-11-10)
+                    com.legend.setup.RowLoad.Steps planned = new com.legend.setup.RowLoad(null, name, NameQuoting.BARE,
+                            List.of(COLUMN), Set.of(), 1, rows).typed(java.util.Collections.singletonList(type))
+                            .steps(dialect);
                     steps.addAll(planned.steps());
                     bundle.putAll(planned.content());
                     return name;

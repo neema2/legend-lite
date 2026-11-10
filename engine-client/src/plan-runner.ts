@@ -72,7 +72,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // allows -- refused by name here: a host's runner admits no source
 // 37 since 2026-11-10: a load may read the model's text from its bundle (content; a rows reference) -- a load is
 // refused by name here, as at 36
-const PLAN_VERSION = 37;
+// 38 since 2026-11-10: a streamed delivery names its chunk insert and size, and its staged form where the database has
+// a bulk loader; the model's rows travel only so -- a load is refused by name here, as at 37 (until L7)
+const PLAN_VERSION = 38;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

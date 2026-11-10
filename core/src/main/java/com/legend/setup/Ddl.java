@@ -424,8 +424,26 @@ public final class Ddl {
      * fact), every column in declared order. */
     public static RowLoad metamodelRows(DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows) {
-        return new RowLoad(schema, def.name(), quoting(def, schema), java.util.List.of(), java.util.Set.of(),
-                def.columns().size(), rows);
+        java.util.List<String> names = def.columns().stream().map(DatabaseDefinition.ColumnDefinition::name).toList();
+        return new RowLoad(schema, def.name(), quoting(def, schema), names, CsvSeed.quotedColumns(def),
+                def.columns().size(), rows).typed(declaredTypes(def, names));
+    }
+
+    /** {@code def}'s declared column types for {@code names}, in order: each name the column's declared name, else
+     *  matched ignoring case (a CSV's header); a name the table does not declare refused by name. */
+    public static java.util.List<com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType> declaredTypes(
+            DatabaseDefinition.TableDefinition def, java.util.List<String> names) {
+        java.util.List<com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType> out = new java.util.ArrayList<>(
+                names.size());
+        for (String name : names) {
+            DatabaseDefinition.ColumnDefinition col = def.columns().stream().filter(c -> c.name().equals(name))
+                    .findFirst().or(() -> def.columns().stream().filter(c -> c.name().equalsIgnoreCase(name))
+                            .findFirst())
+                    .orElseThrow(() -> new IllegalArgumentException("table " + def.name() + " declares no column '"
+                            + name + "'"));
+            out.add(com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
+        }
+        return out;
     }
 
     /** One store table's seed in an IN-PROCESS engine as a plan's setup steps: its DDL ({@link #metamodelSeed}),
@@ -433,30 +451,26 @@ public final class Ddl {
      *  ({@link com.legend.sql.dialect.SqlDialect#loadsRowsInBulk}), else as the one INSERT; a table of no rows adds no
      *  rows step. The one owner of that choice for the plan's target and the system database's session (the doors,
      *  2026-10-29; until then {@code PlanMaker} and {@code SystemDatabase} each made it). */
-    public static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> metamodelSteps(
+    public static RowLoad.Steps metamodelSteps(
             DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
             com.legend.sql.dialect.SqlDialect dialect) {
         java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> out = new java.util.ArrayList<>();
         for (String statement : metamodelSeed(def, schema, dialect)) {
             out.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(statement));
         }
-        out.addAll(metamodelRowSteps(def, schema, rows, dialect));
-        return out;
+        RowLoad.Steps rowSteps = metamodelRowSteps(def, schema, rows, dialect);
+        out.addAll(rowSteps.steps());
+        return new RowLoad.Steps(java.util.List.copyOf(out), rowSteps.content());
     }
 
     /** {@link #metamodelSteps}' rows alone, no DDL: a model's registration in the process's catalog, whose tables are
      *  made once with the platform's rows (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.3, L4b) -- inserts only, so a
      *  registration stays inside its transaction (H2 commits on DDL; DuckDB's staged load, an INSERT ... SELECT from a
      *  session-private staging table, keeps the rows in it, the probe's CatalogCheck); none for no row. */
-    public static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> metamodelRowSteps(
+    public static RowLoad.Steps metamodelRowSteps(
             DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
             com.legend.sql.dialect.SqlDialect dialect) {
-        if (rows.isEmpty()) {
-            return java.util.List.of();
-        }
-        RowLoad load = metamodelRows(def, schema, rows);
-        return java.util.List.of(dialect.loadsRowsInBulk() ? load.staged(dialect)
-                : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(dialect.render(load.values())));
+        return metamodelRows(def, schema, rows).steps(dialect);
     }
 
     /** A store table's name in a SERVER engine's system database (SystemDatabase): {@code schema_table}, one

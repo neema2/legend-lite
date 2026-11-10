@@ -157,7 +157,7 @@ public final class EffectPlanner {
     /** A CSV file's load as the program runs it ({@code step}), with the text the replay ledger records for it
      *  ({@code recorded}: the referee's insert of the file's rows -- the referee's copy of the data, as every seed's is
      *  until the design's L8 replays the plan's loads), or none where the file holds no row (no load is planned). */
-    public record PlannedLoad(ExecutionPlan.LoadStep.File step, java.util.function.Supplier<String> recorded) {
+    public record PlannedLoad(ExecutionPlan.LoadStep.File step, java.util.function.Supplier<List<String>> recorded) {
     }
 
     /**
@@ -201,9 +201,11 @@ public final class EffectPlanner {
         for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
             declared.put(col.name(), com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
         }
-        List<com.legend.sql.SqlDdl.ColumnType> types = columns.stream().map(c -> java.util.Objects.requireNonNull(
-                declared.get(c), () -> "loadCsvToDbTable: no declared type for column '" + c + "' of " + qualified))
-                .toList();
+        List<com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType> types = new java.util.ArrayList<>();
+        for (String c : columns) {
+            types.add(java.util.Objects.requireNonNull(declared.get(c),
+                    () -> "loadCsvToDbTable: no declared type for column '" + c + "' of " + qualified));
+        }
         SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted, types,
                 csv.delimiter(), csv.quote());
         ExecutionPlan.LoadStep.Delivery delivery = switch (env.writtenIn().csvLoad(load)) {
@@ -219,16 +221,27 @@ public final class EffectPlanner {
                     throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name()
                             + "' for table '" + qualified + "': " + e.getMessage(), e);
                 }
-                yield new ExecutionPlan.LoadStep.Delivery.Streamed(st.insert(), columns.size());
+                int chunk = env.writtenIn().rowsPerInsert(columns.size());
+                yield new ExecutionPlan.LoadStep.Delivery.Streamed(st.insert(), columns.size(),
+                        env.writtenIn().rowsInsert(load, chunk), chunk, null);
             }
         };
         // the referee's copy of the rows (the compatibility edge's replay, census M15 until L8), split from the bytes
         // only when an edge asks for it
-        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES),
-                () -> refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns, quoted,
-                        columns.size(), com.legend.base.CsvCells.table(new String(bytes,
-                                java.nio.charset.StandardCharsets.UTF_8), csv.delimiter(), csv.quote(), columns.size()))
-                        .values()));
+        // a file of no data row is no insert (the correctness audit's S6, 2026-11-10: until then the replay's text was
+        // "INSERT INTO t (..) VALUES ;"), and a malformed file refused wrapped, by name, never a raw CsvCells.Malformed
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES), () -> {
+            List<List<String>> cells;
+            try {
+                cells = com.legend.base.CsvCells.table(new String(bytes, java.nio.charset.StandardCharsets.UTF_8),
+                        csv.delimiter(), csv.quote(), columns.size());
+            } catch (com.legend.base.CsvCells.Malformed e) {
+                throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
+                        + qualified + "': " + e.getMessage(), e);
+            }
+            return cells.isEmpty() ? List.of() : List.of(refereeDdl().render(new com.legend.setup.RowLoad(schema,
+                    table.table(), quoting, columns, quoted, columns.size(), cells).values()));
+        });
     }
 
     /** The largest file {@code loadCsvToDbTable} loads: upstream's, in both its natives (legend-pure 5.99.0:

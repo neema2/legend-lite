@@ -2474,19 +2474,17 @@ public final class Postgres extends AnsiSqlRenderer {
     // DDL (the JVM lane: test fixtures; never on the product path)
     // ==================================================================
 
-    /** Postgres has no TINYINT, BIT or bare DOUBLE; FLOAT is DOUBLE PRECISION as on H2. */
     /** {@inheritDoc} Postgres types a bound text cell as {@code varchar} and refuses it into another column's type
      *  (measured 2026-11-10: "column \"age\" is of type integer but expression is of type character varying"), so
      *  each {@code ?} is cast to its column's declared type, the store's, as upstream's insert gives the database a
-     *  value of the column's type. */
+     *  value of the column's type -- a text type unsized, so the column's assignment refuses a value too long
+     *  ({@link #castCell}). */
     @Override
-    public String rowsInsert(com.legend.sql.SqlDml.LoadCsv load) {
-        java.util.List<String> cells = new java.util.ArrayList<>();
-        for (com.legend.sql.SqlDdl.ColumnType t : load.types()) {
-            cells.add("CAST(? AS " + ddlType(t) + ")");
-        }
-        return csvInsertInto(load) + " VALUES (" + String.join(", ", cells) + ")";
+    protected String cellPlaceholder(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
+        return castCell(t);
     }
+
+    /** Postgres has no TINYINT, BIT or bare DOUBLE; FLOAT is DOUBLE PRECISION as on H2. */
 
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {

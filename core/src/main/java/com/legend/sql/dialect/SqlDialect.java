@@ -90,7 +90,28 @@ public interface SqlDialect {
     /** One row's insert into {@code load}'s table, a {@code ?} per column, the runner's text cells bound to it: the
      *  streamed delivery of the model's rows from a plan's bundle (L6c, into a staging table of text columns), and of
      *  a CSV file's cells where the database reads none itself. */
-    String rowsInsert(com.legend.sql.SqlDml.LoadCsv load);
+    default String rowsInsert(com.legend.sql.SqlDml.LoadCsv load) {
+        return rowsInsert(load, 1);
+    }
+
+    /** {@code rows} rows' insert into {@code load}'s table, one placeholder per cell typed by its column's declared type
+     *  as this database takes a bound text cell ({@code VALUES (..), (..)}): the runner's chunks of a load's rows
+     *  (the checkpoint audits of 2026-11-10: one statement per chunk, never one per row). */
+    String rowsInsert(com.legend.sql.SqlDml.LoadCsv load, int rows);
+
+    /** How many rows of {@code width} cells one insert of a load binds: the chunk the runner sends at once (small, as
+     *  its text travels in the plan). */
+    default int rowsPerInsert(int width) {
+        return Math.max(1, Math.min(64, 512 / Math.max(1, width)));
+    }
+
+    /** The drop of a TEMPORARY table the platform names ({@code table}, bare), resolving to the session's own table
+     *  only: never a persistent table of that name (the correctness audit's note, 2026-11-10: DuckDB's bare drop found
+     *  a main table when no temporary one stood). Default: the bare drop, the database resolving a temporary table
+     *  first. */
+    default String dropTemporary(String table) {
+        return render(new com.legend.sql.SqlDdl.DropTable(null, table, com.legend.sql.NameQuoting.BARE));
+    }
 
     /** A CSV file's load as this dialect spells it. */
     sealed interface CsvLoad permits CsvLoad.Reads, CsvLoad.Streamed {

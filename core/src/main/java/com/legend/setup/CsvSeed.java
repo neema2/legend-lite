@@ -64,8 +64,19 @@ public final class CsvSeed {
     }
 
     /** A step as the plan runs it, beside the text a referee's ledger records for it: a statement of a SQL step
-     *  (the text as its author wrote it, before the dialect's translation), a rows step's INSERT text. */
-    public record Planned(com.legend.executionplan.ExecutionPlan.LoadStep step, String text) {
+     *  (the text as its author wrote it, before the dialect's translation), a rows step's INSERT text (census M15,
+     *  until L8); {@code content}, the bundle a rows step reads ({@link RowLoad#steps}). */
+    public record Planned(com.legend.executionplan.ExecutionPlan.LoadStep step, String text,
+            java.util.Map<String, String> content) {
+    }
+
+    /** {@code planned}'s steps' bundles, merged. */
+    public static java.util.Map<String, String> content(List<Planned> planned) {
+        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (Planned p : planned) {
+            out.putAll(p.content());
+        }
+        return out;
     }
 
     /**
@@ -77,22 +88,25 @@ public final class CsvSeed {
      * {@code exec.SetupRunner} each made it).
      */
     public static List<Planned> planned(List<Step> steps, com.legend.sql.dialect.SqlDialect dialect) {
-        boolean bulk = dialect.loadsRowsInBulk();
         List<Planned> out = new ArrayList<>(steps.size());
         for (Step step : steps) {
             switch (step) {
                 case Step.Sql blob -> {
                     for (String statement : com.legend.sql.RawSql.splitStatements(blob.text())) {
                         out.add(new Planned(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
-                                new Step.Sql(statement, blob.writtenFor()).runOn(dialect)), statement));
+                                new Step.Sql(statement, blob.writtenFor()).runOn(dialect)), statement,
+                                java.util.Map.of()));
                     }
                 }
                 case Step.Rows rows -> {
                     RowLoad load = rows.load();
                     if (!load.rows().isEmpty()) {
-                        String insert = dialect.render(load.values());
-                        out.add(new Planned(bulk ? load.staged(dialect)
-                                : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(insert), insert));
+                        // the rows bound, never a literal (RowLoad.steps); the referee's text the insert it replays
+                        RowLoad.Steps planned = load.steps(dialect);
+                        String recorded = dialect.render(load.values());
+                        for (com.legend.executionplan.ExecutionPlan.LoadStep each : planned.steps()) {
+                            out.add(new Planned(each, recorded, planned.content()));
+                        }
                     }
                 }
             }
@@ -180,7 +194,8 @@ public final class CsvSeed {
                 def.map(d -> Ddl.quoting(d, defaultSchema ? null : schema)).orElse(com.legend.sql.NameQuoting.BARE),
                 cols, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows);
         if (load != null) {
-            out.add(new Step.Rows(load));
+            // each cell's placeholder typed by its column's declared type (none where the store declares no table)
+            out.add(new Step.Rows(def.isPresent() ? load.typed(Ddl.declaredTypes(def.get(), load.columns())) : load));
         }
     }
 

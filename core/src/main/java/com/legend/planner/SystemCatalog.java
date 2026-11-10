@@ -39,10 +39,11 @@ public final class SystemCatalog {
         var once = com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE;
         Seeded platform = ctx.derived(SeedMemo.class, c -> new SeedMemo()).platform.computeIfAbsent(type, t -> {
             var steps = steps(store(ctx), dialect, true, Platform::rows);
-            return new Seeded(LoadPlanner.identity(once, steps), steps);
+            return new Seeded(LoadPlanner.identity(once, steps.steps()), steps.steps(), steps.content());
         });
         return new com.legend.executionplan.ExecutionPlan.Target(bare.database(), session,
-                java.util.List.of(LoadPlanner.load(platform.identity(), once, platform.steps(), bare)));
+                java.util.List.of(LoadPlanner.load(platform.identity(), once, platform.steps(), bare,
+                        platform.content())));
     }
 
     /** The graph's system metamodel store's load on {@code system} (a target {@link #target} made), written in
@@ -64,13 +65,16 @@ public final class SystemCatalog {
         Seeded seeded = ctx.derived(SeedMemo.class, c -> new SeedMemo()).steps.computeIfAbsent(s.type(), engine -> {
             var steps = dialect.inProcess() ? steps(store(ctx), dialect, false, table -> ownRows(ctx, table))
                     : steps(store(ctx), dialect, true, table -> MetamodelSeeds.rows(table, ctx));
-            return new Seeded(steps.isEmpty() ? "" : LoadPlanner.identity(cadence, steps), steps);
+            return new Seeded(steps.steps().isEmpty() ? "" : LoadPlanner.identity(cadence, steps.steps()), steps.steps(),
+                    steps.content());
         });
-        return seeded.steps().isEmpty() ? null : LoadPlanner.load(seeded.identity(), cadence, seeded.steps(), system);
+        return seeded.steps().isEmpty() ? null : LoadPlanner.load(seeded.identity(), cadence, seeded.steps(), system,
+                seeded.content());
     }
 
     /** One engine's steps and their load's identity ({@link LoadPlanner#identity}), digested once per graph. */
-    private record Seeded(String identity, java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> steps) {
+    private record Seeded(String identity, java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> steps,
+            java.util.Map<String, String> content) {
     }
 
     /**
@@ -145,16 +149,20 @@ public final class SystemCatalog {
     /** {@code store}'s tables as steps in {@code dialect}, each table's rows {@code rows} gives: on a database the platform
      *  runs in process under their own names ({@code Ddl.metamodelSteps}, with {@code ddl}; else the rows alone,
      *  {@code Ddl.metamodelRowSteps}), else as the session's temporary tables ({@code Ddl.metamodelTemporary}). */
-    private static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> steps(
+    private static com.legend.setup.RowLoad.Steps steps(
             com.legend.model.DatabaseDefinition store, com.legend.sql.dialect.SqlDialect dialect, boolean ddl,
             java.util.function.Function<String, java.util.List<java.util.List<String>>> rows) {
         java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> out = new java.util.ArrayList<>();
+        java.util.Map<String, String> content = new java.util.LinkedHashMap<>();
         for (var schema : store.schemas()) {
             for (var def : schema.tables()) {
                 java.util.List<java.util.List<String>> table = rows.apply(def.name());
                 if (dialect.inProcess()) {
-                    out.addAll(ddl ? com.legend.setup.Ddl.metamodelSteps(def, schema.name(), table, dialect)
-                            : com.legend.setup.Ddl.metamodelRowSteps(def, schema.name(), table, dialect));
+                    com.legend.setup.RowLoad.Steps each = ddl
+                            ? com.legend.setup.Ddl.metamodelSteps(def, schema.name(), table, dialect)
+                            : com.legend.setup.Ddl.metamodelRowSteps(def, schema.name(), table, dialect);
+                    out.addAll(each.steps());
+                    content.putAll(each.content());
                 } else {
                     for (String statement : com.legend.setup.Ddl.metamodelTemporary(def, schema.name(), table,
                             dialect)) {
@@ -163,7 +171,8 @@ public final class SystemCatalog {
                 }
             }
         }
-        return java.util.List.copyOf(out);
+        return new com.legend.setup.RowLoad.Steps(java.util.List.copyOf(out),
+                java.util.Collections.unmodifiableMap(content));
     }
 
     static String hashOf(com.legend.model.DatabaseDefinition store,
@@ -230,13 +239,14 @@ public final class SystemCatalog {
         var acquisition = com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION;
         Seeded own = ctx.derived(SeedMemo.class, c -> new SeedMemo()).acquired.computeIfAbsent(type, engine -> {
             var steps = steps(store(ctx), dialect, false, table -> ownRows(ctx, table));
-            return new Seeded(steps.isEmpty() ? "" : LoadPlanner.identity(acquisition, steps), steps);
+            return new Seeded(steps.steps().isEmpty() ? "" : LoadPlanner.identity(acquisition, steps.steps()),
+                    steps.steps(), steps.content());
         });
         if (own.steps().isEmpty()) {
             return catalog;
         }
         java.util.List<com.legend.executionplan.ExecutionPlan.Load> loads = new java.util.ArrayList<>(catalog.loads());
-        loads.add(LoadPlanner.load(own.identity(), acquisition, own.steps(), catalog.bare()));
+        loads.add(LoadPlanner.load(own.identity(), acquisition, own.steps(), catalog.bare(), own.content()));
         return new com.legend.executionplan.ExecutionPlan.Target(catalog.database(), catalog.session(), loads);
     }
 }

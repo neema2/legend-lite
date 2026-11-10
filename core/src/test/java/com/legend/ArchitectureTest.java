@@ -2566,8 +2566,9 @@ final class ArchitectureTest {
         noClasses()
             .that().resideInAPackage("com.legend..")
             // planner.DataSources since 2026-11-10 (L6b: a query's data: sources as one load into session tables);
-            // planner.ContentRows the same day (L6c: the model's rows inline or from the load's bundle)
-            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad)|planner\\.(PlanMaker|SystemCatalog|DataSources|ContentRows)"
+            // planner.ContentRows the same day, deleted the same day too (the checkpoint audits: every model row is
+            // setup.RowLoad.steps', bound from the bundle)
+            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad)|planner\\.(PlanMaker|SystemCatalog|DataSources)"
                     + "|testplan\\.EffectPlanner|executionplan\\.PlanJson)(\\$.*)?")
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(

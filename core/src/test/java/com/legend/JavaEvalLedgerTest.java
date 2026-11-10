@@ -1489,9 +1489,6 @@ class JavaEvalLedgerTest {
                     // session tables named by their content's digest, the payload split into its elements verbatim
                     // (build-time model text, compared never computed) and the source read as its table
                     "DataSources.java",
-                    // 2026-11-10, L6c: the model's rows as a load's steps, inline or, above the 16 KB threshold, from
-                    // the load's bundle through a text staging table (their JSON text written once; no value computed)
-                    "ContentRows.java",
                     // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L4b (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md): the one
                     // maker of a system target and of the store's loads -- the catalog's ONCE load (its tables, the
                     // platform's rows), a model's registration (its rows less the platform's, compared as multisets of

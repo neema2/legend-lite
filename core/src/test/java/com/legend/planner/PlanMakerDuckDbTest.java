@@ -26,10 +26,15 @@ class PlanMakerDuckDbTest {
         ExecutionPlan.Target duck = target(plan(DUCKDB, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])"
                 + "->sort(~ID->ascending())", com.legend.testcases.PlanCases.Written.JSON));
         assertEquals(List.of("SET TimeZone='UTC'"), duck.session());
-        // DuckDB's rows go to its bulk loader: the create, the rows, the copy and the drop
-        ExecutionPlan.LoadStep.Rows rows = (ExecutionPlan.LoadStep.Rows) duck.loads().get(0).steps().get(duck.loads().get(0).steps().size() - 1);
-        assertEquals(List.of(List.of("1", "a", "1.50"), java.util.Arrays.asList("2", "O'Brien", null),
-                java.util.Arrays.asList("3", null, "3.25")), rows.rows());
+        // DuckDB's rows go to its bulk loader, staged; the rows the load's bundle, bound, never a literal (the checkpoint
+        // audits of 2026-11-10)
+        ExecutionPlan.Load load = duck.loads().get(0);
+        ExecutionPlan.LoadStep.File rows = (ExecutionPlan.LoadStep.File) load.steps().get(load.steps().size() - 1);
+        var streamed = (ExecutionPlan.LoadStep.Delivery.Streamed) rows.delivery();
+        org.junit.jupiter.api.Assertions.assertNotNull(streamed.staged(), "staged for the Appender");
+        assertEquals(com.legend.setup.RowLoad.json(List.of(List.of("1", "a", "1.50"),
+                java.util.Arrays.asList("2", "O'Brien", null), java.util.Arrays.asList("3", null, "3.25"))),
+                load.content().get(rows.ref().digest()));
     }
 
     /** DuckDB binds a parameter typed by its value bare, as the database types the value (H2 casts it to a type hole:

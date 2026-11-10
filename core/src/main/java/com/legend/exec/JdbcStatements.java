@@ -186,25 +186,71 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void streams(String insert, List<List<String>> rows) {
+    public void streams(ExecutionPlan.LoadStep.Delivery.Streamed delivery, List<List<String>> rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(insert)) {
-            com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
-            for (List<String> row : rows) {
-                for (int i = 0; i < row.size(); i++) {
-                    String cell = row.get(i);
-                    if (cell == null) {
-                        st.setNull(i + 1, java.sql.Types.VARCHAR);
-                    } else {
-                        st.setString(i + 1, cell);
-                    }
+        if (rows.isEmpty()) {
+            return;
+        }
+        try {
+            ExecutionPlan.LoadStep.Delivery.Staged staged = delivery.staged();
+            if (staged != null) {
+                BulkLoad bulk = BulkLoads.of(c);
+                if (bulk == null) {
+                    throw new IllegalStateException("the plan's rows are staged for a bulk loader, and the session's"
+                            + " database has none");
                 }
-                st.addBatch();
+                BulkLoads.load(bulk, c, staged.stagingTable(), staged.create(), staged.copy(), staged.drop(), rows);
+                return;
             }
-            st.executeBatch();
+            int k = delivery.chunkRows();
+            int full = k > 1 ? rows.size() / k * k : 0;
+            if (full > 0) {
+                try (PreparedStatement st = c.prepareStatement(delivery.chunk())) {
+                    for (int from = 0; from < full; from += k) {
+                        int p = 1;
+                        for (List<String> row : rows.subList(from, from + k)) {
+                            p = bindRow(st, row, p);
+                        }
+                        st.addBatch();
+                        if (((from / k) + 1) % CHUNKS_PER_BATCH == 0) {
+                            com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+                            st.executeBatch();
+                        }
+                    }
+                    com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+                    st.executeBatch();
+                }
+            }
+            if (full < rows.size()) {
+                try (PreparedStatement st = c.prepareStatement(delivery.insert())) {
+                    for (List<String> row : rows.subList(full, rows.size())) {
+                        bindRow(st, row, 1);
+                        st.addBatch();
+                    }
+                    com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+                    st.executeBatch();
+                }
+            }
         } catch (SQLException e) {
             throw failed(e);
         }
+    }
+
+    /** How many chunk statements one batch sends. */
+    private static final int CHUNKS_PER_BATCH = 16;
+
+    /** {@code row}'s cells bound as text from parameter {@code first}, a null cell SQL NULL; the next parameter. */
+    private static int bindRow(PreparedStatement st, List<String> row, int first) throws SQLException {
+        int p = first;
+        for (String cell : row) {
+            if (cell == null) {
+                st.setNull(p, java.sql.Types.VARCHAR);
+            } else {
+                st.setString(p, cell);
+            }
+            p++;
+        }
+        return p;
     }
 
     @Override
@@ -212,26 +258,15 @@ final class JdbcStatements implements Statements {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement)) {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
-            if (st.getParameterMetaData().getParameterCount() == 1) {
-                st.setString(1, path);
+            // exactly the copy's path: a statement of any other count of parameters refused by name (the checkpoint
+            // tenets audit's S-4, 2026-11-10: until then bound "if it has one")
+            int params = st.getParameterMetaData().getParameterCount();
+            if (params != 1) {
+                throw new IllegalStateException("a file's read statement binds exactly its copy's path, and this one"
+                        + " has " + params + " parameter(s)");
             }
+            st.setString(1, path);
             st.execute();
-        } catch (SQLException e) {
-            throw failed(e);
-        }
-    }
-
-    @Override
-    public boolean load(ExecutionPlan.LoadStep.Rows rows) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try {
-            BulkLoad bulk = BulkLoads.of(c);
-            if (bulk == null) {
-                return false;
-            }
-            BulkLoads.load(bulk, c, rows.stagingTable(), rows.createStaging(), rows.copy(), rows.dropStaging(),
-                    rows.rows());
-            return true;
         } catch (SQLException e) {
             throw failed(e);
         }

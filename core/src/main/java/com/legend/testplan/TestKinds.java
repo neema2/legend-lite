@@ -396,7 +396,7 @@ final class TestKinds implements ProgramKinds {
         }
         List<ExecutionPlan.LoadStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
         ExecutionPlan.Load setup = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, steps,
-                program.target());
+                program.target(), CsvSeed.content(planned));
         program.add(setup);
         List<String> texts = planned.stream().map(CsvSeed.Planned::text).toList();
         seeds.put(setup, () -> texts);
@@ -516,7 +516,7 @@ final class TestKinds implements ProgramKinds {
         ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                 List.of(planned.step()), program.target());
         program.add(load);
-        seeds.put(load, () -> List.of(planned.recorded().get()));
+        seeds.put(load, planned.recorded());
     }
 
     /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)

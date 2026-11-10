@@ -36,9 +36,12 @@ class PlanMakerH2Test {
         ExecutionPlan.Target h2 = target(plan(H2, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",
                 com.legend.testcases.PlanCases.Written.JSON));
         assertEquals(List.of(), h2.session());
-        // H2's rows are one INSERT
-        assertInstanceOf(ExecutionPlan.LoadStep.Statement.class, h2.loads().get(0).steps().get(h2.loads().get(0).steps().size() - 1));
-        assertTrue(h2.loads().get(0).steps().stream().noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Rows), h2.loads().get(0).steps().toString());
+        // H2's rows are bound into chunked inserts from the load's bundle, never a literal, never staged (the
+        // checkpoint audits of 2026-11-10)
+        ExecutionPlan.LoadStep last = h2.loads().get(0).steps().get(h2.loads().get(0).steps().size() - 1);
+        assertInstanceOf(ExecutionPlan.LoadStep.File.class, last);
+        var streamed = (ExecutionPlan.LoadStep.Delivery.Streamed) ((ExecutionPlan.LoadStep.File) last).delivery();
+        assertTrue(streamed.staged() == null && !streamed.insert().contains("O''Brien"), streamed.toString());
     }
 
     @Test

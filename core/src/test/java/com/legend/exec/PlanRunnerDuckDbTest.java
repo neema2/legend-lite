@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.legend.exec.PlanRunnerTest.inMemory;
-import static com.legend.exec.PlanRunnerTest.kRows;
+import static com.legend.exec.PlanRunnerTest.kTarget;
 import static com.legend.exec.PlanRunnerTest.plan;
 import static com.legend.exec.PlanRunnerTest.run;
 import static com.legend.exec.PlanRunnerTest.statement;
@@ -40,7 +40,7 @@ class PlanRunnerDuckDbTest {
         rows.put(Arrays.asList(null, "x"), "<none>/x");
         rows.put(List.of("null", "x"), "null/x");
         for (var e : rows.entrySet()) {
-            ExecutionPlan p = plan(read, target(duck, statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(e.getKey())));
+            ExecutionPlan p = plan(read, kTarget(duck, e.getKey()));
             assertEquals(e.getValue(), run(p, PlanSessions.shared()), String.valueOf(e.getKey()));
         }
     }

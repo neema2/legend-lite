@@ -56,7 +56,11 @@ class RowLoadDuckDbTest {
     /** {@code load} on {@code c} through the plan runner: the bulk path (the doors, 2026-10-29; SetupRunner's load
      *  until then). */
     private static void bulk(Connection c, RowLoad load) {
-        com.legend.exec.PlanRunner.establish(com.legend.planner.LoadPlanner.load(com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION, List.of(load.staged(DUCK)), TARGET), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)));
+        // the model's rows as their one maker writes them: bound from the load's bundle, staged for the Appender
+        RowLoad.Steps steps = load.steps(DUCK);
+        com.legend.exec.PlanRunner.establish(com.legend.planner.LoadPlanner.load(
+                com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION, steps.steps(), TARGET,
+                steps.content()), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)));
     }
 
     /** {@code load}'s one INSERT on {@code c} through the plan runner: the text path. */
@@ -93,7 +97,8 @@ class RowLoadDuckDbTest {
     @Test
     @DisplayName("DuckDB: the bulk path runs and lands exactly the text path's rows")
     void bulkMatchesText() throws Exception {
-        RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of(), java.util.Set.of(), 7, rows());
+        RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v", "d", "n", "b", "ts", "f"),
+                java.util.Set.of(), 7, rows());
         try (Connection bulk = duck(); Connection text = duck()) {
             long before = Census.count(Census.Key.BULK_LOADS);
             bulk(bulk, load);

@@ -295,6 +295,14 @@ public class H2 extends AnsiSqlRenderer {
 
     /** A store column's declared type as H2 spells it in DDL (until 2026-10-15 the base renderer's, which every
      *  dialect overrode a few of: the dialect program's owner guard). */
+    /** {@inheritDoc} H2 takes a bound text cell into any column by assignment, but a JSON column's text as a JSON
+     *  STRING unless it is read as JSON ({@code ? FORMAT JSON}, as its JSON literal is spelled). */
+    @Override
+    protected String cellPlaceholder(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
+        return t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p && p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.JSON
+                ? "? FORMAT JSON" : "?";
+    }
+
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
         return switch (t) {

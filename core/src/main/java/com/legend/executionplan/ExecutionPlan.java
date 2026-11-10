@@ -287,21 +287,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             for (LoadStep step : steps) {
                 switch (step) {
                     case LoadStep.Statement st -> field(sb.append('S'), st.sql());
-                    case LoadStep.Rows r -> {
-                        field(field(field(field(sb.append('R'), r.stagingTable()), r.createStaging()), r.copy()),
-                                r.dropStaging());
-                        sb.append(r.rows().size()).append(':');
-                        for (List<String> row : r.rows()) {
-                            sb.append(row.size()).append(':');
-                            for (String cell : row) {
-                                if (cell == null) {
-                                    sb.append('N');
-                                } else {
-                                    field(sb.append('V'), cell);
-                                }
-                            }
-                        }
-                    }
                     case LoadStep.File f -> {
                         field(field(field(sb.append('F'), f.ref().namespace().name()), f.ref().name()), f.ref().digest());
                         sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
@@ -316,8 +301,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                                     field(sb, statement);
                                 }
                             }
-                            case LoadStep.Delivery.Streamed st -> field(sb.append("streamed").append(st.columns())
-                                    .append(':'), st.insert());
+                            case LoadStep.Delivery.Streamed st -> {
+                                field(field(sb.append("streamed").append(st.columns()).append(':')
+                                        .append(st.chunkRows()).append(':'), st.insert()), st.chunk());
+                                if (st.staged() != null) {
+                                    LoadStep.Delivery.Staged g = st.staged();
+                                    field(field(field(field(sb.append('B'), g.stagingTable()), g.create()), g.copy()),
+                                            g.drop());
+                                }
+                            }
                         }
                     }
                 }
@@ -332,8 +324,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         /**
          * {@code content}: THE BUNDLE this load reads (L6c, 2026-11-10, decision 1: the model's text above the inline
          * threshold, beside the plan and never in a statement), each text by its SHA-256 -- exactly the CONTENT digests
-         * its file steps name, each text's own digest: a bundle that lacks one, or a text whose bytes are not its
-         * digest, is refused by name here, wherever the load is made or read.
+         * its file steps name: a bundle that lacks one, or holds one no step reads, is refused by name here. That each
+         * text's bytes are its digest is checked where a plan is READ ({@code PlanJson.read}, the bundle a plan's
+         * reader is handed); the planner made the digest from the bytes, and re-hashing megabytes on every load's
+         * construction (every query's plan) was the checkpoint tenets audit's S-7 (2026-11-10).
          */
         public Load {
             Objects.requireNonNull(target, "target");
@@ -354,15 +348,9 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 }
             }
             for (String digest : named) {
-                String text = content.get(digest);
-                if (text == null) {
+                if (!content.containsKey(digest)) {
                     throw new IllegalArgumentException("the load " + identity + " reads the content " + digest
                             + ", which its bundle lacks");
-                }
-                // the portable SHA-256 (the planner runs on WebAssembly, which has no MessageDigest)
-                if (!com.legend.cache.Hash.ofUtf8(text).hex().equals(digest)) {
-                    throw new IllegalArgumentException("the load " + identity + "'s bundle holds bytes that are not"
-                            + " their digest " + digest);
                 }
             }
             if (!named.equals(content.keySet())) {
@@ -904,49 +892,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
     /** One step of a load or of a target's setup: a statement, rows the database's own bulk loader takes, or a file
      *  by its reference (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
-    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Rows, LoadStep.File {
+    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.File {
 
         /** A statement, run as it is. */
         record Statement(String sql) implements LoadStep {
             public Statement {
                 Objects.requireNonNull(sql, "sql");
-            }
-        }
-
-        /**
-         * Rows for the database's bulk loader, every cell TEXT (null is SQL NULL): appended into a staging table of
-         * text columns, then copied into the target table by a statement that casts (the database types every value,
-         * exactly as for a string literal). Every statement is written at plan time, for the target's database.
-         *
-         * @param stagingTable  the staging table the cells are appended to
-         * @param createStaging creates it (temporary, one text column per cell)
-         * @param copy          copies it into the target table, casting
-         * @param dropStaging   drops it
-         */
-        record Rows(String stagingTable, String createStaging, String copy, String dropStaging,
-                List<List<String>> rows) implements LoadStep {
-            public Rows {
-                Objects.requireNonNull(stagingTable, "stagingTable");
-                Objects.requireNonNull(createStaging, "createStaging");
-                Objects.requireNonNull(copy, "copy");
-                Objects.requireNonNull(dropStaging, "dropStaging");
-                if (rows.isEmpty()) {
-                    throw new IllegalArgumentException("rows for " + stagingTable + ": none (a load of no rows is no step)");
-                }
-                int width = rows.get(0).size();
-                if (width == 0) {
-                    throw new IllegalArgumentException("rows for " + stagingTable + ": a row of no cells");
-                }
-                List<List<String>> copied = new java.util.ArrayList<>(rows.size());
-                for (List<String> row : rows) {
-                    if (row.size() != width) {
-                        throw new IllegalArgumentException("rows for " + stagingTable + ": a row of " + row.size()
-                                + " cells among rows of " + width);
-                    }
-                    // a cell may be null (SQL NULL), so each row is copied as a list that holds nulls
-                    copied.add(java.util.Collections.unmodifiableList(new java.util.ArrayList<>(row)));
-                }
-                rows = java.util.Collections.unmodifiableList(copied);
             }
         }
 
@@ -995,14 +946,37 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              * {@code EXCEL}, measured equal on 2,000,000 random texts) -- upstream's own mechanism, which reads the file
              * in Java and inserts its rows (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"): for every database with no reader that reads the format as upstream does
              * (H2's {@code CSVREAD} pads and cuts records in silence, S185 withdrawn). {@code insert} is one row's
-             * insert, a {@code ?} per column, sent in one batch with each row's {@code columns} cells bound as text.
+             * insert, a placeholder per column typed as its database takes a bound text cell; {@code chunk} is the
+             * insert of {@code chunkRows} rows the runner sends for each full chunk (the rest by {@code insert}), each
+             * row's {@code columns} cells bound as text -- never a literal (the checkpoint audits of 2026-11-10). The
+             * model's own rows (a project's Data, a payload's elements, the catalog's registration) take it too, from the
+             * load's bundle; where the database has a bulk loader the plan names its {@code staged} form, which the
+             * runner takes where its session has that loader.
              */
-            record Streamed(String insert, int columns) implements Delivery {
+            record Streamed(String insert, int columns, String chunk, int chunkRows, @com.legend.base.Nullable Staged staged)
+                    implements Delivery {
                 public Streamed {
                     Objects.requireNonNull(insert, "insert");
+                    Objects.requireNonNull(chunk, "chunk");
                     if (columns < 1) {
                         throw new IllegalArgumentException("a streamed load of no column");
                     }
+                    if (chunkRows < 1) {
+                        throw new IllegalArgumentException("a streamed load's chunk of " + chunkRows + " rows");
+                    }
+                }
+            }
+
+            /** The rows through the database's bulk loader: appended as text into {@code stagingTable} -- dropped first
+             *  ({@code drop}), made ({@code create}), copied into the table casting each cell ({@code copy}), and dropped
+             *  again whether the copy ran or failed (the correctness audit's M2, 2026-11-10: a staging table left behind
+             *  refused every later load on the session). Every statement written at planning, for its database. */
+            record Staged(String stagingTable, String create, String copy, String drop) {
+                public Staged {
+                    Objects.requireNonNull(stagingTable, "stagingTable");
+                    Objects.requireNonNull(create, "create");
+                    Objects.requireNonNull(copy, "copy");
+                    Objects.requireNonNull(drop, "drop");
                 }
             }
         }

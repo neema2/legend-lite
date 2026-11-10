@@ -459,11 +459,14 @@ class TestDoorTest {
      *  and a session holding the first skipped it. */
     @Test
     void twoSeedsThatPrintAlikeHaveTwoKeys() {
-        ExecutionPlan.LoadStep one = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
-                java.util.List.of(java.util.List.of("a, b")));
-        ExecutionPlan.LoadStep two = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
-                java.util.List.of(java.util.List.of("a", "b")));
-        assertEquals(one.toString(), two.toString(), "the two steps print alike");
+        // the rows' one maker (the checkpoint audits of 2026-11-10): the rows the bundle's text, named by its digest
+        var h2 = com.legend.database.Databases.dialect(com.legend.model.ConnectionDefinition.DatabaseType.H2);
+        ExecutionPlan.LoadStep one = new com.legend.setup.RowLoad(null, "t", com.legend.sql.NameQuoting.BARE,
+                java.util.List.of("x"), java.util.Set.of(), 1, java.util.List.of(java.util.List.of("a, b")))
+                .steps(h2).steps().get(0);
+        ExecutionPlan.LoadStep two = new com.legend.setup.RowLoad(null, "t", com.legend.sql.NameQuoting.BARE,
+                java.util.List.of("x"), java.util.Set.of(), 1, java.util.List.of(java.util.List.of("a"),
+                        java.util.List.of("b"))).steps(h2).steps().get(0);
         assertFalse(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, java.util.List.of(one)).equals(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, java.util.List.of(two))),
                 "and their keys differ");
     }

@@ -81,12 +81,20 @@ class SentStatementsAreThePlansTest {
             for (ExecutionPlan.LoadStep step : load.steps()) {
                 switch (step) {
                     case ExecutionPlan.LoadStep.Statement s -> out.add(s.sql());
-                    case ExecutionPlan.LoadStep.Rows r -> {
-                        out.add(r.createStaging());
-                        out.add(r.copy());
-                        out.add(r.dropStaging());
+                    case ExecutionPlan.LoadStep.File f -> {
+                        switch (f.delivery()) {
+                            case ExecutionPlan.LoadStep.Delivery.Reads r -> out.addAll(r.statements());
+                            case ExecutionPlan.LoadStep.Delivery.Streamed st -> {
+                                out.add(st.insert());
+                                out.add(st.chunk());
+                                if (st.staged() != null) {
+                                    out.add(st.staged().create());
+                                    out.add(st.staged().copy());
+                                    out.add(st.staged().drop());
+                                }
+                            }
+                        }
                     }
-                    case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("no file in these plans");
                 }
             }
         }

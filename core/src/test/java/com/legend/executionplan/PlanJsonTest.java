@@ -73,18 +73,24 @@ class PlanJsonTest {
 
     @Test
     void bothLoadStepKindsReadBack_aNullCellStaysNull() {
-        Target t = com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
+        Target bare = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
-                List.of("SET TimeZone='UTC'"), List.of()),
-                List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
-                        new LoadStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
-                                "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
-                                List.of(List.of("1", "O'Brien"), Arrays.asList("2", null)))));
+                List.of("SET TimeZone='UTC'"), List.of());
+        // the model's rows by their one maker: the bundle's text, a streamed file step (the checkpoint audits)
+        com.legend.setup.RowLoad.Steps rowSteps = new com.legend.setup.RowLoad(null, "T", com.legend.sql.NameQuoting.BARE,
+                List.of("ID", "NAME"), java.util.Set.of(), 2, List.of(List.of("1", "O'Brien"), Arrays.asList("2", null)))
+                .steps(Databases.dialect(Databases.PLATFORM));
+        List<LoadStep> steps = new java.util.ArrayList<>();
+        steps.add(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"));
+        steps.addAll(rowSteps.steps());
+        Target t = new Target(bare.database(), bare.session(), List.of(com.legend.planner.LoadPlanner.load(
+                ExecutionPlan.Load.Cadence.PER_ACQUISITION, steps, bare, rowSteps.content())));
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
-        LoadStep.Rows rows = (LoadStep.Rows) ((TdsResult) back.root()).sql().target().loads().get(0).steps().get(1);
-        assertEquals(null, rows.rows().get(1).get(1));
+        ExecutionPlan.Load load = ((TdsResult) back.root()).sql().target().loads().get(0);
+        LoadStep.File rows = (LoadStep.File) load.steps().get(1);
+        assertTrue(load.content().get(rows.ref().digest()).endsWith("[\"2\",null]]"), load.content().toString());
     }
 
     @Test
@@ -109,9 +115,10 @@ class PlanJsonTest {
 
     @Test
     void rowsOfDifferentWidthsAreRefused() {
-        var refused = assertThrows(IllegalArgumentException.class, () -> new LoadStep.Rows("s", "c", "i", "d",
+        var refused = assertThrows(IllegalArgumentException.class, () -> new com.legend.setup.RowLoad(null, "s",
+                com.legend.sql.NameQuoting.BARE, List.of("i", "a"), java.util.Set.of(), 2,
                 List.of(List.of("1", "a"), List.of("2"))));
-        assertTrue(refused.getMessage().contains("a row of 1 cells among rows of 2"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("a row of 1 cells where every row has 2"), refused.getMessage());
     }
 
     @Test

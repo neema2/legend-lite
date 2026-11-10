@@ -75,7 +75,8 @@ class DataLoadsTest {
         ExecutionPlan.LoadStep.Delivery delivery = switch (dialect.csvLoad(LOAD)) {
             case SqlDialect.CsvLoad.Reads r -> new ExecutionPlan.LoadStep.Delivery.Reads(r.statements());
             case SqlDialect.CsvLoad.Streamed st -> new ExecutionPlan.LoadStep.Delivery.Streamed(st.insert(),
-                    LOAD.columns().size());
+                    LOAD.columns().size(), dialect.rowsInsert(LOAD, dialect.rowsPerInsert(LOAD.columns().size())),
+                    dialect.rowsPerInsert(LOAD.columns().size()), null);
         };
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
                 DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, limitMegabytes);

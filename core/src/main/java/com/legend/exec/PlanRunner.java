@@ -585,15 +585,6 @@ public final class PlanRunner {
                         StatementOrigin.sent(seeding.mark(), s.sql());
                         answered.add(seeding.execute(s.sql()));
                     }
-                    case ExecutionPlan.LoadStep.Rows r -> {
-                        if (!seeding.load(r)) {
-                            throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
-                                    + " database has none (" + r.stagingTable() + ")");
-                        }
-                        // the bulk load's one statement, counted under the seeds' mark
-                        StatementOrigin.count(seeding.mark());
-                        answered.add(false);
-                    }
                     case ExecutionPlan.LoadStep.File f -> {
                         // the file by its reference, its verified bytes delivered as the plan says (DataLoads): the model's
                         // text above the inline threshold from the load's own bundle (L6c, verified when the load was
@@ -627,7 +618,7 @@ public final class PlanRunner {
                                         f.sizeLimitMegabytes());
                                 if (!cells.isEmpty()) {
                                     StatementOrigin.sent(seeding.mark(), streamed.insert());
-                                    seeding.streams(streamed.insert(), cells);
+                                    seeding.streams(streamed, cells);
                                 }
                             }
                         }

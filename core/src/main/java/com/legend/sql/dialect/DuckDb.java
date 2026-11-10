@@ -869,6 +869,13 @@ public final class DuckDb extends AnsiSqlRenderer {
                 + " the plan's load, planner.DataSources): " + url);
     }
 
+    /** {@inheritDoc} DuckDB keeps a temporary table in catalog {@code temp}, schema {@code main}: the drop names it
+     *  there, so a persistent table of the name is never reached. */
+    @Override
+    public String dropTemporary(String table) {
+        return "DROP TABLE IF EXISTS temp.main." + table + ";";
+    }
+
     /** {@inheritDoc} DuckDB holds each element in a {@code JSON} column, read as the array's elements were. */
     @Override
     public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {

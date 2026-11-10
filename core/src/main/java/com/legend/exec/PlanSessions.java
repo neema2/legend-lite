@@ -297,7 +297,8 @@ public final class PlanSessions {
         java.util.List<ExecutionPlan.Load> loads = target.loads().stream().filter(l -> l.cadence() == cadence)
                 .toList();
         for (ExecutionPlan.Load load : loads) {
-            if (load.steps().stream().anyMatch(ExecutionPlan.LoadStep.Rows.class::isInstance)
+            if (load.steps().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.File f
+                    && f.delivery() instanceof ExecutionPlan.LoadStep.Delivery.Streamed st && st.staged() != null)
                     && !Sessions.loadsRows(session)) {
                 throw new IllegalStateException("the plan's load has rows for a bulk loader, and the session's"
                         + " database has none (" + Sessions.product(session) + ")");

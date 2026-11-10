@@ -37,6 +37,11 @@ public final class DuckDbAppenderLoad implements BulkLoad {
     @Override
     public void load(Connection connection, String stagingTable, String createStaging, String copy,
             String dropStaging, List<List<String>> rows) throws SQLException {
+        // a staging table left of the name (a load that died before its drop) dropped first (the correctness audit's
+        // M2, 2026-11-10: it refused every later load on the session)
+        try (Statement st = connection.createStatement()) {
+            st.execute(dropStaging);
+        }
         try (Statement st = connection.createStatement()) {
             st.execute(createStaging);
         }
