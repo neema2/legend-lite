@@ -65,7 +65,10 @@ class ObservabilityGuardrailTest {
             // 2026-09-29, plan W0.1: the same entrypoint's other two settings —
             // the listen address (loopback by default) and the extra page
             // origins the server serves; deployment config, not debug flags
-            "LEGEND_LITE_BIND", "LEGEND_LITE_ALLOWED_ORIGINS");
+            "LEGEND_LITE_BIND", "LEGEND_LITE_ALLOWED_ORIGINS",
+            // 2026-11-10, the A checkpoint's tenets audit (11) and the user's ruling that day: the folders the server
+            // reads file: sources from, its startup setting beside --sources DIR; deployment config, not a debug flag
+            "LEGEND_LITE_SOURCE_DIRS");
 
     // 40 compiler sites + 3 server-shell sites that moved in with the
     // engine-module deletion (DiagramHandler crash report, the two

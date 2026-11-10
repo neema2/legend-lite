@@ -77,7 +77,11 @@ class SourceAdmissionTest {
     void aHostsConfigurationBuildsTheFence(@TempDir Path dir) throws Exception {
         assertEquals(SourceAdmission.any(), SourceAdmission.configured(null));
         assertEquals(SourceAdmission.any(), SourceAdmission.configured("  "));
+        assertEquals(SourceAdmission.any(), SourceAdmission.configured("any"));
         assertEquals(SourceAdmission.none(), SourceAdmission.configured("none"));
+        var none = assertThrows(com.legend.error.DataError.class,
+                () -> SourceAdmission.none().admit(Files.writeString(dir.resolve("x.json"), "[]").toUri().toString()));
+        assertTrue(none.getMessage().contains("start it with --sources DIR"), none.getMessage());
         Path inside = Files.writeString(dir.resolve("rows.json"), "[]");
         SourceAdmission fenced = SourceAdmission.configured(dir.toString());
         assertEquals(inside.toRealPath().toString(), fenced.admit(inside.toUri().toString()));

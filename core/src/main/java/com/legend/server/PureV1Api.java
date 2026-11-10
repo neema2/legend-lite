@@ -639,6 +639,16 @@ public final class PureV1Api {
                 throw new com.legend.error.NotImplementedException("a host runs a statement's text, and this one binds "
                         + "values (" + result.sql().slots().size() + "); legend-lite's server runs it");
             }
+            if (!result.sql().target().loads().isEmpty()) {
+                // the statement reads what its target's loads make (a connection's test data, a project's Data, a
+                // data: source's session table), and a host runs the statement alone until B3 makes the hosts run a
+                // plan's loads (the A checkpoint's finding of B3's prep, 2026-11-10: until then the host's database
+                // failed on a table no load made, a catalog error, not a refusal by name: §3 rule 5)
+                throw new com.legend.error.NotImplementedException("a host runs one statement, and this query's"
+                        + " statement reads what its target loads first (" + result.sql().target().loads().size()
+                        + " load(s): test data, a project's Data or a data: source), which a host does not run yet;"
+                        + " legend-lite's server runs it");
+            }
             String statement = result.sql().statement();
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", statement);

@@ -657,7 +657,6 @@ public final class PlanRunner {
                             // a copy of the runner's own, which the database reads with its own reader, each
                             // statement's ? the copy's path
                             try (DataLoads.Staged staged = DataLoads.stage(f.ref(), bytes, f.sizeLimitMegabytes())) {
-                                RuntimeException failed = null;
                                 try {
                                     for (String statement : reads.statements()) {
                                         StatementOrigin.sent(seeding.mark(), statement);
@@ -669,24 +668,23 @@ public final class PlanRunner {
                                                     + "': " + e.getMessage(), e);
                                         }
                                     }
-                                } catch (RuntimeException e) {
-                                    failed = e;
-                                    throw e;
-                                } finally {
-                                    // what the reading set on the session undone on every exit (§3 rule 2, the A
-                                    // checkpoint's tenets audit, 14): a failure here after the load's own is kept
-                                    // beside it, never in its place
+                                } catch (com.legend.error.DataError failed) {
+                                    // what the reading set on the session undone on the failed load's way out too
+                                    // (§3 rule 2, the A checkpoint's tenets audit, 14): an undo that fails is kept
+                                    // beside the load's own failure, never in its place
                                     for (String statement : reads.after()) {
                                         StatementOrigin.sent(seeding.mark(), statement);
                                         try {
                                             seeding.execute(statement);
-                                        } catch (RuntimeException e) {
-                                            if (failed == null) {
-                                                throw e;
-                                            }
-                                            failed.addSuppressed(e);
+                                        } catch (com.legend.error.DataError undo) {
+                                            failed.addSuppressed(undo);
                                         }
                                     }
+                                    throw failed;
+                                }
+                                for (String statement : reads.after()) {
+                                    StatementOrigin.sent(seeding.mark(), statement);
+                                    seeding.execute(statement);
                                 }
                             }
                         }

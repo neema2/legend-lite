@@ -30,11 +30,13 @@ public final class ConnectionResolver {
      *  sessions (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). A database failure is a {@link com.legend.error.DataError}.
      *  (Slice 5, 2026-11-09: the server's session source is exec's, {@code PlanSessions.PROJECT_DATABASES}; the tests'
      *  session for a runtime of a compiled model is the tests' {@code ServerSessions}.) */
-    public static final PureV1Api.Runner RUNNER = runner(System.getenv("LEGEND_LITE_SOURCE_DIRS"));
+    public static final PureV1Api.Runner RUNNER = com.legend.Execution::runOnProjectDatabases;
 
-    /** The product door, its live sources read under the fence {@code admittedSources} names (the server's
-     *  configuration, {@code LEGEND_LITE_SOURCE_DIRS}: unset, any file, the default; {@code none}; or the directories
-     *  it lists, separated by the platform's path separator -- the A checkpoint's tenets audit, 11, 2026-11-10). */
+    /** The product door, its live sources read under the fence {@code admittedSources} names
+     *  ({@code SourceAdmission.configured}'s text: {@code any}; {@code none}; or the directories it lists, separated by
+     *  the platform's path separator). The server builds its own from its startup settings, which fence it to no
+     *  folder when they name none ({@code LegendHttpServer.sources}; the user's ruling of 2026-11-10); {@link #RUNNER},
+     *  the library's door, reads any file (the default, as ruled). */
     public static PureV1Api.Runner runner(@com.legend.base.Nullable String admittedSources) {
         return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, admittedSources,
                 output);

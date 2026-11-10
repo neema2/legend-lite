@@ -142,6 +142,7 @@ public final class TestDoor {
         // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
         if (edge != null) {
+            refuseUnrecordedLoads(planned, seeds);
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
                     e.statements().stream().map(Recorded::query).toList())));
             seeds.forEach((i, texts) -> byStep.put(i, edge.seed(texts.get())));
@@ -153,6 +154,27 @@ public final class TestDoor {
         // door planned it beside the plan until then)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
                 PlanMaker.testSessionTarget(body.context(), runtime));
+    }
+
+    /**
+     * Under the compatibility edge, a load step of the body's program the test planner did not seed is refused by name
+     * (the orchestrator's late item of the A checkpoint, 2026-11-10): the edge's ledger records a body's seeds by the
+     * texts the planner made for each ({@code TestKinds.seeds}), and a live source's session table (a {@code data:}
+     * payload's load, A5) has none, so the run failed at it with an internal error ({@code TestRunner.seeded}). B2a
+     * moves the edge's ledger onto the plan's loads; until then it is refused before anything runs. The graph's system
+     * store's load is no body's, and the ledger records none of it, as at the run.
+     */
+    private static void refuseUnrecordedLoads(List<PlannedStep> steps,
+            Map<Integer, java.util.function.Supplier<List<String>>> seeds) {
+        for (int i = 0; i < steps.size(); i++) {
+            if (steps.get(i) instanceof PlannedStep.Product p && p.node() instanceof ExecutionPlan.Load u
+                    && !(u.target().database() instanceof ExecutionPlan.Database.System) && !seeds.containsKey(i)) {
+                throw new com.legend.error.NotImplementedException("under the compatibility edge a test body's"
+                        + " statements read only the seeds its ledger records, and this body reads a load the test"
+                        + " planner made for a live source (" + u.identity() + ": a data: source's session table),"
+                        + " which the edge's ledger does not record until B2a; lite's own test door runs it");
+            }
+        }
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library

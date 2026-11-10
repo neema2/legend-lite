@@ -137,8 +137,8 @@ class DataLoadsTest {
 
     /** A file of another delimiter loads on each database that reads one (the correctness audit's note, 2026-11-10:
      *  H2's CSVREAD splits its column names by the field separator, so names joined by a comma read as one column under
-     *  {@code ;}); and on H2 a load that fails leaves no path of the runner's copy on the session (the A checkpoint's
-     *  tenets audit, 14: the variable's reset is run on every exit). */
+     *  {@code ;}); and where the reader sets something on the session (H2's path variable), a load that fails leaves
+     *  none of it there (the A checkpoint's tenets audit, 14: the undo is run on every exit). */
     @Test
     void aSemicolonFileLoads_andAFailedLoadLeavesNoPathOnH2(@TempDir Path dir) throws Exception {
         SqlDml.LoadCsv semi = new SqlDml.LoadCsv(null, "data_loads_people", NameQuoting.BARE, LOAD.columns(),
@@ -155,8 +155,8 @@ class DataLoadsTest {
                             DataStores.sha256(bytes), bytes.length, new DataRef.Csv(';', '"')),
                             new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(), reads.after()), 500);
             assertEquals(List.of(List.of("Joe", "Bloggs", 21)), loaded(b, stores, load(b, file.apply(good))), b.name());
-            if (!b.name().equals("h2")) {
-                continue;
+            if (reads.after().isEmpty()) {
+                continue;   // a reader that sets nothing on the session has nothing to undo (H2's sets its path)
             }
             try (Connection c = b.open(); Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE data_loads_people (FIRSTNAME VARCHAR(200), LASTNAME VARCHAR(200), AGE INT)");

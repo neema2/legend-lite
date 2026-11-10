@@ -46,12 +46,12 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
 
     /**
      * The admission a host's configuration names (the A checkpoint's tenets audit, 11, 2026-11-10: until then no host
-     * could build a fence): absent or blank, any file (the default, unchanged: the user's ruling of A5); {@code none},
-     * none; else the directories it lists, separated by the platform's path separator ({@code :}, {@code ;} on
+     * could build a fence): absent, blank or {@code any}, any file (the library's default, unchanged: the user's ruling
+     * of A5); {@code none}, none; else the directories it lists, separated by the platform's path separator ({@code :}, {@code ;} on
      * Windows), each a fence's. A listed directory that is not one is refused by name, never dropped.
      */
     public static SourceAdmission configured(@com.legend.base.Nullable String value) {
-        if (value == null || value.isBlank()) {
+        if (value == null || value.isBlank() || value.strip().equals("any")) {
             return any();
         }
         if (value.strip().equals("none")) {
@@ -100,7 +100,8 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
             }
         }
         throw new DataError("the source '" + location + "' is not under a directory this run admits"
-                + (fence.isEmpty() ? " (it admits none)" : ": " + fence));
+                + (fence.isEmpty() ? " (it admits none: the server reads no file: source outside its fenced folders,"
+                        + " and none are configured -- start it with --sources DIR)" : ": " + fence));
     }
 
     /** {@code p}'s real path, links followed; a path that does not resolve (no such file, or a directory admitted

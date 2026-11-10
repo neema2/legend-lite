@@ -894,11 +894,21 @@ public final class PlanMaker {
         }
         Set<String> named = new java.util.TreeSet<>();
         // after G½: a from() inside a function the query calls names its runtime too (the checkpoint tenets audit's 1)
-        for (TypedSpec statement : new com.legend.compiler.spec.UserCallInliner(query.specs()).inlineBody(
-                query.body())) {
-            for (com.legend.compiler.spec.typed.TypedFrom fr
-                    : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
-                fr.runtime().ifPresent(r -> named.add(r.fullPath()));
+        // -- each statement inlined after the lets before it, as a program's statements are planned one by one
+        com.legend.compiler.spec.UserCallInliner inliner = new com.legend.compiler.spec.UserCallInliner(query.specs());
+        List<TypedSpec> body = query.body();
+        List<TypedSpec> lets = new java.util.ArrayList<>();
+        for (int i = 0; i < body.size(); i++) {
+            List<TypedSpec> seq = new java.util.ArrayList<>(lets);
+            seq.add(body.get(i));
+            for (TypedSpec statement : inliner.inlineBody(seq, body.size() > 1 ? i : null)) {
+                for (com.legend.compiler.spec.typed.TypedFrom fr
+                        : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
+                    fr.runtime().ifPresent(r -> named.add(r.fullPath()));
+                }
+            }
+            if (body.get(i) instanceof com.legend.compiler.spec.typed.TypedLet) {
+                lets.add(body.get(i));
             }
         }
         if (named.size() > 1) {

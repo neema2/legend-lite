@@ -524,7 +524,18 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.jsonPlan(request, List.of(model));
+        // a host runs one statement and none of its target's loads (until B3): a connection's test data is refused by
+        // name, never left for the host's database to fail on (the A checkpoint's finding of B3's prep, 2026-11-10)
+        PureV1Api.Answer loading = PureV1Api.jsonPlan(request, List.of(model));
+        assertEquals(500, loading.status(), loading.json());
+        assertTrue(loading.json().contains("reads what its target loads first"), loading.json());
+        // the host's own model holds its data itself (the tab's tables, Python's frames): the same model with no test
+        // data, whose statement is the server's
+        String hosted = withoutTestData(model);
+        String hostedRequest = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
+                + ",\"model\":" + Json.toCompact(Map.of("_type", "text", "code", hosted))
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer a = PureV1Api.jsonPlan(hostedRequest, List.of(hosted));
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
         assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder", "activities", "columns"),
@@ -543,7 +554,7 @@ class PureV1ApiTest {
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
         // its host's models only, as the Arrow half
-        assertEquals(500, PureV1Api.jsonPlan(request, List.of(model + "\n")).status());
+        assertEquals(500, PureV1Api.jsonPlan(hostedRequest, List.of(hosted + "\n")).status());
         // a plan that is not jsonPlan's: refused, never cast
         assertEquals(500, PureV1Api.jsonAnswer("{\"builder\":5}", "[]").status());
         // a value's answer (one value, or a list of them), which the server's execute refuses, is refused by both plan
@@ -557,7 +568,7 @@ class PureV1ApiTest {
             }
         }
 
-        String trading = resource("upstream-api/query-app/trading.pure");
+        String trading = withoutTestData(resource("upstream-api/query-app/trading.pure"));
         String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         PureV1Api.Answer graph = PureV1Api.jsonPlan("{\"function\":" + fetch + ",\"model\":"
@@ -871,6 +882,15 @@ class PureV1ApiTest {
             out.add(row);
         }
         return out;
+    }
+
+    /** {@code model} with no connection's declared test data: a host's model, whose data the host holds itself. */
+    private static String withoutTestData(String model) {
+        String stripped = model.replaceAll("testDataSetupSqls\\s*:\\s*\\[[\\s\\S]*?\\];", "");
+        // (the model's comment names the field; a declaration is the name and a colon)
+        assertTrue(!stripped.equals(model) && !stripped.matches("(?s).*testDataSetup\\w*\\s*:.*"),
+                "the model's test data stripped");
+        return stripped;
     }
 
     private String textModel() {

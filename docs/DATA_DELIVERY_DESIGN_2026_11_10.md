@@ -51,7 +51,9 @@ The slices that were verified stay:
    - A file (CSV, JSON, Parquet) is a source the database reads, with its path bound.
    - A model's `file:` source is read by the query directly.
    - A file loaded into a table (`loadCsvToDbTable`) is `INSERT INTO t SELECT … FROM <that source>`.
-   - Any file, as upstream. A host may configure an opt-in directory fence, off by default.
+   - Any file, as upstream, in the library. A host may configure a directory fence; **the server fences by default**:
+     its startup settings name the folders, and with none named it reads no `file:` source (the user's ruling,
+     2026-11-10; §3 rule 6).
    - A remote file that needs a credential names the credential; the plan never holds the secret.
 3. **A database that cannot read files refuses a file by name** (option 1):
    - **DuckDB** reads them (`read_csv`, `read_json`, `read_parquet`; in the browser too).
@@ -102,6 +104,13 @@ Deleted from the plan:
    **The browser's uploaded tables** live until the person resets them: a load whose lifetime is the host session.
 5. **Every refusal names the data** (the file, the payload or the table) with the database's own words. None is an
    internal exception.
+6. **The server reads `file:` sources only inside the folders its startup settings name** (the user's ruling,
+   2026-11-10, the A checkpoint's tenets audit, 11): `--sources DIR`, repeatable, else `LEGEND_LITE_SOURCE_DIRS`
+   (folders separated by the path separator), `any` widening it to every file. **With none named it fences to no
+   folder**: every `file:` read is refused by name, saying how to name one ("... the server reads no file: source
+   outside its fenced folders, and none are configured -- start it with --sources DIR"). The library's door reads any
+   file, as upstream; an embedding host builds its own fence (`SourceAdmission.configured`). No register row: upstream
+   has no server of ours to fence.
 
 ## 4. One road
 
@@ -109,12 +118,18 @@ Deleted from the plan:
   - read, write, program and staged lets;
   - test bodies' program statements. **Not yet** the statements the test road's judges render for an assert's sides
     and the verdict batch (`JudgePlans`, `VerdictBatch`): a `data:` source there is refused by name until B2a (the
-    correctness audit's note, 2026-11-10: until then it reached the dialect and failed with an internal error);
+    correctness audit's note, 2026-11-10: until then it reached the dialect and failed with an internal error). **Nor
+    a test body under the compatibility edge**: the edge's ledger records a body's seeds by the texts the test planner
+    made for each, and a `data:` source's session table has none, so a body reading one there is refused by name at
+    planning until B2a (`TestDoor.refuseUnrecordedLoads`, `EdgeLiveSourceTest`; the orchestrator's late item of the A
+    checkpoint, 2026-11-10: until then the run crashed at `TestRunner.seeded`, "no ledger texts planned"); lite's own
+    test door runs it;
   - the plan that `generatePlan` and `arrowPlan` render. `TypedQuery.plan` renders from the execution plan (B3; until
     then the text plan refuses a live source by name, S188).
 - `resolver/JsonSourceFrame`'s literal path is deleted (B2a; census M10, pending).
 - **A `file:` location is bound on every send path:** `send`, `valuesOf`, `expand`, `bindOnce`, `ProgramRunner`,
-  `TestRunner`.
+  `TestRunner`, under the run's one admission: the library's any file, the server's the folders its startup settings
+  name (§3 rule 6).
 - A door that cannot carry a source refuses it by name before render.
 
 ## 5. Proof
@@ -235,8 +250,14 @@ Deleted from the plan:
 
 ### A5 as built (2026-11-10)
 
-- **`file:` on every send path:** a `file:` source is admitted by default, any file (the user's ruling, 2026-11-10; the
-  fence is opt-in: `SourceAdmission.of(dirs)`, `none()`), and bound ONCE at the run's entry
+- **`file:` on every send path:** a `file:` source is admitted by the library's door by default, any file (the user's
+  ruling, 2026-11-10; the fence is a host's: `SourceAdmission.of(dirs)`, `none()`, `configured(text)`). **The server
+  fences by default** (the user's ruling of 2026-11-10, the A checkpoint): `LegendHttpServer.sources` reads
+  `--sources DIR` (repeatable) else `LEGEND_LITE_SOURCE_DIRS`, else none, `any` widening it, and passes it as text to
+  the product door (`ConnectionResolver.runner`, `Execution.runOnProjectDatabases(typed, runtime, admitted, output)`:
+  the server library depends on no exec class); with none named every `file:` read is refused by name, saying to start
+  it with `--sources DIR`, and the server says so at startup and in its `--help` (`ServerSourceFenceTest`). A source is
+  bound ONCE at the run's entry
   (`PlanRunner.admitSources`, called by `PlanRunner.streamRun` and `ProgramRunner.programRun`): every statement of the
   plan that reads a source finds its path, whichever path sends it (the answer, a write, a check, an effect, a keyed
   body's copies, a program's steps).
@@ -380,7 +401,7 @@ target keeps fewer).
 | ✔ | **Checkpoint:** tenets audit, then correctness, every finding fixed; one lane round on all eleven databases; the timing check | |
 | **B** | **The rest of P1: the census to zero** | |
 | B1 | The seed forms (`setUpDataSQLs`): the author's statements beside `executeInDb`, not converted (the user: yes) | census M7 |
-| B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner; and every statement the test road's judges render (`JudgePlans`, the verdict batch) takes the `data:` rewrite, so the JSON source frame's literal rows go (H2's `data:` table measured first; A5 measured the move: 20 DuckDB and 10 H2 corpus tests depend on it) | census M3, M10 |
+| B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner; and every statement the test road's judges render (`JudgePlans`, the verdict batch) takes the `data:` rewrite, so the JSON source frame's literal rows go (H2's `data:` table measured first; A5 measured the move: 20 DuckDB and 10 H2 corpus tests depend on it); and the compatibility edge's ledger onto the plan's loads, so a test body under the edge reads a `data:` source (refused by name until then, `EdgeLiveSourceTest`) | census M3, M10 |
 | B2b | The referee replays its own H2 copy of the plan's loads (from A2) | census M15, the referee |
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes) | census M15, the fixtures |
 | B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. **Design APPROVED by the user, 2026-11-10** (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`): ONE read-only query per table whose `WITH` clauses carry the chain (the starting rows `ORDER BY` key `LIMIT 20`, one level per navigation step, no recursion), all in one read transaction, NO temporary tables; the default starting rows (no row identifiers given) ARE built, by upstream's rule read from the pinned sources; upstream's 46 SQL-text comparisons become a register row (its data checks all run); the TDG appeal and `TestDataGeneratorRun` deleted. S143's skip is lifted when it passes | census M13 |

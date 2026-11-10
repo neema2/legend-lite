@@ -73,6 +73,11 @@ class CodeShapeGuardrailTest {
             // check), its server's version, the next query's minted stamp (one statement's); the test runner's shared
             // session and the package it holds
             "JdbcStatements.driver", "JdbcStatements.reserved", "ExecutionTrace.reserved", "Sessions.version",
+            // 2026-11-10, the A checkpoint's tenets audit (2): the session's checked target's connector, learned at
+            // check as the driver's decoding is, whose facts (a transaction taken, an error aborting it) a run acts on
+            "JdbcStatements.declared",
+            // 2026-11-10, the tenets audit (8): the referee's copy of a seed, written when an edge first asks, once
+            "CsvSeed.made",
             "PureTestRunner.sessionConn", "PureTestRunner.sessionPkg",
             // (same date) A FRAME'S cursor, one instance per pass and never shared: the verdict batch's open root, the
             // canon rider's wrap and its decline, the lowerer's connection time zone and id minter (set at
