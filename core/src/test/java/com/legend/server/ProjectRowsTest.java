@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -129,9 +130,21 @@ class ProjectRowsTest {
         var plain = com.legend.Compiler.query(ctx, QUERY).projectPlan("proj::RT").answerSql().target();
         var metamodel = com.legend.Compiler.query(ctx, "|meta::pure::metamodel::type::Class.all()->size()")
                 .projectPlan("proj::RT").answerSql().target();
-        org.junit.jupiter.api.Assertions.assertNotEquals(plain.loads(), metamodel.loads(),
-                "the metamodel's query loads its tables on acquisition");
-        assertEquals(com.legend.exec.PlanSessions.projectKey(plain), com.legend.exec.PlanSessions.projectKey(metamodel));
+        // L4's product half (2026-11-10): the metamodel's query reads the process's catalog, never the project's
+        // database, which holds none of it
+        assertInstanceOf(com.legend.executionplan.ExecutionPlan.Database.System.class, metamodel.database());
+        assertTrue(plain.database() instanceof com.legend.executionplan.ExecutionPlan.Database.Platform
+                || plain.database() instanceof com.legend.executionplan.ExecutionPlan.Database.Declared);
+    }
+
+    /** The server's project road reads the metamodel on the process's catalog (L4's product half, 2026-11-10): the
+     *  project's classes listed in its request, none of them in another project's. */
+    @Test
+    void aProjectsMetamodelQueryListsItsClassesOnTheCatalog() {
+        String count = "|meta::pure::metamodel::type::Class.all()->filter(c | $c.name == 'Party')->size()";
+        assertEquals(List.of(1L), Lean.service(PARTY, count, "proj::RT").rows().stream().map(r -> r.get(0)).toList());
+        String other = PARTY.replace("Party", "Trader");
+        assertEquals(List.of(0L), Lean.service(other, count, "proj::RT").rows().stream().map(r -> r.get(0)).toList());
     }
 
     /** A source runs the loads its target names or refuses the target (the re-audit's A-3, 2026-11-09): a project's

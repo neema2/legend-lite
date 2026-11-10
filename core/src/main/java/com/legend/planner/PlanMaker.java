@@ -121,18 +121,26 @@ public final class PlanMaker {
                 planned.body().get(planned.body().size() - 1), query.context());
         Decided decided = decide(l.ctx(), runtime);
         SqlDialect dialect = decided.dialect();
-        Metamodel metamodel = metamodel(l, dialect);
-        if (!projectDatabase && dialect.inProcess() && !metamodel.setup().isEmpty()
-                && readsOnlySystemTables(l.plan(), l.ctx())) {
-            // a query that reads the metamodel alone, on an engine in this process: on the process's CATALOG, the
-            // model's rows registered in the run's turn and rolled back with it (L4's product half, 2026-11-10,
-            // docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.4: the one-request model; until then the metamodel's tables
-            // were made in the query's own database, census M6's first form)
+        Set<String> systemTables = new java.util.TreeSet<>();
+        collectSystemTables(l.root(), systemTables);
+        if (dialect.inProcess() && !systemTables.isEmpty()) {
+            // a query that reads the metamodel, on an engine in this process: on the process's CATALOG, the model's rows
+            // registered in the run's turn and rolled back with it (L4's product half, 2026-11-10,
+            // docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.4: the one-request model -- the server holds no model, so a
+            // project's query is one too; until then the metamodel's tables were made in the query's own database,
+            // census M6's first form, deleted). A query that reads another source beside them is refused by name: the
+            // catalog holds the metamodel alone, and the query's own database holds none of it
+            if (!readsOnlySystemTables(l.plan(), l.ctx())) {
+                throw new NotImplementedException("a query reading the system metamodel store beside another source,"
+                        + " on " + dialect.getClass().getSimpleName() + ": the process's catalog answers the metamodel"
+                        + " alone, and the query's own database holds none of it");
+            }
             ExecutionPlan.Target catalog = SystemCatalog.forQuery(l.ctx(),
                     ConnectionPlans.type(decided.target().type()), dialect.sessionSetup(), dialect);
             return ExecutionPlan.reading(declarations(declared, l.ctx()), stampedIfRead(typed(l.root(),
                     EnumValueTables.apply(l.plan()), dialect, catalog), st.reads().ownStamp()));
         }
+        Metamodel metamodel = metamodel(l, dialect);
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames); each data: source read from the
         // session table the target's load makes of it (L6b, 2026-11-10)
@@ -869,7 +877,7 @@ public final class PlanMaker {
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
         ExecutionPlan.Target bare = new ExecutionPlan.Target(database, session, List.of());
-        // the runtime's declared test data, then the system metamodel store's rows (M6, until L4), each its own load
+        // the runtime's declared test data, each its own load
         // established on acquisition (L2, 2026-11-09: until then the target's setup steps)
         List<ExecutionPlan.Load> loads = new ArrayList<>();
         // a project's Data rows: one ONCE load, made with its database and kept (L3, S171)
@@ -878,7 +886,6 @@ public final class PlanMaker {
                     project.content()));
         }
         loads.addAll(LoadPlanner.targetLoads(declared, bare));
-        loads.addAll(LoadPlanner.targetLoads(metamodel.setup(), bare));
         return new ExecutionPlan.Target(database, session, loads);
     }
 
@@ -956,9 +963,9 @@ public final class PlanMaker {
      * {@code inline}, on a database with no temporary table, each table referenced as the query's own rows (the
      * relation for an alias).
      */
-    record Metamodel(List<ExecutionPlan.LoadStep> setup, List<String> session, Map<String, String> renames,
+    record Metamodel(List<String> session, Map<String, String> renames,
             Map<String, Function<String, SqlSource>> inline) {
-        static final Metamodel NONE = new Metamodel(List.of(), List.of(), Map.of(), Map.of());
+        static final Metamodel NONE = new Metamodel(List.of(), Map.of(), Map.of());
 
         /** {@code q} reading the tables as they are held: a session table by its name, an inline table as its rows. */
         SqlQuery read(SqlQuery q) {
@@ -983,8 +990,8 @@ public final class PlanMaker {
      * {@link com.legend.builtin.SystemMetamodel#STORE_FQN}), carried by the plan as the legacy route seeded them on
      * the graph's own system database ({@code SystemDatabase}; the plan path program's step 9): each referenced
      * table with the graph's facts ({@link MetamodelSeeds}, written at plan time), so a model-free runner answers the
-     * query on the plan's session. On an engine in this process (2026-10-18) the tables are the target's setup, in
-     * their schema, as the private instance held them. On a SERVER engine (2026-10-19; the user's design of
+     * query on the plan's session. On an engine in this process the query reads the process's catalog instead
+     * ({@link SystemCatalog#forQuery}, L4's product half, 2026-11-10), never this. On a SERVER engine (2026-10-19; the user's design of
      * 2026-10-11 for the legacy route) they are the session's own TEMPORARY tables, made by the session's statements
      * on every session the plan opens and gone with it (no other session sees them, nothing permanent is made in the
      * user's database, so a plan with them runs on a database reached by a URL), each named
@@ -1002,8 +1009,10 @@ public final class PlanMaker {
         DatabaseDefinition store = l.ctx()
                 .findDatabase(SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
-        boolean inProcess = dialect.inProcess();
-        List<ExecutionPlan.LoadStep> setup = new ArrayList<>();
+        if (dialect.inProcess()) {
+            throw new IllegalStateException("a product query's metamodel tables on an engine in this process are the"
+                    + " process's catalog's (SystemCatalog.forQuery), never its own database's");
+        }
         List<String> session = new ArrayList<>();
         Map<String, String> renames = new LinkedHashMap<>();
         Map<String, Function<String, SqlSource>> inline =
@@ -1015,9 +1024,7 @@ public final class PlanMaker {
                     continue;
                 }
                 List<List<String>> rows = MetamodelSeeds.rows(def.name(), l.ctx());
-                if (inProcess) {
-                    setup.addAll(Ddl.metamodelSteps(def, schema.name(), rows, dialect));
-                } else if (!dialect.temporaryTables()) {
+                if (!dialect.temporaryTables()) {
                     inline.put(schema.name() + "." + def.name(), inlineRows(def, rows));
                 } else {
                     session.addAll(Ddl.metamodelTemporary(def, schema.name(), rows, dialect));
@@ -1026,7 +1033,7 @@ public final class PlanMaker {
                 }
             }
         }
-        return new Metamodel(List.copyOf(setup), List.copyOf(session),
+        return new Metamodel(List.copyOf(session),
                 Collections.unmodifiableMap(new LinkedHashMap<>(renames)),
                 Collections.unmodifiableMap(new LinkedHashMap<>(inline)));
     }

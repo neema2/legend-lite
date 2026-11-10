@@ -106,10 +106,12 @@ class DataMechanismCensusTest {
                     new Bounded("L2", List.of(), "ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad")),
             new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4 (a server"
                     + " engine's whole store per graph: the catalog design's check 3)")),
-            // L4's product half, step 1 (2026-11-10): an in-process metamodel-only query reads the process's catalog;
-            // a held project's (the server's, step 2) still makes the tables in its own database, form 1
-            new Row("M6", "the system metamodel store on the product road", new Pending("L4 (step 2: a held project on"
-                    + " the catalog, committed; step 3: forms 2 and 3 bounded)")),
+            // L4's product half (2026-11-10): form 1 deleted -- every in-process product query reads the process's
+            // catalog, the server's project road too (the server holds no model: each request is the one-request
+            // case). Forms 2 and 3 (a server engine's TEMP tables, a server with none's inline rows) wait on a server
+            // engine's catalog, M5's check 3, not designed
+            new Row("M6", "the system metamodel store on the product road", new Pending("M5's server catalog (forms 2"
+                    + " and 3: a server engine's session TEMP tables, a server with none's inline rows)")),
             // PENDING (the M1 correctness audit's C3, 2026-11-09): a seed form mapped over executeInDb was made a load
             // at L2 and put back the same day -- as a load it lost the effect script's transaction bracket and abort, its
             // ledger on failure and the B8 refusal. Its move is designed with the runner's transaction for loads
@@ -175,7 +177,10 @@ class DataMechanismCensusTest {
                     "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup"),
             // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
             // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
-            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"));
+            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"),
+            // L4's product half (2026-11-10): form 1, the metamodel's tables made in an in-process query's own database
+            // as the target's setup -- every in-process product query reads the process's catalog
+            "M6", List.of("setup.addAll(Ddl.metamodelSteps", "metamodel.setup()", "!projectDatabase && dialect.inProcess()"));
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */
