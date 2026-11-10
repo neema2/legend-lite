@@ -1897,6 +1897,19 @@ public final class Trino extends AnsiSqlRenderer {
         return false;
     }
 
+    /** {@inheritDoc} Yes: Trino writes a WITH's query in place at each read, never once for every read (#81's final
+     *  review, item 14k (9), 2026-11-10). */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
+    /** {@inheritDoc} No: Trino has no temporary table to stage one in. */
+    @Override
+    public boolean stagesSharedRelations() {
+        return false;
+    }
+
     /** Trino has no temporary table, so no table only one session sees: the server engine's system database is
      *  refused by name here. */
     @Override

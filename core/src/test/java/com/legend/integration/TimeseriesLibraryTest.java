@@ -296,6 +296,101 @@ class TimeseriesLibraryTest {
     }
 
     /**
+     * A model's mapping over a library's elements -- an enumeration mapping of the library's enumeration, a relation
+     * mapping whose {@code ~func} is the library's function -- compiles and plans over the library as the one text
+     * does (#81's final review, item 14k (1), 2026-11-10: Phase E indexed the model alone, and the {@code ~func}
+     * resolved to no function).
+     */
+    @Test
+    void aMappingOfALibrarysElementsPlansOverTheLibraryAsTheOneText() {
+        String library = "###Pure\nEnum lib::Kind\n{\n  a, b\n}\n";
+        String model = STORE + """
+                ###Pure
+                Class my::Priced
+                {
+                  symbol: String[1];
+                  kind: lib::Kind[1];
+                }
+                ###Mapping
+                Mapping my::Map
+                (
+                  lib::Kind: EnumerationMapping K
+                  {
+                    a: ['AAA'],
+                    b: ['BBB']
+                  }
+                  my::Priced: Relational
+                  {
+                    ~mainTable [ts::DB]PRICES
+                    symbol: [ts::DB]PRICES.SYMBOL,
+                    kind: EnumerationMapping K: [ts::DB]PRICES.SYMBOL
+                  }
+                )
+                """;
+        assertNotNull(Compiler.compileModel(model + "\n" + library).findEnum("lib::Kind").orElse(null),
+                "the one text compiles");
+        com.legend.compiler.element.ModelContext layered = Compiler.compileModel(model, library);
+        assertNotNull(layered.findEnum("lib::Kind").orElse(null), "over the library too");
+        assertNotNull(layered.findClass("my::Priced").orElse(null));
+        // a relation mapping whose ~func is the library's function
+        String rowsLibrary = """
+                ###Pure
+                function lib::rows(): meta::pure::metamodel::relation::Relation<(symbol:String, close:Float)>[1]
+                {
+                  #TDS
+                    symbol, close
+                    AAA, 1.5
+                  #
+                }
+                """;
+        String rowsModel = """
+                ###Pure
+                Class my::Row
+                {
+                  symbol: String[1];
+                  close: Float[1];
+                }
+                ###Mapping
+                Mapping my::RMap
+                (
+                  *my::Row: Relation
+                  {
+                    ~func lib::rows():Relation<Any>[1]
+                    symbol: symbol,
+                    close: close
+                  }
+                )
+                """;
+        assertNotNull(Compiler.compileModel(rowsModel + "\n" + rowsLibrary).findClass("my::Row").orElse(null),
+                "the one text compiles");
+        assertNotNull(Compiler.compileModel(rowsModel, rowsLibrary).findClass("my::Row").orElse(null),
+                "over the library too");
+        // and each plans as the one text does: a query through each mapping, the same SQL
+        TestBackend backend = TestBackends.platform();
+        String runtime = """
+                ###Connection
+                RelationalDatabaseConnection ts::Conn
+                {
+                  store: ts::DB;
+                  %s
+                }
+                ###Runtime
+                Runtime my::RT { mappings: [ %s ]; connections: [ ts::DB: [ c: ts::Conn ] ]; }
+                """;
+        String enumModel = model + runtime.formatted(backend.connectionBody(), "my::Map");
+        String enumQuery = "|my::Priced.all()->project(~[s: x|$x.symbol, k: x|$x.kind])";
+        assertEquals(Compiler.query(Compiler.compileModel(enumModel + "\n" + library), enumQuery).plan("my::RT").sql(),
+                Compiler.query(Compiler.compileModel(enumModel, library), enumQuery).plan("my::RT").sql(),
+                "an enumeration mapping of the library's enumeration: the same SQL");
+        String rowsWithStore = STORE + rowsModel + runtime.formatted(backend.connectionBody(), "my::RMap");
+        String rowsQuery = "|my::Row.all()->project(~[s: x|$x.symbol, c: x|$x.close])";
+        assertEquals(Compiler.query(Compiler.compileModel(rowsWithStore + "\n" + rowsLibrary), rowsQuery)
+                        .plan("my::RT").sql(),
+                Compiler.query(Compiler.compileModel(rowsWithStore, rowsLibrary), rowsQuery).plan("my::RT").sql(),
+                "a relation mapping over the library's function: the same SQL");
+    }
+
+    /**
      * A library that declares one of the platform's own functions (extractDBs(Mapping): it keeps its declaration and
      * takes the platform's body, PlatformPureTest) holds it once for every model over it; a model that declares it too
      * is refused, as the one text refuses the two (the third review's findings 3 and 4, 2026-11-07).

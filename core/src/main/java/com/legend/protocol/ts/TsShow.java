@@ -588,20 +588,21 @@ public final class TsShow {
         };
     }
 
-    /** A name as the flat form writes it: bare where Postgres reads it so, quoted otherwise. */
-    private static SqlAst.Ident ident(String name) {
-        boolean bare = !name.isEmpty() && (Character.isLetter(name.charAt(0)) || name.charAt(0) == '_')
-                && name.chars().allMatch(ch -> ch < 128 && (Character.isLetterOrDigit(ch) || ch == '_'))
-                && !RESERVED.contains(name.toLowerCase(java.util.Locale.ROOT));
+    /** A name as the flat form writes it: bare where the reader reads it as this name, quoted otherwise -- a name of
+     *  lowercase letters, digits and underscores that is none of the reader's reserved words ({@link
+     *  com.legend.protocol.sql.SqlParser#reservedWord}) and none of the language's own ({@link #LANGUAGE_WORDS}). A
+     *  name with a capital is quoted, as Postgres folds an unquoted one (#81's final review, item 14k (3), 2026-11-10:
+     *  the list was the printer's own, short of the reader's, and {@code latest} was read as the value). */
+    static SqlAst.Ident ident(String name) {
+        boolean bare = !name.isEmpty() && (Character.isLowerCase(name.charAt(0)) || name.charAt(0) == '_')
+                && name.chars().allMatch(ch -> ch < 128 && (Character.isLowerCase(ch) || Character.isDigit(ch)
+                        || ch == '_'))
+                && !com.legend.protocol.sql.SqlParser.reservedWord(name) && !LANGUAGE_WORDS.contains(name);
         return new SqlAst.Ident(name, !bare, NONE);
     }
 
-    /** Postgres's reserved words a flat source's names may meet (a column named so is written quoted). */
-    private static final java.util.Set<String> RESERVED = java.util.Set.of("all", "and", "any", "as", "asc", "both",
-            "case", "cast", "check", "column", "constraint", "create", "current_date", "current_time", "default",
-            "desc", "distinct", "do", "else", "end", "except", "false", "fetch", "for", "foreign", "from", "grant",
-            "group", "having", "in", "initially", "intersect", "into", "leading", "limit", "not", "null", "offset",
-            "on", "only", "or", "order", "primary", "references", "returning", "select", "some", "table", "then",
-            "to", "trailing", "true", "union", "unique", "user", "using", "when", "where", "window", "with", "by",
-            "filter", "sample", "fill", "ts", "whole", "across");
+    /** The language's own words, which its reader takes for themselves where a name stands bare: its clauses and its
+     *  windows ({@code all} is reserved already), and {@code latest}, the line's last date as a value. */
+    private static final java.util.Set<String> LANGUAGE_WORDS = java.util.Set.of("by", "filter", "sample", "fill",
+            "ts", "whole", "across", "latest");
 }

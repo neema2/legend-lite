@@ -11,6 +11,7 @@ import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.PureComposer;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.SqlIsland;
+import com.legend.protocol.sql.SqlAst;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -58,6 +59,40 @@ class TsIslandRoundTripTest {
     void theEngineSurfaceKeepsRefusingAnUnknownIsland() {
         RuntimeException e = assertThrows(RuntimeException.class, () -> SpecParser.parseLambda("|#TS{SELECT 1}#"));
         assertTrue(e.getMessage().contains("unknown DSL island type: '#TS{'"), e.getMessage());
+    }
+
+    @Test
+    void aStringKeepsItsText() {
+        // #81's final review, item 14k (2), 2026-11-10: the reader's marks ($x a variable, 3mo a span) are made outside
+        // every string the lexer reads -- an escape string, whose \' is not its close, and a dollar-quoted one
+        String filter = TsParser.parse("SELECT x AS y FROM t ON d FILTER a = E'it\\'s $x at 3mo' AND b = $$ $from 3mo"
+                + " $$ AND c = $q$ 2w $q$").filter().toString();
+        assertTrue(filter.contains("value=it's $x at 3mo,"), filter);
+        assertTrue(filter.contains("value= $from 3mo ,"), filter);
+        assertTrue(filter.contains("value= 2w ,"), filter);
+        // and a variable outside them is still one
+        assertTrue(TsParser.parse("SELECT x AS y FROM t ON d FILTER a = $from").filter().toString().contains("from"));
+    }
+
+    @Test
+    void aNameShowTsWritesReadsBackAsThatName() {
+        // #81's final review, item 14k (3), 2026-11-10: Show #TS writes a column's name bare only where the reader
+        // reads it as that column -- the reader's reserved words (lateral, left, ...), the language's own (latest,
+        // the value), a capital (Postgres folds it) are quoted
+        for (String name : java.util.List.of("close", "x1_y", "year", "Close", "lateral", "left", "latest", "window",
+                "whole", "my col", "über")) {
+            SqlAst.Ident id = TsShow.ident(name);
+            String written = TsPrinter.print(new TsAst.Query(java.util.List.of(), java.util.List.of(new TsAst.Item(
+                    new SqlAst.ColumnRef(java.util.List.of(id), id.pos()), new SqlAst.Ident("y", false, id.pos()),
+                    id.pos())), java.util.List.of(new TsAst.From(new TsAst.Named("t", id.pos()), null,
+                    new SqlAst.ColumnRef(java.util.List.of(new SqlAst.Ident("d", false, id.pos())), id.pos()), null,
+                    null, id.pos())), null, "LAST", null, null, java.util.Set.of(), java.util.Map.of(), null));
+            TsAst.Query read = TsParser.parse(written);
+            SqlAst.ColumnRef back = (SqlAst.ColumnRef) read.items().get(0).expr();
+            assertEquals(name, back.parts().get(0).text(), written);
+            assertEquals(!java.util.Set.of("close", "x1_y", "year").contains(name), back.parts().get(0).quoted(),
+                    written);
+        }
     }
 
     @Test

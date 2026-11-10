@@ -158,6 +158,19 @@ public final class BigQuery extends AnsiSqlRenderer {
         return true;
     }
 
+    /** {@inheritDoc} Yes: BigQuery computes a WITH's query at each reference (a non-recursive one is not materialized,
+     *  #81's final review, item 14k (9), 2026-11-10). */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
+    /** {@inheritDoc} No: no temporary table of a query is written here (its tempTableAs is refused, unmeasured). */
+    @Override
+    public boolean stagesSharedRelations() {
+        return false;
+    }
+
     /** The portable carrier strategies, a fold that reads nothing of its row as a top-level recursive expression (WITH
      *  RECURSIVE is top-level only, measured), the substring start clamp (BigQuery reads a start of 0 as 1), averages
      *  delivered as DOUBLE (an average of a NUMERIC or BIGNUMERIC is one), and a constant GROUP BY or ORDER BY key as a

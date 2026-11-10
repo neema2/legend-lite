@@ -1673,6 +1673,13 @@ public final class SqlParser {
     }
 
 
+    /** Whether {@code word}, unquoted, is never a column's name here: a reserved key word, or one that names only a
+     *  function or a type (the writer of {@code #TS} text quotes such a name: TsShow). */
+    public static boolean reservedWord(String word) {
+        String w = word.toLowerCase(Locale.ROOT);
+        return RESERVED.contains(w) || TYPE_FUNC_NAME.contains(w);
+    }
+
     /** An identifier usable as a name: quoted, or unquoted and not reserved. */
     private static boolean isName(Token t) {
         return t.kind() == Kind.QUOTED_IDENT

@@ -392,11 +392,25 @@ public final class Compiler {
      */
     private static Layer normalizeLayer(ParsedModel resolved,
             java.util.@com.legend.base.Nullable Map<String, String> walls) {
+        return normalizeLayer(resolved, walls, List.of());
+    }
+
+    /** {@link #normalizeLayer(ParsedModel, Map)}, Phase E seeing {@code below} too: the prepared elements of a library
+     *  the model is compiled over, indexed after the model's own names are checked and before its mappings are
+     *  normalized -- a mapping of the model's reads them as the one text's does (#81's final review, item 14k (1),
+     *  2026-11-10: a relation mapping's {@code ~func} of the library's function resolved to none). The same objects
+     *  the E-to-F gate indexes after, so nothing is indexed twice. */
+    private static Layer normalizeLayer(ParsedModel resolved,
+            java.util.@com.legend.base.Nullable Map<String, String> walls,
+            List<com.legend.model.PackageableElement> below) {
         ParsedModel adopted = KnowledgeLayer.adoptAssociationQualifiedProperties(resolved, walls);
         ModelBuilder index = ModelBuilder.from(adopted);
         // a name defined twice is refused before Phase E reads the index (the
         // engine's order; D6b's "element-identity first", 2026-10-11)
         PureModelContext.refuseDuplicates(index, walls);
+        if (!below.isEmpty()) {
+            index.add(below);
+        }
         return new Layer(ModelNormalizer.normalize(adopted, index, walls), index);
     }
 
@@ -605,7 +619,7 @@ public final class Compiler {
         }
         Layer user = normalizeLayer(adopted.isEmpty() ? graph
                 : new ParsedModel(own, graph.imports(), graph.source(), graph.elementOffsets(),
-                        graph.elementImports(), graph.elementSources(), graph.unclaimedSections()), walls);
+                        graph.elementImports(), graph.elementSources(), graph.unclaimedSections()), walls, library);
         NormalizedModel sys = boot.model();
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
                 user.model().elements().size() + library.size() + sys.elements().size());

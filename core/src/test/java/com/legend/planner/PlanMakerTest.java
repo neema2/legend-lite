@@ -141,6 +141,65 @@ class PlanMakerTest {
     private static final String GRAPH = "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)"
             + "->serialize(#{s::Item{id, name, price}}#)";
 
+    /** #81's final review, item 14k (9), 2026-11-10: Trino and BigQuery compute a WITH again at each read and have no
+     *  table to compute a shared relation once in, so one that picks its rows by no order (a limit with no sort,
+     *  here or in a WITH it reads) is refused; one that is the same rows each time, or sorted, stays a WITH. */
+    @Test
+    void aSharedRelationPickedByNoOrderIsRefusedWhereEachReadComputesItAgain() {
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of());
+        com.legend.sql.SqlSource.Table table = new com.legend.sql.SqlSource.Table("t", "t0", List.of(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
+        com.legend.sql.SqlSelect limited = com.legend.sql.SqlSelect.starOf(table).withLimit(3L);
+        com.legend.sql.SqlSelect sorted = limited.withOrderBy(List.of(new com.legend.sql.SqlSelect.SortKey(
+                com.legend.sql.SqlExpr.Column.of("t0", new com.legend.sql.OutputCol("a",
+                        com.legend.sql.SqlType.Scalar.BIGINT, false)), true, null, null)));
+        java.util.function.Function<com.legend.sql.SqlQuery, com.legend.sql.SqlWith> shared = body ->
+                new com.legend.sql.SqlWith(List.of(new com.legend.sql.SqlWith.Cte("__let0", body)),
+                        com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+        for (com.legend.sql.dialect.SqlDialect d : List.of(new com.legend.sql.dialect.Trino(),
+                new com.legend.sql.dialect.BigQuery())) {
+            var refused = assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanMaker.stagedShared(d, shared.apply(limited), target, 0));
+            assertTrue(refused.getMessage().contains("picks its rows by no order"), refused.getMessage());
+            // read through another WITH of the statement
+            com.legend.sql.SqlWith through = new com.legend.sql.SqlWith(List.of(
+                    new com.legend.sql.SqlWith.Cte("picked", limited),
+                    new com.legend.sql.SqlWith.Cte("__let0", com.legend.sql.SqlSelect.starOf(
+                            new com.legend.sql.SqlSource.Cte("picked", "p", List.of())))),
+                    com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+            assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanMaker.stagedShared(d, through, target, 0));
+            // the same rows each time: the WITH as it is, no table
+            for (com.legend.sql.SqlQuery body : List.of(sorted, com.legend.sql.SqlSelect.starOf(table))) {
+                PlanMaker.Staged staged = PlanMaker.stagedShared(d, shared.apply(body), target, 0);
+                assertTrue(staged.tables().isEmpty(), d.getClass().getSimpleName());
+            }
+        }
+    }
+
+    /** #81's final review, item 14k (4), 2026-11-10: a shared relation staged as a table of the session (ClickHouse)
+     *  carries the WITH's other relations it reads -- staged without them, its statement named one it did not have. */
+    @Test
+    void aStagedRelationCarriesTheWithsItReads() {
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of());
+        com.legend.sql.SqlSelect base = com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Table("t", "t0",
+                List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE));
+        com.legend.sql.SqlWith with = new com.legend.sql.SqlWith(List.of(
+                new com.legend.sql.SqlWith.Cte("plain", base),
+                new com.legend.sql.SqlWith.Cte("unread", base),
+                new com.legend.sql.SqlWith.Cte("__let0", com.legend.sql.SqlSelect.starOf(
+                        new com.legend.sql.SqlSource.Cte("plain", "p", List.of())))),
+                com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+        PlanMaker.Staged staged = PlanMaker.stagedShared(new com.legend.sql.dialect.ClickHouse(), with, target, 0);
+        assertEquals(1, staged.tables().size(), staged.tables().toString());
+        com.legend.sql.SqlQuery made = staged.queries().get(staged.tables().get(0));
+        assertInstanceOf(com.legend.sql.SqlWith.class, made, "the staged relation carries what it reads");
+        assertEquals(List.of("plain"), ((com.legend.sql.SqlWith) made).ctes().stream()
+                .map(com.legend.sql.SqlWith.Cte::name).toList(), "what it reads, and nothing it does not");
+    }
+
     @Test
     void aRelationsPlanAnswersAsTodaysPaths_everyOutput() throws Exception {
         for (DatabaseType type : IN_PROCESS) {

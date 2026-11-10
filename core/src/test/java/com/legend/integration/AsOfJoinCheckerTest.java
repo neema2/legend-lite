@@ -827,6 +827,10 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                 // the pass's stream (_asu), never the correlated MAX's copy (_asof, a word of its own)
                 assertTrue(sql.contains("_asu") && !java.util.regex.Pattern.compile("(?<![_a-z])_asof(?![_a-z])")
                         .matcher(sql).find(), database + ": a window pass: " + sql);
+                // the left side read once: its rows carried through the stream (#81's final review, item 14k (7),
+                // 2026-11-10: read twice, a side that is not deterministic could answer otherwise each time) -- 'c'
+                // is the left's alone
+                assertEquals(1, sql.split("'c'", -1).length - 1, database + ": the left side read once: " + sql);
             } else if ("duckdb".equals(database)) {
                 assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("ASOF"), "DuckDB's own ASOF JOIN: " + sql);
             }

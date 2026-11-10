@@ -597,6 +597,24 @@ public final class PlanMaker {
                 || w.ctes().stream().noneMatch(c -> c.name().startsWith(SqlWith.SHARED_PREFIX))) {
             return new Staged(q, List.of(), Map.of());
         }
+        if (!dialect.stagesSharedRelations()) {
+            // no table to compute it once in (Trino, BigQuery): the WITH stays, each read computing it again -- the
+            // same rows where the relation is the same rows each time, but not where it picks them by no order
+            // (#81's final review, item 14k (9), 2026-11-10)
+            Map<String, SqlQuery> ctes = new HashMap<>();
+            for (SqlWith.Cte c : w.ctes()) {
+                ctes.put(c.name(), c.query());
+            }
+            for (SqlWith.Cte c : w.ctes()) {
+                if (c.name().startsWith(SqlWith.SHARED_PREFIX)
+                        && picksRowsByNoOrder(c.query(), ctes, new java.util.HashSet<>())) {
+                    throw new NotImplementedException("a relation the query reads more than once picks its rows by no"
+                            + " order (a limit, a slice or a drop with no sort before it): this database computes it"
+                            + " again at each read, and each could pick other rows; sort it first");
+                }
+            }
+            return new Staged(q, List.of(), Map.of());
+        }
         Map<String, String> tables = new HashMap<>();
         List<String> order = new ArrayList<>();
         Map<String, SqlQuery> bodies = new LinkedHashMap<>();
@@ -609,12 +627,81 @@ public final class PlanMaker {
             }
             String table = "__stage" + (first + order.size()) + c.name();
             order.add(table);
-            bodies.put(table, body);
+            // the WITH's other relations it reads, ahead of it in its own statement (#81's final review, item 14k (4),
+            // 2026-11-10: staged without them, its statement named a relation it did not have)
+            List<SqlWith.Cte> needs = readBy(body, kept);
+            bodies.put(table, needs.isEmpty() ? body : SqlWith.prepend(needs, body, w.recursive()));
             tables.put(c.name(), table);
         }
         SqlQuery body = readingTables(w.body(), tables);
         return new Staged(kept.isEmpty() ? body : w.with(kept, body), List.copyOf(order),
                 java.util.Collections.unmodifiableMap(bodies));
+    }
+
+    /** The relations of {@code ctes} that {@code q} reads by name, and the ones they read, in {@code ctes}' order. */
+    private static List<SqlWith.Cte> readBy(SqlQuery q, List<SqlWith.Cte> ctes) {
+        java.util.Set<String> needed = new java.util.HashSet<>();
+        java.util.Deque<SqlQuery> todo = new java.util.ArrayDeque<>();
+        todo.push(q);
+        while (!todo.isEmpty()) {
+            for (String name : cteReads(todo.pop())) {
+                for (SqlWith.Cte c : ctes) {
+                    if (c.name().equals(name) && needed.add(name)) {
+                        todo.push(c.query());
+                    }
+                }
+            }
+        }
+        return ctes.stream().filter(c -> needed.contains(c.name())).toList();
+    }
+
+    /** The common table expressions {@code q} reads by name. */
+    private static List<String> cteReads(SqlQuery q) {
+        List<String> reads = new ArrayList<>();
+        new SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Cte c) {
+                    reads.add(c.name());
+                }
+                return s;
+            }
+        }.rewrite(q);
+        return reads;
+    }
+
+    /** Whether {@code q} picks its rows by no order: a select with a limit or an offset and no sort, in {@code q} or in
+     *  a common table expression of {@code ctes} it reads by name ({@code seen} the ones looked at). */
+    static boolean picksRowsByNoOrder(SqlQuery q, Map<String, SqlQuery> ctes, java.util.Set<String> seen) {
+        boolean[] found = {false};
+        List<String> reads = new ArrayList<>();
+        new SqlRewriter() {
+            @Override
+            protected SqlQuery select(SqlSelect s) {
+                if ((s.limit() != null || s.offset() != null) && s.orderBy().isEmpty()) {
+                    found[0] = true;
+                }
+                return s;
+            }
+
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Cte c) {
+                    reads.add(c.name());
+                }
+                return s;
+            }
+        }.rewrite(q);
+        if (found[0]) {
+            return true;
+        }
+        for (String r : reads) {
+            SqlQuery read = ctes.get(r);
+            if (read != null && seen.add(r) && picksRowsByNoOrder(read, ctes, seen)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A statement with its shared relations staged: the statement reading the tables, the tables in the order they

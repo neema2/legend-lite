@@ -344,9 +344,49 @@ public final class TsParser {
         return out.toString();
     }
 
-    /** Where a string, a quoted name or a comment starting at {@code i} ends (past its close), or {@code i}. */
+    /** Where a string, a quoted name or a comment starting at {@code i} ends (past its close), or {@code i}: every
+     *  string the lexer reads ({@link com.legend.protocol.sql.SqlLexer}), so no mark is made inside one -- an escape
+     *  string's {@code \'} is not its close, and a dollar-quoted string ({@code $$...$$}, {@code $tag$...$tag$}) is
+     *  not a variable (#81's final review, item 14k (2), 2026-11-10: a {@code $x} or a {@code 3mo} inside either was
+     *  rewritten, the string's text silently changed). */
     private static int skipped(String text, int i) {
         char c = text.charAt(i);
+        boolean wordStart = i == 0 || !identPart(text.charAt(i - 1));
+        if ((c == 'E' || c == 'e') && wordStart && i + 1 < text.length() && text.charAt(i + 1) == '\'') {
+            // an escape string, E'...': a backslash escapes the character after it, a doubled quote is one
+            int j = i + 2;
+            while (j < text.length()) {
+                char d = text.charAt(j);
+                if (d == '\\') {
+                    j += 2;
+                    continue;
+                }
+                if (d == '\'') {
+                    if (j + 1 < text.length() && text.charAt(j + 1) == '\'') {
+                        j += 2;
+                        continue;
+                    }
+                    return j + 1;
+                }
+                j++;
+            }
+            return text.length();
+        }
+        if (c == '$' && wordStart && i + 1 < text.length()) {
+            // a dollar-quoted string, its tag empty or a name: $$...$$, $tag$...$tag$ (a Pure variable, $x, is
+            // never followed by a $)
+            int tagEnd = i + 1;
+            if (identStart(text.charAt(tagEnd))) {
+                while (tagEnd < text.length() && identPart(text.charAt(tagEnd)) && text.charAt(tagEnd) != '$') {
+                    tagEnd++;
+                }
+            }
+            if (tagEnd < text.length() && text.charAt(tagEnd) == '$') {
+                String tag = text.substring(i, tagEnd + 1);
+                int close = text.indexOf(tag, tagEnd + 1);
+                return close < 0 ? text.length() : close + tag.length();
+            }
+        }
         if (c == '\'' || c == '"') {
             int j = i + 1;
             while (j < text.length()) {

@@ -51,7 +51,7 @@ public sealed interface SqlExpr
     static boolean raisesNothing(SqlExpr e) {
         return switch (e) {
             case Call c -> !SqlFn.RAISING.contains(c.fn()) && c.fn() != SqlFn.UNNEST && allRaiseNothing(e.children());
-            case Cast c -> c.target() != SqlType.Scalar.JSON && raisesNothing(c.value());
+            case Cast c -> c.target() != SqlType.Scalar.JSON && !mayFailToParse(c) && raisesNothing(c.value());
             case WindowCall w -> allRaiseNothing(w.fn().args())
                     && (!(w.fn() instanceof SqlAgg.Reducer r) || r.orderBy().stream().allMatch(k -> raisesNothing(k.expr())))
                     && allRaiseNothing(w.partitionBy())
@@ -73,6 +73,31 @@ public sealed interface SqlExpr
             // an aggregate of any record (SqlAgg's, OrderedListAgg, JsonArrayAgg: SqlAgg.aggregatesSelect) keeps no row
             // of its own: dropped unread, its select's rows would be its source's (the final review of PR #81)
             default -> !(e instanceof SqlAgg) && !SqlAgg.aggregatesSelect(e) && allRaiseNothing(e.children());
+        };
+    }
+
+    /** Whether {@code c} reads text as a value that text may not spell -- a number, a decimal, a Boolean, a date, a
+     *  time -- and so raises on a text that does not ({@code parseFloat('x')}): its value is text, or of a type not
+     *  known (#81's final review, item 14k (5), 2026-11-10: such a cast was counted as raising nothing, so a merge or
+     *  a prune could drop it, an error answered as a value). A cast from a value of a known type that is no text (a
+     *  number to a number, a date to a timestamp) is not one; a cast to text never is. */
+    private static boolean mayFailToParse(Cast c) {
+        boolean parsed = switch (c.target()) {
+            case SqlType.Scalar s -> switch (s) {
+                case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, DATE, TIMESTAMP, TIMESTAMPTZ, TIME -> true;
+                default -> false;
+            };
+            case SqlType.Decimal d -> true;
+            default -> false;
+        };
+        if (!parsed) {
+            return false;
+        }
+        return switch (c.value().type()) {
+            case TypeFact.Typed t -> t.type() == SqlType.Scalar.VARCHAR || t.type() == SqlType.Scalar.JSON;
+            case TypeFact.Bottom b -> false;
+            case TypeFact.Raises r -> false;
+            case TypeFact.Unknown u -> true;
         };
     }
 
