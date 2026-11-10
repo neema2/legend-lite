@@ -212,12 +212,11 @@ public final class EffectPlanner {
             throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
                     + qualified + "': " + e.getMessage());
         }
-        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(),
-                reads.after());
         // the referee's copy of the rows (the compatibility edge's replay, census M15 until B2b, which replays the
         // referee's own H2 copy of the plan's loads), split from the bytes only when an edge asks for it: the edge's
         // data, never the product's path (base.CsvCells' one caller since A3)
-        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES),
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Reads(
+                reads.statements(), reads.after()), SIZE_LIMIT_MEGABYTES),
                 () -> refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns, quoted,
                         columns.size(), com.legend.base.CsvCells.table(new String(bytes,
                                 java.nio.charset.StandardCharsets.UTF_8), csv.delimiter(), csv.quote(), columns.size()))
