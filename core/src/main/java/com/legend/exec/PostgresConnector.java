@@ -57,4 +57,10 @@ final class PostgresConnector implements DatabaseConnector {
     public boolean abortsTransactionOnError() {
         return true;
     }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
 }

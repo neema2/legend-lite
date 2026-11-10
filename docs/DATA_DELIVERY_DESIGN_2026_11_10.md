@@ -82,7 +82,10 @@ Deleted from the plan:
 ## 3. Failure and lifetime rules
 
 1. **A load happens whole or not at all.** It runs in one transaction: its own, or the caller's. A refusal leaves none
-   of its rows.
+   of its rows. **Except where the database takes no transaction** (ClickHouse's driver refuses autocommit off, measured
+   2026-11-07 on the timeseries line): there a load's steps run unbracketed, each its own, and its no-leftovers rule is
+   rule 2's drop first and drop at release (`DatabaseConnector.takesTransactions`, the orchestrator's check of
+   2026-11-10). Upstream runs a connection's setup statement by statement there too, so no register row.
 2. **No leftovers.** Session tables are named from the load's identity, qualified to the session's temporary schema,
    dropped before they are made and in `finally`. After a failed load the session takes the next load cleanly.
 3. **DuckDB aborts its whole transaction on an error.** The catalog's per-run turn is ended and reopened after a failed
@@ -220,6 +223,43 @@ Deleted from the plan:
   database's own words (plan format 40). The matrix's bad payload is green.
 - S173's text updated: the database's reader reads each cell as text and the INSERT casts it.
 
+### A5 as built (2026-11-10)
+
+- **`file:` on every send path:** a `file:` source is admitted by default, any file (the user's ruling, 2026-11-10; the
+  fence is opt-in: `SourceAdmission.of(dirs)`, `none()`), and bound ONCE at the run's entry
+  (`PlanRunner.admitSources`, called by `PlanRunner.streamRun` and `ProgramRunner.programRun`): every statement of the
+  plan that reads a source finds its path, whichever path sends it (the answer, a write, a check, an effect, a keyed
+  body's copies, a program's steps).
+- **`data:` on every planning path:** `planner.DataSources.Tables` is the one maker of a payload's session table, and
+  every statement a program plans reads through it (`ProgramState.read`: a program's statements and the test door's,
+  its staged lets' rows, a store write's rows and conditions). A product query's tables are its target's acquisition
+  load and its release (A4); a program's are its own load (`AT_STEP`), placed before the first statement that reads the
+  payload, and dropped after the program's answer, each drop qualified to the session's temporary schema. A program's
+  statements run in one transaction, so a failed program's tables go with its writes where the database's DDL is
+  transactional (DuckDB, Postgres, SQLite; H2 and SQLite refuse a `data:` source by name). The product's sequence
+  runner takes a program's own load (`PlanRunner.sequence`); a seed or a target's load among its steps is refused.
+- **The text plan (generatePlan, arrowPlan):** `TypedQuery.plan` is one statement's text, which carries neither a load
+  nor a bound path: a `data:` or `file:` source is refused by name before render
+  (`PlanMaker.refuseLiveSourcesInText`), and the execution plan carries both. **Not yet as §4 says:** the text is not
+  rendered from the execution plan. Doing so changes the text of every generatePlan and arrowPlan answer (28 test
+  classes read it), and no host runs a plan's loads until B3; the text renders from the execution plan with B3.
+- **The write door's declared setup:** a write on the caller's session, its declared setup established
+  (`ProductRun.Establish.DECLARED_SETUP`), is established as a read is: the program's target's acquisition loads run on
+  the session first and its release when the request lets it go (until A5 the caller's session refused them).
+- **The catalog in a program:** a product program reading the system metamodel store alone runs on the process's
+  catalog, as such a query does (`SystemCatalog.forQuery`; the program re-planned there once its first plan shows it
+  reads the store alone, `ProgramState.readsSystem`). One reading the store beside another source, or writing a store,
+  is refused by name; on a server database too, until B4.
+- **A query given no runtime** runs on the one runtime its `from()`s name (`PlanMaker.runtimeOf`), as legend-engine
+  runs a lambda's `->from(mapping, runtime)` and as lite's server chose it (`PureV1Api.runtimeOf`); several runtimes
+  and none given is refused by name, none at all stays `Compiler.NO_RUNTIME`. So a `from()`'s runtime's test data is
+  the plan's own: its target's setup on the product's doors, a seed on the test door.
+- **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
+  (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
+- **The matrix:** in process 162 of 162 green (34 red before A5); on Postgres the three catalog cells B4 owns.
+- **Still to do in A5:** `resolver/JsonSourceFrame`'s literal path (a JSON-sourced class's payload as VALUES literals)
+  onto the `data:` road; the census's M10 row takes its symbols.
+
 ## 6. The whole plan, in order
 
 | # | Step | Ends with |
@@ -237,7 +277,7 @@ Deleted from the plan:
 | B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner | census M3 |
 | B2b | The referee replays its own H2 copy of the plan's loads (from A2) | census M15, the referee |
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes) | census M15, the fixtures |
-| B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. The homework (§7) found it is ONE fixed sequence of SQL: no step depends on row values, each level is a temporary table joined to its parent's inside the database, a self-reference is as deep as the query's navigation (no recursive SQL), and an empty level is a zero-row table; the default seed (not offered by lite) would be one more temporary table, not a second round. Its design is written and reviewed by the user first. S143's skip is lifted when it passes | census M13 |
+| B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. **Design APPROVED by the user, 2026-11-10** (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`): ONE read-only query per table whose `WITH` clauses carry the chain (the starting rows `ORDER BY` key `LIMIT 20`, one level per navigation step, no recursion), all in one read transaction, NO temporary tables; the default starting rows (no row identifiers given) ARE built, by upstream's rule read from the pinned sources; upstream's 46 SQL-text comparisons become a register row (its data checks all run); the TDG appeal and `TestDataGeneratorRun` deleted. S143's skip is lifted when it passes | census M13 |
 | B2e | Data parsed but used by no feature yet (ExternalFormat data, ModelStore data, ServiceStore stubs, mapping-test data): recorded as NOT IMPLEMENTED YET, with the rule that when built its data takes the model-data path; listed as feature gaps | census M17 |
 | B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first) | census M14 |
 | B4 | **Every catalog statement runs on the process's in-process catalog, whatever database holds the user's data** (the user, 2026-11-10: "B4 sounds good for now"). The measurement found no planned statement, among about 30,000 across core, PCT and both corpora, that reads the catalog's tables and a user's tables together: the planner refuses that shape by name. Mixing exists only across separate statements on separate sessions. So no catalog lives on a server: the server forms (per-query temp tables on the user's session, form 2; inline VALUES, form 3) are deleted, and a statement mixing the two stays refused by name. `Class.all()` is the platform plus every loaded project, as ruled 2026-11-08 | census M5, M6 |
@@ -288,15 +328,27 @@ Deleted from the plan:
 
   Pure's own exact texts (its Float and date forms, `+0000`, list and instance forms, the TDS text) and the engine's are
   compatibility: the edge spells them.
+- **D0's questions (RULED by the user, 2026-11-10, afternoon: "I like all the D0 recommendations except why can't we do
+  toString on lists and arrays? Can we just like jsonify them" ... "Great let's do it"):**
+  - Q3, Q4: settled by the error ruling above (a product error is its kind and where; the product's own wording per kind
+    on every database; no value text).
+  - Q5: the engine-only SQL spellings (the flag-gated scan order, the engine lexicon's surplus, upper-casing) move to an
+    edge decorator.
+  - Q6: compile-time messages in the product's own wording, keyed by kind; legend-engine's words only at `pure/v1`.
+  - Q8: pivot column names bare in lite's own CSV and JSON writers; the engine's `__|__` quoting at the edge.
+  - **Q12 (changed from the recommendation):** `toString` of a LIST of plain values prints JSON array text, each element
+    by the product's print rules above (numbers and booleans bare, strings and dates quoted by the database's JSON
+    string quoting), joined by `makeString`'s aggregate: `[1, 2.5, true]`, `["a", "b"]`, `[]`, the same on every
+    database (the escaping of unusual characters checked at the lane round). A MAP likewise, as a JSON object
+    (`{"k": 1}`). Objects (class instances) and relations stay refused by name, the message pointing to graph fetch and
+    serialization. Pure's own `[a, b]` text is the edge's.
+  - Q13: `format`'s `%s`, `%d`, `%f`, `%t{}` in the product; `%r` and Pure's sign-after-padding `%0<w>d` at the edge.
+  - Q14: `makeString` SKIPS an empty element (Pure's lists hold no nulls); legend-engine's `TDSNull` at the edge.
+  - Q15: Pure's exact texts at the edge, as the edge's own SQL render target.
 
-### 6.2 Recommendations waiting for the user's yes (all in D; none blocks A, B or C)
+### 6.2 Recommendations waiting for the user's yes
 
-1. D0's questions as recommended: Q3 (sqrt's text at the edge), Q4 and Q6 (the product's own wording per error kind;
-   the engine's only at `pure/v1`), Q5 (the engine-only SQL spellings to an edge decorator), Q8 (pivot names bare in the
-   product), Q12 (lists, pairs, maps, instances and relations: `toString` refused by name in the product), Q13 (`format`'s
-   `%s`, `%d`, `%f`, `%t{}` in the product, `%r` and Pure's padding rule at the edge), Q14 (`makeString` skips an empty
-   element, as Pure's lists hold no nulls), Q15 (Pure's exact texts at the edge as the edge's own SQL render target).
-   Q1, Q2, Q7, Q9, Q10, Q11 and Q16 are settled by §6.1.
+None: D is fully ruled (§6.1, 2026-11-10).
 
 ## 7. Homework before its step (read or measured, never guessed)
 

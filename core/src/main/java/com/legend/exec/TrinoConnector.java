@@ -90,6 +90,12 @@ final class TrinoConnector implements DatabaseConnector {
         return false;
     }
 
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
+
     /** {@inheritDoc} The dialect's {@code opensFailedResultsWithoutColumns} until D72 (2026-10-30), carried: Measured 2026-10-12: a date 12,345,678,912 days on opens with no columns, its error on the first
      *  read; a statement that succeeds always reports its columns. */
     @Override

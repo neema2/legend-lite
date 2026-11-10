@@ -49,6 +49,12 @@ final class BigQueryConnector implements DatabaseConnector {
         return false;
     }
 
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
+
     /** {@inheritDoc} The dialect's {@code dropsDecimalTrailingZeros} until D72 (2026-10-30), carried: The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured:
      *  BigQueryJsonArray, BigQueryJsonStruct), DATETIME and TIMESTAMP as java.sql.Timestamp, and NUMERIC and BIGNUMERIC
      *  as a BigDecimal with its trailing zeros dropped ({@code BIGNUMERIC '3.0'} reads 3, measured): the column's

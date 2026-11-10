@@ -48,6 +48,12 @@ final class SnowflakeConnector implements DatabaseConnector {
         return false;
     }
 
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
+
     /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
      *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
      *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */

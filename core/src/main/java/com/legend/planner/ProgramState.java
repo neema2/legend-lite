@@ -53,8 +53,10 @@ public final class ProgramState {
     private final List<String> dataReleases = new ArrayList<>();
     /** What the program's statements read (A5): the system metamodel store's tables, another source -- the product's
      *  door runs a program reading the store alone on the process's catalog, as it runs such a query. */
-    private boolean readsSystem;
-    private boolean readsOther;
+    private final java.util.EnumSet<Reads> reads = java.util.EnumSet.noneOf(Reads.class);
+
+    /** What a statement of the program reads: the system metamodel store's tables, another source. */
+    private enum Reads { SYSTEM, OTHER }
 
     ProgramState(TypedQuery query, String runtime, SqlDialect dialect, ExecutionPlan.Target target,
             List<SqlExpr.PlanParam> slots, Set<Feature> features) {
@@ -121,7 +123,8 @@ public final class ProgramState {
      * transaction, so a failed program's tables go with its writes where the database's DDL is transactional.
      */
     public SqlQuery read(SqlQuery q) {
-        reads(PlanMaker.tableReads(q, query.context(), Set.copyOf(staged)));
+        reads(PlanMaker.tableReads(q, query.context(),
+                java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(staged))));
         SqlQuery read = data.read(q);
         placeMade();
         return read;
@@ -130,25 +133,29 @@ public final class ProgramState {
     /** {@code dml}'s rows and conditions reading each {@code data:} source from its table, as {@link #read(SqlQuery)}:
      *  a store write writes another source than the metamodel's. */
     public com.legend.sql.SqlDml read(com.legend.sql.SqlDml dml) {
-        readsOther = true;
+        reads.add(Reads.OTHER);
         com.legend.sql.SqlDml read = data.read(dml);
         placeMade();
         return read;
     }
 
-    private void reads(PlanMaker.TableReads reads) {
-        readsSystem |= reads.system();
-        readsOther |= reads.other();
+    private void reads(PlanMaker.TableReads read) {
+        if (read.system()) {
+            reads.add(Reads.SYSTEM);
+        }
+        if (read.other()) {
+            reads.add(Reads.OTHER);
+        }
     }
 
     /** Whether a statement of the program reads the system metamodel store's tables. */
     boolean readsSystem() {
-        return readsSystem;
+        return reads.contains(Reads.SYSTEM);
     }
 
     /** Whether a statement of the program reads, or writes, a source other than the system metamodel store. */
     boolean readsOther() {
-        return readsOther;
+        return reads.contains(Reads.OTHER);
     }
 
     private void placeMade() {

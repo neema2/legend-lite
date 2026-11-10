@@ -66,4 +66,10 @@ final class SqliteConnector implements DatabaseConnector {
     public boolean abortsTransactionOnError() {
         return false;
     }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
 }

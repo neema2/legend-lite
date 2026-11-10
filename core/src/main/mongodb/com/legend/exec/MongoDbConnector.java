@@ -70,6 +70,12 @@ public final class MongoDbConnector implements DatabaseConnector {
         return false;
     }
 
+    /** {@inheritDoc} No: MongoDB's statements are its own ({@code MongoDbStatements}), which bracket no plan's steps. */
+    @Override
+    public boolean takesTransactions() {
+        return false;
+    }
+
     /** {@inheritDoc} None: a server, whose connection is the engine's MongoDBConnection. */
     @Override
     public String storelessDeclaration() {

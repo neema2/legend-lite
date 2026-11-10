@@ -142,4 +142,10 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     public boolean abortsTransactionOnError() {
         return false;
     }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
 }

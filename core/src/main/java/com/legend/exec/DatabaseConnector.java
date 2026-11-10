@@ -54,6 +54,13 @@ public interface DatabaseConnector {
      *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 3, A4). Each connector answers. */
     boolean abortsTransactionOnError();
 
+    /** Whether this database's driver TAKES a transaction the platform opens across statements (autocommit off, then a
+     *  commit or a rollback). ClickHouse's refuses one ("setAutoCommit(false) is not supported", measured 2026-11-07 on
+     *  the timeseries line, PR #81): there a load's steps and a program's statements run unbracketed, each its own, and
+     *  a load's no-leftovers rule is its drop first and its drop at release (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3
+     *  rule 1, the orchestrator's check of 2026-11-10). Each connector answers. */
+    boolean takesTransactions();
+
     /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one
      *  row, one column; null where none is held), {@code reset} clears it so a later failure cannot read a stale one. */
     record RaiseRecovery(String read, String reset) {

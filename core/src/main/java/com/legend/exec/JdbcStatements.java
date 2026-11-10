@@ -226,7 +226,23 @@ final class JdbcStatements implements Statements {
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
         com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
+        if (!takesTransactions()) {
+            // a driver that takes no transaction (ClickHouse): the work's statements run each their own
+            return work.get();
+        }
         return Sessions.inTransaction(c, state, work);
+    }
+
+    /** Whether {@code c}'s database takes a transaction ({@link DatabaseConnector#takesTransactions}); a session no
+     *  connector declares is bracketed, as every session was until the fact. */
+    private boolean takesTransactions() {
+        try {
+            DatabaseConnector connector = Connectors.of(c);
+            return connector == null || connector.takesTransactions();
+        } catch (SQLException unreadable) {
+            throw new com.legend.error.DataError("the session's database cannot be read: "
+                    + unreadable.getMessage(), unreadable);
+        }
     }
 
     @Override

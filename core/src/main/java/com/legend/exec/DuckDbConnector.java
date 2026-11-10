@@ -67,6 +67,12 @@ final class DuckDbConnector implements DatabaseConnector {
         return true;
     }
 
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
+
     /** {@inheritDoc} The dialect's {@code jsonSpellsNonFiniteNumbers} until D72 (2026-10-30), carried: Yes: DuckDB's JSON writes a double that is not finite as {@code NaN}, {@code Infinity} or
      *  {@code -Infinity} (a float divided by a zero inside a list; the Cypher TCK's ordered values of every type). */
     @Override

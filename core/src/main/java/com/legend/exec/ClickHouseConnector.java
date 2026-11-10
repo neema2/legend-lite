@@ -48,4 +48,11 @@ final class ClickHouseConnector implements DatabaseConnector {
     public boolean abortsTransactionOnError() {
         return false;
     }
+
+    /** {@inheritDoc} No: ClickHouse's driver refuses autocommit off ("setAutoCommit(false) is not supported", measured
+     *  2026-11-07, PR #81): its statements run each their own. */
+    @Override
+    public boolean takesTransactions() {
+        return false;
+    }
 }
