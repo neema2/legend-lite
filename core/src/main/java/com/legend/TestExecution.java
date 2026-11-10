@@ -57,13 +57,6 @@ public final class TestExecution {
         return TestPlanner.plan(typed, runtimeFqn, options.planning());
     }
 
-    /** A program PLANNED NOW to run later (a test runner's fixture, run before the body whose appeal names its store:
-     *  {@link #runFixture}); null for a body that cannot be planned ahead (one holding an assert). */
-    public static @Nullable TestPlan planProgram(TypedQuery typed, @Nullable String runtimeFqn,
-            ExecuteOptions options) {
-        return TestPlanner.planAhead(typed, runtimeFqn, options.planning());
-    }
-
     /** {@code plan} RUN on {@code session} (the run half of {@link #runProgram}): its data alone decides what is sent
      *  and judged; each verdict told to {@code listener} at its turn; a held appeal decided after the run by the
      *  {@code referee}; the last statement's answer, where wanted, streamed to {@code answer} (a format and a stream, or the caller's receiver: data, 2026-11-09). */
@@ -73,8 +66,8 @@ public final class TestExecution {
                 referee, answer, StatementOrigin.OTHER);
     }
 
-    /** A fixture's {@code plan} ({@link #planProgram}) run on {@code session}, its statements counted as seeding (the
-     *  census's SEED). */
+    /** A fixture's {@code plan} (a package's setup, planned by {@link #planBody}) run on {@code session}, its
+     *  statements counted as seeding (the census's SEED). */
     public static void runFixture(TestPlan plan, Sessions.Session session, ExecuteOptions options) {
         TestRunner.run(plan, session, options.systemConnections(), options.stores(), options.edge(), null, null,
                 null, StatementOrigin.SEED);

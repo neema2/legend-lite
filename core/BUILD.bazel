@@ -545,7 +545,6 @@ legend_java_library(
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
-            "src/test/java/com/legend/FixtureAsidePostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
@@ -1052,29 +1051,6 @@ junit_test(
     deps = [
         ":core",
         "//testing",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
-    ],
-    visibility = ["//gates:__pkg__"],
-)
-
-# a clashing fixture set aside in a Postgres corpus workspace survives the rollback of the test body's attempt it was
-# set in (the dialect program's defect 5), on the embedded Postgres 16
-junit_test(
-    name = "fixture_aside_postgres_test",
-    memory_mb = 768,
-    size = "medium",
-    srcs = ["src/test/java/com/legend/FixtureAsidePostgresTest.java"],
-    data = [
-        "@embedded_postgres//:pg/PG_ROOT",
-        "@embedded_postgres//:postgres",
-    ],
-    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.FixtureAsidePostgresTest"],
-    runtime_deps = [":drivers"],
-    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
-    deps = [
-        ":core",
-        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],

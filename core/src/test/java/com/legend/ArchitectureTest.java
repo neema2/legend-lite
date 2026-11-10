@@ -1425,7 +1425,7 @@ final class ArchitectureTest {
     private static final java.util.Set<String> DOOR_PLANNING_CALLS = java.util.Set.of(
             "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
             "com.legend.TypedQuery#projectPlan",
-            "com.legend.testplan.TestPlanner#plan", "com.legend.testplan.TestPlanner#planAhead",
+            "com.legend.testplan.TestPlanner#plan",
             "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
             "com.legend.ExecuteOptions#systemConnections", "com.legend.ExecuteOptions#stores");
 
@@ -1575,9 +1575,10 @@ final class ArchitectureTest {
             "com.legend.exec.PlanSessions#projectDatabase");
 
     /** Where planning begins: the router's planning halves and the doors'. */
+    // TestPlanner#planned, #planAhead and TestExecution#planProgram left 2026-11-10 with the on-demand fixtures they
+    // planned (census M9)
     private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#plan",
-            "com.legend.testplan.TestPlanner#planned", "com.legend.testplan.TestPlanner#planAhead",
-            "com.legend.TestExecution#planBody", "com.legend.TestExecution#planProgram");
+            "com.legend.TestExecution#planBody");
 
     /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
      *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's

@@ -881,7 +881,6 @@ final class HostJson {
         o.put("planBindings", map(x.planBindings(), e0 -> list(e0, e1 -> e1)));
         o.put("temps", list(x.temps(), e0 -> wAppealTemp(e0)));
         o.put("seed", x.seed() == null ? null : wAppealSeed(x.seed()));
-        o.put("stores", list(x.stores(), e0 -> e0));
         o.put("on", com.legend.executionplan.PlanJson.targetJson(x.on()));
         o.put("enums", wAppealEnums(x.enums()));
         return o;
@@ -916,10 +915,9 @@ final class HostJson {
         Map<String, List<String>> v_planBindings = readMap(field(o, "planBindings", "Rows"), n0 -> readList(n0, n1 -> str(n1)));
         List<Appeal.TempTable> v_temps = readList(field(o, "temps", "Rows"), n0 -> rAppealTemp(obj(n0)));
         Appeal.@Nullable InListSeed v_seed = absent(o, "seed", "Rows") ? null : rAppealSeed(obj(o.get("seed")));
-        List<String> v_stores = readList(field(o, "stores", "Rows"), n0 -> str(n0));
         ExecutionPlan.Target v_on = com.legend.executionplan.PlanJson.targetOf(obj(field(o, "on", "Rows")));
         Appeal.Enums v_enums = rAppealEnums(obj(field(o, "enums", "Rows")));
-        return new Appeal.Rows(v_rows, v_population, v_replaySql, v_mappingFqn, v_classFqn, v_extentSubset, v_ordered, v_sortKeys, v_goldenPlan, v_planBindings, v_temps, v_seed, v_stores, v_on, v_enums);
+        return new Appeal.Rows(v_rows, v_population, v_replaySql, v_mappingFqn, v_classFqn, v_extentSubset, v_ordered, v_sortKeys, v_goldenPlan, v_planBindings, v_temps, v_seed, v_on, v_enums);
     }
 
     static Map<String, Object> wAppealRead(Appeal.Read x) {

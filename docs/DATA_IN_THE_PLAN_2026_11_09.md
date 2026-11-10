@@ -310,6 +310,29 @@ streamer". It supersedes L2's "every database takes the streamed cells" above.
   dialect's raise; the cases `CSVREAD` reads exactly as a valid record are S185's pending rows.
 
 
+### L5 as built: no fixture between a body's plan and its run (2026-11-10, branch `claude/total-wall`)
+
+Option C, upstream's shape (the orchestrator's word, 2026-11-10): legend-engine runs a package's setups at the package's
+start, and nothing more. Lite's harness also provided a store's fixture ON DEMAND, between a body's plan and its run,
+for an appeal whose rows read a store another package seeds. It ran in an ASIDE (a schema or a catalog per backend), so
+that its tables did not overwrite the session's.
+- **Measured before deleting:** with the provision skipped (a patch never committed), the `corpus_duckdb` and
+  `corpus_h2` rosters were byte-identical and `stress_suites` and `stress_suites_h2` passed. No verdict needed one.
+- **Deleted (census M9, BOUNDED):**
+  - `PureTestRunner`'s on-demand provision: `fixturesByStore`, `provideFixtures`, `mayProvide`, `provideFixture`, the
+    aside branch of `runFixture`, `setupsCalled`, `tablesOf`, `setupStores`;
+  - `TestObserver.isolateFixture`, `fixtureIsolated` and `fixtureProvided`;
+  - the corpus observer's aside;
+  - `FixtureAside` and each backend's `setFixtureAside` (DuckDB's aside catalogs, H2's and Postgres's aside schemas,
+    and Postgres's search path that named 64 asides ahead);
+  - the referee's `replayAside` and `replayRestore`;
+  - `//core:fixture_aside_postgres_test`, which pinned only the aside: its rollback survival on Postgres.
+- **Bounded:** a package's setups run at its start, each a program planned whole and run by its plan
+  (`TestExecution.runFixture`, a door of one planning call and one run call). Their move to loads the plan names is the
+  same design as M7-seed's.
+- **What remains:** `Appeal.Rows.stores` and `PlannedAppeals.stores`, the stores the plan "asks the harness to
+  provide", are now read by no one. They are deleted next, with the test plan JSON's version.
+
 ## 5. Upstream
 
 lite's choices here are its own design. Where one differs observably from legend-pure or legend-engine (for example a

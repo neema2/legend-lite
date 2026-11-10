@@ -37,13 +37,6 @@ public final class TestPlanner {
                 options);
     }
 
-    /** {@code typed} planned AHEAD, to run later (the door's {@code planProgram}): as {@link #plan} plans it, or null
-     *  for a body that cannot be planned ahead ({@link #planned}). */
-    public static @Nullable TestPlan planAhead(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
-        return planned(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
-                options);
-    }
-
     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */
     private static TypedQuery withUnreadLets(TypedQuery typed) {
         List<TypedSpec> body = typed.body();
@@ -179,35 +172,5 @@ public final class TestPlanner {
             lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
         }
         return lifted == given.body() ? given : given.withBody(lifted);
-    }
-
-    /**
-     * {@code given} PLANNED NOW, to run later on a session of the same database (zero exemptions, the owner,
-     * 2026-11-05): a runner's fixture program planned with the assert whose compatibility appeal provides it, and run
-     * by the caller between the body's plan and its run (hole 4, 2026-11-08: {@code PlannedAppeals.stores}). A body
-     * that judges nothing (an effect or query program, no assert) planned whole by the test door as {@link #plan} plans
-     * it; null for any other (an assert's, a system-routed body's), which the caller cannot plan ahead.
-     */
-    public static @Nullable TestPlan planned(TypedQuery given, @Nullable String runtimeFqn,
-            SqlDialect dialect, PlanningOptions options) {
-        TypedQuery typed = lifted(given, options);
-        BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
-        if (runtimeFqn == null || bodyClass == null || bodyClass == BodyClass.ASSERT_PROGRAM
-                || BodyClass.anAssert(typed, runtimeFqn)) {
-            return null;
-        }
-        // counted where it is planned, as a body is (plan; until hole 4 a program planned ahead counted when it ran)
-        Census.inc(Census.Key.BODIES_MOVED);
-        TestPlan planned;
-        try (var p = com.legend.base.RunScope.plans("a program planned ahead")) {
-            planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
-                    options.stores(), options.edge());
-        }
-        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(planned);
-        TestPlan ahead = com.legend.diagnostics.Diagnostics.on("decoded-plan")
-                // guard 3 in report mode on a program planned ahead too (the slice 1 audit, 2026-11-08)
-                ? com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(planned))
-                : planned;
-        return ahead;
     }
 }

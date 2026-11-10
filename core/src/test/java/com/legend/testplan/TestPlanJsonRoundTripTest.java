@@ -137,7 +137,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.Read(null, null, null, new Appeal.Unlisted("DateTimeParseException", "bad text")),
                 "select 1", "my::Mapping", "my::C", true, false, List.of("k"), "plan", Map.of("p", List.of("1")),
                 List.of(new Appeal.TempTable("temp", "Integer", List.of("1", "2"))),
-                new Appeal.InListSeed("String", List.of("a")), List.of("my::Store"),
+                new Appeal.InListSeed("String", List.of("a")),
                 anyTarget(),
                 new Appeal.Enums(List.of("my::E"), Map.of("my::E", Map.of("1", "A")), Map.of("kind", "my::E")));
         return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null, RootLoop.NO_APPEAL);

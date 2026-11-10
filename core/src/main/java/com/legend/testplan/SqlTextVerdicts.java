@@ -1594,21 +1594,20 @@ final class SqlTextVerdicts {
         // ruling, option 1 -- both judges agree; the DuckDB-vs-H2 function divergences a held text used to expose
         // belong to the tests that assert VALUES). One site decides where it goes (decide).
         RowsAhead ahead = rowsAhead(env, textEqual, rowsRead, populationRead, mappingFqn, letPrefix, specs, hook);
-        // the appeal is decided after the body's run (Appeals, P1.2, 2026-11-07): its stores are provided before the
-        // body's run, by the caller, from the plan's data (PlannedAppeals.stores), and its rows read as plans of their
-        // own on the body's sessions
+        // the appeal is decided after the body's run (Appeals, P1.2, 2026-11-07): its rows read as plans of their own
+        // on the body's sessions
         // the referee's in-list temp table, planned: its rows read off the typed query in the frame's own zone (the
         // envelope spliced where a let-bound Result stood); its name, the one the golden reads, at the appeal
         InListSeed seed = ahead != null && temps.isEmpty()
                 ? inListSeed(query != null ? query : rowsRead, letPrefix,
                         frameZone(hook == null ? rowsRead : hook.apply(rowsRead, java.util.Set.of())))
                 : null;
-        // the rows leg as the plan's data (step 8b, 2026-11-08): its reads planned with the assert, its replay facts,
-        // the stores it asks the harness to provide and the target the referee replays on; null where not planned
+        // the rows leg as the plan's data (step 8b, 2026-11-08): its reads planned with the assert, its replay facts
+        // and the target the referee replays on; null where not planned
         com.legend.testexecutionplan.Appeal.Rows rows = ahead == null ? null : new com.legend.testexecutionplan.Appeal.Rows(ahead.rows().data(), ahead.population().data(),
                 replaySqlOrNull, mappingFqn, classFqn, facts.extentSubset(), facts.ordered(), facts.sortKeys(), goldenPlan,
                 planBindings, temps,
-                seed == null ? null : new com.legend.testexecutionplan.Appeal.InListSeed(seed.kind(), seed.values()), ahead.stores(),
+                seed == null ? null : new com.legend.testexecutionplan.Appeal.InListSeed(seed.kind(), seed.values()),
                 (env.appealOn() != null ? java.util.Objects.requireNonNull(env.appealOn()) : env).target(),
                 // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
                 JudgmentFacts.enumsOf(env.ctx(), mappingFqn, classFqn, ahead.rows().data()));
@@ -1617,8 +1616,8 @@ final class SqlTextVerdicts {
     }
 
     /** The appeal's rows for an arm planned under {@code env} under the compatibility rules, whose text may fail --
-     *  not byte-equal, or a text the step reads: planned now, naming each store they read for the harness to provide
-     *  before the body's run (the plan's data, {@code PlannedAppeals.stores}: step 8c and hole 4); else none. Planning
+     *  not byte-equal, or a text the step reads: planned now; else none (2026-11-10: the stores they read were named
+     *  for the harness to provide, until the on-demand fixtures were deleted, census M9). Planning
      *  is never inside a run (the wall's {@code RunScope.plans} refuses it; the full audit, 2026-11-09: the check of a
      *  run in force here could never hold, and read the wall as a channel). */
     private static @com.legend.base.Nullable RowsAhead rowsAhead(BodyDriver.ExecEnv env, boolean textEqual,
@@ -1628,16 +1627,11 @@ final class SqlTextVerdicts {
         if (!appeals(env) || textEqual) {
             return null;
         }
-        // the stores the rows leg reads, named in the plan's data: the harness is asked for their fixtures before the
-        // body's run, and the decision asks again, by name, after it (step 8c, 2026-11-08: the harness's registry was
-        // filled here, while the assert was planned)
-        List<String> stores = mappingFqn == null ? List.of()
-                : List.copyOf(storesOf(env.ctx(), mappingFqn, new java.util.LinkedHashSet<>()));
         // the rows planned where the appeal reads them: the body's own environment for a system-routed body's assert
         // under the database judge (ExecEnv.appealOn), this one otherwise
         BodyDriver.ExecEnv on = env.appealOn() != null ? env.appealOn() : env;
         RowsAhead ahead = new RowsAhead(sideAhead(rowsRead, letPrefix, specs, on, hook),
-                sideAhead(populationRead, letPrefix, specs, on, hook), List.copyOf(stores));
+                sideAhead(populationRead, letPrefix, specs, on, hook));
         return ahead;
     }
 
@@ -1646,7 +1640,7 @@ final class SqlTextVerdicts {
      *  (each setup's program planned), our rows and the page population, each planned as {@link JudgePlans#evalSide}
      *  plans a side, with the assert -- the appeal at the step provides, runs and shapes them, where the walk's appeal
      *  did, and plans nothing. */
-    private record RowsAhead(SideAhead rows, SideAhead population, List<String> stores) {
+    private record RowsAhead(SideAhead rows, SideAhead population) {
     }
 
     /** One side of an appeal planned with its assert, or the failure its planning raised -- raised where the appeal
@@ -1815,26 +1809,5 @@ final class SqlTextVerdicts {
                 instanceof com.legend.compiler.element.type.Type
                         .ClassType ct
                 ? ct.fqn() : null;
-    }
-
-    private static java.util.Set<String> storesOf(com.legend.compiler.element.ModelContext ctx,
-            String mappingFqn, java.util.Set<String> visited) {
-        java.util.Set<String> stores = new java.util.LinkedHashSet<>();
-        if (!visited.add(mappingFqn)) {
-            return stores;
-        }
-        ctx.findMapping(mappingFqn).ifPresent(m -> {
-            for (var b : m.classBindings()) {
-                if (b instanceof com.legend.model.MappingDefinition.ClassBinding.Relational r
-                        && r.source() instanceof com.legend.model.MappingDefinition
-                                .RelationalSource.Table t) {
-                    stores.add(t.database());
-                }
-            }
-            for (var inc : m.includes()) {
-                stores.addAll(storesOf(ctx, inc.mappingPath(), visited));
-            }
-        });
-        return stores;
     }
 }

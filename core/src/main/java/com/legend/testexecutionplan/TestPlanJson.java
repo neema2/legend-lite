@@ -32,8 +32,9 @@ public final class TestPlanJson {
      *  second hearing of; 10 (slice 5, 2026-11-09): the target of the session the body runs on; 11 (2026-11-09, the
      *  data-in-the-plan design's L1): a program's steps in the product's format version 31 -- the load node, a file
      *  load by its data reference; 12 (L2): the product's version 32, and the test plan's own {@code loads} section,
-     *  each load once, every target naming it by identity. */
-    public static final int VERSION = 12;
+     *  each load once, every target naming it by identity; 13 (2026-11-10, L5): an appeal's rows name no stores for the
+     *  harness to provide, the on-demand fixtures deleted (census M9). */
+    public static final int VERSION = 13;
 
     private TestPlanJson() {
     }

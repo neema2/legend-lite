@@ -60,12 +60,13 @@ class CodeShapeGuardrailTest {
             // (a memo of a pure derivation): the typed body; the model builder's indexes; the context's two tables;
             // the C3 linearizer; a substitution's read and mentioned sets; the lexer's line and token positions
             // (benign-racy, documented at the field); the parser's non-Pure ranges; the resolver's element
-            // references and association navigators; the runner's fixtures-by-store; a mapping closure's sets
+            // references and association navigators; a mapping closure's sets (the runner's fixtures-by-store left
+            // 2026-11-10 with the on-demand fixtures it indexed: census M9)
             "TypedQuery.body", "ModelBuilder.legacySetsById", "ModelBuilder.directSubclasses", "ModelBuilder.knowledge",
             "PureModelContext.declarations", "PureModelContext.implementations", "InferenceKernel.linearizer",
             "SourceSubst.reads", "SourceSubst.mentioned", "TokenStream.lineStarts", "TokenStream.tokenPositions",
             "ElementParser.nonPureRanges", "StoreResolver.elementsRef", "AssociationJoins.navMaterializer",
-            "AssociationJoins.unionHeads", "PureTestRunner.fixturesByStore", "MappingClosures.mappings",
+            "AssociationJoins.unionHeads", "MappingClosures.mappings",
             "MappingClosures.sets", "MappingClosures.unions", "MappingClosures.inheritances", "MappingClosures.roots",
             "MappingClosures.enums", "MappingClosures.relationalSets",
             // (same date) A SESSION'S facts, learned once from its database: the decoding its driver needs (known at

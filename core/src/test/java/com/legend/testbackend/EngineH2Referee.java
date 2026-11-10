@@ -14,7 +14,6 @@ import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
 import java.util.Properties;
 
 /**
@@ -82,18 +81,6 @@ final class EngineH2Referee implements RefereeBackend {
             throw e;
         }
         return referee;
-    }
-
-    /** The mirror sets its aside as a schema: the fixture's DDL lands there. */
-    @Override
-    public List<String> replayAside(String aside) {
-        return List.of("CREATE SCHEMA IF NOT EXISTS " + aside, "SET SCHEMA " + aside);
-    }
-
-    /** The mirror reads {@code PUBLIC} first, then the asides. */
-    @Override
-    public List<String> replayRestore(List<String> held) {
-        return List.of("SET SCHEMA PUBLIC", "SET SCHEMA_SEARCH_PATH PUBLIC, " + String.join(", ", held));
     }
 
     /** A fresh referee session: what a test reads the referee's database through. */

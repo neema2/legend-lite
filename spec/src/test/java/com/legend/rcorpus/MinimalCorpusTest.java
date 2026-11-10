@@ -770,8 +770,6 @@ public class MinimalCorpusTest {
             System.out.println("[corpus2] text-decided " + k);
         }
         byReason.forEach((r, n) -> System.out.println("[corpus2] text-decided-tests " + r + "=" + n));
-        corpus.fixturesProvided().forEach((k, setup) ->
-                System.out.println("[corpus2] fixture-on-demand " + k + " <- " + setup));
         long faults = 0;
         for (var e : com.legend.harness.RefereeVerify.UNVERIFIABLE_CENSUS.entrySet()) {
             if (e.getKey().startsWith("FAULT ")) {

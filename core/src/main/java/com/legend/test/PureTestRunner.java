@@ -112,12 +112,6 @@ public final class PureTestRunner implements AutoCloseable {
     private final Set<String> setupsDone = new LinkedHashSet<>();
     /** Each setup's resolved program (or {@link #INERT_SETUP}) — derived once. */
     private final Map<String, ValueSpecification> setupPrograms = new HashMap<>();
-    /** Fixture on demand: store FQN → the setups (every package's and the
-     * shared fixture's) whose program seeds it, from the platform's
-     * {@code ProgramFacts.seedsStores}; built once, at the first ask. */
-    private @com.legend.base.Nullable Map<String, List<String>> fixturesByStore;
-    /** setup → the stores its program seeds (the same fact, by setup). */
-    private final Map<String, Set<String>> setupStores = new HashMap<>();
     private final Set<String> inertSetups = new LinkedHashSet<>();
 
     /**
@@ -229,196 +223,6 @@ public final class PureTestRunner implements AutoCloseable {
         });
     }
 
-    // ---- FIXTURE ON DEMAND --------------------------------------------------
-
-    /** Every setup the corpus declares — the shared fixture's and every
-     * package's BeforePackage — indexed by the stores its program seeds
-     * (the platform's fact, {@code ProgramFacts.seedsStores}). */
-    private Map<String, List<String>> fixturesByStore() {
-        Map<String, List<String>> index = fixturesByStore;
-        if (index == null) {
-            index = new HashMap<>();
-            Set<String> all = new LinkedHashSet<>(sharedSetups);
-            setupsByPackage.values().forEach(all::addAll);
-            for (String fqn : all) {
-                ValueSpecification program = deriveSetup(fqn);
-                if (program == INERT_SETUP) {
-                    continue;
-                }
-                Set<String> stores = Compiler.programFacts(program, ctx).seedsStores();
-                setupStores.put(fqn, stores);
-                for (String store : stores) {
-                    index.computeIfAbsent(store, s -> new ArrayList<>()).add(fqn);
-                }
-            }
-            fixturesByStore = index;
-        }
-        return index;
-    }
-
-    /** The physical tables a store declares, schema-qualified and
-     * case-folded, includes followed — the never-overlay check's
-     * vocabulary (the Database model, not DDL text). */
-    private Set<String> tablesOf(String storeFqn, Set<String> visited) {
-        Set<String> out = new LinkedHashSet<>();
-        if (!visited.add(storeFqn)) {
-            return out;
-        }
-        ctx.findDatabase(storeFqn).ifPresent(db -> {
-            db.tables().forEach(t -> out.add("DEFAULT." + t.name().toUpperCase(java.util.Locale.ROOT)));
-            for (var s : db.schemas()) {
-                s.tables().forEach(t -> out.add(s.name().toUpperCase(java.util.Locale.ROOT)
-                        + "." + t.name().toUpperCase(java.util.Locale.ROOT)));
-            }
-            for (String inc : db.includes()) {
-                out.addAll(tablesOf(inc, visited));
-            }
-        });
-        return out;
-    }
-
-    /** The fixtures of the {@code stores} a body's planned appeals name ({@code PlannedAppeals.stores}; zero
-     *  exemptions, the owner, 2026-11-05; the plan-as-data design's step 8c), provided after the body is planned and
-     *  before it runs -- each the one setup that seeds the store, planned as a program of its own and run by
-     *  {@link #provideFixture}'s rules, never a run inside the body's (THE WALL's rule 4). A store no one setup seeds,
-     *  or whose setup cannot be planned ahead, or that a setup the body calls itself seeds (where the body seeds it:
-     *  2026-11-06, a fixture set aside before the body's own setup puts its tables where that setup's drops resolve),
-     *  gets none. The caller does this between the two halves (hole 4, 2026-11-08: until then the run asked the body's
-     *  listener for each fixture, mid-run). */
-    private void provideFixtures(PureTests.TestCase t, ProgramFacts facts, com.legend.exec.Sessions.Session conn,
-            ExecuteOptions options, Set<String> stores) {
-        if (stores.isEmpty()) {
-            return;
-        }
-        boolean shared = !facts.seedsInlineCsv();
-        java.util.Collection<String> ran = shared ? setupsDone : setupCandidates(t.pkg());
-        Set<String> called = setupsCalled(t);
-        for (String store : stores) {
-            // a fixture is planned only where it may be provided now ({@link #mayProvide}, read again when it runs):
-            // a setup already run, or one whose tables clash, is never planned
-            List<String> setups = fixturesByStore().getOrDefault(store, List.of());
-            if (called.containsAll(setups) || !mayProvide(store, ran)) {
-                continue;
-            }
-            com.legend.testexecutionplan.TestPlan fixture = TestExecution.planProgram(
-                    Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
-            if (fixture != null) {
-                provideFixture(store, conn, ran, shared,
-                        (fqn, target) -> TestExecution.runFixture(fixture, target, options));
-            }
-        }
-    }
-
-    /** The setups {@code body} calls at its top level (testGroupByWithWindowSubset runs
-     *  {@code contractmoneyscenario::setUp()} as its first statement): the stores such a call seeds are the body's
-     *  own, seeded where the body seeds them, never a fixture's provided ahead of its run (2026-11-06: a fixture set
-     *  aside before the body's own setup puts its tables where that setup's drops resolve). */
-    private Set<String> setupsCalled(PureTests.TestCase t) {
-        Set<String> setups = new LinkedHashSet<>();
-        fixturesByStore().values().forEach(setups::addAll);
-        // the body's names resolved, before any inlining (Compiler.resolveQuery inlines a user call's statements)
-        Set<String> called = new LinkedHashSet<>();
-        for (ValueSpecification s : Compiler.resolveNames(List.copyOf(t.fn().body()), t.imports(), ctx)) {
-            if (s instanceof com.legend.protocol.spec.AppliedFunction f && f.parameters().isEmpty()
-                    && setups.contains(f.function())) {
-                called.add(f.function());
-            }
-        }
-        return called;
-    }
-
-    /** Run, in this session, THE setup that seeds {@code storeFqn} ({@code program}: the setup's planned run on
-     * the session it is given). False when no setup seeds it, or
-     * when several do (the shared test database is seeded by many
-     * packages' fixtures with different contents — which one the golden
-     * meant is not a fact, and an order-dependent pick judged
-     * tdsWithEnumReturn on a stranger's rows), or when the store declares
-     * a table that a setup already run in this session ({@code ran})
-     * seeds — NEVER OVERLAY: a fixture dropping and refilling a table
-     * under the running package's tests lost query::filter::exists 8
-     * rows on the first measurement. A setup that fails raises: a fixture
-     * the platform named but could not seed is a fault of ours, never a
-     * quiet decline. */
-    /** Whether THE setup that seeds {@code storeFqn} may be provided now ({@link #provideFixture}'s rules, which read
-     *  them again when it runs): exactly one setup seeds it, no setup run in this session ({@code ran}) is it, and no
-     *  such setup's store declares a table it declares -- a fixture whose DECLARED footprint clashes with a seeded
-     *  store is refused (the engine judges such goldens by text too); the ones that pass still run in an aside,
-     *  because the footprint a fixture reaches through a runtime's connection value is not a static fact
-     *  (objectReferenceIn::setUp, 2026-09-17). */
-    private boolean mayProvide(String storeFqn, java.util.Collection<String> ran) {
-        List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
-        if (setups.size() != 1 || ran.contains(setups.get(0))) {
-            return false;
-        }
-        Set<String> mine = tablesOf(storeFqn, new LinkedHashSet<>());
-        for (String done : ran) {
-            for (String store : setupStores.getOrDefault(done, Set.of())) {
-                if (!Collections.disjoint(mine, tablesOf(store, new LinkedHashSet<>()))) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
-            java.util.Collection<String> ran, boolean shared,
-            java.util.function.BiConsumer<String, com.legend.exec.Sessions.Session> program) {
-        if (!mayProvide(storeFqn, ran)) {
-            return false;
-        }
-        String fqn = fixturesByStore().getOrDefault(storeFqn, List.of()).get(0);   // mayProvide: exactly one
-        if (!runFixture(fqn, target -> program.accept(fqn, target), conn, true)) {
-            return false;   // a clashing fixture the caller cannot isolate
-        }
-        if (shared) {
-            setupsDone.add(fqn);
-        }
-        observer.fixtureProvided(storeFqn, fqn);
-        return true;
-    }
-
-    /** Run one fixture on {@code conn}. THE MID-SESSION RULE: a fixture
-     *  provided ON DEMAND (a test's rows leg needs a store the session's
-     *  own setups did not seed) runs in an ASIDE the caller gives it
-     *  ({@link TestObserver#isolateFixture}) — every name stays as
-     *  written, the session's own tables keep winning, the fixture's
-     *  tables resolve last. The target folds identifiers, so a fixture
-     *  seeding a same-named table would otherwise overwrite one the
-     *  session's tests hold (witness 2026-09-17: objectReferenceIn::setUp
-     *  also seeds the milestoning store, whose {@code OrderTable}
-     *  replaced the session's {@code orderTable}); which tables a fixture
-     *  will create is not a static fact when it reaches its store through
-     *  a runtime's connection value, so EVERY on-demand fixture is
-     *  isolated. Without the primitive (an H2 session) the fixture runs in
-     *  the session as before. Package-start fixtures keep the engine's own
-     *  rule — the later one wins the name. */
-    private boolean runFixture(String fqn,
-            java.util.function.Consumer<com.legend.exec.Sessions.Session> program,
-            com.legend.exec.Sessions.Session conn, boolean onDemand) {
-        com.legend.exec.Sessions.Session target = conn;
-        boolean isolated = false;
-        if (onDemand) {
-            com.legend.exec.Sessions.Session aside = observer.isolateFixture(conn, fqn);
-            if (aside != null) {
-                target = aside;
-                isolated = true;
-            }
-            // no primitive (an H2 session): the fixture runs in the session
-            // as it always did — the declared-footprint guard above still
-            // refuses the known clashes
-        }
-        try {
-            // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's origin)
-            program.accept(target);
-        } finally {
-            if (isolated) {
-                observer.fixtureIsolated(conn);
-            }
-        }
-        return true;
-    }
-
     /** The setup {@code call} run on {@code target} as a fixture (track C, 2026-10-29: the setup's body typed once):
      *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
      *  where a thread-scoped SEED mark around the program counted them until then). */
@@ -440,11 +244,9 @@ public final class PureTestRunner implements AutoCloseable {
                 continue;
             }
             try {
-                if (!runFixture(fqn, target -> runSetup(call, target, options), conn, false)) {
-                    failures.add("setup " + fqn + "() => clashes with tables the"
-                            + " session already holds and cannot be isolated");
-                    continue;
-                }
+                // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's
+                // origin); a package-start fixture keeps the engine's own rule -- the later one wins the name
+                runSetup(call, conn, options);
                 if (shared) {
                     setupsDone.add(fqn);
                 }
@@ -536,13 +338,11 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             String failure = null;
             try {
-                // the body planned whole, nothing told to anyone; the fixtures its appeals name provided; then run,
-                // its listener told each verdict at its turn (hole 4, 2026-11-08: the two halves, the fixtures
-                // between them -- until then the run asked the listener for them)
+                // the body planned whole, nothing told to anyone; then run, its listener told each verdict at its
+                // turn (2026-11-10: no fixture is provided between the halves -- the corpus's and the stress lanes'
+                // verdicts measured unmoved without one, census M9)
                 com.legend.testexecutionplan.TestPlan planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved),
                         runtimeFqn, options);
-                provideFixtures(t, facts, conn, options,
-                        com.legend.testexecutionplan.PlannedAppeals.stores(planned));
                 TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override

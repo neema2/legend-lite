@@ -123,7 +123,17 @@ class DataMechanismCensusTest {
                     "Delivery.Bulk",
                     "DataLoads.cells",
                     "csvStreamed"))),
-            new Row("M9", "package setups and fixtures the harness provides between plan and run", new Pending("L5")),
+            // L5, 2026-11-10 (option C, upstream's shape: the orchestrator's word): (b) the on-demand fixtures the
+            // harness provided between a body's plan and its run are DELETED -- measured first with the provision
+            // skipped (a patch never committed): the corpus_duckdb and corpus_h2 rosters byte-identical and
+            // stress_suites and stress_suites_h2 passing, so no verdict needed one. (a) a package's setups, run at the
+            // package's start as the engine runs them, are BOUNDED: each a program planned whole and run by its plan
+            // (TestExecution.runFixture, a door of one planning call and one run call)
+            new Row("M9", "package setups and fixtures the harness provides between plan and run", new Bounded("L5",
+                    List.of("fixturesByStore", "provideFixtures", "provideFixture(", "isolateFixture",
+                            "fixtureIsolated", "fixtureProvided", "FixtureAside", "setFixtureAside", "replayAside",
+                            "replayRestore", "fixture_aside_postgres_test"),
+                    "ArchitectureTest.theDoorsOnlyCompose")),
             new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Pending("L6")),
             new Row("M11", "a query's literal relations and instances, and their writes",
                     new Staying("P9: a statement's literal rows come from lowering alone")),

@@ -107,14 +107,6 @@ public interface TestBackend {
         throw new com.legend.error.NotImplementedException("no corpus workspace on the test backend '" + name() + "'");
     }
 
-    /** Sets a clashing fixture ASIDE in {@code workspace}, a connection {@link #openWorkspace} opened: the fixture's
-     *  tables apart from the workspace's own, read after them once it has run. Refused by name where this backend
-     *  cannot isolate one: no fixture runs unisolated over a workspace's tables (the plan's defect 5). */
-    default FixtureAside setFixtureAside(Connection workspace) throws SQLException {
-        throw new com.legend.error.NotImplementedException("no fixture isolation on the test backend '" + name()
-                + "': an on-demand fixture would run over the workspace's own tables");
-    }
-
     /** A second reader of {@code session}'s data, a connection of its own (the referee reads our side's rows while
      *  {@code session} may hold an open result). Refused, as an {@link SQLException} the referee declines by, where
      *  this backend has none. */
