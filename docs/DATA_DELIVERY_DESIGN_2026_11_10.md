@@ -1,6 +1,6 @@
 # Data delivery, and the rest of the program (2026-11-10)
 
-> **Status: for the user's go.** It was written in the orchestrator session after the checkpoint audits of
+> **Status: APPROVED by the user, 2026-11-10 ("Do d0 inventory now in parallel while we are doing A").** It was written in the orchestrator session after the checkpoint audits of
 > `bec78dfe..5ed43045` (tenets and correctness), the deep review of the branch, and the user's rulings of 2026-11-10:
 > - "model data is just another sql statement in the plan";
 > - "File is just a pointer like a table";
@@ -141,7 +141,7 @@ Deleted from the plan:
 | B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront (temporary tables joined in the database, recursive SQL for a self-reference) and returns one plan; exec runs it; a writer gives the CSV. Its design is written and reviewed first (§7). S143's skip is lifted when it passes | census M13 |
 | B2e | Data parsed but used by no feature yet (ExternalFormat data, ModelStore data, ServiceStore stubs, mapping-test data): recorded as NOT IMPLEMENTED YET, with the rule that when built its data takes the model-data path; listed as feature gaps | census M17 |
 | B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed | census M14 |
-| B4 | The server catalog: first the measurement (does any statement combine the catalog's tables with a user's?), then a design written and reviewed, then built | census M5, M6 |
+| B4 | **Every catalog statement runs on the process's in-process catalog, whatever database holds the user's data** (the user, 2026-11-10: "B4 sounds good for now"). The measurement found no planned statement, among about 30,000 across core, PCT and both corpora, that reads the catalog's tables and a user's tables together: the planner refuses that shape by name. Mixing exists only across separate statements on separate sessions. So no catalog lives on a server: the server forms (per-query temp tables on the user's session, form 2; inline VALUES, form 3) are deleted, and a statement mixing the two stays refused by name. `Class.all()` is the platform plus every loaded project, as ruled 2026-11-08 | census M5, M6 |
 | ✔ | **Checkpoint:** audits and fixes; the census reads zero pending | |
 | **C** | **P4's last two** | |
 | C1 | The per-query comment planned, exec's trace kept apart from the statement (D3) | |
@@ -164,7 +164,8 @@ Deleted from the plan:
 
 | Item | For | How | State |
 |---|---|---|---|
-| Does any statement combine the catalog with user tables? What is undesigned about the server catalog? | B4 | the worker's throwaway probe over core, PCT and the corpora | running |
+| Does any statement combine the catalog with user tables? What is undesigned about the server catalog? | B4 | the worker's throwaway probe over core, PCT and the corpora | DONE: none combine; the planner refuses the shape; B4 decided (§6) |
+| Every piece of compatibility hidden in the product (D0) | D0 | a read-only research session, in parallel with A | running |
 | The test-data generator: can every step be planned upfront? (self-references, depth, an empty level) | B2d | read `testdatagen/`, the PCT TDG tests and upstream's TDG as spec input | to do, in the orchestrator session |
 | Remote files' credentials | B3 | read `datacube/src/remote.ts` and the `Secret` host operation | to do |
 | The DuckDB wide-by-one-empty CSV record: can DuckDB's own SQL refuse it? | A3 | one try; else a register row for the user | in A3 |
@@ -196,4 +197,6 @@ Deleted from the plan:
 - The corpus and stress burn-down.
 - Native file loaders per database (§1.3), when someone needs one.
 - The features M17 names (ExternalFormat, ModelStore and ServiceStore data, mapping test suites).
+- One statement that reads both the catalog and a user's tables, a possible product feature (the user, 2026-11-10:
+  "later we might want a product feature across both"). Until then it is refused by name.
 - PR #81, the timeseries line, in its own session.
