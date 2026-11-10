@@ -172,6 +172,27 @@ Deleted from the plan:
   the database parses it); a BINARY, VARBINARY, OTHER, DISTINCT, ARRAY or OBJECT column's data (upstream writes the raw
   token), not loaded yet.
 
+### A3 as built (2026-11-10)
+
+- **One form:** `SqlDialect.CsvLoad(statements)`, the database's own reader, each `?` the runner's verified copy's path;
+  `LoadStep.Delivery.Reads` alone (plan format 39). Deleted: `Delivery.Streamed`, `CsvLoad.Streamed`, `rowsInsert`
+  (Postgres's casts included), `Statements.streams` (JDBC and MongoDB), `DataLoads.cells` and the planner's split of a
+  file's cells (census M8's list).
+- **DuckDB:** the strict `read_csv`, now with `max_line_size` at the load's size limit (the default 2 MB refused a
+  3 MB record). The one try at refusing a record wide by one empty cell in DuckDB's SQL works only where the file holds
+  no quoted line break (`null_padding` needs the serial reader, which drops a record whose quote never closes, in
+  silence; the parallel reader refuses a quoted line break under `null_padding`): S184's case stays pending for the user.
+- **H2:** `SET @legend_csv = ?` then `CSVREAD` with one column more than the table, a cell there refused in the database.
+  `CSVREAD` reads an empty cell as NULL as it reads a missing one, so a short record of any width (not only by one, as
+  §1 said), a record wide by one empty cell and an unclosed quote load (S186, with the empty line and the quote after a
+  space). The pre-L2 check that refused a NULL second-to-last cell would have refused a valid record whose cell there
+  is empty; it is not restored.
+- **Every other database** refuses a file's load by name at planning, the file named (`EffectPlanner`).
+- **The splitter:** `base.CsvCells` keeps one caller, the referee's recorded copy of a file's rows, split lazily when an
+  edge asks (census M15, until B2b replays the referee's own copy).
+- **The referee's seed copy** (A2's fix, found here): one text per load step, a blob's inserts one script, so the
+  edge's ledger, which records a step's text by its place, stays aligned for a table of more than 1,000 rows.
+
 ## 6. The whole plan, in order
 
 | # | Step | Ends with |

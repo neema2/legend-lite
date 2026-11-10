@@ -140,14 +140,15 @@ class PlanJsonTest {
         // the same day: a reference's declared format, an object, and the one streamed delivery (L2); 33 the same day: a
         // PER_TRANSACTION load, the system catalog's registration (L4b); 38 since 2026-11-10: the model's data a load
         // step of statements, a content blob by digest, the rows step and format gone (A2)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":38,"), json);
+        // 39 the same day: a file's load the database's reading of it alone (A3)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":39,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v38 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v39 plan"), refused.getMessage());
     }
 
     @Test

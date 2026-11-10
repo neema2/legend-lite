@@ -303,8 +303,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                                     field(sb, statement);
                                 }
                             }
-                            case LoadStep.Delivery.Streamed st -> field(sb.append("streamed").append(st.columns())
-                                    .append(':'), st.insert());
                         }
                     }
                 }
@@ -938,37 +936,22 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** How a file's verified bytes reach its database: chosen at planning for the target's database, as every
          *  spelling is; no delivery edits a statement at run (the copy's path is bound). */
-        sealed interface Delivery permits Delivery.Reads, Delivery.Streamed {
+        sealed interface Delivery permits Delivery.Reads {
 
             /**
              * THE DATABASE READS THE FILE ITSELF (the user's ruling, 2026-11-09: "reject options we cannot support
              * instead of building our own streamer"): the runner writes the verified bytes to a copy of its own and sends
              * {@code statements} in order, each {@code ?} in them bound to that copy's path -- its database's own reader
              * spelled by its dialect, the declared format in that reader's options (DuckDB's {@code read_csv}). A format a
-             * reader cannot express is refused at planning. A database with no reader that reads the format as upstream
-             * does takes {@link Streamed} (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then").
+             * reader cannot express is refused at planning; a database with no reader refuses the file by name
+             * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3, option 1, A3: the runner's streamed cells, {@code Streamed},
+             * deleted with the Java splitter).
              */
             record Reads(List<String> statements) implements Delivery {
                 public Reads {
                     statements = List.copyOf(statements);
                     if (statements.isEmpty()) {
                         throw new IllegalArgumentException("a file's load of no statement");
-                    }
-                }
-            }
-
-            /**
-             * THE RUNNER STREAMS THE FILE'S CELLS, split by upstream's own rule ({@code base.CsvCells}, Commons CSV 1.5
-             * {@code EXCEL}, measured equal on 2,000,000 random texts) -- upstream's own mechanism, which reads the file
-             * in Java and inserts its rows (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"): for every database with no reader that reads the format as upstream does
-             * (H2's {@code CSVREAD} pads and cuts records in silence, S185 withdrawn). {@code insert} is one row's
-             * insert, a {@code ?} per column, sent in one batch with each row's {@code columns} cells bound as text.
-             */
-            record Streamed(String insert, int columns) implements Delivery {
-                public Streamed {
-                    Objects.requireNonNull(insert, "insert");
-                    if (columns < 1) {
-                        throw new IllegalArgumentException("a streamed load of no column");
                     }
                 }
             }

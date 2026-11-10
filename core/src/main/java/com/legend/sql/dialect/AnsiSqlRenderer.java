@@ -1890,26 +1890,46 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
             case com.legend.sql.SqlDml.Merge m -> merge(m).text();
-            case com.legend.sql.SqlDml.LoadCsv lc -> switch (csvLoad(lc)) {
-                case CsvLoad.Reads r -> String.join(";\n", r.statements());
-                case CsvLoad.Streamed st -> st.insert();
-            };
+            case com.legend.sql.SqlDml.LoadCsv lc -> String.join(";\n", csvLoad(lc).statements());
         };
     }
 
-    /** {@inheritDoc} The base: the runner's cells, streamed into one row's insert, a {@code ?} per column (upstream's
-     *  own mechanism for every database: legend-pure reads the file in Java and inserts its rows; the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). A dialect whose
-     *  database's own reader reads the format as upstream does spells that instead (DuckDB). */
+    /** {@inheritDoc} The base: refused by name -- the database reads no file of the runner's (option 1, the user's
+     *  ruling of 2026-11-10 on docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3). A database's native loader (Postgres
+     *  {@code COPY ... FROM STDIN}, MariaDB {@code LOAD DATA LOCAL INFILE}, a cloud stage) is added one database at a
+     *  time, when someone needs it: each is the database reading the file, so the model does not change. */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        return new CsvLoad.Streamed(rowsInsert(load));
+        throw new DialectCapability("a CSV file's load into " + load.table() + " reached " + getClass().getSimpleName()
+                + ", whose database reads no file of the runner's: refused by name, not split by the platform");
     }
 
-    /** {@inheritDoc} The base: {@code INSERT INTO t (columns) VALUES (?, ...)}, the database casting each bound text. */
-    @Override
-    public String rowsInsert(com.legend.sql.SqlDml.LoadCsv load) {
-        return csvInsertInto(load) + " VALUES ("
-                + String.join(", ", java.util.Collections.nCopies(load.columns().size(), "?")) + ")";
+    /**
+     * A CSV reader's RECORD CHECK over its columns {@code C0..C<width>} -- one column past the table's, where a wide
+     * record shows (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3, A3): a cell there refuses the load in the database, by
+     * its own raise, as upstream refuses a record wider than the table. A condition for the read's WHERE: TRUE, or the
+     * raise. It binds no value.
+     */
+    protected String csvRecordCheck(int width) {
+        SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
+                SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV"
+                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true));
+        SqlWriter where = newWriter().expr(check, 0);
+        if (where.bound() != 0) {
+            throw new IllegalStateException("a CSV load's record check binds no value");
+        }
+        return where.text();
+    }
+
+    /** A CSV read's cells into the table's columns, in order: each {@code C<i>}, an empty cell NULL (upstream's rule:
+     *  an empty cell, quoted or not, is NULL), the INSERT casting each into its column. */
+    protected static String csvCells(int width) {
+        StringBuilder cells = new StringBuilder();
+        for (int i = 0; i < width; i++) {
+            cells.append(i == 0 ? "" : ", ").append("NULLIF(C").append(i).append(", '')");
+        }
+        return cells.toString();
     }
 
     /** {@code load}'s target, as an INSERT names it: the table and its columns. */

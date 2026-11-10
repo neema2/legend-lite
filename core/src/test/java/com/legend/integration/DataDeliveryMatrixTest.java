@@ -91,9 +91,7 @@ class DataDeliveryMatrixTest {
             "matrix:PLAN/FROM_SEED/DuckDB", "matrix:PLAN/FROM_SEED/H2", "matrix:PLAN/FROM_SEED/SQLite",
             "matrix:SERVER/FROM_SEED/DuckDB", "matrix:SERVER/FROM_SEED/H2", "matrix:SERVER/FROM_SEED/SQLite",
             "matrix:TEST_BODY/FROM_SEED/DuckDB", "matrix:TEST_BODY/FROM_SEED/H2", "matrix:TEST_BODY/FROM_SEED/SQLite",
-            // A3, files as table sources: SQLite streams the file into a table its effect did not make, where the
-            // design refuses the file by name
-            "matrix:TEST_BODY/CSV_FILE/SQLite",
+            // (A3, 2026-11-10: SQLite refuses a file by name, as the design says, where it streamed it)
             // A4, refusals name the data: a bad payload's refusal names no payload (a bad value's names its table and
             // column since A2, 2026-11-10: a cell its column's type cannot take is refused at planning)
             "failure:BAD_PAYLOAD/DuckDB",
@@ -673,9 +671,11 @@ class DataDeliveryMatrixTest {
                 put(clean ? green : red, "FAIL_THEN_CLEAN/" + db, verdict(clean, describe(next)));
             }
             // 2. A MALFORMED RECORD in a CSV file: refused naming the file (§3 rule 5); a database that reads no file
-            // refuses the file by name all the same
+            // refuses the file by name all the same. The record is WIDE, which every reader refuses (A3, 2026-11-10:
+            // until then an unclosed quote, which H2's CSVREAD reads as the rest of the file, a ruled divergence, S186;
+            // each reader's edges, that one included, are pinned by DataLoadsTest.eachReadersEdgesArePinned)
             Path malformed = Files.createDirectories(dir.resolve("malformed-" + db));
-            Files.writeString(malformed.resolve("people.csv"), "ID,NAME\n1,\"a\n", StandardCharsets.UTF_8);
+            Files.writeString(malformed.resolve("people.csv"), "ID,NAME\n1,a,extra\n", StandardCharsets.UTF_8);
             try (Connection c = session(db)) {
                 Outcome o = attempt(() -> body(c, peopleModel(db, TestBackends.of(db).specificationAndAuth() + ";"), LOAD_PEOPLE, malformed));
                 boolean named = refusesNaming(o, "people.csv");

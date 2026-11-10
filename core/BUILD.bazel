@@ -1048,8 +1048,8 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# a CSV file's load on the embedded Postgres 16 (the user's ruling of 2026-11-10: the runner's cells by upstream's rule
-# for a database with no reader that reads the format as upstream does), at every edge of DataLoadsTest's pins
+# a CSV file's load on Postgres: refused by name (A3, 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md option 1;
+# until then the runner's cells streamed into its insert, at every edge of DataLoadsTest's pins)
 junit_test(
     name = "data_loads_postgres_test",
     memory_mb = 768,

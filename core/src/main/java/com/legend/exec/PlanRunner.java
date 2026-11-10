@@ -622,16 +622,6 @@ public final class PlanRunner {
                                     }
                                 }
                             }
-                            case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
-                                // the cells by upstream's rule, each row's insert in one batch (none for a file of
-                                // no data record: the load loads what it was planned against)
-                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns(),
-                                        f.sizeLimitMegabytes());
-                                if (!cells.isEmpty()) {
-                                    StatementOrigin.sent(seeding.mark(), streamed.insert());
-                                    seeding.streams(streamed.insert(), cells);
-                                }
-                            }
                         }
                         answered.add(false);
                     }

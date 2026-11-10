@@ -136,7 +136,15 @@ class DataMechanismCensusTest {
                     // (the streamed delivery is back for every database with no reader that reads the format as
                     // upstream does: the user's ruling of 2026-11-10)
                     "Delivery.Bulk",
-                    "csvStreamed"))),
+                    "csvStreamed",
+                    // 2026-11-10, A3 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3, option 1, the user's go on the
+                    // design): a file is read by its database or refused by name -- the runner's streamed cells, the
+                    // product's split of them and one row's insert are gone
+                    "Delivery.Streamed",
+                    "CsvLoad.Streamed",
+                    "rowsInsert(",
+                    "DataLoads.cells(",
+                    "seeding.streams("))),
             // L5, 2026-11-10 (option C, upstream's shape: the orchestrator's word): (b) the on-demand fixtures the
             // harness provided between a body's plan and its run are DELETED -- measured first with the provision
             // skipped (a patch never committed): the corpus_duckdb and corpus_h2 rosters byte-identical and

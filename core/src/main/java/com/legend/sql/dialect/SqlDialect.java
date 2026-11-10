@@ -71,36 +71,22 @@ public interface SqlDialect {
     String storedName(String name, boolean declaredQuoted);
 
     /**
-     * How this dialect's database loads a CSV file's rows ({@link com.legend.sql.SqlDml.LoadCsv}): READ by its own
-     * reader over the runner's verified copy where that reader reads the format as upstream does (the user's ruling of
-     * 2026-11-09, "reject options we cannot support instead of building our own streamer": DuckDB's), else the cells
-     * the runner STREAMS by upstream's rule into one row's insert (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). A database that takes neither refuses by name
-     * ({@code DialectCapability}), at planning.
+     * How this dialect's database READS a CSV file into a table ({@link com.legend.sql.SqlDml.LoadCsv};
+     * docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.2-§1.3, A3, option 1: "a file is a pointer, like a table"): its own
+     * reader over the runner's verified copy, the statements' one {@code ?} the copy's path -- DuckDB's
+     * {@code read_csv}, H2's {@code CSVREAD}. A database that reads no file refuses the load by name
+     * ({@code DialectCapability}), at planning: no Java splits, binds or casts a file's cells (until A3 the runner
+     * streamed them into one row's insert).
      */
     CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
 
-    /** One row's insert into {@code load}'s table, a {@code ?} per column, the runner's text cells bound to it: the
-     *  streamed delivery of the model's rows from a plan's bundle (L6c, into a staging table of text columns), and of
-     *  a CSV file's cells where the database reads none itself. */
-    String rowsInsert(com.legend.sql.SqlDml.LoadCsv load);
-
-    /** A CSV file's load as this dialect spells it. */
-    sealed interface CsvLoad permits CsvLoad.Reads, CsvLoad.Streamed {
-
-        /** The database's own reader: its statements, in order, each {@code ?} the runner's copy's path. */
-        record Reads(java.util.List<String> statements) implements CsvLoad {
-            public Reads {
-                statements = java.util.List.copyOf(statements);
-                if (statements.isEmpty()) {
-                    throw new IllegalArgumentException("a CSV load of no statement");
-                }
-            }
-        }
-
-        /** One row's insert, a {@code ?} per column, the runner's cells bound to it as text. */
-        record Streamed(String insert) implements CsvLoad {
-            public Streamed {
-                java.util.Objects.requireNonNull(insert, "insert");
+    /** A CSV file's load as this dialect spells it: the database's reader, its statements in order, each {@code ?}
+     *  the runner's copy's path. */
+    record CsvLoad(java.util.List<String> statements) {
+        public CsvLoad {
+            statements = java.util.List.copyOf(statements);
+            if (statements.isEmpty()) {
+                throw new IllegalArgumentException("a CSV load of no statement");
             }
         }
     }

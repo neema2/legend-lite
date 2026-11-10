@@ -29,8 +29,7 @@ class DataDeliveryMatrixPostgresTest {
             // A2 and A5: a from() naming its runtime, refused on the product's doors and with no program runtime
             "matrix:READ/FROM_SEED/Postgres", "matrix:WRITE/FROM_SEED/Postgres", "matrix:PLAN/FROM_SEED/Postgres",
             "matrix:TEST_BODY/FROM_SEED/Postgres",
-            // A3: a database with no file reader refuses a file by name (option 1); Postgres streams it today
-            "matrix:TEST_BODY/CSV_FILE/Postgres",
+            // (A3, 2026-11-10: Postgres refuses a file by name, option 1, where it streamed it)
             // (a bad value's refusal names its table and column since A2, 2026-11-10: refused at planning)
             // A5: a write on the caller's session crashes on the target's declared test data, and reads the catalog on
             // the user's session

@@ -168,6 +168,39 @@ public class H2 extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
+    /** {@inheritDoc} H2's own reader, {@code CSVREAD}, over the runner's copy (docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+     *  §1.3, A3: "H2 reads CSV in process with CSVREAD, its SQL checks refusing malformed records"): it takes no bound
+     *  path itself, so the copy's path is bound to a session variable first ({@code SET @legend_csv = ?}, measured
+     *  2026-11-10 on 2.5.252), then read in the declared delimiter and quote, a quote doubled within a quoted cell,
+     *  every cell's text kept whole ({@code preserveWhitespace}), the columns named so the header is skipped unread
+     *  whatever its width, an empty cell NULL; each cell cast into its column by the INSERT. One column more than the
+     *  table's: a record with a cell there is refused in the database, as upstream refuses a wide record. CSVREAD reads
+     *  an empty cell as NULL, as it reads a cell the record lacks (its {@code nullString} option changes neither,
+     *  measured), so three cases read as valid records, each a register row (S186): a short record, a record wide by
+     *  one empty cell, a quote left open (the rest of the file its cell). A delimiter or a quote that is white space is
+     *  not expressible in CSVREAD's options, refused by name. */
+    @Override
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        for (char c : new char[] {load.delimiter(), load.quote()}) {
+            if (Character.isWhitespace(c)) {
+                throw new DialectCapability("a CSV file whose delimiter or quote is white space: H2's CSVREAD takes"
+                        + " none in its options");
+            }
+        }
+        int width = load.columns().size();
+        StringBuilder names = new StringBuilder();
+        for (int i = 0; i <= width; i++) {
+            names.append(i == 0 ? "" : ",").append("C").append(i);
+        }
+        String options = "charset=UTF-8 fieldSeparator=" + load.delimiter() + " fieldDelimiter=" + load.quote()
+                + " escape=" + load.quote() + " preserveWhitespace=true";
+        return new CsvLoad(List.of("SET @legend_csv = ?", csvInsertInto(load) + " SELECT " + csvCells(width)
+                + " FROM (SELECT * FROM CSVREAD(@legend_csv, " + stringLit(names.toString()) + ", "
+                + stringLit(options) + ") OFFSET 1 ROW) AS x WHERE " + csvRecordCheck(width),
+                // the session keeps no path of the runner's copy once the load has read it (§3: no leftovers)
+                "SET @legend_csv = NULL"));
+    }
+
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
      *  generator tests, ReservedNamesGenerationTest). A program's staged rows are a LOCAL table, TRANSACTIONAL and
      *  dropped ON COMMIT: H2's {@code CREATE TEMPORARY TABLE} commits the open transaction and makes a table every

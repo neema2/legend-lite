@@ -798,8 +798,13 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  2026-11-09): strict -- no detection, the header read and dropped, each column named and text (the INSERT casts
      *  each cell into its column), a record of another width refused ({@code strict_mode}), an empty or quoted empty
      *  cell NULL -- in the declared delimiter and quote, a quote doubled within a quoted cell (Commons CSV's
-     *  {@code EXCEL}). Where its rule is not upstream's (a blank line skipped, mixed line breaks refused) is a register
-     *  row, pinned by {@code CsvLoadRenderTest} (measured 2026-11-10 on 1.5.6). */
+     *  {@code EXCEL}). A record may be as long as the load admits a file ({@code max_line_size}, the load's size limit:
+     *  DuckDB's default, 2 MB, refused a 3 MB record, measured 2026-11-10 on 1.5.6). Where its rule is not upstream's (a
+     *  blank line skipped, a quote after a space read as quoted, mixed line breaks refused, a record wide by one EMPTY
+     *  cell loaded) is a register row (S184), pinned by {@code DataLoadsTest}. A3's one try at refusing that last case
+     *  in DuckDB's SQL (one column more, {@code null_padding}, a record check) works only where the file holds no quoted
+     *  line break -- DuckDB's parallel reader refuses one under {@code null_padding}, and its serial reader drops a
+     *  record whose quote never closes, in silence (measured 2026-11-10) -- so it is the user's to rule (S184). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
         StringBuilder columns = new StringBuilder();
@@ -808,9 +813,10 @@ public final class DuckDb extends AnsiSqlRenderer {
         }
         String delimiter = stringLit(String.valueOf(load.delimiter()));
         String quote = stringLit(String.valueOf(load.quote()));
-        return new CsvLoad.Reads(java.util.List.of(csvInsertInto(load) + " SELECT * FROM read_csv(?, header = true, delim = "
+        return new CsvLoad(java.util.List.of(csvInsertInto(load) + " SELECT * FROM read_csv(?, header = true, delim = "
                 + delimiter + ", quote = " + quote + ", escape = " + quote + ", auto_detect = false, strict_mode = true,"
-                + " nullstr = '', columns = {" + columns + "})"));
+                + " nullstr = '', max_line_size = " + (long) load.sizeLimitMegabytes() * 1024 * 1024 + ", columns = {"
+                + columns + "})"));
     }
 
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's

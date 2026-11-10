@@ -105,8 +105,10 @@ public final class PlanJson {
      *  or travel as a {@link Bundle}, its JSON plus one blob per digest. 38 since 2026-11-10
      *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md A2): the model's data is a load step of {@code statements}, a CONTENT
      *  blob of SQL statements (the {@code statements} format) by digest; the {@code rows} step and format are gone; the
-     *  bundle's inline part bounded per plan ({@link #INLINE_LIMIT_BYTES}), a program step's loads included. */
-    public static final int VERSION = 38;
+     *  bundle's inline part bounded per plan ({@link #INLINE_LIMIT_BYTES}), a program step's loads included. 39 since
+     *  2026-11-10 (A3): a file's load is the database's reading of it alone, {@code reads}; the {@code streamed}
+     *  delivery is gone (a database with no reader refuses the file by name). */
+    public static final int VERSION = 39;
 
     private PlanJson() {
     }
@@ -686,11 +688,6 @@ public final class PlanJson {
                         delivery.put("_type", "reads");
                         delivery.put("statements", r.statements());
                     }
-                    case LoadStep.Delivery.Streamed st -> {
-                        delivery.put("_type", "streamed");
-                        delivery.put("insert", st.insert());
-                        delivery.put("columns", st.columns());
-                    }
                 }
                 o.put("delivery", delivery);
             }
@@ -1041,9 +1038,8 @@ public final class PlanJson {
                 Json.Obj d = o.getObj("delivery");
                 LoadStep.Delivery delivery = switch (d.getString("_type")) {
                     case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"));
-                    case "streamed" -> new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
                     default -> throw new IllegalArgumentException("a file load's delivery is the database's reading of"
-                            + " it or the runner's streamed cells: " + d.getString("_type"));
+                            + " it: " + d.getString("_type"));
                 };
                 yield new LoadStep.File(data, delivery, o.getInt("sizeLimitMegabytes"));
             }

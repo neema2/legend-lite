@@ -192,11 +192,10 @@ public final class EffectPlanner {
             case com.legend.executionplan.DataRef.Statements st -> throw new IllegalStateException("loadCsvToDbTable"
                     + " reads a CSV file; a statements reference is the content store's: " + ref.name());
         };
-        // delivered as the program's database takes it (SqlDialect.csvLoad): read by its own reader where that reader
-        // reads the format as upstream does (DuckDB's: the user's ruling of 2026-11-09), else the runner's cells by
-        // upstream's rule streamed into one row's insert (the user's ruling of 2026-11-10, "Okay I guess that can be
-        // used for databases that have no csv read then"); a database that takes neither refuses by name, here
-        // each column's declared type, the store's (a server casts each bound cell to it: Postgres)
+        // READ by the program's database itself (SqlDialect.csvLoad; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.2-§1.3,
+        // A3): DuckDB's read_csv, H2's CSVREAD, their record checks refusing a malformed record in the database; a
+        // database that reads no file refuses the load by name, here, naming the file. Each column's declared type is the
+        // store's, cast into by the INSERT
         java.util.Map<String, com.legend.sql.SqlDdl.ColumnType> declared = new java.util.LinkedHashMap<>();
         for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
             declared.put(col.name(), com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
@@ -205,25 +204,18 @@ public final class EffectPlanner {
                 declared.get(c), () -> "loadCsvToDbTable: no declared type for column '" + c + "' of " + qualified))
                 .toList();
         SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted, types,
-                csv.delimiter(), csv.quote());
-        ExecutionPlan.LoadStep.Delivery delivery = switch (env.writtenIn().csvLoad(load)) {
-            case SqlDialect.CsvLoad.Reads r -> new ExecutionPlan.LoadStep.Delivery.Reads(r.statements());
-            case SqlDialect.CsvLoad.Streamed st -> {
-                // the cells split here once by upstream's rule: a malformed file or a record of another width is
-                // refused at planning, by name, before anything is sent, and again at the run (S174; the digest makes
-                // the run's bytes these)
-                try {
-                    com.legend.base.CsvCells.table(new String(bytes, java.nio.charset.StandardCharsets.UTF_8),
-                            csv.delimiter(), csv.quote(), columns.size());
-                } catch (com.legend.base.CsvCells.Malformed e) {
-                    throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name()
-                            + "' for table '" + qualified + "': " + e.getMessage(), e);
-                }
-                yield new ExecutionPlan.LoadStep.Delivery.Streamed(st.insert(), columns.size());
-            }
-        };
-        // the referee's copy of the rows (the compatibility edge's replay, census M15 until L8), split from the bytes
-        // only when an edge asks for it
+                csv.delimiter(), csv.quote(), SIZE_LIMIT_MEGABYTES);
+        SqlDialect.CsvLoad reads;
+        try {
+            reads = env.writtenIn().csvLoad(load);
+        } catch (com.legend.sql.DialectCapability e) {
+            throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
+                    + qualified + "': " + e.getMessage());
+        }
+        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements());
+        // the referee's copy of the rows (the compatibility edge's replay, census M15 until B2b, which replays the
+        // referee's own H2 copy of the plan's loads), split from the bytes only when an edge asks for it: the edge's
+        // data, never the product's path (base.CsvCells' one caller since A3)
         return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES),
                 () -> refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns, quoted,
                         columns.size(), com.legend.base.CsvCells.table(new String(bytes,

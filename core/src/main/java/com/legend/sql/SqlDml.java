@@ -45,7 +45,8 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
      *  delimiter} and {@code quote}: the file's declared format (decision 6). A dialect spells its database's own reader
      *  over the runner's copy of the file, or one row's insert of the runner's cells ({@code SqlDialect.csvLoad}). */
     record LoadCsv(@com.legend.base.Nullable String schema, String table, NameQuoting quoting, List<String> columns,
-                   java.util.Set<String> quotedColumns, List<SqlDdl.ColumnType> types, char delimiter, char quote)
+                   java.util.Set<String> quotedColumns, List<SqlDdl.ColumnType> types, char delimiter, char quote,
+                   int sizeLimitMegabytes)
             implements SqlDml {
         public LoadCsv {
             columns = List.copyOf(columns);
@@ -54,6 +55,9 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
             if (types.size() != columns.size()) {
                 throw new IllegalArgumentException("a CSV load's " + columns.size() + " column(s) and " + types.size()
                         + " declared type(s)");
+            }
+            if (sizeLimitMegabytes <= 0) {
+                throw new IllegalArgumentException("a CSV load's size limit is positive: " + sizeLimitMegabytes);
             }
         }
     }
