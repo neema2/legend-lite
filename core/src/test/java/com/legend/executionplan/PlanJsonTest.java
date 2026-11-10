@@ -44,7 +44,7 @@ class PlanJsonTest {
                         new Parameter("ids", "Integer", new Multiplicity(0, null), List.of()),
                         new Parameter("status", "model::Status", new Multiplicity(1, 1), List.of("ACTIVE", "CLOSED"))),
                 new Sequence(List.of(
-                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)", null)),
+                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 100), null)),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
                                                 new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
@@ -142,15 +142,16 @@ class PlanJsonTest {
         // PER_TRANSACTION load, the system catalog's registration (L4b); 38 since 2026-11-10: the model's data a load
         // step of statements, a content blob by digest, the rows step and format gone (A2)
         // 39 the same day: a file's load the database's reading of it alone (A3); 40 the same day: a statements step
-        // names its data (A4); 41 the same day: a date bound as its text carries no digit count (A7, S181)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":41,"), json);
+        // names its data (A4); 41 the same day: a date bound as its text carries no digit count (A7, S181); 42 the same
+        // day: a column's store type an object (the A checkpoint's tenets audit, 3)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":42,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v41 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v42 plan"), refused.getMessage());
     }
 
     @Test

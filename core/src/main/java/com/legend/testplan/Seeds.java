@@ -88,6 +88,9 @@ public final class Seeds {
         List<TypedFrom> froms =
                 ExecutionContext.froms(statement);
         List<CsvSeed.Step> setups = new ArrayList<>();
+        // each runtime's declared test data planned once (the correctness audit's C3, 2026-11-10: a from()'s runtime
+        // that is the program's too was planned twice -- its setup SQL failing "already exists", its rows doubled)
+        java.util.Set<String> declared = new java.util.HashSet<>();
         for (TypedFrom fr : froms) {
             for (String sql : fr.sqlSetups()) {
                 // written in the database the from()'s connection declares (decision D2)
@@ -96,11 +99,14 @@ public final class Seeds {
             setups.addAll(CsvSeed.setupSteps(fr, ctx, dialect));
             // an ELEMENT runtime named by the from(): its declared connections' test data (the instance form above
             // carries the same facts on the instance)
-            fr.context().runtime().ifPresent(ref ->
-                    setups.addAll(CsvSeed.declaredSteps(ref.fullPath(), ctx, dialect)));
+            fr.context().runtime().ifPresent(ref -> {
+                if (declared.add(ref.fullPath())) {
+                    setups.addAll(CsvSeed.declaredSteps(ref.fullPath(), ctx, dialect));
+                }
+            });
         }
         // the program's runtime: its declared connections' test data seeds the session the same way
-        if (runtime != null) {
+        if (runtime != null && declared.add(runtime)) {
             setups.addAll(CsvSeed.declaredSteps(runtime, ctx, dialect));
         }
         return CsvSeed.planned(setups, dialect, com.legend.database.Databases.dialect(

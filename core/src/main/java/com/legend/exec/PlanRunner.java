@@ -193,7 +193,9 @@ public final class PlanRunner {
 
     private static long updateIn(ExecutionPlan.Update update, PlanSessions.Source sessions) throws IOException {
         long[] count = {0};
-        send(update.sql(), Map.of(), sessions, (st, statement, values) ->
+        // its live sources admitted once, at this run's entry, as every run's are (the checkpoint tenets audit's 7)
+        send(update.sql(), admitSources(Map.of(), List.of(update), sessions.admitted()), sessions,
+                (st, statement, values) ->
                 count[0] = st.update(statement, update.sql().slots(), values));
         return count[0];
     }
@@ -212,7 +214,8 @@ public final class PlanRunner {
             throw new IllegalStateException("an effect binds no slot: its text is the statement");
         }
         boolean[] rows = {false};
-        send(effect.sql(), Map.of(), sessions, (st, statement, values) -> rows[0] = st.execute(statement));
+        send(effect.sql(), admitSources(Map.of(), List.of(effect), sessions.admitted()), sessions,
+                (st, statement, values) -> rows[0] = st.execute(statement));
         return rows[0];
     }
 
@@ -623,8 +626,9 @@ public final class PlanRunner {
                     answered.add(seeding.execute(s.sql()));
                 }
                 case ExecutionPlan.LoadStep.Statements s -> {
-                    // the model's data: the blob's statements, from the load's own bundle (verified when the load
-                    // was made or read), each sent as it is written (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1)
+                    // the model's data: the blob's statements, from the load's own bundle (its bytes checked against
+                    // their digest where a plan is read, PlanJson.read; an in-process plan's bundle is the planner's
+                    // own, the load's identity checked above), each sent as it is written (§1.1)
                     for (String statement : com.legend.executionplan.DataRef.Statements.decode(
                             java.util.Objects.requireNonNull(seeds.content().get(s.ref().digest()),
                                     "a load's bundle holds every digest its steps read"))) {
@@ -640,8 +644,9 @@ public final class PlanRunner {
                 }
                 case ExecutionPlan.LoadStep.File f -> {
                     // the file by its reference, its verified bytes delivered as the plan says (DataLoads): the model's
-                    // text above the inline threshold from the load's own bundle (L6c, verified when the load was
-                    // made or read), any other file through the stores the run was given
+                    // text above the inline threshold from the load's own bundle (L6c: its bytes checked against their
+                    // digest where a plan is read, PlanJson.read; an in-process plan's bundle is the planner's own),
+                    // any other file through the stores the run was given, verified there (DataLoads.verified)
                     byte[] bytes = f.ref().namespace() == com.legend.executionplan.DataRef.Namespace.CONTENT
                             ? java.util.Objects.requireNonNull(seeds.content().get(f.ref().digest()),
                                     "a load's bundle holds every digest its steps read").getBytes(
@@ -652,14 +657,35 @@ public final class PlanRunner {
                             // a copy of the runner's own, which the database reads with its own reader, each
                             // statement's ? the copy's path
                             try (DataLoads.Staged staged = DataLoads.stage(f.ref(), bytes, f.sizeLimitMegabytes())) {
-                                for (String statement : reads.statements()) {
-                                    StatementOrigin.sent(seeding.mark(), statement);
-                                    try {
-                                        seeding.readsFile(statement, staged.path());
-                                    } catch (com.legend.error.DataError e) {
-                                        // the database's own words, the file named (its reader cannot name it)
-                                        throw new com.legend.error.DataError("the file '" + f.ref().name()
-                                                + "': " + e.getMessage(), e);
+                                RuntimeException failed = null;
+                                try {
+                                    for (String statement : reads.statements()) {
+                                        StatementOrigin.sent(seeding.mark(), statement);
+                                        try {
+                                            seeding.readsFile(statement, staged.path());
+                                        } catch (com.legend.error.DataError e) {
+                                            // the database's own words, the file named (its reader cannot name it)
+                                            throw new com.legend.error.DataError("the file '" + f.ref().name()
+                                                    + "': " + e.getMessage(), e);
+                                        }
+                                    }
+                                } catch (RuntimeException e) {
+                                    failed = e;
+                                    throw e;
+                                } finally {
+                                    // what the reading set on the session undone on every exit (§3 rule 2, the A
+                                    // checkpoint's tenets audit, 14): a failure here after the load's own is kept
+                                    // beside it, never in its place
+                                    for (String statement : reads.after()) {
+                                        StatementOrigin.sent(seeding.mark(), statement);
+                                        try {
+                                            seeding.execute(statement);
+                                        } catch (RuntimeException e) {
+                                            if (failed == null) {
+                                                throw e;
+                                            }
+                                            failed.addSuppressed(e);
+                                        }
                                     }
                                 }
                             }
@@ -974,7 +1000,9 @@ public final class PlanRunner {
         // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
             Statements st = opened(session, sql.target(), sessions.mark());
-            Map<String, PlanParameters.Checked> bound = admitted(sql, checked, sessions.admitted());
+            // every live source the run reads was admitted once, at its entry (admitSources): the path is bound here,
+            // never admitted again (the checkpoint tenets audit's 7, 2026-11-10: until then per statement as well)
+            Map<String, PlanParameters.Checked> bound = checked;
             if (sql.stamp() != null) {
                 bound = new HashMap<>(bound);
                 stamp(sql, bound, st);
@@ -1066,22 +1094,6 @@ public final class PlanRunner {
             case ExecutionPlan.Load l -> List.of();
             case ExecutionPlan.Constant c -> List.of();
         };
-    }
-
-    /** {@code checked} with each live source {@code sql} reads (a {@link ExecutionPlan.Binding.Source} slot) bound to
-     *  the path {@code admission} admits for its location, refused by name otherwise (L6, 2026-11-10). */
-    private static Map<String, PlanParameters.Checked> admitted(ExecutionPlan.Sql sql,
-            Map<String, PlanParameters.Checked> checked, SourceAdmission admission) {
-        Map<String, PlanParameters.Checked> out = checked;
-        for (ExecutionPlan.Slot slot : sql.slots()) {
-            if (slot.binding() instanceof ExecutionPlan.Binding.Source src) {
-                if (out == checked) {
-                    out = new HashMap<>(checked);
-                }
-                out.put(sourceKey(src), new PlanParameters.One(admission.admit(src.location())));
-            }
-        }
-        return out;
     }
 
     /** The name a live source's admitted path is bound under: no declared parameter's (a parameter is an identifier). */

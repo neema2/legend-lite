@@ -302,6 +302,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                                 for (String statement : r.statements()) {
                                     field(sb, statement);
                                 }
+                                sb.append("after").append(r.after().size()).append(':');
+                                for (String statement : r.after()) {
+                                    field(sb, statement);
+                                }
                             }
                         }
                     }
@@ -568,13 +572,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      *  the database answers with (the lowering's typed slot: {@code VARCHAR}, {@code DECIMAL(10,2)},
      *  {@code TIMESTAMP}) -- null when the column has no one slot (a nested column the query flattens into prefixed
      *  outputs; a pivot's generated column whose template carries no type); and {@code store}, the column's declared
-     *  type in its store when the value is a store column read through ({@code VARCHAR(20)}, as the relational
-     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. A fourth fact,
+     *  type in its store when the value is a store column read through, typed ({@code VARCHAR(20)} a
+     *  {@code SqlDdl.ColumnType.Sized}; the checkpoint tenets audit's 3, 2026-11-10: until then its grammar spelling,
+     *  which exec matched by its text) -- null when the column is computed. Each null is said, never guessed. A fourth fact,
      *  {@code precision} (2026-10-28, the result boundary program's R2 and its S1.4 item 1): how a temporal cell's
      *  WRITTEN precision is known, which the writers spell by ({@link Precision}; the plan's fact, where the writers
      *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
-            @com.legend.base.Nullable String store, @com.legend.base.Nullable Precision precision) {
+            com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType store,
+            @com.legend.base.Nullable Precision precision) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
@@ -956,11 +962,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              * spelled by its dialect, the declared format in that reader's options (DuckDB's {@code read_csv}). A format a
              * reader cannot express is refused at planning; a database with no reader refuses the file by name
              * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3, option 1, A3: the runner's streamed cells, {@code Streamed},
-             * deleted with the Java splitter).
+             * deleted with the Java splitter). {@code after}: the statements that undo what {@code statements} set on
+             * the session (H2's path variable), run on every exit, a failed load's too (the A checkpoint's tenets
+             * audit, 14).
              */
-            record Reads(List<String> statements) implements Delivery {
+            record Reads(List<String> statements, List<String> after) implements Delivery {
                 public Reads {
                     statements = List.copyOf(statements);
+                    after = List.copyOf(after);
                     if (statements.isEmpty()) {
                         throw new IllegalArgumentException("a file's load of no statement");
                     }

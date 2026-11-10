@@ -91,7 +91,22 @@ class DataMechanismCensusTest {
                             // the setup's own step record, replaced by LoadStep (the re-audit's small item, 2026-11-09)
                             "interface SetupStep",
                             "SetupStep.Statement(",
-                            "SetupStep.Rows("))),
+                            "SetupStep.Rows(",
+                            // A2, 2026-11-10 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1; the A checkpoint's tenets
+                            // audit's 4a): model data -- a connection's test data, a project's Data, a seed's rows -- is
+                            // statements in a content blob; the rows step, the staged delivery, the bulk loaders and
+                            // DuckDB's appender are gone (their names in code shapes: the history comments keep words)
+                            "LoadStep.Rows",
+                            "Delivery.Staged",
+                            "class BulkLoad",
+                            "interface BulkLoad",
+                            "class DuckDbAppenderLoad",
+                            "DuckDbAppenderLoad.",
+                            "class ContentRows",
+                            "loadsRowsInBulk(",
+                            "RowLoad.staged",
+                            ".loadsRows(",
+                            "Statements.load("))),
             // L2, 2026-11-09: the test road's seeds are loads made by the one load planner (LoadPlanner, one identity
             // scheme), and the plan's connection description no longer carries the raw test data. PENDING still (the
             // M1 tenets audit's finding 2): Seeds.planned remains the seeds' own path to their steps, and the referee's

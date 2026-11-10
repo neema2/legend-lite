@@ -81,9 +81,36 @@ public final class CsvSeed {
      *  statements written in the replay referee's own dialect (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1, A2:
      *  "the planner renders the same rows a second time in H2's dialect and carries that copy as the edge's data") --
      *  the platform's DDL and the rows' inserts the referee's, an author's statement as its author wrote it. */
-    public record Planned(LoadSteps steps, List<String> refereeCopy) {
+    public record Planned(LoadSteps steps, java.util.function.Supplier<List<String>> referee) {
         public Planned {
-            refereeCopy = List.copyOf(refereeCopy);
+            java.util.Objects.requireNonNull(referee, "referee");
+        }
+
+        /** The referee's copy, written when an edge first asks for it, once (the A checkpoint's tenets audit, 8,
+         *  2026-11-10: demand-driven, as {@code EffectPlanner}'s copy of a file's rows is; until then every test
+         *  plan wrote every seed's copy in H2's dialect whether or not a judgment could reach the referee). */
+        public List<String> refereeCopy() {
+            return referee.get();
+        }
+    }
+
+    /** {@code make}'s value, made on its first {@link #get} and kept. */
+    private static final class Once implements java.util.function.Supplier<List<String>> {
+        private final java.util.function.Supplier<List<String>> make;
+        private volatile @com.legend.base.Nullable List<String> made;
+
+        Once(java.util.function.Supplier<List<String>> make) {
+            this.make = make;
+        }
+
+        @Override
+        public synchronized List<String> get() {
+            List<String> m = made;
+            if (m == null) {
+                m = List.copyOf(make.get());
+                made = m;
+            }
+            return m;
         }
     }
 
@@ -118,26 +145,29 @@ public final class CsvSeed {
      *  (the referee splits a text there). */
     public static Planned planned(List<Step> steps, com.legend.sql.dialect.SqlDialect dialect,
             com.legend.sql.dialect.SqlDialect referee) {
-        List<String> copy = new ArrayList<>();
-        for (Step step : steps) {
-            switch (step) {
-                case Step.Sql blob -> copy.addAll(com.legend.sql.RawSql.splitStatements(blob.text()));
-                case Step.Rows rows -> {
-                    List<String> inserts = rows.load().refereeStatements(referee);
-                    if (!inserts.isEmpty()) {
-                        copy.add(String.join("\n", inserts));
-                    }
-                }
-                case Step.Schema d -> copy.addAll(step.texts(referee));
-                case Step.Clear c -> copy.addAll(step.texts(referee));
-            }
-        }
         LoadSteps planned = planned(steps, dialect);
-        if (planned.steps().size() != copy.size()) {
-            throw new IllegalStateException("a seed's " + planned.steps().size() + " step(s) and its referee's "
-                    + copy.size() + " text(s): the ledger records a step's text by its place");
-        }
-        return new Planned(planned, copy);
+        List<Step> kept = List.copyOf(steps);
+        return new Planned(planned, new Once(() -> {
+            List<String> copy = new ArrayList<>();
+            for (Step step : kept) {
+                switch (step) {
+                    case Step.Sql blob -> copy.addAll(com.legend.sql.RawSql.splitStatements(blob.text()));
+                    case Step.Rows rows -> {
+                        List<String> inserts = rows.load().refereeStatements(referee);
+                        if (!inserts.isEmpty()) {
+                            copy.add(String.join("\n", inserts));
+                        }
+                    }
+                    case Step.Schema d -> copy.addAll(step.texts(referee));
+                    case Step.Clear c -> copy.addAll(step.texts(referee));
+                }
+            }
+            if (planned.steps().size() != copy.size()) {
+                throw new IllegalStateException("a seed's " + planned.steps().size() + " step(s) and its referee's "
+                        + copy.size() + " text(s): the ledger records a step's text by its place");
+            }
+            return copy;
+        }));
     }
 
     /** The seed as {@link Step}s &mdash; {@link #sqls}' statements, the rows

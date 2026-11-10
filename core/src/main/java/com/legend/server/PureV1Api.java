@@ -391,7 +391,7 @@ public final class PureV1Api {
             return model.with(models, ctx -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
                 com.legend.Compiler.Target target = query.target();
-                String runtime = runtimeOf(request, target);
+                String runtime = runtimeOf(request, query);
                 QueryPlan plan = query.plan(runtime);
                 return Json.toCompact(executionPlan(plan,
                         connectionOf(model.records(), runtime, target.store())));
@@ -423,7 +423,7 @@ public final class PureV1Api {
             // text), and the query typed once, here: the runner plans and runs it
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
-                String runtime = runtimeOf(request, query.target());
+                String runtime = runtimeOf(request, query);
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Engine(out, facts(query)));
@@ -454,7 +454,7 @@ public final class PureV1Api {
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
-                String runtime = runtimeOf(request, query.target());
+                String runtime = runtimeOf(request, query);
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Arrow(out, facts(query)));
                 } catch (java.io.IOException e) {
@@ -737,7 +737,7 @@ public final class PureV1Api {
         LambdaFunction lambda = ProtocolReader.lambda(
                 boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
         com.legend.TypedQuery query = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda);
-        return new Hosted(query, runtimeOf(request, query.target()));
+        return new Hosted(query, runtimeOf(request, query));
     }
 
     /**
@@ -864,8 +864,8 @@ public final class PureV1Api {
             Map<String, Object> rc = new LinkedHashMap<>();
             // the engine spells a PASS-THROUGH column's physical type here, a computed one's as "": the plan's
             // store fact (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3), by provenance over the lowered query
-            String store = i < plan.columns().size() ? plan.columns().get(i).store() : null;
-            rc.put("dataType", store == null ? "" : store);
+            com.legend.sql.SqlDdl.ColumnType store = i < plan.columns().size() ? plan.columns().get(i).store() : null;
+            rc.put("dataType", store == null ? "" : com.legend.executionplan.ColumnFacts.store(store));
             rc.put("label", "\"" + c.name() + "\"");
             resultColumns.add(rc);
         }
@@ -973,17 +973,17 @@ public final class PureV1Api {
         throw new IllegalArgumentException("the model has no " + what + " " + path);
     }
 
-    /** The runtime: the request's own, else the one the query's {@code ->from} binds. */
-    private static String runtimeOf(Json.Obj request, com.legend.Compiler.Target target) {
+    /** The runtime: the request's own, else the one the query's {@code ->from}s bind -- every door's one rule
+     *  ({@link com.legend.TypedQuery#runtime}: several refused by name; the checkpoint tenets audit's 1, 2026-11-10:
+     *  until then this door kept the first from()'s and ran the rest on it). */
+    private static String runtimeOf(Json.Obj request, com.legend.TypedQuery query) {
         Json.Obj rt = request.getObjOr("runtime", null);
-        if (rt != null && rt.has("runtime")) {
-            return rt.getString("runtime");
-        }
-        if (target.runtime() == null) {
+        String runtime = query.runtime(rt != null && rt.has("runtime") ? rt.getString("runtime") : null);
+        if (runtime == null) {
             throw new IllegalArgumentException(
                     "no runtime: the request names none and the query has no ->from(runtime)");
         }
-        return target.runtime();
+        return runtime;
     }
 
     // ---------------------------------------------------------------------

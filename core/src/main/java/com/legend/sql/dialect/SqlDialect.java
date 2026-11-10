@@ -95,10 +95,13 @@ public interface SqlDialect {
     CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
 
     /** A CSV file's load as this dialect spells it: the database's reader, its statements in order, each {@code ?}
-     *  the runner's copy's path. */
-    record CsvLoad(java.util.List<String> statements) {
+     *  the runner's copy's path; {@code after}, the statements that undo what they set on the session (H2's path
+     *  variable), run on every exit, a failed load's too (the A checkpoint's tenets audit, 14, 2026-11-10: until then
+     *  the last of {@code statements}, which a failed insert never reached). */
+    record CsvLoad(java.util.List<String> statements, java.util.List<String> after) {
         public CsvLoad {
             statements = java.util.List.copyOf(statements);
+            after = java.util.List.copyOf(after);
             if (statements.isEmpty()) {
                 throw new IllegalArgumentException("a CSV load of no statement");
             }

@@ -69,4 +69,20 @@ class SourceAdmissionTest {
             assertTrue(e.getMessage().contains("only a file: source is read"), e.getMessage());
         }
     }
+
+    /** A host's configuration builds the fence (the A checkpoint's tenets audit, 11, 2026-11-10): absent, any file (the
+     *  default, unchanged); {@code none}, none; a list of directories, a fence of them; a listed path that is no
+     *  directory refused by name. */
+    @Test
+    void aHostsConfigurationBuildsTheFence(@TempDir Path dir) throws Exception {
+        assertEquals(SourceAdmission.any(), SourceAdmission.configured(null));
+        assertEquals(SourceAdmission.any(), SourceAdmission.configured("  "));
+        assertEquals(SourceAdmission.none(), SourceAdmission.configured("none"));
+        Path inside = Files.writeString(dir.resolve("rows.json"), "[]");
+        SourceAdmission fenced = SourceAdmission.configured(dir.toString());
+        assertEquals(inside.toRealPath().toString(), fenced.admit(inside.toUri().toString()));
+        var refused = assertThrows(IllegalArgumentException.class,
+                () -> SourceAdmission.configured(dir.resolve("rows.json").toString()));
+        assertTrue(refused.getMessage().contains("is no directory"), refused.getMessage());
+    }
 }

@@ -45,6 +45,34 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
     }
 
     /**
+     * The admission a host's configuration names (the A checkpoint's tenets audit, 11, 2026-11-10: until then no host
+     * could build a fence): absent or blank, any file (the default, unchanged: the user's ruling of A5); {@code none},
+     * none; else the directories it lists, separated by the platform's path separator ({@code :}, {@code ;} on
+     * Windows), each a fence's. A listed directory that is not one is refused by name, never dropped.
+     */
+    public static SourceAdmission configured(@com.legend.base.Nullable String value) {
+        if (value == null || value.isBlank()) {
+            return any();
+        }
+        if (value.strip().equals("none")) {
+            return none();
+        }
+        List<Path> dirs = new java.util.ArrayList<>();
+        for (String d : value.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+            if (d.isBlank()) {
+                continue;
+            }
+            Path p = Path.of(d.strip());
+            if (!java.nio.file.Files.isDirectory(p)) {
+                throw new IllegalArgumentException("the admitted sources' directory '" + d.strip() + "' is no"
+                        + " directory");
+            }
+            dirs.add(p);
+        }
+        return new SourceAdmission(dirs);
+    }
+
+    /**
      * The path the database reads for {@code location}, a source's location as its model declares it: refused by name
      * ({@link DataError}) unless it is a {@code file:} URL this machine reads and, under a fence, names a file under an
      * admitted directory (its real path, links followed, so no link leads out).

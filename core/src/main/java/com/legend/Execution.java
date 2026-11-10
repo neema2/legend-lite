@@ -71,6 +71,15 @@ public final class Execution {
         return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), output);
     }
 
+    /** {@link #runOnProjectDatabases(TypedQuery, String, Output)}, its live sources read under the fence the host's
+     *  configuration names, {@code admittedSources} ({@code SourceAdmission.configured}'s text: null, any file; the A
+     *  checkpoint's tenets audit, 11). */
+    public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, @com.legend.base.Nullable String admittedSources,
+            Output output) throws IOException {
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), admittedSources, output);
+    }
+
     /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output)} for a
      *  model's text and a query's text, the target's loads established on the session it acquires. */
     public static ExecutionPlan run(String model, String query,

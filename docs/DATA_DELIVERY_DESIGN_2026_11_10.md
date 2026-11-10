@@ -85,7 +85,14 @@ Deleted from the plan:
    of its rows. **Except where the database takes no transaction** (ClickHouse's driver refuses autocommit off, measured
    2026-11-07 on the timeseries line): there a load's steps run unbracketed, each its own, and its no-leftovers rule is
    rule 2's drop first and drop at release (`DatabaseConnector.takesTransactions`, the orchestrator's check of
-   2026-11-10). Upstream runs a connection's setup statement by statement there too, so no register row.
+   2026-11-10). Upstream runs a connection's setup statement by statement there too, so no register row. **A program
+   too** runs unbracketed there (`JdbcStatements.inTransaction`): a failed program keeps the writes its statements made
+   before the failure (the A checkpoint's tenets audit, 13). **DDL inside a load's transaction commits implicitly** on
+   H2, MariaDB, MySQL and Snowflake (each database's own rule for a `CREATE` or `DROP`), so a load that creates a table
+   there is whole only as far as the database's DDL allows: a refusal after a table was made leaves the table, which
+   rule 2's drop before the next make clears (the correctness audit's note, 2026-11-10). Trino's memory catalog, BigQuery
+   and Databricks answer `takesTransactions` true as stated by their connectors; lane round 33 (2026-11-10) loaded on
+   all three with no transaction error.
 2. **No leftovers.** Session tables are named from the load's identity, qualified to the session's temporary schema,
    dropped before they are made and in `finally`. After a failed load the session takes the next load cleanly.
 3. **DuckDB aborts its whole transaction on an error.** The catalog's per-run turn is ended and reopened after a failed
@@ -100,9 +107,12 @@ Deleted from the plan:
 
 - **`data:` sources are rewritten wherever any statement is planned:**
   - read, write, program and staged lets;
-  - test bodies;
-  - the plan that `generatePlan` and `arrowPlan` render. `TypedQuery.plan` renders from the execution plan.
-- `resolver/JsonSourceFrame`'s literal path is deleted.
+  - test bodies' program statements. **Not yet** the statements the test road's judges render for an assert's sides
+    and the verdict batch (`JudgePlans`, `VerdictBatch`): a `data:` source there is refused by name until B2a (the
+    correctness audit's note, 2026-11-10: until then it reached the dialect and failed with an internal error);
+  - the plan that `generatePlan` and `arrowPlan` render. `TypedQuery.plan` renders from the execution plan (B3; until
+    then the text plan refuses a live source by name, S188).
+- `resolver/JsonSourceFrame`'s literal path is deleted (B2a; census M10, pending).
 - **A `file:` location is bound on every send path:** `send`, `valuesOf`, `expand`, `bindOnce`, `ProgramRunner`,
   `TestRunner`.
 - A door that cannot carry a source refuses it by name before render.
@@ -251,13 +261,17 @@ Deleted from the plan:
   catalog, as such a query does (`SystemCatalog.forQuery`; the program re-planned there once its first plan shows it
   reads the store alone, `ProgramState.readsSystem`). One reading the store beside another source, or writing a store,
   is refused by name; on a server database too, until B4.
-- **A query given no runtime** runs on the one runtime its `from()`s name (`PlanMaker.runtimeOf`), as lite's server
-  chose it (`PureV1Api.runtimeOf`) and as legend-engine runs it: an `ExecuteInput` naming no runtime builds none
+- **A query given no runtime** runs on the one runtime its `from()`s name (`TypedQuery.runtime`, every door's one
+  rule, the server's included since the A checkpoint's tenets audit (1): until then the server kept the first from()'s
+  runtime and ran every statement on it; a from() inside a called function counts, read after G½), as legend-engine runs
+  it: an `ExecuteInput` naming no runtime builds none
   (`legend-engine-core-query-pure-http-api/.../query/pure/api/Execute.java` lines 273-278, `HelperRuntimeBuilder
   .buildPureRuntime` returning null for none, lines 277-279 of `legend-engine-language-pure-compiler/.../toPureGraph/
   HelperRuntimeBuilder.java`), so the plan is the lambda's own and its `from()` places it. None at all stays
   `Compiler.NO_RUNTIME`. **Lite's limit, not upstream's:** a query whose `from()`s name several runtimes, given none, is
-  refused by name (upstream plans each `from()` on its own runtime; lite's plan runs on one session). So a `from()`'s
+  refused by name (upstream routes each `from()`'s expression on its own runtime: `routing.pure`'s `from` processors,
+  lines 589 and 692, each setting its own routing strategy; lite's plan runs on one session): register row S187,
+  pending the user's ruling. So a `from()`'s
   runtime's test data is the plan's own: its target's setup on the product's doors, a seed on the test door.
 - **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
   (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
@@ -271,16 +285,10 @@ Deleted from the plan:
   no `data:` table (its dialect has no JSON source column). It moves with B2a and B2b, when the test road's statements
   and the referee's replay take the plan's loads, with H2's `data:` table measured first. Census M10 is REOPENED,
   PENDING B2a (it was counted deleted at L6 with the frame's rows standing; L6's deletions stay guarded).
-- **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
-  (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
-- **The matrix:** in process 162 of 162 green (34 red before A5); on Postgres the three catalog cells B4 owns.
-- **The JSON source frame** (a runtime value's `JsonModelConnection` for a class no mapping binds) is the payload's
-  `sourceUrl` relation of its JSON text and each element's place (`TypedSourceUrl.ORDINAL`, the frame's row identity);
-  `DataSources` makes its session table with the ordinal where the relation reads it. Its literal rows
-  (`JsonSourceFrame.objectTexts` and the frame's VALUES) are deleted, census M10's list. The one splitter
-  (`DataSources.elements`) takes the frame's forms for every `data:` source, as upstream's JSON reader reads a
-  `JsonModelConnection`'s data: an array's elements, one object, or a stream of objects; an empty payload is no row
-  (until A5 a query's `sourceUrl` took an array alone, and the frame an array of objects alone).
+- **A `file:` source admitted at the run's entry:** every `file:` location the plan's statements read is admitted when
+  the run starts, so a missing or fenced file fails the run before anything is sent, even where the statement that
+  reads it would not have been sent (a branch the run does not take). Bound once, never per statement (the checkpoint
+  tenets audit's 7: until then the send re-admitted it per statement).
 
 ### A6 as built (2026-11-10)
 

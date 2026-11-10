@@ -725,19 +725,21 @@ class PlanMakerTest {
         List<ExecutionPlan.Column> cols = columns(plan(Databases.PLATFORM, RELATION, Written.CSV));
         assertEquals(List.of("ID", "NAME", "PRICE"), cols.stream().map(ExecutionPlan.Column::name).toList(),
                 cols.toString());
+        // (the store fact typed, spelled here as the relational grammar spells it: the tenets audit's 3)
         assertEquals(List.of("INTEGER", "VARCHAR(20)", "DECIMAL(10,2)"),
-                cols.stream().map(ExecutionPlan.Column::store).toList(), cols.toString());
+                cols.stream().map(c -> com.legend.executionplan.ColumnFacts.store(c.store())).toList(), cols.toString());
         assertEquals("String", cols.get(1).type(), cols.toString());
         assertEquals("VARCHAR", cols.get(1).slot(), cols.toString());
         assertEquals("DECIMAL(10,2)", cols.get(2).slot(), cols.toString());
         List<ExecutionPlan.Column> computed = columns(plan(Databases.PLATFORM,
                 "|#>{s::DB.T}#->extend(~NEXT: r|$r.ID + 1)->select(~[NAME, NEXT])", Written.CSV));
-        assertEquals("VARCHAR(20)", computed.get(0).store(), computed.toString());
+        assertEquals(new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 20), computed.get(0).store(),
+                computed.toString());
         assertEquals(null, computed.get(1).store(), computed.toString());
         assertEquals("Integer", computed.get(1).type(), computed.toString());
         List<ExecutionPlan.Column> project = columns(plan(Databases.PLATFORM, PROJECT, Written.CSV));
-        assertEquals(List.of("VARCHAR(20)", "DECIMAL(10,2)"),
-                project.stream().map(ExecutionPlan.Column::store).toList(), project.toString());
+        assertEquals(List.of("VARCHAR(20)", "DECIMAL(10,2)"), project.stream()
+                .map(c -> com.legend.executionplan.ColumnFacts.store(c.store())).toList(), project.toString());
         List<ExecutionPlan.Column> value = columns(plan(Databases.PLATFORM, "|1 + 2", Written.CSV));
         assertEquals(1, value.size(), value.toString());
         assertEquals("value", value.get(0).name(), value.toString());

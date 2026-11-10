@@ -180,6 +180,12 @@ final class DatabaseOwners {
             // data kind on each in-process database (and its Postgres leg) by design, its expectations each database's
             // reading of a file or a payload, as ConnectorsTest compares their connectors
             "core/src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
+            // 2026-11-10, the A checkpoint's tenets audit (6): the text plan's refusal of a live source (S188), on the
+            // database whose dialect reads a data: and a file: source
+            "core/src/test/java/com/legend/integration/TextPlanSourceTest.java",
+            // 2026-11-10, the A checkpoint's audits (T9, C1): a float's and a bit's cell of model data on H2, the
+            // database upstream's test data is written for
+            "core/src/test/java/com/legend/setup/RowLoadCellsTest.java",
             // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A4 (rule 3): the catalog turn's failure, which compares
             // a database that aborts its transaction on an error (DuckDB) with one that rolls back the statement alone
             // (H2) by design, as RaiseRecoveryTest compares the connectors' recoveries

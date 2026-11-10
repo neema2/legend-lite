@@ -1783,6 +1783,22 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>No exec class parses data</strong> (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5; the A checkpoint's tenets
+     * audit's 4b, 2026-11-10: the guard the design named was not built). A load's data reaches the database as the
+     * plan's statements or as a file its database reads; exec delivers bytes and statements and reads none of the data's
+     * cells: no exec class depends on the CSV parser ({@code base.CsvCells}, the planner's and the edge's). Its one reach
+     * until then, the size check ({@code DataLoads.stage}), moved to {@code base.DataSize}, which parses nothing.
+     */
+    @Test
+    void execParsesNoData() {
+        noClasses()
+            .that().resideInAPackage("com.legend.exec..")
+            .should().dependOnClassesThat().belongToAnyOf(com.legend.base.CsvCells.class)
+            .as("exec parses no data: a load's cells are the database's to read (design §5)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * <strong>The pure/v1 API is plan side (2026-10-08, //core:pure_v1).</strong>
      * {@code PureV1Api} lives in {@code com.legend.server}, which the
      * JDBC funnel above exempts, but it is the plan side's: the compiler's

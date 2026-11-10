@@ -37,6 +37,11 @@ final class JdbcStatements implements Statements {
      *  known once {@link #check} has checked the session against the plan's target; null before. */
     private DatabaseConnector.@com.legend.base.Nullable Decoding driver;
 
+    /** The connector of the database the plan's target declares, known once {@link #check} has checked the session
+     *  against it; null before (the checkpoint tenets audit's 2, 2026-11-10: the facts a run acts on are the target's
+     *  connector's, never re-derived from the driver's product name). */
+    private @com.legend.base.Nullable DatabaseConnector declared;
+
     JdbcStatements(Connection c, SessionState state) {
         this(c, state, null);
     }
@@ -81,15 +86,16 @@ final class JdbcStatements implements Statements {
         return failure;
     }
 
-    /** Whether {@code c}'s database aborts its transaction on a failed statement ({@link
-     *  DatabaseConnector#abortsTransactionOnError}); a session no connector declares, no. */
+    /** Whether the target's database aborts its transaction on a failed statement ({@link
+     *  DatabaseConnector#abortsTransactionOnError}): asked inside a run's turn alone, whose statements a plan target has
+     *  checked ({@link #check}); a turn's statement on a session none checked is a defect, said by name (until the
+     *  checkpoint tenets audit's 2, 2026-11-10, the driver's product name was read and an unreadable one answered no). */
     private boolean aborts() {
-        try {
-            DatabaseConnector connector = Connectors.of(c);
-            return connector != null && connector.abortsTransactionOnError();
-        } catch (SQLException unreadable) {
-            return false;
+        if (declared == null) {
+            throw new IllegalStateException("a statement failed inside a run's turn on a session no plan target"
+                    + " checked: which database aborts its transaction is the target's to say");
         }
+        return declared.abortsTransactionOnError();
     }
 
     /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two
@@ -151,7 +157,8 @@ final class JdbcStatements implements Statements {
     public void check(ExecutionPlan.Target target) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         Sessions.check(c, target.database().type());
-        driver = Connectors.of(target.database().type()).decoding();   // the driver's facts are its connector's (D72)
+        declared = Connectors.of(target.database().type());
+        driver = declared.decoding();   // the driver's facts are its connector's (D72)
     }
 
     @Override
@@ -233,16 +240,26 @@ final class JdbcStatements implements Statements {
         return Sessions.inTransaction(c, state, work);
     }
 
-    /** Whether {@code c}'s database takes a transaction ({@link DatabaseConnector#takesTransactions}); a session no
-     *  connector declares is bracketed, as every session was until the fact. */
+    /** Whether the session's database takes a transaction ({@link DatabaseConnector#takesTransactions}): the plan
+     *  target's connector's ({@link #check}); for an owner's bracket opened before any statement named its target
+     *  ({@code Sessions.Session.inTransaction}), the connector its driver reports, a session no built connector
+     *  reports refused by name -- never bracketed by default (the checkpoint tenets audit's 2, 2026-11-10). */
     private boolean takesTransactions() {
+        if (declared != null) {
+            return declared.takesTransactions();
+        }
+        DatabaseConnector connector;
         try {
-            DatabaseConnector connector = Connectors.of(c);
-            return connector == null || connector.takesTransactions();
+            connector = Connectors.of(c);
         } catch (SQLException unreadable) {
             throw new com.legend.error.DataError("the session's database cannot be read: "
                     + unreadable.getMessage(), unreadable);
         }
+        if (connector == null) {
+            throw new IllegalStateException("a transaction bracket on a session whose database no plan target checked"
+                    + " and no built connector reports: whether it takes a transaction is unknown");
+        }
+        return connector.takesTransactions();
     }
 
     @Override

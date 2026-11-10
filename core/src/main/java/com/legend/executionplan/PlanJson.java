@@ -110,8 +110,11 @@ public final class PlanJson {
      *  delivery is gone (a database with no reader refuses the file by name). 40 since 2026-11-10 (A4): a load's
      *  {@code statements} step names the data it loads ({@code of}), which a refusal names. 41 since 2026-11-10 (A7,
      *  S181): a date bound as its text carries no digit count ({@code asText} is {@code {}}): the runner sends every
-     *  digit and the statement's own raise refuses a value finer than its slot keeps. */
-    public static final int VERSION = 41;
+     *  digit and the statement's own raise refuses a value finer than its slot keeps. 42 since 2026-11-10 (the A
+     *  checkpoint's tenets audit, 3): a column's {@code store} is its declared type as an object
+     *  ({@code plain}/{@code sized}/{@code scaled}), no longer the grammar's spelling exec matched by its text; a file
+     *  load's {@code reads} delivery carries its {@code after} statements, run on every exit (14). */
+    public static final int VERSION = 42;
 
     private PlanJson() {
     }
@@ -216,14 +219,17 @@ public final class PlanJson {
         List<Map<String, Object>> loads = new ArrayList<>();
         collectLoads(out, loads);
         Map<String, String> texts = new java.util.TreeMap<>();
+        // each text counted once per load that carries it inline, as the JSON writes it (the correctness audit's note,
+        // 2026-11-10: until then once however many loads carried it)
+        Map<String, Integer> carried = new java.util.HashMap<>();
         long inline = 0;
         for (Map<String, Object> load : loads) {
             Object content = load.get(CONTENT);
             if (content != null) {
                 for (Map.Entry<String, Object> e : ((Map<String, Object>) content).entrySet()) {
-                    if (texts.put(e.getKey(), (String) e.getValue()) == null) {
-                        inline += utf8Length((String) e.getValue());
-                    }
+                    texts.put(e.getKey(), (String) e.getValue());
+                    carried.merge(e.getKey(), 1, Integer::sum);
+                    inline += utf8Length((String) e.getValue());
                 }
             }
         }
@@ -237,7 +243,8 @@ public final class PlanJson {
                 break;
             }
             blobs.put(e.getKey(), e.getValue());
-            inline -= utf8Length(e.getValue());
+            inline -= utf8Length(e.getValue())
+                    * java.util.Objects.requireNonNull(carried.get(e.getKey()), "every text a load carries is counted");
         }
         for (Map<String, Object> load : loads) {
             Object content = load.get(CONTENT);
@@ -293,7 +300,13 @@ public final class PlanJson {
         long n = 0;
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            n += c < 0x80 ? 1 : c < 0x800 ? 2 : Character.isHighSurrogate(c) ? 2 : 3;
+            if (Character.isHighSurrogate(c) && i + 1 < s.length() && Character.isLowSurrogate(s.charAt(i + 1))) {
+                // a supplementary character, four bytes for its pair (the correctness audit's note: until then five)
+                n += 4;
+                i++;
+            } else {
+                n += c < 0x80 ? 1 : c < 0x800 ? 2 : 3;
+            }
         }
         return n;
     }
@@ -396,6 +409,51 @@ public final class PlanJson {
         o.put("multiplicity", multiplicity(p.multiplicity()));
         o.put("enumValues", p.enumValues());
         return o;
+    }
+
+    /** A store column's declared type, typed (the checkpoint tenets audit's 3, 2026-11-10): {@code plain} and its
+     *  kind, {@code sized} and its kind and size, {@code scaled} and its kind, precision and scale; null for none. */
+    private static @com.legend.base.Nullable Map<String, Object> store(
+            com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
+        if (t == null) {
+            return null;
+        }
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> {
+                o.put("_type", "plain");
+                o.put("kind", p.kind().name());
+            }
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> {
+                o.put("_type", "sized");
+                o.put("kind", z.kind());
+                o.put("size", z.size());
+            }
+            case com.legend.sql.SqlDdl.ColumnType.Scaled c -> {
+                o.put("_type", "scaled");
+                o.put("kind", c.kind());
+                o.put("precision", c.precision());
+                o.put("scale", c.scale());
+            }
+        }
+        return o;
+    }
+
+    /** {@link #store}'s inverse; a store type of another shape refused by name. */
+    private static com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType readStore(
+            Json.@com.legend.base.Nullable Obj o) {
+        if (o == null) {
+            return null;
+        }
+        return switch (o.getString("_type")) {
+            case "plain" -> new com.legend.sql.SqlDdl.ColumnType.Plain(
+                    com.legend.sql.SqlDdl.ColumnType.Kind.valueOf(o.getString("kind")));
+            case "sized" -> new com.legend.sql.SqlDdl.ColumnType.Sized(o.getString("kind"), o.getInt("size"));
+            case "scaled" -> new com.legend.sql.SqlDdl.ColumnType.Scaled(o.getString("kind"), o.getInt("precision"),
+                    o.getInt("scale"));
+            default -> throw new IllegalArgumentException("a column's store type of the shape '"
+                    + o.getString("_type") + "': not a legend-lite plan's");
+        };
     }
 
     private static Map<String, Object> multiplicity(Multiplicity m) {
@@ -528,7 +586,7 @@ public final class PlanJson {
             co.put("type", c.type());
             co.put("multiplicity", multiplicity(c.multiplicity()));
             co.put("slot", c.slot());
-            co.put("store", c.store());   // null: computed, no declared type
+            co.put("store", store(c.store()));   // null: computed, no declared type
             co.put("precision", c.precision() == null ? null : c.precision().name());   // null: no temporal of its own
             cols.add(co);
         }
@@ -689,6 +747,7 @@ public final class PlanJson {
                     case LoadStep.Delivery.Reads r -> {
                         delivery.put("_type", "reads");
                         delivery.put("statements", r.statements());
+                        delivery.put("after", r.after());
                     }
                 }
                 o.put("delivery", delivery);
@@ -932,7 +991,8 @@ public final class PlanJson {
             Json.Obj c = (Json.Obj) n;
             String precision = c.getStringOr("precision", null);
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
-                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null),
+                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null),
+                    readStore(c.getObjOr("store", null)),
                     precision == null ? null : ExecutionPlan.Precision.valueOf(precision)));
         }
         return cols;
@@ -1039,7 +1099,8 @@ public final class PlanJson {
                         ref.getString("digest"), ref.getLong("size"), format(ref.getObj("format")));
                 Json.Obj d = o.getObj("delivery");
                 LoadStep.Delivery delivery = switch (d.getString("_type")) {
-                    case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"));
+                    case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"),
+                            d.getStringArray("after"));
                     default -> throw new IllegalArgumentException("a file load's delivery is the database's reading of"
                             + " it: " + d.getString("_type"));
                 };

@@ -202,17 +202,20 @@ public class H2 extends AnsiSqlRenderer {
             }
         }
         int width = load.columns().size();
+        // the names are split by the field separator (measured 2026-11-10 on 2.5.252: 'C0,C1,C2' under ';' is one
+        // column), so they are joined with it (the correctness audit's note)
         StringBuilder names = new StringBuilder();
         for (int i = 0; i <= width; i++) {
-            names.append(i == 0 ? "" : ",").append("C").append(i);
+            names.append(i == 0 ? "" : String.valueOf(load.delimiter())).append("C").append(i);
         }
         String options = "charset=UTF-8 fieldSeparator=" + load.delimiter() + " fieldDelimiter=" + load.quote()
                 + " escape=" + load.quote() + " preserveWhitespace=true";
         return new CsvLoad(List.of("SET @legend_csv = ?", csvInsertInto(load) + " SELECT " + csvCells(width)
                 + " FROM (SELECT * FROM CSVREAD(@legend_csv, " + stringLit(names.toString()) + ", "
-                + stringLit(options) + ") OFFSET 1 ROW) AS x WHERE " + csvRecordCheck(width),
-                // the session keeps no path of the runner's copy once the load has read it (§3: no leftovers)
-                "SET @legend_csv = NULL"));
+                + stringLit(options) + ") OFFSET 1 ROW) AS x WHERE " + csvRecordCheck(width)),
+                // the session keeps no path of the runner's copy once the load has read it or failed to (§3: no
+                // leftovers): run on every exit
+                List.of("SET @legend_csv = NULL"));
     }
 
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
@@ -1169,13 +1172,17 @@ public class H2 extends AnsiSqlRenderer {
             return jsonParseCast(writer, c);
         }
         // a scalar cast over a navigation extracts TEXT first: H2 rejects JSON -> number/boolean casts outright and
-        // its VARCHAR cast keeps the JSON quoting (probed) -- TRIM strips it; numbers and booleans carry no quotes
+        // its VARCHAR cast keeps the JSON quoting (probed) -- TRIM strips it; numbers and booleans carry no quotes. A
+        // JSON null is SQL's NULL (its VARCHAR cast is the text null, where a JSON string "null" keeps its quotes), and
+        // a decimal target takes the text as a scalar one does (the lane round 33's stress finding, 2026-11-10: once
+        // A2 loaded a document as parsed JSON, a null read as 'null' and a JSON number cast to NUMERIC was refused)
         boolean navigation = c.value() instanceof SqlExpr.Call call
                 && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
                 || c.value() instanceof SqlExpr.StructGet;
-        if (navigation && c.target() instanceof com.legend.sql.SqlType.Scalar) {
-            return writer.append("CAST(TRIM(BOTH '\"' FROM CAST(").expr(c.value(), 0).append(" AS VARCHAR)) AS ")
-                    .append(castTypeName(c.target())).append(")");
+        if (navigation && (c.target() instanceof com.legend.sql.SqlType.Scalar
+                || c.target() instanceof com.legend.sql.SqlType.Decimal)) {
+            return writer.append("CAST(TRIM(BOTH '\"' FROM NULLIF(CAST(").expr(c.value(), 0)
+                    .append(" AS VARCHAR), 'null')) AS ").append(castTypeName(c.target())).append(")");
         }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
         // two rows the since-deleted byte channel lost): a

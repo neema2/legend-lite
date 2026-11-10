@@ -45,8 +45,11 @@ test_suite(
         "//core:sql_island_postgres_test",
         # Snap's preflight count as Postgres's host operations write it, on the embedded Postgres 16 (D5)
         "//core:host_operations_postgres_test",
-        # a CSV file's load on the embedded Postgres 16, the runner's cells by upstream's rule (2026-11-10)
+        # a CSV file's load on the embedded Postgres 16, its own reader or a refusal by name (A3, 2026-11-10)
         "//core:data_loads_postgres_test",
+        # the data delivery matrix on the embedded Postgres 16, unprivileged: every door's data kinds and failure cells
+        # (A1, 2026-11-10; in no gate suite until the A checkpoint's tenets audit, 12)
+        "//core:data_delivery_matrix_postgres_test",
         # upstream's Postgres parity corpus (legend-engine 4.145.0's e2e cases) as #SQL{}# islands, on DuckDB and on
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",

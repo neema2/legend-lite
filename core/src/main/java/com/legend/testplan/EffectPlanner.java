@@ -212,7 +212,8 @@ public final class EffectPlanner {
             throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
                     + qualified + "': " + e.getMessage());
         }
-        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements());
+        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(),
+                reads.after());
         // the referee's copy of the rows (the compatibility edge's replay, census M15 until B2b, which replays the
         // referee's own H2 copy of the plan's loads), split from the bytes only when an edge asks for it: the edge's
         // data, never the product's path (base.CsvCells' one caller since A3)

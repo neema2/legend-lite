@@ -737,6 +737,29 @@ class DataDeliveryMatrixTest {
         pool.shutdown();
         put(wrong == 0 ? green : red, "CONCURRENT/DuckDB", verdict(wrong == 0, wrong + " of " + CONCURRENT_REQUESTS
                 + " wrong; " + firstWrong));
+        // 7. CONCURRENT REQUESTS on H2's kept project database (the correctness audit's C2, 2026-11-10): each request's
+        // acquisition loads its test data -- a drop, a make, the inserts -- on the one named in-memory database, which
+        // until then every request reached by a connection of its own, unlocked
+        if (databases.contains(DatabaseType.H2)) {
+            String h2 = model(connection(DatabaseType.H2, localH2("testDataSetupCSV: 'default\\nT\\n" + ROWS_CSV
+                    + "'")), "");
+            java.util.concurrent.ExecutorService h2Pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+            List<java.util.concurrent.Future<Outcome>> h2Futures = new ArrayList<>();
+            for (int i = 0; i < CONCURRENT_REQUESTS; i++) {
+                h2Futures.add(h2Pool.submit(() -> attempt(() -> server(new Data(h2, "|" + RELATION, ROWS, "x::RT")))));
+            }
+            int h2Wrong = 0;
+            String h2First = "";
+            for (java.util.concurrent.Future<Outcome> f : h2Futures) {
+                Outcome o = f.get();
+                if (!(o instanceof Outcome.Rows r && r.rows().equals(ROWS)) && h2Wrong++ == 0) {
+                    h2First = describe(o);
+                }
+            }
+            h2Pool.shutdown();
+            put(h2Wrong == 0 ? green : red, "CONCURRENT/H2", verdict(h2Wrong == 0, h2Wrong + " of "
+                    + CONCURRENT_REQUESTS + " wrong; " + h2First));
+        }
         report("failure", red, green, pinned);
     }
 

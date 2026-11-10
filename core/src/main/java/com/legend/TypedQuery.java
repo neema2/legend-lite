@@ -111,25 +111,27 @@ public final class TypedQuery {
         return specs.typeExpression(resolved);
     }
 
-    /** The {@link Compiler.Target} the query names: the runtime its {@code ->from(runtime)} binds and the database its
-     *  {@code #>{db...}#} accessor reads, off the typed tree by node type. */
+    /** The {@link Compiler.Target} the query names: the database its {@code #>{db...}#} accessor reads, off the typed
+     *  tree by node type. Its runtime is {@link #runtime}'s, one rule for every door. */
     public Compiler.Target target() {
-        String runtime = null;
         String store = null;
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body());
         while (!work.isEmpty()) {
             TypedSpec n = work.poll();
-            if (runtime == null && n instanceof com.legend.compiler.spec.typed.TypedFrom f
-                    && f.runtime().isPresent()) {
-                runtime = f.runtime().get().fullPath();
-            }
             if (store == null
                     && n instanceof com.legend.compiler.spec.typed.TypedTableReference r) {
                 store = r.store();
             }
             work.addAll(n.children());
         }
-        return new Compiler.Target(runtime, store);
+        return new Compiler.Target(store);
+    }
+
+    /** The runtime the query runs on: {@code given}, else the one its {@code ->from}s name, a from() inside a function
+     *  it calls included (read after G½); a query naming several and given none is refused by name; null where it
+     *  names none. Every door's one rule ({@code PlanMaker.runtimeOf}; the checkpoint tenets audit's 1, 2026-11-10). */
+    public @com.legend.base.Nullable String runtime(@com.legend.base.Nullable String given) {
+        return com.legend.planner.PlanMaker.runtimeOf(this, given);
     }
 
     /** The query lowered for {@code runtime}: inlined (G½), resolved (H) against the runtime, every touched store

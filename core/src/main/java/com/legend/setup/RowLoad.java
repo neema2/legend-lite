@@ -125,8 +125,9 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
     /**
      * The cell {@code text} of column {@code c} as the literal of its column's declared {@code type}: an integer
      * column's an integer ({@code 1.0} as {@code 1}), any other number there its digits, which the database assigns as
-     * it assigns upstream's raw token; a float's a float; a decimal's a decimal of its digits; a bit's a boolean ({@code true}, {@code false}, {@code 1},
-     * {@code 0}, any case); a date's, a date-time's and a time's their typed literal where the text is in its ISO shape,
+     * it assigns upstream's raw token; a float's and a decimal's their digits as written; a bit's a boolean
+     * ({@code true}, {@code false}, {@code 1}, {@code 0}, {@code y}, {@code n}, any case: upstream's H2 rule), any
+     * other number there its digits; a date's, a date-time's and a time's their typed literal where the text is in its ISO shape,
      * any other text cast by the database (the user's ruling, 2026-11-10: as upstream's quoted cell, which its database
      * parses); a semi-structured column's the text as JSON; text, or a column of no declared type, a string. A number or
      * a boolean the type cannot take is refused naming the table, the column and the value; a column of a type no load
@@ -159,16 +160,29 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
                             && n.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
                             ? new SqlExpr.IntLit(n.longValueExact()) : new SqlExpr.DecimalLit(n);
                 }
+                // a float's cell its digits as written, which the database assigns to the column as it assigns
+                // upstream's raw token (convertValuesToCsv writes a number's cell as it is written: the A checkpoint's
+                // audits, T9 and C1, 2026-11-10 -- until then parsed to a double, so 1e400 became Infinity and an
+                // unnamed failure); a cell that is no number (NaN, Infinity) is refused by name, as upstream's raw
+                // token is no SQL value
                 case FLOAT, DOUBLE, REAL -> {
                     if (!NUMBER.matcher(t).matches()) {
                         throw refused(c, text, p.kind().name());
                     }
-                    yield new SqlExpr.FloatLit(Double.parseDouble(t));
+                    yield new SqlExpr.DecimalLit(new BigDecimal(t));
                 }
+                // upstream's H2 rule (h2Extension2_1_214.pure's bitValueFromString, read from the pinned sources):
+                // y, 1 and true are true, n, 0 and false false, trimmed and in any case; any other number its digits,
+                // which the database assigns as it assigns upstream's raw token; any other text refused by name
                 case BIT -> switch (t.toLowerCase(java.util.Locale.ROOT)) {
-                    case "true", "1" -> new SqlExpr.BoolLit(true);
-                    case "false", "0" -> new SqlExpr.BoolLit(false);
-                    default -> throw refused(c, text, "BIT");
+                    case "true", "1", "y" -> new SqlExpr.BoolLit(true);
+                    case "false", "0", "n" -> new SqlExpr.BoolLit(false);
+                    default -> {
+                        if (!NUMBER.matcher(t).matches()) {
+                            throw refused(c, text, "BIT");
+                        }
+                        yield new SqlExpr.DecimalLit(new BigDecimal(t));
+                    }
                 };
                 // an ISO shape is the dialect's typed literal; any other text the DATABASE casts, as upstream's quoted
                 // cell is parsed by its database (the user's ruling, 2026-11-10, "Yes to both"): Java parses nothing,

@@ -39,7 +39,7 @@ class CsvLoadRenderTest {
         assertEquals(new SqlDialect.CsvLoad(List.of("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT * FROM"
                 + " read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"', auto_detect = false,"
                 + " strict_mode = true, nullstr = '', max_line_size = 524288000, columns = {'c0': 'VARCHAR', 'c1':"
-                + " 'VARCHAR', 'c2': 'VARCHAR'})")), new DuckDb().csvLoad(LOAD));
+                + " 'VARCHAR', 'c2': 'VARCHAR'})"), List.of()), new DuckDb().csvLoad(LOAD));
         SqlDialect.CsvLoad h2 = new H2().csvLoad(LOAD);
         assertEquals("SET @legend_csv = ?", h2.statements().get(0));
         String check = new H2().csvRecordCheck(3);
@@ -48,7 +48,9 @@ class CsvLoadRenderTest {
                 + " '') FROM (SELECT * FROM CSVREAD(@legend_csv, 'C0,C1,C2,C3', 'charset=UTF-8 fieldSeparator=,"
                 + " fieldDelimiter=\" escape=\" preserveWhitespace=true') OFFSET 1 ROW) AS x WHERE " + check,
                 h2.statements().get(1));
-        assertEquals("SET @legend_csv = NULL", h2.statements().get(2));
+        // the path variable reset on every exit, a failed load's too (the A checkpoint's tenets audit, 14)
+        assertEquals(2, h2.statements().size(), h2.toString());
+        assertEquals(List.of("SET @legend_csv = NULL"), h2.after());
     }
 
     /** Every other database reads no file of the runner's and refuses a load by name (option 1, the user's go on the

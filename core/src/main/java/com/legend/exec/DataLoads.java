@@ -51,9 +51,9 @@ final class DataLoads {
      *  on the bytes the run read, D-b), in a new file of the runner's own. */
     static Staged stage(DataRef ref, byte[] bytes, int sizeLimitMegabytes) {
         try {
-            com.legend.base.CsvCells.requireSize(ref.namespace() == DataRef.Namespace.RESOURCE ? "/" + ref.name()
+            com.legend.base.DataSize.requireSize(ref.namespace() == DataRef.Namespace.RESOURCE ? "/" + ref.name()
                     : ref.name(), bytes, sizeLimitMegabytes);
-        } catch (com.legend.base.CsvCells.TooLarge e) {
+        } catch (com.legend.base.DataSize.TooLarge e) {
             throw new DataError(String.valueOf(e.getMessage()), e);
         }
         try {

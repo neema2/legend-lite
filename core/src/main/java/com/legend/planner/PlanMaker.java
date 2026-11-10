@@ -893,7 +893,9 @@ public final class PlanMaker {
             return given;
         }
         Set<String> named = new java.util.TreeSet<>();
-        for (TypedSpec statement : query.body()) {
+        // after G½: a from() inside a function the query calls names its runtime too (the checkpoint tenets audit's 1)
+        for (TypedSpec statement : new com.legend.compiler.spec.UserCallInliner(query.specs()).inlineBody(
+                query.body())) {
             for (com.legend.compiler.spec.typed.TypedFrom fr
                     : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
                 fr.runtime().ifPresent(r -> named.add(r.fullPath()));

@@ -340,9 +340,12 @@ final class JdbcDecode {
         };
     }
 
-    /** Whether {@code c} is a store's column the store declares a TIMESTAMP (the plan's {@code store} fact). */
+    /** Whether {@code c} is a store's column the store declares a date-time (the plan's typed {@code store} fact; the
+     *  checkpoint tenets audit's 3, 2026-11-10: until then its grammar spelling matched by its text). */
     private static boolean declaredTimestamp(ExecutionPlan.Column c) {
-        return c.store() != null && c.store().toUpperCase(java.util.Locale.ROOT).startsWith("TIMESTAMP");
+        return c.store() instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
+                && (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP
+                        || p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP_NS);
     }
 
     /** A driver's Timestamp as the wall clock it holds, its era kept: {@code Timestamp.toLocalDateTime} reads the

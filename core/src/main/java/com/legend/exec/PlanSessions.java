@@ -99,6 +99,13 @@ public final class PlanSessions {
         public SourceAdmission admitted() {
             return inner.admitted();
         }
+
+        // what the request acquired goes when it lets go, whatever wraps its sessions (the correctness audit's note,
+        // 2026-11-10: until then a marked source ran no AT_RELEASE load)
+        @Override
+        public void release() {
+            inner.release();
+        }
     }
 
     /** The sessions kept by a target's content: a platform database or a held in-memory one, set up once. */
@@ -352,13 +359,19 @@ public final class PlanSessions {
         // finds it is made (the re-audit's A-7, 2026-11-09)
         target.loads().forEach(PlanRunner::verifyIdentity);
         Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
+        // a target whose loads are a request's own (a data: payload's session tables, released when the request lets
+        // go: AT_RELEASE) is never kept -- a kept store per payload held one more database for the process, its
+        // release never run there (the correctness audit's note, 2026-11-10): its own session, closed with the request
+        boolean requestsOwn = target.loads().stream()
+                .anyMatch(l -> l.cadence() == ExecutionPlan.Load.Cadence.AT_RELEASE);
         return switch (target.database()) {
             // the graph's system database is the body driver's (opened once per graph, its store the plan's seed step):
             // it reaches the runner through a caller's source with a system opener (M10a), never the shared one
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not the shared one");
-            case ExecutionPlan.Database.Platform p -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
-                    () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
+            case ExecutionPlan.Database.Platform p -> requestsOwn ? openOwn(target)
+                    : Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
+                            () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
                 if (connector.ownSessions()) {
@@ -366,13 +379,17 @@ public final class PlanSessions {
                     yield connector.open(d.connection());
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
-                    case Sessions.Opening.Held h -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
-                            () -> setUpOpened(Sessions.openHeld(h), target)));
+                    case Sessions.Opening.Held h -> requestsOwn ? openOwn(target)
+                            : Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
+                                    () -> setUpOpened(Sessions.openHeld(h), target)));
                     case Sessions.Opening.Named n -> {
                         String usersName = n.name();
                         if (usersName != null) {
                             refuseLoads(target, d, "an in-memory database the user named ('" + usersName + "')");
                             yield Sessions.openNamed(n, usersName);
+                        }
+                        if (requestsOwn) {
+                            yield openOwn(target);
                         }
                         Named named = NAMED.getOrOpenSlowly(key, held -> Sessions.closed(held.keeper()), () -> {
                             String name = "plan_" + key.hex().substring(0, 16) + "_" + ATTEMPTS.incrementAndGet();
@@ -468,16 +485,18 @@ public final class PlanSessions {
                         yield Sessions.open(u);
                     }
                     // a named in-memory database is kept alive by its name: the user's, else one per project and
-                    // connection (D5), made once with the project's Data (its maker kept as the marker); each use
-                    // opens a connection the caller closes
+                    // connection (D5), made once with the project's Data; its maker is the kept session, served one
+                    // request at a time as every kept store's is (§3 rule 4; the correctness audit's C2, 2026-11-10:
+                    // until then each use opened a new, unlocked connection to it, so two requests' drops, makes and
+                    // inserts interleaved)
                     case Sessions.Opening.Named n -> {
                         if (n.name() != null) {
                             refuseFill(target, d, "an in-memory database the user named ('" + n.name() + "')");
                             yield Sessions.openNamed(n, n.name());
                         }
                         String name = "c_" + key.hex().substring(0, 16);
-                        PROJECTS.getOrOpenSlowly(key, Sessions::closed, () -> made(Sessions.openNamed(n, name), target));
-                        yield Sessions.openNamed(n, name);
+                        yield Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+                                () -> made(Sessions.openNamed(n, name), target)));
                     }
                     case Sessions.Opening.Held h -> Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
                             () -> made(Sessions.openHeld(h), target)));

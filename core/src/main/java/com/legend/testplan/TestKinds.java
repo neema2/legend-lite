@@ -273,8 +273,8 @@ final class TestKinds implements ProgramKinds {
         }
         try {
             // upstream's size limit, refused where the file is read for its digest (D-b, 2026-11-09)
-            com.legend.base.CsvCells.requireSize(path, bytes, EffectPlanner.SIZE_LIMIT_MEGABYTES);
-        } catch (com.legend.base.CsvCells.TooLarge e) {
+            com.legend.base.DataSize.requireSize(path, bytes, EffectPlanner.SIZE_LIMIT_MEGABYTES);
+        } catch (com.legend.base.DataSize.TooLarge e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
         return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
@@ -397,9 +397,9 @@ final class TestKinds implements ProgramKinds {
         ExecutionPlan.Load setup = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP,
                 planned.steps(), program.target());
         program.add(setup);
-        // the referee's own copy, written in its dialect (A2), the edge's data
-        List<String> texts = planned.refereeCopy();
-        seeds.put(setup, () -> texts);
+        // the referee's own copy, written in its dialect (A2), the edge's data -- when an edge asks for it (the A
+        // checkpoint's tenets audit, 8)
+        seeds.put(setup, planned::refereeCopy);
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer

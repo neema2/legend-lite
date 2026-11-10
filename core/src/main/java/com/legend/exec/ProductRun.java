@@ -57,6 +57,15 @@ public final class ProductRun {
                 com.legend.result.Batcher.DEFAULT_CAPACITY);
     }
 
+    /** {@link #onProjectDatabases(ExecutionPlan, Output)}, its live sources read under the fence the host's
+     *  configuration names ({@link SourceAdmission#configured}: null, any file). */
+    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, @com.legend.base.Nullable String admittedSources,
+            Output output) throws IOException {
+        return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.admitting(PlanSessions.shared(),
+                SourceAdmission.configured(admittedSources)), Establish.DECLARED_SETUP, output,
+                com.legend.result.Batcher.DEFAULT_CAPACITY);
+    }
+
     /** {@link #run} inside the scope that refuses planning while the caller's sessions are opened. */
     private static void runCalledBack(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
             Establish establish, ResultSink sink, int batchRows) throws IOException {

@@ -73,8 +73,9 @@ class DataLoadsTest {
 
     /** {@link #file(SqlDialect, String, byte[])} admitting {@code limitMegabytes} (upstream's 500 by default). */
     private static ExecutionPlan.LoadStep.File file(SqlDialect dialect, String name, byte[] bytes, int limitMegabytes) {
-        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(
-                dialect.csvLoad(LOAD).statements());
+        SqlDialect.CsvLoad reads = dialect.csvLoad(LOAD);
+        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(),
+                reads.after());
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
                 DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, limitMegabytes);
     }
@@ -131,6 +132,51 @@ class DataLoadsTest {
             String json = PlanJson.write(ExecutionPlan.reading(List.of(), load));
             assertFalse(json.contains(dir.toString()), json);
             assertEquals(json, PlanJson.write(PlanJson.read(json)), b.name());
+        }
+    }
+
+    /** A file of another delimiter loads on each database that reads one (the correctness audit's note, 2026-11-10:
+     *  H2's CSVREAD splits its column names by the field separator, so names joined by a comma read as one column under
+     *  {@code ;}); and on H2 a load that fails leaves no path of the runner's copy on the session (the A checkpoint's
+     *  tenets audit, 14: the variable's reset is run on every exit). */
+    @Test
+    void aSemicolonFileLoads_andAFailedLoadLeavesNoPathOnH2(@TempDir Path dir) throws Exception {
+        SqlDml.LoadCsv semi = new SqlDml.LoadCsv(null, "data_loads_people", NameQuoting.BARE, LOAD.columns(),
+                Set.of(), LOAD.types(), ';', '"', 500);
+        byte[] good = "Firstname;Lastname;Age\nJoe;Bloggs;21\n".getBytes(StandardCharsets.UTF_8);
+        byte[] wide = "Firstname;Lastname;Age\nJoe;Bloggs;21;extra\n".getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("good.csv"), good);
+        Files.write(dir.resolve("wide.csv"), wide);
+        DataStores stores = DataStores.resources(dir);
+        for (TestBackend b : loading()) {
+            SqlDialect.CsvLoad reads = b.dialect().csvLoad(semi);
+            java.util.function.Function<byte[], ExecutionPlan.LoadStep.File> file = bytes -> new ExecutionPlan.LoadStep
+                    .File(new DataRef(DataRef.Namespace.RESOURCE, bytes == good ? "good.csv" : "wide.csv",
+                            DataStores.sha256(bytes), bytes.length, new DataRef.Csv(';', '"')),
+                            new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(), reads.after()), 500);
+            assertEquals(List.of(List.of("Joe", "Bloggs", 21)), loaded(b, stores, load(b, file.apply(good))), b.name());
+            if (!b.name().equals("h2")) {
+                continue;
+            }
+            try (Connection c = b.open(); Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE data_loads_people (FIRSTNAME VARCHAR(200), LASTNAME VARCHAR(200), AGE INT)");
+                try {
+                    Sessions.Session session = TestSessions.over(c);
+                    ExecutionPlan.Load failing = load(b, file.apply(wide));
+                    assertThrows(RuntimeException.class, () -> {
+                        try (var run = com.legend.base.RunScope.enter()) {
+                            PlanRunner.seed(failing, session, PlanRunner.opened(session, failing.target()), stores,
+                                    answered -> { });
+                        }
+                    });
+                    try (ResultSet rs = st.executeQuery("SELECT @legend_csv")) {
+                        assertTrue(rs.next());
+                        assertEquals(null, rs.getString(1), "the failed load left the copy's path on the session");
+                    }
+                } finally {
+                    st.execute("DROP TABLE data_loads_people");
+                }
+            }
         }
     }
 
