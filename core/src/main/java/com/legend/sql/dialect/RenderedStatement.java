@@ -102,7 +102,7 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
     }
 
     /** How a placeholder is bound. */
-    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key {
+    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key, Binding.Source {
 
         /** One value, as the caller's checked value is; an absent one a null of {@code nullType} (a
          *  {@code java.sql.JDBCType}'s name). {@code asText}: set where the placeholder is a date or date-time cast to the
@@ -127,6 +127,14 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
                 if (cell < 0) {
                     throw new IllegalArgumentException("a key's cell " + cell);
                 }
+            }
+        }
+
+        /** A live source's location as its model declares it (a {@code file:} URL), the runner's to bind as the path
+         *  it admits (L6, 2026-11-10). */
+        record Source(String location) implements Binding {
+            public Source {
+                Objects.requireNonNull(location, "location");
             }
         }
     }

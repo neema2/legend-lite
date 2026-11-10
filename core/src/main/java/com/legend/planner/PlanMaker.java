@@ -826,6 +826,7 @@ public final class PlanMaker {
                     one.asText() == null ? null : new ExecutionPlan.AsText(one.asText().fraction()));
             case RenderedStatement.Binding.Array array -> new ExecutionPlan.Binding.Array(array.elementSqlType());
             case RenderedStatement.Binding.Key key -> new ExecutionPlan.Binding.Key(key.cell());
+            case RenderedStatement.Binding.Source src -> new ExecutionPlan.Binding.Source(src.location());
         };
     }
 

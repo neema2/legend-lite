@@ -940,9 +940,9 @@ public final class PlanRunner {
         // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
             Statements st = opened(session, sql.target(), sessions.mark());
-            Map<String, PlanParameters.Checked> bound = checked;
+            Map<String, PlanParameters.Checked> bound = admitted(sql, checked, sessions.admitted());
             if (sql.stamp() != null) {
-                bound = new HashMap<>(checked);
+                bound = new HashMap<>(bound);
                 stamp(sql, bound, st);
             }
             List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
@@ -990,8 +990,37 @@ public final class PlanRunner {
     }
 
     /** {@code slot}'s parameter's checked value. */
+    /** {@code checked} with each live source {@code sql} reads (a {@link ExecutionPlan.Binding.Source} slot) bound to
+     *  the path {@code admission} admits for its location, refused by name otherwise (L6, 2026-11-10). */
+    private static Map<String, PlanParameters.Checked> admitted(ExecutionPlan.Sql sql,
+            Map<String, PlanParameters.Checked> checked, SourceAdmission admission) {
+        Map<String, PlanParameters.Checked> out = checked;
+        for (ExecutionPlan.Slot slot : sql.slots()) {
+            if (slot.binding() instanceof ExecutionPlan.Binding.Source src) {
+                if (out == checked) {
+                    out = new HashMap<>(checked);
+                }
+                out.put(sourceKey(src), new PlanParameters.One(admission.admit(src.location())));
+            }
+        }
+        return out;
+    }
+
+    /** The name a live source's admitted path is bound under: no declared parameter's (a parameter is an identifier). */
+    private static String sourceKey(ExecutionPlan.Binding.Source src) {
+        return "source:" + src.location();
+    }
+
     private static PlanParameters.Checked value(Map<String, PlanParameters.Checked> checked, ExecutionPlan.Slot slot,
             int index) {
+        if (slot.binding() instanceof ExecutionPlan.Binding.Source src) {
+            PlanParameters.Checked admitted = checked.get(sourceKey(src));
+            if (admitted == null) {
+                throw new com.legend.error.NotImplementedException("the source '" + src.location() + "' is read only"
+                        + " by a query's statement, whose run admits it: this statement's run admits no source");
+            }
+            return admitted;
+        }
         PlanParameters.Checked value = checked.get(slot.parameter());
         if (value == null) {
             throw new IllegalStateException("slot " + index + " names parameter '" + slot.parameter()

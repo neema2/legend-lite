@@ -1195,6 +1195,11 @@ class JavaEvalLedgerTest {
                     // cell; L2, 2026-11-09, the one delivery); no value is computed or compared, and no session is
                     // touched (PlanRunner sends)
                     "DataLoads.java",
+                    // a live source's admission (L6a, 2026-11-10, the user's ruling: a file: source is a pointer):
+                    // the run's configured directories, a location's real path compared with them and its path
+                    // handed to the binding, or the source refused by name; no value is computed and no session
+                    // is touched
+                    "SourceAdmission.java",
                     // the Statements seam (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): what a session does
                     // with a plan's text -- JdbcStatements is the runner's JDBC moved whole (prepare, bind, run,
                     // the one getString: carriage); DatabaseConnector (main's Phase 5, listed below since its merge,

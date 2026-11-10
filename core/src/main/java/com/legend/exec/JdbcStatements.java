@@ -463,6 +463,14 @@ final class JdbcStatements implements Statements {
             }
             case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
                     + " cell unexpanded: the runner writes a keyed body for its keys before it is sent");
+            case ExecutionPlan.Binding.Source src -> {
+                // the path the run admitted for the source's location (PlanRunner.admitted), as its text
+                if (!(value instanceof PlanParameters.One one && one.value() instanceof String path)) {
+                    throw new IllegalStateException("slot " + index + " reads the source '" + src.location()
+                            + "' given no admitted path");
+                }
+                st.setString(index, path);
+            }
         }
     }
 

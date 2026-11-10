@@ -94,6 +94,7 @@ JsonM2MChainIntegrationTest$FileSource#testArrayTwoHop	measured 2026-11-05 (H2 2
 JsonM2MChainIntegrationTest$FileSource#testArrayTwoHopFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testNdjsonFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testNdjsonGraphFetch	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
+JsonM2MChainIntegrationTest$FileSource#aRunAdmittingNothingRefusesTheFile	measured 2026-11-10 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testNdjsonProject	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testNdjsonTwoHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testNdjsonTwoHopFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:

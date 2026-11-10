@@ -86,7 +86,8 @@ public final class ProductRun {
                     yield PlanSessions.of(session);
                 }
             };
-            PlanRunner.stream(plan, Map.of(), on, sink, batchRows);
+            // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10)
+            PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
         }
     }
 

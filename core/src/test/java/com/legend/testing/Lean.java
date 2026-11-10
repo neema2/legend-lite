@@ -42,11 +42,19 @@ public final class Lean {
     /** {@code query} over {@code model} on {@code runtime} (null: the query names its own), on the caller's connection
      *  {@code c} as the caller set it up (its tables, its data): lite's JSON rows, read back. */
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c) {
+        return run(model, query, runtime, c, com.legend.exec.SourceAdmission.none());
+    }
+
+    /** {@link #run(String, String, String, Connection)} whose live sources may read under {@code admitted}'s
+     *  directories (a {@code file:} source, L6: the user's ruling of 2026-11-10). */
+    public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c,
+            com.legend.exec.SourceAdmission admitted) {
         StringWriter out = new StringWriter();
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+            plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                    PlanSessions.admitting(PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), admitted),
                     new com.legend.result.Output.Rows(sink));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

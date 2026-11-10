@@ -99,8 +99,9 @@ public final class PlanJson {
      *  34 since 2026-11-10: a file's delivery is the database's reading of it, {@code reads} (its statements, each
      *  {@code ?} the runner's copy's path: the user's ruling of 2026-11-09, each database's own reader); the streamed
      *  and bulk deliveries are gone. 35 since 2026-11-10: the streamed delivery back, {@code streamed} (one row's
-     *  insert and its width), for every database with no reader that reads the format as upstream does (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). */
-    public static final int VERSION = 35;
+     *  insert and its width), for every database with no reader that reads the format as upstream does (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). 36 since 2026-11-10: a slot may bind a live source's location ({@code source}: a model's
+     *  {@code file:} source as a pointer, the runner binding the path its admission allows; L6). */
+    public static final int VERSION = 36;
 
     private PlanJson() {
     }
@@ -113,7 +114,7 @@ public final class PlanJson {
 
     enum SetupTag { statement, rows, file }
 
-    enum BindingTag { one, array, key }
+    enum BindingTag { one, array, key, source }
 
     enum DatabaseTag { declared, platform, system }
 
@@ -448,6 +449,10 @@ public final class PlanJson {
                 o.put("_type", BindingTag.key.name());
                 o.put("cell", key.cell());
             }
+            case ExecutionPlan.Binding.Source src -> {
+                o.put("_type", BindingTag.source.name());
+                o.put("location", src.location());
+            }
         }
         return o;
     }
@@ -752,6 +757,7 @@ public final class PlanJson {
             }
             case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"));
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
+            case source -> new ExecutionPlan.Binding.Source(o.getString("location"));
         };
     }
 

@@ -855,11 +855,22 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     /**
      * {@code data:application/json,[...]} inlines the payload as a JSON
-     * array unnested one row per element; {@code file:} reads objects.
-     * One {@code data} column either way (the engine's scheme dispatch).
+     * array unnested one row per element; {@code file:} reads objects, the
+     * file a POINTER bound at the run (L6, the user's ruling of 2026-11-10:
+     * the runner binds the path its admission allows, never written into the
+     * statement). One {@code data} column either way (the engine's scheme
+     * dispatch).
      */
     @Override
-    protected String sourceUrl(String url) {
+    protected SqlWriter sourceUrl(SqlWriter writer, String url) {
+        if (url.startsWith("file:")) {
+            return writer.append("SELECT json AS data FROM read_json_objects(").bind(new RenderedStatement.Bind("",
+                    new RenderedStatement.Binding.Source(url))).append(")");
+        }
+        return writer.append(dataSourceUrl(url));
+    }
+
+    private String dataSourceUrl(String url) {
         if (url.startsWith("data:")) {
             int comma = url.indexOf(',');
             if (comma < 0) {
@@ -867,19 +878,6 @@ public final class DuckDb extends AnsiSqlRenderer {
             }
             String content = url.substring(comma + 1);
             return "SELECT unnest(CAST(" + stringLit(content) + " AS JSON[])) AS data";
-        }
-        if (url.startsWith("file:")) {
-            // Path.of(URI), NOT URI.getPath(): a file: URI's PATH component is
-            // "/D:/data/x.json" on Windows, which is not a filesystem path at
-            // all — DuckDB reports "No files found that match the pattern" and
-            // every file:-backed JSON source is unreadable there. Path.of
-            // resolves the URI through the filesystem provider, giving
-            // D:\data\x.json on Windows and /data/x.json on POSIX. Forward
-            // slashes then keep the SQL literal free of backslashes; Windows
-            // accepts them everywhere. (Windows CI, 2026-09-09.)
-            String path = java.nio.file.Path.of(java.net.URI.create(url))
-                    .toString().replace(java.io.File.separatorChar, '/');
-            return "SELECT json AS data FROM read_json_objects(" + stringLit(path) + ")";
         }
         throw new IllegalStateException("unsupported sourceUrl scheme: " + url);
     }

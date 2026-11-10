@@ -24,7 +24,7 @@ public final class PlanSessions {
      *  a write runs on a database of its own, a database the user names or a URL reaches keeps it). A closed set of
      *  exec's own (2026-11-09, the user's question "why do we have any callbacks?"): a caller names one, exec decides by
      *  its rule; until then a caller's function decided, inside the run, which session a statement went to. */
-    public sealed interface Source permits Marked, Shared, Given, Acquired, Refusing, Lane {
+    public sealed interface Source permits Marked, Admitting, Shared, Given, Acquired, Refusing, Lane {
         Sessions.Session open(ExecutionPlan.Target target);
 
         default Sessions.Session openToChange(ExecutionPlan.Target target) {
@@ -35,6 +35,35 @@ public final class PlanSessions {
          *  2026-11-09: a thread-scoped mark until then). */
         default StatementOrigin mark() {
             return StatementOrigin.OTHER;
+        }
+
+        /** The directories a plan's live sources may read on these sessions ({@link SourceAdmission}; L6, 2026-11-10):
+         *  none unless the caller admits some ({@link #admitting}). */
+        default SourceAdmission admitted() {
+            return SourceAdmission.none();
+        }
+    }
+
+    /** {@code sessions} on which a plan's live sources may read under {@code admitted}'s directories (L6, 2026-11-10:
+     *  a test admits its resource roots; a server only what it is configured with). */
+    public static Source admitting(Source sessions, SourceAdmission admitted) {
+        return new Admitting(sessions, admitted);
+    }
+
+    private record Admitting(Source inner, SourceAdmission admitted) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            return inner.open(target);
+        }
+
+        @Override
+        public Sessions.Session openToChange(ExecutionPlan.Target target) {
+            return inner.openToChange(target);
+        }
+
+        @Override
+        public StatementOrigin mark() {
+            return inner.mark();
         }
     }
 
@@ -53,6 +82,11 @@ public final class PlanSessions {
         @Override
         public Sessions.Session openToChange(ExecutionPlan.Target target) {
             return inner.openToChange(target);
+        }
+
+        @Override
+        public SourceAdmission admitted() {
+            return inner.admitted();
         }
     }
 

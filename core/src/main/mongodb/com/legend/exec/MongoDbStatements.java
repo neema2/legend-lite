@@ -300,6 +300,8 @@ final class MongoDbStatements implements Statements {
             };
             case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
                     + " cell: the runner binds each copy's key before the statement reaches the session");
+            case ExecutionPlan.Binding.Source src -> throw new com.legend.error.NotImplementedException("a MongoDB"
+                    + " statement reads no file source ('" + src.location() + "'): its databases are the connector's own");
         };
     }
 

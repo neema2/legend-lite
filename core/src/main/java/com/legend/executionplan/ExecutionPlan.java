@@ -711,7 +711,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     }
 
     /** How a placeholder is bound. */
-    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key {
+    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key, Binding.Source {
 
         /** One value, as the caller's checked value is; an absent one a null of {@code nullType} (a
          *  {@code java.sql.JDBCType}'s name). {@code asText}: set where the placeholder is a date or date-time cast to
@@ -738,6 +738,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 if (cell < 0) {
                     throw new IllegalArgumentException("a key's cell " + cell);
                 }
+            }
+        }
+
+        /** A LIVE SOURCE's location as its model declares it (a {@code file:} URL; L6, the user's ruling of 2026-11-10:
+         *  a pointer, as a table is): bound as the path the run's {@code exec.SourceAdmission} admits, refused by name
+         *  otherwise; the slot names no declared parameter. The location is the source's description, never pasted
+         *  into the statement's text. */
+        record Source(String location) implements Binding {
+            public Source {
+                Objects.requireNonNull(location, "location");
             }
         }
     }

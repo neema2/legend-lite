@@ -48,6 +48,11 @@ DataRef(namespace, name, digest, size, format)
 - **digest:** SHA-256 of the bytes. The bytes the plan was planned against, so the same plan loads the same data
   (determinism, G10).
 - **size** and **format** (`CSV`, `JSON`, later `PARQUET`).
+- **Amended 2026-11-10 (the user's ruling: a live source is a pointer, data written in the model travels with the
+  plan):** a reference is for data the plan was planned against -- a test's resource file (checksummed, so a changed
+  input fails loudly, G10) or the model's own text (content). A model's LIVE source, a `JsonModelConnection`'s or a
+  `sourceUrl`'s `file:` location, is not a reference: it is a pointer, as a table is, read by the database at the run
+  under the run's admission (L6a below), with no digest and no copy -- upstream's behaviour, so no register row.
 
 ### 2.2 A load
 
@@ -322,6 +327,22 @@ streamer". It supersedes L2's "every database takes the streamed cells" above.
   - Pinned by `DataLoadsTest` on every in-process database, and by `//core:data_loads_postgres_test` on the embedded
     Postgres 16.
 
+### L6a as built: a file: source is a pointer (2026-11-10, branch `claude/total-wall`)
+
+The user's ruling of 2026-11-10: "why not pointers to the files? Like when planner plans to read from db table it
+doesn't extract it to a content store? ... I'm not so sure it's any different from a database table."
+- **The plan:** a model's `file:` source (a `JsonModelConnection` url, an M2M `sourceUrl`) is a slot,
+  `ExecutionPlan.Binding.Source(location)`, holding the location as the model declares it (plan JSON v36; the
+  TypeScript runner refuses it by name, as a host admits no source). DuckDB's dialect writes
+  `SELECT json AS data FROM read_json_objects(?)`; no path is in the text.
+- **The run:** `PlanRunner` binds each source slot to the path `exec.SourceAdmission` admits, the run input beside
+  `DataStores` that the session source carries (`PlanSessions.admitting`; the default admits none). The admission
+  refuses by name: a location outside the admitted directories (its real path, links followed), and any scheme but
+  `file:` (decision 4's `url`, not built). `ProductRun` keeps the caller's admission on the answer's session.
+- **Tests:** `SourceAdmissionTest` covers the guard. The JSON M2M file-source cases admit their resource directory, and
+  a case that admits nothing is refused by name. Census M10's `file:` half reads zero (`REMOVED_SO_FAR`); its `data:`
+  half is L6b.
+
 ### L5 as built: no fixture between a body's plan and its run (2026-11-10, branch `claude/total-wall`)
 
 Option C, upstream's shape (the orchestrator's word, 2026-11-10): legend-engine runs a package's setups at the package's
@@ -370,8 +391,13 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
 - **P4 The deletion census.** A source census lists, per mechanism M1-M17, its deleted symbols (§3's last column),
   each reading zero in every source tree, and for the four that stay, the guard that bounds them. A row per mechanism,
   all 17: the census fails if a deleted symbol returns or a mechanism has no row.
-- **P5 No machine path.** `DataRef` refuses absolute names, drive letters and `..`; no plan record has a
-  `java.nio.file.Path`; the plan JSON round-trip on every lane refuses a path-shaped string in a load.
+- **P5 No machine path in SQL text, and no path the runner did not admit** (restated 2026-11-10 by the user's ruling,
+  "why not pointers to the files? ... I'm not so sure it's any different from a database table"). `DataRef` refuses
+  absolute names, drive letters and `..`; no plan record has a `java.nio.file.Path`; the plan JSON round-trip on every
+  lane refuses a path-shaped string in a load. A LIVE source's location as its model declares it (a `file:` URL) may
+  stand in the plan's source description, as a connection's URL does, as a slot's binding
+  (`ExecutionPlan.Binding.Source`), never in a statement's text; the runner binds it only under a directory its run
+  admits (`exec.SourceAdmission`).
 - **P6 Digests verified.** Exec refuses bytes whose digest is not the plan's; a test proves it.
 - **P7 Every runner reads the same plan.** The TypeScript runner's plan version equals `PlanJson.VERSION` (a test reads
   both); a runner executes each load kind or refuses it by name.

@@ -160,7 +160,10 @@ class DataMechanismCensusTest {
             "M1", List.of("project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly("),
             // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
             // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
-            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"));
+            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"),
+            // L6a, 2026-11-10 (the user's ruling: a file: source is a pointer, as a table is): its path pasted into
+            // the statement's text, and the planning machine's path made from the URL
+            "M10", List.of("read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))"));
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */

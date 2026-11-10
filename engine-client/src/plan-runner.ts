@@ -68,7 +68,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // naming any load, are refused by name, as at 32
 // 34 since 2026-11-10: a file's delivery is the database's reading of it (reads) -- a load is refused by name, as at 33
 // 35 since 2026-11-10: a file's delivery may be the runner's streamed cells (streamed) -- a load is refused by name, as at 34
-const PLAN_VERSION = 35;
+// 36 since 2026-11-10: a slot may bind a live source's location (source), the runner binding the path its admission
+// allows -- refused by name here: a host's runner admits no source
+const PLAN_VERSION = 36;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -149,7 +151,7 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
     if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
     for (const slot of s.slots) {
       if (slot.binding._type !== 'one') {
-        throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : 'a list'}, which is not run here`);
+        throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : 'a list'}, which is not run here`);
       }
       // a date or date-time bound as its text into its declared type's cast (P4): a host binds none
       if (slot.binding.asText !== undefined && slot.binding.asText !== null) throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text, which is not run here`);

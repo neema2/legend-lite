@@ -307,10 +307,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * Render a {@code sourceUrl} into a complete SELECT (scheme-dispatched).
-     * No ANSI spelling exists — the base is a capability statement.
+     * Write a {@code sourceUrl} as a complete SELECT (scheme-dispatched) into {@code writer}: a live source's location
+     * is a bound pointer, never the statement's text (L6, 2026-11-10). No ANSI spelling exists -- the base is a
+     * capability statement.
      */
-    protected String sourceUrl(String url) {
+    protected SqlWriter sourceUrl(SqlWriter writer, String url) {
         throw new DialectCapability("sourceUrl reached a dialect without"
                 + " an external-source encoding: " + url);
     }
@@ -492,7 +493,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
-                nl(writer, depth + 1).append(sourceUrl(u.url()));
+                sourceUrl(nl(writer, depth + 1), u.url());
                 yield nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));
             }
             case SqlSource.Pivot p -> pivotSource(writer, p, depth);
