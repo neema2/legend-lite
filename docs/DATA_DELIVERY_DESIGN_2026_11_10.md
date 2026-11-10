@@ -1,10 +1,14 @@
 # Data delivery, and the rest of the program (2026-11-10)
 
-> **Status: for the user's approval.** It was written in the orchestrator session after the checkpoint audits of
+> **Status: for the user's go.** It was written in the orchestrator session after the checkpoint audits of
 > `bec78dfe..5ed43045` (tenets and correctness), the deep review of the branch, and the user's rulings of 2026-11-10:
 > - "model data is just another sql statement in the plan";
 > - "File is just a pointer like a table";
-> - option 1 for databases that cannot read a file.
+> - option 1 for databases that cannot read a file;
+> - B1 yes;
+> - the Java test fixtures bounded;
+> - M17 "not implemented yet";
+> - the test-data generator is a product feature and stays.
 >
 > It replaces the delivery part of `docs/DATA_IN_THE_PLAN_2026_11_09.md` (§2.3-2.5, §4 L4-L6) where they differ. That
 > document's other rulings (§8) stand.
@@ -20,7 +24,7 @@ touched, and tested on the happy path. That had two consequences:
 The slices that were verified stay:
 - L2/L3, data as loads;
 - the type hole's deletion;
-- L4, the catalog;
+- L4, the catalog on the in-process engines;
 - L5, the fixture deletion.
 
 ## 1. The model: three ideas, each with one job
@@ -37,13 +41,17 @@ The slices that were verified stay:
    The statements always live in a **content blob** the load names by its digest: one form, whatever the size. The plan
    writer puts the blob inside the plan's JSON when the bundle is small and beside it when large, a detail of the writer
    and nothing else. Exec sends the blob's statements unchanged, in one transaction.
+   - **The referee** checks a test on legend-engine's own H2, a different database. The planner renders the same rows a
+     second time in H2's dialect and carries that copy as the edge's data in the test plan, as it already does for the
+     referee's DDL. The referee runs its own copy.
 2. **A file is a pointer, like a table.**
    - A file (CSV, JSON, Parquet) is a source the database reads, with its path bound.
    - A model's `file:` source is read by the query directly.
    - A file loaded into a table (`loadCsvToDbTable`) is `INSERT INTO t SELECT … FROM <that source>`.
    - Any file, as upstream. A host may configure an opt-in directory fence, off by default.
+   - A remote file that needs a credential names the credential; the plan never holds the secret.
 3. **A database that cannot read files refuses a file by name** (option 1):
-   - **DuckDB** reads them (`read_csv`, `read_json`, `read_parquet`).
+   - **DuckDB** reads them (`read_csv`, `read_json`, `read_parquet`; in the browser too).
    - **H2** reads CSV in process with `CSVREAD`, its SQL checks refusing malformed records. Its three undetectable
      cases are register rows: a record short by one cell, a record with one extra empty cell, an unclosed quote in the
      last cell.
@@ -78,6 +86,7 @@ Deleted from the plan:
    statement, with the run's registrations re-established.
 4. **A shared kept session** (the server's project database, a lane's) serves one request at a time, under an explicit
    lock. **No kept database is made per payload.** A `data:` payload's table lives and dies with the request's session.
+   **The browser's uploaded tables** live until the person resets them: a load whose lifetime is the host session.
 5. **Every refusal names the data** (the file, the payload or the table) with the database's own words. None is an
    internal exception.
 
@@ -104,11 +113,12 @@ Deleted from the plan:
     missing or changed file, and a plan read back from JSON and run on a fresh runner.
 
   A cell that cannot apply is a refusal by name, and that is its test.
-- **A type round trip:** every Pure type through a load on each matrix database.
+- **A type round trip:** every Pure type through a load on each matrix database, and on the referee's H2.
 - **Guards:**
   - ArchUnit: only the load planner builds loads and their data steps;
+  - no exec class parses data;
   - the census, kept honest (`JsonSourceFrame`'s symbols join M10's row);
-  - no exec class parses data.
+  - the Java test fixtures' JDBC seeding unreachable from any product or test-door path.
 - **Timing:** the corpus and stress suites, against their last times.
 
 ## 6. The whole plan, in order
@@ -117,17 +127,21 @@ Deleted from the plan:
 |---|---|---|
 | **A** | **Data delivery, rebuilt** | |
 | A1 | The matrix and the type round trip, red | the to-do list |
-| A2 | Model data as statements in a blob; `Rows`, the streamed and staged deliveries, the appender for model data and the review branch's bound delivery deleted | matrix green for model data |
-| A3 | Files as table sources: DuckDB's readers, H2's `CSVREAD` with its checks, the rest refused by name; the Java splitter deleted (kept only where the referee's mirror needs it, at the edge, and named in the census) | matrix green for files |
+| A2 | Model data as statements in a blob, the referee's H2 copy beside it; `Rows`, the streamed and staged deliveries, the appender for model data and the review branch's bound delivery deleted | matrix green for model data |
+| A3 | Files as table sources: DuckDB's readers, H2's `CSVREAD` with its checks, the rest refused by name; the Java splitter deleted | matrix green for files |
 | A4 | The failure and lifetime rules (§3) | the failure cells green |
 | A5 | One road (§4) | every door's cells green |
 | A6 | The audit's two parameter defects: H2's time zone spelled with `AT TIME ZONE`; H2's decimal printing typed by the Lowerer | their tests |
 | ✔ | **Checkpoint:** tenets audit, then correctness, every finding fixed; one lane round on all eleven databases; the timing check | |
 | **B** | **The rest of P1: the census to zero** | |
-| B1 | The seed forms (`setUpDataSQLs`) are SQL their author wrote: recorded as the author's statements beside `executeInDb`, not converted | census M7 |
-| B2 | Harnesses and the referee seed through the plan's loads; the test-data generator's rows as statements; data parsed and never loaded deleted | census M3, M13, M15, M17 |
-| B3 | The TypeScript, Python and DataCube runners run loads: they send statements; a file a browser cannot read is refused by name | census M14 |
-| B4 | The server catalog (census M5/M6's last forms): its design written and reviewed first, then built | census M5, M6 |
+| B1 | The seed forms (`setUpDataSQLs`): the author's statements beside `executeInDb`, not converted (the user: yes) | census M7 |
+| B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner | census M3 |
+| B2b | The referee replays its own H2 copy of the plan's loads (from A2) | census M15, the referee |
+| B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes) | census M15, the fixtures |
+| B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront (temporary tables joined in the database, recursive SQL for a self-reference) and returns one plan; exec runs it; a writer gives the CSV. Its design is written and reviewed first (§7). S143's skip is lifted when it passes | census M13 |
+| B2e | Data parsed but used by no feature yet (ExternalFormat data, ModelStore data, ServiceStore stubs, mapping-test data): recorded as NOT IMPLEMENTED YET, with the rule that when built its data takes the model-data path; listed as feature gaps | census M17 |
+| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed | census M14 |
+| B4 | The server catalog: first the measurement (does any statement combine the catalog's tables with a user's?), then a design written and reviewed, then built | census M5, M6 |
 | ✔ | **Checkpoint:** audits and fixes; the census reads zero pending | |
 | **C** | **P4's last two** | |
 | C1 | The per-query comment planned, exec's trace kept apart from the statement (D3) | |
@@ -145,7 +159,16 @@ Deleted from the plan:
 | F1 | One full run: every database, the local gate, both corpora, both stress suites, H2's PCT, unprivileged Postgres; every break fixed | |
 | F2 | One PR for `claude/total-wall` against `main`; the user merges | |
 
-## 7. How we stay on track
+## 7. Homework before its step (read or measured, never guessed)
+
+| Item | For | How | State |
+|---|---|---|---|
+| Does any statement combine the catalog with user tables? What is undesigned about the server catalog? | B4 | the worker's throwaway probe over core, PCT and the corpora | running |
+| The test-data generator: can every step be planned upfront? (self-references, depth, an empty level) | B2d | read `testdatagen/`, the PCT TDG tests and upstream's TDG as spec input | to do, in the orchestrator session |
+| Remote files' credentials | B3 | read `datacube/src/remote.ts` and the `Secret` host operation | to do |
+| The DuckDB wide-by-one-empty CSV record: can DuckDB's own SQL refuse it? | A3 | one try; else a register row for the user | in A3 |
+
+## 8. How we stay on track
 
 - **The loop:** the in-process databases (DuckDB, H2, SQLite) on every slice, and Postgres where a slice touches it.
   Every database runs at each checkpoint's lane round and at the end.
@@ -161,3 +184,14 @@ Deleted from the plan:
   - a fidelity edge case outside the wall is refused by name with a register row;
   - a ruled design is never reopened without the user.
 - **Effort:** the worker runs at the effort the user set.
+
+## 9. Later, outside this program (recorded so they are not lost)
+
+- Time zones outside an `execute(...)` frame (S183, a known gap; the user: "later").
+- A nanosecond Pure type (the user: "later").
+- P5, judge parity on H2.
+- P6, no fallbacks and honest appeals.
+- The corpus and stress burn-down.
+- Native file loaders per database (§1.3), when someone needs one.
+- The features M17 names (ExternalFormat, ModelStore and ServiceStore data, mapping test suites).
+- PR #81, the timeseries line, in its own session.
