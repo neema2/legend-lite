@@ -159,9 +159,12 @@ class DataMechanismCensusTest {
             // L6, 2026-11-10 (the user's rulings: a file: source is a pointer, as a table is; data written in the
             // model travels with the plan, through one load at every size): the file: source's path pasted into the
             // statement, and the data: payload as a SQL literal
+            // A5, 2026-11-10 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4): the JSON source frame's payload as literal rows
+            // of the statement (resolver.JsonSourceFrame's objectTexts and its TypedTds), now a data: source's load
             new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Deleted("L6", List.of(
                     "read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))",
-                    "SELECT unnest(CAST(\" + stringLit(content)"))),
+                    "SELECT unnest(CAST(\" + stringLit(content)", "objectTexts(",
+                    "rows.add(List.of(\"\\\"\" + objects.get(i)"))),
             new Row("M11", "a query's literal relations and instances, and their writes",
                     new Staying("P9: a statement's literal rows come from lowering alone")),
             new Row("M12", "model-derived constants in statements",
