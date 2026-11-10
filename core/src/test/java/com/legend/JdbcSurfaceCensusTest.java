@@ -233,9 +233,10 @@ class JdbcSurfaceCensusTest {
                     Act.SENDS, Act.LOADS, Act.DECODES, Act.TRANSACTS),
             row("core/src/main/mongodb/com/legend/exec/MongoDbStatements.java",
                     "the pipeline through the driver's cursor and a command run, each row's cells by the plan's"
-                    + " slots (D12); its load REFUSES by name (NotImplementedException: the seam's method spelled,"
-                    + " no document inserted -- the D69 audit's correction of this row)",
-                    Act.SENDS, Act.LOADS, Act.DECODES),
+                    + " slots (D12); a file's or rows' load REFUSES by name (NotImplementedException, no document"
+                    + " inserted); its bulk-load method went with LoadStep.Rows (2026-11-10, the checkpoint audits:"
+                    + " the model's rows are a streamed file step), so it spells no load act",
+                    Act.SENDS, Act.DECODES),
             row("core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java",
                     "DuckDB's Appender behind core's BulkLoad seam (2026-09-23; its own target beside the drivers,"
                     + " core compiles against none): the driver's own connection reached beneath the JDBC one"

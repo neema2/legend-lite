@@ -460,7 +460,7 @@ class TestDoorTest {
     @Test
     void twoSeedsThatPrintAlikeHaveTwoKeys() {
         // the rows' one maker (the checkpoint audits of 2026-11-10): the rows the bundle's text, named by its digest
-        var h2 = com.legend.database.Databases.dialect(com.legend.model.ConnectionDefinition.DatabaseType.H2);
+        var h2 = com.legend.database.Databases.dialect(com.legend.database.Databases.PLATFORM);
         ExecutionPlan.LoadStep one = new com.legend.setup.RowLoad(null, "t", com.legend.sql.NameQuoting.BARE,
                 java.util.List.of("x"), java.util.Set.of(), 1, java.util.List.of(java.util.List.of("a, b")))
                 .steps(h2).steps().get(0);

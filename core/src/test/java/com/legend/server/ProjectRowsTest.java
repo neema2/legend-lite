@@ -177,8 +177,10 @@ class ProjectRowsTest {
                 .filter(l -> l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE).toList();
         assertEquals(1, once.size(), String.valueOf(target.loads()));
         String json = com.legend.executionplan.PlanJson.write(plan);
-        String fill = ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) once.get(0).steps().get(
-                once.get(0).steps().size() - 1)).sql();
+        // the rows the load's bundle, by digest (the checkpoint audits of 2026-11-10: bound, never a literal)
+        var rows = (com.legend.executionplan.ExecutionPlan.LoadStep.File) once.get(0).steps().get(
+                once.get(0).steps().size() - 1);
+        String fill = java.util.Objects.requireNonNull(once.get(0).content().get(rows.ref().digest()));
         String written = com.legend.json.Json.toCompact(fill);
         assertTrue(json.indexOf(written) >= 0, "the fill is written");
         assertEquals(json.indexOf(written), json.lastIndexOf(written), "the fill is written once");

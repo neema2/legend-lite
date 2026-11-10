@@ -3039,12 +3039,12 @@ public final class BigQuery extends AnsiSqlRenderer {
                 : storedName(schema, quoting.schema()) + "." + storedName(table, quoting.table());
     }
 
-    /** {@inheritDoc} This database takes no bound text into a column of another type, and the casts are not written
-     *  (the correctness audit's S8, 2026-11-10; unverified on its database until the end round): a text column's cell
-     *  only, any other refused by name before the database is reached. */
+    /** {@inheritDoc} This database takes no bound text into a column of another type (the correctness audit's S8,
+     *  2026-11-10): each {@code ?} CAST to its column's declared type, a text type unsized ({@link #castCell}) --
+     *  unverified on its database until the end round. */
     @Override
     protected String cellPlaceholder(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
-        return textCellOnly(t, "BigQuery");
+        return castCell(t);
     }
 
     @Override

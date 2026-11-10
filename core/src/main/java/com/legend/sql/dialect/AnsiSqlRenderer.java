@@ -1950,21 +1950,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return ddlType(t);
     }
 
-    /** A placeholder for a text column only (VARCHAR, CHAR): {@code ?}; any other declared type refused by name, for
-     *  a database known to take no bound text into it whose cast is not yet written (the correctness audit's S8,
-     *  2026-11-10: never a statement the database is known to refuse). */
-    protected final String textCellOnly(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t, String database) {
-        boolean text = t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
-                ? p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR
-                : t instanceof com.legend.sql.SqlDdl.ColumnType.Sized z
-                        && z.kind().toUpperCase(java.util.Locale.ROOT).contains("CHAR");
-        if (!text) {
-            throw new DialectCapability("a bound text cell into a column of type " + t + " on " + database + ": it"
-                    + " takes no text into another type, and its cast is not written");
-        }
-        return "?";
-    }
-
     /** {@code load}'s target, as an INSERT names it: the table and its columns. */
     protected String csvInsertInto(com.legend.sql.SqlDml.LoadCsv load) {
         return "INSERT INTO " + ddlQualified(load.schema(), load.table(), load.quoting())

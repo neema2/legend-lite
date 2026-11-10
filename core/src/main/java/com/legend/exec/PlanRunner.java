@@ -137,14 +137,20 @@ public final class PlanRunner {
         }
     }
 
-    /** A load on the graph's system database is the system store's own (the planner's {@code SystemRoutes.seeds}): the
-     *  catalog's registration ({@code PER_TRANSACTION}, L4b) or a server engine's whole store ({@code BEFORE_STEP}), of
-     *  statements and rows, never a file nor a program's own load -- the database holds the metamodel and nothing else;
-     *  refused by name otherwise. Its identity is its content's, as every load's (L4a, 2026-11-09). */
+    /** A load on the graph's system database is the system store's own (the planner's {@code SystemRoutes.seeds}), by
+     *  its engine (the checkpoint tenets audit's S-5, 2026-11-10): on an engine in this process the catalog's
+     *  registration ({@code PER_TRANSACTION}, L4b), on a server engine its whole store ({@code BEFORE_STEP}) -- of
+     *  statements and the model's own rows from the load's bundle ({@code CONTENT}), never a file of another namespace
+     *  nor a program's own load: the database holds the metamodel and nothing else; refused by name otherwise. Its
+     *  identity is its content's, as every load's (L4a, 2026-11-09). */
     static void systemStore(ExecutionPlan.Load seeds) {
-        if ((seeds.cadence() != ExecutionPlan.Load.Cadence.BEFORE_STEP
-                && seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION)
-                || seeds.steps().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.File)) {
+        if (!(seeds.target().database() instanceof ExecutionPlan.Database.System s)) {
+            throw new IllegalStateException("the system store's seeds go to the graph's system database");
+        }
+        ExecutionPlan.Load.Cadence expected = Sessions.inProcess(s.type()) ? ExecutionPlan.Load.Cadence.PER_TRANSACTION
+                : ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        if (seeds.cadence() != expected || seeds.steps().stream().anyMatch(st -> st instanceof ExecutionPlan.LoadStep.File f
+                && f.ref().namespace() != com.legend.executionplan.DataRef.Namespace.CONTENT)) {
             throw new IllegalStateException("a load on the graph's system database that is not the system store's"
                     + " seeds (" + seeds.cadence() + "): the database holds the graph's metamodel and nothing else");
         }

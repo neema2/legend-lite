@@ -45,9 +45,11 @@ class CsvLoadRenderTest {
             assertEquals(new SqlDialect.CsvLoad.Streamed("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) VALUES (?, ?, ?)"),
                     d.csvLoad(LOAD), d.getClass().getSimpleName());
         }
-        // Postgres folds an unquoted name to lower case, and casts each bound text cell to its column's declared type
+        // Postgres folds an unquoted name to lower case, and casts each bound text cell to its column's declared type,
+        // a text type unsized: an explicit cast to VARCHAR(200) truncates where the column's assignment refuses a value
+        // too long (the correctness audit's M3, 2026-11-10)
         assertEquals(new SqlDialect.CsvLoad.Streamed("INSERT INTO people (firstname, lastname, age) VALUES (CAST(? AS"
-                + " VARCHAR(200)), CAST(? AS VARCHAR(200)), CAST(? AS INTEGER))"), new Postgres().csvLoad(LOAD));
+                + " VARCHAR), CAST(? AS VARCHAR), CAST(? AS INTEGER))"), new Postgres().csvLoad(LOAD));
     }
 
     /** {@code cells}, its nulls kept. */

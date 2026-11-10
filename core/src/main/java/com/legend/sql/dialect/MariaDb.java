@@ -3466,12 +3466,17 @@ public class MariaDb extends AnsiSqlRenderer {
     // DDL (test fixtures)
     // ==================================================================
 
-    /** {@inheritDoc} This database takes no bound text into a column of another type, and the casts are not written
-     *  (the correctness audit's S8, 2026-11-10; unverified on its database until the end round): a text column's cell
-     *  only, any other refused by name before the database is reached. */
+    /** {@inheritDoc} MariaDB and MySQL convert a bound text into a number or a date on assignment, and take no
+     *  {@code 'true'} into a BOOLEAN (measured 2026-10-11, {@code RowLoad#casts}): a BIT column's cell refused by name
+     *  until its cast is written (the correctness audit's S8, 2026-11-10; unverified on its database until the end
+     *  round), every other {@code ?}. */
     @Override
     protected String cellPlaceholder(com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
-        return textCellOnly(t, "MariaDB/MySQL");
+        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p && p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.BIT) {
+            throw new DialectCapability("a bound text cell into a BIT column on MariaDB/MySQL: it takes no 'true'"
+                    + " into a BOOLEAN, and its cast is not written");
+        }
+        return "?";
     }
 
     @Override

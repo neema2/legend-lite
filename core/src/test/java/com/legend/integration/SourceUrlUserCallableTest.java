@@ -72,15 +72,16 @@ class SourceUrlUserCallableTest {
         assertTrue(sql.contains(table), sql);
         var loads = plan.answerSql().target().loads();
         assertEquals(1, loads.size(), "one load: " + loads);
-        List<String> steps = loads.get(0).steps().stream()
-                .map(s -> ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) s).sql()).toList();
-        assertEquals(3, steps.size(), String.valueOf(steps));
-        assertTrue(steps.get(0).contains(table) && steps.get(0).toUpperCase(java.util.Locale.ROOT).startsWith("DROP"),
-                steps.get(0));
-        assertTrue(steps.get(1).toUpperCase(java.util.Locale.ROOT).contains("TEMPORARY") && steps.get(1).contains(table),
-                steps.get(1));
-        assertTrue(steps.get(2).contains("{\"a\":1,\"b\":\"x\"}") && steps.get(2).contains("{\"a\":2,\"b\":\"y\"}"),
-                steps.get(2));
+        var all = loads.get(0).steps();
+        assertEquals(3, all.size(), String.valueOf(all));
+        String drop = ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) all.get(0)).sql();
+        String create = ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) all.get(1)).sql();
+        assertTrue(drop.contains(table) && drop.toUpperCase(java.util.Locale.ROOT).startsWith("DROP"), drop);
+        assertTrue(create.toUpperCase(java.util.Locale.ROOT).contains("TEMPORARY") && create.contains(table), create);
+        // the elements the load's bundle, each bound into the table, never a literal (the checkpoint audits)
+        var rows = (com.legend.executionplan.ExecutionPlan.LoadStep.File) all.get(2);
+        String elements = loads.get(0).content().get(rows.ref().digest());
+        assertTrue(elements.contains("{\\\"a\\\":1,\\\"b\\\":\\\"x\\\"}"), elements);
         assertEquals(com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION, loads.get(0).cadence());
     }
 
@@ -92,6 +93,7 @@ class SourceUrlUserCallableTest {
         com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(MIN_MODEL),
                 q).executionPlan("test::RT");
         long creates = plan.answerSql().target().loads().get(0).steps().stream()
+                .filter(com.legend.executionplan.ExecutionPlan.LoadStep.Statement.class::isInstance)
                 .map(s -> ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) s).sql())
                 .filter(s -> s.toUpperCase(java.util.Locale.ROOT).startsWith("CREATE")).count();
         assertEquals(1, creates, "one table for two equal sources");
