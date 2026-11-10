@@ -166,10 +166,16 @@ Deleted from the plan:
 
 ### 6.1 The product's errors and print forms (RULED by the user, 2026-11-10)
 
-- **Errors: strict and typed by default, with explicit safe versions** ("I like the error plus explicit version"). A bad
-  input (a zero divisor, the log of a non-positive number, an unparsable text) raises a typed error. A safe version
-  returns empty instead, typed `[0..1]`, for analytics where one bad row must not fail a query. The timeseries line
-  confirmed it relies on no bad-input behaviour and wants `safeDivide` first, then `safeLog`.
+- **Errors: strict and typed.** A bad input (a zero divisor, the log of a non-positive number, an unparsable text)
+  raises a typed error. **A Float divided by zero raises too**, as legend-pure does for any zero divisor (lite's Float
+  lane returns Infinity today; a register row): "Float divide zero error is fine - if that ends up causing problem then
+  maybe safe divide needed".
+- **A product error carries its kind and where it happened in the query**, a fixed text known at planning, not the
+  offending value: building the value's text in SQL is what made Snowflake's compile 2.2-2.6x slower. Pure's full
+  sentence with the value is spelled at the edge, for PCT and `pure/v1` ("Error whatever is cheap and useful").
+- **Safe versions are NOT built now** ("let's not even build them now can push until we need it somewhere"): they are on
+  the later list (§9), with their shape kept: a safe version returns empty instead of raising, typed `[0..1]`. The
+  timeseries line relies on no bad-input behaviour (it guards its own divides) and would take `safeDivide` first.
 - **A value is typed unless the query asks for a string.** A string means one simple text per type, the same on every
   database, produced by the database in one format call ("pick something very very simple and easy for product to do on
   all databases nothing complex"; "Why can't we have a standard string format across databases"):
@@ -189,20 +195,12 @@ Deleted from the plan:
 
 ### 6.2 Recommendations waiting for the user's yes (all in D; none blocks A, B or C)
 
-1. The safe versions: `safeDivide`, `safeLog` and the safe parse functions first, more when someone needs one; named with
-   the `safe` prefix unless Pure's sources already have a name; in a lite namespace, not `meta::pure::functions` (whose
-   signatures are verified against Pure's); empty in, empty out.
-2. A Float divided by zero raises, as legend-pure does for any zero divisor (lite's Float lane returns Infinity today):
-   a register row.
-3. A product error carries its kind and where it happened in the query, a fixed text known at planning; not the
-   offending value (building that text in SQL is what made Snowflake's compile 2.2-2.6x slower). Pure's full sentence
-   with the value stays at the edge, for PCT and `pure/v1`.
-4. D0's questions as recommended: Q3 (sqrt's text at the edge), Q4 and Q6 (the product's own wording per error kind;
+1. D0's questions as recommended: Q3 (sqrt's text at the edge), Q4 and Q6 (the product's own wording per error kind;
    the engine's only at `pure/v1`), Q5 (the engine-only SQL spellings to an edge decorator), Q8 (pivot names bare in the
    product), Q12 (lists, pairs, maps, instances and relations: `toString` refused by name in the product), Q13 (`format`'s
    `%s`, `%d`, `%f`, `%t{}` in the product, `%r` and Pure's padding rule at the edge), Q14 (`makeString` skips an empty
    element, as Pure's lists hold no nulls), Q15 (Pure's exact texts at the edge as the edge's own SQL render target).
-   Q7, Q9, Q10, Q11 and Q16 are settled by §6.1 and item 1.
+   Q1, Q2, Q7, Q9, Q10, Q11 and Q16 are settled by §6.1.
 
 ## 7. Homework before its step (read or measured, never guessed)
 
@@ -238,6 +236,9 @@ Deleted from the plan:
 
 - Time zones outside an `execute(...)` frame (S183, a known gap; the user: "later").
 - A nanosecond Pure type (the user: "later").
+- Safe versions of the raising functions (`safeDivide` first, then `safeLog`, the safe parse functions), when something
+  needs one (the user, 2026-11-10): typed `[0..1]`, empty in and empty out, in a lite namespace (not
+  `meta::pure::functions`) unless Pure's sources already name one.
 - P5, judge parity on H2.
 - P6, no fallbacks and honest appeals.
 - The corpus and stress burn-down.
