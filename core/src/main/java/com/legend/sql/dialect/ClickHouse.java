@@ -675,18 +675,38 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return iso;
     }
 
-    /** A Date and a DateTime parameter are REFUSED by name (the correctness re-audit's 2, 2026-11-09): ClickHouse's
-     *  date-time types hold 1900 to 2299 and clamp a value outside it in silence (measured on 25.x: 9999-12-31 reads
-     *  2299-12-31, 1800-01-01 reads 1900-01-01), which lite's literal refuses at planning ({@link #inRange}) and a
-     *  placeholder could only refuse at the run, in SQL of its own. No door passes run-time values yet; designed when
-     *  one does. A number is bound bare. */
+    /** A Date and a DateTime parameter are lite's own literal's type, a naive UTC {@code DateTime64(6, 'UTC')}, bound
+     *  as its text to six digits (the user's ruling, 2026-11-10, "Okay on click": S179). ClickHouse's date-time types
+     *  hold 1900 to 2299 and clamp a value outside it in silence (measured: 9999-12-31 reads 2299-12-31), so the
+     *  placeholder ({@link #placeholder}) refuses one in the database, as the literal refuses one at planning
+     *  ({@link #inRange}). A number is bound bare. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> throw new DialectCapability("a " + kind + " parameter on ClickHouse: its date-time"
-                    + " types clamp a value outside 1900 to 2299 in silence, which a placeholder cannot refuse");
+            case DATE, DATE_TIME -> new ParameterType("Nullable(DateTime64(6, 'UTC'))",
+                    new RenderedStatement.AsText(6));
         };
+    }
+
+    /** {@inheritDoc} A Date or DateTime parameter's text read in range or raised by the dialect's error arm
+     *  ({@link #error}, the literal's message): {@code CASE WHEN ? IS NULL THEN NULL WHEN toInt32(substring(?, 1, 4))
+     *  BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(<raise> AS ...) END}, the value bound at each of
+     *  its three places (the text's year is its first four digits: a parameter's year is 1 to 9999, PlanParameters).
+     *  Measured with {@code clickhouse local} 2026-11-10: 2024, 1900-01-01 and 2299-12-31 23:59:59.999999 read as the
+     *  literal reads them; 9999-12-31 and 1800-01-01 raise. */
+    @Override
+    protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        com.legend.sql.DeclaredKind declared = p.declared();
+        if (declared != com.legend.sql.DeclaredKind.DATE && declared != com.legend.sql.DeclaredKind.DATE_TIME) {
+            return super.placeholder(writer, p);
+        }
+        ParameterType type = java.util.Objects.requireNonNull(parameterType(declared), "a date's placeholder type");
+        RenderedStatement.AsText asText = java.util.Objects.requireNonNull(type.asText(), "a date bound as its text");
+        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN toInt32(substring(")
+                .bind(textBind(p, asText)).append(", 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(")
+                .bind(textBind(p, asText)).append(", 6, 'UTC') ELSE CAST(")
+                .piece(x -> error(x, raised(DATE_RANGE))).append(" AS " + type.name() + ") END");
     }
 
     /** A naive UTC date-time of six digits (finer ones cut, as DuckDB's TIMESTAMP does); a {@code T} is a space. */
