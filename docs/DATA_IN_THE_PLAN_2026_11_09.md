@@ -357,8 +357,32 @@ The orchestrator's reading of decision 1 (2026-11-10): always a load, with no SQ
   it refused the source before (H2, SQLite: their floor lines).
 - **Tests:** `SourceUrlUserCallableTest` checks the digest-named TEMPORARY table, a statement that holds no payload,
   and a union of two equal sources that answers both arms' rows from one table. Census M10 is DELETED.
-- **Still to come (L6c):** the content store, for model text above the threshold (M1's large fill, a large `data:`
-  payload). Below the threshold the rows ride in the load's steps, as here.
+- **The content store** for model text above the threshold (M1's large fill, a large `data:` payload) is L6c, below.
+  Below the threshold the rows ride in the load's steps, as here.
+
+### L6c as built: the plan's bundle (2026-11-10, branch `claude/total-wall`)
+
+The orchestrator's ruling (2026-11-10): (a), the bundle. A write at planning, (b), would break G4 ("plan only plans").
+- **The records:** `DataRef.Namespace.CONTENT` and `DataRef.Rows` (rows of text cells as a JSON array of arrays, an empty
+  string kept apart from a NULL). `ExecutionPlan.Load` carries its bundle, `content` (each text by its SHA-256). It
+  holds exactly the CONTENT digests its file steps name, and it refuses by name, wherever it is made or read, a bundle
+  that lacks one and a text whose bytes are not its digest.
+- **The planner:** `planner.ContentRows` handles a project's Data fill (M1: `ProjectData.fillSteps`) and a `data:`
+  source's elements (`DataSources`).
+  - Rows whose text is at most 16 KB ride inline, as the one insert the database runs.
+  - Above that, they go to the bundle. The steps create a temporary staging table of text columns, stream the
+    bundle's rows into it (`Delivery.Streamed` with `SqlDialect.rowsInsert`, each cell bound as text), copy them into
+    the table (the database casts, as with the inline literals) and drop the staging table.
+  - A load that casts its cells, or a database with no temporary table, keeps its rows inline.
+- **The run:** a CONTENT file step reads the load's own bundle. Every other file reads through the run's stores.
+- **Travel:** `PlanJson.write` keeps a load's bundle inline, so a plan written whole reads back as it was.
+  `PlanJson.writeBundle` returns `Bundle(json, blobs)`: the plan's JSON with no content in it, plus one blob per digest.
+  `PlanJson.read(json, blobs)` gives each load its blobs back, verified by the load's own check. Plan JSON v37.
+- **Tests:** `ContentBundleTest`:
+  - a plan written out and read back on a fresh runner loads the same 2,000 rows;
+  - a blob whose bytes are not its digest is refused by name;
+  - a bundle that lacks a digest is refused by name;
+  - rows below the threshold ride inline.
 
 ### L5 as built: no fixture between a body's plan and its run (2026-11-10, branch `claude/total-wall`)
 

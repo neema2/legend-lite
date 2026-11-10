@@ -137,14 +137,14 @@ class PlanJsonTest {
         // 31 the same day: the load node and a file's load by reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1); 32
         // the same day: a reference's declared format, an object, and the one streamed delivery (L2); 33 the same day: a
         // PER_TRANSACTION load, the system catalog's registration (L4b)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":36,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":37,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v36 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v37 plan"), refused.getMessage());
     }
 
     @Test
@@ -195,7 +195,7 @@ class PlanJsonTest {
         assertTrue(missing.getMessage().contains("does not hold"), missing.getMessage());
         // two contents under one identity, when the plan is written
         ExecutionPlan.Load other = new ExecutionPlan.Load(identity, ExecutionPlan.Load.Cadence.PER_ACQUISITION,
-                List.of(new LoadStep.Statement("create table U(ID INT)")), bare);
+                List.of(new LoadStep.Statement("create table U(ID INT)")), bare, java.util.Map.of());
         ExecutionPlan clash = ExecutionPlan.reading(List.of(), new Sequence(List.of(
                 new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)),
                 new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 2", List.of(),

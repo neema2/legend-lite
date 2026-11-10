@@ -112,7 +112,10 @@ probe	base builtin lowering model platform
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
 # read-backs typed rows of plan columns.
 testdatagen	base builtin compiler compiler_element_type error lineage model plan protocol sql sql_dialect test_plan values
-execution_plan	base json sql
+# 2026-11-10 (docs/DATA_IN_THE_PLAN_2026_11_09.md L6c): `execution_plan` reaches `cache` -- a load verifies its bundle
+# against each text's digest with the one portable SHA-256 (cache.Hash: the planner runs on WebAssembly, which has no
+# MessageDigest).
+execution_plan	base cache json sql
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 2): `test_plan`, a test body's plan as data (base, error); judge and
 # driver reach it (a planning failure recorded as data, raised at its turn). Step 3: it holds the test plan around the
 # product's (execution_plan) and its JSON (json); testplan reaches it (the test door builds the test plan).

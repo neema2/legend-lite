@@ -100,8 +100,10 @@ public final class PlanJson {
      *  {@code ?} the runner's copy's path: the user's ruling of 2026-11-09, each database's own reader); the streamed
      *  and bulk deliveries are gone. 35 since 2026-11-10: the streamed delivery back, {@code streamed} (one row's
      *  insert and its width), for every database with no reader that reads the format as upstream does (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). 36 since 2026-11-10: a slot may bind a live source's location ({@code source}: a model's
-     *  {@code file:} source as a pointer, the runner binding the path its admission allows; L6). */
-    public static final int VERSION = 36;
+     *  {@code file:} source as a pointer, the runner binding the path its admission allows; L6).  37 since 2026-11-10: a load may hold its bundle inline ({@code content}: the model's text above the
+     *  inline threshold, by digest, read by a file step of the {@code CONTENT} namespace and {@code rows} format; L6c),
+     *  or travel as a {@link Bundle}, its JSON plus one blob per digest. */
+    public static final int VERSION = 37;
 
     private PlanJson() {
     }
@@ -158,6 +160,10 @@ public final class PlanJson {
     // ---- write ------------------------------------------------------------------------------------------------------
 
     public static String write(ExecutionPlan plan) {
+        return Json.toCompact(tree(plan));
+    }
+
+    private static Map<String, Object> tree(ExecutionPlan plan) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("format", FORMAT);
         out.put("version", VERSION);
@@ -165,7 +171,48 @@ public final class PlanJson {
         out.put("root", node(plan.root()));
         out.put("writes", plan.writes());
         out.put("loads", hoistLoads(out));
-        return Json.toCompact(out);
+        return out;
+    }
+
+    /** The field of a load holding its bundle inline (L6c). */
+    private static final String CONTENT = "content";
+
+    /**
+     * A PLAN AND ITS BUNDLE as they travel (L6c, 2026-11-10, decision 1 and the design's 2.1 {@code bundle}): the plan's
+     * JSON with no content in it, and one blob per digest -- the model's text above the inline threshold, each read back
+     * by {@link #read(String, Map)} and verified against its digest there.
+     *
+     * @param json  the plan's JSON, every load's bundle moved out
+     * @param blobs each blob's text by its SHA-256
+     */
+    public record Bundle(String json, Map<String, String> blobs) {
+        public Bundle {
+            java.util.Objects.requireNonNull(json, "json");
+            blobs = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(blobs));
+        }
+    }
+
+    /** {@code plan} as it travels: its JSON with each load's bundle moved to a blob of its own ({@link Bundle}). */
+    @SuppressWarnings("unchecked")
+    public static Bundle writeBundle(ExecutionPlan plan) {
+        Map<String, Object> out = tree(plan);
+        Map<String, String> blobs = new java.util.TreeMap<>();
+        for (Object load : (List<Object>) java.util.Objects.requireNonNull(out.get("loads"), "a plan's load section")) {
+            Object content = ((Map<String, Object>) load).remove(CONTENT);
+            if (content != null) {
+                ((Map<String, Object>) content).forEach((digest, text) -> blobs.put(digest, (String) text));
+            }
+        }
+        return new Bundle(Json.toCompact(out), blobs);
+    }
+
+    /**
+     * {@link #writeBundle}'s inverse: the plan read from {@code json}, each load given back the blobs its steps name
+     * from {@code blobs}. A load whose step names a digest {@code blobs} lacks, or a blob whose bytes are not its digest,
+     * is refused by name (the load's own check).
+     */
+    public static ExecutionPlan read(String json, Map<String, String> blobs) {
+        return readTree(json, blobs);
     }
 
     /**
@@ -347,6 +394,10 @@ public final class PlanJson {
                 }
                 o.put("steps", steps);
                 o.put("target", target(u.target()));
+                if (!u.content().isEmpty()) {
+                    // the bundle inline (a plan written whole); writeBundle moves each text to a blob of its own
+                    o.put(CONTENT, new LinkedHashMap<String, Object>(u.content()));
+                }
             }
             case ExecutionPlan.Constant c -> {
                 o.put("_type", NodeTag.constant.name());
@@ -536,6 +587,7 @@ public final class PlanJson {
                         format.put("delimiter", String.valueOf(csv.delimiter()));
                         format.put("quote", String.valueOf(csv.quote()));
                     }
+                    case DataRef.Rows rows -> format.put("_type", "rows");
                 }
                 ref.put("format", format);
                 o.put("ref", ref);
@@ -566,6 +618,10 @@ public final class PlanJson {
     public static final int MAX_DEPTH = 4096;
 
     public static ExecutionPlan read(String json) {
+        return readTree(json, Map.of());
+    }
+
+    private static ExecutionPlan readTree(String json, Map<String, String> blobs) {
         if (!(Json.parse(json, new Json.Config(MAX_DEPTH)) instanceof Json.Obj o)) {
             throw new IllegalArgumentException("a plan's JSON is an object");
         }
@@ -574,12 +630,42 @@ public final class PlanJson {
             throw new IllegalArgumentException("not a " + FORMAT + " v" + VERSION + " plan (format " + format
                     + ", version " + o.getIntOr("version", -1) + ")");
         }
+        attachBlobs(o.getArr("loads"), blobs);
         inlineLoads(o, o.getArr("loads"));
         List<Parameter> parameters = new ArrayList<>();
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(readParameter((Json.Obj) n));
         }
         return new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
+    }
+
+    /** Each load of {@code section} that holds no bundle inline given the blobs its CONTENT file steps name (L6c): a
+     *  digest {@code blobs} lacks is left out, and the load refuses itself by name when it is read. */
+    private static void attachBlobs(Json.Arr section, Map<String, String> blobs) {
+        if (blobs.isEmpty()) {
+            return;
+        }
+        for (Json.Node n : section.items()) {
+            Json.Obj load = (Json.Obj) n;
+            if (load.fields().containsKey(CONTENT)) {
+                continue;
+            }
+            LinkedHashMap<String, Json.Node> named = new LinkedHashMap<>();
+            for (Json.Node s : load.getArr("steps").items()) {
+                Json.Obj step = (Json.Obj) s;
+                Json.Obj ref = step.getObjOr("ref", null);
+                if (ref != null && DataRef.Namespace.CONTENT.name().equals(ref.getString("namespace"))) {
+                    String digest = ref.getString("digest");
+                    String text = blobs.get(digest);
+                    if (text != null) {
+                        named.put(digest, new Json.Str(text));
+                    }
+                }
+            }
+            if (!named.isEmpty()) {
+                load.fields().put(CONTENT, new Json.Obj(named));
+            }
+        }
     }
 
     /** {@link #parameterJson}'s inverse. */
@@ -589,10 +675,12 @@ public final class PlanJson {
 
     /** A data reference's declared format (decision 6): {@code csv}, its delimiter and quote one character each. */
     private static DataRef.Format format(Json.Obj o) {
-        if (!"csv".equals(o.getString("_type"))) {
-            throw new IllegalArgumentException("a data reference's format is csv: " + o.getString("_type"));
-        }
-        return new DataRef.Csv(oneChar(o.getString("delimiter")), oneChar(o.getString("quote")));
+        return switch (o.getString("_type")) {
+            case "csv" -> new DataRef.Csv(oneChar(o.getString("delimiter")), oneChar(o.getString("quote")));
+            case "rows" -> DataRef.Rows.JSON;
+            default -> throw new IllegalArgumentException("a data reference's format is csv or rows: "
+                    + o.getString("_type"));
+        };
     }
 
     private static char oneChar(String s) {
@@ -674,9 +762,15 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("steps").items()) {
                     steps.add(readLoadStep((Json.Obj) n));
                 }
+                Map<String, String> content = new LinkedHashMap<>();
+                Json.Obj bundle = o.getObjOr(CONTENT, null);
+                if (bundle != null) {
+                    bundle.fields().forEach((digest, text) -> content.put(digest, ((Json.Str) text).value()));
+                }
+                // the load refuses a bundle that lacks a digest its steps read, or a text that is not its digest
                 yield new ExecutionPlan.Load(o.getString("identity"),
                         ExecutionPlan.Load.Cadence.valueOf(o.getString("cadence")), steps,
-                        readTarget(o.getObj("target")));
+                        readTarget(o.getObj("target")), content);
             }
             case constant -> {
                 List<List<String>> cells = new ArrayList<>();

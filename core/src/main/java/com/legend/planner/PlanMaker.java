@@ -863,7 +863,8 @@ public final class PlanMaker {
         List<ExecutionPlan.Load> loads = new ArrayList<>();
         // a project's Data rows: one ONCE load, made with its database and kept (L3, S171)
         if (filled && project != null && !project.data().isEmpty()) {
-            loads.add(LoadPlanner.load(project.dataIdentity(), ExecutionPlan.Load.Cadence.ONCE, project.data(), bare));
+            loads.add(LoadPlanner.load(project.dataIdentity(), ExecutionPlan.Load.Cadence.ONCE, project.data(), bare,
+                    project.content()));
         }
         loads.addAll(LoadPlanner.targetLoads(declared, bare));
         loads.addAll(LoadPlanner.targetLoads(metamodel.setup(), bare));
@@ -902,21 +903,33 @@ public final class PlanMaker {
                     // model, those on another database too -- the stress lanes' 5,795 bodies)
                     String refused = platform ? null : com.legend.setup.ProjectData.refusal(ctx);
                     List<ExecutionPlan.LoadStep> data = new ArrayList<>();
+                    Map<String, String> content = new LinkedHashMap<>();
                     if (!platform && refused == null) {
-                        for (String sql : com.legend.setup.ProjectData.fill(ctx, dialect)) {
-                            data.add(new ExecutionPlan.LoadStep.Statement(sql));
+                        // each statement as written, each table's rows inline or, above the inline threshold, from the
+                        // load's bundle (L6c, 2026-11-10: the markets fill is 1.87 MB)
+                        for (com.legend.setup.CsvSeed.Step step : com.legend.setup.ProjectData.fillSteps(ctx, dialect)) {
+                            switch (step) {
+                                case com.legend.setup.CsvSeed.Step.Sql sql ->
+                                        data.add(new ExecutionPlan.LoadStep.Statement(sql.text()));
+                                case com.legend.setup.CsvSeed.Step.Rows rows -> {
+                                    ContentRows planned = ContentRows.of(rows.load(), dialect);
+                                    data.addAll(planned.steps());
+                                    content.putAll(planned.content());
+                                }
+                            }
                         }
                     }
                     // the fill's identity digested once per model and kind (knowledge, eager): never per query (the M1
                     // correctness audit's note, 2026-11-09)
-                    return new ProjectPlan(new ExecutionPlan.Project(key, refused), List.copyOf(data),
+                    return new ProjectPlan(new ExecutionPlan.Project(key, refused), List.copyOf(data), Collections.unmodifiableMap(new LinkedHashMap<>(content)),
                             data.isEmpty() ? "" : LoadPlanner.identity(ExecutionPlan.Load.Cadence.ONCE, data));
                 });
     }
 
     /** A project's database as a plan names it, and the statements that fill it from the Data rows (the target's ONCE
      *  load: L3). */
-    private record ProjectPlan(ExecutionPlan.Project project, List<ExecutionPlan.LoadStep> data, String dataIdentity) {
+    private record ProjectPlan(ExecutionPlan.Project project, List<ExecutionPlan.LoadStep> data,
+            Map<String, String> content, String dataIdentity) {
     }
 
     /** {@link #project}'s memo on the compiled model, by database kind and dialect. */

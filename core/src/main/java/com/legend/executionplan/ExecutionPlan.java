@@ -271,7 +271,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * it). A test door's step (refused on the product's query door, B6). Until 2026-11-09 the program's seed step
      * ({@code Setup}), the seeds' cadence alone.
      */
-    public record Load(String identity, Cadence cadence, List<LoadStep> steps, Target target) implements Node {
+    public record Load(String identity, Cadence cadence, List<LoadStep> steps, Target target,
+            java.util.Map<String, String> content) implements Node {
         /** The prefix every load identity carries (the system store's too since L4a, 2026-11-09). */
         public static final String IDENTITY_PREFIX = "load:";
 
@@ -306,6 +307,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                         sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
                         switch (f.ref().format()) {
                             case DataRef.Csv csv -> sb.append("csv").append(csv.delimiter()).append(csv.quote());
+                            case DataRef.Rows rows -> sb.append("rows");
                         }
                         switch (f.delivery()) {
                             case LoadStep.Delivery.Reads r -> {
@@ -327,6 +329,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             return sb.append(text.length()).append(':').append(text);
         }
 
+        /**
+         * {@code content}: THE BUNDLE this load reads (L6c, 2026-11-10, decision 1: the model's text above the inline
+         * threshold, beside the plan and never in a statement), each text by its SHA-256 -- exactly the CONTENT digests
+         * its file steps name, each text's own digest: a bundle that lacks one, or a text whose bytes are not its
+         * digest, is refused by name here, wherever the load is made or read.
+         */
         public Load {
             Objects.requireNonNull(target, "target");
             Objects.requireNonNull(cadence, "cadence");
@@ -337,6 +345,28 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             steps = List.copyOf(steps);
             if (steps.isEmpty()) {
                 throw new IllegalArgumentException("a load with no step: plan none");
+            }
+            content = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(content));
+            java.util.Set<String> named = new java.util.TreeSet<>();
+            for (LoadStep step : steps) {
+                if (step instanceof LoadStep.File f && f.ref().namespace() == DataRef.Namespace.CONTENT) {
+                    named.add(f.ref().digest());
+                }
+            }
+            for (String digest : named) {
+                String text = content.get(digest);
+                if (text == null) {
+                    throw new IllegalArgumentException("the load " + identity + " reads the content " + digest
+                            + ", which its bundle lacks");
+                }
+                // the portable SHA-256 (the planner runs on WebAssembly, which has no MessageDigest)
+                if (!com.legend.cache.Hash.ofUtf8(text).hex().equals(digest)) {
+                    throw new IllegalArgumentException("the load " + identity + "'s bundle holds bytes that are not"
+                            + " their digest " + digest);
+                }
+            }
+            if (!named.equals(content.keySet())) {
+                throw new IllegalArgumentException("the load " + identity + "'s bundle holds content no step reads");
             }
         }
 

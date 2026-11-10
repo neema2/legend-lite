@@ -39,13 +39,28 @@ public record DataRef(Namespace namespace, String name, String digest, long size
     /** Where a reference's name resolves. More arrive with their slices (the design's 2.1: content, bundle, url). */
     public enum Namespace {
         /** A repository's test resources, by their name under its resource root. */
-        RESOURCE
+        RESOURCE,
+        /** The model's own text above the inline threshold (L6c, 2026-11-10, decision 1): bytes the plan's BUNDLE
+         *  carries, named by their digest, beside the plan and never in it -- a serialized plan travels as its JSON plus
+         *  one blob per digest, each verified on read ({@code PlanJson.Bundle}). */
+        CONTENT
     }
 
     /** How the referenced bytes are read: a closed set of declared formats, one meaning on every database
      *  (docs/DATA_IN_THE_PLAN_2026_11_09.md decision 6, ruled 2026-11-09: a file's cells mean what the platform's
      *  format says, never what a database's reader makes of them). */
-    public sealed interface Format permits Csv {
+    public sealed interface Format permits Csv, Rows {
+    }
+
+    /**
+     * Rows of text cells as a JSON array of arrays, UTF-8, each cell a string or {@code null} (SQL NULL) -- the form the
+     * model's own rows take in the content store (L6c, 2026-11-10): exactly the cells the plan's inline load would
+     * carry, an empty string kept apart from a NULL, no header.
+     */
+    public record Rows() implements Format {
+
+        /** The one rows format. */
+        public static final Rows JSON = new Rows();
     }
 
     /**

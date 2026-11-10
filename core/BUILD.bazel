@@ -75,7 +75,7 @@ legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache
 legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
-legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":sql"])
+legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":cache", ":sql"])
 # THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's steps 2 and 3, 2026-11-08): a test
 # body's plan as data, around the product's (:execution_plan) -- its steps, its verdict groups and branches, an error known
 # at planning (Failure) -- and its JSON. Data alone: it depends on no planning or runtime library.

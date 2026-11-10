@@ -321,7 +321,7 @@ class DataLoadsTest {
         for (TestBackend b : loading()) {
             ExecutionPlan.Load honest = load(b, file(b.dialect(), "employees.csv", bytes));
             ExecutionPlan.Load named = new ExecutionPlan.Load("load:another", honest.cadence(), honest.steps(),
-                    honest.target());
+                    honest.target(), java.util.Map.of());
             IllegalStateException e = assertThrows(IllegalStateException.class,
                     () -> loaded(b, DataStores.resources(dir), named), b.name());
             assertTrue(e.getMessage().contains("is not its content's"), e.getMessage());

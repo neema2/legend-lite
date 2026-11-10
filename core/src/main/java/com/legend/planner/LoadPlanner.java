@@ -24,14 +24,28 @@ public final class LoadPlanner {
     /** {@code steps} as a load of {@code cadence} into {@code target}, named by its content ({@link #identity}). */
     public static ExecutionPlan.Load load(ExecutionPlan.Load.Cadence cadence, List<ExecutionPlan.LoadStep> steps,
             ExecutionPlan.Target target) {
-        return new ExecutionPlan.Load(identity(cadence, steps), cadence, steps, target);
+        return new ExecutionPlan.Load(identity(cadence, steps), cadence, steps, target, java.util.Map.of());
     }
 
     /** {@code steps} as a load of {@code cadence} into {@code target} whose identity was digested already
      *  ({@link #identity}, memoized by its caller: a project's fill, per model). */
     static ExecutionPlan.Load load(String identity, ExecutionPlan.Load.Cadence cadence,
             List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target) {
-        return new ExecutionPlan.Load(identity, cadence, steps, target);
+        return new ExecutionPlan.Load(identity, cadence, steps, target, java.util.Map.of());
+    }
+
+    /** {@link #load(String, ExecutionPlan.Load.Cadence, List, ExecutionPlan.Target)} reading {@code content}, the
+     *  bundle its CONTENT file steps name (L6c). */
+    static ExecutionPlan.Load load(String identity, ExecutionPlan.Load.Cadence cadence,
+            List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target, java.util.Map<String, String> content) {
+        return new ExecutionPlan.Load(identity, cadence, steps, target, content);
+    }
+
+    /** {@code steps} as a load of {@code cadence} into {@code target} reading {@code content}, named by its steps'
+     *  content (the digests stand for the bundle's bytes). */
+    static ExecutionPlan.Load load(ExecutionPlan.Load.Cadence cadence, List<ExecutionPlan.LoadStep> steps,
+            ExecutionPlan.Target target, java.util.Map<String, String> content) {
+        return new ExecutionPlan.Load(identity(cadence, steps), cadence, steps, target, content);
     }
 
     /** {@code steps} as the loads a target establishes on acquisition: none for no step, else one load into

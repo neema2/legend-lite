@@ -87,6 +87,11 @@ public interface SqlDialect {
      */
     CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
 
+    /** One row's insert into {@code load}'s table, a {@code ?} per column, the runner's text cells bound to it: the
+     *  streamed delivery of the model's rows from a plan's bundle (L6c, into a staging table of text columns), and of
+     *  a CSV file's cells where the database reads none itself. */
+    String rowsInsert(com.legend.sql.SqlDml.LoadCsv load);
+
     /** A CSV file's load as this dialect spells it. */
     sealed interface CsvLoad permits CsvLoad.Reads, CsvLoad.Streamed {
 

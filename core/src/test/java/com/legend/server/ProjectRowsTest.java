@@ -172,6 +172,29 @@ class ProjectRowsTest {
         assertEquals(json, com.legend.executionplan.PlanJson.write(com.legend.executionplan.PlanJson.read(json)));
     }
 
+    /** A project's Data above the inline threshold travels in the plan's bundle (L6c, 2026-11-10; census M1 DELETED):
+     *  its ONCE load reads the rows by a CONTENT reference, no statement holds them, and the server's database answers
+     *  every row. */
+    @Test
+    void aLargeFillTravelsInTheBundle() throws Exception {
+        StringBuilder rows = new StringBuilder("ID,NAME\\n");
+        for (int i = 1; i <= 2000; i++) {
+            rows.append(i).append(",Party number ").append(i).append("\\n");
+        }
+        String large = PARTY.replace("'ID,NAME\\n1,Meridian Capital\\n2,Halberd Securities\\n'", "'" + rows + "'");
+        com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(large),
+                QUERY).projectPlan("proj::RT");
+        com.legend.executionplan.ExecutionPlan.Load once = plan.answerSql().target().loads().stream()
+                .filter(l -> l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE).findFirst()
+                .orElseThrow();
+        assertEquals(1, once.content().size(), "one blob: the table's rows");
+        assertTrue(once.steps().stream().anyMatch(s -> s instanceof com.legend.executionplan.ExecutionPlan.LoadStep.File f
+                && f.ref().namespace() == com.legend.executionplan.DataRef.Namespace.CONTENT), String.valueOf(once));
+        com.legend.executionplan.PlanJson.Bundle bundle = com.legend.executionplan.PlanJson.writeBundle(plan);
+        assertTrue(!bundle.json().contains("Party number 1999"), "no row in the plan's JSON");
+        assertEquals(2000, names(large).size());
+    }
+
     /** A Data element over a table no Database declares: every query on the model refused by name (the database the
      *  server made for it let go), where before C5 it ran on an empty database. */
     @Test

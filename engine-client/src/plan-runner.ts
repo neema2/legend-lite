@@ -70,7 +70,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 35 since 2026-11-10: a file's delivery may be the runner's streamed cells (streamed) -- a load is refused by name, as at 34
 // 36 since 2026-11-10: a slot may bind a live source's location (source), the runner binding the path its admission
 // allows -- refused by name here: a host's runner admits no source
-const PLAN_VERSION = 36;
+// 37 since 2026-11-10: a load may read the model's text from its bundle (content; a rows reference) -- a load is
+// refused by name here, as at 36
+const PLAN_VERSION = 37;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

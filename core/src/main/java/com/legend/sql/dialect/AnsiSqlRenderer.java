@@ -1902,8 +1902,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  database's own reader reads the format as upstream does spells that instead (DuckDB). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        return new CsvLoad.Streamed(csvInsertInto(load) + " VALUES ("
-                + String.join(", ", java.util.Collections.nCopies(load.columns().size(), "?")) + ")");
+        return new CsvLoad.Streamed(rowsInsert(load));
+    }
+
+    /** {@inheritDoc} The base: {@code INSERT INTO t (columns) VALUES (?, ...)}, the database casting each bound text. */
+    @Override
+    public String rowsInsert(com.legend.sql.SqlDml.LoadCsv load) {
+        return csvInsertInto(load) + " VALUES ("
+                + String.join(", ", java.util.Collections.nCopies(load.columns().size(), "?")) + ")";
     }
 
     /** {@code load}'s target, as an INSERT names it: the table and its columns. */

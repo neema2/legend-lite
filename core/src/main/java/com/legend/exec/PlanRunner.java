@@ -595,8 +595,14 @@ public final class PlanRunner {
                         answered.add(false);
                     }
                     case ExecutionPlan.LoadStep.File f -> {
-                        // the file by its reference, its verified bytes delivered as the plan says (DataLoads)
-                        byte[] bytes = DataLoads.verified(f.ref(), stores);
+                        // the file by its reference, its verified bytes delivered as the plan says (DataLoads): the model's
+                        // text above the inline threshold from the load's own bundle (L6c, verified when the load was
+                        // made or read), any other file through the stores the run was given
+                        byte[] bytes = f.ref().namespace() == com.legend.executionplan.DataRef.Namespace.CONTENT
+                                ? java.util.Objects.requireNonNull(seeds.content().get(f.ref().digest()),
+                                        "a load's bundle holds every digest its steps read").getBytes(
+                                        java.nio.charset.StandardCharsets.UTF_8)
+                                : DataLoads.verified(f.ref(), stores);
                         switch (f.delivery()) {
                             case ExecutionPlan.LoadStep.Delivery.Reads reads -> {
                                 // a copy of the runner's own, which the database reads with its own reader, each

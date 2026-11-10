@@ -63,11 +63,18 @@ class DataMechanismCensusTest {
     /** The 17, in the inventory's order. */
     static final List<Row> ROWS = List.of(
             // L3, 2026-11-09: a project's Data rows are its target's ONCE load (S171), run on every database the platform
-            // makes and refused on any other (the M1 audit's finding 1). PENDING still (the M1 tenets audit's finding 2,
-            // 2026-11-09): the fill is ProjectData.fill's INSERT text inline in every plan (decision 1's reference above
-            // its threshold not built), PlanSessions.made makes it, Project.refused stays
-            new Row("M1", "###Data into the server's project database (Project.made)", new Pending("L3 (the fill by"
-                    + " reference, decision 1)")),
+            // makes and refused on any other (the M1 audit's finding 1). DELETED at L6c, 2026-11-10 (the orchestrator's
+            // ruling): the fill reaches a plan only as that ONCE load, its rows inline or, above 16 KB, in the load's
+            // bundle -- no other way. What stays is the design, not residue: PlanSessions.made is exec establishing the
+            // plan's load where it makes the database, and Project.refused a refusal carried as data, raised where the
+            // database is made (slice 5's reason: at planning it failed every query of the model). Proof:
+            // ProjectRowsTest.aProjectsDataIsItsTargetsOnceLoadWrittenOnce and aLargeFillTravelsInTheBundle
+            new Row("M1", "###Data into the server's project database (Project.made)", new Deleted("L6c", List.of(
+                    // L3: the project's own fill steps, carried and read; the project stripped to its key on every open
+                    "project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly(",
+                    // L6c: a plan's fill as statement text (the text form stays the host's own, ProjectData.of: M14,
+                    // until L7)
+                    "ProjectData.fill("))),
             // L2, 2026-11-09: a target's declared test data is its PER_ACQUISITION loads, written once per plan and run
             // by the one deliverer every load takes (PlanRunner.seed); the target's setup and its own runner are gone
             new Row("M2", "a connection's declared test data on the product path (Target.setup)", new Deleted("L2",
@@ -103,7 +110,9 @@ class DataMechanismCensusTest {
             // PENDING (the M1 correctness audit's C3, 2026-11-09): a seed form mapped over executeInDb was made a load
             // at L2 and put back the same day -- as a load it lost the effect script's transaction bracket and abort, its
             // ledger on failure and the B8 refusal. Its move is designed with the runner's transaction for loads
-            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed", new Pending("L5")),
+            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed", new Pending("L5b"
+                    + " (2026-11-10, re-sliced: a load step inside the effect script, keeping its bracket, abort, ledger and"
+                    + " B8 refusal; L5 itself was the fixtures, option C)")),
             // L1, 2026-11-09: loadCsvToDbTable is a File load by reference; the path it put in a statement is gone
             new Row("M8", "loadCsvToDbTable: the planning machine's path in a statement (D3)", new Deleted("L1", List.of(
                     // the dialects' reader over a path written into the statement
@@ -161,8 +170,6 @@ class DataMechanismCensusTest {
             "M3", List.of("Seeds.key(", "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
                     "o.optionalString(\"testDataSetupCsv\")", "o.put(\"testDataSetupSqls\"",
                     "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup"),
-            // L3: the project's own fill steps, carried and read; the project stripped to its key on every open
-            "M1", List.of("project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly("),
             // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
             // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
             "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"));
@@ -227,7 +234,8 @@ class DataMechanismCensusTest {
         // M7-seed counted deleted until the M1 audits the same day: M1, M3 and M7-seed PENDING, M4 BOUNDED by its
         // ruling). A row leaves PENDING with its slice and this count rises with it, in the same change, with its date and slice
         long deleted = ROWS.stream().filter(r -> r.state() instanceof Deleted).count();
-        // 2 -> 3 (2026-11-10, L6: M10 deleted, its file: path in SQL and its data: literal)
-        assertEquals(3, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // 2 -> 3 (2026-11-10, L6: M10 deleted, its file: path in SQL and its data: literal); 3 -> 4 (2026-11-10,
+        // L6c: M1 deleted, the fill's statement text, the fill only a ONCE load)
+        assertEquals(4, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

@@ -6,8 +6,6 @@ package com.legend.planner;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.NameQuoting;
 import com.legend.sql.SqlDdl;
-import com.legend.sql.SqlDml;
-import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
 import com.legend.sql.SqlSource;
@@ -29,10 +27,11 @@ import java.util.Set;
  * reads exactly the plan's rows. The payload is split into its elements verbatim, never re-printed: the database reads
  * each element's JSON text, as it read the whole array until then.
  *
- * @param query the query reading each source's table
- * @param steps the load's steps: per content, the table dropped, created and filled
+ * @param query   the query reading each source's table
+ * @param steps   the load's steps: per content, the table dropped, created and filled
+ * @param content the bundle the steps read: the elements of a payload above the inline threshold (L6c)
  */
-record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps) {
+record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<String, String> content) {
 
     /** The one column a source's table holds, as the source's single output names it. */
     static final String COLUMN = "data";
@@ -42,6 +41,7 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps) {
     static DataSources of(SqlQuery q, SqlDialect dialect) {
         Map<String, String> tables = new LinkedHashMap<>();
         List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
+        Map<String, String> bundle = new LinkedHashMap<>();
         SqlQuery read = new SqlRewriter() {
             @Override
             protected SqlSource source(SqlSource s) {
@@ -56,21 +56,22 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps) {
                             new SqlDdl.DropTable(null, name, NameQuoting.BARE))));
                     steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(new SqlDdl.CreateTable(null, name,
                             NameQuoting.BARE, List.of(new SqlDdl.Column(COLUMN, false, type, false, false)), true))));
-                    List<List<SqlExpr>> rows = new ArrayList<>();
+                    List<List<String>> rows = new ArrayList<>();
                     for (String element : elements(c, u.url())) {
-                        rows.add(List.of(new SqlExpr.StringLit(element)));
+                        rows.add(List.of(element));
                     }
-                    if (!rows.isEmpty()) {
-                        steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(new SqlDml.InsertValues(null,
-                                name, NameQuoting.BARE, List.of(COLUMN), Set.of(), rows))));
-                    }
+                    // the elements inline, or from the load's bundle above the inline threshold (L6c)
+                    ContentRows planned = ContentRows.of(new com.legend.setup.RowLoad(null, name, NameQuoting.BARE,
+                            List.of(COLUMN), Set.of(), 1, rows), dialect);
+                    steps.addAll(planned.steps());
+                    bundle.putAll(planned.content());
                     return name;
                 });
                 return new SqlSource.Table(table, u.alias(), u.outputs(), false, Map.of(COLUMN, type),
                         NameQuoting.BARE);
             }
         }.rewrite(q);
-        return new DataSources(read, List.copyOf(steps));
+        return new DataSources(read, List.copyOf(steps), java.util.Collections.unmodifiableMap(new LinkedHashMap<>(bundle)));
     }
 
     /** {@code target} with the load that makes the tables, established on acquisition; {@code target} as it is where
@@ -80,7 +81,7 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps) {
             return target;
         }
         List<ExecutionPlan.Load> loads = new ArrayList<>(target.loads());
-        loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, steps, target.bare()));
+        loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, steps, target.bare(), content));
         return new ExecutionPlan.Target(target.database(), target.session(), loads);
     }
 

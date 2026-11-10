@@ -36,12 +36,42 @@ final class DataLoads {
             return switch (ref.format()) {
                 case DataRef.Csv csv -> com.legend.base.CsvCells.table(new String(bytes,
                         java.nio.charset.StandardCharsets.UTF_8), csv.delimiter(), csv.quote(), columns);
+                case DataRef.Rows rows -> rows(ref, bytes, columns);
             };
         } catch (com.legend.base.CsvCells.TooLarge e) {
             throw new DataError(String.valueOf(e.getMessage()), e);
         } catch (com.legend.base.CsvCells.Malformed e) {
             throw new DataError("the file '" + ref.name() + "': " + e.getMessage(), e);
         }
+    }
+
+    /** {@code bytes}' rows, a JSON array of arrays of text cells (a string, or null for SQL NULL: {@code DataRef.Rows}),
+     *  each exactly {@code columns} wide: refused by name otherwise (the digest makes them the plan's bytes; a row of
+     *  another width is the planner's defect). */
+    private static java.util.List<java.util.List<String>> rows(DataRef ref, byte[] bytes, int columns) {
+        com.legend.json.Json.Node root = com.legend.json.Json.parse(new String(bytes,
+                java.nio.charset.StandardCharsets.UTF_8));
+        if (!(root instanceof com.legend.json.Json.Arr all)) {
+            throw new DataError("the content '" + ref.name() + "' is not a JSON array of rows");
+        }
+        java.util.List<java.util.List<String>> out = new java.util.ArrayList<>(all.items().size());
+        for (com.legend.json.Json.Node r : all.items()) {
+            if (!(r instanceof com.legend.json.Json.Arr row) || row.items().size() != columns) {
+                throw new DataError("the content '" + ref.name() + "' has a row that is not " + columns
+                        + " cell(s) wide");
+            }
+            java.util.List<String> cells = new java.util.ArrayList<>(columns);
+            for (com.legend.json.Json.Node c : row.items()) {
+                switch (c) {
+                    case com.legend.json.Json.Str str -> cells.add(str.value());
+                    case com.legend.json.Json.Null n -> cells.add(null);
+                    default -> throw new DataError("the content '" + ref.name() + "' has a cell that is neither text"
+                            + " nor null");
+                }
+            }
+            out.add(cells);
+        }
+        return out;
     }
 
     /** The runner's own copy of verified bytes, deleted when closed: what the database reads is what was verified, at a

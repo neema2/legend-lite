@@ -118,12 +118,20 @@ public record ProjectData(String name, List<String> open, List<String> use, List
 
     /** Every table a relational Data element fills, made and filled by {@code dialect}'s statements, in order; refused
      *  by name where the rows cannot make the database ({@link #refusal}). */
+    /** {@link #fillSteps} as statement text: the host's own project database's ({@link #of}, census M14, until L7);
+     *  a plan's fill never takes this text (L6c, 2026-11-10: census M1 DELETED). */
     public static List<String> fill(ModelContext ctx, SqlDialect dialect) {
+        return fillSteps(ctx, dialect).stream().map(st -> st.text(dialect)).toList();
+    }
+
+    /** The seed steps that fill a project's database, the rows still rows: a plan's fill takes each table's rows inline,
+     *  or from its bundle above the inline threshold ({@code planner.ContentRows}, L6c). */
+    public static List<CsvSeed.Step> fillSteps(ModelContext ctx, SqlDialect dialect) {
         String refused = refusal(ctx);
         if (refused != null) {
             throw new IllegalArgumentException(refused);
         }
-        List<String> out = new ArrayList<>();
+        List<CsvSeed.Step> out = new ArrayList<>();
         for (DataDefinition data : ctx.dataElements().toList()) {
             // only rows a relational store holds: a model store's or an external format's data is not a table's
             if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv)) {
@@ -131,7 +139,7 @@ public record ProjectData(String name, List<String> open, List<String> use, List
             }
             for (Protocol.PRelationalCsvTable t : csv.tables()) {
                 String database = declaringAll(ctx, t.schema(), t.table()).get(0);
-                out.addAll(CsvSeed.sqls(t.schema() + "\n" + t.table() + "\n" + t.values(), database, ctx, dialect));
+                out.addAll(CsvSeed.steps(t.schema() + "\n" + t.table() + "\n" + t.values(), database, ctx, dialect));
             }
         }
         return out;
