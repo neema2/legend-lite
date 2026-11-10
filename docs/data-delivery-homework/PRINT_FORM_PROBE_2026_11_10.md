@@ -35,12 +35,16 @@ The call: DuckDB/SQLite/ClickHouse `printf('%.Nf', x)`; BigQuery/Trino `format('
 The text is the same on every database while N decimals fit in about 15 significant digits. Beyond that, DuckDB,
 ClickHouse and Snowflake print the double's exact binary value and the others print clean digits:
 
-| N | the same text everywhere up to about | first value measured that splits | small values |
+(The guarantee: a double's error is at most about 1.1e-16 of its size, so N decimals are clean while the size stays below
+0.5·10^-N / 1.1e-16 ≈ 4.5·10^(15-N); above it, whether noise shows depends on the value. The measured splits are
+above the guarantee. Every Bitcoin amount, at most 21 million with 8 decimals, is inside N = 8's guarantee.)
+
+| N | the same text everywhere, guaranteed, below about | first value measured that splits | small values |
 |---|---|---|---|
-| 6 | 10,000,000,000 | `12345678901.12` → `12345678901.120001` (DuckDB, ClickHouse, Snowflake) | below 0.0000005 → `0` |
-| 8 | 1,000,000,000 | `1234567890.12` → `1234567890.11999989` | below 0.000000005 → `0` |
-| 12 | 1,000,000 | `1234567.89` → `1234567.889999999898` | |
-| 15 | 100 | `123.45` → `123.450000000000003` | |
+| 6 | 4,500,000,000 | `12345678901.12` → `12345678901.120001` (DuckDB, ClickHouse, Snowflake) | below 0.0000005 → `0` |
+| 8 | 45,000,000 | `1234567890.12` → `1234567890.11999989` | below 0.000000005 → `0` |
+| 12 | 4,500 | `1234567.89` → `1234567.889999999898` | |
+| 15 | 4.5 | `123.45` → `123.450000000000003` | |
 
 Two more differences, at any N:
 - **Exact halfway values round differently.** At 2 places, `0.125` gives `0.12` on DuckDB `printf`, ClickHouse `printf` and
@@ -79,8 +83,8 @@ A DATE prints `2024-01-02` by one call on every database.
 ## 5. What the measurements say
 
 - **Float:** fixed 6 decimals with the trim is the only candidate that is one call (plus one trim) on every database
-  measured, and it gives the same text everywhere for values below about ten billion. Its limits: values below 0.0000005
-  print `0`; above about ten billion DuckDB, ClickHouse and Snowflake can show binary noise in the sixth place; exact
+  measured, and it gives the same text everywhere below 4.5·10^(15-N) (N = 6: 4.5 billion; N = 8: 45 million). Its limits:
+  values below 0.5·10^-N print `0`; above the guarantee DuckDB, ClickHouse and Snowflake can show binary noise in the last places; exact
   halfway values and `-0` differ by database. 15 significant digits does not meet "one call everywhere" (four databases
   need more, and the spellings differ where it is one call).
 - **DateTime:** ISO 8601 in UTC, six fraction digits and `Z`, is one call on ten of the eleven; SQLite needs a small
