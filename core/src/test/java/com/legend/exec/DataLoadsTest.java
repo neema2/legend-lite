@@ -45,7 +45,10 @@ class DataLoadsTest {
     private static final String CSV = "Firstname,Lastname,Age\nJoe,Bloggs,21\nJill,Smith,31";
 
     private static final SqlDml.LoadCsv LOAD = new SqlDml.LoadCsv(null, "data_loads_people", NameQuoting.BARE,
-            List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of(), ',', '"');
+            List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of(),
+            List.of(new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 200),
+            new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 200),
+            new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.INTEGER)), ',', '"');
 
 
     /** Every in-process database whose dialect spells a CSV file's load (one that spells none refuses by name). */
@@ -59,7 +62,7 @@ class DataLoadsTest {
                 // this database takes no file yet: the dialect says so by name (CsvLoadRenderTest)
             }
         }
-        assertTrue(out.size() >= 2, "DuckDB and H2 at least: " + out);
+        assertTrue(out.size() >= 3, "DuckDB, H2 and SQLite at least: " + out);
         return out;
     }
 
@@ -69,8 +72,11 @@ class DataLoadsTest {
 
     /** {@link #file(SqlDialect, String, byte[])} admitting {@code limitMegabytes} (upstream's 500 by default). */
     private static ExecutionPlan.LoadStep.File file(SqlDialect dialect, String name, byte[] bytes, int limitMegabytes) {
-        SqlDialect.CsvLoad spelled = dialect.csvLoad(LOAD);
-        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(spelled.statements());
+        ExecutionPlan.LoadStep.Delivery delivery = switch (dialect.csvLoad(LOAD)) {
+            case SqlDialect.CsvLoad.Reads r -> new ExecutionPlan.LoadStep.Delivery.Reads(r.statements());
+            case SqlDialect.CsvLoad.Streamed st -> new ExecutionPlan.LoadStep.Delivery.Streamed(st.insert(),
+                    LOAD.columns().size());
+        };
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
                 DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, limitMegabytes);
     }
@@ -95,7 +101,7 @@ class DataLoadsTest {
                 assertEquals(List.of(List.of(false)), ran, "the load ran its one step");
                 List<List<Object>> rows = new ArrayList<>();
                 try (ResultSet rs = st.executeQuery(
-                        "SELECT FIRSTNAME, LASTNAME, AGE FROM data_loads_people ORDER BY AGE")) {
+                        "SELECT FIRSTNAME, LASTNAME, AGE FROM data_loads_people ORDER BY CASE WHEN AGE IS NULL THEN 1 ELSE 0 END, AGE")) {
                     while (rs.next()) {
                         rows.add(List.of(rs.getString(1), rs.getString(2), rs.getInt(3)));
                     }
@@ -161,48 +167,51 @@ class DataLoadsTest {
         }
     }
 
-    /** Each database's reader at the format's edges, PINNED (the user's ruling, 2026-11-09: the database reads the file,
-     *  and an option it cannot read is refused, never streamed by Java): upstream (Commons CSV EXCEL, an empty cell
-     *  NULL) refuses each of these texts or reads it as the first column says; where a reader reads it otherwise, the
-     *  difference is a row of docs/SEMANTICS_REGISTER.md (S184-S185) and this pin fails the day it moves. */
+    /** Each database's load at the format's edges, PINNED: upstream (Commons CSV EXCEL, an empty cell NULL) refuses
+     *  each of these texts or reads it as its "upstream" entry says. DuckDB's own reader (the user's ruling of
+     *  2026-11-09) differs where its entry says, each a row of docs/SEMANTICS_REGISTER.md (S184); every other database
+     *  takes the runner's cells by upstream's rule (the user's ruling of 2026-11-10, "Okay I guess that can be used for
+     *  databases that have no csv read then") and answers as upstream. This pin fails the day one moves. */
     @Test
     void eachReadersEdgesArePinned(@TempDir Path dir) throws Exception {
+        pinsHold(loading(), dir);
+    }
+
+    /** {@link #eachReadersEdgesArePinned} on {@code backends} (DataLoadsPostgresTest's too). */
+    static void pinsHold(List<TestBackend> backends, Path dir) throws Exception {
         java.util.Map<String, java.util.Map<String, String>> pins = new java.util.LinkedHashMap<>();
         String two = "[[Joe, Bloggs, 21], [Jill, Smith, 31]]";
         String jack = "[[Joe, Bloggs, 21], [Jill, Smith, 31], [Jack, Jones, 41]]";
-        // a short or wide record: refused on both (H2's CSVREAD would pad or cut it: its load checks each record),
-        // except where H2 cannot see it: a record short by exactly one cell reads as an empty last cell (S185)
-        pins.put(CSV + "\nJack,Jones", java.util.Map.of("upstream", "refused",
-                "h2", "[[Joe, Bloggs, 21], [Jill, Smith, 31], [Jack, Jones, 0]]"));
+        // a short or wide record, by any width: refused (DuckDB's reader; every other database's cells by upstream's
+        // rule)
+        pins.put(CSV + "\nJack,Jones", java.util.Map.of("upstream", "refused"));
         pins.put(CSV + "\nJack", java.util.Map.of("upstream", "refused"));
         pins.put(CSV + "\nJack,Jones,41,extra", java.util.Map.of("upstream", "refused"));
-        // a wide record whose extra cell is empty: both load it, its last delimiter read as the record's end (S184,
-        // S185)
-        pins.put(CSV + "\nJack,Jones,41,", java.util.Map.of("upstream", "refused", "duckdb", jack, "h2", jack));
-        // empty and quoted empty cells are NULL on both
-        pins.put(CSV + "\n,\"\",41", java.util.Map.of("upstream",
-                "[[Joe, Bloggs, 21], [Jill, Smith, 31], [null, null, 41]]"));
-        // an empty line: both readers skip it (S184, S185)
-        pins.put(CSV + "\n\nJack,Jones,41", java.util.Map.of("upstream", "refused", "duckdb", jack, "h2", jack));
+        // a wide record whose extra cell is empty: DuckDB loads it, its last delimiter read as the record's end (S184)
+        pins.put(CSV + "\nJack,Jones,41,", java.util.Map.of("upstream", "refused", "duckdb", jack));
+        // an empty line: DuckDB skips it (S184, ruled); upstream reads a record of one cell, refused in a wider table
+        pins.put(CSV + "\n\nJack,Jones,41", java.util.Map.of("upstream", "refused", "duckdb", jack));
         pins.put(CSV + "\n\"Jack\"x,Jones,41", java.util.Map.of("upstream", "refused"));
-        // an unclosed quote: refused on both (H2's CSVREAD would read the rest of the file as one cell)
+        // an unclosed quote, in any cell: refused
         pins.put(CSV + "\n\"Jack,Jones,41", java.util.Map.of("upstream", "refused"));
-        // an unclosed quote in the last cell: H2 reads the rest of the file into it, here "41" (S185)
-        pins.put(CSV + "\nJack,Jones,\"41", java.util.Map.of("upstream", "refused", "h2", jack));
-        // an empty last cell is a cell: NULL, as upstream reads it
+        pins.put(CSV + "\nJack,Jones,\"41", java.util.Map.of("upstream", "refused"));
+        // an empty last cell is a cell: NULL
         pins.put(CSV + "\nJack,Jones,", java.util.Map.of("upstream",
                 "[[Joe, Bloggs, 21], [Jill, Smith, 31], [Jack, Jones, 0]]"));
-        // a quote after a space: both readers read the cell quoted (S184, S185)
+        // empty and quoted empty cells are NULL
+        pins.put(CSV + "\n,\"\",41", java.util.Map.of("upstream",
+                "[[Joe, Bloggs, 21], [Jill, Smith, 31], [null, null, 41]]"));
+        // a quote after a space: DuckDB reads the cell quoted (S184, ruled); upstream reads it as its text
         pins.put(CSV + "\n \"Jack\",Jones,41", java.util.Map.of("upstream",
-                "[[Joe, Bloggs, 21], [Jill, Smith, 31], [ \"Jack\", Jones, 41]]", "duckdb", jack, "h2", jack));
-        // mixed line breaks: DuckDB refuses them (S184)
+                "[[Joe, Bloggs, 21], [Jill, Smith, 31], [ \"Jack\", Jones, 41]]", "duckdb", jack));
+        // mixed line breaks: DuckDB refuses them (S184, ruled)
         pins.put("Firstname,Lastname,Age\r\nJoe,Bloggs,21\nJill,Smith,31", java.util.Map.of("upstream", two,
                 "duckdb", "refused"));
         pins.put("Firstname,Lastname,Age", java.util.Map.of("upstream", "[]"));
         pins.put("Firstname,Lastname,Age\n", java.util.Map.of("upstream", "[]"));
         pins.put("", java.util.Map.of("upstream", "[]"));
         List<String> moved = new ArrayList<>();
-        for (TestBackend b : loading()) {
+        for (TestBackend b : backends) {
             for (var pin : pins.entrySet()) {
                 String text = pin.getKey();
                 byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
@@ -258,7 +267,7 @@ class DataLoadsTest {
 
     /** The format's cells are upstream's: a padded cell kept, an empty or quoted empty cell NULL, a cell whose quote
      *  follows a space its text, a doubled quote one quote inside a quoted cell, CRLF a record's end -- loaded so on
-     *  every database (DuckDB's own reader would read the third cell quoted: CsvLoadRenderTest). */
+     *  every database. */
     @Test
     void eachDatabaseLoadsUpstreamsCells(@TempDir Path dir) throws Exception {
         String text = "Firstname,Lastname,Age\r\n  Joe  ,\"\",1\r\nx,\"a \"\"q\"\" b\",2\r\n";
@@ -287,7 +296,7 @@ class DataLoadsTest {
                 }
                 List<List<Object>> rows = new ArrayList<>();
                 try (ResultSet rs = st.executeQuery(
-                        "SELECT FIRSTNAME, LASTNAME, AGE FROM data_loads_people ORDER BY AGE")) {
+                        "SELECT FIRSTNAME, LASTNAME, AGE FROM data_loads_people ORDER BY CASE WHEN AGE IS NULL THEN 1 ELSE 0 END, AGE")) {
                     while (rs.next()) {
                         List<Object> row = new ArrayList<>();
                         row.add(rs.getString(1));

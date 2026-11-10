@@ -291,8 +291,8 @@ that cannot delete what it replaces is not done.
 
 The user's ruling of 2026-11-09: "Csv I vote that we just reject options we cannot support instead of building our own
 streamer". It supersedes L2's "every database takes the streamed cells" above.
-- **Delivery:** `Delivery.Reads(statements)` is the one delivery (plan JSON v34, the TypeScript runner's `PLAN_VERSION`
-  with it). The runner verifies the bytes (size, digest), writes them to a copy of its own (`DataLoads.stage`), and sends
+- **Delivery:** `Delivery.Reads(statements)` was the one delivery (plan JSON v34, the TypeScript runner's `PLAN_VERSION`
+  with it; amended below the same day). The runner verifies the bytes (size, digest), writes them to a copy of its own (`DataLoads.stage`), and sends
   each of the plan's statements as written, binding the copy's path to the statement's one `?` where it has one
   (`Statements.readsFile`). A database's refusal comes back in its own words, with the file named.
 - **The dialects:** DuckDB: `INSERT ... SELECT * FROM read_csv(?, header = true, delim, quote, escape = quote,
@@ -304,11 +304,23 @@ streamer". It supersedes L2's "every database takes the streamed cells" above.
   refusals at planning, and `AnsiSqlRenderer.csvStreamed`, each pinned gone (`DataMechanismCensusTest` M8's list;
   `TypeHoleDeletedTest`, where the pin on `Statements.readsFile` moved with a dated note). `base.CsvCells` stays only
   for the referee's copy (census M15, until L8), split lazily when an edge asks.
-- **Where the readers differ from upstream:** S184 (DuckDB) and S185 (H2) list the cases, pinned by
-  `DataLoadsTest.eachReadersEdgesArePinned`, and S174 is superseded. H2's load refuses a wide record, a short one and an
-  unclosed quote in its own SQL (the orchestrator's (a), 2026-11-10: invariant 4, upstream's outcome), through the
-  dialect's raise; the cases `CSVREAD` reads exactly as a valid record are S185's pending rows.
-
+- **Where the readers differ from upstream:** S184 (DuckDB) lists the cases, pinned by
+  `DataLoadsTest.eachReadersEdgesArePinned`.
+- **Amended the same day (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no
+  csv read then"):** H2's `CSVREAD` reads three cases exactly as a valid record (a record short by one cell, one wide by
+  one empty cell, an unclosed quote in its last cell), so no SQL can refuse them. Every database whose reader does not
+  read the format as upstream does therefore takes upstream's own mechanism: the runner reads the file by upstream's
+  rule and inserts its rows.
+  - **DuckDB** keeps its own reader (`Delivery.Reads`) and S184's ruled rows.
+  - **Every other database** that takes a file (H2, SQLite, Postgres, and every server dialect through the base's
+    insert) takes `Delivery.Streamed(insert, columns)` (plan JSON v35): `DataLoads.cells` splits the verified bytes by
+    `base.CsvCells`, which is byte-equal to Commons CSV 1.5 `EXCEL`; planning refuses a malformed file by name, and so
+    does the run (S174); the runner sends one row's insert in one batch (`Statements.streams`). The base dialect spells
+    the insert; MongoDB refuses a load by name.
+  - H2's `CSVREAD` path and its SQL-side record check are deleted. S185 is withdrawn, since H2 is now upstream exactly.
+    The bulk delivery stays deleted.
+  - Pinned by `DataLoadsTest` on every in-process database, and by `//core:data_loads_postgres_test` on the embedded
+    Postgres 16.
 
 ### L5 as built: no fixture between a body's plan and its run (2026-11-10, branch `claude/total-wall`)
 
@@ -330,8 +342,9 @@ that its tables did not overwrite the session's.
 - **Bounded:** a package's setups run at its start, each a program planned whole and run by its plan
   (`TestExecution.runFixture`, a door of one planning call and one run call). Their move to loads the plan names is the
   same design as M7-seed's.
-- **What remains:** `Appeal.Rows.stores` and `PlannedAppeals.stores`, the stores the plan "asks the harness to
-  provide", are now read by no one. They are deleted next, with the test plan JSON's version.
+- **The plan's ask, deleted with it:** `Appeal.Rows.stores` and `PlannedAppeals.stores` (the stores the plan "asked the
+  harness to provide"), `SqlTextVerdicts.storesOf`, and the fixture's planning-ahead path (`TestExecution.planProgram`,
+  `TestPlanner.planAhead` and `planned`). Test plan JSON v13.
 
 ## 5. Upstream
 
@@ -394,6 +407,10 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
      (`read_csv`'s options, a `COPY`'s) or, where the reader cannot express it, chooses the streamed delivery. The
      delivery is the dialect's (2.5); the cells are not. Letting each database read a file its own way would load one
      file as different rows on different lanes (measured below), the one dialect decision that changed an answer.
+   - **Amended 2026-11-10 (the user's rulings):** DuckDB reads a file itself (`read_csv`, its ruled differences
+     S184); every other database takes the runner's cells by upstream's rule, upstream's own mechanism (2026-11-10,
+     "Okay I guess that can be used for databases that have no csv read then"). See "The CSV file read by its
+     database" above.
    - **Amended 2026-11-09 (L2, measured):** the default is upstream's rule -- Commons CSV 1.5 `EXCEL`, an empty cell NULL
      -- which DuckDB's own reader does NOT read exactly (a cell whose quote follows a space read as quoted, an empty line
      in a wider table skipped, mixed line breaks refused, even configured strictly); so every database takes the cells

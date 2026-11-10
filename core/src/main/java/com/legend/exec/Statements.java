@@ -87,6 +87,11 @@ public interface Statements {
      *  -- bound to {@code path}, the copy's. Until then (L2) the runner streamed the file's cells itself. */
     void readsFile(String statement, String path);
 
+    /** A file's load the runner STREAMS ({@code ExecutionPlan.LoadStep.Delivery.Streamed}): {@code insert} sent once per
+     *  row of {@code rows} in one batch, each row's cells bound to its {@code ?}s in order as text (a null cell SQL
+     *  NULL), the database casting each. */
+    void streams(String insert, List<List<String>> rows);
+
     @FunctionalInterface
     interface Rows {
         void row(@com.legend.base.Nullable String text) throws IOException;
@@ -216,6 +221,11 @@ public interface Statements {
         @Override
         public void readsFile(String statement, String path) {
             inner.readsFile(statement, path);
+        }
+
+        @Override
+        public void streams(String insert, List<List<String>> rows) {
+            inner.streams(insert, rows);
         }
 
         @Override

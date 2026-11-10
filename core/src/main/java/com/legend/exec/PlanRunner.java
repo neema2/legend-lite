@@ -595,12 +595,13 @@ public final class PlanRunner {
                         answered.add(false);
                     }
                     case ExecutionPlan.LoadStep.File f -> {
-                        // the file by its reference: its verified bytes in a copy of the runner's own, which the
-                        // database reads with its own reader, each statement's ? the copy's path (DataLoads)
+                        // the file by its reference, its verified bytes delivered as the plan says (DataLoads)
                         byte[] bytes = DataLoads.verified(f.ref(), stores);
-                        try (DataLoads.Staged staged = DataLoads.stage(f.ref(), bytes, f.sizeLimitMegabytes())) {
-                            switch (f.delivery()) {
-                                case ExecutionPlan.LoadStep.Delivery.Reads reads -> {
+                        switch (f.delivery()) {
+                            case ExecutionPlan.LoadStep.Delivery.Reads reads -> {
+                                // a copy of the runner's own, which the database reads with its own reader, each
+                                // statement's ? the copy's path
+                                try (DataLoads.Staged staged = DataLoads.stage(f.ref(), bytes, f.sizeLimitMegabytes())) {
                                     for (String statement : reads.statements()) {
                                         StatementOrigin.sent(seeding.mark(), statement);
                                         try {
@@ -611,6 +612,16 @@ public final class PlanRunner {
                                                     + "': " + e.getMessage(), e);
                                         }
                                     }
+                                }
+                            }
+                            case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
+                                // the cells by upstream's rule, each row's insert in one batch (none for a file of
+                                // no data record: the load loads what it was planned against)
+                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns(),
+                                        f.sizeLimitMegabytes());
+                                if (!cells.isEmpty()) {
+                                    StatementOrigin.sent(seeding.mark(), streamed.insert());
+                                    seeding.streams(streamed.insert(), cells);
                                 }
                             }
                         }

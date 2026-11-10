@@ -51,6 +51,13 @@ public final class MongoDb extends AnsiSqlRenderer {
     /** Lists are native BSON arrays; a correlated explosion, a JSON carrier and a native full join are not shaped. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, false, false, false);
 
+    /** {@inheritDoc} Refused by name: a MongoDB database is the connector's own, and a plan loads no file into it. */
+    @Override
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        throw new DialectCapability("a CSV file's load reached MongoDb: its databases are the connector's own, and a"
+                + " plan loads none");
+    }
+
     /** The field a group stage computes an aggregate into, by its index ({@code __agg0}); the projection reads it
      *  through the read {@link #accumulator} registers. */
     static final String AGGREGATE_MARKER = "__agg";

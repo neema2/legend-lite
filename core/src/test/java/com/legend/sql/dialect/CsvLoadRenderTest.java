@@ -17,44 +17,37 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A CSV file's load as each dialect spells it ({@link SqlDialect#csvLoad}; docs/DATA_IN_THE_PLAN_2026_11_09.md L1 and
- * L2, 2026-11-09): no statement names a file or holds a row. Every database that takes a file reads it itself, by its
- * declared format (decision 6; the user's ruling of 2026-11-09: an option its reader cannot read is refused); a dialect
- * whose database takes none refuses it by name. The format's cells as upstream reads them are {@code base.CsvCells}'s,
+ * L2, 2026-11-09): no statement names a file or holds a row. DuckDB reads a file itself, by its declared format (the
+ * user's ruling of 2026-11-09); every other database takes the runner's cells by upstream's rule (the user's ruling of
+ * 2026-11-10); MongoDB refuses one by name. The format's cells as upstream reads them are {@code base.CsvCells}'s,
  * the referee's copy. The loads themselves run in
  * {@code exec.DataLoadsTest}.
  */
 class CsvLoadRenderTest {
 
     private static final SqlDml.LoadCsv LOAD = new SqlDml.LoadCsv(null, "people", NameQuoting.BARE,
-            List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of(), ',', '"');
+            List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of(),
+            List.of(new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 200),
+            new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 200),
+            new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.INTEGER)), ',', '"');
 
-    /** The database reads the file (the user's ruling, 2026-11-09: an option its reader cannot read is refused, never
-     *  streamed by Java): the statements bind the staged file's name to their one {@code ?} and name no file. */
+    /** DuckDB reads the file itself (the user's ruling, 2026-11-09): its statement binds the staged file's name to its
+     *  one {@code ?} and names no file. Every other database takes the runner's cells by upstream's rule into one row's
+     *  insert (the user's ruling, 2026-11-10, "Okay I guess that can be used for databases that have no csv read
+     *  then"). */
     @Test
-    void duckDbAndH2ReadTheFileThemselves() {
-        assertEquals(List.of("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT * FROM read_csv(?, header = true,"
-                + " delim = ',', quote = '\"', escape = '\"', auto_detect = false, strict_mode = true, nullstr = '',"
-                + " columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR', 'c2': 'VARCHAR'})"),
-                new DuckDb().csvLoad(LOAD).statements());
-        List<String> h2 = new H2().csvLoad(LOAD).statements();
-        assertEquals("SET @legend_csv = ?", h2.get(0));
-        assertEquals("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT NULLIF(C0, ''), NULLIF(C1, ''), NULLIF(C2, '')"
-                + " FROM (SELECT * FROM CSVREAD(@legend_csv, 'C0,C1,C2,C3', 'charset=UTF-8 fieldSeparator=,"
-                + " fieldDelimiter=\" escape=\" preserveWhitespace=true') OFFSET 1 ROW) AS x WHERE CASE"
-                + " WHEN \"C3\" IS NOT NULL THEN SIGNAL('45000', CHAR(31) || ('a record of the CSV file has more cells"
-                + " than its table''s 3 column(s)') || CHAR(31)) WHEN \"C1\" IS NULL THEN SIGNAL('45000', CHAR(31) || ('a"
-                + " record of the CSV file has fewer cells than its table''s 3 column(s), or the file ends inside a quoted"
-                + " cell (EOF reached before encapsulated token finished)') || CHAR(31)) ELSE TRUE END", h2.get(1));
-    }
-
-    /** H2's {@code CSVREAD} options are split on white space: a white-space delimiter or quote is refused by name. */
-    @Test
-    void aWhiteSpaceDelimiterIsRefusedOnH2() {
-        for (char c : new char[] {' ', '\t'}) {
-            SqlDml.LoadCsv load = new SqlDml.LoadCsv(null, "people", NameQuoting.BARE, LOAD.columns(), Set.of(), c, '"');
-            DialectCapability e = assertThrows(DialectCapability.class, () -> new H2().csvLoad(load));
-            assertTrue(e.getMessage().contains("white space"), e.getMessage());
+    void duckDbReadsTheFileAndEveryOtherDatabaseTakesTheCells() {
+        assertEquals(new SqlDialect.CsvLoad.Reads(List.of("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT * FROM"
+                + " read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"', auto_detect = false,"
+                + " strict_mode = true, nullstr = '', columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR', 'c2': 'VARCHAR'})")),
+                new DuckDb().csvLoad(LOAD));
+        for (SqlDialect d : List.of(new H2(), new SQLite())) {
+            assertEquals(new SqlDialect.CsvLoad.Streamed("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) VALUES (?, ?, ?)"),
+                    d.csvLoad(LOAD), d.getClass().getSimpleName());
         }
+        // Postgres folds an unquoted name to lower case, and casts each bound text cell to its column's declared type
+        assertEquals(new SqlDialect.CsvLoad.Streamed("INSERT INTO people (firstname, lastname, age) VALUES (CAST(? AS"
+                + " VARCHAR(200)), CAST(? AS VARCHAR(200)), CAST(? AS INTEGER))"), new Postgres().csvLoad(LOAD));
     }
 
     /** {@code cells}, its nulls kept. */
@@ -95,7 +88,7 @@ class CsvLoadRenderTest {
 
     @Test
     void aDatabaseThatTakesNoFileRefusesByName() {
-        for (SqlDialect d : List.of(new SQLite(), new Postgres(), new MongoDb())) {
+        for (SqlDialect d : List.of(new MongoDb())) {
             DialectCapability e = assertThrows(DialectCapability.class, () -> d.csvLoad(LOAD),
                     d.getClass().getSimpleName());
             assertTrue(e.getMessage().contains("CSV file's load"), e.getMessage());

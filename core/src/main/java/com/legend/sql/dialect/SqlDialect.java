@@ -71,20 +71,31 @@ public interface SqlDialect {
     }
 
     /**
-     * How this dialect's database READS a CSV file's rows itself ({@link com.legend.sql.SqlDml.LoadCsv}; the user's
-     * ruling of 2026-11-09, "reject options we cannot support instead of building our own streamer"): its own reader
-     * over the runner's verified copy, the copy's path bound to each statement's {@code ?}, the declared format in the
-     * reader's options. A format the reader cannot express, and a database with no reader of the runner's files, are
-     * refused by name ({@code DialectCapability}), at planning.
+     * How this dialect's database loads a CSV file's rows ({@link com.legend.sql.SqlDml.LoadCsv}): READ by its own
+     * reader over the runner's verified copy where that reader reads the format as upstream does (the user's ruling of
+     * 2026-11-09, "reject options we cannot support instead of building our own streamer": DuckDB's), else the cells
+     * the runner STREAMS by upstream's rule into one row's insert (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). A database that takes neither refuses by name
+     * ({@code DialectCapability}), at planning.
      */
     CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
 
-    /** A CSV file's load as this dialect spells it: its statements, in order, each {@code ?} the copy's path. */
-    record CsvLoad(java.util.List<String> statements) {
-        public CsvLoad {
-            statements = java.util.List.copyOf(statements);
-            if (statements.isEmpty()) {
-                throw new IllegalArgumentException("a CSV load of no statement");
+    /** A CSV file's load as this dialect spells it. */
+    sealed interface CsvLoad permits CsvLoad.Reads, CsvLoad.Streamed {
+
+        /** The database's own reader: its statements, in order, each {@code ?} the runner's copy's path. */
+        record Reads(java.util.List<String> statements) implements CsvLoad {
+            public Reads {
+                statements = java.util.List.copyOf(statements);
+                if (statements.isEmpty()) {
+                    throw new IllegalArgumentException("a CSV load of no statement");
+                }
+            }
+        }
+
+        /** One row's insert, a {@code ?} per column, the runner's cells bound to it as text. */
+        record Streamed(String insert) implements CsvLoad {
+            public Streamed {
+                java.util.Objects.requireNonNull(insert, "insert");
             }
         }
     }

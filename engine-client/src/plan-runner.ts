@@ -67,7 +67,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // database's target names the catalog's ONCE load -- read by none of this runner's steps: a load node, and a target
 // naming any load, are refused by name, as at 32
 // 34 since 2026-11-10: a file's delivery is the database's reading of it (reads) -- a load is refused by name, as at 33
-const PLAN_VERSION = 34;
+// 35 since 2026-11-10: a file's delivery may be the runner's streamed cells (streamed) -- a load is refused by name, as at 34
+const PLAN_VERSION = 35;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

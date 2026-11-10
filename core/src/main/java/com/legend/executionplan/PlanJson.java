@@ -98,8 +98,9 @@ public final class PlanJson {
      *  catalog's {@code ONCE} load (the store's tables and the platform's rows), named by the platform's key (L4b).
      *  34 since 2026-11-10: a file's delivery is the database's reading of it, {@code reads} (its statements, each
      *  {@code ?} the runner's copy's path: the user's ruling of 2026-11-09, each database's own reader); the streamed
-     *  and bulk deliveries are gone. */
-    public static final int VERSION = 34;
+     *  and bulk deliveries are gone. 35 since 2026-11-10: the streamed delivery back, {@code streamed} (one row's
+     *  insert and its width), for every database with no reader that reads the format as upstream does (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). */
+    public static final int VERSION = 35;
 
     private PlanJson() {
     }
@@ -540,6 +541,11 @@ public final class PlanJson {
                         delivery.put("_type", "reads");
                         delivery.put("statements", r.statements());
                     }
+                    case LoadStep.Delivery.Streamed st -> {
+                        delivery.put("_type", "streamed");
+                        delivery.put("insert", st.insert());
+                        delivery.put("columns", st.columns());
+                    }
                 }
                 o.put("delivery", delivery);
             }
@@ -854,8 +860,9 @@ public final class PlanJson {
                 Json.Obj d = o.getObj("delivery");
                 LoadStep.Delivery delivery = switch (d.getString("_type")) {
                     case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"));
+                    case "streamed" -> new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
                     default -> throw new IllegalArgumentException("a file load's delivery is the database's reading of"
-                            + " it: " + d.getString("_type"));
+                            + " it or the runner's streamed cells: " + d.getString("_type"));
                 };
                 yield new LoadStep.File(data, delivery, o.getInt("sizeLimitMegabytes"));
             }

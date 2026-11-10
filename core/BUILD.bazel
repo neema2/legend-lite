@@ -545,6 +545,7 @@ legend_java_library(
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
+            "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
@@ -1051,6 +1052,32 @@ junit_test(
     deps = [
         ":core",
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# a CSV file's load on the embedded Postgres 16 (the user's ruling of 2026-11-10: the runner's cells by upstream's rule
+# for a database with no reader that reads the format as upstream does), at every edge of DataLoadsTest's pins
+junit_test(
+    name = "data_loads_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
+        "src/test/java/com/legend/exec/DataLoadsTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.exec.DataLoadsPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],

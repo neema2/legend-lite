@@ -1889,17 +1889,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
             case com.legend.sql.SqlDml.Merge m -> merge(m).text();
-            case com.legend.sql.SqlDml.LoadCsv lc -> String.join(";\n", csvLoad(lc).statements());
+            case com.legend.sql.SqlDml.LoadCsv lc -> switch (csvLoad(lc)) {
+                case CsvLoad.Reads r -> String.join(";\n", r.statements());
+                case CsvLoad.Streamed st -> st.insert();
+            };
         };
     }
 
-    /** {@inheritDoc} Refused by the base: a database with no reader of the runner's files (a server reads its own
-     *  machine's) refuses by name; DuckDB and H2 spell their own (the user's ruling of 2026-11-09; a server's raw-byte
-     *  delivery, such as Postgres's {@code COPY ... FROM STDIN}, later). */
+    /** {@inheritDoc} The base: the runner's cells, streamed into one row's insert, a {@code ?} per column (upstream's
+     *  own mechanism for every database: legend-pure reads the file in Java and inserts its rows; the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). A dialect whose
+     *  database's own reader reads the format as upstream does spells that instead (DuckDB). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        throw new DialectCapability("a CSV file's load reached " + getClass().getSimpleName() + ": this dialect's"
-                + " database reads no file of the runner's");
+        return new CsvLoad.Streamed(csvInsertInto(load) + " VALUES ("
+                + String.join(", ", java.util.Collections.nCopies(load.columns().size(), "?")) + ")");
     }
 
     /** {@code load}'s target, as an INSERT names it: the table and its columns. */

@@ -117,11 +117,10 @@ class DataMechanismCensusTest {
                     "options.resources()",
                     "Function<String, java.nio.file.Path> resources",
                     // 2026-11-10, the user's ruling of 2026-11-09 ("reject options we cannot support instead of
-                    // building our own streamer"): the database reads the file; lite's streamed and bulk deliveries of
-                    // its cells are gone
-                    "Delivery.Streamed",
+                    // building our own streamer"): DuckDB reads the file, and the bulk delivery of its cells is gone
+                    // (the streamed delivery is back for every database with no reader that reads the format as
+                    // upstream does: the user's ruling of 2026-11-10)
                     "Delivery.Bulk",
-                    "DataLoads.cells",
                     "csvStreamed"))),
             // L5, 2026-11-10 (option C, upstream's shape: the orchestrator's word): (b) the on-demand fixtures the
             // harness provided between a body's plan and its run are DELETED -- measured first with the provision

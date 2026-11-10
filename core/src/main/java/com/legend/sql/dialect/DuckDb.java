@@ -815,7 +815,7 @@ public final class DuckDb extends AnsiSqlRenderer {
         }
         String delimiter = stringLit(String.valueOf(load.delimiter()));
         String quote = stringLit(String.valueOf(load.quote()));
-        return new CsvLoad(java.util.List.of(csvInsertInto(load) + " SELECT * FROM read_csv(?, header = true, delim = "
+        return new CsvLoad.Reads(java.util.List.of(csvInsertInto(load) + " SELECT * FROM read_csv(?, header = true, delim = "
                 + delimiter + ", quote = " + quote + ", escape = " + quote + ", auto_detect = false, strict_mode = true,"
                 + " nullstr = '', columns = {" + columns + "})"));
     }

@@ -41,14 +41,20 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
     /** A CSV file's rows into a table ({@code loadCsvToDbTable}, the user's ruling of 2026-11-06): the statement names
      *  NO file and holds no row (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.5, 2026-11-09: the plan carries the file's
      *  reference, the runner delivers its verified bytes). Its first line a header; its cells text the database casts
-     *  into the columns, positionally. {@code delimiter} and {@code quote}: the file's declared format (decision 6). A
-     *  dialect spells its database's own reader over the runner's copy of the file ({@code SqlDialect.csvLoad}, the
-     *  user's ruling of 2026-11-09); a dialect whose database has none refuses it by name. */
+     *  into the columns, positionally, each to its declared type ({@code types}, one per column: the store's). {@code
+     *  delimiter} and {@code quote}: the file's declared format (decision 6). A dialect spells its database's own reader
+     *  over the runner's copy of the file, or one row's insert of the runner's cells ({@code SqlDialect.csvLoad}). */
     record LoadCsv(@com.legend.base.Nullable String schema, String table, NameQuoting quoting, List<String> columns,
-                   java.util.Set<String> quotedColumns, char delimiter, char quote) implements SqlDml {
+                   java.util.Set<String> quotedColumns, List<SqlDdl.ColumnType> types, char delimiter, char quote)
+            implements SqlDml {
         public LoadCsv {
             columns = List.copyOf(columns);
             quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
+            types = List.copyOf(types);
+            if (types.size() != columns.size()) {
+                throw new IllegalArgumentException("a CSV load's " + columns.size() + " column(s) and " + types.size()
+                        + " declared type(s)");
+            }
         }
     }
 

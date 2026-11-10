@@ -66,9 +66,9 @@ class TypeHoleDeletedTest {
                 "com.legend.sql.dialect.RenderedStatement$TypeHole", "com.legend.sql.ValueTyping", "com.legend.sql.ValueKind",
                 "com.legend.executionplan.ExecutionPlan$LoadStep$Delivery$DatabaseReads",
                 "com.legend.executionplan.ExecutionPlan$Setup",
-                // the streamed and bulk deliveries, deleted 2026-11-10 by the user's ruling of 2026-11-09 (a file's
-                // database reads it; an option its reader cannot read is refused, never streamed by Java)
-                "com.legend.executionplan.ExecutionPlan$LoadStep$Delivery$Streamed",
+                // the bulk delivery, deleted 2026-11-10 by the user's ruling of 2026-11-09 (DuckDB reads a file
+                // natively); the streamed one was pinned gone here the same day and came back by the user's ruling of
+                // 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"
                 "com.legend.executionplan.ExecutionPlan$LoadStep$Delivery$Bulk")) {
             org.junit.jupiter.api.Assertions.assertThrows(ClassNotFoundException.class, () -> Class.forName(gone), gone);
         }
@@ -76,10 +76,9 @@ class TypeHoleDeletedTest {
             assertTrue(!List.of("setUp", "setUpIn", "typeOf", "kindOf").contains(m.getName()), "PlanRunner." + m.getName());
         }
         // Statements.readsFile was pinned gone here from L2 (the streamed delivery) until 2026-11-10: the user's ruling
-        // of 2026-11-09 (the database reads a file, Delivery.Reads) brought it back, and the streamed cells went
-        for (var m : Class.forName("com.legend.exec.DataLoads").getDeclaredMethods()) {
-            assertTrue(!m.getName().equals("cells"), "DataLoads's cells method");
-        }
+        // of 2026-11-09 (the database reads a file, Delivery.Reads) brought it back; DataLoads' cells, pinned gone the
+        // same day, came back by the user's ruling of 2026-11-10 (the streamed delivery, for a database with no reader
+        // that reads the format as upstream does)
         for (var m : Class.forName("com.legend.executionplan.ExecutionPlan$Target").getDeclaredMethods()) {
             assertTrue(!m.getName().equals("setup"), "Target.setup");
         }
