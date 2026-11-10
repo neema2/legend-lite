@@ -242,7 +242,8 @@ Deleted from the plan:
   nor a bound path: a `data:` or `file:` source is refused by name before render
   (`PlanMaker.refuseLiveSourcesInText`), and the execution plan carries both. **Not yet as §4 says:** the text is not
   rendered from the execution plan. Doing so changes the text of every generatePlan and arrowPlan answer (28 test
-  classes read it), and no host runs a plan's loads until B3; the text renders from the execution plan with B3.
+  classes read it), and no host runs a plan's loads until B3; B3 renders it (its row, §6; the orchestrator's acceptance
+  of the sequencing, 2026-11-10).
 - **The write door's declared setup:** a write on the caller's session, its declared setup established
   (`ProductRun.Establish.DECLARED_SETUP`), is established as a read is: the program's target's acquisition loads run on
   the session first and its release when the request lets it go (until A5 the caller's session refused them).
@@ -250,15 +251,24 @@ Deleted from the plan:
   catalog, as such a query does (`SystemCatalog.forQuery`; the program re-planned there once its first plan shows it
   reads the store alone, `ProgramState.readsSystem`). One reading the store beside another source, or writing a store,
   is refused by name; on a server database too, until B4.
-- **A query given no runtime** runs on the one runtime its `from()`s name (`PlanMaker.runtimeOf`), as legend-engine
-  runs a lambda's `->from(mapping, runtime)` and as lite's server chose it (`PureV1Api.runtimeOf`); several runtimes
-  and none given is refused by name, none at all stays `Compiler.NO_RUNTIME`. So a `from()`'s runtime's test data is
-  the plan's own: its target's setup on the product's doors, a seed on the test door.
+- **A query given no runtime** runs on the one runtime its `from()`s name (`PlanMaker.runtimeOf`), as lite's server
+  chose it (`PureV1Api.runtimeOf`) and as legend-engine runs it: an `ExecuteInput` naming no runtime builds none
+  (`legend-engine-core-query-pure-http-api/.../query/pure/api/Execute.java` lines 273-278, `HelperRuntimeBuilder
+  .buildPureRuntime` returning null for none, lines 277-279 of `legend-engine-language-pure-compiler/.../toPureGraph/
+  HelperRuntimeBuilder.java`), so the plan is the lambda's own and its `from()` places it. None at all stays
+  `Compiler.NO_RUNTIME`. **Lite's limit, not upstream's:** a query whose `from()`s name several runtimes, given none, is
+  refused by name (upstream plans each `from()` on its own runtime; lite's plan runs on one session). So a `from()`'s
+  runtime's test data is the plan's own: its target's setup on the product's doors, a seed on the test door.
 - **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
   (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
 - **The matrix:** in process 162 of 162 green (34 red before A5); on Postgres the three catalog cells B4 owns.
-- **Still to do in A5:** `resolver/JsonSourceFrame`'s literal path (a JSON-sourced class's payload as VALUES literals)
-  onto the `data:` road; the census's M10 row takes its symbols.
+- **The JSON source frame** (a runtime value's `JsonModelConnection` for a class no mapping binds) is the payload's
+  `sourceUrl` relation of its JSON text and each element's place (`TypedSourceUrl.ORDINAL`, the frame's row identity);
+  `DataSources` makes its session table with the ordinal where the relation reads it. Its literal rows
+  (`JsonSourceFrame.objectTexts` and the frame's VALUES) are deleted, census M10's list. The one splitter
+  (`DataSources.elements`) takes the frame's forms for every `data:` source, as upstream's JSON reader reads a
+  `JsonModelConnection`'s data: an array's elements, one object, or a stream of objects; an empty payload is no row
+  (until A5 a query's `sourceUrl` took an array alone, and the frame an array of objects alone).
 
 ## 6. The whole plan, in order
 
@@ -279,7 +289,7 @@ Deleted from the plan:
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes) | census M15, the fixtures |
 | B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. **Design APPROVED by the user, 2026-11-10** (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`): ONE read-only query per table whose `WITH` clauses carry the chain (the starting rows `ORDER BY` key `LIMIT 20`, one level per navigation step, no recursion), all in one read transaction, NO temporary tables; the default starting rows (no row identifiers given) ARE built, by upstream's rule read from the pinned sources; upstream's 46 SQL-text comparisons become a register row (its data checks all run); the TDG appeal and `TestDataGeneratorRun` deleted. S143's skip is lifted when it passes | census M13 |
 | B2e | Data parsed but used by no feature yet (ExternalFormat data, ModelStore data, ServiceStore stubs, mapping-test data): recorded as NOT IMPLEMENTED YET, with the rule that when built its data takes the model-data path; listed as feature gaps | census M17 |
-| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first) | census M14 |
+| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **The text plan renders from the execution plan** (§4; A5 refuses a `data:` or `file:` source there by name until then, the orchestrator's acceptance of the sequencing, 2026-11-10): generatePlan's and arrowPlan's text is the execution plan's, its loads and bound paths carried, the 28 test classes' texts regenerated and EACH change reviewed, never accepted in bulk. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first) | census M14 |
 | B4 | **Every catalog statement runs on the process's in-process catalog, whatever database holds the user's data** (the user, 2026-11-10: "B4 sounds good for now"). The measurement found no planned statement, among about 30,000 across core, PCT and both corpora, that reads the catalog's tables and a user's tables together: the planner refuses that shape by name. Mixing exists only across separate statements on separate sessions. So no catalog lives on a server: the server forms (per-query temp tables on the user's session, form 2; inline VALUES, form 3) are deleted, and a statement mixing the two stays refused by name. `Class.all()` is the platform plus every loaded project, as ruled 2026-11-08 | census M5, M6 |
 | ✔ | **Checkpoint:** audits and fixes; the census reads zero pending | |
 | **C** | **P4's last two** | |
