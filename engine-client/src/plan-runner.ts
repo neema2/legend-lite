@@ -66,7 +66,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 33 since 2026-11-09: a load may be PER_TRANSACTION (a model's registration in the system catalog, L4b) and a system
 // database's target names the catalog's ONCE load -- read by none of this runner's steps: a load node, and a target
 // naming any load, are refused by name, as at 32
-const PLAN_VERSION = 33;
+// 34 since 2026-11-10: a file's delivery is the database's reading of it (reads) -- a load is refused by name, as at 33
+const PLAN_VERSION = 34;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

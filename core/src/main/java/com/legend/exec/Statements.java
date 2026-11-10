@@ -82,14 +82,10 @@ public interface Statements {
      *  database's rows load so (B1a). */
     boolean load(ExecutionPlan.LoadStep.Rows rows);
 
-    /** {@code rows} -- a file's cells, split by its declared format -- loaded through the session's bulk loader with
-     *  its bulk delivery's staging statements ({@code ExecutionPlan.LoadStep.Delivery.Bulk}): false when the session's
-     *  database has none (L2, the M1 tenets audit's finding 8, 2026-11-09). */
-    boolean bulk(String stagingTable, String createStaging, String copy, String dropStaging, List<List<String>> rows);
-
-    /** A file's load the runner STREAMS (2.5): {@code insert} sent once per row of {@code rows} in one batch, each
-     *  row's cells bound to its {@code ?}s in order as text (a null cell SQL NULL), the database casting each. */
-    void streams(String insert, List<List<String>> rows);
+    /** A file's load statement, its database reading the runner's verified copy ({@code ExecutionPlan.LoadStep
+     *  .Delivery.Reads}, the user's ruling of 2026-11-09): {@code statement} sent once, its one {@code ?} -- if it has one
+     *  -- bound to {@code path}, the copy's. Until then (L2) the runner streamed the file's cells itself. */
+    void readsFile(String statement, String path);
 
     @FunctionalInterface
     interface Rows {
@@ -218,14 +214,8 @@ public interface Statements {
         }
 
         @Override
-        public boolean bulk(String stagingTable, String createStaging, String copy, String dropStaging,
-                List<List<String>> rows) {
-            return inner.bulk(stagingTable, createStaging, copy, dropStaging, rows);
-        }
-
-        @Override
-        public void streams(String insert, List<List<String>> rows) {
-            inner.streams(insert, rows);
+        public void readsFile(String statement, String path) {
+            inner.readsFile(statement, path);
         }
 
         @Override

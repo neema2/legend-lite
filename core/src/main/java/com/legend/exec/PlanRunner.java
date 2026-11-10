@@ -595,29 +595,25 @@ public final class PlanRunner {
                         answered.add(false);
                     }
                     case ExecutionPlan.LoadStep.File f -> {
-                        // the file by its reference: its verified bytes, delivered as the plan says (DataLoads)
+                        // the file by its reference: its verified bytes in a copy of the runner's own, which the
+                        // database reads with its own reader, each statement's ? the copy's path (DataLoads)
                         byte[] bytes = DataLoads.verified(f.ref(), stores);
-                        switch (f.delivery()) {
-                            case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
-                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns(),
-                                        f.sizeLimitMegabytes());
-                                if (!cells.isEmpty()) {
-                                    seeding.streams(streamed.insert(), cells);
-                                }
-                            }
-                            case ExecutionPlan.LoadStep.Delivery.Bulk bulk -> {
-                                // the session's bulk loader, its staging statements the plan's (finding 8)
-                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, bulk.columns(),
-                                        f.sizeLimitMegabytes());
-                                if (!cells.isEmpty() && !seeding.bulk(bulk.stagingTable(), bulk.createStaging(),
-                                        bulk.copy(), bulk.dropStaging(), cells)) {
-                                    throw new IllegalStateException("the plan loads a file through a bulk loader, and"
-                                            + " the session's database has none (" + f.ref().name() + ")");
+                        try (DataLoads.Staged staged = DataLoads.stage(f.ref(), bytes, f.sizeLimitMegabytes())) {
+                            switch (f.delivery()) {
+                                case ExecutionPlan.LoadStep.Delivery.Reads reads -> {
+                                    for (String statement : reads.statements()) {
+                                        StatementOrigin.sent(seeding.mark(), statement);
+                                        try {
+                                            seeding.readsFile(statement, staged.path());
+                                        } catch (com.legend.error.DataError e) {
+                                            // the database's own words, the file named (its reader cannot name it)
+                                            throw new com.legend.error.DataError("the file '" + f.ref().name()
+                                                    + "': " + e.getMessage(), e);
+                                        }
+                                    }
                                 }
                             }
                         }
-                        // the load's one statement (its batch), counted under the seeds' mark
-                        StatementOrigin.count(seeding.mark());
                         answered.add(false);
                     }
                 }

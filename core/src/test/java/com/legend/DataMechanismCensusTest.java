@@ -115,7 +115,14 @@ class DataMechanismCensusTest {
                     // the planner's resolver function and its reader
                     "resourceFile(",
                     "options.resources()",
-                    "Function<String, java.nio.file.Path> resources"))),
+                    "Function<String, java.nio.file.Path> resources",
+                    // 2026-11-10, the user's ruling of 2026-11-09 ("reject options we cannot support instead of
+                    // building our own streamer"): the database reads the file; lite's streamed and bulk deliveries of
+                    // its cells are gone
+                    "Delivery.Streamed",
+                    "Delivery.Bulk",
+                    "DataLoads.cells",
+                    "csvStreamed"))),
             new Row("M9", "package setups and fixtures the harness provides between plan and run", new Pending("L5")),
             new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Pending("L6")),
             new Row("M11", "a query's literal relations and instances, and their writes",

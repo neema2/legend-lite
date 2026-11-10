@@ -801,15 +801,23 @@ public final class DuckDb extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
-    /** {@inheritDoc} The runner streams the cells, one row's insert each (2026-11-09, L2): DuckDB's own reader, which
-     *  read the file from 2026-11-06, cannot read the declared format exactly (measured 2026-11-09 against
-     *  {@code base.CsvCells}, which is upstream's rule: configured strictly -- {@code auto_detect = false}, its columns
-     *  named, {@code strict_mode} -- it still reads a cell whose quote follows a space as quoted, skips an empty line
-     *  in a wider table, and refuses a file whose line breaks are mixed), and a file's cells mean what the platform's
-     *  format says on every database (decision 6). */
+    /** {@inheritDoc} DuckDB's own reader over the runner's copy, its path the one {@code ?} (the user's ruling of
+     *  2026-11-09): strict -- no detection, the header read and dropped, each column named and text (the INSERT casts
+     *  each cell into its column), a record of another width refused ({@code strict_mode}), an empty or quoted empty
+     *  cell NULL -- in the declared delimiter and quote, a quote doubled within a quoted cell (Commons CSV's
+     *  {@code EXCEL}). Where its rule is not upstream's (a blank line skipped, mixed line breaks refused) is a register
+     *  row, pinned by {@code CsvLoadRenderTest} (measured 2026-11-10 on 1.5.6). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        return csvStreamed(load);
+        StringBuilder columns = new StringBuilder();
+        for (int i = 0; i < load.columns().size(); i++) {
+            columns.append(i == 0 ? "" : ", ").append(stringLit("c" + i)).append(": 'VARCHAR'");
+        }
+        String delimiter = stringLit(String.valueOf(load.delimiter()));
+        String quote = stringLit(String.valueOf(load.quote()));
+        return new CsvLoad(java.util.List.of(csvInsertInto(load) + " SELECT * FROM read_csv(?, header = true, delim = "
+                + delimiter + ", quote = " + quote + ", escape = " + quote + ", auto_detect = false, strict_mode = true,"
+                + " nullstr = '', columns = {" + columns + "})"));
     }
 
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's

@@ -95,8 +95,11 @@ public final class PlanJson {
      *  date-time bound as its text {@code asText} (P4, D1). A planned parameter's {@code byValue} is its
      *  {@code declared} kind. 33 since 2026-11-09: a load's cadence may be {@code PER_TRANSACTION} (a model's
      *  registration in the process's system catalog, rolled back with its run) and a system database's target names the
-     *  catalog's {@code ONCE} load (the store's tables and the platform's rows), named by the platform's key (L4b). */
-    public static final int VERSION = 33;
+     *  catalog's {@code ONCE} load (the store's tables and the platform's rows), named by the platform's key (L4b).
+     *  34 since 2026-11-10: a file's delivery is the database's reading of it, {@code reads} (its statements, each
+     *  {@code ?} the runner's copy's path: the user's ruling of 2026-11-09, each database's own reader); the streamed
+     *  and bulk deliveries are gone. */
+    public static final int VERSION = 34;
 
     private PlanJson() {
     }
@@ -533,18 +536,9 @@ public final class PlanJson {
                 o.put("sizeLimitMegabytes", f.sizeLimitMegabytes());
                 Map<String, Object> delivery = new LinkedHashMap<>();
                 switch (f.delivery()) {
-                    case LoadStep.Delivery.Streamed st -> {
-                        delivery.put("_type", "streamed");
-                        delivery.put("insert", st.insert());
-                        delivery.put("columns", st.columns());
-                    }
-                    case LoadStep.Delivery.Bulk b -> {
-                        delivery.put("_type", "bulk");
-                        delivery.put("stagingTable", b.stagingTable());
-                        delivery.put("createStaging", b.createStaging());
-                        delivery.put("copy", b.copy());
-                        delivery.put("dropStaging", b.dropStaging());
-                        delivery.put("columns", b.columns());
+                    case LoadStep.Delivery.Reads r -> {
+                        delivery.put("_type", "reads");
+                        delivery.put("statements", r.statements());
                     }
                 }
                 o.put("delivery", delivery);
@@ -859,11 +853,9 @@ public final class PlanJson {
                         ref.getString("digest"), ref.getLong("size"), format(ref.getObj("format")));
                 Json.Obj d = o.getObj("delivery");
                 LoadStep.Delivery delivery = switch (d.getString("_type")) {
-                    case "streamed" -> new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
-                    case "bulk" -> new LoadStep.Delivery.Bulk(d.getString("stagingTable"), d.getString("createStaging"),
-                            d.getString("copy"), d.getString("dropStaging"), d.getInt("columns"));
-                    default -> throw new IllegalArgumentException("a file load's delivery is streamed or bulk: "
-                            + d.getString("_type"));
+                    case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"));
+                    default -> throw new IllegalArgumentException("a file load's delivery is the database's reading of"
+                            + " it: " + d.getString("_type"));
                 };
                 yield new LoadStep.File(data, delivery, o.getInt("sizeLimitMegabytes"));
             }

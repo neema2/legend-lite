@@ -5,8 +5,10 @@ package com.legend.sql.dialect;
 
 import com.legend.sql.DialectCapability;
 
+import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
+import com.legend.sql.SqlType;
 
 import java.util.List;
 import java.util.Set;
@@ -168,13 +170,63 @@ public class H2 extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
-    /** {@inheritDoc} The runner streams the cells, one row's insert each (2026-11-09): H2's {@code CSVREAD}, which
-     *  read the file until then, takes no bound path (measured 2026-11-09), and a path written into the statement is a
-     *  machine's path in the plan. The runner splits the text ({@code base.CsvCells})
-     *  by the declared format, which is upstream's rule (L2, 2026-11-09; register row S172 closed). */
+    /** {@inheritDoc} H2's own reader, {@code CSVREAD}, over the runner's copy (the user's ruling of 2026-11-09): it
+     *  takes no bound path itself, so the copy's path is bound to a session variable first ({@code SET @legend_csv = ?},
+     *  measured 2026-11-10 on 2.5.252), then read in the declared delimiter and quote, a quote doubled within a quoted
+     *  cell, every cell's text kept whole ({@code preserveWhitespace}), an empty or quoted empty cell NULL
+     *  ({@code NULLIF}), the header dropped; each cell cast into its column by the INSERT. A delimiter or a quote that is
+     *  white space is not expressible in CSVREAD's options, refused by name. Where its rule is not upstream's (a quote
+     *  after leading blanks read as quoted, a blank line skipped, a short record padded with NULL, a long one cut) is a
+     *  register row, pinned by {@code CsvLoadRenderTest}. */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        return csvStreamed(load);
+        for (char c : new char[] {load.delimiter(), load.quote()}) {
+            if (Character.isWhitespace(c)) {
+                throw new DialectCapability("a CSV file whose delimiter or quote is white space: H2's CSVREAD takes"
+                        + " none in its options");
+            }
+        }
+        int width = load.columns().size();
+        StringBuilder cells = new StringBuilder();
+        StringBuilder names = new StringBuilder();
+        for (int i = 0; i < width; i++) {
+            cells.append(i == 0 ? "" : ", ").append("NULLIF(C").append(i).append(", '')");
+        }
+        // one column more than the table: a record's cell past the table's last is how a wide record shows
+        for (int i = 0; i <= width; i++) {
+            names.append(i == 0 ? "" : ",").append("C").append(i);
+        }
+        String options = "charset=UTF-8 fieldSeparator=" + load.delimiter() + " fieldDelimiter=" + load.quote()
+                + " escape=" + load.quote() + " preserveWhitespace=true";
+        // CSVREAD pads a short record with NULL and cuts a wide one in silence, and reads an unclosed quote to the
+        // file's end (measured 2026-11-10, S185): each refused here, in the database, by its raise (the ERROR arm,
+        // as a toOne() guard raises), as upstream refuses them (invariant 4). An empty cell inside a record reads ''
+        // (NULLIF makes it NULL after the check), so a NULL before the last column is a cell the record does not have;
+        // a record's empty LAST cell reads NULL, as a missing one does, so a record short by exactly one cell, or wide
+        // by one empty cell, is beyond what CSVREAD shows (S185)
+        OutputCol wideCell = new OutputCol("C" + width, SqlType.Scalar.VARCHAR, true);
+        List<SqlExpr.Case.When> refusals = new java.util.ArrayList<>();
+        refusals.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, SqlExpr.Column.of(null, wideCell)),
+                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV file has more cells than its"
+                        + " table's " + width + " column(s)"))));
+        if (width >= 2) {
+            OutputCol beforeLast = new OutputCol("C" + (width - 2), SqlType.Scalar.VARCHAR, true);
+            refusals.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, SqlExpr.Column.of(null, beforeLast)),
+                    SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV file has fewer cells than"
+                            + " its table's " + width + " column(s), or the file ends inside a quoted cell (EOF reached"
+                            + " before encapsulated token finished)"))));
+        }
+        SqlExpr check = new SqlExpr.Case(refusals, new SqlExpr.BoolLit(true));
+        SqlWriter where = newWriter().expr(check, 0);
+        if (where.bound() != 0) {
+            throw new IllegalStateException("a CSV load's record check binds no value");
+        }
+        // the columns named, so the header is a record CSVREAD reads like any other, whatever its width, and the first
+        // record skipped unread (upstream drops the header unread: legend-pure's LazyIterate.drop(..., 1)) before the
+        // check reads a record
+        return new CsvLoad(java.util.List.of("SET @legend_csv = ?", csvInsertInto(load) + " SELECT " + cells
+                + " FROM (SELECT * FROM CSVREAD(@legend_csv, " + stringLit(names.toString()) + ", "
+                + stringLit(options) + ") OFFSET 1 ROW) AS x WHERE " + where.text()));
     }
 
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's

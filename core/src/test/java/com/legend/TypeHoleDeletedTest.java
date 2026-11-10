@@ -65,14 +65,20 @@ class TypeHoleDeletedTest {
                 "com.legend.executionplan.ExecutionPlan$TypeSpelling", "com.legend.executionplan.ExecutionPlan$ValueKind",
                 "com.legend.sql.dialect.RenderedStatement$TypeHole", "com.legend.sql.ValueTyping", "com.legend.sql.ValueKind",
                 "com.legend.executionplan.ExecutionPlan$LoadStep$Delivery$DatabaseReads",
-                "com.legend.executionplan.ExecutionPlan$Setup")) {
+                "com.legend.executionplan.ExecutionPlan$Setup",
+                // the streamed and bulk deliveries, deleted 2026-11-10 by the user's ruling of 2026-11-09 (a file's
+                // database reads it; an option its reader cannot read is refused, never streamed by Java)
+                "com.legend.executionplan.ExecutionPlan$LoadStep$Delivery$Streamed",
+                "com.legend.executionplan.ExecutionPlan$LoadStep$Delivery$Bulk")) {
             org.junit.jupiter.api.Assertions.assertThrows(ClassNotFoundException.class, () -> Class.forName(gone), gone);
         }
         for (var m : Class.forName("com.legend.exec.PlanRunner").getDeclaredMethods()) {
             assertTrue(!List.of("setUp", "setUpIn", "typeOf", "kindOf").contains(m.getName()), "PlanRunner." + m.getName());
         }
-        for (var m : Class.forName("com.legend.exec.Statements").getDeclaredMethods()) {
-            assertTrue(!m.getName().equals("readsFile"), "Statements.readsFile");
+        // Statements.readsFile was pinned gone here from L2 (the streamed delivery) until 2026-11-10: the user's ruling
+        // of 2026-11-09 (the database reads a file, Delivery.Reads) brought it back, and the streamed cells went
+        for (var m : Class.forName("com.legend.exec.DataLoads").getDeclaredMethods()) {
+            assertTrue(!m.getName().equals("cells"), "DataLoads's cells method");
         }
         for (var m : Class.forName("com.legend.executionplan.ExecutionPlan$Target").getDeclaredMethods()) {
             assertTrue(!m.getName().equals("setup"), "Target.setup");

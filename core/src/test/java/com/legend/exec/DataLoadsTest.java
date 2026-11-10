@@ -45,7 +45,7 @@ class DataLoadsTest {
     private static final String CSV = "Firstname,Lastname,Age\nJoe,Bloggs,21\nJill,Smith,31";
 
     private static final SqlDml.LoadCsv LOAD = new SqlDml.LoadCsv(null, "data_loads_people", NameQuoting.BARE,
-            List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of());
+            List.of("FIRSTNAME", "LASTNAME", "AGE"), Set.of(), ',', '"');
 
 
     /** Every in-process database whose dialect spells a CSV file's load (one that spells none refuses by name). */
@@ -70,8 +70,7 @@ class DataLoadsTest {
     /** {@link #file(SqlDialect, String, byte[])} admitting {@code limitMegabytes} (upstream's 500 by default). */
     private static ExecutionPlan.LoadStep.File file(SqlDialect dialect, String name, byte[] bytes, int limitMegabytes) {
         SqlDialect.CsvLoad spelled = dialect.csvLoad(LOAD);
-        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(),
-                LOAD.columns().size());
+        ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(spelled.statements());
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
                 DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, limitMegabytes);
     }
@@ -162,20 +161,69 @@ class DataLoadsTest {
         }
     }
 
-    /** A file whose cells are malformed by its declared format, or a record of another width than its table's, is
-     *  refused by name at the run as at planning -- never padded, cut, skipped or repaired (invariant 4). */
+    /** Each database's reader at the format's edges, PINNED (the user's ruling, 2026-11-09: the database reads the file,
+     *  and an option it cannot read is refused, never streamed by Java): upstream (Commons CSV EXCEL, an empty cell
+     *  NULL) refuses each of these texts or reads it as the first column says; where a reader reads it otherwise, the
+     *  difference is a row of docs/SEMANTICS_REGISTER.md (S184-S185) and this pin fails the day it moves. */
     @Test
-    void aMalformedFileIsRefusedNeverRepaired(@TempDir Path dir) throws Exception {
-        for (String text : List.of(CSV + "\nJack,Jones", CSV + "\nJack,Jones,41,extra", CSV + "\n\nJack,Jones,41",
-                CSV + "\n\"Jack\"x,Jones,41", CSV + "\n\"Jack,Jones,41")) {
-            byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-            Files.write(dir.resolve("bad.csv"), bytes);
-            for (TestBackend b : loading()) {
-                DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
-                        load(b, file(b.dialect(), "bad.csv", bytes))), b.name() + ": " + text);
-                assertTrue(e.getMessage().contains("'bad.csv'"), e.getMessage());
+    void eachReadersEdgesArePinned(@TempDir Path dir) throws Exception {
+        java.util.Map<String, java.util.Map<String, String>> pins = new java.util.LinkedHashMap<>();
+        String two = "[[Joe, Bloggs, 21], [Jill, Smith, 31]]";
+        String jack = "[[Joe, Bloggs, 21], [Jill, Smith, 31], [Jack, Jones, 41]]";
+        // a short or wide record: refused on both (H2's CSVREAD would pad or cut it: its load checks each record),
+        // except where H2 cannot see it: a record short by exactly one cell reads as an empty last cell (S185)
+        pins.put(CSV + "\nJack,Jones", java.util.Map.of("upstream", "refused",
+                "h2", "[[Joe, Bloggs, 21], [Jill, Smith, 31], [Jack, Jones, 0]]"));
+        pins.put(CSV + "\nJack", java.util.Map.of("upstream", "refused"));
+        pins.put(CSV + "\nJack,Jones,41,extra", java.util.Map.of("upstream", "refused"));
+        // a wide record whose extra cell is empty: both load it, its last delimiter read as the record's end (S184,
+        // S185)
+        pins.put(CSV + "\nJack,Jones,41,", java.util.Map.of("upstream", "refused", "duckdb", jack, "h2", jack));
+        // empty and quoted empty cells are NULL on both
+        pins.put(CSV + "\n,\"\",41", java.util.Map.of("upstream",
+                "[[Joe, Bloggs, 21], [Jill, Smith, 31], [null, null, 41]]"));
+        // an empty line: both readers skip it (S184, S185)
+        pins.put(CSV + "\n\nJack,Jones,41", java.util.Map.of("upstream", "refused", "duckdb", jack, "h2", jack));
+        pins.put(CSV + "\n\"Jack\"x,Jones,41", java.util.Map.of("upstream", "refused"));
+        // an unclosed quote: refused on both (H2's CSVREAD would read the rest of the file as one cell)
+        pins.put(CSV + "\n\"Jack,Jones,41", java.util.Map.of("upstream", "refused"));
+        // an unclosed quote in the last cell: H2 reads the rest of the file into it, here "41" (S185)
+        pins.put(CSV + "\nJack,Jones,\"41", java.util.Map.of("upstream", "refused", "h2", jack));
+        // an empty last cell is a cell: NULL, as upstream reads it
+        pins.put(CSV + "\nJack,Jones,", java.util.Map.of("upstream",
+                "[[Joe, Bloggs, 21], [Jill, Smith, 31], [Jack, Jones, 0]]"));
+        // a quote after a space: both readers read the cell quoted (S184, S185)
+        pins.put(CSV + "\n \"Jack\",Jones,41", java.util.Map.of("upstream",
+                "[[Joe, Bloggs, 21], [Jill, Smith, 31], [ \"Jack\", Jones, 41]]", "duckdb", jack, "h2", jack));
+        // mixed line breaks: DuckDB refuses them (S184)
+        pins.put("Firstname,Lastname,Age\r\nJoe,Bloggs,21\nJill,Smith,31", java.util.Map.of("upstream", two,
+                "duckdb", "refused"));
+        pins.put("Firstname,Lastname,Age", java.util.Map.of("upstream", "[]"));
+        pins.put("Firstname,Lastname,Age\n", java.util.Map.of("upstream", "[]"));
+        pins.put("", java.util.Map.of("upstream", "[]"));
+        List<String> moved = new ArrayList<>();
+        for (TestBackend b : loading()) {
+            for (var pin : pins.entrySet()) {
+                String text = pin.getKey();
+                byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+                Files.write(dir.resolve("edge.csv"), bytes);
+                String got;
+                try {
+                    got = loadedNullable(b, DataStores.resources(dir), load(b, file(b.dialect(), "edge.csv", bytes)))
+                            .toString();
+                } catch (DataError e) {
+                    assertTrue(e.getMessage().contains("'edge.csv'"), e.getMessage());
+                    got = "refused";
+                }
+                System.out.println("@@PIN " + b.name() + " " + text.replace("\n", "\\n").replace("\r", "\\r")
+                        + " => " + got);
+                String want = pin.getValue().get(b.name());
+                if (!(want == null ? pin.getValue().get("upstream") : want).equals(got)) {
+                    moved.add(b.name() + ": " + text + " => " + got);
+                }
             }
         }
+        assertEquals(List.of(), moved, "a reader's pin moved");
     }
 
     /** A file larger than its load admits is refused at the run, in upstream's words, as at planning (D-b: the user's
@@ -213,7 +261,7 @@ class DataLoadsTest {
      *  every database (DuckDB's own reader would read the third cell quoted: CsvLoadRenderTest). */
     @Test
     void eachDatabaseLoadsUpstreamsCells(@TempDir Path dir) throws Exception {
-        String text = "Firstname,Lastname,Age\r\n  Joe  ,\"\",1\r\n \"x\",\"a \"\"q\"\" b\",2\r\n";
+        String text = "Firstname,Lastname,Age\r\n  Joe  ,\"\",1\r\nx,\"a \"\"q\"\" b\",2\r\n";
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         Files.write(dir.resolve("cells.csv"), bytes);
         List<Object> nullLast = new ArrayList<>();
@@ -221,7 +269,7 @@ class DataLoadsTest {
         nullLast.add(null);
         nullLast.add(1);
         for (TestBackend b : loading()) {
-            assertEquals(List.of(nullLast, List.of(" \"x\"", "a \"q\" b", 2)),
+            assertEquals(List.of(nullLast, List.of("x", "a \"q\" b", 2)),
                     loadedNullable(b, DataStores.resources(dir), load(b, file(b.dialect(), "cells.csv", bytes))),
                     b.name());
         }
@@ -269,52 +317,5 @@ class DataLoadsTest {
                     () -> loaded(b, DataStores.resources(dir), named), b.name());
             assertTrue(e.getMessage().contains("is not its content's"), e.getMessage());
         }
-    }
-
-    /** {@code load}'s file step as a bulk delivery on a database whose dialect loads rows in bulk: the dialect's staging
-     *  statements, the cells handed to the session's bulk loader (the M1 tenets audit's finding 8, 2026-11-09). */
-    private static ExecutionPlan.Load bulk(TestBackend b, ExecutionPlan.Load load) {
-        ExecutionPlan.LoadStep.File f = (ExecutionPlan.LoadStep.File) load.steps().get(0);
-        ExecutionPlan.LoadStep.Rows staged = new com.legend.setup.RowLoad(null, LOAD.table(), LOAD.quoting(),
-                LOAD.columns(), Set.of(), LOAD.columns().size(), List.of(List.of("x", "y", "1"))).staged(b.dialect());
-        return com.legend.planner.LoadPlanner.load(load.cadence(), List.of(new ExecutionPlan.LoadStep.File(f.ref(),
-                new ExecutionPlan.LoadStep.Delivery.Bulk(staged.stagingTable(), staged.createStaging(), staged.copy(),
-                        staged.dropStaging(), LOAD.columns().size()), f.sizeLimitMegabytes())), load.target());
-    }
-
-    /** A file's cells through the bulk loader load the rows the streamed insert loads, the loader counted once; the
-     *  two deliveries timed on 50,000 rows (docs/DATA_IN_THE_PLAN_2026_11_09.md 9: printed, not asserted). */
-    @Test
-    void aBulkDeliveryLoadsTheStreamedRowsThroughTheBulkLoader(@TempDir Path dir) throws Exception {
-        byte[] small = CSV.getBytes(StandardCharsets.UTF_8);
-        Files.write(dir.resolve("employees.csv"), small);
-        StringBuilder text = new StringBuilder("Firstname,Lastname,Age");
-        for (int i = 0; i < 50_000; i++) {
-            text.append("\nName").append(i).append(",Last").append(i).append(',').append(i);
-        }
-        byte[] big = text.toString().getBytes(StandardCharsets.UTF_8);
-        Files.write(dir.resolve("big.csv"), big);
-        int bulkDatabases = 0;
-        for (TestBackend b : loading()) {
-            if (!b.dialect().loadsRowsInBulk()) {
-                continue;
-            }
-            bulkDatabases++;
-            long before = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BULK_LOADS);
-            assertEquals(List.of(List.of("Joe", "Bloggs", 21), List.of("Jill", "Smith", 31)), loaded(b,
-                    DataStores.resources(dir), bulk(b, load(b, file(b.dialect(), "employees.csv", small)))), b.name());
-            assertEquals(before + 1, com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BULK_LOADS),
-                    b.name() + ": the bulk loader ran once");
-            long t0 = System.nanoTime();
-            int streamed = loaded(b, DataStores.resources(dir), load(b, file(b.dialect(), "big.csv", big))).size();
-            long t1 = System.nanoTime();
-            int bulked = loaded(b, DataStores.resources(dir), bulk(b, load(b, file(b.dialect(), "big.csv", big)))).size();
-            long t2 = System.nanoTime();
-            assertEquals(50_000, streamed, b.name());
-            assertEquals(50_000, bulked, b.name());
-            System.out.println("@@MEASURE " + b.name() + " 50000 rows: streamed " + (t1 - t0) / 1_000_000 + " ms, bulk "
-                    + (t2 - t1) / 1_000_000 + " ms");
-        }
-        assertTrue(bulkDatabases > 0, "a database with a bulk loader was measured");
     }
 }

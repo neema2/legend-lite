@@ -141,16 +141,9 @@ final class MongoDbStatements implements Statements {
         return false;
     }
 
-    /** No bulk loader: false, as the contract says ({@link #load}). */
+    /** A MongoDB database reads no runner's file: refused by name (a plan loads nothing into a connector's own). */
     @Override
-    public boolean bulk(String stagingTable, String createStaging, String copy, String dropStaging,
-            List<List<String>> rows) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        return false;
-    }
-
-    @Override
-    public void streams(String insert, List<List<String>> rows) {
+    public void readsFile(String statement, String path) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"
                 + " the connector's own, and a plan loads none");

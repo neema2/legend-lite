@@ -166,10 +166,10 @@ public final class EffectPlanner {
      * its rows -- delivered as the program's database takes it ({@link SqlDialect#csvLoad}); the table the store
      * navigation the call names, its columns in declared order, the file's cells loaded positionally after its header
      * (legend-engine's native drops the header and inserts each row into the table's columns). {@code bytes} are the
-     * bytes {@code ref} digests, read at planning: the referee's copy is their rows (null where there are none: a file
-     * of no row loads nothing, and no load is planned).
+     * bytes {@code ref} digests, read at planning for the reference: the referee's copy is their rows, split only when
+     * an edge asks.
      */
-    public static @com.legend.base.Nullable PlannedLoad loadCsv(TypedNativeCall call,
+    public static PlannedLoad loadCsv(TypedNativeCall call,
             com.legend.executionplan.DataRef ref, byte[] bytes, List<TypedSpec> body, PlanEnv env) {
         var table = com.legend.compiler.spec.typed.StoreElementIdentity.tableRef(call.args().get(1),
                 x -> peelToOne(x, body));
@@ -185,38 +185,24 @@ public final class EffectPlanner {
         List<String> columns = env.ctx().findTable(table.dbFqn(), table.table()).orElseThrow(() ->
                 new IllegalStateException("loadCsvToDbTable: no table '" + table.table() + "' in store "
                         + table.dbFqn())).columns().stream().map(c -> c.name()).toList();
-        // the file's cells by its declared format (decision 6), read here once: a malformed file or a record of
-        // another width is refused at planning, by name, before anything is sent (the digest makes the run's bytes these)
-        List<List<String>> cells;
-        try {
-            cells = switch (ref.format()) {
-                case com.legend.executionplan.DataRef.Csv csv -> com.legend.base.CsvCells.table(new String(bytes,
-                        java.nio.charset.StandardCharsets.UTF_8), csv.delimiter(), csv.quote(), columns.size());
-            };
-        } catch (com.legend.base.CsvCells.Malformed e) {
-            throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
-                    + qualified + "': " + e.getMessage(), e);
-        }
-        if (cells.isEmpty()) {
-            // a header alone, or nothing: no row loads, and the plan loads what it was planned against
-            return null;
-        }
         java.util.Set<String> quoted = com.legend.setup.CsvSeed.quotedColumns(def);
         com.legend.sql.NameQuoting quoting = Ddl.quoting(def, schema);
-        SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted);
+        com.legend.executionplan.DataRef.Csv csv = switch (ref.format()) {
+            case com.legend.executionplan.DataRef.Csv c -> c;
+        };
+        // the database reads the file with its own reader, the declared format in its options (the user's ruling,
+        // 2026-11-09: no streamer of lite's own); a reader that cannot express it refuses by name, here
+        SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted, csv.delimiter(),
+                csv.quote());
         SqlDialect.CsvLoad spelled = env.writtenIn().csvLoad(load);
-        com.legend.setup.RowLoad rows = new com.legend.setup.RowLoad(schema, table.table(), quoting, columns, quoted,
-                columns.size(), cells);
-        // the database's bulk loader where it has one (DuckDB's appender: the M1 tenets audit's finding 8), its
-        // staging statements the dialect's; else one row's insert per row
-        ExecutionPlan.LoadStep.Rows staged = env.writtenIn().loadsRowsInBulk() ? rows.staged(env.writtenIn()) : null;
-        ExecutionPlan.LoadStep.Delivery delivery = staged != null
-                ? new ExecutionPlan.LoadStep.Delivery.Bulk(staged.stagingTable(), staged.createStaging(), staged.copy(),
-                        staged.dropStaging(), columns.size())
-                : new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(), columns.size());
-        // the referee's copy of the rows, rendered only when an edge asks for it
-        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery, SIZE_LIMIT_MEGABYTES),
-                () -> refereeDdl().render(rows.values()));
+        // the referee's copy of the rows (the compatibility edge's replay, census M15 until L8), split from the bytes
+        // only when an edge asks for it
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref,
+                new ExecutionPlan.LoadStep.Delivery.Reads(spelled.statements()), SIZE_LIMIT_MEGABYTES),
+                () -> refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns, quoted,
+                        columns.size(), com.legend.base.CsvCells.table(new String(bytes,
+                                java.nio.charset.StandardCharsets.UTF_8), csv.delimiter(), csv.quote(), columns.size()))
+                        .values()));
     }
 
     /** The largest file {@code loadCsvToDbTable} loads: upstream's, in both its natives (legend-pure 5.99.0:

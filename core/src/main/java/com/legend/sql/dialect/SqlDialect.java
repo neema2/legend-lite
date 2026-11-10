@@ -71,18 +71,21 @@ public interface SqlDialect {
     }
 
     /**
-     * How this dialect's database takes a CSV file's rows ({@link com.legend.sql.SqlDml.LoadCsv}; the design's 2.5,
-     * docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09): one row's insert, a {@code ?} per column, which the runner sends
-     * once per row of the cells it splits by the file's declared format (L2: the platform's format decides the cells on
-     * every database, decision 6). Chosen here, at planning, as every spelling is; a dialect whose database takes none
-     * refuses it by name ({@code DialectCapability}).
+     * How this dialect's database READS a CSV file's rows itself ({@link com.legend.sql.SqlDml.LoadCsv}; the user's
+     * ruling of 2026-11-09, "reject options we cannot support instead of building our own streamer"): its own reader
+     * over the runner's verified copy, the copy's path bound to each statement's {@code ?}, the declared format in the
+     * reader's options. A format the reader cannot express, and a database with no reader of the runner's files, are
+     * refused by name ({@code DialectCapability}), at planning.
      */
     CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
 
-    /** A CSV file's load as this dialect spells it: one row's insert. */
-    record CsvLoad(String sql) {
+    /** A CSV file's load as this dialect spells it: its statements, in order, each {@code ?} the copy's path. */
+    record CsvLoad(java.util.List<String> statements) {
         public CsvLoad {
-            java.util.Objects.requireNonNull(sql, "sql");
+            statements = java.util.List.copyOf(statements);
+            if (statements.isEmpty()) {
+                throw new IllegalArgumentException("a CSV load of no statement");
+            }
         }
     }
 

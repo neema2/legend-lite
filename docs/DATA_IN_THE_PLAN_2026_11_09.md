@@ -287,6 +287,29 @@ that cannot delete what it replaces is not done.
     database keeps the whole store per graph in its session's temporary tables until the design's check 3 (census row
     M5 stays PENDING for it). The product's metamodel (M6, the catalog's product half) waits on the user's ruling.
 
+### The CSV file read by its database (2026-11-10, branch `claude/total-wall`)
+
+The user's ruling of 2026-11-09: "Csv I vote that we just reject options we cannot support instead of building our own
+streamer". It supersedes L2's "every database takes the streamed cells" above.
+- **Delivery:** `Delivery.Reads(statements)` is the one delivery (plan JSON v34, the TypeScript runner's `PLAN_VERSION`
+  with it). The runner verifies the bytes (size, digest), writes them to a copy of its own (`DataLoads.stage`), and sends
+  each of the plan's statements as written, binding the copy's path to the statement's one `?` where it has one
+  (`Statements.readsFile`). A database's refusal comes back in its own words, with the file named.
+- **The dialects:** DuckDB: `INSERT ... SELECT * FROM read_csv(?, header = true, delim, quote, escape = quote,
+  auto_detect = false, strict_mode = true, nullstr = '', columns = {every column VARCHAR})`. H2: `SET @legend_csv = ?`,
+  then `INSERT ... SELECT NULLIF(Cn, '') ... FROM (SELECT * FROM CSVREAD(@legend_csv, 'C0,...,Cn+1', options) OFFSET 1
+  ROW) AS x WHERE <the record check>` (the columns named, so a header of any width is skipped unread). H2 refuses a white-space delimiter or quote by name, since its
+  options are split on white space. Every other dialect refuses a CSV file's load, as before.
+- **Deleted:** `Delivery.Streamed`, `Delivery.Bulk`, `DataLoads.cells`, the planner's split of the cells and its
+  refusals at planning, and `AnsiSqlRenderer.csvStreamed`, each pinned gone (`DataMechanismCensusTest` M8's list;
+  `TypeHoleDeletedTest`, where the pin on `Statements.readsFile` moved with a dated note). `base.CsvCells` stays only
+  for the referee's copy (census M15, until L8), split lazily when an edge asks.
+- **Where the readers differ from upstream:** S184 (DuckDB) and S185 (H2) list the cases, pinned by
+  `DataLoadsTest.eachReadersEdgesArePinned`, and S174 is superseded. H2's load refuses a wide record, a short one and an
+  unclosed quote in its own SQL (the orchestrator's (a), 2026-11-10: invariant 4, upstream's outcome), through the
+  dialect's raise; the cases `CSVREAD` reads exactly as a valid record are S185's pending rows.
+
+
 ## 5. Upstream
 
 lite's choices here are its own design. Where one differs observably from legend-pure or legend-engine (for example a

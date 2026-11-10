@@ -1889,24 +1889,23 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
             case com.legend.sql.SqlDml.Merge m -> merge(m).text();
-            case com.legend.sql.SqlDml.LoadCsv lc -> csvLoad(lc).sql();
+            case com.legend.sql.SqlDml.LoadCsv lc -> String.join(";\n", csvLoad(lc).statements());
         };
     }
 
-    /** {@inheritDoc} Refused by the base: a dialect whose rows the runner streams spells its row's insert
-     *  ({@link #csvStreamed}: H2's, DuckDB's); a remote database's is its bulk load, designed when its lane needs one
-     *  (the user, 2026-11-06). */
+    /** {@inheritDoc} Refused by the base: a database with no reader of the runner's files (a server reads its own
+     *  machine's) refuses by name; DuckDB and H2 spell their own (the user's ruling of 2026-11-09; a server's raw-byte
+     *  delivery, such as Postgres's {@code COPY ... FROM STDIN}, later). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
         throw new DialectCapability("a CSV file's load reached " + getClass().getSimpleName() + ": this dialect's"
-                + " database takes no file yet");
+                + " database reads no file of the runner's");
     }
 
-    /** {@code load} as the runner streams it: one row's insert, a {@code ?} per column. */
-    protected CsvLoad csvStreamed(com.legend.sql.SqlDml.LoadCsv load) {
-        return new CsvLoad("INSERT INTO " + ddlQualified(load.schema(), load.table(), load.quoting())
-                + dmlColumns(load.columns(), load.quotedColumns()) + " VALUES ("
-                + String.join(", ", java.util.Collections.nCopies(load.columns().size(), "?")) + ")");
+    /** {@code load}'s target, as an INSERT names it: the table and its columns. */
+    protected String csvInsertInto(com.legend.sql.SqlDml.LoadCsv load) {
+        return "INSERT INTO " + ddlQualified(load.schema(), load.table(), load.quoting())
+                + dmlColumns(load.columns(), load.quotedColumns());
     }
 
     @Override

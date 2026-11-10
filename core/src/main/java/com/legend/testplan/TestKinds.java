@@ -507,15 +507,12 @@ final class TestKinds implements ProgramKinds {
     }
 
     /** A CSV file's load {@code e}, placed after the open script as a load of its own, run every time it is reached
-     *  ({@code AT_STEP}), the referee's copy of its rows beside it as a seed's; a file of no row loads nothing and
-     *  places nothing. Its identity: the file's digest and the statement it is delivered by. */
+     *  ({@code AT_STEP}), the referee's copy of its rows beside it as a seed's (a file of no row: the database reads
+     *  none). Its identity: the file's digest and the statements it is delivered by. */
     private void load(ProgramState program, Prepared.Effect e, Resource resource) {
         EffectPlanner.PlannedLoad planned = EffectPlanner.loadCsv(e.call(), resource.ref(), resource.bytes(),
                 e.body(), e.env().withDialect(program.dialect()));
         close(program);
-        if (planned == null) {
-            return;
-        }
         ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                 List.of(planned.step()), program.target());
         program.add(load);

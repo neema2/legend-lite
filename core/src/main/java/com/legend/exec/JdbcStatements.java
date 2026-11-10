@@ -186,22 +186,14 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void streams(String insert, List<List<String>> rows) {
+    public void readsFile(String statement, String path) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(insert)) {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
-            for (List<String> row : rows) {
-                for (int i = 0; i < row.size(); i++) {
-                    String cell = row.get(i);
-                    if (cell == null) {
-                        st.setNull(i + 1, java.sql.Types.VARCHAR);
-                    } else {
-                        st.setString(i + 1, cell);
-                    }
-                }
-                st.addBatch();
+            if (st.getParameterMetaData().getParameterCount() == 1) {
+                st.setString(1, path);
             }
-            st.executeBatch();
+            st.execute();
         } catch (SQLException e) {
             throw failed(e);
         }
@@ -209,19 +201,14 @@ final class JdbcStatements implements Statements {
 
     @Override
     public boolean load(ExecutionPlan.LoadStep.Rows rows) {
-        return bulk(rows.stagingTable(), rows.createStaging(), rows.copy(), rows.dropStaging(), rows.rows());
-    }
-
-    @Override
-    public boolean bulk(String stagingTable, String createStaging, String copy, String dropStaging,
-            List<List<String>> rows) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try {
             BulkLoad bulk = BulkLoads.of(c);
             if (bulk == null) {
                 return false;
             }
-            BulkLoads.load(bulk, c, stagingTable, createStaging, copy, dropStaging, rows);
+            BulkLoads.load(bulk, c, rows.stagingTable(), rows.createStaging(), rows.copy(), rows.dropStaging(),
+                    rows.rows());
             return true;
         } catch (SQLException e) {
             throw failed(e);

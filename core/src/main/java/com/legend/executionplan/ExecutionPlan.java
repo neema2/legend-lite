@@ -308,11 +308,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                             case DataRef.Csv csv -> sb.append("csv").append(csv.delimiter()).append(csv.quote());
                         }
                         switch (f.delivery()) {
-                            case LoadStep.Delivery.Streamed st ->
-                                    field(sb.append("streamed").append(st.columns()).append(':'), st.insert());
-                            case LoadStep.Delivery.Bulk b -> field(field(field(field(
-                                    sb.append("bulk").append(b.columns()).append(':'), b.stagingTable()),
-                                    b.createStaging()), b.copy()), b.dropStaging());
+                            case LoadStep.Delivery.Reads r -> {
+                                sb.append("reads").append(r.statements().size()).append(':');
+                                for (String statement : r.statements()) {
+                                    field(sb, statement);
+                                }
+                            }
                         }
                     }
                 }
@@ -927,42 +928,23 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
 
         /** How a file's verified bytes reach its database: chosen at planning for the target's database, as every
-         *  spelling is; no delivery edits a statement at run (its cells are bound). */
-        sealed interface Delivery permits Delivery.Streamed, Delivery.Bulk {
+         *  spelling is; no delivery edits a statement at run (the copy's path is bound). */
+        sealed interface Delivery permits Delivery.Reads {
 
             /**
-             * The runner splits the verified text into cells by the reference's declared format and hands them to the
-             * session's BULK LOADER (DuckDB's appender): {@code createStaging} makes {@code stagingTable}, the cells are
-             * appended, {@code copy} moves them into the table, {@code dropStaging} drops it -- a rows step's own path,
-             * chosen at planning where the dialect loads rows in bulk (the M1 tenets audit's finding 8, 2026-11-09:
-             * every database had taken one row's insert per row since L2).
+             * THE DATABASE READS THE FILE ITSELF (the user's ruling, 2026-11-09: "reject options we cannot support
+             * instead of building our own streamer"): the runner writes the verified bytes to a copy of its own and sends
+             * {@code statements} in order, each {@code ?} in them bound to that copy's path -- its database's own reader
+             * spelled by its dialect, the declared format in that reader's options (DuckDB's {@code read_csv}, H2's
+             * {@code CSVREAD} through a session variable it takes no bound path otherwise). A format a reader cannot
+             * express is refused at planning; a database with no reader of the runner's files refuses the load by name.
+             * Until then (L2) the runner split the text into cells itself and streamed them.
              */
-            record Bulk(String stagingTable, String createStaging, String copy, String dropStaging, int columns)
-                    implements Delivery {
-                public Bulk {
-                    Objects.requireNonNull(stagingTable, "stagingTable");
-                    Objects.requireNonNull(createStaging, "createStaging");
-                    Objects.requireNonNull(copy, "copy");
-                    Objects.requireNonNull(dropStaging, "dropStaging");
-                    if (columns < 1) {
-                        throw new IllegalArgumentException("a bulk load of no column");
-                    }
-                }
-            }
-
-            /**
-             * The runner splits the verified text into cells by the reference's declared format and sends
-             * {@code insert}, whose {@code columns} {@code ?}s take one row's cells, once per row in one batch, as
-             * upstream's {@code loadCsvToDbTable} binds a file it read (2026-11-09, L2: every database so, the platform's
-             * format deciding the cells -- DuckDB's own reader, which read the file until then, cannot read the declared
-             * format exactly: measured, a cell whose quote follows a space is quoted to it and a file's mixed line
-             * breaks are refused; H2's {@code CSVREAD} takes no bound path). The database casts every cell.
-             */
-            record Streamed(String insert, int columns) implements Delivery {
-                public Streamed {
-                    Objects.requireNonNull(insert, "insert");
-                    if (columns < 1) {
-                        throw new IllegalArgumentException("a streamed load of no column");
+            record Reads(List<String> statements) implements Delivery {
+                public Reads {
+                    statements = List.copyOf(statements);
+                    if (statements.isEmpty()) {
+                        throw new IllegalArgumentException("a file's load of no statement");
                     }
                 }
             }

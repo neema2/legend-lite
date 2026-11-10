@@ -41,11 +41,11 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
     /** A CSV file's rows into a table ({@code loadCsvToDbTable}, the user's ruling of 2026-11-06): the statement names
      *  NO file and holds no row (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.5, 2026-11-09: the plan carries the file's
      *  reference, the runner delivers its verified bytes). Its first line a header; its cells text the database casts
-     *  into the columns, positionally. A dialect spells its delivery ({@code SqlDialect.csvLoad}): a statement whose one
-     *  {@code ?} is the runner's copy of the file, where its database reads a file through a bound path, or one row's
-     *  insert, where the runner streams the cells. A dialect whose database takes neither refuses it by name. */
+     *  into the columns, positionally. {@code delimiter} and {@code quote}: the file's declared format (decision 6). A
+     *  dialect spells its database's own reader over the runner's copy of the file ({@code SqlDialect.csvLoad}, the
+     *  user's ruling of 2026-11-09); a dialect whose database has none refuses it by name. */
     record LoadCsv(@com.legend.base.Nullable String schema, String table, NameQuoting quoting, List<String> columns,
-                   java.util.Set<String> quotedColumns) implements SqlDml {
+                   java.util.Set<String> quotedColumns, char delimiter, char quote) implements SqlDml {
         public LoadCsv {
             columns = List.copyOf(columns);
             quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
