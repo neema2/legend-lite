@@ -285,32 +285,23 @@ class PlanRunnerTest {
         }
     }
 
-    /** Rows for a bulk loader, into table K (A, B). */
-    static ExecutionPlan.LoadStep.Rows kRows(List<String> row) {
-        return new ExecutionPlan.LoadStep.Rows("K_STAGE", "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)",
-                "INSERT INTO K SELECT A, B FROM K_STAGE", "DROP TABLE K_STAGE", List.of(row));
-    }
-
-    /** A setup refused before any statement runs -- rows for a bulk loader, on a database with none -- fails the same
-     *  way again: the refusal, a runtime error, closed what was opened, and nothing was kept. */
+    /** A load's model data is a content blob of statements (A2, 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+     *  §1.1): the runner sends each, as written, under the seeds' mark, on every in-process database. */
     @Test
-    void aSetupRefusedForWantOfABulkLoaderFailsTheSameWayAgain() {
-        int checked = 0;
+    void aLoadsStatementsBlobSendsEachStatementAsWritten() throws Exception {
         for (var connection : inMemoryConnections()) {
-            if (Databases.dialect(connection.databaseType()).loadsRowsInBulk()) {
-                continue;
-            }
-            checked++;
-            ExecutionPlan p = plan("SELECT 'never'",
-                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                            statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
-            for (int attempt = 1; attempt <= 2; attempt++) {
-                var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
-                assertEquals("the plan's load has rows for a bulk loader, and the session's database has none ("
-                        + connection.databaseType() + ")", refused.getMessage(), "attempt " + attempt);
-            }
+            ExecutionPlan.Target target = com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(
+                    new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
+                    List.of(), List.of()), com.legend.setup.LoadSteps.of(List.of(statement(
+                            "CREATE TABLE K (A VARCHAR(10), B VARCHAR(10))"))).then(com.legend.setup.LoadSteps.blob(
+                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"))));
+            long before = setupStatements();
+            assertEquals("3", run(ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(
+                    "SELECT CAST(COUNT(*) AS VARCHAR(10)) FROM K", List.of(), target, null))), PlanSessions.shared()),
+                    connection.qualifiedName());
+            assertEquals(3, setupStatements() - before, "the DDL and the blob's two inserts: "
+                    + connection.qualifiedName());
         }
-        assertTrue(checked > 0, "no in-process database without a bulk loader: the refusal went unchecked");
     }
 
     /** A database reached by a URL is the user's: a plan with setup for it is refused, and it is never opened (only an

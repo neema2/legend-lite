@@ -276,21 +276,6 @@ public final class Sessions {
         return session.identity();
     }
 
-    /** The session beneath any number of views (and a lazy session's, opened if it is not yet): the one whose
-     *  connection they share. */
-    private static Session root(Session session) {
-        Session s = session;
-        while (true) {
-            if (s instanceof View v) {
-                s = v.owner;
-            } else if (s instanceof Lazy l) {
-                s = l.opened();
-            } else {
-                return s;
-            }
-        }
-    }
-
     /** Whether {@code session}'s connection is closed -- or unanswerable, which only a broken connection produces;
      *  treating it live would cache the wreck (the handle stores' liveness test). A session over no JDBC connection
      *  (a connector's own) is never closed by this test: none is kept in a handle store. */
@@ -313,19 +298,6 @@ public final class Sessions {
             return jdbc.c.isClosed();
         } catch (SQLException e) {
             return true;
-        }
-    }
-
-    /** Whether the session's database has a bulk loader for a plan's rows ({@link BulkLoads}); a session whose
-     *  database speaks no JDBC (a connector's own) answers for itself at the load. */
-    static boolean loadsRows(Session session) {
-        if (!(root(session) instanceof Jdbc jdbc)) {
-            return true;
-        }
-        try {
-            return BulkLoads.of(jdbc.c) != null;
-        } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
         }
     }
 

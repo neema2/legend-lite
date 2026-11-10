@@ -61,8 +61,8 @@
 > seeds are plan setup steps it sends -- "the doors", 2026-10-29, and the
 > three routings, D65; a raise a MariaDB session holds is read back by the
 > seam from the two statements its connector declares as data; in core's
-> main sources the seam `JdbcStatements` and its DuckDB bulk loader are
-> the only JDBC senders, the census's SENDS act -- the warehouse's server
+> main sources the seam `JdbcStatements` is the only JDBC sender (its
+> DuckDB bulk loader went with A2, 2026-11-10), the census's SENDS act -- the warehouse's server
 > and client, the datacube's Postgres tool and the test harnesses send
 > their own) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel

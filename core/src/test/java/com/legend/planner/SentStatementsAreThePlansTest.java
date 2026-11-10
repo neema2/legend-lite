@@ -81,11 +81,8 @@ class SentStatementsAreThePlansTest {
             for (ExecutionPlan.LoadStep step : load.steps()) {
                 switch (step) {
                     case ExecutionPlan.LoadStep.Statement s -> out.add(s.sql());
-                    case ExecutionPlan.LoadStep.Rows r -> {
-                        out.add(r.createStaging());
-                        out.add(r.copy());
-                        out.add(r.dropStaging());
-                    }
+                    case ExecutionPlan.LoadStep.Statements st -> out.addAll(com.legend.executionplan.DataRef.Statements
+                            .decode(load.content().get(st.ref().digest())));
                     case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("no file in these plans");
                 }
             }

@@ -200,7 +200,7 @@ legend_java_library(
 legend_java_library(
     name = "setup",
     srcs = glob(["src/main/java/com/legend/setup/*.java"]),
-    deps = ["//base", ":cache", ":compiler", ":execution_plan", ":model", ":protocol", ":sql", ":sql_dialect"],
+    deps = ["//base", ":cache", ":compiler", ":error", ":execution_plan", ":model", ":protocol", ":sql", ":sql_dialect"],
 )
 legend_java_library(
     name = "exec",
@@ -408,7 +408,7 @@ legend_java_library(
 legend_java_library(
     name = "drivers",
     runtime_deps = [
-        ":duckdb_load",
+        ":duckdb_cells",
         # MongoDB's connector rides with the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a running core
         # is given its connectors as it is given its drivers, by ServiceLoader
         ":mongodb_connector",
@@ -472,10 +472,12 @@ legend_java_library(
     runtime_deps = ["@bson_record_codec//jar"],
 )
 
-# DuckDB's bulk load (its Appender) behind core's BulkLoad seam, found by
-# ServiceLoader: it rides with the drivers, so core still compiles against none.
+# DuckDB's own cell types behind core's DriverCells seam, found by ServiceLoader: it rides with the drivers, so core
+# still compiles against none. Until A2 (2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md) it was :duckdb_load and
+# held DuckDB's bulk load too (its Appender behind a BulkLoad seam), deleted with the plan's rows step: the model's
+# data is statements in the plan.
 legend_java_library(
-    name = "duckdb_load",
+    name = "duckdb_cells",
     srcs = glob(["src/main/duckdb/**/*.java"]),
     resources = glob(["src/main/duckdb/META-INF/**"]),
     resource_strip_prefix = "core/src/main/duckdb",
@@ -605,9 +607,9 @@ legend_java_library(
             "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
         ],
     ),
-    # :duckdb_load: the bulk-load path RowLoadDuckDbTest judges, declared, not borrowed from :drivers (P3-02)
+    # :duckdb_cells: DuckDB's cell types, declared, not borrowed from :drivers (P3-02)
     runtime_deps = [
-        ":duckdb_load",
+        ":duckdb_cells",
         ":shadow_binding",
     ],
     deps = [
@@ -903,19 +905,6 @@ java_test(
     main_class = "com.legend.PlanOnJavaBase",
     use_testrunner = False,
     runtime_deps = [":core_tests_lib"],
-)
-
-# THE BULK-LOAD PATH, on its own (Bazel workplan P3-02): DuckDB's Appender is found through ServiceLoader
-# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadDuckDbTest asserts the Appender ran.
-junit_test(
-    name = "duckdb_load_test",
-    memory_mb = 768,
-    size = "small",
-    select = ["--select-class=com.legend.exec.RowLoadDuckDbTest"],
-    runtime_deps = [
-        ":core_tests_lib",
-        ":drivers",
-    ],
 )
 
 # THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
@@ -1627,11 +1616,11 @@ junit_test(
         "--select-package=com.legend",
         "--include-tag=guardrail",
     ],
-    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
+    # :duckdb_cells too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
     # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)
     runtime_deps = [
         ":core_tests_lib",
-        ":duckdb_load",
+        ":duckdb_cells",
         ":mongodb_connector",
         ":postgres_cells",
     ],
@@ -1647,7 +1636,7 @@ java_jars(
     transitive = False,
     # //arrow_ipc (2026-11-09, the follow-up audit): the result library's framer is the product's too, so the static
     # state guard holds its constants
-    deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_load", ":mongodb_connector", ":postgres_cells"],
+    deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_cells", ":mongodb_connector", ":postgres_cells"],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
@@ -2026,7 +2015,7 @@ core_layer_queries(not_layers = {
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
-    "duckdb_load": "the drivers' bulk loader, beside the layers",
+    "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "postgres_cells": "Postgres's JSON cells behind the DriverCells seam, beside the drivers (the plan path program's step 9, 2026-10-19)",

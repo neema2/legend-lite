@@ -72,8 +72,7 @@ class SourceUrlUserCallableTest {
         assertTrue(sql.contains(table), sql);
         var loads = plan.answerSql().target().loads();
         assertEquals(1, loads.size(), "one load: " + loads);
-        List<String> steps = loads.get(0).steps().stream()
-                .map(s -> ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) s).sql()).toList();
+        List<String> steps = statements(loads.get(0));
         assertEquals(3, steps.size(), String.valueOf(steps));
         assertTrue(steps.get(0).contains(table) && steps.get(0).toUpperCase(java.util.Locale.ROOT).startsWith("DROP"),
                 steps.get(0));
@@ -84,6 +83,22 @@ class SourceUrlUserCallableTest {
         assertEquals(com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION, loads.get(0).cadence());
     }
 
+    /** {@code load}'s statements in order: a statement's, and a blob's each (the elements, A2: a content blob of
+     *  inserts). */
+    private static List<String> statements(com.legend.executionplan.ExecutionPlan.Load load) {
+        List<String> out = new java.util.ArrayList<>();
+        for (com.legend.executionplan.ExecutionPlan.LoadStep step : load.steps()) {
+            switch (step) {
+                case com.legend.executionplan.ExecutionPlan.LoadStep.Statement s -> out.add(s.sql());
+                case com.legend.executionplan.ExecutionPlan.LoadStep.Statements st -> out.addAll(
+                        com.legend.executionplan.DataRef.Statements.decode(load.content().get(st.ref().digest())));
+                case com.legend.executionplan.ExecutionPlan.LoadStep.File f -> throw new IllegalStateException(
+                        "no file in a data: source's load");
+            }
+        }
+        return out;
+    }
+
     /** Two data: sources of equal content read one table in a session, and a data: source inside a union (each arm a
      *  subquery) still reads its table: the union answers both arms' rows (L6b's tests, the orchestrator's three). */
     @Test
@@ -91,8 +106,7 @@ class SourceUrlUserCallableTest {
         String q = source(PAYLOAD) + "->concatenate(" + source(PAYLOAD) + ")->from(test::RT)";
         com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(MIN_MODEL),
                 q).executionPlan("test::RT");
-        long creates = plan.answerSql().target().loads().get(0).steps().stream()
-                .map(s -> ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) s).sql())
+        long creates = statements(plan.answerSql().target().loads().get(0)).stream()
                 .filter(s -> s.toUpperCase(java.util.Locale.ROOT).startsWith("CREATE")).count();
         assertEquals(1, creates, "one table for two equal sources");
         try (Connection c = LaneFloor.backend().open()) {

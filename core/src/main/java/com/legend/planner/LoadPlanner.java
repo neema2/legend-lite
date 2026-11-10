@@ -48,17 +48,29 @@ public final class LoadPlanner {
         return new ExecutionPlan.Load(identity(cadence, steps), cadence, steps, target, content);
     }
 
+    /** {@code steps} as a load of {@code cadence} into {@code target}, reading their bundle (A2: a table's rows are a
+     *  content blob of inserts), named by their content. */
+    public static ExecutionPlan.Load load(ExecutionPlan.Load.Cadence cadence, com.legend.setup.LoadSteps steps,
+            ExecutionPlan.Target target) {
+        return load(cadence, steps.steps(), target, steps.content());
+    }
+
     /** {@code steps} as the loads a target establishes on acquisition: none for no step, else one load into
      *  {@code target}'s own database and session. */
-    public static List<ExecutionPlan.Load> targetLoads(List<ExecutionPlan.LoadStep> steps,
+    public static List<ExecutionPlan.Load> targetLoads(com.legend.setup.LoadSteps steps,
             ExecutionPlan.Target target) {
         return steps.isEmpty() ? List.of()
                 : List.of(load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, steps, target.bare()));
     }
 
     /** {@code target} establishing {@code steps} on acquisition (none: the target as it is). */
-    public static ExecutionPlan.Target withLoads(ExecutionPlan.Target target, List<ExecutionPlan.LoadStep> steps) {
+    public static ExecutionPlan.Target withLoads(ExecutionPlan.Target target, com.legend.setup.LoadSteps steps) {
         return new ExecutionPlan.Target(target.database(), target.session(), targetLoads(steps, target));
+    }
+
+    /** {@link #withLoads(ExecutionPlan.Target, com.legend.setup.LoadSteps)} for steps that read no blob. */
+    public static ExecutionPlan.Target withLoads(ExecutionPlan.Target target, List<ExecutionPlan.LoadStep> steps) {
+        return withLoads(target, com.legend.setup.LoadSteps.of(steps));
     }
 
     /** A load's name: the SHA-256 of its canonical content ({@link ExecutionPlan.Load#canonical}: its cadence and its

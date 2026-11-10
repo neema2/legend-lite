@@ -238,8 +238,7 @@ public final class PlanSessions {
     /** {@link #of(Sessions.Session)} with {@code target}'s loads established on the session first, once
      *  ({@link ExecutionPlan.Load.Cadence#PER_ACQUISITION}: the session is acquired for the target): run INSIDE the
      *  plan's run, when the runner first opens a session of this source (THE WALL's rule 3, 2026-11-06), each through
-     *  the one deliverer ({@link PlanRunner#establishOn}); a load whose rows need a bulk loader is refused by name there,
-     *  before any statement, on a database that has none. Until L2 (2026-11-09) the target's {@code setup}. */
+     *  the one deliverer ({@link PlanRunner#establishOn}). Until L2 (2026-11-09) the target's {@code setup}. */
     public static Source acquired(Sessions.Session session, ExecutionPlan.Target target) {
         // its ONCE loads and its project's refusal are the made database's: refused by name on a session the caller
         // holds (the re-audit's A-3, 2026-11-09: until then skipped silently)
@@ -284,8 +283,7 @@ public final class PlanSessions {
         }
     }
 
-    /** {@code target}'s loads established on {@code session} now, inside the run that acquired it; refused by name
-     *  before any statement where a load's rows need a bulk loader the session's database has none of. */
+    /** {@code target}'s loads established on {@code session} now, inside the run that acquired it. */
     private static void loads(Sessions.Session session, ExecutionPlan.Target target) {
         loads(session, target, ExecutionPlan.Load.Cadence.PER_ACQUISITION);
     }
@@ -296,13 +294,6 @@ public final class PlanSessions {
             ExecutionPlan.Load.Cadence cadence) {
         java.util.List<ExecutionPlan.Load> loads = target.loads().stream().filter(l -> l.cadence() == cadence)
                 .toList();
-        for (ExecutionPlan.Load load : loads) {
-            if (load.steps().stream().anyMatch(ExecutionPlan.LoadStep.Rows.class::isInstance)
-                    && !Sessions.loadsRows(session)) {
-                throw new IllegalStateException("the plan's load has rows for a bulk loader, and the session's"
-                        + " database has none (" + Sessions.product(session) + ")");
-            }
-        }
         for (ExecutionPlan.Load load : loads) {
             PlanRunner.establishOn(load, session);
         }

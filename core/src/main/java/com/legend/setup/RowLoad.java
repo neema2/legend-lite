@@ -1,19 +1,24 @@
 package com.legend.setup;
 
+import com.legend.base.Nullable;
+import com.legend.sql.SqlDdl;
 import com.legend.sql.SqlDml;
 import com.legend.sql.SqlExpr;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
- * Rows for ONE table, every cell the TEXT the database casts to its column's
- * type ({@code null} is SQL NULL) &mdash; the shape of the data legend-lite
- * holds as values: the system metamodel seed, test data. The DATABASE does the
- * typing on every load path: the text path writes each cell as a string
- * literal; a {@code exec.BulkLoad} stages the cells as text and casts in one
- * {@code INSERT ... SELECT}. Nothing here converts a value, and nothing here
- * spells SQL: the dialect renders the {@link SqlDml} this becomes.
+ * Rows for ONE table, each cell the TEXT the model holds ({@code null} is SQL NULL) &mdash; the system metamodel seed,
+ * a connection's test data, a project's Data, a payload's elements &mdash; and, per column, the type the table
+ * DECLARES (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1, A2: "model data is SQL in the plan"). The load is written at
+ * planning as multi-row inserts whose cells are the dialect's own TYPED LITERALS, the literal writer every query uses:
+ * an integer column's cell an integer literal, a date column's a date literal, and so on ({@link #cell}). A cell its
+ * column's type cannot take is refused here, at planning, naming the table, the column and the value; a column of no
+ * declared type (a table no store declares) takes its text as a string literal, which the database assigns. Nothing
+ * here spells SQL: the dialect renders the {@link SqlDml} this becomes.
  *
  * @param schema  the table's schema (null or {@code default}: the default one), its text
  * @param table   the table, its text
@@ -22,18 +27,19 @@ import java.util.List;
  * @param quotedColumns the ones of {@code columns} the store declared quoted (the dialect spells each column, once)
  * @param width   the number of cells in every row
  * @param rows    the rows; each exactly {@code width} cells
- * @param casts   per cell position, the type each cell's text is CAST to in the database (null: none, the column
- *                takes the text as it is), or empty for no casts at all: for a database that takes no text into a
- *                column of another type (MariaDB and MySQL take no {@code 'true'} into a BOOLEAN; BigQuery takes no
- *                string into an INT64 or a BOOL; measured 2026-10-11). The DATABASE still does the typing: the
- *                dialect spells its own conversion.
+ * @param types   per cell position, the type its column declares, or empty for a table that declares none (each
+ *                cell's text a string literal)
  */
-public record RowLoad(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
+public record RowLoad(@Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
                       List<String> columns, java.util.Set<String> quotedColumns, int width, List<List<String>> rows,
-                      List<com.legend.sql.@com.legend.base.Nullable SqlType> casts) {
+                      List<SqlDdl.ColumnType> types) {
 
-    /** A load whose cells the database takes as text. */
-    public RowLoad(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
+    /** The rows one insert carries at most: a load of more is that many inserts, in order, in the load's one
+     *  transaction (a statement of thousands of rows is the parser's whole cost at once). */
+    public static final int ROWS_PER_INSERT = 1000;
+
+    /** A load whose table declares no type: every cell a string literal. */
+    public RowLoad(@Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
             List<String> columns, java.util.Set<String> quotedColumns, int width, List<List<String>> rows) {
         this(schema, table, quoting, columns, quotedColumns, width, rows, List.of());
     }
@@ -42,10 +48,10 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, com
         columns = List.copyOf(columns);
         quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
         rows = List.copyOf(rows);
-        casts = java.util.Collections.unmodifiableList(new ArrayList<>(casts));
-        if (!casts.isEmpty() && casts.size() != width) {
+        types = List.copyOf(types);
+        if (!types.isEmpty() && types.size() != width) {
             throw new IllegalArgumentException("row load into " + table + ": "
-                    + casts.size() + " casts for rows of " + width);
+                    + types.size() + " types for rows of " + width);
         }
         if (!columns.isEmpty() && columns.size() != width) {
             throw new IllegalArgumentException("row load into " + table + ": "
@@ -59,52 +65,136 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, com
         }
     }
 
-    /** The load as ONE multi-row insert of string literals &mdash; the path
-     *  every engine without a {@code exec.BulkLoad} takes. */
+    /** The load as its inserts, {@link #ROWS_PER_INSERT} rows each at most, in order: none for a load of no row. */
+    public List<SqlDml.InsertValues> inserts() {
+        List<SqlDml.InsertValues> out = new ArrayList<>();
+        for (int from = 0; from < rows.size(); from += ROWS_PER_INSERT) {
+            out.add(insert(rows.subList(from, Math.min(rows.size(), from + ROWS_PER_INSERT))));
+        }
+        return out;
+    }
+
+    /** The load as ONE insert of every row: a server's session table, which its dialect makes of one insert
+     *  ({@code SqlDialect.sessionTable}; the server forms B4 deletes). */
     public SqlDml.InsertValues values() {
-        List<List<SqlExpr>> out = new ArrayList<>(rows.size());
-        for (List<String> row : rows) {
+        return insert(rows);
+    }
+
+    private SqlDml.InsertValues insert(List<List<String>> chunk) {
+        List<List<SqlExpr>> values = new ArrayList<>(chunk.size());
+        for (List<String> row : chunk) {
             List<SqlExpr> cells = new ArrayList<>(row.size());
             for (int c = 0; c < row.size(); c++) {
-                String cell = row.get(c);
-                com.legend.sql.SqlType cast = casts.isEmpty() ? null : casts.get(c);
-                cells.add(cell == null ? new SqlExpr.NullLit()
-                        : cast == null ? new SqlExpr.StringLit(cell)
-                        : new SqlExpr.Cast(new SqlExpr.StringLit(cell), cast));
+                String text = row.get(c);
+                cells.add(text == null ? new SqlExpr.NullLit() : cell(text, types.isEmpty() ? null : types.get(c), c));
             }
-            out.add(cells);
+            values.add(cells);
         }
-        return new SqlDml.InsertValues(schema, table, quoting, columns, quotedColumns, out);
+        return new SqlDml.InsertValues(schema, table, quoting, columns, quotedColumns, values);
     }
 
-    /** The staged path's copy into this table from {@code stage}. */
-    public SqlDml.InsertFromTable fromStage(String stage) {
-        return new SqlDml.InsertFromTable(schema, table, quoting, columns, quotedColumns, stage);
+    /** {@link #inserts} as {@code dialect} writes them, each a statement sent as it is. */
+    public List<String> statements(com.legend.sql.dialect.SqlDialect dialect) {
+        List<String> out = new ArrayList<>();
+        for (SqlDml.InsertValues insert : inserts()) {
+            out.add(dialect.render(insert));
+        }
+        return out;
     }
 
-    /** The staging table a bulk load appends its cells to: temporary, so one per session, created and dropped inside
-     *  the one load. */
-    public static final String STAGE = "legend_row_load";
+    private static final Pattern INTEGER = Pattern.compile("[+-]?\\d+(\\.0*)?");
+    private static final Pattern NUMBER = Pattern.compile("[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?");
+    private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+    private static final Pattern DATE_TIME = Pattern.compile("\\d{4}-\\d{2}-\\d{2}([ T]\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?)?");
+    private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?");
 
-    /** This load for a bulk loader, every statement rendered by {@code dialect}: its rows, and the staging table they
-     *  are appended to as text, created (temporary, one text column per cell), copied into the target table (the
-     *  database casts each cell) and dropped — a plan's setup step ({@code ExecutionPlan.LoadStep.Rows}), which the
-     *  execution side's loader runs. Its rows are not empty. */
-    public com.legend.executionplan.ExecutionPlan.LoadStep.Rows staged(com.legend.sql.dialect.SqlDialect dialect) {
-        if (!casts.isEmpty()) {
-            // the stage's copy is one INSERT ... SELECT *: it casts nothing, so a cast would be dropped
-            throw new IllegalStateException("row load into " + table + ": a load with casts has no staged form");
+    /**
+     * The cell {@code text} of column {@code c} as the literal of its column's declared {@code type}: an integer
+     * column's an integer ({@code 1.0} as {@code 1}), any other number there its digits, which the database assigns as
+     * it assigns upstream's raw token; a float's a float; a decimal's a decimal of its digits; a bit's a boolean ({@code true}, {@code false}, {@code 1},
+     * {@code 0}, any case); a date's, a date-time's and a time's their typed literal, the text as written in its ISO
+     * shape; a semi-structured column's the text as JSON; text, or a column of no declared type, a string. A cell the
+     * type cannot take, or a type no load writes, is refused naming the table, the column and the value.
+     */
+    private SqlExpr cell(String text, SqlDdl.@Nullable ColumnType type, int c) {
+        if (type == null) {
+            return new SqlExpr.StringLit(text);
         }
-        List<com.legend.sql.SqlDdl.Column> text = new ArrayList<>(width);
-        for (int c = 0; c < width; c++) {
-            text.add(new com.legend.sql.SqlDdl.Column("c" + c, false,
-                    new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR),
-                    false, false));
-        }
-        return new com.legend.executionplan.ExecutionPlan.LoadStep.Rows(STAGE,
-                dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, com.legend.sql.NameQuoting.BARE, text,
-                        true)),
-                dialect.render(fromStage(STAGE)),
-                dialect.render(new com.legend.sql.SqlDdl.DropTable(null, STAGE, com.legend.sql.NameQuoting.BARE)), rows);
+        String t = text.strip();
+        return switch (type) {
+            case SqlDdl.ColumnType.Sized s when s.kind().equalsIgnoreCase("VARCHAR")
+                    || s.kind().equalsIgnoreCase("CHAR") -> new SqlExpr.StringLit(text);
+            case SqlDdl.ColumnType.Sized s -> throw unsupported(c, s.kind());
+            case SqlDdl.ColumnType.Scaled s -> {
+                if (!NUMBER.matcher(t).matches()) {
+                    throw refused(c, text, s.kind());
+                }
+                yield new SqlExpr.DecimalLit(new BigDecimal(t));
+            }
+            case SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT, SMALLINT, TINYINT, INTEGER -> {
+                    if (!NUMBER.matcher(t).matches()) {
+                        throw refused(c, text, p.kind().name());
+                    }
+                    BigDecimal n = new BigDecimal(t);
+                    // an integer's digits an integer literal; any other number its digits, which the database assigns
+                    // to the column as upstream's raw token is (legend-engine writes a number's cell as it is written)
+                    yield INTEGER.matcher(t).matches() && n.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) >= 0
+                            && n.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
+                            ? new SqlExpr.IntLit(n.longValueExact()) : new SqlExpr.DecimalLit(n);
+                }
+                case FLOAT, DOUBLE, REAL -> {
+                    if (!NUMBER.matcher(t).matches()) {
+                        throw refused(c, text, p.kind().name());
+                    }
+                    yield new SqlExpr.FloatLit(Double.parseDouble(t));
+                }
+                case BIT -> switch (t.toLowerCase(java.util.Locale.ROOT)) {
+                    case "true", "1" -> new SqlExpr.BoolLit(true);
+                    case "false", "0" -> new SqlExpr.BoolLit(false);
+                    default -> throw refused(c, text, "BIT");
+                };
+                case DATE -> {
+                    if (!DATE.matcher(t).matches()) {
+                        throw refused(c, text, "DATE");
+                    }
+                    yield new SqlExpr.DateLit(t);
+                }
+                case TIMESTAMP, TIMESTAMP_NS -> {
+                    if (!DATE_TIME.matcher(t).matches()) {
+                        throw refused(c, text, p.kind().name());
+                    }
+                    yield new SqlExpr.TimestampLit(t);
+                }
+                case TIME -> {
+                    if (!TIME.matcher(t).matches()) {
+                        throw refused(c, text, "TIME");
+                    }
+                    yield new SqlExpr.TimeLit(t);
+                }
+                case JSON -> new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.JSON);
+                case VARCHAR -> new SqlExpr.StringLit(text);
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw unsupported(c, p.kind().name());
+            };
+        };
+    }
+
+    /** Column {@code c}'s name as a refusal names it: its own, or its place where the load names none. */
+    private String column(int c) {
+        return columns.isEmpty() ? "#" + (c + 1) : columns.get(c);
+    }
+
+    private String where() {
+        return (schema == null || schema.equals("default") ? "" : schema + ".") + table;
+    }
+
+    private com.legend.error.DataError refused(int c, String text, String type) {
+        return new com.legend.error.DataError("the table " + where() + "'s column " + column(c) + " is " + type
+                + ", and its data holds '" + text + "', which is not one");
+    }
+
+    private com.legend.error.NotImplementedException unsupported(int c, String type) {
+        return new com.legend.error.NotImplementedException("data for the table " + where() + "'s column "
+                + column(c) + ": a " + type + " column's data is not loaded yet");
     }
 }

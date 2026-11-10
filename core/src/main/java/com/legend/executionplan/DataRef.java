@@ -49,18 +49,44 @@ public record DataRef(Namespace namespace, String name, String digest, long size
     /** How the referenced bytes are read: a closed set of declared formats, one meaning on every database
      *  (docs/DATA_IN_THE_PLAN_2026_11_09.md decision 6, ruled 2026-11-09: a file's cells mean what the platform's
      *  format says, never what a database's reader makes of them). */
-    public sealed interface Format permits Csv, Rows {
+    public sealed interface Format permits Csv, Statements {
     }
 
     /**
-     * Rows of text cells as a JSON array of arrays, UTF-8, each cell a string or {@code null} (SQL NULL) -- the form the
-     * model's own rows take in the content store (L6c, 2026-11-10): exactly the cells the plan's inline load would
-     * carry, an empty string kept apart from a NULL, no header.
+     * SQL STATEMENTS as a JSON array of strings, UTF-8 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1, A2: "model data
+     * is SQL in the plan"): the model's own data rendered by the target's dialect -- chunked multi-row INSERTs whose
+     * cells are the dialect's typed literals -- each statement sent as it is written. The form all model data takes in
+     * the content store; until A2 it was the rows' text cells (a format the runner bound itself).
      */
-    public record Rows() implements Format {
+    public record Statements() implements Format {
 
-        /** The one rows format. */
-        public static final Rows JSON = new Rows();
+        /** The one statements format. */
+        public static final Statements JSON = new Statements();
+
+        /** {@code statements} as this format's text: one JSON array of strings, compact. The one writer of it. */
+        public static String encode(java.util.List<String> statements) {
+            if (statements.isEmpty()) {
+                throw new IllegalArgumentException("a statements blob of no statement (a load of no rows is no step)");
+            }
+            return com.legend.json.Json.toCompact(statements);
+        }
+
+        /** This format's text as its statements, in order: a text that is not a non-empty JSON array of strings is
+         *  refused by name. The one reader of it. */
+        public static java.util.List<String> decode(String text) {
+            if (!(com.legend.json.Json.parse(text) instanceof com.legend.json.Json.Arr arr) || arr.items().isEmpty()) {
+                throw new IllegalArgumentException("a statements blob is a non-empty JSON array of strings");
+            }
+            java.util.List<String> out = new java.util.ArrayList<>(arr.items().size());
+            for (com.legend.json.Json.Node n : arr.items()) {
+                if (!(n instanceof com.legend.json.Json.Str s)) {
+                    throw new IllegalArgumentException("a statements blob holds a " + n.getClass().getSimpleName()
+                            + " where every item is a statement's text");
+                }
+                out.add(s.value());
+            }
+            return java.util.List.copyOf(out);
+        }
     }
 
     /**

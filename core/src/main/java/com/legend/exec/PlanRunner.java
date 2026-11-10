@@ -245,8 +245,8 @@ public final class PlanRunner {
     /**
      * A TARGET'S LOAD established ({@link ExecutionPlan.Load.Cadence#PER_ACQUISITION}; docs/DATA_IN_THE_PLAN_2026_11_09.md
      * L2, 2026-11-09): run on a session of {@code sessions} for its target, through the one deliverer every load takes
-     * ({@link #seed}: a statement step sent, a rows step through the session's bulk loader -- refused by name where the
-     * database has none -- a file step by its reference), as a run of its own (THE WALL: a statement is sent only inside
+     * ({@link #seed}: a statement step sent, a statements blob's each sent as written, a file step by its reference),
+     * as a run of its own (THE WALL: a statement is sent only inside
      * a run). Counted under the SEED mark. {@code PlanSessions} establishes a target's loads so when it acquires a session
      * for it; a caller that holds a load of its own (a test's fixture) establishes it here -- test harnesses alone, M15
      * residue (docs/DATA_IN_THE_PLAN_2026_11_09.md), narrowed when L8 moves their seeding into plans. Until L2 a target's
@@ -585,13 +585,15 @@ public final class PlanRunner {
                         StatementOrigin.sent(seeding.mark(), s.sql());
                         answered.add(seeding.execute(s.sql()));
                     }
-                    case ExecutionPlan.LoadStep.Rows r -> {
-                        if (!seeding.load(r)) {
-                            throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
-                                    + " database has none (" + r.stagingTable() + ")");
+                    case ExecutionPlan.LoadStep.Statements s -> {
+                        // the model's data: the blob's statements, from the load's own bundle (verified when the load
+                        // was made or read), each sent as it is written (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1)
+                        for (String statement : com.legend.executionplan.DataRef.Statements.decode(
+                                java.util.Objects.requireNonNull(seeds.content().get(s.ref().digest()),
+                                        "a load's bundle holds every digest its steps read"))) {
+                            StatementOrigin.sent(seeding.mark(), statement);
+                            seeding.execute(statement);
                         }
-                        // the bulk load's one statement, counted under the seeds' mark
-                        StatementOrigin.count(seeding.mark());
                         answered.add(false);
                     }
                     case ExecutionPlan.LoadStep.File f -> {

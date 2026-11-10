@@ -277,8 +277,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         public static final String IDENTITY_PREFIX = "load:";
 
         /** A load's CANONICAL content, the text its identity digests (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2: one
-         *  scheme for every load): its cadence, then each step's content -- a statement's text, a rows step's statements
-         *  and cells, a file's reference (namespace, name, digest, size, format), size limit and delivery -- each field
+         *  scheme for every load): its cadence, then each step's content -- a statement's text, a statements blob's
+         *  name, digest and size (A2: its bytes are its digest), a file's reference (namespace, name, digest, size, format), size limit and delivery -- each field
          *  length-prefixed and a cell's absence marked, so no two loads that run differently spell one text (the design
          *  audit's H1, 2026-11-02). Data, no digest: the planner and exec each hash it with their own. */
         public static String canonical(Cadence cadence, List<LoadStep> steps) {
@@ -287,27 +287,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             for (LoadStep step : steps) {
                 switch (step) {
                     case LoadStep.Statement st -> field(sb.append('S'), st.sql());
-                    case LoadStep.Rows r -> {
-                        field(field(field(field(sb.append('R'), r.stagingTable()), r.createStaging()), r.copy()),
-                                r.dropStaging());
-                        sb.append(r.rows().size()).append(':');
-                        for (List<String> row : r.rows()) {
-                            sb.append(row.size()).append(':');
-                            for (String cell : row) {
-                                if (cell == null) {
-                                    sb.append('N');
-                                } else {
-                                    field(sb.append('V'), cell);
-                                }
-                            }
-                        }
-                    }
+                    case LoadStep.Statements st -> field(field(sb.append('T'), st.ref().name()), st.ref().digest())
+                            .append(st.ref().size()).append(':');
                     case LoadStep.File f -> {
                         field(field(field(sb.append('F'), f.ref().namespace().name()), f.ref().name()), f.ref().digest());
                         sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
                         switch (f.ref().format()) {
                             case DataRef.Csv csv -> sb.append("csv").append(csv.delimiter()).append(csv.quote());
-                            case DataRef.Rows rows -> sb.append("rows");
+                            case DataRef.Statements statements -> sb.append("statements");
                         }
                         switch (f.delivery()) {
                             case LoadStep.Delivery.Reads r -> {
@@ -332,8 +319,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         /**
          * {@code content}: THE BUNDLE this load reads (L6c, 2026-11-10, decision 1: the model's text above the inline
          * threshold, beside the plan and never in a statement), each text by its SHA-256 -- exactly the CONTENT digests
-         * its file steps name, each text's own digest: a bundle that lacks one, or a text whose bytes are not its
-         * digest, is refused by name here, wherever the load is made or read.
+         * its steps name: a bundle that lacks one, or holds one no step reads, is refused by name here. That each text's
+         * bytes are its digest is checked where a plan is READ ({@code PlanJson.read}, the bundle a plan's reader is
+         * handed): the planner made each digest from its bytes, and re-hashing megabytes on every load's construction
+         * (every query's plan) was the checkpoint tenets audit's S-7 (2026-11-10).
          */
         public Load {
             Objects.requireNonNull(target, "target");
@@ -352,17 +341,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 if (step instanceof LoadStep.File f && f.ref().namespace() == DataRef.Namespace.CONTENT) {
                     named.add(f.ref().digest());
                 }
+                if (step instanceof LoadStep.Statements st) {
+                    named.add(st.ref().digest());
+                }
             }
             for (String digest : named) {
-                String text = content.get(digest);
-                if (text == null) {
+                if (!content.containsKey(digest)) {
                     throw new IllegalArgumentException("the load " + identity + " reads the content " + digest
                             + ", which its bundle lacks");
-                }
-                // the portable SHA-256 (the planner runs on WebAssembly, which has no MessageDigest)
-                if (!com.legend.cache.Hash.ofUtf8(text).hex().equals(digest)) {
-                    throw new IllegalArgumentException("the load " + identity + "'s bundle holds bytes that are not"
-                            + " their digest " + digest);
                 }
             }
             if (!named.equals(content.keySet())) {
@@ -902,9 +888,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
-    /** One step of a load or of a target's setup: a statement, rows the database's own bulk loader takes, or a file
-     *  by its reference (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
-    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Rows, LoadStep.File {
+    /** One step of a load or of a target's setup: a statement, the model's data as a content blob of statements (A2,
+     *  2026-11-10: until then rows the database's own bulk loader took), or a file by its reference
+     *  (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
+    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Statements, LoadStep.File {
 
         /** A statement, run as it is. */
         record Statement(String sql) implements LoadStep {
@@ -914,39 +901,19 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
 
         /**
-         * Rows for the database's bulk loader, every cell TEXT (null is SQL NULL): appended into a staging table of
-         * text columns, then copied into the target table by a statement that casts (the database types every value,
-         * exactly as for a string literal). Every statement is written at plan time, for the target's database.
-         *
-         * @param stagingTable  the staging table the cells are appended to
-         * @param createStaging creates it (temporary, one text column per cell)
-         * @param copy          copies it into the target table, casting
-         * @param dropStaging   drops it
+         * THE MODEL'S DATA AS STATEMENTS (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1 and §2, A2): the SQL statements
+         * the content blob {@code ref} holds ({@link DataRef.Statements}: DDL-free multi-row INSERTs with the dialect's
+         * typed literals), named by its digest in the load's bundle, each sent as it is written. All model data takes
+         * it -- a connection's test data, a project's Data, the catalog's rows, a seed, a payload's elements -- whatever
+         * its size: where the bytes travel (inside the plan's JSON or beside it) is the plan writer's
+         * ({@code PlanJson.writeBundle}).
          */
-        record Rows(String stagingTable, String createStaging, String copy, String dropStaging,
-                List<List<String>> rows) implements LoadStep {
-            public Rows {
-                Objects.requireNonNull(stagingTable, "stagingTable");
-                Objects.requireNonNull(createStaging, "createStaging");
-                Objects.requireNonNull(copy, "copy");
-                Objects.requireNonNull(dropStaging, "dropStaging");
-                if (rows.isEmpty()) {
-                    throw new IllegalArgumentException("rows for " + stagingTable + ": none (a load of no rows is no step)");
+        record Statements(DataRef ref) implements LoadStep {
+            public Statements {
+                Objects.requireNonNull(ref, "ref");
+                if (ref.namespace() != DataRef.Namespace.CONTENT || !(ref.format() instanceof DataRef.Statements)) {
+                    throw new IllegalArgumentException("a load's statements are a CONTENT blob of statements: " + ref);
                 }
-                int width = rows.get(0).size();
-                if (width == 0) {
-                    throw new IllegalArgumentException("rows for " + stagingTable + ": a row of no cells");
-                }
-                List<List<String>> copied = new java.util.ArrayList<>(rows.size());
-                for (List<String> row : rows) {
-                    if (row.size() != width) {
-                        throw new IllegalArgumentException("rows for " + stagingTable + ": a row of " + row.size()
-                                + " cells among rows of " + width);
-                    }
-                    // a cell may be null (SQL NULL), so each row is copied as a list that holds nulls
-                    copied.add(java.util.Collections.unmodifiableList(new java.util.ArrayList<>(row)));
-                }
-                rows = java.util.Collections.unmodifiableList(copied);
             }
         }
 

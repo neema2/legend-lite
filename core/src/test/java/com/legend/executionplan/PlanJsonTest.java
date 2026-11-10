@@ -72,19 +72,19 @@ class PlanJsonTest {
     }
 
     @Test
-    void bothLoadStepKindsReadBack_aNullCellStaysNull() {
+    void bothLoadStepKindsReadBack_theStatementsBlobInTheBundle() {
         Target t = com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
                 List.of("SET TimeZone='UTC'"), List.of()),
-                List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
-                        new LoadStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
-                                "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
-                                List.of(List.of("1", "O'Brien"), Arrays.asList("2", null)))));
+                com.legend.setup.LoadSteps.of(List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)")))
+                        .then(com.legend.setup.LoadSteps.blob(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"))));
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
-        LoadStep.Rows rows = (LoadStep.Rows) ((TdsResult) back.root()).sql().target().loads().get(0).steps().get(1);
-        assertEquals(null, rows.rows().get(1).get(1));
+        ExecutionPlan.Load load = ((TdsResult) back.root()).sql().target().loads().get(0);
+        LoadStep.Statements blob = (LoadStep.Statements) load.steps().get(1);
+        assertEquals(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"),
+                DataRef.Statements.decode(load.content().get(blob.ref().digest())));
     }
 
     @Test
@@ -108,10 +108,12 @@ class PlanJsonTest {
     }
 
     @Test
-    void rowsOfDifferentWidthsAreRefused() {
-        var refused = assertThrows(IllegalArgumentException.class, () -> new LoadStep.Rows("s", "c", "i", "d",
-                List.of(List.of("1", "a"), List.of("2"))));
-        assertTrue(refused.getMessage().contains("a row of 1 cells among rows of 2"), refused.getMessage());
+    void aStatementsStepIsAContentBlobOfStatements() {
+        var refused = assertThrows(IllegalArgumentException.class, () -> new LoadStep.Statements(new DataRef(
+                DataRef.Namespace.RESOURCE, "x.json", "0".repeat(64), 2, DataRef.Statements.JSON)));
+        assertTrue(refused.getMessage().contains("a CONTENT blob of statements"), refused.getMessage());
+        var empty = assertThrows(IllegalArgumentException.class, () -> DataRef.Statements.decode("[]"));
+        assertTrue(empty.getMessage().contains("non-empty JSON array of strings"), empty.getMessage());
     }
 
     @Test
@@ -136,15 +138,16 @@ class PlanJsonTest {
         // platform database carries its project's identity (hole 7); 30 since 2026-11-09: whether the plan writes (slice 5);
         // 31 the same day: the load node and a file's load by reference (docs/DATA_IN_THE_PLAN_2026_11_09.md L1); 32
         // the same day: a reference's declared format, an object, and the one streamed delivery (L2); 33 the same day: a
-        // PER_TRANSACTION load, the system catalog's registration (L4b)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":37,"), json);
+        // PER_TRANSACTION load, the system catalog's registration (L4b); 38 since 2026-11-10: the model's data a load
+        // step of statements, a content blob by digest, the rows step and format gone (A2)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":38,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v37 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v38 plan"), refused.getMessage());
     }
 
     @Test

@@ -65,7 +65,8 @@ class DataMechanismCensusTest {
             // L3, 2026-11-09: a project's Data rows are its target's ONCE load (S171), run on every database the platform
             // makes and refused on any other (the M1 audit's finding 1). DELETED at L6c, 2026-11-10 (the orchestrator's
             // ruling): the fill reaches a plan only as that ONCE load, its rows inline or, above 16 KB, in the load's
-            // bundle -- no other way. What stays is the design, not residue: PlanSessions.made is exec establishing the
+            // bundle -- no other way (since A2, 2026-11-10, a content blob of inserts whatever its size; where its
+            // bytes travel is the plan writer's). What stays is the design, not residue: PlanSessions.made is exec establishing the
             // plan's load where it makes the database, and Project.refused a refusal carried as data, raised where the
             // database is made (slice 5's reason: at planning it failed every query of the model). Proof:
             // ProjectRowsTest.aProjectsDataIsItsTargetsOnceLoadWrittenOnce and aLargeFillTravelsInTheBundle

@@ -77,11 +77,6 @@ public interface Statements {
             boolean nullable) {
     }
 
-    /** {@code rows} loaded through the session's database's bulk loader where it has one ({@link BulkLoad}): false
-     *  when it has none, and the caller sends the one INSERT its dialect writes instead. A body's seeds and the system
-     *  database's rows load so (B1a). */
-    boolean load(ExecutionPlan.LoadStep.Rows rows);
-
     /** A file's load statement, its database reading the runner's verified copy ({@code ExecutionPlan.LoadStep
      *  .Delivery.Reads}, the user's ruling of 2026-11-09): {@code statement} sent once, its one {@code ?} -- if it has one
      *  -- bound to {@code path}, the copy's. Until then (L2) the runner streamed the file's cells itself. */
@@ -211,11 +206,6 @@ public interface Statements {
         @Override
         public List<Reported> describe(String statement) {
             return inner.describe(statement);
-        }
-
-        @Override
-        public boolean load(ExecutionPlan.LoadStep.Rows rows) {
-            return inner.load(rows);
         }
 
         @Override

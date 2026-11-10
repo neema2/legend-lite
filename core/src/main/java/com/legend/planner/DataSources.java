@@ -29,7 +29,7 @@ import java.util.Set;
  *
  * @param query   the query reading each source's table
  * @param steps   the load's steps: per content, the table dropped, created and filled
- * @param content the bundle the steps read: the elements of a payload above the inline threshold (L6c)
+ * @param content the bundle the steps read: each payload's elements, a content blob of inserts (A2)
  */
 record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<String, String> content) {
 
@@ -60,9 +60,9 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
                     for (String element : elements(c, u.url())) {
                         rows.add(List.of(element));
                     }
-                    // the elements inline, or from the load's bundle above the inline threshold (L6c)
-                    ContentRows planned = ContentRows.of(new com.legend.setup.RowLoad(null, name, NameQuoting.BARE,
-                            List.of(COLUMN), Set.of(), 1, rows), dialect);
+                    // the elements as a content blob of inserts, each element its column's typed literal (A2)
+                    com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(
+                            null, name, NameQuoting.BARE, List.of(COLUMN), Set.of(), 1, rows, List.of(type)), dialect);
                     steps.addAll(planned.steps());
                     bundle.putAll(planned.content());
                     return name;

@@ -34,13 +34,17 @@ public final class CsvSeed {
      *  type's 3571428.5714285714). */
     public static List<String> sqls(String csvBlocks, @com.legend.base.Nullable String dbFqn,
             ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
-        return steps(csvBlocks, dbFqn, ctx, dialect).stream().map(st -> st.text(dialect)).toList();
+        List<String> out = new ArrayList<>();
+        for (Step st : steps(csvBlocks, dbFqn, ctx, dialect)) {
+            out.addAll(st.texts(dialect));
+        }
+        return out;
     }
 
-    /** One step of a seed, in order: a statement (the dialect's DDL text), or
-     *  rows to load ({@code exec.Statements#load}, the session's bulk load &mdash; an engine's
-     *  bulk API when it has one; its text is the one multi-row insert). */
-    public sealed interface Step permits Step.Sql, Step.Rows {
+    /** One step of a seed, in order: a statement its author wrote ({@link Sql}), a statement the platform writes
+     *  ({@link Schema}: a table's or schema's DDL; {@link Clear}: an undeclared table emptied), or a table's rows
+     *  ({@link Rows}: inserts of the dialect's typed literals, a content blob in a plan). */
+    public sealed interface Step permits Step.Sql, Step.Schema, Step.Clear, Step.Rows {
         /** A statement: written for the database {@code writtenFor} (its connection's declared type, by name;
          *  decision D2), or by the session's own dialect ({@code writtenFor} null). */
         record Sql(String text, @com.legend.base.Nullable String writtenFor) implements Step {
@@ -51,53 +55,75 @@ public final class CsvSeed {
             }
         }
 
+        /** DDL the platform writes from the store's declaration: spelled by each database's own dialect. */
+        record Schema(com.legend.sql.SqlDdl ddl) implements Step {
+        }
+
+        /** A table no store declares, emptied before its rows: spelled by each database's own dialect. */
+        record Clear(com.legend.sql.SqlDml.DeleteAll clear) implements Step {
+        }
+
         record Rows(RowLoad load) implements Step {
         }
 
-        /** The step as SQL text, rendered by {@code dialect}. */
-        default String text(com.legend.sql.dialect.SqlDialect dialect) {
+        /** The step as SQL statements, written by {@code dialect}: an author's statement as written. */
+        default List<String> texts(com.legend.sql.dialect.SqlDialect dialect) {
             return switch (this) {
-                case Sql q -> q.text();
-                case Rows r -> dialect.render(r.load().values());
+                case Sql q -> List.of(q.text());
+                case Schema d -> List.of(dialect.render(d.ddl()));
+                case Clear c -> List.of(dialect.render(c.clear()));
+                case Rows r -> r.load().statements(dialect);
             };
         }
     }
 
-    /** A step as the plan runs it, beside the text a referee's ledger records for it: a statement of a SQL step
-     *  (the text as its author wrote it, before the dialect's translation), a rows step's INSERT text. */
-    public record Planned(com.legend.executionplan.ExecutionPlan.LoadStep step, String text) {
+    /** A seed as the plan runs it ({@code steps}), beside THE REFEREE'S COPY ({@code refereeCopy}): the same
+     *  statements written in the replay referee's own dialect (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1, A2:
+     *  "the planner renders the same rows a second time in H2's dialect and carries that copy as the edge's data") --
+     *  the platform's DDL and the rows' inserts the referee's, an author's statement as its author wrote it. */
+    public record Planned(LoadSteps steps, List<String> refereeCopy) {
+        public Planned {
+            refereeCopy = List.copyOf(refereeCopy);
+        }
     }
 
     /**
-     * {@code steps} as the plan's setup steps, final for {@code dialect}'s database: each statement of a SQL step
-     * (written in H2's spelling, as legend-engine's test data is) adapted to the database, and each table's rows
-     * either for the database's bulk loader ({@link com.legend.sql.dialect.SqlDialect#loadsRowsInBulk}) with the
-     * statements that stage them, or as the one INSERT the database runs. The one owner of that choice for a plan's
-     * target and for the body driver's seeds (the doors, 2026-10-29; until then {@code PlanMaker.setup} and
-     * {@code exec.SetupRunner} each made it).
+     * {@code steps} as a plan's load steps, final for {@code dialect}'s database: each statement of a SQL step
+     * (written in H2's spelling, as legend-engine's test data is) adapted to the database, the platform's DDL in the
+     * database's spelling, and each table's rows as one content blob of inserts of the dialect's typed literals
+     * ({@link LoadSteps#rows}). The one owner of that form for a plan's target and for the body driver's seeds (the
+     * doors, 2026-10-29; until then {@code PlanMaker.setup} and {@code exec.SetupRunner} each made it).
      */
-    public static List<Planned> planned(List<Step> steps, com.legend.sql.dialect.SqlDialect dialect) {
-        boolean bulk = dialect.loadsRowsInBulk();
-        List<Planned> out = new ArrayList<>(steps.size());
+    public static LoadSteps planned(List<Step> steps, com.legend.sql.dialect.SqlDialect dialect) {
+        LoadSteps.Builder out = new LoadSteps.Builder();
         for (Step step : steps) {
             switch (step) {
                 case Step.Sql blob -> {
                     for (String statement : com.legend.sql.RawSql.splitStatements(blob.text())) {
-                        out.add(new Planned(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
-                                new Step.Sql(statement, blob.writtenFor()).runOn(dialect)), statement));
+                        out.statement(new Step.Sql(statement, blob.writtenFor()).runOn(dialect));
                     }
                 }
-                case Step.Rows rows -> {
-                    RowLoad load = rows.load();
-                    if (!load.rows().isEmpty()) {
-                        String insert = dialect.render(load.values());
-                        out.add(new Planned(bulk ? load.staged(dialect)
-                                : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(insert), insert));
-                    }
-                }
+                case Step.Schema d -> out.statement(dialect.render(d.ddl()));
+                case Step.Clear c -> out.statement(dialect.render(c.clear()));
+                case Step.Rows rows -> out.add(LoadSteps.rows(rows.load(), dialect));
             }
         }
-        return out;
+        return out.build();
+    }
+
+    /** {@link #planned}, with the referee's copy of every statement written by {@code referee} (the replay
+     *  referee's dialect, its caller's to name: this library reaches no database's registry). */
+    public static Planned planned(List<Step> steps, com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.sql.dialect.SqlDialect referee) {
+        List<String> copy = new ArrayList<>();
+        for (Step step : steps) {
+            if (step instanceof Step.Sql blob) {
+                copy.addAll(com.legend.sql.RawSql.splitStatements(blob.text()));
+            } else {
+                copy.addAll(step.texts(referee));
+            }
+        }
+        return new Planned(planned(steps, dialect), copy);
     }
 
     /** The seed as {@link Step}s &mdash; {@link #sqls}' statements, the rows
@@ -147,23 +173,22 @@ public final class CsvSeed {
             // IF NOT EXISTS: idempotent on both engines and on mirrors
             // that already carry the schema.
             if (!defaultSchema) {
-                out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema,
-                        def.get().schemaQuoted())), null));
+                out.add(new Step.Schema(new com.legend.sql.SqlDdl.CreateSchema(schema, def.get().schemaQuoted())));
             }
             // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
             // engine's own target) has no OR REPLACE for tables — this was
             // the recorded root cause of ~39 'Table already exists' H2
             // replay declines (H2_BACKEND.md §12 step 2); DuckDB accepts
             // the two-statement form identically
-            out.add(new Step.Sql(dialect.render(Ddl.dropDeclaredTable(def.get(), defaultSchema ? null : schema)), null));
+            out.add(new Step.Schema(Ddl.dropDeclaredTable(def.get(), defaultSchema ? null : schema)));
             // THE ONE DDL PRODUCER: the store's declared column types,
             // spelled for the target (the engine creates what the store
             // declares — its setUpDataSQLs reads the metamodel's types)
-            out.add(new Step.Sql(dialect.render(Ddl.createTable(def.get(), defaultSchema ? null : schema)), null));
+            out.add(new Step.Schema(Ddl.createTable(def.get(), defaultSchema ? null : schema)));
         } else {
             // no declaration: the CSV's names are its text, spelled as bare names
-            out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDml.DeleteAll(
-                    defaultSchema ? null : schema, table, com.legend.sql.NameQuoting.BARE)), null));
+            out.add(new Step.Clear(new com.legend.sql.SqlDml.DeleteAll(defaultSchema ? null : schema, table,
+                    com.legend.sql.NameQuoting.BARE)));
         }
         // F7.5: ONE multi-row INSERT per block — the statement count is
         // the seed cost (task #14: per-statement parse+plan+JNI), and
@@ -178,7 +203,8 @@ public final class CsvSeed {
         // the CSV's names spelled as bare names
         RowLoad load = rowLoad(defaultSchema ? null : schema, table,
                 def.map(d -> Ddl.quoting(d, defaultSchema ? null : schema)).orElse(com.legend.sql.NameQuoting.BARE),
-                cols, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows);
+                cols, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows,
+                def.map(d -> types(d, schema, cols)).orElse(List.of()));
         if (load != null) {
             out.add(new Step.Rows(load));
         }
@@ -242,6 +268,13 @@ public final class CsvSeed {
     public static @com.legend.base.Nullable RowLoad rowLoad(@com.legend.base.Nullable String schema, String table,
             com.legend.sql.NameQuoting quoting, String[] cols, java.util.Set<String> quotedColumns,
             List<String[]> rows) {
+        return rowLoad(schema, table, quoting, cols, quotedColumns, rows, List.of());
+    }
+
+    /** {@link #rowLoad}, each column typed by {@code types} (empty: none declared). */
+    public static @com.legend.base.Nullable RowLoad rowLoad(@com.legend.base.Nullable String schema, String table,
+            com.legend.sql.NameQuoting quoting, String[] cols, java.util.Set<String> quotedColumns,
+            List<String[]> rows, List<com.legend.sql.SqlDdl.ColumnType> types) {
         if (rows.isEmpty()) {
             return null;
         }
@@ -263,7 +296,32 @@ public final class CsvSeed {
             }
             out.add(row);
         }
-        return new RowLoad(schema, table, quoting, names, quoted, cols.length, out);
+        return new RowLoad(schema, table, quoting, names, quoted, cols.length, out, types);
+    }
+
+    /** The declared type of each of the CSV's columns {@code cols} in {@code def}, in the CSV's order: a column the
+     *  store declared quoted matched by its exact name, any other by its name in any case (the database folds it). A
+     *  column the table does not declare is refused by name: its rows would be a guess. */
+    static List<com.legend.sql.SqlDdl.ColumnType> types(com.legend.model.DatabaseDefinition.TableDefinition def,
+            String schema, String[] cols) {
+        List<com.legend.sql.SqlDdl.ColumnType> out = new ArrayList<>(cols.length);
+        for (String c : cols) {
+            String name = c.strip();
+            com.legend.model.DatabaseDefinition.ColumnDefinition found = null;
+            for (var col : def.columns()) {
+                if (col.quoted() ? col.name().equals(name) : col.name().equalsIgnoreCase(name)) {
+                    found = col;
+                    break;
+                }
+            }
+            if (found == null) {
+                throw new com.legend.error.DataError("the data for the table " + ("default".equals(schema) ? ""
+                        : schema + ".") + def.name() + " names the column " + name + ", which the table does not"
+                        + " declare");
+            }
+            out.add(com.legend.compiler.element.StoreCompiler.declaredType(found.dataType()));
+        }
+        return out;
     }
 
     /** The from() node's {@code testDataSetupCsv} FACTS as seed SQL — the

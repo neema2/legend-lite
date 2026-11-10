@@ -102,8 +102,11 @@ public final class PlanJson {
      *  insert and its width), for every database with no reader that reads the format as upstream does (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). 36 since 2026-11-10: a slot may bind a live source's location ({@code source}: a model's
      *  {@code file:} source as a pointer, the runner binding the path its admission allows; L6).  37 since 2026-11-10: a load may hold its bundle inline ({@code content}: the model's text above the
      *  inline threshold, by digest, read by a file step of the {@code CONTENT} namespace and {@code rows} format; L6c),
-     *  or travel as a {@link Bundle}, its JSON plus one blob per digest. */
-    public static final int VERSION = 37;
+     *  or travel as a {@link Bundle}, its JSON plus one blob per digest. 38 since 2026-11-10
+     *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md A2): the model's data is a load step of {@code statements}, a CONTENT
+     *  blob of SQL statements (the {@code statements} format) by digest; the {@code rows} step and format are gone; the
+     *  bundle's inline part bounded per plan ({@link #INLINE_LIMIT_BYTES}), a program step's loads included. */
+    public static final int VERSION = 38;
 
     private PlanJson() {
     }
@@ -114,7 +117,7 @@ public final class PlanJson {
 
     enum OutputTag { fixed, perKey }
 
-    enum SetupTag { statement, rows, file }
+    enum SetupTag { statement, statements, file }
 
     enum BindingTag { one, array, key, source }
 
@@ -192,18 +195,102 @@ public final class PlanJson {
         }
     }
 
-    /** {@code plan} as it travels: its JSON with each load's bundle moved to a blob of its own ({@link Bundle}). */
+    /** The most of the model's data a plan's JSON holds inline, over ALL its loads (docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+     *  §1.1: "the plan writer puts the blob inside the plan's JSON when the bundle is small and beside it when large";
+     *  the checkpoint tenets audit's S-1: per plan, never per table): 16 KB, near a query's own SQL at its 99th
+     *  percentile (decision 1's starting proposal). Above it the largest blobs travel beside the plan until what stays is
+     *  under it. */
+    public static final int INLINE_LIMIT_BYTES = 16 * 1024;
+
+    /** {@code plan} as it travels ({@link Bundle}): its JSON holding at most {@link #INLINE_LIMIT_BYTES} of the model's
+     *  data inline, every load's -- the load section's and a program step's alike (the correctness audit's note) -- the
+     *  largest blobs moved beside it first. */
     @SuppressWarnings("unchecked")
     public static Bundle writeBundle(ExecutionPlan plan) {
         Map<String, Object> out = tree(plan);
-        Map<String, String> blobs = new java.util.TreeMap<>();
-        for (Object load : (List<Object>) java.util.Objects.requireNonNull(out.get("loads"), "a plan's load section")) {
-            Object content = ((Map<String, Object>) load).remove(CONTENT);
+        List<Map<String, Object>> loads = new ArrayList<>();
+        collectLoads(out, loads);
+        Map<String, String> texts = new java.util.TreeMap<>();
+        long inline = 0;
+        for (Map<String, Object> load : loads) {
+            Object content = load.get(CONTENT);
             if (content != null) {
-                ((Map<String, Object>) content).forEach((digest, text) -> blobs.put(digest, (String) text));
+                for (Map.Entry<String, Object> e : ((Map<String, Object>) content).entrySet()) {
+                    if (texts.put(e.getKey(), (String) e.getValue()) == null) {
+                        inline += utf8Length((String) e.getValue());
+                    }
+                }
+            }
+        }
+        // the largest first (ties by digest, so the split is deterministic), until what stays inline is under the limit
+        List<Map.Entry<String, String>> bySize = new ArrayList<>(texts.entrySet());
+        bySize.sort(java.util.Comparator.<Map.Entry<String, String>>comparingLong(e -> -utf8Length(e.getValue()))
+                .thenComparing(Map.Entry::getKey));
+        Map<String, String> blobs = new java.util.TreeMap<>();
+        for (Map.Entry<String, String> e : bySize) {
+            if (inline <= INLINE_LIMIT_BYTES) {
+                break;
+            }
+            blobs.put(e.getKey(), e.getValue());
+            inline -= utf8Length(e.getValue());
+        }
+        for (Map<String, Object> load : loads) {
+            Object content = load.get(CONTENT);
+            if (content != null) {
+                Map<String, Object> kept = new LinkedHashMap<>((Map<String, Object>) content);
+                kept.keySet().removeAll(blobs.keySet());
+                if (kept.isEmpty()) {
+                    load.remove(CONTENT);
+                } else {
+                    load.put(CONTENT, kept);
+                }
             }
         }
         return new Bundle(Json.toCompact(out), blobs);
+    }
+
+    /** Every load written in {@code o}: an object holding {@code identity}, {@code cadence} and {@code steps}. */
+    @SuppressWarnings("unchecked")
+    private static void collectLoads(Object o, List<Map<String, Object>> out) {
+        if (o instanceof Map<?, ?> m) {
+            Map<String, Object> map = (Map<String, Object>) m;
+            if (map.containsKey("identity") && map.containsKey("cadence") && map.containsKey("steps")) {
+                out.add(map);
+            }
+            for (Object v : map.values()) {
+                collectLoads(v, out);
+            }
+        } else if (o instanceof List<?> l) {
+            for (Object v : l) {
+                collectLoads(v, out);
+            }
+        }
+    }
+
+    /** Every load in a read plan's tree: an object holding {@code identity}, {@code cadence} and {@code steps}. */
+    private static void collectLoads(Json.Node o, List<Json.Obj> out) {
+        if (o instanceof Json.Obj m) {
+            if (m.fields().containsKey("identity") && m.fields().containsKey("cadence")
+                    && m.fields().containsKey("steps")) {
+                out.add(m);
+            }
+            for (Json.Node v : m.fields().values()) {
+                collectLoads(v, out);
+            }
+        } else if (o instanceof Json.Arr l) {
+            for (Json.Node v : l.items()) {
+                collectLoads(v, out);
+            }
+        }
+    }
+
+    private static long utf8Length(String s) {
+        long n = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            n += c < 0x80 ? 1 : c < 0x800 ? 2 : Character.isHighSurrogate(c) ? 2 : 3;
+        }
+        return n;
     }
 
     /**
@@ -558,6 +645,26 @@ public final class PlanJson {
         return o;
     }
 
+    /** A data reference's JSON: its namespace, name, digest, size and declared format. */
+    private static Map<String, Object> ref(DataRef r) {
+        Map<String, Object> ref = new LinkedHashMap<>();
+        ref.put("namespace", r.namespace().name());
+        ref.put("name", r.name());
+        ref.put("digest", r.digest());
+        ref.put("size", r.size());
+        Map<String, Object> format = new LinkedHashMap<>();
+        switch (r.format()) {
+            case DataRef.Csv csv -> {
+                format.put("_type", "csv");
+                format.put("delimiter", String.valueOf(csv.delimiter()));
+                format.put("quote", String.valueOf(csv.quote()));
+            }
+            case DataRef.Statements statements -> format.put("_type", "statements");
+        }
+        ref.put("format", format);
+        return ref;
+    }
+
     private static Map<String, Object> setupStep(LoadStep step) {
         Map<String, Object> o = new LinkedHashMap<>();
         switch (step) {
@@ -565,32 +672,13 @@ public final class PlanJson {
                 o.put("_type", SetupTag.statement.name());
                 o.put("sql", s.sql());
             }
-            case LoadStep.Rows r -> {
-                o.put("_type", SetupTag.rows.name());
-                o.put("stagingTable", r.stagingTable());
-                o.put("createStaging", r.createStaging());
-                o.put("copy", r.copy());
-                o.put("dropStaging", r.dropStaging());
-                o.put("rows", r.rows());
+            case LoadStep.Statements st -> {
+                o.put("_type", SetupTag.statements.name());
+                o.put("ref", ref(st.ref()));
             }
             case LoadStep.File f -> {
                 o.put("_type", SetupTag.file.name());
-                Map<String, Object> ref = new LinkedHashMap<>();
-                ref.put("namespace", f.ref().namespace().name());
-                ref.put("name", f.ref().name());
-                ref.put("digest", f.ref().digest());
-                ref.put("size", f.ref().size());
-                Map<String, Object> format = new LinkedHashMap<>();
-                switch (f.ref().format()) {
-                    case DataRef.Csv csv -> {
-                        format.put("_type", "csv");
-                        format.put("delimiter", String.valueOf(csv.delimiter()));
-                        format.put("quote", String.valueOf(csv.quote()));
-                    }
-                    case DataRef.Rows rows -> format.put("_type", "rows");
-                }
-                ref.put("format", format);
-                o.put("ref", ref);
+                o.put("ref", ref(f.ref()));
                 o.put("sizeLimitMegabytes", f.sizeLimitMegabytes());
                 Map<String, Object> delivery = new LinkedHashMap<>();
                 switch (f.delivery()) {
@@ -630,7 +718,7 @@ public final class PlanJson {
             throw new IllegalArgumentException("not a " + FORMAT + " v" + VERSION + " plan (format " + format
                     + ", version " + o.getIntOr("version", -1) + ")");
         }
-        attachBlobs(o.getArr("loads"), blobs);
+        attachBlobs(o, blobs);
         inlineLoads(o, o.getArr("loads"));
         List<Parameter> parameters = new ArrayList<>();
         for (Json.Node n : o.getArr("parameters").items()) {
@@ -641,23 +729,25 @@ public final class PlanJson {
 
     /** Each load of {@code section} that holds no bundle inline given the blobs its CONTENT file steps name (L6c): a
      *  digest {@code blobs} lacks is left out, and the load refuses itself by name when it is read. */
-    private static void attachBlobs(Json.Arr section, Map<String, String> blobs) {
+    private static void attachBlobs(Json.Node tree, Map<String, String> blobs) {
         if (blobs.isEmpty()) {
             return;
         }
-        for (Json.Node n : section.items()) {
-            Json.Obj load = (Json.Obj) n;
-            if (load.fields().containsKey(CONTENT)) {
-                continue;
-            }
+        List<Json.Obj> loads = new ArrayList<>();
+        collectLoads(tree, loads);
+        for (Json.Obj load : loads) {
             LinkedHashMap<String, Json.Node> named = new LinkedHashMap<>();
+            Json.Obj inline = load.getObjOr(CONTENT, null);
+            if (inline != null) {
+                named.putAll(inline.fields());
+            }
             for (Json.Node s : load.getArr("steps").items()) {
                 Json.Obj step = (Json.Obj) s;
                 Json.Obj ref = step.getObjOr("ref", null);
                 if (ref != null && DataRef.Namespace.CONTENT.name().equals(ref.getString("namespace"))) {
                     String digest = ref.getString("digest");
                     String text = blobs.get(digest);
-                    if (text != null) {
+                    if (text != null && !named.containsKey(digest)) {
                         named.put(digest, new Json.Str(text));
                     }
                 }
@@ -677,7 +767,7 @@ public final class PlanJson {
     private static DataRef.Format format(Json.Obj o) {
         return switch (o.getString("_type")) {
             case "csv" -> new DataRef.Csv(oneChar(o.getString("delimiter")), oneChar(o.getString("quote")));
-            case "rows" -> DataRef.Rows.JSON;
+            case "statements" -> DataRef.Statements.JSON;
             default -> throw new IllegalArgumentException("a data reference's format is csv or rows: "
                     + o.getString("_type"));
         };
@@ -767,7 +857,15 @@ public final class PlanJson {
                 if (bundle != null) {
                     bundle.fields().forEach((digest, text) -> content.put(digest, ((Json.Str) text).value()));
                 }
-                // the load refuses a bundle that lacks a digest its steps read, or a text that is not its digest
+                // a text whose bytes are not its digest refused by name here, where an untrusted plan is read (the
+                // portable SHA-256: the planner runs on WebAssembly, which has no MessageDigest); the load refuses a
+                // bundle that lacks a digest its steps read
+                content.forEach((digest, text) -> {
+                    if (!com.legend.cache.Hash.ofUtf8(text).hex().equals(digest)) {
+                        throw new IllegalArgumentException("the load " + o.getString("identity") + "'s bundle holds"
+                                + " bytes that are not their digest " + digest);
+                    }
+                });
                 yield new ExecutionPlan.Load(o.getString("identity"),
                         ExecutionPlan.Load.Cadence.valueOf(o.getString("cadence")), steps,
                         readTarget(o.getObj("target")), content);
@@ -929,28 +1027,11 @@ public final class PlanJson {
     private static LoadStep readLoadStep(Json.Obj o) {
         return switch (tag(SetupTag.class, o, "setup step")) {
             case statement -> new LoadStep.Statement(o.getString("sql"));
-            case rows -> {
-                List<List<String>> rows = new ArrayList<>();
-                for (Json.Node r : o.getArr("rows").items()) {
-                    if (!(r instanceof Json.Arr cells)) {
-                        throw new IllegalArgumentException("rows for " + o.getString("stagingTable")
-                                + ": a row is an array of cells");
-                    }
-                    List<String> row = new ArrayList<>();
-                    for (Json.Node cell : cells.items()) {
-                        row.add(switch (cell) {
-                            case Json.Str s -> s.value();
-                            case Json.Null x -> null;
-                            case Json.Num x -> throw notTextCell(o);
-                            case Json.Bool x -> throw notTextCell(o);
-                            case Json.Obj x -> throw notTextCell(o);
-                            case Json.Arr x -> throw notTextCell(o);
-                        });
-                    }
-                    rows.add(row);
-                }
-                yield new LoadStep.Rows(o.getString("stagingTable"), o.getString("createStaging"), o.getString("copy"),
-                        o.getString("dropStaging"), rows);
+            case statements -> {
+                Json.Obj ref = o.getObj("ref");
+                yield new LoadStep.Statements(new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")),
+                        ref.getString("name"), ref.getString("digest"), ref.getLong("size"),
+                        format(ref.getObj("format"))));
             }
             case file -> {
                 // the reference refuses a path-shaped name as it is read (DataRef: never a machine's path in a plan)
@@ -969,10 +1050,6 @@ public final class PlanJson {
         };
     }
 
-    private static IllegalArgumentException notTextCell(Json.Obj rows) {
-        return new IllegalArgumentException("rows for " + rows.getString("stagingTable")
-                + ": a cell is text or null (the database types it)");
-    }
 
     /** {@code o} as the fields a model record reads ({@link ConnectionWire}: the model depends on no JSON). */
     private static ConnectionWire.Fields fields(Json.Obj o) {

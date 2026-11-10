@@ -70,14 +70,6 @@ public interface SqlDialect {
      *  column's {@code declaredQuoted}), never quote characters inside the name. */
     String storedName(String name, boolean declaredQuoted);
 
-    /** Whether a target on this database loads its declared rows through the database's own bulk loader (a plan's
-     *  {@code LoadStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
-     *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
-     *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
-    default boolean loadsRowsInBulk() {
-        return false;
-    }
-
     /**
      * How this dialect's database loads a CSV file's rows ({@link com.legend.sql.SqlDml.LoadCsv}): READ by its own
      * reader over the runner's verified copy where that reader reads the format as upstream does (the user's ruling of

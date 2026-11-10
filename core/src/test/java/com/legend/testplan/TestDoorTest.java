@@ -456,15 +456,18 @@ class TestDoorTest {
 
     /** A seed step's key spells its content unambiguously (the design audit's H1, 2026-11-02): one cell {@code "a, b"}
      *  and two cells {@code "a"}, {@code "b"} printed one record text, so the second seed's key equalled the first's
-     *  and a session holding the first skipped it. */
+     *  and a session holding the first skipped it. Since A2 (2026-11-10) a table's rows are a content blob of inserts,
+     *  named by the digest of their statements: the two loads' keys differ as their statements do. */
     @Test
     void twoSeedsThatPrintAlikeHaveTwoKeys() {
-        ExecutionPlan.LoadStep one = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
-                java.util.List.of(java.util.List.of("a, b")));
-        ExecutionPlan.LoadStep two = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
-                java.util.List.of(java.util.List.of("a", "b")));
-        assertEquals(one.toString(), two.toString(), "the two steps print alike");
-        assertFalse(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, java.util.List.of(one)).equals(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, java.util.List.of(two))),
-                "and their keys differ");
+        var d = com.legend.database.Databases.dialect(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+        var one = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null, "t",
+                com.legend.sql.NameQuoting.BARE, java.util.List.of(), java.util.Set.of(), 1,
+                java.util.List.of(java.util.List.of("a, b"))), d);
+        var two = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null, "t",
+                com.legend.sql.NameQuoting.BARE, java.util.List.of(), java.util.Set.of(), 2,
+                java.util.List.of(java.util.List.of("a", "b"))), d);
+        assertFalse(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, one.steps()).equals(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, two.steps())),
+                "their keys differ");
     }
 }

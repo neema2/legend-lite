@@ -421,42 +421,42 @@ public final class Ddl {
 
     /** The seed's rows for one store table (all-string cells, pre-sorted by
      * the registry's deterministic-order contract; null an absent optional
-     * fact), every column in declared order. */
+     * fact), every column in declared order, each typed by its declared type
+     * (the load writes the dialect's typed literals, A2). */
     public static RowLoad metamodelRows(DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows) {
         return new RowLoad(schema, def.name(), quoting(def, schema), java.util.List.of(), java.util.Set.of(),
-                def.columns().size(), rows);
+                def.columns().size(), rows, declaredTypes(def));
+    }
+
+    /** {@code def}'s columns' declared types, in declared order: a load's typed literals. */
+    public static java.util.List<com.legend.sql.SqlDdl.ColumnType> declaredTypes(DatabaseDefinition.TableDefinition def) {
+        java.util.List<com.legend.sql.SqlDdl.ColumnType> out = new java.util.ArrayList<>(def.columns().size());
+        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
+            out.add(com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
+        }
+        return out;
     }
 
     /** One store table's seed in an IN-PROCESS engine as a plan's setup steps: its DDL ({@link #metamodelSeed}),
-     *  then its rows ({@link #metamodelRows}) for the database's bulk loader where it has one
-     *  ({@link com.legend.sql.dialect.SqlDialect#loadsRowsInBulk}), else as the one INSERT; a table of no rows adds no
-     *  rows step. The one owner of that choice for the plan's target and the system database's session (the doors,
-     *  2026-10-29; until then {@code PlanMaker} and {@code SystemDatabase} each made it). */
-    public static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> metamodelSteps(
-            DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
-            com.legend.sql.dialect.SqlDialect dialect) {
-        java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> out = new java.util.ArrayList<>();
+     *  then its rows ({@link #metamodelRows}) as a content blob of inserts ({@link LoadSteps#rows}); a table of no rows
+     *  adds no rows step. The one owner of that form for the plan's target and the system database's session (the
+     *  doors, 2026-10-29; until then {@code PlanMaker} and {@code SystemDatabase} each made it). */
+    public static LoadSteps metamodelSteps(DatabaseDefinition.TableDefinition def, String schema,
+            java.util.List<java.util.List<String>> rows, com.legend.sql.dialect.SqlDialect dialect) {
+        LoadSteps.Builder out = new LoadSteps.Builder();
         for (String statement : metamodelSeed(def, schema, dialect)) {
-            out.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(statement));
+            out.statement(statement);
         }
-        out.addAll(metamodelRowSteps(def, schema, rows, dialect));
-        return out;
+        return out.add(metamodelRowSteps(def, schema, rows, dialect)).build();
     }
 
     /** {@link #metamodelSteps}' rows alone, no DDL: a model's registration in the process's catalog, whose tables are
      *  made once with the platform's rows (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.3, L4b) -- inserts only, so a
-     *  registration stays inside its transaction (H2 commits on DDL; DuckDB's staged load, an INSERT ... SELECT from a
-     *  session-private staging table, keeps the rows in it, the probe's CatalogCheck); none for no row. */
-    public static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> metamodelRowSteps(
-            DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
-            com.legend.sql.dialect.SqlDialect dialect) {
-        if (rows.isEmpty()) {
-            return java.util.List.of();
-        }
-        RowLoad load = metamodelRows(def, schema, rows);
-        return java.util.List.of(dialect.loadsRowsInBulk() ? load.staged(dialect)
-                : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(dialect.render(load.values())));
+     *  registration stays inside its transaction (H2 commits on DDL); none for no row. */
+    public static LoadSteps metamodelRowSteps(DatabaseDefinition.TableDefinition def, String schema,
+            java.util.List<java.util.List<String>> rows, com.legend.sql.dialect.SqlDialect dialect) {
+        return LoadSteps.rows(metamodelRows(def, schema, rows), dialect);
     }
 
     /** A store table's name in a SERVER engine's system database (SystemDatabase): {@code schema_table}, one
@@ -490,24 +490,12 @@ public final class Ddl {
                 com.legend.sql.NameQuoting.BARE, columns, true), rows.isEmpty() ? null : metamodelTemporaryRows(def, schema, rows).values());
     }
 
-    /** The rows of {@link #metamodelTemporary}'s table, as {@link #metamodelRows}, each cell of a column that is not
-     *  text CAST to the column's type in the database: a server may take no text into it ({@link RowLoad#casts}). */
+    /** The rows of {@link #metamodelTemporary}'s table, as {@link #metamodelRows}: each cell its column's typed
+     *  literal, which a server takes into the column (until A2 a cast of its text, {@code RowLoad.casts}). */
     private static RowLoad metamodelTemporaryRows(DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows) {
-        java.util.List<com.legend.sql.@com.legend.base.Nullable SqlType> casts = new java.util.ArrayList<>();
-        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
-            casts.add(switch (col.dataType()) {
-                case RelationalDataType.Varchar ignored -> null;
-                case RelationalDataType.Integer_ ignored -> com.legend.sql.SqlType.Scalar.INTEGER;
-                case RelationalDataType.Bit ignored -> com.legend.sql.SqlType.Scalar.BOOLEAN;
-                default -> throw new IllegalStateException("system table " + def.name() + "." + col.name()
-                        + ": no cast for its type " + col.dataType() + " (the store declares VARCHAR, INTEGER and"
-                        + " BIT)");
-            });
-        }
         return new RowLoad(null, systemTable(schema, def.name()), com.legend.sql.NameQuoting.BARE, java.util.List.of(),
-                java.util.Set.of(),
-                def.columns().size(), rows, casts);
+                java.util.Set.of(), def.columns().size(), rows, declaredTypes(def));
     }
 
     /** The FLAVORED type spelling: the deltas from the H2 base are the

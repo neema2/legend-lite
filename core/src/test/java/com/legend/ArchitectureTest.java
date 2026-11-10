@@ -36,7 +36,7 @@ final class ArchitectureTest {
 
     /**
      * Imports exactly the production classes: the product's jars, as core/BUILD.bazel's {@code :product_jars} declares
-     * them (every core library, //base, //json and {@code :duckdb_load}; Bazel workplan P3-27). Nothing is found from
+     * them (every core library, //base, //json and {@code :duckdb_cells}; Bazel workplan P3-27). Nothing is found from
      * a class's code source or excluded by where it sits: this test tree and the test support on the classpath are
      * simply not in the list. All structural rules apply to production code; tests may use whatever helpers they need
      * without piercing the production import boundary. {@link #theImportIsEveryProductLibrary} pins that every
@@ -102,7 +102,8 @@ final class ArchitectureTest {
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
             java.util.Map.entry("server_lib", "com.legend.server.ConnectionResolver"),
-            java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"),
+            // DuckDB's cell types (:duckdb_load, with its Appender, until A2, 2026-11-10)
+            java.util.Map.entry("duckdb_cells", "com.legend.exec.DuckDbCells"),
             // MongoDB's connector, beside the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12)
             java.util.Map.entry("mongodb_connector", "com.legend.exec.MongoDbConnector"),
             // Postgres's JSON cells, beside its driver (the plan path program's step 9, 2026-10-19): on the product
@@ -1030,7 +1031,8 @@ final class ArchitectureTest {
         // RowDecode (2026-10-18, the plan path program's step 6): the runner's typed-row decode, by the plan's columns;
         // since 2026-10-27 (the result boundary program's phase 3) in the plan side's result package, where a host's
         // rows are decoded by the same rule, and held model-free there too
-        String runner = "com\\.legend\\.(exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)|result\\.RowDecode)"
+        // BulkLoads went with DuckDB's Appender (A2, 2026-11-10)
+        String runner = "com\\.legend\\.(exec\\.(PlanRunner|PlanParameters|PlanSessions)|result\\.RowDecode)"
                 + "(\\$.*)?";
         noClasses()
             .that().haveNameMatching(runner)
@@ -1134,8 +1136,9 @@ final class ArchitectureTest {
     void execPluginsAreExecClasses() throws Exception {
         java.util.List<String> outside = new java.util.ArrayList<>();
         int providers = 0;
-        for (Class<?> spi : java.util.List.of(com.legend.exec.DatabaseConnector.class, com.legend.exec.DriverCells.class,
-                com.legend.exec.BulkLoad.class)) {
+        // the BulkLoad seam went with DuckDB's Appender (A2, 2026-11-10: the model's data is statements in the plan)
+        for (Class<?> spi : java.util.List.of(com.legend.exec.DatabaseConnector.class,
+                com.legend.exec.DriverCells.class)) {
             java.util.Enumeration<java.net.URL> files =
                     ArchitectureTest.class.getClassLoader().getResources("META-INF/services/" + spi.getName());
             while (files.hasMoreElements()) {
@@ -2558,7 +2561,8 @@ final class ArchitectureTest {
      * <strong>P2, a load's steps (the tenets re-audit's A-5, 2026-11-09: until then named in a javadoc, guarded only
      * inside exec).</strong> A plan's {@code LoadStep} -- a statement, rows, a file and its delivery -- is made by the
      * planner's makers of statements and rows alone: {@code setup.CsvSeed}, {@code setup.Ddl}, {@code setup.RowLoad},
-     * {@code planner.PlanMaker}, {@code planner.SystemCatalog}, {@code planner.DataSources} (2026-11-10, L6b),
+     * {@code setup.LoadSteps} (2026-11-10, A2), {@code planner.PlanMaker}, {@code planner.SystemCatalog},
+     * {@code planner.DataSources} (2026-11-10, L6b),
      * {@code testplan.EffectPlanner}; the plan's JSON reader rebuilds what a writer wrote.
      */
     @Test
@@ -2566,8 +2570,10 @@ final class ArchitectureTest {
         noClasses()
             .that().resideInAPackage("com.legend..")
             // planner.DataSources since 2026-11-10 (L6b: a query's data: sources as one load into session tables);
-            // planner.ContentRows the same day (L6c: the model's rows inline or from the load's bundle)
-            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad)|planner\\.(PlanMaker|SystemCatalog|DataSources|ContentRows)"
+            // planner.ContentRows the same day (L6c: the model's rows inline or from the load's bundle), replaced the
+            // same day by setup.LoadSteps (A2, docs/DATA_DELIVERY_DESIGN_2026_11_10.md: every table's rows a content
+            // blob of statements, made in one place)
+            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad|LoadSteps)|planner\\.(PlanMaker|SystemCatalog|DataSources)"
                     + "|testplan\\.EffectPlanner|executionplan\\.PlanJson)(\\$.*)?")
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(

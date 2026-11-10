@@ -121,11 +121,11 @@ public record ProjectData(String name, List<String> open, List<String> use, List
     /** {@link #fillSteps} as statement text: the host's own project database's ({@link #of}, census M14, until L7);
      *  a plan's fill never takes this text (L6c, 2026-11-10: census M1 DELETED). */
     public static List<String> fill(ModelContext ctx, SqlDialect dialect) {
-        return fillSteps(ctx, dialect).stream().map(st -> st.text(dialect)).toList();
+        return fillSteps(ctx, dialect).stream().flatMap(st -> st.texts(dialect).stream()).toList();
     }
 
-    /** The seed steps that fill a project's database, the rows still rows: a plan's fill takes each table's rows inline,
-     *  or from its bundle above the inline threshold ({@code planner.ContentRows}, L6c). */
+    /** The seed steps that fill a project's database, the rows still rows: a plan's fill takes each table's rows as a
+     *  content blob of inserts ({@code CsvSeed.planned}, A2). */
     public static List<CsvSeed.Step> fillSteps(ModelContext ctx, SqlDialect dialect) {
         String refused = refusal(ctx);
         if (refused != null) {

@@ -81,9 +81,9 @@ public final class Seeds {
         return new Sources(fromSources, runtime, runtime == null ? null : declaredSeed(runtime, ctx));
     }
 
-    /** {@code statement}'s seeds as the plan's setup steps, final for {@code dialect}'s database, each with the text
-     *  the referee's ledger records for it. */
-    public static List<CsvSeed.Planned> planned(TypedSpec statement,
+    /** {@code statement}'s seeds as the plan's setup steps, final for {@code dialect}'s database, with the referee's
+     *  own copy of them, written in its dialect (A2). */
+    public static CsvSeed.Planned planned(TypedSpec statement,
             @Nullable String runtime, ModelContext ctx, SqlDialect dialect) {
         List<TypedFrom> froms =
                 ExecutionContext.froms(statement);
@@ -103,7 +103,8 @@ public final class Seeds {
         if (runtime != null) {
             setups.addAll(CsvSeed.declaredSteps(runtime, ctx, dialect));
         }
-        return CsvSeed.planned(setups, dialect);
+        return CsvSeed.planned(setups, dialect, com.legend.database.Databases.dialect(
+                com.legend.database.Databases.REPLAY_REFEREE));
     }
 
     /**

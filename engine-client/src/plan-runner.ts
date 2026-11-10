@@ -72,7 +72,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // allows -- refused by name here: a host's runner admits no source
 // 37 since 2026-11-10: a load may read the model's text from its bundle (content; a rows reference) -- a load is
 // refused by name here, as at 36
-const PLAN_VERSION = 37;
+// 38 since 2026-11-10: the model's data is a load step of statements (a CONTENT blob of SQL statements); the rows
+// step and format are gone -- a load is refused by name here, as at 37 (until B3)
+const PLAN_VERSION = 38;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

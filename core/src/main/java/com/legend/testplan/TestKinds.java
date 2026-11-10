@@ -85,7 +85,7 @@ final class TestKinds implements ProgramKinds {
     /** The seed sources placed since the program's last write. */
     private final Set<Seeds.Sources> established = new HashSet<>();
     /** The seeds' steps, generated once per sources value. */
-    private final Map<Seeds.Sources, List<CsvSeed.Planned>> generated =
+    private final Map<Seeds.Sources, CsvSeed.Planned> generated =
             new HashMap<>();
 
     /** The body's asserts, as its judge planned them (M6). */
@@ -381,9 +381,9 @@ final class TestKinds implements ProgramKinds {
         if (sources.namesNothing() || !established.add(sources)) {
             return;
         }
-        List<CsvSeed.Planned> planned = generated.computeIfAbsent(sources,
+        CsvSeed.Planned planned = generated.computeIfAbsent(sources,
                 s -> Seeds.planned(statement, program.runtime(), ctx, program.dialect()));
-        if (planned.isEmpty()) {
+        if (planned.steps().isEmpty()) {
             return;
         }
         if (!script.isEmpty()) {
@@ -394,11 +394,11 @@ final class TestKinds implements ProgramKinds {
                     + " follows another, and its sources name test data): their order against the run's script is"
                     + " not designed");
         }
-        List<ExecutionPlan.LoadStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
-        ExecutionPlan.Load setup = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, steps,
-                program.target());
+        ExecutionPlan.Load setup = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP,
+                planned.steps(), program.target());
         program.add(setup);
-        List<String> texts = planned.stream().map(CsvSeed.Planned::text).toList();
+        // the referee's own copy, written in its dialect (A2), the edge's data
+        List<String> texts = planned.refereeCopy();
         seeds.put(setup, () -> texts);
     }
 

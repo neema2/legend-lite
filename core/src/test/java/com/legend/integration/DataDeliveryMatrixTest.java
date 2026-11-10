@@ -79,9 +79,11 @@ class DataDeliveryMatrixTest {
      * answers -- and each is taken off by the step of A that fixes it (§6). The list only shrinks.
      */
     static final Set<String> RED = Set.of(
-            // A2, model data as statements: SQLite holds a boolean the load wrote as the text 'true', and the decoder
-            // crashes on it (typed literals write what the column takes); the referee's H2 copy is not built
-            "roundtrip:TEST_DATA/SQLite", "roundtrip:PROJECT_DATA/SQLite", "roundtrip:REFEREE/H2",
+            // A2 fixed SQLite's boolean (a typed literal writes what the column takes) and built the referee's H2 copy
+            // (2026-11-10); SQLite's date-time still reads back at its text's written precision, where every other
+            // database reads nine subsecond digits -- the decoder's rule (JdbcDecode.temporal), a question posted, not
+            // data delivery's
+            "roundtrip:TEST_DATA/SQLite", "roundtrip:PROJECT_DATA/SQLite",
             // A2 and A5: a from() naming its runtime is refused on the product's doors as a test's seed, and a test
             // body with no program runtime refuses it (the from()'s runtime is the query's own)
             "matrix:READ/FROM_SEED/DuckDB", "matrix:READ/FROM_SEED/H2", "matrix:READ/FROM_SEED/SQLite",
@@ -92,9 +94,9 @@ class DataDeliveryMatrixTest {
             // A3, files as table sources: SQLite streams the file into a table its effect did not make, where the
             // design refuses the file by name
             "matrix:TEST_BODY/CSV_FILE/SQLite",
-            // A4, refusals name the data: a bad value's refusal names no table on DuckDB and SQLite, a bad payload's
-            // names no payload
-            "failure:BAD_VALUE/DuckDB", "failure:BAD_VALUE/SQLite", "failure:BAD_PAYLOAD/DuckDB",
+            // A4, refusals name the data: a bad payload's refusal names no payload (a bad value's names its table and
+            // column since A2, 2026-11-10: a cell its column's type cannot take is refused at planning)
+            "failure:BAD_PAYLOAD/DuckDB",
             // A5, one road: a data: source crashes where it is not the product read's answer (generatePlan's text,
             // a write, a test body) and fails a service; a file: source is admitted nowhere by default (the user's
             // ruling: any file) and crashes or is refused on every door but the read
@@ -812,8 +814,27 @@ class DataDeliveryMatrixTest {
             }
         }
         if (referee) {
-            // the referee's own H2 copy of a load's rows (§1.1): the copy is A2's, and not built yet
-            put(red, "REFEREE/H2", verdict(false, "not built: the referee's H2 copy of the plan's rows (A2)"));
+            // the referee's own H2 copy of a load's rows (§1.1, A2): a DuckDB session's test data planned, its copy --
+            // the platform's DDL and the rows' inserts written in the referee's dialect -- replayed on an H2 database
+            // of its own, and the table read back there as the product reads it
+            Outcome copy = attempt(() -> {
+                ModelContext ctx = Compiler.compileModel(TYPES_MODEL.formatted(DatabaseType.DuckDB, localH2(
+                        "testDataSetupCSV: 'default\\nTYPES\\n" + TYPES_CSV + "'")));
+                com.legend.setup.CsvSeed.Planned planned = com.legend.setup.CsvSeed.planned(
+                        com.legend.setup.CsvSeed.declaredSteps("x::RT", ctx, com.legend.database.Databases.dialect(
+                                DatabaseType.DuckDB)), com.legend.database.Databases.dialect(DatabaseType.DuckDB),
+                        com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE));
+                try (Connection c = session(DatabaseType.H2)) {
+                    try (java.sql.Statement st = c.createStatement()) {
+                        for (String statement : planned.refereeCopy()) {
+                            st.execute(statement);
+                        }
+                    }
+                    return readOn(c, TYPES_MODEL.formatted(DatabaseType.H2, TestBackends.of(DatabaseType.H2)
+                            .specificationAndAuth() + ";"), TYPES_QUERY);
+                }
+            });
+            check(red, green, "REFEREE/H2", copy);
         }
         report("roundtrip", red, green, pinned);
     }

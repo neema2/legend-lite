@@ -13,7 +13,7 @@ here, with the reason. This file is data, so a BUILD file that checks its users 
 
 # name -> struct(coordinate, sha256, users): users are packages, or single targets "package:name".
 JARS = {
-    # core's DuckDB, through JDBC: //core:drivers, and //core:duckdb_load compiles its bulk loader against it.
+    # core's DuckDB, through JDBC: //core:drivers, and //core:duckdb_cells compiles its cell types against it.
     # 1.4.4.0 until 2026-10-29: 1.5.0 answered zero rows for the first() lowering's LIMIT shape (duckdb/duckdb#21160,
     # docs/SESSION_HANDOFF_2026_09_02.md). Bumped to 1.5.6.0 on the user's ask (the result boundary program, D60): the
     # LIMIT shapes answer correctly there (probes/duckdb_1_5_6.txt), and ASOF LEFT JOIN keeps its left rows against a

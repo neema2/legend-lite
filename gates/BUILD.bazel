@@ -32,7 +32,8 @@ test_suite(
         "//core:arrow_writer_test",
         # R9: no Arrow library in any product closure
         "//tools/deps:arrow_closure_test",
-        "//core:duckdb_load_test",
+        # //core:duckdb_load_test went with DuckDB's Appender (A2, 2026-11-10: the model's data is statements in the
+        # plan, docs/DATA_DELIVERY_DESIGN_2026_11_10.md)
         "//core:section_grammar_registry_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds
         "//core:corpus_differential_test",

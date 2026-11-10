@@ -139,6 +139,36 @@ Deleted from the plan:
   catalog, `data:` and `file:` on every door but the read, SQLite's boolean, the referee's copy, refusals that name no
   table or payload, SQLite's file load) and 11 on Postgres.
 
+### A2 as built (2026-11-10)
+
+- **The plan:** `LoadStep.Statements(ref)`, a CONTENT blob of the `statements` format (a JSON array of SQL strings,
+  `DataRef.Statements.encode`/`decode`, the format's one writer and reader) named by its SHA-256 in the load's bundle.
+  `LoadStep.Rows` and the `rows` format are gone. Plan format 38. The plan writer (`PlanJson.writeBundle`) keeps the
+  bundle inside the plan's JSON up to 16 KB per plan and moves the largest blobs beside it past that; a blob's digest is
+  checked where a plan is read, not on every load's construction.
+- **The planner:** `setup.RowLoad` carries each column's declared type; its cells are the dialect's typed literals
+  (an integer, a float, a decimal, a boolean, a date, a date-time, a time, JSON, a string), at most 1,000 rows per
+  insert. A cell its column's type cannot take is refused at planning, naming the table, the column and the value; a
+  number in an integer column that is not an integer is its digits, which the database assigns, as upstream's raw token
+  is. `setup.LoadSteps` is the steps with the bundle they read, the one maker of a blob. Every producer takes it: a
+  connection's test data and a from()'s seeds (`CsvSeed.planned`), a project's Data (`PlanMaker.project`), the catalog's
+  rows and a model's registration (`Ddl.metamodelSteps`, `SystemCatalog`), a `data:` payload (`DataSources`). A server's
+  temporary system tables (the form B4 deletes) take the typed literals too, in place of their casts.
+- **The referee's copy:** `CsvSeed.planned(steps, dialect, referee)` writes every statement a second time in the
+  referee's dialect (the platform's DDL and the rows' inserts; an author's SQL as written), the test plan's edge data
+  for a seed (`TestKinds.seed`). B2b replays it.
+- **Exec:** `PlanRunner.seed` sends a blob's statements as written, under the load's mark. Deleted: `BulkLoad`,
+  `BulkLoads`, DuckDB's `DuckDbAppenderLoad` (the target `:duckdb_load` is `:duckdb_cells`, its cell types alone),
+  `Statements.load`, `Sessions.loadsRows`, the census's bulk-load counter, `SqlDialect.loadsRowsInBulk`,
+  `planner.ContentRows` and its staging table, `RowLoad.staged`, `//core:duckdb_load_test`.
+- **The matrix:** the referee's copy is replayed on its own H2 and read back (green); a bad value is refused naming its
+  table on every database (green); SQLite's boolean round-trips. SQLite's date-time still reads back at its text's
+  written precision where every other database reads nine subsecond digits: the decoder's rule
+  (`JdbcDecode.temporal`), raised as a question, its two cells pinned.
+- **Still refused, for the user's ruling:** a date, date-time or time cell outside its ISO shape (upstream quotes it and
+  the database parses it); a BINARY, VARBINARY, OTHER, DISTINCT, ARRAY or OBJECT column's data (upstream writes the raw
+  token), not loaded yet.
+
 ## 6. The whole plan, in order
 
 | # | Step | Ends with |

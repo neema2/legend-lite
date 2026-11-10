@@ -222,22 +222,6 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public boolean load(ExecutionPlan.LoadStep.Rows rows) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try {
-            BulkLoad bulk = BulkLoads.of(c);
-            if (bulk == null) {
-                return false;
-            }
-            BulkLoads.load(bulk, c, rows.stagingTable(), rows.createStaging(), rows.copy(), rows.dropStaging(),
-                    rows.rows());
-            return true;
-        } catch (SQLException e) {
-            throw failed(e);
-        }
-    }
-
-    @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
         com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
         return Sessions.inTransaction(c, state, work);

@@ -14,7 +14,7 @@ genquery(
     scope = ["//core:core"],
 )
 
-# NullAway subtracted as for core: //core:duckdb_load (the drivers' bulk loader)
+# NullAway subtracted as for core: //core:duckdb_cells (the drivers' DuckDB cell types)
 # compiles with it, and a compiler plugin is on javac's processor path, never on a
 # running core's classpath (2026-09-23: its jsr305 read as a driver)
 genquery(

@@ -31,8 +31,7 @@ class DataDeliveryMatrixPostgresTest {
             "matrix:TEST_BODY/FROM_SEED/Postgres",
             // A3: a database with no file reader refuses a file by name (option 1); Postgres streams it today
             "matrix:TEST_BODY/CSV_FILE/Postgres",
-            // A4: a bad value's refusal names no table
-            "failure:BAD_VALUE/Postgres",
+            // (a bad value's refusal names its table and column since A2, 2026-11-10: refused at planning)
             // A5: a write on the caller's session crashes on the target's declared test data, and reads the catalog on
             // the user's session
             "matrix:WRITE/CSV_TEST_DATA/Postgres", "matrix:WRITE/SQL_TEST_DATA/Postgres", "matrix:WRITE/CATALOG/Postgres",

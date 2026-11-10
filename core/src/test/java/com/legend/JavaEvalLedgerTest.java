@@ -1183,9 +1183,11 @@ class JavaEvalLedgerTest {
                     // carries the database's text out, writing a value's type into a plan's type hole;
                     // PlanParameters checks a caller's typed values (none parsed, none computed:
                     // a Float bound as its literal is typed, SqlTyping.floatDecimal); PlanSessions gives out
-                    // sessions by the plan's target and runs its setup once; BulkLoads finds an
-                    // engine's loader. No value is computed or compared: the database executes
-                    "PlanRunner.java", "PlanParameters.java", "PlanSessions.java", "BulkLoads.java",
+                    // sessions by the plan's target and runs its setup once. No value is computed or compared:
+                    // the database executes. BulkLoads.java (an engine's loader found) left 2026-11-10 (A2,
+                    // docs/DATA_DELIVERY_DESIGN_2026_11_10.md): deleted with the plan's rows step, the model's data
+                    // statements in the plan
+                    "PlanRunner.java", "PlanParameters.java", "PlanSessions.java",
                     // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8), the user's ruling: the runner's program half, its own target -- a program's steps on one
                     // session and a callback at a step it does not know; no value is computed or compared
                     "ProgramRunner.java",
@@ -1227,13 +1229,10 @@ class JavaEvalLedgerTest {
                     // root (the driver's: keyed by the graph, seeded through the plan side's DDL and dialect)
                     // Census.java left 2026-11-08 (the plan-as-data design's step 0): the one census owner moved to
                     // //core:diagnostics, which both the planning and the running halves reach (counters only)
-                    // bulk load (2026-09-23): the seam an engine's own bulk API
-                    // joins through, for rows of TEXT cells the database casts
-                    // (setup.RowLoad since 2026-10-08). Egress only: nothing is
-                    // typed, produced or compared here
-                    "BulkLoad.java",
+                    // BulkLoad.java (2026-09-23, the seam an engine's own bulk API joined through) left 2026-11-10
+                    // (A2): deleted with DuckDB's Appender, the model's data statements in the plan
                     // C3c (2026-10-04): a driver's own cell types, found beside the
-                    // driver as BulkLoad is (DuckDB's JSON node to its text); the
+                    // driver by ServiceLoader (DuckDB's JSON node to its text); the
                     // executor names no driver class. Carriage only
                     "DriverCells.java",
                     // C3b (2026-10-04): the execution side's ONE session owner, which
@@ -1489,9 +1488,9 @@ class JavaEvalLedgerTest {
                     // session tables named by their content's digest, the payload split into its elements verbatim
                     // (build-time model text, compared never computed) and the source read as its table
                     "DataSources.java",
-                    // 2026-11-10, L6c: the model's rows as a load's steps, inline or, above the 16 KB threshold, from
-                    // the load's bundle through a text staging table (their JSON text written once; no value computed)
-                    "ContentRows.java",
+                    // ContentRows.java (2026-11-10, L6c: the model's rows inline or from the load's bundle through a
+                    // text staging table) left the same day (A2): every table's rows a content blob of statements,
+                    // setup.LoadSteps
                     // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L4b (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md): the one
                     // maker of a system target and of the store's loads -- the catalog's ONCE load (its tables, the
                     // platform's rows), a model's registration (its rows less the platform's, compared as multisets of

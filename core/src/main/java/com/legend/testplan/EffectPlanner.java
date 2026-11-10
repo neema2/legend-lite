@@ -189,8 +189,8 @@ public final class EffectPlanner {
         com.legend.sql.NameQuoting quoting = Ddl.quoting(def, schema);
         com.legend.executionplan.DataRef.Csv csv = switch (ref.format()) {
             case com.legend.executionplan.DataRef.Csv c -> c;
-            case com.legend.executionplan.DataRef.Rows r -> throw new IllegalStateException("loadCsvToDbTable reads a"
-                    + " CSV file; a rows reference is the content store's: " + ref.name());
+            case com.legend.executionplan.DataRef.Statements st -> throw new IllegalStateException("loadCsvToDbTable"
+                    + " reads a CSV file; a statements reference is the content store's: " + ref.name());
         };
         // delivered as the program's database takes it (SqlDialect.csvLoad): read by its own reader where that reader
         // reads the format as upstream does (DuckDB's: the user's ruling of 2026-11-09), else the runner's cells by

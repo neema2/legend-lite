@@ -177,17 +177,19 @@ class ProjectRowsTest {
                 .filter(l -> l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE).toList();
         assertEquals(1, once.size(), String.valueOf(target.loads()));
         String json = com.legend.executionplan.PlanJson.write(plan);
-        String fill = ((com.legend.executionplan.ExecutionPlan.LoadStep.Statement) once.get(0).steps().get(
-                once.get(0).steps().size() - 1)).sql();
-        String written = com.legend.json.Json.toCompact(fill);
+        // the rows a content blob of inserts (A2, 2026-11-10), inside the plan's JSON while the bundle is small
+        com.legend.executionplan.ExecutionPlan.LoadStep.Statements rows =
+                (com.legend.executionplan.ExecutionPlan.LoadStep.Statements) once.get(0).steps().get(
+                        once.get(0).steps().size() - 1);
+        String written = com.legend.json.Json.toCompact(once.get(0).content().get(rows.ref().digest()));
         assertTrue(json.indexOf(written) >= 0, "the fill is written");
         assertEquals(json.indexOf(written), json.lastIndexOf(written), "the fill is written once");
         assertEquals(json, com.legend.executionplan.PlanJson.write(com.legend.executionplan.PlanJson.read(json)));
     }
 
     /** A project's Data above the inline threshold travels in the plan's bundle (L6c, 2026-11-10; census M1 DELETED):
-     *  its ONCE load reads the rows by a CONTENT reference, no statement holds them, and the server's database answers
-     *  every row. */
+     *  its ONCE load reads the rows as a content blob of statements by its digest (A2), the plan's JSON holds none of
+     *  them, and the server's database answers every row. */
     @Test
     void aLargeFillTravelsInTheBundle() throws Exception {
         StringBuilder rows = new StringBuilder("ID,NAME\\n");
@@ -201,8 +203,8 @@ class ProjectRowsTest {
                 .filter(l -> l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE).findFirst()
                 .orElseThrow();
         assertEquals(1, once.content().size(), "one blob: the table's rows");
-        assertTrue(once.steps().stream().anyMatch(s -> s instanceof com.legend.executionplan.ExecutionPlan.LoadStep.File f
-                && f.ref().namespace() == com.legend.executionplan.DataRef.Namespace.CONTENT), String.valueOf(once));
+        assertTrue(once.steps().stream().anyMatch(s -> s instanceof com.legend.executionplan.ExecutionPlan.LoadStep.Statements),
+                String.valueOf(once));
         com.legend.executionplan.PlanJson.Bundle bundle = com.legend.executionplan.PlanJson.writeBundle(plan);
         assertTrue(!bundle.json().contains("Party number 1999"), "no row in the plan's JSON");
         assertEquals(2000, names(large).size());

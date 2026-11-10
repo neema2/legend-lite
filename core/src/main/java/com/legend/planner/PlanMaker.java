@@ -864,14 +864,16 @@ public final class PlanMaker {
                         ConnectionPlans.of(oneDefinition(d)).specification());
         ExecutionPlan.Project named = project == null ? null : filled ? project.project()
                 : new ExecutionPlan.Project(project.project().key(), null);
-        List<ExecutionPlan.LoadStep> declared = setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect);
+        // the one owner of the steps' form (the doors, 2026-10-29): the body driver's seeds take the same
+        com.legend.setup.LoadSteps declared = CsvSeed.planned(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect);
         if (named != null && !declared.isEmpty()) {
             // the project's database is named by what it holds: its stores and Data rows, and the declared test data
             // each acquisition establishes on it -- so two editions whose test data differ are two databases, and a
             // query's own per-acquisition loads (the metamodel's tables) never name another (the re-audit's A-4,
             // 2026-11-09: until then exec keyed by every load, one kept database per query shape)
             named = new ExecutionPlan.Project(com.legend.cache.Hash.ofUtf8(named.key() + "/"
-                    + LoadPlanner.identity(ExecutionPlan.Load.Cadence.PER_ACQUISITION, declared)).hex(), named.refused());
+                    + LoadPlanner.identity(ExecutionPlan.Load.Cadence.PER_ACQUISITION, declared.steps())).hex(),
+                    named.refused());
         }
         ExecutionPlan.Database database = database(decided, named);
         List<String> session = new ArrayList<>(dialect.sessionSetup());
@@ -920,23 +922,12 @@ public final class PlanMaker {
                     // database is made (slice 5, 2026-11-09: refused here, at planning, it failed every query of the
                     // model, those on another database too -- the stress lanes' 5,795 bodies)
                     String refused = platform ? null : com.legend.setup.ProjectData.refusal(ctx);
-                    List<ExecutionPlan.LoadStep> data = new ArrayList<>();
-                    Map<String, String> content = new LinkedHashMap<>();
-                    if (!platform && refused == null) {
-                        // each statement as written, each table's rows inline or, above the inline threshold, from the
-                        // load's bundle (L6c, 2026-11-10: the markets fill is 1.87 MB)
-                        for (com.legend.setup.CsvSeed.Step step : com.legend.setup.ProjectData.fillSteps(ctx, dialect)) {
-                            switch (step) {
-                                case com.legend.setup.CsvSeed.Step.Sql sql ->
-                                        data.add(new ExecutionPlan.LoadStep.Statement(sql.text()));
-                                case com.legend.setup.CsvSeed.Step.Rows rows -> {
-                                    ContentRows planned = ContentRows.of(rows.load(), dialect);
-                                    data.addAll(planned.steps());
-                                    content.putAll(planned.content());
-                                }
-                            }
-                        }
-                    }
+                    // the platform's DDL, then each table's rows as a content blob of inserts (A2: the markets fill
+                    // is 1.87 MB; where its bytes travel is the plan writer's)
+                    com.legend.setup.LoadSteps fill = platform || refused != null ? com.legend.setup.LoadSteps.NONE
+                            : CsvSeed.planned(com.legend.setup.ProjectData.fillSteps(ctx, dialect), dialect);
+                    List<ExecutionPlan.LoadStep> data = fill.steps();
+                    Map<String, String> content = fill.content();
                     // the fill's identity digested once per model and kind (knowledge, eager): never per query (the M1
                     // correctness audit's note, 2026-11-09)
                     return new ProjectPlan(new ExecutionPlan.Project(key, refused), List.copyOf(data), Collections.unmodifiableMap(new LinkedHashMap<>(content)),
@@ -1162,14 +1153,4 @@ public final class PlanMaker {
         return first;
     }
 
-    /**
-     * A target's setup as the plan's steps, final for {@code type}: each statement of a connection's SQL (written in
-     * H2's spelling, as legend-engine's test data is) adapted to the database, and each table's rows either for the
-     * database's bulk loader ({@link SqlDialect#loadsRowsInBulk}) with the statements that stage them, or as the one
-     * INSERT the database runs. A table of no rows is no step.
-     */
-    private static List<ExecutionPlan.LoadStep> setup(List<CsvSeed.Step> steps, SqlDialect dialect) {
-        // the one owner of the steps' form (the doors, 2026-10-29): the body driver's seeds take the same
-        return CsvSeed.planned(steps, dialect).stream().map(CsvSeed.Planned::step).toList();
-    }
 }
