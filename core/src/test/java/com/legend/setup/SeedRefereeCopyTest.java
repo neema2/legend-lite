@@ -8,7 +8,6 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
 import com.legend.executionplan.DataRef;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -38,8 +37,8 @@ class SeedRefereeCopyTest {
 
     static CsvSeed.Planned planned(String csv) {
         ModelContext ctx = Compiler.compileModel(MODEL.formatted("testDataSetupCSV: '" + csv + "'"));
-        return CsvSeed.planned(CsvSeed.declaredSteps("x::RT", ctx, Databases.dialect(DatabaseType.DuckDB)),
-                Databases.dialect(DatabaseType.DuckDB), Databases.dialect(Databases.REPLAY_REFEREE));
+        return CsvSeed.planned(CsvSeed.declaredSteps("x::RT", ctx, Databases.dialect(Databases.PLATFORM)),
+                Databases.dialect(Databases.PLATFORM), Databases.dialect(Databases.REPLAY_REFEREE));
     }
 
     @Test
@@ -81,7 +80,7 @@ class SeedRefereeCopyTest {
         RowLoad load = new RowLoad(null, "U", com.legend.sql.NameQuoting.BARE, List.of("D"), java.util.Set.of(), 1,
                 List.of(List.of("2020-01-02"), List.of("2020-01-02 10:00:00")),
                 List.of(new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.DATE)));
-        String insert = load.statements(Databases.dialect(DatabaseType.DuckDB)).get(0);
+        String insert = load.statements(Databases.dialect(Databases.PLATFORM)).get(0);
         assertTrue(insert.contains("DATE '2020-01-02'") && insert.contains("'2020-01-02 10:00:00'")
                 && insert.toUpperCase(java.util.Locale.ROOT).contains("CAST("), insert);
     }
@@ -92,6 +91,6 @@ class SeedRefereeCopyTest {
                 List.of(List.of("1.0"), List.of("2.5")),
                 List.of(new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.INTEGER)));
         assertEquals(List.of("INSERT INTO U (ID) VALUES (1), (2.5);"),
-                load.statements(Databases.dialect(DatabaseType.DuckDB)));
+                load.statements(Databases.dialect(Databases.PLATFORM)));
     }
 }

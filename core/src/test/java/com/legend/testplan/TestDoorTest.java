@@ -460,7 +460,7 @@ class TestDoorTest {
      *  named by the digest of their statements: the two loads' keys differ as their statements do. */
     @Test
     void twoSeedsThatPrintAlikeHaveTwoKeys() {
-        var d = com.legend.database.Databases.dialect(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+        var d = com.legend.database.Databases.dialect(com.legend.database.Databases.PLATFORM);
         var one = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null, "t",
                 com.legend.sql.NameQuoting.BARE, java.util.List.of(), java.util.Set.of(), 1,
                 java.util.List.of(java.util.List.of("a, b"))), d);

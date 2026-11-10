@@ -180,6 +180,10 @@ final class DatabaseOwners {
             // data kind on each in-process database (and its Postgres leg) by design, its expectations each database's
             // reading of a file or a payload, as ConnectorsTest compares their connectors
             "core/src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A4 (rule 3): the catalog turn's failure, which compares
+            // a database that aborts its transaction on an error (DuckDB) with one that rolls back the statement alone
+            // (H2) by design, as RaiseRecoveryTest compares the connectors' recoveries
+            "core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count
