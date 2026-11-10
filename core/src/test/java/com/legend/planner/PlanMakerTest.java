@@ -141,8 +141,8 @@ class PlanMakerTest {
     private static final String GRAPH = "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)"
             + "->serialize(#{s::Item{id, name, price}}#)";
 
-    /** #81's final review, item 14k (9), 2026-11-10: Trino and BigQuery compute a WITH again at each read and have no
-     *  table to compute a shared relation once in, so one that picks its rows by no order (a limit with no sort,
+    /** #81's final review, item 14k (9), 2026-11-10: where a database computes a WITH again at each read and has no
+     *  table to compute a shared relation once in,  one that picks its rows by no order (a limit with no sort,
      *  here or in a WITH it reads) is refused; one that is the same rows each time, or sorted, stays a WITH. */
     @Test
     void aSharedRelationPickedByNoOrderIsRefusedWhereEachReadComputesItAgain() {
@@ -157,8 +157,11 @@ class PlanMakerTest {
         java.util.function.Function<com.legend.sql.SqlQuery, com.legend.sql.SqlWith> shared = body ->
                 new com.legend.sql.SqlWith(List.of(new com.legend.sql.SqlWith.Cte("__let0", body)),
                         com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
-        for (com.legend.sql.dialect.SqlDialect d : List.of(new com.legend.sql.dialect.Trino(),
-                new com.legend.sql.dialect.BigQuery())) {
+        // the databases that compute a WITH again at each read and have no table to stage one in, by their facts
+        List<com.legend.sql.dialect.SqlDialect> unstaged = Databases.relational().stream().map(Databases::dialect)
+                .filter(d -> d.writesEachReadOfAWithAgain() && !d.stagesSharedRelations()).toList();
+        assertFalse(unstaged.isEmpty(), "some database computes each read of a WITH again and stages none");
+        for (com.legend.sql.dialect.SqlDialect d : unstaged) {
             var refused = assertThrows(com.legend.error.NotImplementedException.class,
                     () -> PlanMaker.stagedShared(d, shared.apply(limited), target, 0));
             assertTrue(refused.getMessage().contains("picks its rows by no order"), refused.getMessage());
@@ -178,7 +181,7 @@ class PlanMakerTest {
         }
     }
 
-    /** #81's final review, item 14k (4), 2026-11-10: a shared relation staged as a table of the session (ClickHouse)
+    /** #81's final review, item 14k (4), 2026-11-10: a shared relation staged as a table of the session
      *  carries the WITH's other relations it reads -- staged without them, its statement named one it did not have. */
     @Test
     void aStagedRelationCarriesTheWithsItReads() {
@@ -192,12 +195,18 @@ class PlanMakerTest {
                 new com.legend.sql.SqlWith.Cte("__let0", com.legend.sql.SqlSelect.starOf(
                         new com.legend.sql.SqlSource.Cte("plain", "p", List.of())))),
                 com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
-        PlanMaker.Staged staged = PlanMaker.stagedShared(new com.legend.sql.dialect.ClickHouse(), with, target, 0);
-        assertEquals(1, staged.tables().size(), staged.tables().toString());
-        com.legend.sql.SqlQuery made = staged.queries().get(staged.tables().get(0));
-        assertInstanceOf(com.legend.sql.SqlWith.class, made, "the staged relation carries what it reads");
-        assertEquals(List.of("plain"), ((com.legend.sql.SqlWith) made).ctes().stream()
-                .map(com.legend.sql.SqlWith.Cte::name).toList(), "what it reads, and nothing it does not");
+        // the databases that stage a shared relation as a table of the session, by their facts
+        List<com.legend.sql.dialect.SqlDialect> staging = Databases.relational().stream().map(Databases::dialect)
+                .filter(d -> d.writesEachReadOfAWithAgain() && d.stagesSharedRelations()).toList();
+        assertFalse(staging.isEmpty(), "some database stages a shared relation");
+        for (com.legend.sql.dialect.SqlDialect d : staging) {
+            PlanMaker.Staged staged = PlanMaker.stagedShared(d, with, target, 0);
+            assertEquals(1, staged.tables().size(), staged.tables().toString());
+            com.legend.sql.SqlQuery made = staged.queries().get(staged.tables().get(0));
+            assertInstanceOf(com.legend.sql.SqlWith.class, made, "the staged relation carries what it reads");
+            assertEquals(List.of("plain"), ((com.legend.sql.SqlWith) made).ctes().stream()
+                    .map(com.legend.sql.SqlWith.Cte::name).toList(), "what it reads, and nothing it does not");
+        }
     }
 
     @Test

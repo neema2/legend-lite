@@ -589,15 +589,16 @@ public final class TsShow {
     }
 
     /** A name as the flat form writes it: bare where the reader reads it as this name, quoted otherwise -- a name of
-     *  lowercase letters, digits and underscores that is none of the reader's reserved words ({@link
-     *  com.legend.protocol.sql.SqlParser#reservedWord}) and none of the language's own ({@link #LANGUAGE_WORDS}). A
-     *  name with a capital is quoted, as Postgres folds an unquoted one (#81's final review, item 14k (3), 2026-11-10:
-     *  the list was the printer's own, short of the reader's, and {@code latest} was read as the value). */
+     *  letters, digits and underscores that is none of the reader's reserved words ({@link
+     *  com.legend.protocol.sql.SqlParser#reservedWord}) and none of the language's own ({@link #LANGUAGE_WORDS}) (#81's
+     *  final review, item 14k (3), 2026-11-10: the list was the printer's own, short of the reader's, and {@code
+     *  latest} was read as the value). A capital stays bare: the reader takes an unquoted name exactly before it takes
+     *  one equal ignoring case (TsToPure.resolve), so {@code CLOSE} reads back as itself. */
     static SqlAst.Ident ident(String name) {
-        boolean bare = !name.isEmpty() && (Character.isLowerCase(name.charAt(0)) || name.charAt(0) == '_')
-                && name.chars().allMatch(ch -> ch < 128 && (Character.isLowerCase(ch) || Character.isDigit(ch)
-                        || ch == '_'))
-                && !com.legend.protocol.sql.SqlParser.reservedWord(name) && !LANGUAGE_WORDS.contains(name);
+        boolean bare = !name.isEmpty() && (Character.isLetter(name.charAt(0)) || name.charAt(0) == '_')
+                && name.chars().allMatch(ch -> ch < 128 && (Character.isLetterOrDigit(ch) || ch == '_'))
+                && !com.legend.protocol.sql.SqlParser.reservedWord(name)
+                && !LANGUAGE_WORDS.contains(name.toLowerCase(java.util.Locale.ROOT));
         return new SqlAst.Ident(name, !bare, NONE);
     }
 

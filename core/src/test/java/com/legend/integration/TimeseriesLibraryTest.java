@@ -334,13 +334,15 @@ class TimeseriesLibraryTest {
         assertNotNull(layered.findClass("my::Priced").orElse(null));
         // a relation mapping whose ~func is the library's function
         String rowsLibrary = """
+                ###Relational
+                Database lib::LDB
+                (
+                  Table ROWS ( symbol VARCHAR(8), close DOUBLE )
+                )
                 ###Pure
                 function lib::rows(): meta::pure::metamodel::relation::Relation<(symbol:String, close:Float)>[1]
                 {
-                  #TDS
-                    symbol, close
-                    AAA, 1.5
-                  #
+                  #>{lib::LDB.ROWS}#
                 }
                 """;
         String rowsModel = """
@@ -382,7 +384,8 @@ class TimeseriesLibraryTest {
         assertEquals(Compiler.query(Compiler.compileModel(enumModel + "\n" + library), enumQuery).plan("my::RT").sql(),
                 Compiler.query(Compiler.compileModel(enumModel, library), enumQuery).plan("my::RT").sql(),
                 "an enumeration mapping of the library's enumeration: the same SQL");
-        String rowsWithStore = STORE + rowsModel + runtime.formatted(backend.connectionBody(), "my::RMap");
+        String rowsWithStore = rowsModel + runtime.replace("ts::DB", "lib::LDB")
+                .formatted(backend.connectionBody(), "my::RMap");
         String rowsQuery = "|my::Row.all()->project(~[s: x|$x.symbol, c: x|$x.close])";
         assertEquals(Compiler.query(Compiler.compileModel(rowsWithStore + "\n" + rowsLibrary), rowsQuery)
                         .plan("my::RT").sql(),

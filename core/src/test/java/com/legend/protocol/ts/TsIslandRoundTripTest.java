@@ -77,10 +77,10 @@ class TsIslandRoundTripTest {
     @Test
     void aNameShowTsWritesReadsBackAsThatName() {
         // #81's final review, item 14k (3), 2026-11-10: Show #TS writes a column's name bare only where the reader
-        // reads it as that column -- the reader's reserved words (lateral, left, ...), the language's own (latest,
-        // the value), a capital (Postgres folds it) are quoted
-        for (String name : java.util.List.of("close", "x1_y", "year", "Close", "lateral", "left", "latest", "window",
-                "whole", "my col", "über")) {
+        // reads it as that column -- the reader's reserved words (lateral, left, ...) and the language's own (latest,
+        // the value) are quoted; a capital stays bare, read back exactly
+        for (String name : java.util.List.of("close", "x1_y", "year", "Close", "CLOSE", "lateral", "left", "latest",
+                "Latest", "window", "whole", "my col", "über")) {
             SqlAst.Ident id = TsShow.ident(name);
             String written = TsPrinter.print(new TsAst.Query(java.util.List.of(), java.util.List.of(new TsAst.Item(
                     new SqlAst.ColumnRef(java.util.List.of(id), id.pos()), new SqlAst.Ident("y", false, id.pos()),
@@ -90,8 +90,8 @@ class TsIslandRoundTripTest {
             TsAst.Query read = TsParser.parse(written);
             SqlAst.ColumnRef back = (SqlAst.ColumnRef) read.items().get(0).expr();
             assertEquals(name, back.parts().get(0).text(), written);
-            assertEquals(!java.util.Set.of("close", "x1_y", "year").contains(name), back.parts().get(0).quoted(),
-                    written);
+            assertEquals(!java.util.Set.of("close", "x1_y", "year", "Close", "CLOSE").contains(name),
+                    back.parts().get(0).quoted(), written);
         }
     }
 
