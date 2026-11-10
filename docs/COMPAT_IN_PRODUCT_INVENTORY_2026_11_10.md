@@ -23,7 +23,8 @@
 | **K6** | the engine-compatible writers and the engine vocabulary inside `result/CellText` | 3 (§6) | product: the server's `pure/v1` route; test: PCT, service tests | none (move only) | none (P2, Clause 7 A1) |
 | **K7** | exec: the engine's per-statement trace comment, the legacy executor's decode rules | 2 (§7) | both: every query | none (D3, P3) | none here (D3, P3) |
 | **K8** | compile-time and server messages in legend-engine's words (`Can't find ...`, the `pure/v1` error JSON, `Missing external parameter(s)`) | ~15 (§8) | both | the message a product caller reads | Q6 |
-| **not compat** | Pure's print forms as the ANSWER a function gives (`toString`, `format`, `makeString`, lite's CSV/JSON writers), the verdict canon of the database judge | listed in §10 so the line is visible | | | Q7 (confirm the line) |
+| **K9** (added) | Pure's EXACT print forms as a function's answer (`toString`, `format`, `makeString`, a relation's text, `toCSV`, lite's CSV/JSON/Arrow tokens): compatibility by the user's ruling of 2026-11-10 (§13) | 14 (§13) | both | yes, for users of lite's own outputs: §13.4 | Q10-Q15 |
+| **not compat** | the database judge's verdict canon (test path) | §10 | | | |
 
 Firing was **not measured by a counter**: this container has no Bazel and a cold setup (the LLVM toolchain, the
 distdir, a core build) is well over the hour the brief allows (`docs/CLOUD_SESSIONS.md`). The static proxy used
@@ -206,6 +207,11 @@ sites 1-6 are inside K7's `JdbcDecode`/`RowDecode`. A D1 move of K6 carries P3 s
 
 ## 10. Not compatibility: where the line is drawn
 
+> **Superseded in part (2026-11-10, the user's ruling relayed by the orchestrator):** "for toString and format make
+> string etc we should pick something very very simple and easy for product to do on all databases nothing
+> complex". Pure's exact print forms are therefore COMPATIBILITY (K9, §13), and Q7 below is answered by that ruling.
+> What stays below as not compatibility is the database judge's verdict canon, which is the test road's own.
+
 Pure's print forms where they ARE the function's answer stay in the product: they are Pure's language semantics,
 which lite implements (upstream-fidelity tenet), not a copy of upstream's output text.
 
@@ -259,6 +265,149 @@ column does" (the corpus's `Quantity not in range: 1000000`). In the product, Pu
 - `upstream-reads.txt`: every upstream line quoted above, and the PCT assert counts;
 - `census.sh` and its output `census-output.txt`: the mechanical half (every SQL raise and its literal, every engine
   dialect builder, the comments naming upstream's text), re-runnable on any commit;
+- `print-probe.py` and `print-probe-output.md`: the databases' own text per type (DuckDB, SQLite, Postgres; §13.2);
 - not done: a firing counter on `pct_duckdb` and `//spec:corpus_duckdb` (no Bazel here; P3's patch
   `docs/lean-product-homework/p3count.patch.txt` is the pattern to reuse, with one arm per K1 kind in
   `RaisedErrors.unwrap`).
+
+## 13. K9: the product's print forms (added 2026-11-10, after the user's ruling on print forms)
+
+The ruling (relayed by the orchestrator): the product's `toString`, `format`, `makeString` and the like are "something
+very very simple and easy for product to do on all databases nothing complex"; Pure's exact print forms are
+compatibility and go to the edge. This section lists every place the product prints a value as text, what it does
+today, a simple per-type form, and the answers that change.
+
+### 13.1 Every print site, and whether it emulates Pure today
+
+| # | where | what it prints today | emulates Pure? |
+|---|---|---|---|
+| P1 | `lowering/Scalars.java:2264-2290` (`toString`) | a date LITERAL: its static text from `toEngineString` plus `+0000` for a DateTime (`dateLiteralPrint`, `:3461-3467`); a DateTime value: `LiteralSpelling.dateTimeText` (`lowering/LiteralSpelling.java:596-610`: ISO with `T`, the fraction's nine digits with trailing zeros cut, `+0000`); a Float: `FLOAT_PRINT`; everything else `pureToString` | yes |
+| P2 | `lowering/Scalars.java:2751-2862` (`pureToString`) | Float through `FLOAT_PRINT`; Boolean through `BOOL_TO_TEXT` (`true`/`false`); Variant as canonical compact JSON; a user-class instance as `@_<id>`; an `Any` slot by JSON extraction, a nested list as `[a, b]`; a type value as its simple name; a mixed list as Pure's `[e1, e2]` (`TaggedLists.print`), a mixed Decimal with its `D`; Integer, Decimal, String, StrictDate the plain `CAST(... AS VARCHAR)` | yes for Float, Boolean, the list and instance forms; no for Integer/Decimal/StrictDate |
+| P3 | `sql/dialect/FloatPrintText.java:96-177` and the twelve dialects' `FLOAT_PRINT` arms (DuckDb:548, H2:511, Postgres:751, SQLite:1493, Trino:890, ClickHouse:1653, Databricks:1036, BigQuery:1490, MongoDb:1172, MariaDb:1932; Snowflake's own at `:1357, 1825-1840`) | Pure's Float text in SQL: shortest digits, never an exponent, a `.0` on whole values, Java's `NaN`/`Infinity`; the portable form reads the value's text about nine times (a `1.5 + 2.25` statement on Snowflake was 48 KB before Snowflake got its own arm, `LiteralSpelling.java:473-477`) | yes: the heaviest single print form |
+| P4 | `lowering/LiteralSpelling.java:479-488` | a Float over an integral store column: the integer, as legend-engine (Q9) | engine, not Pure |
+| P5 | `lowering/Scalars.java:2205-2240, 3279-3372` (`format`) | `%f` → `FLOAT_PRINT`; `%s` of a number → `pureToString`; `%s`/`%t` of a date → Pure's date text (`datePrintOf`); `%t{pattern}` → `STRFTIME` with Java's date pattern translated, a `[Zone]` prefix shifted in SQL with a computed `+hhmm`; `%r` → `Repr.of` (a string quoted with `\`-escapes, a date with its `%` prefix: `lowering/Repr.java:48-52`); `%0<w>d` → Pure's sign-after-padding (`signedZeroPad`) | yes |
+| P6 | `lowering/Scalars.java:960-998` (`makeString`) | each element `PureSql.elementText` = the database's `CAST(... AS VARCHAR)` (JSON-unquoted for variant-carried elements), a NULL element `TDSNull` (`sql/SqlExpr.java:36`), except `''` for an optional scalar | the element text is the database's (simple already); the `TDSNull` is legend-engine's TDS null cell |
+| P7 | `lowering/Scalars.java:1009+` (`joinStrings`) | Strings only (Pure's signature): no printing | no |
+| P8 | `lowering/Scalars.java:282-297` (`plus` over Strings) | Strings only: Pure has no implicit number-to-text `+`; a number must go through `toString` (P1) | no |
+| P9 | `lowering/Render.java:364-650` (`toString` of a relation, `tdsString`, `tdsCell`) | Pure's TDS text of a relation: header, `'`-quoted strings containing `{` or `[`, dates at day, DateTimes with at least three fraction digits (`LiteralSpelling.dateTimeTextTds`, `:623+`, legend-engine's own test), Floats by Pure's text | yes |
+| P10 | `lowering/Render.java:52-300, 750-830` (`toCSV`) | legend-engine's `meta::relational::tests::csv::toCSV` text: `yyyy-MM-dd`, `yyyy-MM-dd HH:mm:ss`, RFC 4180 escaping, `TDSNull` under `renderTdsNull` | engine |
+| P11 | `result/CellText.java:35-78, 273-354` (`pure`), `:199-232` (`pureJson`): lite's CSV (`CsvWriter.java:50`), JSON rows (`JsonRowsWriter.java:72`), Arrow's text slots (`ArrowWriter.java:151, 205, 214, 422-423`) | Float by Pure's text (`pureFloat`: `1.0E-4` → `0.0001`), a Decimal under a Float column the same, dates by written precision with `+0000` from the minute, lists `[a, b]`, pairs `<a, b>`, maps `{k=v}`, instances `@_<id>` | yes (Java, at the boundary) |
+| P12 | `result/CellText.java:259-261` (`presentedName`) | pivot names `'a__|__b'` in every writer | engine (Q8) |
+| P13 | `sql/dialect/MongoDb.java:650-652, 699-720, 761-763, 847, 1349-1356, 1408-1412, 1505-1510` | MongoDB's pipeline spells Pure's Float, date (`%Y-%m-%dT%H:%M:%S.%L+0000`) and `format` texts itself | yes |
+| P14 | `sql/dialect/H2.java:445-448, 1095-1132`, `MariaDb.java:1774-1797`, `SQLite.java:823-824, 1179-1180, 1353-1354`, `ClickHouse.java:1556-1562, 1970`, `Snowflake.java:1310-1313, 1796-1815`, `BigQuery.java:1418, 1447-1451` | each dialect's repairs so its own text matches Pure's or DuckDB's: `true`/`false` where the database prints `TRUE` or `1`, a double's text "as DuckDB prints it", a timestamp's trailing zeros dropped, a DECFLOAT in plain digits | yes (Pure, or DuckDB as the reference) |
+
+### 13.2 What the databases print by themselves (measured on three of the twelve)
+
+`docs/compat-inventory-homework/print-probe.py`, output `print-probe-output.md` (DuckDB 1.4.4, SQLite 3.53.1, Postgres
+16, each `CAST(<value> AS VARCHAR/TEXT)`, run 2026-11-10 in this container). The other nine databases (H2, MariaDB,
+MySQL, Trino, ClickHouse, Snowflake, Databricks, BigQuery, MongoDB) are not available here: what is said of them below
+is read from today's dialect code, not measured.
+
+| value | DuckDB | SQLite | Postgres |
+|---|---|---|---|
+| Float 1.0 | `1.0` | `1.0` | `1` |
+| Float 0.1+0.2 | `0.30000000000000004` | `0.30000000000000004` | `0.30000000000000004` |
+| Float 1e-5 | `1e-05` | `1.0e-05` | `1e-05` |
+| Float 1e20 | `1e+20` | `1.0e+20` | `1e+20` |
+| Float -0.0 | `-0.0` | `0.0` | `-0` |
+| Float NaN / Infinity | `nan` / `inf` | (no NaN) / `Inf` | `NaN` / `Infinity` |
+| Decimal(10,2) 1.50 | `1.50` | `1.5` (no decimal type) | `1.50` |
+| Boolean true | `true` | `1` | `true` |
+| StrictDate | `2024-01-02` | `2024-01-02` | `2024-01-02` |
+| DateTime | `2024-01-02 10:30:00.123` | the same | the same |
+| DateTime through `strftime`/`to_char` with `T` | `2024-01-02T10:30:00.123` | the same | the same |
+
+The finding: the three agree on digits (shortest round trip) but not on the Float's TEXT: a whole value (`1.0` against
+`1`), the exponent's spelling (`1e-05`, `1.0e-05`), negative zero and the non-finite names. "The database's own cast"
+is simple, but it does not give one answer across databases for Float.
+
+### 13.3 A simple product form per Pure type
+
+| Pure type | proposed product form | how, on every database | where it is not simple | the edge keeps Pure's exact form by |
+|---|---|---|---|---|
+| Integer | plain digits | `CAST(x AS VARCHAR)` | nowhere | nothing to do (same as Pure) |
+| Decimal | plain digits at its declared scale (`1.50`) | `CAST(x AS VARCHAR)` | SQLite (no decimal type: `1.5`), H2's DECFLOAT (exponent form, today repaired by `H2.java:1127-1132`) | Pure prints a Decimal without its scale's trailing zeros as written (`1.50` for `1.50D`): the edge re-spells from the typed value |
+| Boolean | `true` / `false` | `CASE WHEN x THEN 'true' ELSE 'false' END` (one portable form; no database-specific arm) | nowhere | nothing (same as Pure) |
+| StrictDate | `YYYY-MM-DD` | `CAST(x AS VARCHAR)`, or `strftime`/`to_char` `%Y-%m-%d` | nowhere measured | nothing (same as Pure) |
+| DateTime | `YYYY-MM-DDTHH:MM:SS` plus `.fff` when the value has a fraction, no zone suffix (the platform's DateTimes are UTC) | the database's ISO format function (`strftime`, `to_char`, `date_format`, `formatDateTime`, `$dateToString`) | the fraction: a fixed three digits is one call everywhere; "the digits the value has" needs a trim, which is what today's `dateTimeText` does (an `RTRIM` of nine digits). ClickHouse prints a DateTime64's column scale | Pure writes `+0000` from the minute and the precision as written (S118, S121): the edge appends and re-spells |
+| Float | Option A: the database's own `CAST(x AS VARCHAR)`, ruled per database (Postgres `1`, DuckDB `1.0`, SQLite `1.0e-05`). Option B: one portable rule, scientific always (`1.0E0`-style) via a format function, which some databases lack. Option C: shortest digits with a forced `.0`, today's `FLOAT_PRINT` (not simple) | A is one cast | A is not one answer across databases (§13.2); B has no common function; C is the heavy form the ruling retires | the edge re-spells the decoded double with legend-pure's formatter (`DecimalFormat("0.0")`, the text `upstream-reads.txt` cites from `docs/result-boundary-homework/README.md` §7) |
+| String | as is | nothing | nowhere | nothing |
+| Enum | the value's name | the carrier is the name | nowhere | nothing |
+| List, Pair, Map, instance, Variant, a relation | no product text form: a structure is an answer (rows, JSON), not a string. `toString` of these is refused by name in the product, or prints the JSON the database builds (Variant) | `to_json` where the database has it | MongoDB, SQLite build JSON differently | the edge's Pure forms (`[a, b]`, `<a, b>`, `{k=v}`, `@_<id>`, the TDS text) |
+| `format` | `%s` takes the product form above; `%d` and `%f` the database's own number formatting (`printf`/`format`/`to_char`); `%t{pattern}` the database's date format function over a translated pattern; `%r` and Pure's sign-after-padding `%0<w>d` are Pure-only | `printf`/`format`/`to_char` | `%r` and Pure's padding rule are not simple anywhere | the edge implements Pure's directive set |
+| `makeString` | each element's product form, joined; a NULL element as `''` | `string_agg`/`listagg` over the product form | nowhere | the edge prints `TDSNull` for a TDS cell |
+
+Recommendation: Integer, Decimal, Boolean, StrictDate, String and Enum as above (they are Pure's text already, except
+Decimal on two databases). For DateTime, the simplest single call is a fixed three-digit fraction always
+(`2024-01-02T10:30:00.000`); printing the fraction only when it is non-zero is already a `CASE`. For Float the user
+picks between A (simplest; the text differs per database) and a fixed portable rule; the probe says no one cast agrees.
+
+### 13.4 Answers that change for users of lite's own outputs (before → after, for one sitting)
+
+Assuming the recommended forms (Float option A, DateTime with a fixed three-digit fraction and no zone):
+
+| expression | today (every database) | after, DuckDB | after, Postgres | after, SQLite |
+|---|---|---|---|---|
+| `1.0->toString()` | `1.0` | `1.0` | `1` | `1.0` |
+| `0.00001->toString()` | `0.00001` | `1e-05` | `1e-05` | `1.0e-05` |
+| `1e20->toString()` | Pure's `100000000000000000000.0` | `1e+20` | `1e+20` | `1.0e+20` |
+| `-0.0->toString()` | Pure's `0.0` (S117: lite's own outputs keep the sign) | `-0.0` | `-0` | `0.0` |
+| `%2024-01-02T10:30:00->toString()` | `2024-01-02T10:30:00+0000` | `2024-01-02T10:30:00.000` | the same | the same |
+| `%2024-01-02T10:30:00.5->toString()` | `2024-01-02T10:30:00.5+0000` | `2024-01-02T10:30:00.500` | the same | the same |
+| `format('%s', [%2024-01-02T10:30:00])` | `2024-01-02T10:30:00+0000` | as `toString` | | |
+| `format('%r', ['a'])` | `'a'` | refused in the product (edge only), or `a` | | |
+| `[1, 'a']->toString()` (a mixed list) | `[1, a]` | refused by name in the product (a structure), edge only | | |
+| `$person->toString()` (no declared toString) | `@_<id>` | refused by name in the product, edge only | | |
+| a relation's `toString()` | Pure's TDS text | refused by name in the product (an answer is rows), edge only | | |
+| `[1, []]->makeString(',')` with a NULL cell | `1,TDSNull` | `1,` | | |
+| lite's CSV/JSON cell of a Float `1.0E-4` | `0.0001` | `0.0001` | `0.0001` | `0.0001` |
+| `1e15->toString()` | `1000000000000000.0` | `1000000000000000.0` | `1e+15` | `1000000000000000.0` |
+| `1e16->toString()` | `10000000000000000.0` | `1e+16` | `1e+16` | `10000000000000000.0` |
+| lite's CSV/JSON cell of a DateTime | `2024-01-02T10:30:00+0000` | `2024-01-02T10:30:00.000` | | |
+| Integer, Decimal at scale, Boolean, StrictDate, String | unchanged | unchanged | Decimal unchanged; Boolean unchanged | Decimal `1.5` for `1.50` |
+
+PCT, the corpus and `pure/v1` keep today's text through the edge, which then owns `FloatPrintText`,
+`FloatCanonText`'s print role, `LiteralSpelling`'s print forms, `Repr`, `TaggedLists.print`, `Render`'s TDS text and
+`toCSV`, `CellText.pure`'s Pure forms and the dialects' P14 repairs. What D1 must decide (Q15): whether the edge's
+Pure form is spelled in SQL by the edge's own rule (the database still computes) or in Java at the edge's boundary
+(G6 allows small Java formatting at the edge only).
+
+### 13.5 Questions on print forms
+
+- **Q10.** Float's product text: A (each database's own cast, ruled per database, answers differ as §13.4), or one
+  portable rule? Name the rule if portable.
+- **Q11.** DateTime's product text: `YYYY-MM-DDTHH:MM:SS.fff` with a fixed three-digit fraction (one call everywhere,
+  sub-millisecond digits dropped from the TEXT, not the value), or the fraction's own digits trimmed (a `CASE`); and
+  the zone: none, `Z`, or `+0000`?
+- **Q12.** Structures (lists, pairs, maps, instances, a relation) have no product `toString`: refused by name in the
+  product and printed only at the edge, or a JSON text from the database?
+- **Q13.** `format`: the product keeps `%s %d %f %t{}`, and `%r` and Pure's `%0<w>d` sign rule are edge only?
+- **Q14.** `makeString`'s NULL element: `''` in the product, `TDSNull` at the edge?
+- **Q15.** At the edge, is Pure's exact text spelled in SQL (the database computes, today's machinery moved) or in
+  Java over the decoded value (simpler, allowed at the edge by G6)?
+
+## 14. Safe variants (the user's idea of 2026-11-10: a typed error by default, explicit safe variants as a product feature)
+
+Each raises by default, as legend-pure does (K1); the safe variant returns the empty value instead, typed `[0..1]`.
+These would be lite's own functions (a new name, not a change to a Pure function), so each is a lite addition for the
+register, not a divergence. The list is of functions whose K1 guard exists today:
+
+| function (raises today) | safe variant (a name for the user to choose) | typing |
+|---|---|---|
+| `divide(Number, Number)` (and the Integer pair, Q2) | `divideOrEmpty` | `Float[0..1]` / `Decimal[0..1]` by the operands' kinds (as `divide`) |
+| `rem(Number, Number)`, `mod`, `legend_lite::quotient` | `remOrEmpty`, `quotientOrEmpty` | the operands' kind `[0..1]` |
+| `sqrt(Number)` | `sqrtOrEmpty` | `Float[0..1]` |
+| `at(T[*], Integer)` | `atOrEmpty` | `T[0..1]` |
+| `toOne(T[*])` | already has one: `first(T[*]):T[0..1]` (Pure's own); none needed | |
+| `toOneMany(T[*])` | none needed: the empty list is the safe answer of the plain list | |
+| `date(y, m, d, ...)` with components out of range | `dateOrEmpty` | `Date[0..1]` (the constructor's kind) |
+| `cast(@T)` where no lane succeeds | none: this is a compile-time-known impossibility; it should be a compile error, not a run guard | |
+| `hour`/`minute`/`second`/`dayOfMonth` of a date without the part | `hourOrEmpty` (and the others) | `Integer[0..1]` |
+| `range(start, stop, step)` with step 0 | none needed: the caller passes a step | |
+| `slice` with inverted bounds | none needed (an empty list is not Pure's answer; the guard should stay a raise) | |
+| `bitShiftLeft/Right` beyond 62 | none needed | |
+| the parse family (`parseInteger`, `parseFloat`, `parseDecimal`, `parseDate`, raised by the databases, K3) | `parseIntegerOrEmpty` and siblings | `Integer[0..1]`, etc. |
+
+**Q16.** Which of these does the user want, under which names (`OrEmpty`, `try...`, `safe...`), and should they be in
+the platform namespace (`meta::pure::functions::...`, which is legend-pure's) or lite's (`legend_lite::...`)? The
+timeseries session's needs come to the orchestrator separately.
