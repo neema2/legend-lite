@@ -22,7 +22,13 @@ None of these is a design question. They are gaps of coverage and of failure han
 - the catalog (L4);
 - the fixture deletion (L5).
 
-The delivery part is rebuilt once, to the rules below, and replaces the audit-patch work rather than adding to it.
+**This is not a rewrite.** The consolidation on `claude/total-wall-delivery-wip` already has the right shape (§2). What
+was missing is what this document adds:
+- a test matrix across every door, data kind and database, written first (§9);
+- failure and lifetime rules every load obeys (§5-§6);
+- a guard that data never appears in SQL text (§8).
+
+The audits' fixes are then made test-first against that matrix, so they are the design's work, not patches on top.
 
 ## 1. The model, in the user's words
 
@@ -63,13 +69,13 @@ The delivery part is rebuilt once, to the rules below, and replaces the audit-pa
 
 ## 3. The one seam on the planning side
 
-- **`LoadPlanner` is the only builder** of `Load` and of a data step. It has two entry points:
-  - `rows(table, declared columns, rows, cadence, target)` covers test data CSV, `###Data`, the catalog, the
-    `from()` seeds and `data:` elements;
-  - `file(table, ref, format, cadence, target)` covers `loadCsvToDbTable`.
-
-  Each picks its delivery from the target's dialect. Today's other builders (`CsvSeed`, `Ddl`, `RowLoad`,
-  `SystemCatalog`, `DataSources`, `EffectPlanner`) call these two and build no step themselves.
+- **One delivery choice, in one place.** `RowLoad` already funnels the model's rows: test data CSV, `###Data`, the
+  catalog, the `from()` seeds and `data:` elements. `EffectPlanner` handles a `loadCsvToDbTable` file. The dialect's
+  delivery (`Reads` or `Bound`, with or without the staged bulk path) and its failure hygiene (§5) are chosen in one
+  routine that both use.
+  - Any builder that makes a data step outside that routine is moved onto it.
+  - Builders that already go through it are left alone: no blanket rewiring.
+  - The ArchUnit rule (§8) pins who may construct a data step.
 - **`data:` sources are rewritten at one place that every statement passes:** read, write, program and staged lets,
   test-body statements, and the plan a `generatePlan`/`arrowPlan` caller renders. `TypedQuery.plan` renders from the
   execution plan, never from the lowered query that still holds the source.
@@ -79,13 +85,11 @@ The delivery part is rebuilt once, to the rules below, and replaces the audit-pa
 
 ## 4. The one path on the run side
 
-- **`RunInputs(stores, admission)`** is handed to every send path:
-  - `send`;
-  - `valuesOf`, which update, check, typed rows and keyed probes use;
-  - `expand` and `bindOnce`;
-  - `ProgramRunner` and `TestRunner`.
-
-  The test door and the server get it as a run input. No path calls `value()` without it.
+- **A `file:` source's location is plan data, bound on every send path** (`send`, `valuesOf`, `expand`, `bindOnce`,
+  `ProgramRunner`, `TestRunner`). It is taken straight from its `Binding.Source`, with no new run input to thread: any
+  file loads, as the user ruled.
+  - The optional fence (`SourceAdmission`) is consulted only where a host configured one. Off by default.
+  - The `stores` for a `RESOURCE` file are already the load runner's input.
 - **`PlanRunner.seed` runs each step:**
   - `Statement`: sent.
   - `File`: bytes resolved (the bundle for `CONTENT`, `stores` otherwise) and verified, then delivered:
@@ -117,8 +121,12 @@ The delivery part is rebuilt once, to the rules below, and replaces the audit-pa
 - **A kept, shared session** (the server's project database, a lane's database) serves one request at a time: a
   per-session lock is held from the request's loads to its last row. This makes explicit what the single-threaded
   HTTP dispatcher does today.
-- **Kept databases are bounded.** They are keyed by connection, project and `ONCE` loads, never by a query's own
-  loads. One per distinct payload accumulating for the process is a defect, not a cache.
+- **A kept database is never made per payload.** It is keyed by connection, project and `ONCE` loads, never by a
+  query's own loads.
+  - A `data:` payload's table lives on the request's session and is dropped with it, so nothing accumulates and no
+    eviction policy is needed (the user, on the catalog: "we have already lost if we are designing cache eviction
+    strategies").
+  - One kept database per distinct payload, which `openShared` does today, is the defect to remove.
 
 ## 7. Per database
 
@@ -204,24 +212,29 @@ cell's test). The matrix lives in one test class per door, parameterized by kind
 ## 11. Build order (DuckDB/H2/SQLite in-process loop; Postgres unprivileged where it is touched)
 
 1. **The matrix and the sentinel test, first and red.** The matrix's failing cells are the to-do list.
-2. **`RunInputs`** through every send path; `SourceAdmission` default off.
-3. **The one builder and the one delivery:**
-   - `LoadPlanner.rows` and `LoadPlanner.file`;
+2. **`file:` locations bound on every send path,** from the plan; the fence default off.
+3. **The one delivery routine:**
    - the `Bound` delivery with the bundle, from the consolidation;
-   - unsized casts.
+   - unsized casts;
+   - any stray builder moved onto it.
 4. **Failure semantics and lifetime:**
    - atomic loads;
    - staging hygiene;
    - the DuckDB turn restart;
    - the session lock;
-   - bounded kept databases.
+   - no kept database per payload.
 5. **The doors seam:** `data:` rewritten for every statement; `TypedQuery.plan` from the execution plan;
    `JsonSourceFrame`'s literal path deleted.
 6. **CSV under option (a):** `Bound` atomic and chunked, `max_line_size`, the one DuckDB SQL try.
 7. **The two parameter defects.**
 
-Then **the checkpoint audit** (tenets, then correctness, each asking first whether the matrix and the sentinel are
-green and the census is honest). Every finding is fixed before the next phase.
+Then **the delivery checkpoint**, in three parts:
+- **One lane round on every database.** This is an exception to "databases only at the end", because bound inserts
+  replace literal INSERTs for every database's test data: the riskiest cross-database change of the program.
+- **A timing check:** `corpus_duckdb`, `corpus_h2` and both stress suites against their last times, so the new path does
+  not slow every test in silence.
+- **The checkpoint audit:** tenets, then correctness. Each asks first whether the matrix and the sentinel are green and
+  the census is honest. Every finding is fixed before the next phase.
 
 ## 12. The scoreboard (on every push)
 
