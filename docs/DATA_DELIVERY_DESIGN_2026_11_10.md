@@ -271,7 +271,7 @@ Deleted from the plan:
   `Compiler.NO_RUNTIME`. **Lite's limit, not upstream's:** a query whose `from()`s name several runtimes, given none, is
   refused by name (upstream routes each `from()`'s expression on its own runtime: `routing.pure`'s `from` processors,
   lines 589 and 692, each setting its own routing strategy; lite's plan runs on one session): register row S187,
-  pending the user's ruling. So a `from()`'s
+  ruled by the user 2026-11-10 ("Agree with all 3"); a query across runtimes is on §9's later list. So a `from()`'s
   runtime's test data is the plan's own: its target's setup on the product's doors, a seed on the test door.
 - **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
   (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
@@ -491,6 +491,10 @@ None: D is fully ruled (§6.1, 2026-11-10).
 - **Effort:** the worker runs at the effort the user set.
 
 ## 9. Later, outside this program (recorded so they are not lost)
+
+- **A query across runtimes** (the user's ruling of 2026-11-10, S187): legend-engine routes each `from()` on its own
+  runtime; lite plans one target per query and refuses several runtimes by name on every door. Supporting it is a
+  later feature: a plan of several targets, each its own session.
 
 - Time zones outside an `execute(...)` frame (S183, a known gap; the user: "later").
 - A nanosecond Pure type (the user: "later").
