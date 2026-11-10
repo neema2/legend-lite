@@ -93,8 +93,9 @@ public final class PlanMaker {
      *  server's run of it ({@code Execution.runOnProjectDatabases}), its Data rows the database's making -- or the
      *  database itself (every other run; the full audit, 2026-11-09: every product plan carried the project's whole
      *  Data fill, and a model whose fill could not be written was refused on every road). */
-    public static ExecutionPlan plan(TypedQuery query, @Nullable String runtime, Set<Feature> features,
+    public static ExecutionPlan plan(TypedQuery query, @Nullable String given, Set<Feature> features,
             boolean projectDatabase) {
+        String runtime = runtimeOf(query, given);
         // THE QUERY DOOR (B6, B12 item 1): a test's kinds refused by name before anything is planned
         QueryDoor.refuseTestOnly(query, runtime);
         List<QueryParameters.Declared> declared = query.parameters();
@@ -102,9 +103,30 @@ public final class PlanMaker {
         if (query.writes()) {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
+            Programmed p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS, false,
+                    projectDatabase);
+            if (p.readsSystem()) {
+                // a program reading the system metamodel store alone runs on the process's CATALOG, as such a query
+                // does (A5, 2026-11-10: until then its statements read the store from the program's own database,
+                // which holds none of it); beside another source, or off an in-process engine, refused by name
+                SqlDialect dialect = decide(query.context(), runtime).dialect();
+                if (p.readsOther()) {
+                    throw new NotImplementedException("a program reading the system metamodel store beside another"
+                            + " source, or writing a store, on " + dialect.getClass().getSimpleName() + ": the"
+                            + " process's catalog answers the metamodel alone, and the program's own database holds"
+                            + " none of it");
+                }
+                if (!dialect.inProcess()) {
+                    throw new NotImplementedException("a program reading the system metamodel store on "
+                            + dialect.getClass().getSimpleName() + ": the process's catalog is made on a database the"
+                            + " platform runs in process, and a server's form of the store is a query's alone (the"
+                            + " data delivery design's B4 moves every catalog statement onto the catalog)");
+                }
+                p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS, true,
+                        projectDatabase);
+            }
             return ExecutionPlan.writing(declarations(declared, query.context()),
-                    new ExecutionPlan.Sequence(products(program(query, runtime, slots, features,
-                            ProgramState.Door.QUERY, NO_TEST_KINDS, false, projectDatabase))));
+                    new ExecutionPlan.Sequence(products(p.steps())));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
@@ -339,19 +361,33 @@ public final class PlanMaker {
     private static List<PlannedStep> program(TypedQuery query, @Nullable String runtime,
             List<SqlExpr.PlanParam> slots, Set<Feature> features,
             ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase) {
+        return programmed(query, runtime, slots, features, door, kinds, systemRouted, projectDatabase).steps();
+    }
+
+    /** A program's steps, and what its statements read: the system metamodel store's tables, another source (the
+     *  product's door re-plans a program reading the store alone on the process's catalog). */
+    private record Programmed(List<PlannedStep> steps, boolean readsSystem, boolean readsOther) {
+    }
+
+    private static Programmed programmed(TypedQuery query, @Nullable String runtime,
+            List<SqlExpr.PlanParam> slots, Set<Feature> features,
+            ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase) {
         Decided decided = decide(query.context(), runtime);
-        // a product program reads no system metamodel table (Class.all() inside a write program is not designed); the
-        // test door's target carries no setup (R17 C6), and names the graph's SYSTEM database where the body reads the
-        // metamodel store (M10a: the system tables keep their names in process; the program's own seed step writes
-        // them, once per graph, below)
+        // the test door's target carries no setup (R17 C6), and names the graph's SYSTEM database where the body reads
+        // the metamodel store (M10a: the system tables keep their names in process; the program's own seed step writes
+        // them, once per graph, below); a product program reading the store alone runs on the process's catalog, the
+        // model's registration the catalog target's acquisition load (A5, as a query's: SystemCatalog.forQuery)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? systemRouted
                         ? SystemCatalog.target(query.context(), ConnectionPlans.type(decided.target().type()),
                                 decided.dialect().sessionSetup())
                         : new ExecutionPlan.Target(database(decided.target(), null), decided.dialect().sessionSetup(),
                                 List.of())
-                : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
-                        Metamodel.NONE, projectDatabase);
+                : systemRouted
+                        ? SystemCatalog.forQuery(query.context(), ConnectionPlans.type(decided.target().type()),
+                                decided.dialect().sessionSetup(), decided.dialect())
+                        : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
+                                Metamodel.NONE, projectDatabase);
         List<TypedSpec> body = query.body();
         StagedRows.refuseLetsTheWritesChange(body, query.specs());
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
@@ -365,7 +401,10 @@ public final class PlanMaker {
         // walker-deletion program, 2026-11-03: planning sends nothing) -- the program's own target, or the system
         // database beside it (per-statement routing); the runner runs it once per system session
         boolean systemSeeded = false;
-        if (target.database() instanceof ExecutionPlan.Database.System) {
+        if (door == ProgramState.Door.QUERY && systemRouted) {
+            // the catalog target's own loads hold the store and the model's registration
+            systemSeeded = true;
+        } else if (target.database() instanceof ExecutionPlan.Database.System) {
             addSeeds(state, SystemCatalog.seeds(query.context(), target, decided.dialect()));
             systemSeeded = true;
         } else {
@@ -401,7 +440,7 @@ public final class PlanMaker {
             throw new IllegalStateException("a step of the program reads the graph's system store and no seed step is"
                     + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
-        return steps;
+        return new Programmed(steps, state.readsSystem(), state.readsOther());
     }
 
     /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
@@ -504,9 +543,9 @@ public final class PlanMaker {
         Prepared.Planned sp = ProductStatements.planned(st);
         Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
                 withStamps(state.slots(), state.frames()), state.sites());
-        SqlQuery q = FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
+        SqlQuery q = state.read(FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
                 ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
-                        sp.env()))), st.reads().definitions());
+                        sp.env()))), st.reads().definitions()));
         TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(SqlDml.CreateTempTableAs
                 .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null);
@@ -553,7 +592,8 @@ public final class PlanMaker {
             return;
         }
         if (st.prepared() instanceof Prepared.StoreWrite w) {
-            SqlDml dml = ProductStatements.storeWrite(query, w, st.temporal(), state.slots(), state.sites());
+            SqlDml dml = state.read(ProductStatements.storeWrite(query, w, st.temporal(), state.slots(),
+                    state.sites()));
             state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
                     last ? ExecutionPlan.COUNT : null));
             if (last) {
@@ -604,6 +644,12 @@ public final class PlanMaker {
             steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(
                     new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()),
                     null)));
+        }
+        // the program's data: tables dropped after its answer (A5: a payload's table lives and dies with the request,
+        // §3 rule 4), each drop qualified to the session's temporary schema
+        for (String drop : state.dataReleases()) {
+            steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(drop, List.of(),
+                    state.target(), null, List.of()), null)));
         }
         return steps;
     }
@@ -832,6 +878,62 @@ public final class PlanMaker {
             }
         }.rewrite(statement);
         return reports;
+    }
+
+    /**
+     * The runtime {@code query} runs on: {@code given}, or -- none given -- the one runtime its {@code from()}s name
+     * (A5, 2026-11-10: as legend-engine runs a lambda's {@code ->from(mapping, runtime)} on that runtime when the
+     * request names none, and as lite's server already chose it, {@code PureV1Api.runtimeOf}; until then every door but
+     * the server's refused such a query, and a from()'s runtime's test data was refused as a test's seed on the
+     * product's doors). A query naming several runtimes and given none is refused by name; one naming none stays
+     * unplaced ({@code Compiler.executesOn} refuses it, {@code Compiler.NO_RUNTIME}).
+     */
+    public static @Nullable String runtimeOf(TypedQuery query, @Nullable String given) {
+        if (given != null) {
+            return given;
+        }
+        Set<String> named = new java.util.TreeSet<>();
+        for (TypedSpec statement : query.body()) {
+            for (com.legend.compiler.spec.typed.TypedFrom fr
+                    : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
+                fr.runtime().ifPresent(r -> named.add(r.fullPath()));
+            }
+        }
+        if (named.size() > 1) {
+            throw new com.legend.error.MappingResolutionException("a query naming the runtimes " + named
+                    + " in its from()s, and given none: which one it runs on is the caller's to say");
+        }
+        return named.isEmpty() ? null : named.iterator().next();
+    }
+
+    /**
+     * The text plan's refusal of a live source (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4, A5: "a door that cannot
+     * carry a source refuses it by name before render"): generatePlan's and arrowPlan's plan is ONE statement's text,
+     * and a {@code data:} source is a load of the query's execution plan (its session table, made when a session is
+     * acquired), a {@code file:} source a path the execution plan binds when it runs -- neither of which a text carries.
+     * Until the hosts run a plan's loads (the design's B3), the text refuses them by name; the execution plan carries
+     * both ({@code TypedQuery.executionPlan}).
+     */
+    public static void refuseLiveSourcesInText(SqlQuery q) {
+        new SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.SourceUrl u) {
+                    String shown = u.url().length() > 120 ? u.url().substring(0, 120) + "..." : u.url();
+                    if (u.url().startsWith("data:")) {
+                        throw new NotImplementedException("a text plan (generatePlan, arrowPlan) is one statement, and"
+                                + " the data: source '" + shown + "' is a load of the query's execution plan, which the"
+                                + " text carries not: run the execution plan");
+                    }
+                    if (u.url().startsWith("file:")) {
+                        throw new NotImplementedException("a text plan (generatePlan, arrowPlan) is one statement, and"
+                                + " the file: source '" + shown + "' is a path the query's execution plan binds when it"
+                                + " runs, which the text binds not: run the execution plan");
+                    }
+                }
+                return s;
+            }
+        }.rewrite(q);
     }
 
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
@@ -1094,6 +1196,18 @@ public final class PlanMaker {
      *  answers alone (a query that joins a user's table with the metamodel keeps the metamodel's tables in its own
      *  database). */
     private static boolean readsOnlySystemTables(SqlQuery q, ModelContext ctx) {
+        TableReads reads = tableReads(q, ctx, Set.of());
+        return reads.system() && !reads.other();
+    }
+
+    /** What a statement reads: the system metamodel store's tables, and any other source (a user's table, a file, a
+     *  payload, a store's own SQL). */
+    record TableReads(boolean system, boolean other) {
+    }
+
+    /** {@code q}'s reads ({@link TableReads}), a table of {@code own} -- a program's staged table, made on its own
+     *  session -- neither. */
+    static TableReads tableReads(SqlQuery q, ModelContext ctx, Set<String> own) {
         DatabaseDefinition store = ctx.findDatabase(SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
         Set<String> system = new HashSet<>();
@@ -1108,7 +1222,11 @@ public final class PlanMaker {
             @Override
             protected SqlSource source(SqlSource s) {
                 switch (s) {
-                    case SqlSource.Table t -> reads[!t.call() && system.contains(t.name()) ? 0 : 1] = true;
+                    case SqlSource.Table t -> {
+                        if (t.call() || !own.contains(t.name())) {
+                            reads[!t.call() && system.contains(t.name()) ? 0 : 1] = true;
+                        }
+                    }
                     // a source the catalog's turn does not hold: a file, a payload, a store's own SQL
                     case SqlSource.SourceUrl u -> reads[1] = true;
                     case SqlSource.RawSql r -> reads[1] = true;
@@ -1125,7 +1243,7 @@ public final class PlanMaker {
                 return s;
             }
         }.rewrite(q);
-        return reads[0] && !reads[1];
+        return new TableReads(reads[0], reads[1]);
     }
 
     private static void collectSystemTables(TypedSpec n, Set<String> out) {

@@ -90,7 +90,8 @@ public final class PlanRunner {
 
     private static void streamRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             ResultSink sink, int capacity) throws IOException {
-        Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
+        Map<String, PlanParameters.Checked> checked = admitSources(PlanParameters.check(plan.parameters(), values),
+                List.of(plan.root()), sessions.admitted());
         switch (plan.root()) {
             case ExecutionPlan.TdsResult tds -> {
                 if (reported(tds)) {
@@ -377,6 +378,23 @@ public final class PlanRunner {
                 results++;
                 continue;
             }
+            if (step instanceof ExecutionPlan.Load u) {
+                // a program's own load (a data: payload's table, A5): it writes the session, on the sequence's one
+                // target; a seed or a target's load is the program runner's or the source's, refused by name
+                if (u.cadence() != ExecutionPlan.Load.Cadence.AT_STEP) {
+                    throw new NotImplementedException("a " + u.cadence() + " load in a plan the query door runs:"
+                            + " seeds are the test door's (the program runner's, ProgramRunner.run), a target's loads"
+                            + " its sessions'");
+                }
+                changes = true;
+                if (target == null) {
+                    target = u.target();
+                } else if (!target.equals(u.target())) {
+                    throw new NotImplementedException("a plan whose steps name different targets: its"
+                            + " steps run on one session, in one transaction");
+                }
+                continue;
+            }
             ExecutionPlan.Sql sql = switch (step) {
                 case ExecutionPlan.Update u -> {
                     changes = true;
@@ -391,8 +409,7 @@ public final class PlanRunner {
                     changes = true;
                     yield e.sql();
                 }
-                case ExecutionPlan.Load u -> throw new NotImplementedException("a seed step in a"
-                        + " plan the query door runs: seeds are the test door's (the program runner's, ProgramRunner.run)");
+                case ExecutionPlan.Load u -> throw new IllegalStateException("not reached: a load is taken above");
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     yield t.sql();
@@ -430,13 +447,13 @@ public final class PlanRunner {
                 // a keyed step's snapshot is the sequence's own transaction, at the isolation the step asks, set
                 // before its first statement (Postgres refuses an isolation changed mid-transaction); a transaction a
                 // caller holds is joined as it is below, and is the snapshot then
-                st.inSnapshot(snapshot, () -> steps(sequence, checked, st, held));
+                st.inSnapshot(snapshot, () -> steps(sequence, checked, session, st, held));
                 return;
             }
             try {
                 st.inTransaction(() -> {
                     try {
-                        steps(sequence, checked, st, held);
+                        steps(sequence, checked, session, st, held);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -471,15 +488,16 @@ public final class PlanRunner {
      *  check's rows read and dropped (the database computes what it may raise); the result's typed rows to
      *  {@code held}. */
     private static void steps(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
-            Statements st, Held held) throws IOException {
+            Sessions.Session session, Statements st, Held held) throws IOException {
         Map<String, PlanParameters.Checked> values = new HashMap<>(checked);
         for (ExecutionPlan.Node step : sequence.steps()) {
             switch (step) {
                 case ExecutionPlan.Update u -> update(u, values, st);
                 case ExecutionPlan.Check k -> check(k, values, st);
                 case ExecutionPlan.Effect e -> effect(e, values, st);
-                case ExecutionPlan.Load u -> throw new IllegalStateException("a seed step in a plan's steps: the"
-                        + " program runner's (ProgramRunner.run)");
+                // a program's own load (AT_STEP, checked above), its steps in the sequence's transaction
+                case ExecutionPlan.Load u -> seed(u, session, st, com.legend.executionplan.DataStores.none(),
+                        answered -> { });
                 case ExecutionPlan.TdsResult t -> result(t, values, st, held);
                 case ExecutionPlan.Constant c -> constant(c, held);
                 case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(held));
@@ -1005,7 +1023,51 @@ public final class PlanRunner {
         return st;
     }
 
-    /** {@code slot}'s parameter's checked value. */
+    /**
+     * {@code checked} with every live source {@code nodes} read (a {@link ExecutionPlan.Binding.Source} slot of any
+     * statement in them) bound to the path {@code admission} admits for its location, refused by name otherwise
+     * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4, A5: "a file: location is bound on every send path") -- once, at the
+     * run's entry, so every path that sends finds it: the answer's, a write's, a check's, an effect's, a keyed body's
+     * copies, a program's steps.
+     */
+    static Map<String, PlanParameters.Checked> admitSources(Map<String, PlanParameters.Checked> checked,
+            List<ExecutionPlan.Node> nodes, SourceAdmission admission) {
+        Map<String, PlanParameters.Checked> out = checked;
+        for (ExecutionPlan.Node node : nodes) {
+            for (ExecutionPlan.Sql sql : statementsOf(node)) {
+                for (ExecutionPlan.Slot slot : sql.slots()) {
+                    if (slot.binding() instanceof ExecutionPlan.Binding.Source src && !out.containsKey(sourceKey(src))) {
+                        if (out == checked) {
+                            out = new HashMap<>(checked);
+                        }
+                        out.put(sourceKey(src), new PlanParameters.One(admission.admit(src.location())));
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The statements {@code node} sends: none for a load (its own steps bind no slot) or a constant. */
+    private static List<ExecutionPlan.Sql> statementsOf(ExecutionPlan.Node node) {
+        return switch (node) {
+            case ExecutionPlan.TdsResult t -> List.of(t.sql());
+            case ExecutionPlan.Update u -> List.of(u.sql());
+            case ExecutionPlan.Check k -> List.of(k.sql());
+            case ExecutionPlan.Effect e -> List.of(e.sql());
+            case ExecutionPlan.Keyed k -> List.of(k.keys(), k.body());
+            case ExecutionPlan.Sequence s -> {
+                List<ExecutionPlan.Sql> all = new ArrayList<>();
+                for (ExecutionPlan.Node step : s.steps()) {
+                    all.addAll(statementsOf(step));
+                }
+                yield all;
+            }
+            case ExecutionPlan.Load l -> List.of();
+            case ExecutionPlan.Constant c -> List.of();
+        };
+    }
+
     /** {@code checked} with each live source {@code sql} reads (a {@link ExecutionPlan.Binding.Source} slot) bound to
      *  the path {@code admission} admits for its location, refused by name otherwise (L6, 2026-11-10). */
     private static Map<String, PlanParameters.Checked> admitted(ExecutionPlan.Sql sql,

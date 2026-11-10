@@ -156,7 +156,16 @@ public final class ProgramRunner {
 
     private static void programRun(Program program, Map<String, ?> values, PlanSessions.Source sessions,
             com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
-        Map<String, PlanParameters.Checked> checked = PlanParameters.check(program.parameters(), values);
+        // every live source the program's statements read, admitted once at its entry (A5): each step's path finds it
+        List<ExecutionPlan.Node> nodes = new ArrayList<>();
+        for (Step s : program.steps()) {
+            switch (s) {
+                case Node n -> nodes.add(n.node());
+                case Callback c -> nodes.addAll(c.declared());
+            }
+        }
+        Map<String, PlanParameters.Checked> checked = PlanRunner.admitSources(
+                PlanParameters.check(program.parameters(), values), nodes, sessions.admitted());
         Shape shape = shapeOf(program, checked);
         PlanRunner.Held held = new PlanRunner.Held();
         ExecutionPlan.Target on = shape.target();

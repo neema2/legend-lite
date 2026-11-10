@@ -42,7 +42,7 @@ public final class Lean {
     /** {@code query} over {@code model} on {@code runtime} (null: the query names its own), on the caller's connection
      *  {@code c} as the caller set it up (its tables, its data): lite's JSON rows, read back. */
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c) {
-        return run(model, query, runtime, c, com.legend.exec.SourceAdmission.none());
+        return run(model, query, runtime, c, com.legend.exec.SourceAdmission.any());
     }
 
     /** {@link #run(String, String, String, Connection)} whose live sources may read under {@code admitted}'s

@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A live source's guard (L6, the user's ruling of 2026-11-10: a model's {@code file:} source is a pointer, as a table
- * is, and its guard the analogue of a database's permissions): a run reads a source only under a directory it admits;
- * every other location, and every scheme but {@code file:}, is refused by name.
+ * is): any file by default (A5); a host's opt-in fence the analogue of a database's permissions, a run reading a source
+ * only under a directory it admits; every scheme but {@code file:} refused by name.
  */
 class SourceAdmissionTest {
 
@@ -28,8 +28,19 @@ class SourceAdmissionTest {
         assertEquals(file.toRealPath().toString().replace(java.io.File.separatorChar, '/'), path);
     }
 
+    /** Any file by default, as upstream reads any (the user's ruling on the data delivery design, A5: "any file by
+     *  default, with an opt-in fence, default off"); a file that does not resolve is refused by name all the same. */
     @Test
-    void aRunAdmitsNothingUnlessToldAndNeverOutsideWhatItAdmits(@TempDir Path dir) throws Exception {
+    void anyFileByDefault(@TempDir Path dir) throws Exception {
+        Path file = Files.writeString(dir.resolve("anywhere.json"), "{}");
+        assertEquals(file.toRealPath().toString().replace(java.io.File.separatorChar, '/'),
+                SourceAdmission.any().admit(file.toUri().toString()));
+        assertThrows(DataError.class, () -> SourceAdmission.any().admit(dir.resolve("missing.json").toUri().toString()));
+    }
+
+    /** A host's opt-in FENCE: none admitted, or a directory, and never outside it. */
+    @Test
+    void aFenceAdmitsOnlyItsDirectoriesAndNeverOutsideThem(@TempDir Path dir) throws Exception {
         Path inside = Files.createDirectory(dir.resolve("inside"));
         Path outside = Files.writeString(dir.resolve("secret.json"), "{}");
         DataError none = assertThrows(DataError.class,

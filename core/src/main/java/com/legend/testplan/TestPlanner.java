@@ -32,7 +32,9 @@ public final class TestPlanner {
     /** {@code typed} PLANNED whole for a session of its runtime's database (the door's {@code planBody}): the
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
-    public static TestPlan plan(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
+    public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        // none given: the one runtime the body's from()s name (A5, PlanMaker.runtimeOf)
+        String runtimeFqn = com.legend.planner.PlanMaker.runtimeOf(typed, given);
         return plan(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
                 options);
     }

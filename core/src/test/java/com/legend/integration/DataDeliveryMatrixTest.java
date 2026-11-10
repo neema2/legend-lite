@@ -82,30 +82,21 @@ class DataDeliveryMatrixTest {
             // (A2 fixed SQLite's boolean -- a typed literal writes what the column takes -- and built the referee's H2
             // copy; the decoder reads SQLite's declared TIMESTAMP column as every other database's, the user's ruling of
             // 2026-11-10: the round trip green on SQLite)
-            // A2 and A5: a from() naming its runtime is refused on the product's doors as a test's seed, and a test
-            // body with no program runtime refuses it (the from()'s runtime is the query's own)
-            "matrix:READ/FROM_SEED/DuckDB", "matrix:READ/FROM_SEED/H2", "matrix:READ/FROM_SEED/SQLite",
-            "matrix:WRITE/FROM_SEED/DuckDB", "matrix:WRITE/FROM_SEED/H2", "matrix:WRITE/FROM_SEED/SQLite",
-            "matrix:PLAN/FROM_SEED/DuckDB", "matrix:PLAN/FROM_SEED/H2", "matrix:PLAN/FROM_SEED/SQLite",
-            "matrix:SERVER/FROM_SEED/DuckDB", "matrix:SERVER/FROM_SEED/H2", "matrix:SERVER/FROM_SEED/SQLite",
-            "matrix:TEST_BODY/FROM_SEED/DuckDB", "matrix:TEST_BODY/FROM_SEED/H2", "matrix:TEST_BODY/FROM_SEED/SQLite",
+            // (A5, 2026-11-10: a query given no runtime runs on the one its from()s name, as upstream's and the
+            // server's door run it, so its runtime's test data is the plan's own -- the target's setup on the product's
+            // doors, a seed on the test door; the server opens no LocalH2 specification on another database, refused by
+            // name as a connection's test data is)
             // (A3, 2026-11-10: SQLite refuses a file by name, as the design says, where it streamed it)
             // (A4, 2026-11-10: a bad payload's refusal names the data: source's payload, the plan's label on its load;
             // a bad value's names its table and column since A2: a cell its column's type cannot take is refused at
             // planning)
-            // A5, one road: a data: source crashes where it is not the product read's answer (generatePlan's text,
-            // a write, a test body) and fails a service; a file: source is admitted nowhere by default (the user's
-            // ruling: any file) and crashes or is refused on every door but the read
-            "matrix:PLAN/DATA_SOURCE/DuckDB", "matrix:WRITE/DATA_SOURCE/DuckDB", "matrix:TEST_BODY/DATA_SOURCE/DuckDB",
-            "matrix:SERVICE/DATA_SOURCE/DuckDB",
-            "matrix:READ/FILE_SOURCE/DuckDB", "matrix:WRITE/FILE_SOURCE/DuckDB", "matrix:PLAN/FILE_SOURCE/DuckDB",
-            "matrix:TEST_BODY/FILE_SOURCE/DuckDB", "matrix:SERVICE/FILE_SOURCE/DuckDB",
-            "matrix:SERVER/FILE_SOURCE/DuckDB",
-            // A5: a write runs on the caller's session as it is, so a target that loads declared test data crashes
-            // the door ("never skipped": an internal refusal), and a write's catalog read reads a user session
-            "matrix:WRITE/CSV_TEST_DATA/DuckDB", "matrix:WRITE/CSV_TEST_DATA/H2", "matrix:WRITE/CSV_TEST_DATA/SQLite",
-            "matrix:WRITE/SQL_TEST_DATA/DuckDB", "matrix:WRITE/SQL_TEST_DATA/H2", "matrix:WRITE/SQL_TEST_DATA/SQLite",
-            "matrix:WRITE/CATALOG/DuckDB", "matrix:WRITE/CATALOG/H2", "matrix:WRITE/CATALOG/SQLite");
+            // (A5, 2026-11-10: a data: source is rewritten on every road -- a program's own load before its first
+            // reader, dropped after the answer; a file: source is admitted by default and bound once at the run's
+            // entry; the text plan refuses both by name before render; a write on the caller's session establishes its
+            // declared setup as a read does)
+            // (A5, 2026-11-10: a product program reading the system metamodel store alone runs on the process's
+            // catalog, as such a query does: the in-process matrix is green, 162 of 162)
+            );
 
     // ---- the model ------------------------------------------------------------------------------------------------
 
@@ -261,10 +252,10 @@ class DataDeliveryMatrixTest {
                 return db == DatabaseType.DuckDB ? new Expected.Answer()
                         : new Expected.AnswerOrRefusal("a JSON payload's values on a database whose JSON is not modeled");
             }
-            case CSV_TEST_DATA, SQL_TEST_DATA -> {
-                // test data rides a LocalH2 specification (upstream's one carrier of it); the server opens the
-                // connection its runtime declares, and a LocalH2 specification on another database is no connection it
-                // can open: refused by name. Every other door reads it on the session it is given.
+            case CSV_TEST_DATA, SQL_TEST_DATA, FROM_SEED -> {
+                // test data rides a LocalH2 specification (upstream's one carrier of it; a from()'s runtime's too); the
+                // server opens the connection its runtime declares, and a LocalH2 specification on another database is
+                // no connection it can open: refused by name. Every other door reads it on the session it is given.
                 return door == Door.SERVER && db != DatabaseType.H2
                         ? new Expected.Refusal("a LocalH2 specification on " + db + " is no connection the server opens")
                         : new Expected.Answer();

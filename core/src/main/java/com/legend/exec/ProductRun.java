@@ -60,15 +60,21 @@ public final class ProductRun {
     /** {@link #run} inside the scope that refuses planning while the caller's sessions are opened. */
     private static void runCalledBack(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
             Establish establish, ResultSink sink, int batchRows) throws IOException {
-        if (plan.writes()) {
-            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows);
-            return;
-        }
-        if (!plan.sendsTheAnswer()) {
+        // a write on the caller's session, its declared setup established, is established as a read is: the program's
+        // target's acquisition loads run on the session first, and released when the request lets it go (A5,
+        // 2026-11-10: until then the caller's session refused them, so a write never read its declared test data)
+        boolean establishedOnTheCallers = establish == Establish.DECLARED_SETUP
+                && sessions instanceof SessionSource.Given;
+        if (!plan.writes() && !plan.sendsTheAnswer()) {
             PlanRunner.stream(plan, Map.of(), NOTHING_SENT, sink, batchRows);
             return;
         }
-        ExecutionPlan.Target target = plan.answerSql().target();
+        ExecutionPlan.Target target = plan.writes() ? home(plan) : plan.answerSql().target();
+        if (plan.writes() && !establishedOnTheCallers
+                && !(target.database() instanceof ExecutionPlan.Database.System)) {
+            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows);
+            return;
+        }
         if (target.database() instanceof ExecutionPlan.Database.System) {
             // a query reading the metamodel alone, answered on the process's catalog (L4's product half, 2026-11-10):
             // the run's turn on it, the model's registration inside it, rolled back when the run ends -- never the
@@ -103,6 +109,29 @@ public final class ProductRun {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
             }
         }
+    }
+
+    /** The one target a writing plan's steps run on (the runner holds them to one: {@code PlanRunner.sequence}). */
+    private static ExecutionPlan.Target home(ExecutionPlan plan) {
+        if (!(plan.root() instanceof ExecutionPlan.Sequence s)) {
+            throw new IllegalStateException("a plan that writes is a sequence of steps");
+        }
+        for (ExecutionPlan.Node step : s.steps()) {
+            ExecutionPlan.@com.legend.base.Nullable Target t = switch (step) {
+                case ExecutionPlan.Update u -> u.sql().target();
+                case ExecutionPlan.Check k -> k.sql().target();
+                case ExecutionPlan.Effect e -> e.sql().target();
+                case ExecutionPlan.TdsResult r -> r.sql().target();
+                case ExecutionPlan.Keyed k -> k.body().target();
+                case ExecutionPlan.Load l -> l.target();
+                case ExecutionPlan.Constant c -> null;
+                case ExecutionPlan.Sequence q -> throw new IllegalStateException("a sequence inside a sequence");
+            };
+            if (t != null) {
+                return t;
+            }
+        }
+        throw new IllegalStateException("a plan that writes sends a statement");
     }
 
     /** A constant answer's sessions: it sends no statement, so none is opened (until slice 5 the door opened the

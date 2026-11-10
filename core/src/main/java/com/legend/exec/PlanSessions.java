@@ -37,10 +37,10 @@ public final class PlanSessions {
             return StatementOrigin.OTHER;
         }
 
-        /** The directories a plan's live sources may read on these sessions ({@link SourceAdmission}; L6, 2026-11-10):
-         *  none unless the caller admits some ({@link #admitting}). */
+        /** The files a plan's live sources may read on these sessions ({@link SourceAdmission}; L6, 2026-11-10): any
+         *  file unless the caller fences them ({@link #admitting}; the user's ruling, A5: any file by default). */
         default SourceAdmission admitted() {
-            return SourceAdmission.none();
+            return SourceAdmission.any();
         }
 
         /** The request lets go of what it acquired (§3 rules 2 and 4, A4): where this source ran a target's acquisition

@@ -26,17 +26,15 @@ class DataDeliveryMatrixPostgresTest {
      * .runs}: the harness's declared test connection has no role on the embedded server).
      */
     static final Set<String> RED = Set.of(
-            // A2 and A5: a from() naming its runtime, refused on the product's doors and with no program runtime
-            "matrix:READ/FROM_SEED/Postgres", "matrix:WRITE/FROM_SEED/Postgres", "matrix:PLAN/FROM_SEED/Postgres",
-            "matrix:TEST_BODY/FROM_SEED/Postgres",
             // (A3, 2026-11-10: Postgres refuses a file by name, option 1, where it streamed it)
             // (a bad value's refusal names its table and column since A2, 2026-11-10: refused at planning)
-            // A5: a write on the caller's session crashes on the target's declared test data, and reads the catalog on
-            // the user's session
-            "matrix:WRITE/CSV_TEST_DATA/Postgres", "matrix:WRITE/SQL_TEST_DATA/Postgres", "matrix:WRITE/CATALOG/Postgres",
+            // (A5, 2026-11-10: a query given no runtime runs on the one its from()s name; a write on the caller's session
+            // establishes its declared setup as a read does)
             // B4 (every catalog statement on the process's in-process catalog): a test body's and a service's catalog
-            // read on a server database asks for a system connection none configured
-            "matrix:TEST_BODY/CATALOG/Postgres", "matrix:SERVICE/CATALOG/Postgres");
+            // read on a server database asks for a system connection none configured; a program reading the store on a
+            // server database is refused by name (A5: the catalog is made in process, and the server's form is a
+            // query's alone)
+            "matrix:WRITE/CATALOG/Postgres", "matrix:TEST_BODY/CATALOG/Postgres", "matrix:SERVICE/CATALOG/Postgres");
 
     @Test
     void theMatrix(@TempDir Path dir) throws Exception {

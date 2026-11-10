@@ -252,6 +252,7 @@ public final class TypedQuery {
 
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
         Compiler.LoweredQuery l = lower(runtime, streaming);
+        PlanMaker.refuseLiveSourcesInText(l.plan());
         String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
         com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
         // a graph fetch has no columns: its objects are the wire's

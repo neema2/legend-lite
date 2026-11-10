@@ -47,6 +47,14 @@ public final class ProgramState {
     private final List<String> staged = new ArrayList<>();
     /** The program's frames (M3f): the execute(...) results its statements read, their plan rows and stamps. */
     private final ProgramFrames frames = new ProgramFrames();
+    /** The program's {@code data:} tables (A5): each content's made by the program's own load before its first
+     *  reader, and its drops, run after the answer. */
+    private final DataSources.Tables data;
+    private final List<String> dataReleases = new ArrayList<>();
+    /** What the program's statements read (A5): the system metamodel store's tables, another source -- the product's
+     *  door runs a program reading the store alone on the process's catalog, as it runs such a query. */
+    private boolean readsSystem;
+    private boolean readsOther;
 
     ProgramState(TypedQuery query, String runtime, SqlDialect dialect, ExecutionPlan.Target target,
             List<SqlExpr.PlanParam> slots, Set<Feature> features) {
@@ -56,6 +64,7 @@ public final class ProgramState {
         this.target = target;
         this.slots = slots;
         this.features = features;
+        this.data = new DataSources.Tables(dialect);
     }
 
     /** The program's query: its body, its model, its compiler. */
@@ -99,9 +108,60 @@ public final class ProgramState {
      *  streaming graph root). */
     public SqlQuery lowered(ProductStatements.Statement st, boolean last) {
         // the frames it reads as their CTE defined ahead of it (M3g)
-        return FrameCtes.attach(EnumValueTables.apply(ProductStatements.lower(query,
+        return read(FrameCtes.attach(EnumValueTables.apply(ProductStatements.lower(query,
                 ProductStatements.planned(st), st.temporal(), last, PlanMaker.withStamps(slots, frames), sites)),
-                st.reads().definitions());
+                st.reads().definitions()));
+    }
+
+    /**
+     * {@code q} reading each {@code data:} source from its table (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4, A5: data
+     * written in the model is the plan's load on every road, never a literal): a content not read before is made by
+     * the program's own load ({@code AT_STEP}), placed now -- ahead of the statement that reads it -- on the program's
+     * session, and dropped after the program's answer ({@link #dataReleases}). A program's statements run in one
+     * transaction, so a failed program's tables go with its writes where the database's DDL is transactional.
+     */
+    public SqlQuery read(SqlQuery q) {
+        reads(PlanMaker.tableReads(q, query.context(), Set.copyOf(staged)));
+        SqlQuery read = data.read(q);
+        placeMade();
+        return read;
+    }
+
+    /** {@code dml}'s rows and conditions reading each {@code data:} source from its table, as {@link #read(SqlQuery)}:
+     *  a store write writes another source than the metamodel's. */
+    public com.legend.sql.SqlDml read(com.legend.sql.SqlDml dml) {
+        readsOther = true;
+        com.legend.sql.SqlDml read = data.read(dml);
+        placeMade();
+        return read;
+    }
+
+    private void reads(PlanMaker.TableReads reads) {
+        readsSystem |= reads.system();
+        readsOther |= reads.other();
+    }
+
+    /** Whether a statement of the program reads the system metamodel store's tables. */
+    boolean readsSystem() {
+        return readsSystem;
+    }
+
+    /** Whether a statement of the program reads, or writes, a source other than the system metamodel store. */
+    boolean readsOther() {
+        return readsOther;
+    }
+
+    private void placeMade() {
+        DataSources.Tables.Made made = data.take();
+        if (!made.steps().isEmpty()) {
+            add(LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, made.steps(), target, made.content()));
+            dataReleases.addAll(made.drops());
+        }
+    }
+
+    /** The drops of the program's {@code data:} tables, run after its answer. */
+    List<String> dataReleases() {
+        return List.copyOf(dataReleases);
     }
 
     /** {@code q} written in the program's dialect for its target. */
