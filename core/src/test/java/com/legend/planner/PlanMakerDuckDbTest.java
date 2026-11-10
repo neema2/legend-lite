@@ -46,9 +46,10 @@ class PlanMakerDuckDbTest {
 
     /** A DateTime parameter is upstream's own type, DuckDB's microsecond TIMESTAMP, whatever the value, bound as its
      *  whole text (the user's ruling, 2026-11-09: "Duckdb timestamp is fine"; until then TIMESTAMP_NS, which holds 1677
-     *  to 2262 only and refused every milestoned table's 9999-12-31). */
+     *  to 2262 only and refused every milestoned table's 9999-12-31), a value of a finer digit raised by the statement
+     *  (S181, A7, 2026-11-10: until then the database cut it). */
     @Test
     void aDateTimeParameterIsCastToTimestamp() {
-        assertEquals("CAST(? AS TIMESTAMP) text:null", PlanMakerTest.dateTimeCast(DUCKDB));
+        assertEquals("CAST(CASE WHEN SUBSTRING(CAST(? AS VARCHAR), 27) NOT IN ('', '000') THEN … ELSE CAST(? AS VARCHAR) END AS TIMESTAMP) text", PlanMakerTest.dateTimeCast(DUCKDB));
     }
 }

@@ -51,6 +51,12 @@ public interface SqlDialect {
                 + url);
     }
 
+    /** The digits of a second a {@code TIMESTAMP} column keeps, as this dialect's DDL declares one: a known value of
+     *  more is refused at planning, never cut (S181, the user's ruling of 2026-11-10; a load's cell,
+     *  {@code setup.RowLoad}). A {@code TIMESTAMP_NS} column keeps nine wherever a dialect declares one. Each dialect
+     *  states its own, measured. */
+    int timestampColumnDigits();
+
     /** The schema a session's own TEMPORARY tables live in, as a drop names it so it drops the session's table and never
      *  a user's table of the same name (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2, A4): refused by name where
      *  this dialect has no session tables a load makes (a {@code data:} source's: {@link #dataSourceColumn}). */

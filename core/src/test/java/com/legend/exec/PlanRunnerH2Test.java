@@ -98,7 +98,7 @@ class PlanRunnerH2Test {
                     LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "2024-01-02 10:30:00.123456789");
             for (var e : dates.entrySet()) {
                 assertEquals(e.getValue(), PlanRunnerTest.run(declaredCast("Date", "TIMESTAMP(9)",
-                        new ExecutionPlan.AsText(null)), Map.of("v", e.getKey()),
+                        new ExecutionPlan.AsText()), Map.of("v", e.getKey()),
                         PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
             }
             // an absent value: a null of the binding's type

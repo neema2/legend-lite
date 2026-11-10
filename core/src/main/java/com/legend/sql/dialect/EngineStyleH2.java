@@ -28,6 +28,18 @@ import java.util.Set;
  */
 public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect {
 
+    /** {@inheritDoc} 9: H2's {@code TIMESTAMP '...'} literal keeps the digits it is written with, nine at most (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 6: H2's {@code TIMESTAMP}'s default precision (measured on 2.5.252: a finer digit is rounded) (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override

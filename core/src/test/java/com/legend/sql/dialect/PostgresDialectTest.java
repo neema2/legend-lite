@@ -185,8 +185,9 @@ class PostgresDialectTest {
     void silentWrongAnswersAreSpelledAway() {
         // matches() anchors (~ is a PARTIAL match here); no ends_with; error() raises
         // lazily in the CASE's own type; a shift widens to BIGINT first (an INTEGER
-        // shift is masked to 32 bits); sub-microsecond literal digits truncate (Postgres
-        // would ROUND 9999-12-31 23:59:59.999999999 into year 10000)
+        // shift is masked to 32 bits); a literal of sub-microsecond digits is refused, never
+        // cut (S181, A7, 2026-11-10: Postgres would ROUND 9999-12-31 23:59:59.999999999 into
+        // year 10000; until A7 the dialect cut it to .999999)
         assertEquals("""
                 SELECT ("t0".sym ~ '(?p)^(?:S1.*)$') AS "m", (right("t0".sym, length('1')) = '1') AS "ew", \
                 CASE WHEN "t0".qty - 1 = 0 THEN CAST(CAST(CAST(chr(31) || ('Division by zero') || chr(31) AS TIMESTAMPTZ) \
@@ -194,10 +195,15 @@ class PostgresDialectTest {
                 END AS "dv", (CAST(CAST("t0".id AS BIGINT) AS BIGINT) << CAST(40 AS INTEGER)) AS "sh"
                 FROM trades AS "t0"
                 WHERE "t0".ts < TIMESTAMP '9999-12-31T23:59:59.999999'""",
-                plan("->filter(r|$r.ts->toOne() < %9999-12-31T23:59:59.999999999)"
+                plan("->filter(r|$r.ts->toOne() < %9999-12-31T23:59:59.999999000)"
                         + "->extend(~[m: r|$r.sym->toOne()->matches('S1.*'), ew: r|$r.sym->toOne()->endsWith('1'),"
                         + " dv: r|$r.qty->toOne() / ($r.qty->toOne() - 1),"
                         + " sh: r|$r.id->toOne()->bitShiftLeft(40)])->select(~[m, ew, dv, sh])"));
+        var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.sql.DialectCapability.class,
+                () -> plan("->filter(r|$r.ts->toOne() < %9999-12-31T23:59:59.999999999)->select(~[id])"));
+        org.junit.jupiter.api.Assertions.assertTrue(refused.getMessage().contains(
+                "the date-time 9999-12-31T23:59:59.999999999 has 9 fraction digits; Postgres keeps 6"),
+                refused.getMessage());
     }
 
     @Test

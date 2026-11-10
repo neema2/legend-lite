@@ -108,8 +108,10 @@ public final class PlanJson {
      *  bundle's inline part bounded per plan ({@link #INLINE_LIMIT_BYTES}), a program step's loads included. 39 since
      *  2026-11-10 (A3): a file's load is the database's reading of it alone, {@code reads}; the {@code streamed}
      *  delivery is gone (a database with no reader refuses the file by name). 40 since 2026-11-10 (A4): a load's
-     *  {@code statements} step names the data it loads ({@code of}), which a refusal names. */
-    public static final int VERSION = 40;
+     *  {@code statements} step names the data it loads ({@code of}), which a refusal names. 41 since 2026-11-10 (A7,
+     *  S181): a date bound as its text carries no digit count ({@code asText} is {@code {}}): the runner sends every
+     *  digit and the statement's own raise refuses a value finer than its slot keeps. */
+    public static final int VERSION = 41;
 
     private PlanJson() {
     }
@@ -577,9 +579,7 @@ public final class PlanJson {
                 o.put("nullType", one.nullType());
                 ExecutionPlan.AsText asText = one.asText();
                 if (asText != null) {
-                    Map<String, Object> t = new LinkedHashMap<>();
-                    t.put("fraction", asText.fraction());
-                    o.put("asText", t);
+                    o.put("asText", new LinkedHashMap<String, Object>());
                 }
             }
             case ExecutionPlan.Binding.Array array -> {
@@ -943,7 +943,7 @@ public final class PlanJson {
             case one -> {
                 Json.Obj t = o.getObjOr("asText", null);
                 ExecutionPlan.AsText asText = t == null ? null
-                        : new ExecutionPlan.AsText(t.getOr("fraction", null) == null ? null : t.getInt("fraction"));
+                        : new ExecutionPlan.AsText();
                 yield new ExecutionPlan.Binding.One(o.getString("nullType"), asText);
             }
             case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"));

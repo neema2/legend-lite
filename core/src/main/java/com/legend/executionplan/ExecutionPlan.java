@@ -772,15 +772,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
-    /** A date or date-time bound as its TEXT to a placeholder cast to its declared type's SQL type: {@code fraction}
-     *  the digits of a second the text keeps, the finer ones cut, as the database's literal keeps them (Postgres six);
-     *  null for all nine. */
-    public record AsText(@com.legend.base.Nullable Integer fraction) {
-        public AsText {
-            if (fraction != null && (fraction < 0 || fraction > 9)) {
-                throw new IllegalArgumentException("a second's fraction of " + fraction + " digits");
-            }
-        }
+    /** A date or date-time bound as its TEXT, every digit, to a placeholder cast to its declared type's SQL type: a
+     *  slot that keeps fewer digits of a second refuses a value of more by the statement's own raise (S181, A7,
+     *  2026-11-10: until then the record carried the digits the runner cut the text to). */
+    public record AsText() {
     }
 
     /**

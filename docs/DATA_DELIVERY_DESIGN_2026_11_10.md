@@ -318,6 +318,45 @@ Deleted from the plan:
 - **BigQuery's Date parameter** is upstream's own `PARSE_DATE('%Y-%m-%d', ?)` (`bigQueryExtension.pure` lines 45-47, read
   from the pinned sources; unverified on BigQuery). S182 is withdrawn.
 
+### A7 as built (2026-11-10)
+
+S181, ruled by the user ("Yes"): a date-time with more fraction digits than its target keeps is REFUSED, never cut and
+never sent for the database to round. Zeros past the kept digits are no digit of the value (they are dropped where the
+target keeps fewer).
+
+- **A literal** (`AnsiSqlRenderer.keptFraction`, at the one dispatch of `SqlExpr.TimestampLit`): each dialect states the
+  digits its literal keeps (`literalFractionDigits`, abstract, so a dialect that has not said is not given another's):
+  Postgres, MariaDB, ClickHouse, Databricks and BigQuery 6; DuckDB (a `TIMESTAMP_NS` past the microsecond), H2, SQLite,
+  Trino and Snowflake 9; MongoDB 3 (its own `MongoJson.dateLiteral` already refused finer). A finer literal is refused
+  by name at planning: "the date-time 2024-01-02T10:00:00.1234567 has 7 fraction digits; Postgres keeps 6: refused,
+  never cut (S181)". Postgres', BigQuery's and ClickHouse's cuts are deleted. A query of a date-time literal alone
+  answers the literal's text as written, which is no timestamp literal and keeps every digit.
+- **A cell of test data or of a project's Data** (`RowLoad.statements`, the one road both take): a cell in its ISO shape
+  with more digits than its column keeps on the target (`SqlDialect.timestampColumnDigits`: a `TIMESTAMP` 6 on DuckDB,
+  H2, Postgres, Trino, MariaDB, Databricks and BigQuery; 9 on SQLite (text) and Snowflake (`TIMESTAMP_NTZ`); 0 on
+  ClickHouse (its `TIMESTAMP` is a `DateTime`); a `TIMESTAMP_NS` 9) is refused at planning, naming the table, the
+  column, the value, its digits and the digits kept. A cell in another shape is the database's to read (the user's
+  ruling of 2026-11-10: Java parses nothing), so its digits are the database's rule. The referee's H2 copy of the rows
+  is the edge's and takes no refusal (`RowLoad.refereeStatements`: a SQLite target keeps nine digits its referee's H2
+  does not; G5).
+- **A run-time parameter** is the database's to check, and exec inspects no value: the placeholder of a slot that keeps
+  fewer than nine digits (Postgres, DuckDB, MariaDB, Databricks and BigQuery 6, `AsText.fraction`; DuckDB's and
+  MariaDB's slots were bound whole until A7, so the database cut or rounded) is written
+  `CAST(CASE WHEN SUBSTRING(CAST(? AS VARCHAR), 27) NOT IN ('', '000') THEN <raise> ELSE CAST(? AS VARCHAR) END AS
+  TIMESTAMP)`: the value's text is fixed-width (`uuuu-MM-dd HH:mm:ss.SSSSSSSSS`, a date's `uuuu-MM-dd`), so its digits
+  past the kept ones are its text from the place past them, empty for a date. The raise is the product's own error
+  naming the parameter ("the DateTime parameter 't' has more fraction digits than Postgres keeps (6): refused, never cut
+  (S181)"); the CASE is of text, cast after, so every database types its branches alike (BigQuery's DATETIME refuses a
+  raise beside it). ClickHouse's placeholder takes the same WHEN beside its year-range one. H2, SQLite, Trino and
+  Snowflake keep nine, so theirs is a plain cast. `PlanRunner.dateTimeText` sends every digit (its cut deleted), and the
+  plan's `AsText` carries no digit count (plan version 41).
+- **Tests:** `DateTimeFractionTest` (a literal on ten databases, a test-data cell on eight, a project's Data on H2, each
+  refused one digit past what is kept and planned with zeros past it; the guard on DuckDB, H2 and SQLite: six digits and
+  a date answer as their literals, nine refused on DuckDB and kept on H2 and SQLite); `PostgresArmTest` (on Postgres
+  unprivileged: the shared nanosecond case refused as a literal at planning and as a parameter by the raise; `.999999`
+  answers on its own day, `.9999995`, which Postgres would round to the next day, refused); `PostgresDialectTest`;
+  `PlanMakerTest`'s differences register (DuckDB's nanosecond case, cut to `.123456` until A7, now refused).
+
 ## 6. The whole plan, in order
 
 | # | Step | Ends with |
@@ -329,6 +368,7 @@ Deleted from the plan:
 | A4 | The failure and lifetime rules (§3) | the failure cells green |
 | A5 | One road (§4) | every door's cells green |
 | A6 | The audit's two parameter defects: H2's time zone spelled with `AT TIME ZONE`; H2's decimal printing typed by the Lowerer | their tests |
+| A7 | S181 (RULED 2026-11-10): a date-time finer than its target keeps is refused, never cut -- known values at planning, a parameter by its statement's own raise; the runner's cut deleted | their tests |
 | ✔ | **Checkpoint:** tenets audit, then correctness, every finding fixed; one lane round on all eleven databases; the timing check | |
 | **B** | **The rest of P1: the census to zero** | |
 | B1 | The seed forms (`setUpDataSQLs`): the author's statements beside `executeInDb`, not converted (the user: yes) | census M7 |
@@ -337,7 +377,11 @@ Deleted from the plan:
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes) | census M15, the fixtures |
 | B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. **Design APPROVED by the user, 2026-11-10** (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`): ONE read-only query per table whose `WITH` clauses carry the chain (the starting rows `ORDER BY` key `LIMIT 20`, one level per navigation step, no recursion), all in one read transaction, NO temporary tables; the default starting rows (no row identifiers given) ARE built, by upstream's rule read from the pinned sources; upstream's 46 SQL-text comparisons become a register row (its data checks all run); the TDG appeal and `TestDataGeneratorRun` deleted. S143's skip is lifted when it passes | census M13 |
 | B2e | Data parsed but used by no feature yet (ExternalFormat data, ModelStore data, ServiceStore stubs, mapping-test data): recorded as NOT IMPLEMENTED YET, with the rule that when built its data takes the model-data path; listed as feature gaps | census M17 |
-| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **The text plan renders from the execution plan** (§4; A5 refuses a `data:` or `file:` source there by name until then, the orchestrator's acceptance of the sequencing, 2026-11-10): generatePlan's and arrowPlan's text is the execution plan's, its loads and bound paths carried, the 28 test classes' texts regenerated and EACH change reviewed, never accepted in bulk. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first) | census M14 |
+| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **The text plan renders from the execution plan** (§4; A5 refuses a `data:` or `file:` source there by name until then, the orchestrator's acceptance of the sequencing, 2026-11-10): generatePlan's and arrowPlan's text is the execution plan's, its loads and bound paths carried, the 28 test classes' texts regenerated and EACH change reviewed, never accepted in bulk. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first). **Measured
+(lane round 33, 1b, relayed by the orchestrator 2026-11-10): DuckDB 1.5.6 over JDBC PREPARES `CREATE TEMPORARY SECRET s
+(TYPE S3, KEY_ID ?, SECRET ?, REGION ?)` (three parameters) and executes it with bound strings; `duckdb_secrets()` shows
+the bound key id and region. So the credential path is a planned `CREATE TEMPORARY SECRET` whose values exec binds from
+its secret store by the credential's name: no value in the plan, no text edited at run** | census M14 |
 | B4 | **Every catalog statement runs on the process's in-process catalog, whatever database holds the user's data** (the user, 2026-11-10: "B4 sounds good for now"). The measurement found no planned statement, among about 30,000 across core, PCT and both corpora, that reads the catalog's tables and a user's tables together: the planner refuses that shape by name. Mixing exists only across separate statements on separate sessions. So no catalog lives on a server: the server forms (per-query temp tables on the user's session, form 2; inline VALUES, form 3) are deleted, and a statement mixing the two stays refused by name. `Class.all()` is the platform plus every loaded project, as ruled 2026-11-08 | census M5, M6 |
 | ✔ | **Checkpoint:** audits and fixes; the census reads zero pending | |
 | **C** | **P4's last two** | |
@@ -347,7 +391,7 @@ Deleted from the plan:
 | **D** | **P2, the edge** | |
 | D0 | **Find every piece of compatibility hidden in the product** (the user, 2026-11-10). This covers scalar functions' guards that embed Pure text, SQL that spells a number, date or value the way Pure would print it, error messages formatted for upstream, `EngineStyle` reached from product code, and any other place the product stringifies for compatibility. One inventory lists each site: what it does, the product's TYPED behaviour instead (a guard that raises a typed error, or returns null or NaN, as the function's product semantics say), and what the edge does to stay compatible. Where a product outcome changes (an error where there was text, a null where there was a value), the change goes to the user in one sitting before it lands | the inventory, its rulings |
 | D0+ | **D0 is done** (`docs/COMPAT_IN_PRODUCT_INVENTORY_2026_11_10.md` on `claude/p2-compat-inventory`, e7809be7: nine kinds of site with the print forms (§13) and the safe variants (§14), sixteen questions). The print forms were then measured on eleven databases (`docs/data-delivery-homework/PRINT_FORM_PROBE_2026_11_10.md`) | the inventory; the measurement |
-| D1 | The compatibility code moves into one edge package: engine-text printers, appeals, referee wiring, `RawSqlBoundary`, and every site D0 found. The product's errors and print forms become §6.1's rules. No product statement carries Pure-formatted text; Pure's and the engine's exact texts are spelled only by the edge | |
+| D1 | The compatibility code moves into one edge package: engine-text printers, appeals, referee wiring, `RawSqlBoundary`, and every site D0 found. The product's errors and print forms become §6.1's rules. No product statement carries Pure-formatted text; Pure's and the engine's exact texts are spelled only by the edge. **MongoDB needs its own spelling of the print rules** (measured on 8.0.17, lane round 33, relayed 2026-11-10: `$toString` writes `1.0` as `"1"`, `0.1+0.2` as `"0.30000000000000004"`, `1e-7` as `"1e-07"`, `1e20` as `"1e+20"`, and a date as `"2024-01-02T10:30:00.123Z"`, milliseconds only with `Z`): six decimals trimmed with no exponent, and six fraction digits as its three plus `000` | |
 | D2 | The rule that the product never depends on the edge, plus a guard that no product SQL or MIR carries a compatibility spelling (Pure-formatted message text, Pure number or date printing) | |
 | ✔ | **Checkpoint:** audits and fixes | |
 | **E** | **P3, lean product** (every site ruled, `docs/LEAN_PRODUCT_P3_2026_11_10.md` §12) | |

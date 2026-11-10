@@ -141,8 +141,9 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
 
     /** A date or date-time value bound as its TEXT to a placeholder cast to its declared type's SQL type: the drivers
      *  pass no digit finer than a microsecond alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt).
-     *  {@code fraction}: the digits of a second the text keeps, the finer ones cut, as the database's literal keeps them
-     *  (Postgres six); null for all nine. */
+     *  {@code fraction}: the digits of a second the slot keeps, a value of more refused by the statement's own raise,
+     *  which the dialect writes around the placeholder (S181, A7, 2026-11-10: never cut); null for all nine. The plan's
+     *  binding carries no count: the runner sends every digit. */
     public record AsText(@com.legend.base.Nullable Integer fraction) {
         public AsText {
             if (fraction != null && (fraction < 0 || fraction > 9)) {

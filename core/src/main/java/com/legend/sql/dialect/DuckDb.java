@@ -69,6 +69,18 @@ public final class DuckDb extends AnsiSqlRenderer {
         }
     }
 
+    /** {@inheritDoc} 9: a literal with a nonzero digit past the microsecond is a {@code TIMESTAMP_NS} ({@link #timestampLit}) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds (measured: a finer digit is cut) (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -232,14 +244,15 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     /** A Date and a DateTime parameter are upstream's own type, DuckDB's microsecond {@code TIMESTAMP}
      *  (duckdbExtension.pure: {@code TIMESTAMP '%s'} for both), bound as its whole text, which DuckDB reads as upstream's
-     *  literal does -- a nanosecond digit the database's to cut (D1, P4; the correctness re-audit's 1, 2026-11-09: until
+     *  literal does -- a value of a digit past the microsecond refused by the statement's own raise, never cut (S181,
+     *  A7; D1, P4; the correctness re-audit's 1, 2026-11-09: until
      *  then {@code TIMESTAMP_NS}, which holds 1677 to 2262 only and so refused every milestoned table's 9999-12-31). A
      *  number is bound bare, typed as its literal is. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(null));
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
         };
     }
 

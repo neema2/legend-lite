@@ -106,6 +106,18 @@ public final class ClickHouse extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
     }
 
+    /** {@inheritDoc} 6: its literal is a {@code DateTime64(6, 'UTC')} (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 0: its {@code TIMESTAMP} column is a {@code DateTime}, of whole seconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 0;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -703,27 +715,21 @@ public final class ClickHouse extends AnsiSqlRenderer {
         }
         ParameterType type = java.util.Objects.requireNonNull(parameterType(declared), "a date's placeholder type");
         RenderedStatement.AsText asText = java.util.Objects.requireNonNull(type.asText(), "a date bound as its text");
-        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN toInt32(substring(")
+        // a value of a digit past the six kept raises too (S181, A7: never cut): its text is fixed-width
+        // (PlanRunner.dateTimeText), its digits past the sixth its text from the 27th character, empty for a date
+        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN substring(")
+                .bind(textBind(p, asText)).append(", 27) NOT IN ('', '000') THEN CAST(")
+                .piece(x -> error(x, raised(FRACTION))).append(" AS " + type.name() + ") WHEN toInt32(substring(")
                 .bind(textBind(p, asText)).append(", 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(")
                 .bind(textBind(p, asText)).append(", 6, 'UTC') ELSE CAST(")
                 .piece(x -> error(x, raised(DATE_RANGE))).append(" AS " + type.name() + ") END");
     }
 
-    /** A naive UTC date-time of six digits (finer ones cut, as DuckDB's TIMESTAMP does); a {@code T} is a space. */
+    /** A naive UTC date-time of six digits (a literal of a finer one refused at planning, {@link #literalFractionDigits};
+     *  S181, A7); a {@code T} is a space. */
     @Override
     protected String timestampLit(String iso) {
-        String t = iso.replaceFirst("T", " ");
-        int dot = t.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < t.length() && Character.isDigit(t.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                t = t.substring(0, dot + 7) + t.substring(end);
-            }
-        }
-        return "toDateTime64('" + inRange(t) + "', 6, 'UTC')";
+        return "toDateTime64('" + inRange(iso.replaceFirst("T", " ")) + "', 6, 'UTC')";
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is an exact Decimal of its own digits ({@code 1.5} alone is a Float64
@@ -1853,6 +1859,10 @@ public final class ClickHouse extends AnsiSqlRenderer {
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
         return writer.append("replaceAll(toString(").expr(a.get(0), 0).append("), '\\'', char(29)), char(31))))");
     }
+
+    /** The message a date-time parameter of a digit past the microsecond raises (S181, A7). */
+    private static final String FRACTION = "a DateTime parameter has more fraction digits than ClickHouse keeps (6):"
+            + " refused, never cut (S181)";
 
     /** The message a date past ClickHouse's years raises. */
     private static final String DATE_RANGE = "a date outside the years 1900 to 2299 has no ClickHouse value (it clamps"

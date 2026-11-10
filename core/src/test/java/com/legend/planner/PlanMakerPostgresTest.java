@@ -15,10 +15,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class PlanMakerPostgresTest {
 
-    /** A DateTime parameter is a TIMESTAMP, its text cut to six digits of a second as Postgres's literal writer cuts
-     *  them (probes/timestamp-results.txt; D1, P4). */
+    /** A DateTime parameter is a TIMESTAMP of six digits of a second, a value of a finer digit raised by the statement,
+     *  as its literal is refused at planning (S181, A7, 2026-11-10: until then the runner cut the text to six, as the
+     *  literal writer cut the literal's; D1, P4). */
     @Test
     void aDateTimeParameterIsCastToTimestamp() {
-        assertEquals("CAST(? AS TIMESTAMP) text:6", PlanMakerTest.dateTimeCast(DatabaseType.Postgres));
+        assertEquals("CAST(CASE WHEN SUBSTRING(CAST(? AS VARCHAR), 27) NOT IN ('', '000') THEN … ELSE CAST(? AS VARCHAR) END AS TIMESTAMP) text", PlanMakerTest.dateTimeCast(DatabaseType.Postgres));
     }
 }

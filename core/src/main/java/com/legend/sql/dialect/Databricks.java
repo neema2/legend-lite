@@ -52,7 +52,8 @@ public final class Databricks extends AnsiSqlRenderer {
 
     /** A Date and a DateTime parameter as upstream's literal processor writes them (databricksExtension.pure): a Date
      *  {@code to_date('%s')}, a {@code DATE} (a date-time value's time dropped, as upstream's), a DateTime
-     *  {@code to_timestamp('%s')}, a {@code TIMESTAMP} of microseconds, its value's finer digits cut; each bound as its
+     *  {@code to_timestamp('%s')}, a {@code TIMESTAMP} of microseconds, a value of finer digits refused by the
+     *  statement's own raise (S181, A7); each bound as its
      *  text (D1, P4; the re-audit's B-1, 2026-11-09). A number is bound bare. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
@@ -61,6 +62,18 @@ public final class Databricks extends AnsiSqlRenderer {
             case DATE -> new ParameterType("DATE", new RenderedStatement.AsText(null));
             case DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
         };
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,

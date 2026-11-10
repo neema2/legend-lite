@@ -123,7 +123,7 @@ public final class CsvSeed {
             switch (step) {
                 case Step.Sql blob -> copy.addAll(com.legend.sql.RawSql.splitStatements(blob.text()));
                 case Step.Rows rows -> {
-                    List<String> inserts = rows.load().statements(referee);
+                    List<String> inserts = rows.load().refereeStatements(referee);
                     if (!inserts.isEmpty()) {
                         copy.add(String.join("\n", inserts));
                     }

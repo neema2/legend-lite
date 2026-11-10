@@ -131,6 +131,18 @@ public final class SQLite extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
     }
 
+    /** {@inheritDoc} 9: a date-time is its text, every digit kept (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 9: a date-time column is TEXT, every digit kept (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 9;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override

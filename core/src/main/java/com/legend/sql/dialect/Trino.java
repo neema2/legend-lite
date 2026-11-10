@@ -78,6 +78,18 @@ public final class Trino extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
     }
 
+    /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal is typed by the digits it is written with (measured) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code TIMESTAMP(6)} (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override

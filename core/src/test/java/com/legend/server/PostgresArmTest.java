@@ -169,7 +169,8 @@ class PostgresArmTest {
             }
             // a query's scalar parameters: bound where they are written, answering as the query with their values does
             // (Postgres types a bare placeholder by the bound value, every type but a date or date-time, which is cast to
-            // its declared type's TIMESTAMP and passed as its text, cut to six digits as the literal is: D1, P4) -- but a
+            // its declared type's TIMESTAMP and passed as its text, every digit, a value finer than the six it keeps
+            // raised by the statement as the literal is refused at planning: S181, A7; D1, P4) -- but a
             // Date parameter given a StrictDate value, which answers a midnight date-time as upstream's TIMESTAMP'${d}'
             // does, where the StrictDate literal answers the date (both paths upstream's: the total wall's M2, R3)
             for (com.legend.testcases.PlanCases.Parameterised q : com.legend.testcases.PlanCases.scalars("PLAN_T")) {
@@ -183,8 +184,35 @@ class PostgresArmTest {
                     }
                     continue;
                 }
+                // a value finer than the microsecond: its literal refused at planning, the parameter by the statement's
+                // own raise -- never cut, never rounded (S181, the user's ruling of 2026-11-10, A7)
+                if (q.values().get("t") instanceof java.time.LocalDateTime t && t.getNano() % 1000 != 0) {
+                    var literal = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                            () -> plan(ctx, q.withLets()));
+                    assertTrue(String.valueOf(literal.getMessage()).contains("fraction digits; Postgres keeps 6"),
+                            literal.getMessage());
+                    var parameter = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                            () -> com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
+                                    com.legend.testcases.PlanCases.Written.JSON::writer));
+                    assertTrue(String.valueOf(parameter.getMessage()).contains("the DateTime parameter 't' has more"
+                            + " fraction digits than Postgres keeps (6): refused, never cut (S181)"),
+                            parameter.getMessage());
+                    continue;
+                }
                 assertPlanAnswersAsToday(model, ctx, q, c);
             }
+            // the guard's ends: the last microsecond of a day answers on its own day; a half-microsecond past it, which
+            // Postgres would round to the next day, is refused (S181, A7)
+            String dt = "{t: DateTime[1]|#>{s::DB.PLAN_T}#->filter(r|$r.ID == 1)->extend(~t: r|$t)->select(~t)}";
+            String last = com.legend.testcases.PlanCases.write(plan(ctx, dt), c, java.util.Map.of("t",
+                    java.time.LocalDateTime.parse("2024-01-02T23:59:59.999999")),
+                    com.legend.testcases.PlanCases.Written.JSON::writer);
+            assertTrue(last.contains("2024-01-02T23:59:59.999999"), last);
+            var rounded = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> com.legend.testcases.PlanCases.write(plan(ctx, dt), c, java.util.Map.of("t",
+                            java.time.LocalDateTime.parse("2024-01-02T23:59:59.9999995")),
+                            com.legend.testcases.PlanCases.Written.JSON::writer));
+            assertTrue(String.valueOf(rounded.getMessage()).contains("refused, never cut (S181)"), rounded.getMessage());
             // an enumeration parameter, compared through a value table of the column's codes
             String enums = com.legend.testcases.PlanCases.enumModel(POSTGRES.connectionBody(), "PLAN_E");
             var enumCtx = com.legend.Compiler.compileModel(enums);

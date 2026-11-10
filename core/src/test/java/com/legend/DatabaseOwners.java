@@ -188,6 +188,9 @@ final class DatabaseOwners {
             // a zoned connection's DateTime parameter and a Decimal's text, each answered alike on DuckDB and H2 by design
             "core/src/test/java/com/legend/planner/ZonedDateTimeParameterTest.java",
             "core/src/test/java/com/legend/planner/DecimalTextTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A7 (S181, ruled): each database's kept digits of a second,
+            // a literal's, a column's and a parameter's slot's, by design
+            "core/src/test/java/com/legend/planner/DateTimeFractionTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

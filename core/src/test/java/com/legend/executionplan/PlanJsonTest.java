@@ -52,13 +52,14 @@ class PlanJsonTest {
                         new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null, null)),
                                 new Sql("select ID * CAST(? AS FLOAT) as x from T", List.of(new Slot("f",
                                         new ExecutionPlan.Binding.One("DECIMAL", null))), t, null)),
-                        // a date-time bound as its text, a finer digit cut to six (Postgres)
+                        // a date-time bound as its text, every digit (a finer one than the slot keeps raised by its
+                        // statement, S181, A7)
                         // (its written-precision fact too, format 17: the column's fourth fact round-trips; a value
                         // root's instant is MINIMAL, format 18)
                         new TdsResult(TdsResult.Shape.VALUE, List.of(new Column("t", "DateTime", new Multiplicity(0, 1), "TIMESTAMP", null,
                                 ExecutionPlan.Precision.MINIMAL)),
                                 new Sql("select CAST(? AS TIMESTAMP) as t", List.of(new Slot("t",
-                                        new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.AsText(6)))), t,
+                                        new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.AsText()))), t,
                                         null)),
                         new TdsResult(TdsResult.Shape.OBJECTS, List.of(new Column("value", "model::Person", new Multiplicity(0, null), "VARCHAR", null, null)),
                                 new Sql("select json_object(...) from T", List.of(), t, null)),
@@ -141,15 +142,15 @@ class PlanJsonTest {
         // PER_TRANSACTION load, the system catalog's registration (L4b); 38 since 2026-11-10: the model's data a load
         // step of statements, a content blob by digest, the rows step and format gone (A2)
         // 39 the same day: a file's load the database's reading of it alone (A3); 40 the same day: a statements step
-        // names its data (A4)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":40,"), json);
+        // names its data (A4); 41 the same day: a date bound as its text carries no digit count (A7, S181)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":41,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v40 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v41 plan"), refused.getMessage());
     }
 
     @Test

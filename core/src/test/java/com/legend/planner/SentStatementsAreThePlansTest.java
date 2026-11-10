@@ -41,6 +41,11 @@ class SentStatementsAreThePlansTest {
                 List<String> sent = new ArrayList<>();
                 try (Connection c = RecordingConnection.wrap(TestBackends.of(type).open(), sent)) {
                     PlanCases.write(plan, c, q.values(), PlanCases.Written.JSON::writer);
+                } catch (com.legend.error.DataError refused) {
+                    // a value finer than its slot keeps, refused by the statement's own raise, which was sent as the
+                    // plan wrote it (S181, A7, 2026-11-10: DuckDB's microsecond slot and the nanosecond case)
+                    assertTrue(String.valueOf(refused.getMessage()).contains("refused, never cut (S181)"),
+                            type + " " + q.withParameters() + ": " + refused.getMessage());
                 }
                 assertFalse(sent.isEmpty(), type + " " + q.withParameters());
                 for (String s : sent) {

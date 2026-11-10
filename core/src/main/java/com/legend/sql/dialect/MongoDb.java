@@ -2418,6 +2418,18 @@ public final class MongoDb extends AnsiSqlRenderer {
     // Names and types
     // ==================================================================
 
+    /** {@inheritDoc} 3: a BSON date keeps milliseconds ({@code MongoJson.dateLiteral} refuses a finer one itself) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 3;
+    }
+
+    /** {@inheritDoc} 3: a BSON date keeps milliseconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 3;
+    }
+
     /** The BSON type name a cast converts to, a refusal where MongoDB has no such type. */
     @Override
     protected String scalarTypeName(SqlType.Scalar s) {

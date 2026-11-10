@@ -93,8 +93,22 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
         return new SqlDml.InsertValues(schema, table, quoting, columns, quotedColumns, values);
     }
 
-    /** {@link #inserts} as {@code dialect} writes them, each a statement sent as it is. */
+    /** {@link #inserts} as {@code dialect} writes them, each a statement sent as it is; a date-time cell finer than its
+     *  column keeps there refused first ({@link #refuseFinerThanKept}). */
     public List<String> statements(com.legend.sql.dialect.SqlDialect dialect) {
+        refuseFinerThanKept(dialect);
+        return written(dialect);
+    }
+
+    /** {@link #inserts} as THE REFEREE'S COPY writes them ({@code CsvSeed.planned}): the compatibility edge's replay of
+     *  the plan's rows on its own H2, which keeps what its columns keep -- the refusal of a cell finer than its column
+     *  is the plan's target's ({@link #statements}), never the edge's (G5: the edge depends on the product, never the
+     *  reverse; a SQLite target keeps nine digits its referee's H2 does not). */
+    public List<String> refereeStatements(com.legend.sql.dialect.SqlDialect referee) {
+        return written(referee);
+    }
+
+    private List<String> written(com.legend.sql.dialect.SqlDialect dialect) {
         List<String> out = new ArrayList<>();
         for (SqlDml.InsertValues insert : inserts()) {
             out.add(dialect.render(insert));
@@ -170,6 +184,50 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw unsupported(c, p.kind().name());
             };
         };
+    }
+
+    /**
+     * A date-time cell, in its ISO shape, with more digits of a second than its column keeps on {@code dialect}
+     * ({@code SqlDialect.timestampColumnDigits}; a {@code TIMESTAMP_NS} column nine) is refused by name at planning --
+     * the table, the column, the value, its digits and the digits kept -- never cut or rounded by the database as it
+     * stores it (S181, the user's ruling of 2026-11-10: a date-time with more fraction digits than its target keeps is
+     * refused). Zeros past the kept digits are no digit of the value. A cell in another shape is the database's to read
+     * ({@link #cell}: Java parses nothing), so its digits are the database's rule.
+     */
+    private void refuseFinerThanKept(com.legend.sql.dialect.SqlDialect dialect) {
+        for (int c = 0; c < types.size(); c++) {
+            if (!(types.get(c) instanceof SqlDdl.ColumnType.Plain p) || (p.kind() != SqlDdl.ColumnType.Kind.TIMESTAMP
+                    && p.kind() != SqlDdl.ColumnType.Kind.TIMESTAMP_NS)) {
+                continue;
+            }
+            int kept = p.kind() == SqlDdl.ColumnType.Kind.TIMESTAMP_NS ? 9 : dialect.timestampColumnDigits();
+            for (List<String> row : rows) {
+                String text = row.get(c);
+                if (text == null || !DATE_TIME.matcher(text.strip()).matches()) {
+                    continue;
+                }
+                int digits = fractionDigits(text.strip());
+                if (digits > kept) {
+                    throw new com.legend.error.DataError("the table " + where() + "'s column " + column(c) + " is "
+                            + p.kind() + ", which keeps " + kept + " fraction digits on "
+                            + dialect.getClass().getSimpleName() + ", and its data holds '" + text + "', of " + digits
+                            + ": refused, never cut (S181)");
+                }
+            }
+        }
+    }
+
+    /** The digits of a second an ISO date-time's text carries, its zeros past the last other digit not counted. */
+    private static int fractionDigits(String iso) {
+        int dot = iso.lastIndexOf('.');
+        if (dot < 0) {
+            return 0;
+        }
+        int end = iso.length();
+        while (end > dot + 1 && iso.charAt(end - 1) == '0') {
+            end--;
+        }
+        return end - dot - 1;
     }
 
     /** Column {@code c}'s name as a refusal names it: its own, or its place where the load names none. */

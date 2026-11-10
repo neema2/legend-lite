@@ -112,6 +112,18 @@ public final class BigQuery extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
     }
 
+    /** {@inheritDoc} 6: its {@code DATETIME} keeps microseconds (a literal of nine digits is refused, measured) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code DATETIME}, of microseconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -689,22 +701,11 @@ public final class BigQuery extends AnsiSqlRenderer {
         return sb.append('\'').toString();
     }
 
-    /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), so
-     *  finer digits are TRUNCATED as DuckDB's TIMESTAMP does. */
+    /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), and
+     *  a literal of a finer digit is refused at planning ({@link #literalFractionDigits}; S181, A7). */
     @Override
     protected String timestampLit(String iso) {
-        String t = iso.replace('T', ' ');
-        int dot = t.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < t.length() && Character.isDigit(t.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                t = t.substring(0, dot + 7) + t.substring(end);
-            }
-        }
-        return "DATETIME '" + t + "'";
+        return "DATETIME '" + iso.replace('T', ' ') + "'";
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is typed exact-decimal by the database -- {@code 1.5} alone is a
@@ -2974,7 +2975,8 @@ public final class BigQuery extends AnsiSqlRenderer {
     // ==================================================================
 
     /** A Date parameter is a {@code DATE}, as upstream's BigQuery extension writes it ({@code PARSE_DATE}); a
-     *  DateTime a {@code DATETIME} (the naive type) of six digits of a second (D1, P4). */
+     *  DateTime a {@code DATETIME} (the naive type) of six digits of a second, a value of finer ones refused by the
+     *  statement's own raise (S181, A7; D1, P4). */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {

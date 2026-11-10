@@ -74,6 +74,18 @@ public final class Postgres extends AnsiSqlRenderer {
     // The catalog: a Postgres table's model, from Postgres's own catalog
     // ==================================================================
 
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds and ROUNDS a finer digit (59.9999999 becomes the next minute) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds and rounds a finer digit (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -1395,32 +1407,14 @@ public final class Postgres extends AnsiSqlRenderer {
         return super.expr(writer, e, parentPrec);
     }
 
-    /** A Date and a DateTime parameter are a {@code TIMESTAMP} of six digits of a second, the finer ones cut, as its
-     *  literal is ({@link #timestampLit}; D1, P4); a number is bound bare. */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP} of six digits of a second, a value of finer ones refused
+     *  by the statement's own raise, as its literal is at planning (S181, A7; D1, P4); a number is bound bare. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
             case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
         };
-    }
-
-    /** Postgres keeps microseconds and ROUNDS finer digits (59.9999999 becomes the next
-     * minute; the 9999-12-31 23:59:59.999999999 sentinel would become year 10000):
-     * finer digits are TRUNCATED, as DuckDB's TIMESTAMP does. */
-    @Override
-    protected String timestampLit(String iso) {
-        int dot = iso.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                iso = iso.substring(0, dot + 7) + iso.substring(end);
-            }
-        }
-        return super.timestampLit(iso);
     }
 
     /** Postgres text cannot hold NUL ({@code chr(0)} raises). */

@@ -49,7 +49,8 @@ h2	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select
 duckdb	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000000+0000\r\n2,2024-01-02T00:00:00.000000000+0000\r\n3,2024-01-02T00:00:00.000000000+0000\r\n
 duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":2,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":3,"d":"2024-01-02T00:00:00.000000000+0000"}]
 # 2026-11-09 (the correctness re-audit's 1; the user's ruling that day, "Duckdb timestamp is fine, later we need a
-# nanosecond pure type"): a DateTime parameter on DuckDB is upstream's microsecond TIMESTAMP, so a nanosecond digit is
-# cut as upstream's literal cuts it, where lite's own literal keeps it (TIMESTAMP_NS).
-duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	ID,t\r\n1,2024-01-02T10:30:00.123456000+0000\r\n2,2024-01-02T10:30:00.123456000+0000\r\n
-duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	[{"ID":1,"t":"2024-01-02T10:30:00.123456000+0000"},{"ID":2,"t":"2024-01-02T10:30:00.123456000+0000"}]
+# nanosecond pure type"): a DateTime parameter on DuckDB is upstream's microsecond TIMESTAMP, where lite's own literal
+# keeps a nanosecond digit (TIMESTAMP_NS). 2026-11-10 (S181 RULED, A7): a value of a finer digit than the slot keeps
+# is refused by the statement's own raise, never cut (until A7 it was cut to .123456).
+duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
+duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)

@@ -148,8 +148,9 @@ class PlanMakerTest {
     void aDateTimeParameterInAZoneIsConvertedAsItsLiteral() {
         TypedQuery dateTime = Compiler.query(Compiler.compileModel(""), "{t: DateTime[1]|$t}");
         String est = lowered(dateTime, "EST");
-        assertTrue(est.contains("timezone('EST', timezone('UTC', CAST(? AS TIMESTAMP)))"), est);
-        assertEquals("SELECT CAST(? AS TIMESTAMP) AS value", lowered(dateTime, "GMT").strip());
+        // (the placeholder the platform database's microsecond slot, its value's finer digit raised: S181, A7)
+        assertTrue(est.contains("timezone('EST', timezone('UTC', " + platformDateTime() + "))"), est);
+        assertEquals("SELECT " + platformDateTime() + " AS value", lowered(dateTime, "GMT").strip());
         TypedQuery date = Compiler.query(Compiler.compileModel(""), "{d: Date[1]|$d}");
         var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> lowered(date, "EST"));
         assertTrue(String.valueOf(refused.getMessage()).contains("time zone is EST"), refused.getMessage());
@@ -176,9 +177,9 @@ class PlanMakerTest {
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
                 Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
-                Databricks	CAST(? AS DATE)	CAST(? AS TIMESTAMP)
+                Databricks	CAST(? AS DATE)	CAST(CASE WHEN SUBSTRING(CAST(? AS STRING), 27) NOT IN ('', '000') THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
-                BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(? AS DATETIME)
+                BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN SUBSTRING(CAST(? AS STRING), 27) NOT IN ('', '000') THEN
                 ClickHouse	WHEN toInt32(substring(?, 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
@@ -642,23 +643,38 @@ class PlanMakerTest {
         }
     }
 
+    /** The platform database's placeholder of a DateTime parameter named {@code t}: its microsecond TIMESTAMP, a value
+     *  of a finer digit raised by the statement (S181, A7, 2026-11-10). */
+    static String platformDateTime() {
+        return "CAST(CASE WHEN SUBSTRING(CAST(? AS VARCHAR), 27) NOT IN ('', '000') THEN error(chr(31) || ('the"
+                + " DateTime parameter ''t'' has more fraction digits than "
+                + Databases.dialect(Databases.PLATFORM).getClass().getSimpleName() + " keeps (6): refused, never cut"
+                + " (S181)') || chr(31)) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
+    }
+
     /** The statement of a DateTime parameter, written as a column's value, on {@code type}. */
     static ExecutionPlan.Sql dateTimeSql(DatabaseType type) {
         return plan(type, "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}", Written.JSON)
                 .answerSql();
     }
 
-    /** The cast a DateTime parameter's placeholder is written with on {@code type}, and how it is bound. */
+    /** The cast a DateTime parameter's placeholder is written with on {@code type}, and how it is bound: a slot that
+     *  keeps fewer than nine digits of a second its guard (S181, A7), the raise elided. */
     static String dateTimeCast(DatabaseType type) {
         ExecutionPlan.Sql sql = dateTimeSql(type);
         String text = sql.statement();
-        int at = text.indexOf("CAST(? AS ");
+        int guard = text.indexOf("CAST(CASE WHEN SUBSTRING(");
+        int at = guard >= 0 ? guard : text.indexOf("CAST(? AS ");
         int end = at + "CAST(".length();
         for (int depth = 1; depth > 0; end++) {
             depth += text.charAt(end) == '(' ? 1 : text.charAt(end) == ')' ? -1 : 0;
         }
+        String cast = text.substring(at, end);
+        if (guard >= 0) {
+            cast = cast.substring(0, cast.indexOf(" THEN ")) + " THEN …" + cast.substring(cast.indexOf(" ELSE "));
+        }
         ExecutionPlan.AsText asText = ((ExecutionPlan.Binding.One) sql.slots().get(0).binding()).asText();
-        return text.substring(at, end) + " " + (asText == null ? "bare" : "text:" + asText.fraction());
+        return cast + " " + (asText == null ? "bare" : "text");
     }
 
     /** What a plan does not bind yet is refused when the plan is made, by name (PARK-21): a class instance, an

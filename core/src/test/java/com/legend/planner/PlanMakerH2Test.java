@@ -62,7 +62,7 @@ class PlanMakerH2Test {
      *  digits and rounds the rest; probes/value-typed-cast-results.txt). */
     @Test
     void aDateTimeParameterIsCastToTimestamp9() {
-        assertEquals("CAST(? AS TIMESTAMP(9)) text:null", PlanMakerTest.dateTimeCast(H2));
+        assertEquals("CAST(? AS TIMESTAMP(9)) text", PlanMakerTest.dateTimeCast(H2));
     }
 
     @Test

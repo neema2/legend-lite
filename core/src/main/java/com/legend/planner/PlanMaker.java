@@ -946,7 +946,7 @@ public final class PlanMaker {
     private static ExecutionPlan.Binding binding(RenderedStatement.Binding b) {
         return switch (b) {
             case RenderedStatement.Binding.One one -> new ExecutionPlan.Binding.One(one.nullType(),
-                    one.asText() == null ? null : new ExecutionPlan.AsText(one.asText().fraction()));
+                    one.asText() == null ? null : new ExecutionPlan.AsText());
             case RenderedStatement.Binding.Array array -> new ExecutionPlan.Binding.Array(array.elementSqlType());
             case RenderedStatement.Binding.Key key -> new ExecutionPlan.Binding.Key(key.cell());
             case RenderedStatement.Binding.Source src -> new ExecutionPlan.Binding.Source(src.location());

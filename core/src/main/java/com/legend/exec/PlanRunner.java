@@ -1110,14 +1110,11 @@ public final class PlanRunner {
     private static final DateTimeFormatter DATE_TIME_TEXT =
             DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSSSSS", Locale.ROOT);
 
-    /** {@code t} as the text its cast reads: to the nanosecond, or to {@code fraction} digits of a second, the finer ones
-     *  cut, as its literal's are. */
-    static String dateTimeText(LocalDateTime t, @Nullable Integer fraction) {
-        int unit = 1;
-        for (int digits = fraction == null ? 9 : fraction; digits < 9; digits++) {
-            unit *= 10;
-        }
-        return DATE_TIME_TEXT.format(t.withNano(t.getNano() - t.getNano() % unit));
+    /** {@code t} as the text its cast reads, every digit to the nanosecond: a slot that keeps fewer refuses a value of
+     *  more by the statement's own raise, which the plan wrote (S181, the user's ruling of 2026-11-10, A7: until then the
+     *  runner cut the digits to the slot's, a value's edit at run). Fixed-width, which the raise reads. */
+    static String dateTimeText(LocalDateTime t) {
+        return DATE_TIME_TEXT.format(t);
     }
 
     /** {@code load} refused by name unless its identity is its content's digest (ExecutionPlan.Load.canonical): the

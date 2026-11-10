@@ -647,6 +647,16 @@ class CarrierDifferentialTest {
         }
 
         @Override
+        protected int literalFractionDigits() {
+            return duck.literalFractionDigits();
+        }
+
+        @Override
+        public int timestampColumnDigits() {
+            return duck.timestampColumnDigits();
+        }
+
+        @Override
         protected String formatText(SqlExpr.FormatLit fl) {
             return strftimeText(fl);
         }

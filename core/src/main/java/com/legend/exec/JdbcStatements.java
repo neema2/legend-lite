@@ -445,7 +445,7 @@ final class JdbcStatements implements Statements {
                             // a date-time in its declared type's cast is passed as its text: the drivers pass no digit
                             // finer than a microsecond alike (DuckDB's cuts it, Postgres's rounds it;
                             // probes/timestamp-results.txt)
-                            st.setString(index, PlanRunner.dateTimeText(t, asText.fraction()));
+                            st.setString(index, PlanRunner.dateTimeText(t));
                         } else if (asText != null && v.value() instanceof java.time.LocalDate d) {
                             // a StrictDate value of a Date parameter: its text, a midnight timestamp in the cast (D1)
                             st.setString(index, d.toString());

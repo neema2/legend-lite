@@ -731,7 +731,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.BoolLit b -> writer.append(boolLit(b.value()));
             case SqlExpr.NullLit n -> writer.append("NULL");
             case SqlExpr.DateLit d -> writer.append(dateLit(d.iso()));
-            case SqlExpr.TimestampLit t -> writer.append(timestampLit(t.iso()));
+            case SqlExpr.TimestampLit t -> writer.append(timestampLit(keptFraction(t.iso())));
             case SqlExpr.TimeLit t -> writer.append(timeLit(t.iso()));
             case SqlExpr.OrderedListAgg ola -> writer.append("list(").expr(ola.value(), 0).append(" ORDER BY ")
                     .expr(ola.orderBy(), 0).append(")");
@@ -1477,6 +1477,46 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return "TIMESTAMP '" + iso + "'";
     }
 
+    /**
+     * The digits of a second this database's date-time LITERAL keeps ({@link #timestampLit}): a literal with more is
+     * refused at planning ({@link #keptFraction}). Each dialect states its own, measured, never inherited (S181, the
+     * user's ruling of 2026-11-10; the re-audit's B-1 rule: a dialect that has not written its own is not given
+     * another's).
+     */
+    protected abstract int literalFractionDigits();
+
+    /**
+     * {@code iso}, a date-time literal's text, with no fraction digit past the {@link #literalFractionDigits} this
+     * database's literal keeps: zeros past them dropped (they are no digit of the value), any other digit past them
+     * REFUSED by name -- the value, its digits and the digits kept (S181, the user's ruling of 2026-11-10: a date-time
+     * with more fraction digits than its target keeps is refused, never cut and never sent for the database to round;
+     * until A7 Postgres, BigQuery and ClickHouse cut the digits, and MariaDB and Databricks sent them to be rounded).
+     */
+    protected final String keptFraction(String iso) {
+        int dot = iso.lastIndexOf('.');
+        if (dot < 0) {
+            return iso;
+        }
+        int end = dot + 1;
+        while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
+            end++;
+        }
+        int written = end - dot - 1;
+        int significant = written;
+        while (significant > 0 && iso.charAt(dot + significant) == '0') {
+            significant--;
+        }
+        int kept = literalFractionDigits();
+        if (significant > kept) {
+            throw new DialectCapability("the date-time " + iso + " has " + significant + " fraction digits; "
+                    + getClass().getSimpleName() + " keeps " + kept + ": refused, never cut (S181)");
+        }
+        if (written <= kept) {
+            return iso;
+        }
+        return (kept == 0 ? iso.substring(0, dot) : iso.substring(0, dot + 1 + kept)) + iso.substring(end);
+    }
+
     /** A time of day, {@code TIME 'HH:mm:ss[.ffffff]'} (DuckDB, Postgres, H2, MariaDB, Trino, Snowflake, BigQuery
      *  spell it so); a dialect without the type refuses. */
     protected String timeLit(String iso) {
@@ -1585,11 +1625,31 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
         com.legend.sql.DeclaredKind declared = p.declared();
         ParameterType type = declared == null ? null : parameterType(declared);
-        if (type != null) {
-            return writer.append("CAST(").bind(type.asText() == null ? scalarBind(p) : textBind(p, type.asText()))
+        if (type == null) {
+            return writer.bind(scalarBind(p));
+        }
+        RenderedStatement.AsText asText = type.asText();
+        Integer kept = asText == null ? null : asText.fraction();
+        if (asText == null || kept == null) {
+            return writer.append("CAST(").bind(asText == null ? scalarBind(p) : textBind(p, asText))
                     .append(" AS ").append(type.name()).append(")");
         }
-        return writer.bind(scalarBind(p));
+        // S181 (the user's ruling of 2026-11-10): a value with more digits of a second than the slot keeps is refused
+        // by the database, by the statement's own raise -- never cut by the runner, never rounded by the database. The
+        // value's text is fixed-width (PlanRunner.dateTimeText: 'uuuu-MM-dd HH:mm:ss.SSSSSSSSS', a Date's
+        // 'uuuu-MM-dd'), so its digits past the kept ones are its text from the place past them, which is empty (a
+        // date) or zeros where it has none. The CASE is of the text, cast after, so every database types its branches
+        // alike (a raise typed as text: BigQuery's DATETIME refuses a raise beside it, BigQuery.projectionValue)
+        String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
+        String zeros = "0".repeat(9 - kept);
+        String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("the " + kind
+                + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
+                + " keeps (" + kept + "): refused, never cut (S181)"));
+        return writer.append("CAST(CASE WHEN SUBSTRING(CAST(").bind(textBind(p, asText)).append(" AS " + text + "), "
+                        + (21 + kept) + ") NOT IN ('', '" + zeros + "') THEN ").expr(raise, 0)
+                .append(" ELSE CAST(").bind(textBind(p, asText)).append(" AS " + text + ") END AS ")
+                .append(type.name()).append(")");
     }
 
     /** The SQL type a placeholder of a parameter declared {@code kind} is cast to, and whether its value is bound as its

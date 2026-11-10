@@ -77,7 +77,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 39 since 2026-11-10: a file's load is the database's reading of it alone (the streamed delivery gone) -- a load is
 // refused by name here, as at 38
 // 40 since 2026-11-10: a load's statements step names the data it loads (of) -- a load is refused by name here, as at 39
-const PLAN_VERSION = 40;
+// 41 since 2026-11-10: a date bound as its text carries no digit count (asText is {}) -- still refused by name here
+const PLAN_VERSION = 41;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

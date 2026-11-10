@@ -192,6 +192,18 @@ public class MariaDb extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
     }
 
+    /** {@inheritDoc} 6: its {@code DATETIME(6)}, its finest (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code DATETIME(6)} (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -3450,12 +3462,13 @@ public class MariaDb extends AnsiSqlRenderer {
     // Plan parameters
     // ==================================================================
 
-    /** A Date and a DateTime parameter are a {@code DATETIME(6)}, MariaDB's finest (D1, P4). */
+    /** A Date and a DateTime parameter are a {@code DATETIME(6)}, MariaDB's finest, a value of a finer digit refused by
+     *  the statement's own raise, never sent for the database to round (S181, A7; D1, P4). */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> new ParameterType("DATETIME(6)", new RenderedStatement.AsText(null));
+            case DATE, DATE_TIME -> new ParameterType("DATETIME(6)", new RenderedStatement.AsText(6));
         };
     }
 
