@@ -140,7 +140,7 @@ class DataLoadsTest {
      *  {@code ;}); and where the reader sets something on the session (H2's path variable), a load that fails leaves
      *  none of it there (the A checkpoint's tenets audit, 14: the undo is run on every exit). */
     @Test
-    void aSemicolonFileLoads_andAFailedLoadLeavesNoPathOnH2(@TempDir Path dir) throws Exception {
+    void aSemicolonFileLoads_andAFailedLoadLeavesNothingOfItsReaderOnTheSession(@TempDir Path dir) throws Exception {
         SqlDml.LoadCsv semi = new SqlDml.LoadCsv(null, "data_loads_people", NameQuoting.BARE, LOAD.columns(),
                 Set.of(), LOAD.types(), ';', '"', 500);
         byte[] good = "Firstname;Lastname;Age\nJoe;Bloggs;21\n".getBytes(StandardCharsets.UTF_8);

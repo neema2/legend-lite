@@ -33,7 +33,7 @@ class ServerSourceFenceTest {
             RelationalDatabaseConnection x::Conn { store: x::DB; %s }
             ###Runtime
             Runtime x::RT { mappings: [ ]; connections: [ x::DB: [ c: x::Conn ] ]; }
-            """.formatted(TestBackends.of(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB).connectionBody());
+            """.formatted(TestBackends.platform().connectionBody());
 
     private static final String FROM_JSON = "->extend(~[ID: r|cast(get($r.data, 'ID'), "
             + "@meta::pure::metamodel::type::Integer)])->select(~[ID])->sort(~ID->ascending())->from(x::RT)";

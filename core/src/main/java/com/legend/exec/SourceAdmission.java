@@ -51,7 +51,7 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
      * Windows), each a fence's. A listed directory that is not one is refused by name, never dropped.
      */
     public static SourceAdmission configured(@com.legend.base.Nullable String value) {
-        if (value == null || value.isBlank() || value.strip().equals("any")) {
+        if (value == null || value.strip().isEmpty() || value.strip().equals("any")) {
             return any();
         }
         if (value.strip().equals("none")) {
@@ -59,7 +59,7 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
         }
         List<Path> dirs = new java.util.ArrayList<>();
         for (String d : value.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
-            if (d.isBlank()) {
+            if (d.strip().isEmpty()) {
                 continue;
             }
             Path p = Path.of(d.strip());

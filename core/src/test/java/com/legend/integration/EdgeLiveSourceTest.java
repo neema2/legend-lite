@@ -31,9 +31,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EdgeLiveSourceTest {
 
+    /** The platform's own engine: the refusal is the planner's, before any database runs. */
+    private static final DatabaseType PLATFORM = com.legend.testbackend.TestBackends.platform().type();
+
     @Test
     void aDataSourceUnderTheEdge() throws Exception {
-        String model = DataDeliveryMatrixTest.model(DataDeliveryMatrixTest.bareConnection(DatabaseType.DuckDB), "");
+        String model = DataDeliveryMatrixTest.model(DataDeliveryMatrixTest.bareConnection(PLATFORM), "");
         ModelContext ctx = Compiler.compileModel(model);
         String query = "|sourceUrl('" + DataDeliveryMatrixTest.PAYLOAD + "')" + DataDeliveryMatrixTest.FROM_JSON;
         com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(query);
@@ -43,7 +46,7 @@ class EdgeLiveSourceTest {
         var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(List.of()), ctx);
         ExecuteOptions options = ExecuteOptions.recording(
                 new com.legend.edge.CompatEdge(new com.legend.sql.dialect.RawSqlBoundary.Recorder()), DataStores.none());
-        try (Connection c = DataDeliveryMatrixTest.session(DatabaseType.DuckDB)) {
+        try (Connection c = DataDeliveryMatrixTest.session(PLATFORM)) {
             var refused = assertThrows(com.legend.error.NotImplementedException.class,
                     () -> TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), "x::RT",
                             SessionSource.given(TestSessions.over(c)), (name, pass, detail) -> { }, null, options,

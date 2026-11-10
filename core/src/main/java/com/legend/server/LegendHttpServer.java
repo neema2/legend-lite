@@ -375,7 +375,7 @@ public class LegendHttpServer {
         if (!dirs.isEmpty()) {
             return dirs.contains("any") ? "any" : String.join(java.io.File.pathSeparator, dirs);
         }
-        return env == null || env.isBlank() ? NO_SOURCES : env.strip();
+        return env == null || env.strip().isEmpty() ? NO_SOURCES : env.strip();
     }
 
     public void start() {
