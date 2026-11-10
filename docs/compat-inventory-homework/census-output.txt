@@ -1,0 +1,82 @@
+## 1. SQL raises (SqlFn.ERROR, Scalars.guarded, PureSql.raise) and the string literal nearest each
+core/src/main/java/com/legend/lowering/Scalars.java:249  "fail" 
+core/src/main/java/com/legend/lowering/Scalars.java:412  "Unsupported number of bits to shift - max bits allowed is 62" 
+core/src/main/java/com/legend/lowering/Scalars.java:449  "Cannot divide " " by zero" 
+core/src/main/java/com/legend/lowering/Scalars.java:1210  "Cannot get " " for " 
+core/src/main/java/com/legend/lowering/Scalars.java:1507  "The system is trying to get an element at offset " " where the collection is of size " 
+core/src/main/java/com/legend/lowering/Scalars.java:1552  "add(set, index, value): index out of bounds" 
+core/src/main/java/com/legend/lowering/Scalars.java:1842  "Unable to compute sqrt of " 
+core/src/main/java/com/legend/lowering/Scalars.java:2054  ": the two value lists differ" " in length" 
+core/src/main/java/com/legend/lowering/Scalars.java:2444  "Cannot divide " " by zero" "UTC" 
+core/src/main/java/com/legend/lowering/Scalars.java:2928  
+core/src/main/java/com/legend/lowering/Scalars.java:2936  
+core/src/main/java/com/legend/lowering/VerdictSql.java:1778  "i" "value" "value" 
+core/src/main/java/com/legend/lowering/ToOneGuard.java:67  "Cannot cast a collection of size " " to multiplicity [1]" 
+core/src/main/java/com/legend/lowering/CanonicalRenderSql.java:657  "an object's identity is read where the product does not track it: an object read" " from a store, built in a fold's reducer, or named by a lambda body's let and read inside a nested lambda" " (docs/OBJECT_IDENTITY_2026_10_20.md §4)" 
+core/src/main/java/com/legend/lowering/LayoutTypes.java:61  
+core/src/main/java/com/legend/lowering/LayoutTypes.java:69  
+core/src/main/java/com/legend/lowering/PureSql.java:30  
+core/src/main/java/com/legend/lowering/PureSql.java:31  
+core/src/main/java/com/legend/lowering/DateCtorRule.java:47  "Invalid day: " "-" "-" 
+core/src/main/java/com/legend/lowering/DateCtorRule.java:53  "Invalid " ": " 
+core/src/main/java/com/legend/lowering/DateCtorRule.java:66  "Invalid " ": " 
+core/src/main/java/com/legend/lowering/DateCtorRule.java:81  "Invalid " ": " 
+core/src/main/java/com/legend/lowering/ListRules.java:27  "range step must not be 0" 
+core/src/main/java/com/legend/lowering/ListEncodings.java:265  "The low bound (" ") can't be higher than the high bound (" 
+core/src/main/java/com/legend/lowering/DecimalKindRules.java:53  "Division by zero" 
+core/src/main/java/com/legend/lowering/CastPolicy.java:221  "Cast exception: " " cannot be cast to " 
+core/src/main/java/com/legend/lowering/Coercions.java:65  "Cannot cast a collection of size 0 to" " multiplicity [1]" 
+core/src/main/java/com/legend/lowering/Coercions.java:101  "Cannot cast a" " collection of size 0 to" " multiplicity [1]" 
+core/src/main/java/com/legend/lowering/Coercions.java:136  "Cannot cast a collection of size 0 to" " multiplicity [1..*]" 
+core/src/main/java/com/legend/lowering/TaggedLists.java:200  "The system is trying to get an element at offset " " where the collection is of size " 
+core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java:609  "Cannot cast a collection of" " size 0 to multiplicity " 
+core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java:618  "Cannot cast a collection of size " " to multiplicity " 
+
+## 2. Who builds an engine-text dialect
+core/src/main/java/com/legend/planner/EngineText.java:41:            case H2 -> new EngineStyleH2();
+core/src/main/java/com/legend/planner/EngineText.java:74:            case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
+core/src/main/java/com/legend/planner/PlanAllocations.java:140:        var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
+core/src/main/java/com/legend/planner/PlanAllocations.java:280:            var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
+core/src/main/java/com/legend/planner/EnginePlans.java:81:        com.legend.sql.dialect.EngineTextDialect renderer = EngineText.engineText(com.legend.database.Databases.named(db));
+core/src/main/java/com/legend/planner/EnginePlans.java:127:        return engineSql(raw, mappingFqn, specs, env, EngineText.engineText(), java.util.Map.of(),
+core/src/main/java/com/legend/planner/EnginePlans.java:367:            EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, EngineText.enginePlanText(dbType, quote, tz),
+core/src/main/java/com/legend/planner/EnginePlans.java:382:                EngineText.enginePlanText(dbType, quote, tz), java.util.Map.of(),
+core/src/main/java/com/legend/planner/EnginePlans.java:390:                        EngineText.enginePlanText(dbType, quote, tz)::selectList);
+core/src/main/java/com/legend/planner/EnginePlans.java:463:        var planText = EngineText.enginePlanText(dbType, quote, tz);
+core/src/main/java/com/legend/planner/EnginePlans.java:623:                env, EngineText.enginePlanText(dbType, quote, timeZone), params,
+core/src/main/java/com/legend/planner/EnginePlans.java:631:                EngineText.enginePlanText(dbType, quote, timeZone),
+core/src/main/java/com/legend/planner/EnginePlans.java:677:            sqls = com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup, EngineText.engineText());
+core/src/main/java/com/legend/planner/EnginePlans.java:690:                            lookup, EngineText.engineText())
+core/src/main/java/com/legend/planner/EnginePlans.java:767:                specs, env, EngineText.enginePlanText(planDatabase(pc2), quote, tz),
+core/src/main/java/com/legend/planner/EnginePlans.java:897:            return EngineText.engineText().render(com.legend.compiler.element.type.PlatformTypes
+core/src/main/java/com/legend/planner/EnginePlans.java:919:            return EngineText.engineText().render(com.legend.setup.Ddl.dropTable(sch, tbl));
+core/src/main/java/com/legend/planner/EnginePlans.java:930:        return EngineText.engineText().render(com.legend.setup.Ddl.createTable(def, sch));
+core/src/main/java/com/legend/testplan/SeedSqlForms.java:41:                                f -> env.ctx().findDatabase(f), com.legend.planner.EngineText.engineText())),
+core/src/main/java/com/legend/testplan/SeedSqlForms.java:53:                        dbDef, f -> env.ctx().findDatabase(f), com.legend.planner.EngineText.engineText())
+core/src/main/java/com/legend/testplan/BodyDriver.java:52:    // com.legend.planner.EngineText.engineText(), one per use)
+core/src/main/java/com/legend/testplan/BodyDriver.java:81:                    tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, com.legend.planner.EngineText.engineText(),
+
+## 3. Comments naming upstream's text
+core/src/main/java/com/legend/sql/ScanOrder.java:18: *   <li>ENGINE-CORPUS-COMPAT ({@code StableScanOrder}, flag-gated):
+core/src/main/java/com/legend/sql/dialect/MariaDb.java:1786:     * A double's text as DuckDB prints it (Python's repr: the shortest round-trip digits, fixed notation for a decimal
+core/src/main/java/com/legend/sql/dialect/DuckDb.java:685:        // StableScanOrder is ENGINE-CORPUS-COMPAT ONLY (user ruling,
+core/src/main/java/com/legend/sql/dialect/StableScanOrder.java:11: * ENGINE-CORPUS-COMPAT root pass (flag-gated in {@link DuckDb}): the
+core/src/main/java/com/legend/model/ClassMapping.java:183:     *                          in legend-engine's PureModelBuilder).
+core/src/main/java/com/legend/model/ConnectionDefinition.java:77:        // not in legend-engine's DatabaseType (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13; as SQLite before
+core/src/main/java/com/legend/protocol/SourceInfo.java:4: * A source span, in legend-engine's coordinate convention.
+core/src/main/java/com/legend/plan/UpstreamRelationType.java:16: * A query's result columns AS THE COMPILER TYPED THEM, in legend-engine's own
+core/src/main/java/com/legend/normalizer/ImplicitInheritance.java:131:            // a mapping of an association the model has not is that model's error, in legend-engine's words
+core/src/main/java/com/legend/normalizer/MappingClosures.java:55:    /** An include naming a mapping the model has not: the model's error, in legend-engine's words
+core/src/main/java/com/legend/result/TdsObjectsWriter.java:16: * ({@link CellText#presentedName}) with the cell in legend-engine's token ({@link CellText#engine}); a value of one
+core/src/main/java/com/legend/lowering/Scalars.java:1499:                // OUT-OF-BOUNDS raises pure's message in the database;
+core/src/main/java/com/legend/lowering/Scalars.java:1837:        // DOMAIN guards RAISED IN SQL with real pure's messages (error()
+core/src/main/java/com/legend/lowering/Lowerer.java:855:     * raises size-N — all with pure's own message. {@code trustOne}
+core/src/main/java/com/legend/lowering/DateCtorRule.java:18: * real pure's messages — {@code date(2016, 13)} raises
+core/src/main/java/com/legend/lowering/CollectionLanes.java:87: * database with pure's message): collections whose provenance is
+core/src/main/java/com/legend/lowering/ListRules.java:23:        // range(start, stop, step): a ZERO step raises real pure's message
+core/src/main/java/com/legend/lowering/ListEncodings.java:257:     * bounds RAISE real pure's message, in the database. */
+core/src/main/java/com/legend/lowering/TaggedLists.java:192:    /** The element at 0-based {@code index}, out of bounds raising Pure's own message. */
+core/src/main/java/com/legend/executionplan/DatabaseType.java:38:    // not in legend-engine's DatabaseType (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13; as SQLite before
+core/src/main/java/com/legend/compiler/spec/TableReferenceChecker.java:113:                // the database itself is missing: said so, in legend-engine's words
+core/src/main/java/com/legend/compiler/element/TypeClassifier.java:208:     *  of each as it declares parameters, or refused in legend-engine's words (CompileContext.newGenericType: "Wrong
+core/src/main/java/com/legend/compiler/element/ModelIntegrity.java:264:            // a supertype is a type that exists (its head and each argument: classify) and a class, in legend-engine's

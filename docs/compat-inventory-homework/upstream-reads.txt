@@ -1,0 +1,61 @@
+# Upstream reads for docs/COMPAT_IN_PRODUCT_INVENTORY_2026_11_10.md (2026-11-10)
+# legend-pure 5.99.0 and legend-engine 4.145.0 (release.MODULE.bazel pins), shallow sparse git clones of the tags.
+# Spec input only (AGENTS.md reference-checkout tenet).
+
+## legend-pure's raising texts (compiled mode)
+266:            throw new PureExecutionException(sourceInformation, "Cannot get day of month for " + date, Stacks.mutable.empty());
+280:            throw new PureExecutionException(sourceInformation, "Cannot get hour for " + date, Stacks.mutable.empty());
+294:            throw new PureExecutionException(sourceInformation, "Cannot get minute for " + date, Stacks.mutable.empty());
+308:            throw new PureExecutionException(sourceInformation, "Cannot get second for " + date, Stacks.mutable.empty());
+520:            throw new PureExecutionException(sourceInformation, "Unable to compute sqrt of " + input, Stacks.mutable.empty());
+544:            throw new PureExecutionException(sourceInformation, "Cannot divide " + dividend.toString() + " by zero", Stacks.mutable.empty());
+759:            throw new PureExecutionException(sourceInformation, "The low bound (" + start + ") can't be higher than the high bound (" + end + ") in a slice operation", Stacks.mutable.empty());
+225:            String message = "The system is trying to get an element at offset " + offset + " where the collection is of size 0";
+236:                String message = "The system is trying to get an element at offset " + offset + " where the collection is of size " + ((ListIterable<?>) list).size();
+248:                String message = "The system is trying to get an element at offset " + offset + " where the collection is of size " + ((List<?>) list).size();
+256:                String message = "The system is trying to get an element at offset " + offset + " where the collection is of size " + Iterate.sizeOf((Iterable<?>) list);
+268:            String message = "The system is trying to get an element at offset " + offset + " where the collection is of size " + size;
+273:            throw new PureExecutionException(sourceInformation, "The system is trying to get an element at offset " + offset + " where the collection is of size 1", Stacks.mutable.empty());
+340:            throw new PureExecutionException(sourceInformation, message != null ? message : "Cannot cast a collection of size 0 to multiplicity [1]", Stacks.mutable.empty());
+354:            throw new PureExecutionException(sourceInformation, message != null ? message : "Cannot cast a collection of size " + size + " to multiplicity [1]", Stacks.mutable.empty());
+406:        throw new PureExecutionException(sourceInformation, "Cannot cast a collection of size " + size + " to multiplicity " + print(lowerBound, upperBound));
+416:        throw new PureExecutionException(sourceInformation, "Cannot cast a collection of size " + size + " to multiplicity " + print(lowerBound, upperBound));
+423:            throw new PureExecutionException(sourceInformation, "Cannot cast a collection of size 0 to multiplicity " + print(lowerBound, upperBound));
+430:                throw new PureExecutionException(sourceInformation, "Cannot cast a collection of size " + size + " to multiplicity " + print(lowerBound, upperBound), Stacks.mutable.empty());
+460:            throw new PureExecutionException(sourceInformation, message != null ? message : "Cannot cast a collection of size 0 to multiplicity [1..*]");
+467:                throw new PureExecutionException(sourceInformation, message != null ? message : "Cannot cast a collection of size 0 to multiplicity [1..*]");
+476:                throw new PureExecutionException(sourceInformation, message != null ? message : "Cannot cast a collection of size 0 to multiplicity [1..*]");
+487:            throw new PureExecutionException(sourceInformation, message != null ? message : "Cannot cast a collection of size 0 to multiplicity [1..*]");
+714:            throw new PureExecutionException(sourceInformation, "range step must not be 0");
+1485:            throw new PureExecutionException(sourceInformation, "Cannot divide " + right + " by zero");
+2157:            throw new PureExecutionException(sourceInformation, "Cast exception: " + getPureClassName(sourceObject) + " cannot be cast to " + typeName);
+590:            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid year (valid [%,d, %,d]): %,d", MIN_YEAR, MAX_YEAR, year));
+603:            throw new IllegalArgumentException("Invalid month: " + month);
+618:            throw new IllegalArgumentException("Invalid day: " + day);
+622:            throw new IllegalArgumentException("Invalid day: " + year + "-" + month + "-" + day);
+
+## legend-engine's bit shift message
+24:function <<PCT.test>> meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_UpTo62Bits<Z|y>(f:Function<{Function<{->Z[y]}>[1]->Z[y]}>[1]):Boolean[1]
+32:  assertEquals($f->eval(|bitShiftLeft(1, 62)), 4611686018427387904);
+39:function <<PCT.test>> meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_MoreThan62Bits<Z|y>(f:Function<{Function<{->Z[y]}>[1]->Z[y]}>[1]):Boolean[1]
+41:  assertError(|$f->eval(|bitShiftLeft(1, 63)), 'Unsupported number of bits to shift - max bits allowed is 62');
+
+## legend-engine's relational SQL for the guarded functions: no guard
+218:    dynaFnToSql('divide',                 $allStates,            ^ToSql(format='((1.0 * %s) / %s)')),
+254:    dynaFnToSql('mod',                    $allStates,            ^ToSql(format='mod(mod(%s, %s) + %s, %s)', transform={p:String[*] | assert($p->size() == 2, |'mod only expect two arguments, but go
+267:    dynaFnToSql('rem',                    $allStates,            ^ToSql(format='mod(%s,%s)')),
+287:    dynaFnToSql('sqrt',                   $allStates,            ^ToSql(format='sqrt(%s)')),
+
+## PCT asserts that expect each text (count of assertError lines in upstream .pure)
+1  Cannot divide
+1  Unable to compute sqrt
+1  Unable to compute acos
+1  Unable to compute asin
+2  bits to shift
+7  trying to get an element at offset
+5  Cannot cast a collection of size
+1  be higher than the high bound
+1  Invalid day
+1  Cast exception
+4  Cannot get 
+1  range step
