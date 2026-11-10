@@ -123,7 +123,7 @@ H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
 H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
 H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
-H2	H2	call	TIMEZONE	spelled	timezone		6
+H2	H2	call	TIMEZONE	emulated	by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(… AS VARCHAR), ' ', …) AS TIMESTAMP(9) WITH TIME ZONE)		6
 H2	H2	call	DATE_AT_TIME	spelled	an operator (+)		0
 H2	H2	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 H2	H2	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
@@ -177,6 +177,7 @@ H2	H2	call	ERROR	emulated	errorArm		70
 H2	H2	call	FLOOR_RAW	spelled	floor		55
 H2	H2	call	TO_VARIANT	emulated	variantConstruct		8
 H2	H2	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END		2
+H2	H2	call	DECIMAL_TO_TEXT	emulated	REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')		0
 H2	H2	call	FLOAT_CANON	emulated	floatCanonByText		0
 H2	H2	call	FLOAT_PRINT	emulated	floatPrintByText		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
@@ -399,6 +400,7 @@ Postgres	Postgres	call	ERROR	emulated	raise		70
 Postgres	Postgres	call	FLOOR_RAW	spelled	floor		55
 Postgres	Postgres	call	TO_VARIANT	emulated	variantConstruct		8
 Postgres	Postgres	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+Postgres	Postgres	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Postgres	Postgres	call	FLOAT_CANON	emulated	floatCanonByText		0
 Postgres	Postgres	call	FLOAT_PRINT	emulated	floatPrintByText		0
 Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
@@ -621,6 +623,7 @@ Snowflake	Snowflake	call	ERROR	emulated	raise		70
 Snowflake	Snowflake	call	FLOOR_RAW	spelled	floor		55
 Snowflake	Snowflake	call	TO_VARIANT	emulated	variantConstruct		8
 Snowflake	Snowflake	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+Snowflake	Snowflake	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Snowflake	Snowflake	call	FLOAT_CANON	emulated	floatCanon		0
 Snowflake	Snowflake	call	FLOAT_PRINT	emulated	by its operands: composed / composed		0
 Snowflake	Snowflake	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -843,6 +846,7 @@ Trino	Trino	call	ERROR	emulated	error		70
 Trino	Trino	call	FLOOR_RAW	spelled	floor		55
 Trino	Trino	call	TO_VARIANT	emulated	variantConstruct		8
 Trino	Trino	call	BOOL_TO_TEXT	emulated	CAST(… AS VARCHAR)		2
+Trino	Trino	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Trino	Trino	call	FLOAT_CANON	emulated	floatCanonByText		0
 Trino	Trino	call	FLOAT_PRINT	emulated	floatPrintByText		0
 Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1065,6 +1069,7 @@ BigQuery	BigQuery	call	ERROR	emulated	raiseEnvelope: ERROR		70
 BigQuery	BigQuery	call	FLOOR_RAW	spelled	FLOOR		55
 BigQuery	BigQuery	call	TO_VARIANT	emulated	variantConstruct		8
 BigQuery	BigQuery	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
+BigQuery	BigQuery	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 BigQuery	BigQuery	call	FLOAT_CANON	emulated	floatCanonByText		0
 BigQuery	BigQuery	call	FLOAT_PRINT	emulated	floatPrintByText		0
 BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -1233,7 +1238,7 @@ Databricks	Databricks	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
 Databricks	Databricks	call	ADD_INTERVAL	emulated	intervalUnit, part: timestampadd(…, …, …)		93
 Databricks	Databricks	call	DATE_DIFF	emulated	dateDiff		53
 Databricks	Databricks	call	TIME_BUCKET	emulated	timeBucket		109
-Databricks	Databricks	call	TIMEZONE	spelled	from_utc_timestamp		6
+Databricks	Databricks	call	TIMEZONE	emulated	timezone		6
 Databricks	Databricks	call	DATE_AT_TIME	refused	a time of day: Databricks has no TIME type		0
 Databricks	Databricks	call	EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Databricks	Databricks	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
@@ -1287,6 +1292,7 @@ Databricks	Databricks	call	ERROR	emulated	raiseEnvelope: raise_error		70
 Databricks	Databricks	call	FLOOR_RAW	emulated	(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)		55
 Databricks	Databricks	call	TO_VARIANT	emulated	variantConstruct		8
 Databricks	Databricks	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
+Databricks	Databricks	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Databricks	Databricks	call	FLOAT_CANON	emulated	floatCanonByText		0
 Databricks	Databricks	call	FLOAT_PRINT	emulated	floatPrintByText		0
 Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1509,6 +1515,7 @@ DuckDb	DuckDB	call	ERROR	emulated	raiseEnvelope: error		70
 DuckDb	DuckDB	call	FLOOR_RAW	spelled	floor		55
 DuckDb	DuckDB	call	TO_VARIANT	emulated	variantConstruct		8
 DuckDb	DuckDB	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+DuckDb	DuckDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 DuckDb	DuckDB	call	FLOAT_CANON	emulated	floatCanonByText		0
 DuckDb	DuckDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
 DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1677,7 +1684,7 @@ ClickHouse	ClickHouse	call	DATE_TRUNC	emulated	composed in a block	via ClickHous
 ClickHouse	ClickHouse	call	ADD_INTERVAL	emulated	composed in a block	via ClickHouse.temporal	93
 ClickHouse	ClickHouse	call	DATE_DIFF	emulated	composed in a block	via ClickHouse.temporal	53
 ClickHouse	ClickHouse	call	TIME_BUCKET	emulated	timeBucket	via ClickHouse.temporal	109
-ClickHouse	ClickHouse	call	TIMEZONE	emulated	addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...	via ClickHouse.temporal	6
+ClickHouse	ClickHouse	call	TIMEZONE	emulated	composed in a block	via ClickHouse.temporal	6
 ClickHouse	ClickHouse	call	DATE_AT_TIME	refused	a time of day: ClickHouse's Time type is experimental	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	FROM_EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
@@ -1731,6 +1738,7 @@ ClickHouse	ClickHouse	call	ERROR	emulated	error		70
 ClickHouse	ClickHouse	call	FLOOR_RAW	spelled	floor		55
 ClickHouse	ClickHouse	call	TO_VARIANT	emulated	variantConstruct		8
 ClickHouse	ClickHouse	call	BOOL_TO_TEXT	spelled	toString		2
+ClickHouse	ClickHouse	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 ClickHouse	ClickHouse	call	FLOAT_CANON	emulated	floatCanonByText		0
 ClickHouse	ClickHouse	call	FLOAT_PRINT	emulated	floatPrintByText		0
 ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1953,6 +1961,7 @@ SQLite	SQLite	call	ERROR	emulated	raise		70
 SQLite	SQLite	call	FLOOR_RAW	spelled	floor		55
 SQLite	SQLite	call	TO_VARIANT	emulated	variantConstruct		8
 SQLite	SQLite	call	BOOL_TO_TEXT	emulated	textOf		2
+SQLite	SQLite	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 SQLite	SQLite	call	FLOAT_CANON	emulated	floatCanonByText		0
 SQLite	SQLite	call	FLOAT_PRINT	emulated	floatPrintByText		0
 SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -2175,6 +2184,7 @@ MariaDb	MariaDB	call	ERROR	emulated	raise, typeOf		70
 MariaDb	MariaDB	call	FLOOR_RAW	spelled	floor		55
 MariaDb	MariaDB	call	TO_VARIANT	emulated	variantConstruct		8
 MariaDb	MariaDB	call	BOOL_TO_TEXT	emulated	textOf		2
+MariaDb	MariaDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 MariaDb	MariaDB	call	FLOAT_CANON	emulated	floatLayout		40
 MariaDb	MariaDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
 MariaDb	MariaDB	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -2397,6 +2407,7 @@ MySql	MySQL	call	ERROR	emulated	raise, typeOf	as MariaDb	70
 MySql	MySQL	call	FLOOR_RAW	spelled	floor	as MariaDb	55
 MySql	MySQL	call	TO_VARIANT	emulated	variantConstruct	as MariaDb	8
 MySql	MySQL	call	BOOL_TO_TEXT	emulated	textOf	as MariaDb	2
+MySql	MySQL	call	DECIMAL_TO_TEXT	emulated	varcharCast	as MariaDb	0
 MySql	MySQL	call	FLOAT_CANON	emulated	floatLayout	as MariaDb	40
 MySql	MySQL	call	FLOAT_PRINT	emulated	floatPrintByText	as MariaDb	0
 MySql	MySQL	call	VARIANT_ELEMENTS	emulated	variantElements	as MariaDb	2
@@ -2619,6 +2630,7 @@ MongoDb	MongoDB	call	ERROR	emulated	raise		0
 MongoDb	MongoDB	call	FLOOR_RAW	emulated	op1: $floor		0
 MongoDb	MongoDB	call	TO_VARIANT	emulated	variantConstruct		0
 MongoDb	MongoDB	call	BOOL_TO_TEXT	emulated	op1: $toString		0
+MongoDb	MongoDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 MongoDb	MongoDB	call	FLOAT_CANON	emulated	floatCanonByText		0
 MongoDb	MongoDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
 MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
@@ -2841,6 +2853,7 @@ EngineStyleH2	-	call	ERROR	emulated	raiseEnvelope: error		-
 EngineStyleH2	-	call	FLOOR_RAW	spelled	floor		-
 EngineStyleH2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	via AnsiSqlRenderer.variantConstruct	-
 EngineStyleH2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)		-
+EngineStyleH2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast		-
 EngineStyleH2	-	call	FLOAT_CANON	emulated	floatCanonByText		-
 EngineStyleH2	-	call	FLOAT_PRINT	emulated	floatPrintByText		-
 EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
@@ -3063,6 +3076,7 @@ EngineStyleDB2	-	call	ERROR	emulated	raiseEnvelope: error	as EngineStyleH2	-
 EngineStyleDB2	-	call	FLOOR_RAW	spelled	floor	as EngineStyleH2	-
 EngineStyleDB2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
 EngineStyleDB2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleH2	-
+EngineStyleDB2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleH2	-
 EngineStyleDB2	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleH2	-
 EngineStyleDB2	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleH2	-
 EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
@@ -3285,6 +3299,7 @@ EngineStyleComposite	-	call	ERROR	emulated	raiseEnvelope: error	as EngineStyleDB
 EngineStyleComposite	-	call	FLOOR_RAW	spelled	floor	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
 EngineStyleComposite	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-

@@ -148,7 +148,7 @@ Database types planned with it: H2.
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
 | `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` |  | 109 |
-| `TIMEZONE` | spelled | `timezone` |  | 6 |
+| `TIMEZONE` | emulated | `by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(… AS VARCHAR), ' ', …) AS TIMESTAMP(9) WITH TIME ZONE)` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -202,6 +202,7 @@ Database types planned with it: H2.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
@@ -391,6 +392,7 @@ Database types planned with it: Postgres.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
@@ -580,6 +582,7 @@ Database types planned with it: Snowflake.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanon` |  | 0 |
 | `FLOAT_PRINT` | emulated | `by its operands: composed / composed` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -769,6 +772,7 @@ Database types planned with it: Trino.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -958,6 +962,7 @@ Database types planned with it: BigQuery.
 | `FLOOR_RAW` | spelled | `FLOOR` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -1093,7 +1098,7 @@ Database types planned with it: Databricks.
 | `ADD_INTERVAL` | emulated | `intervalUnit, part: timestampadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
-| `TIMEZONE` | spelled | `from_utc_timestamp` |  | 6 |
+| `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: Databricks has no TIME type` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -1147,6 +1152,7 @@ Database types planned with it: Databricks.
 | `FLOOR_RAW` | emulated | `(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1336,6 +1342,7 @@ Database types planned with it: DuckDB.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1471,7 +1478,7 @@ Database types planned with it: ClickHouse.
 | `ADD_INTERVAL` | emulated | `composed in a block` | `via ClickHouse.temporal` | 93 |
 | `DATE_DIFF` | emulated | `composed in a block` | `via ClickHouse.temporal` | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` | `via ClickHouse.temporal` | 109 |
-| `TIMEZONE` | emulated | `addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...` | `via ClickHouse.temporal` | 6 |
+| `TIMEZONE` | emulated | `composed in a block` | `via ClickHouse.temporal` | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: ClickHouse's Time type is experimental` | `via ClickHouse.temporal` | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
@@ -1525,6 +1532,7 @@ Database types planned with it: ClickHouse.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1714,6 +1722,7 @@ Database types planned with it: SQLite.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -1903,6 +1912,7 @@ Database types planned with it: MariaDB.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatLayout` |  | 40 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -2092,6 +2102,7 @@ Database types planned with it: MySQL.
 | `FLOOR_RAW` | spelled | `floor` | `as MariaDb` | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as MariaDb` | 0 |
 | `FLOAT_CANON` | emulated | `floatLayout` | `as MariaDb` | 40 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
@@ -2281,6 +2292,7 @@ Database types planned with it: MongoDB.
 | `FLOOR_RAW` | emulated | `op1: $floor` |  | 0 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
 | `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
@@ -2470,6 +2482,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `FLOOR_RAW` | spelled | `floor` |  | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
@@ -2659,6 +2672,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `FLOOR_RAW` | spelled | `floor` | `as EngineStyleH2` | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleH2` | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
@@ -2848,6 +2862,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `FLOOR_RAW` | spelled | `floor` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
