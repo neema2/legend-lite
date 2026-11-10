@@ -1,0 +1,37 @@
+1.real.rowdecode	1
+      core/core_tests_root: 1
+      e.g. ResultWritersTest.aHostsTextIsReadAsTheServerReadsTheValue
+2.bigquery-pad	1
+      core/core_tests_exec: 1
+      e.g. JdbcDecodeH2Test.aDecimalsDroppedZerosArePaddedToItsSlotsScale
+4.bc.date-repaired	1
+      core/core_tests_exec: 1
+      e.g. JdbcDecodeH2Test.aTimestampKeepsItsEra
+4.bc.timestamp-arm-ad	6
+      core/core_tests_exec: 6
+      e.g. JdbcDecodeH2Test.aStatementsReadReadsATimestampAsItsDriverDecides, JdbcDecodeH2Test.aTimestampKeepsItsEra, JdbcDecodeH2Test.aTimestampTheDriverDoesNotReReadIsTheDriversOwn
+4.bc.timestamp-repaired	1
+      core/core_tests_exec: 1
+      e.g. JdbcDecodeH2Test.aTimestampKeepsItsEra
+6.positional.by-name	48
+      core/core_tests_root: 43
+      core/core_tests_server: 5
+      e.g. PureV1ApiTest.e8_jsonPlanThenJsonAnswer_isTheServersAnswerText_andAGraphFetchIsPlanned, ResultWritersTest.aHostsRowsDecodeByThePlansColumns, ResultWritersTest.aHostsTextIsReadAsTheServerReadsTheValue, RowDecodeTest.columnsAreReadByName_orByPositionWhenNoNameMatches, RowDecodeTest.lambda$aTokenNotOfItsColumnsKindIsRefusedByName$1, RowDecodeTest.one
+6.positional.by-position	1
+      core/core_tests_root: 1
+      e.g. RowDecodeTest.columnsAreReadByName_orByPositionWhenNoNameMatches
+7.envelope-planned.arrow	1
+      core/core_tests_server: 1
+      e.g. PureV1ApiTest.e8_executeArrow_isOneZstdFrameAroundAnArrowStreamWithTheEnginesMetadata
+x.by-pure-type:Date:LocalDate	1
+      core/core_tests_exec: 1
+      e.g. JdbcDecodeDuckDbTest.withoutASlotThePureTypeDecides
+x.by-pure-type:Float:BigDecimal	1
+      core/core_tests_exec: 1
+      e.g. JdbcDecodeDuckDbTest.withoutASlotThePureTypeDecides
+x.by-pure-type:Integer:Integer	1
+      core/core_tests_exec: 1
+      e.g. JdbcDecodeDuckDbTest.withoutASlotThePureTypeDecides
+x.by-pure-type:String:String	1
+      core/core_tests_exec: 1
+      e.g. JdbcDecodeDuckDbTest.withoutASlotThePureTypeDecides

@@ -1,0 +1,30 @@
+=== duckdb
+  real 0.1               TDS JSON: 0.1   (Float)                              graph fetch read: getDouble=0.10000000149011612
+  real 123456.789        TDS JSON: 123456.79   (Float)                        graph fetch read: getDouble=123456.7890625
+  real 1.0E-45           TDS JSON: 1.4E-45   (Float)                          graph fetch read: getDouble=1.401298464324817E-45
+  timestamptz +05        TDS JSON: 2024-01-01T22:04:05.123456Z   (OffsetDateTime) graph fetch read: getObject=2024-01-01T22:04:05.123456Z
+  ts 44 BC Mar 15        TDS JSON: "0044-03-13T10:00:00.000000000+0000"       graph fetch read: Timestamp(GMT).toInstant=-0043-03-13T10:00:00Z
+  date 44 BC Mar 15      TDS JSON: "0044-03-15"                               graph fetch read: Date.toLocalDate=0044-03-15
+  ts 1500-01-01          TDS JSON: "1500-01-10T10:00:00.000000000+0000"       graph fetch read: Timestamp(GMT).toInstant=1500-01-10T10:00:00Z
+  date 1500-01-01        TDS JSON: "1500-01-01"                               graph fetch read: Date.toLocalDate=1500-01-01
+  decimal 1.50           TDS JSON: 1.50   (BigDecimal)                        graph fetch read: getObject=1.50
+=== h2
+  real 0.1               TDS JSON: 0.1   (Float)                              graph fetch read: getDouble=0.10000000149011612
+  real 123456.789        TDS JSON: 123456.79   (Float)                        graph fetch read: getDouble=123456.7890625
+  real 1.0E-45           TDS JSON: 1.4E-45   (Float)                          graph fetch read: getDouble=1.401298464324817E-45
+  timestamptz +05        TDS JSON: 2024-01-02T03:04:05.123456+05:00   (OffsetDateTime) graph fetch read: getObject=2024-01-02T03:04:05.123456+05:00
+  ts 44 BC Mar 15        TDS JSON: "0044-03-15T10:00:00.000000000+0000"       graph fetch read: Timestamp(GMT).toInstant=-0043-03-15T10:00:00Z
+  date 44 BC Mar 15      TDS JSON: "0044-03-17"                               graph fetch read: Date.toLocalDate=0044-03-17
+  ts 1500-01-01          TDS JSON: "1500-01-01T10:00:00.000000000+0000"       graph fetch read: Timestamp(GMT).toInstant=1500-01-01T10:00:00Z
+  date 1500-01-01        TDS JSON: "1499-12-23"                               graph fetch read: Date.toLocalDate=1499-12-23
+  decimal 1.50           TDS JSON: 1.50   (BigDecimal)                        graph fetch read: getObject=1.50
+=== postgres
+  real 0.1               TDS JSON: 0.1   (Float)                              graph fetch read: getDouble=0.1
+  real 123456.789        TDS JSON: 123456.79   (Float)                        graph fetch read: getDouble=123456.79
+  real 1.0E-45           TDS JSON: 1.4E-45   (Float)                          graph fetch read: getDouble=1.0E-45
+  timestamptz +05        TDS JSON: "2024-01-01T22:04:05.123456000+0000"       graph fetch read: Timestamp(GMT).toInstant=2024-01-01T22:04:05.123456Z
+  ts 44 BC Mar 15        TDS JSON: "0044-03-13T10:00:00.000000000+0000"       graph fetch read: Timestamp(GMT).toInstant=-0043-03-13T10:00:00Z
+  date 44 BC Mar 15      TDS JSON: "0044-03-15"                               graph fetch read: Date.toLocalDate=0044-03-15
+  ts 1500-01-01          TDS JSON: "1500-01-10T10:00:00.000000000+0000"       graph fetch read: Timestamp(GMT).toInstant=1500-01-10T10:00:00Z
+  date 1500-01-01        TDS JSON: "1500-01-01"                               graph fetch read: Date.toLocalDate=1500-01-01
+  decimal 1.50           TDS JSON: 1.50   (BigDecimal)                        graph fetch read: getObject=1.50

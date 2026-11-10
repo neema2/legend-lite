@@ -1,0 +1,151 @@
+// P3's "the database does it" probe (2026-11-10). Never compiled by the build: copy to a scratch dir as
+// SqlExitProbe.java, then
+//   javac -d out SqlExitProbe.java
+//   java -cp "out:<duckdb_jdbc-1.5.6.0.jar>:<h2-2.5.252.jar>:<sqlite-jdbc-3.47.1.0.jar>:<postgresql-42.7.13.jar>" \
+//        SqlExitProbe [pg-url]
+// (the jar versions are tools/deps/jars_table.bzl's pins). Postgres: a throwaway cluster as an unprivileged user,
+// trust auth, e.g. jdbc:postgresql://localhost:55432/postgres?user=probe.
+// For each case and database it prints: the driver's getObject class and value (what JdbcDecode's arm reads today),
+// the re-read as java.time where the arm re-reads, and the SQL alternative's answer (getObject and getString).
+import java.sql.*;
+import java.time.*;
+import java.util.*;
+
+public class SqlExitProbe {
+    record Case(String site, String what, String today, String alternative) {}
+
+    public static void main(String[] a) throws Exception {
+        Map<String, String> urls = new LinkedHashMap<>();
+        urls.put("duckdb", "jdbc:duckdb:");
+        urls.put("h2", "jdbc:h2:mem:p3");
+        urls.put("sqlite", "jdbc:sqlite::memory:");
+        if (a.length > 0) urls.put("postgres", a[0]);
+        for (var e : urls.entrySet()) {
+            try (Connection c = DriverManager.getConnection(e.getValue())) {
+                System.out.println("=== " + e.getKey() + " " + c.getMetaData().getDatabaseProductVersion()
+                        + " / driver " + c.getMetaData().getDriverVersion());
+                for (Case k : cases(e.getKey())) run(c, e.getKey(), k);
+            }
+        }
+    }
+
+    static List<Case> cases(String db) {
+        List<Case> out = new ArrayList<>();
+        // site 1: a REAL (four-byte float). today: getObject -> Float, Double.parseDouble(Float.toString(f)).
+        // alternative: the database's own shortest text of the REAL, cast to DOUBLE in SQL.
+        String[] reals = {"0.1", "1.1", "0.3333333", "16777217", "3.4028235E38", "1.0E-45", "-0.0", "123456.789"};
+        for (String r : reals) {
+            String real = switch (db) {
+                case "duckdb" -> "CAST(" + r + " AS FLOAT)";      // DuckDB's FLOAT is four bytes
+                case "sqlite" -> "CAST(" + r + " AS REAL)";       // SQLite's REAL is eight bytes: no four-byte kind
+                default -> "CAST(" + r + " AS REAL)";
+            };
+            String alt = switch (db) {
+                case "postgres" -> "CAST(CAST(" + real + " AS TEXT) AS DOUBLE PRECISION)";
+                case "sqlite" -> "CAST(CAST(" + real + " AS TEXT) AS REAL)";
+                default -> "CAST(CAST(" + real + " AS VARCHAR) AS DOUBLE)";
+            };
+            out.add(new Case("1-real", r, real, alt));
+        }
+        // site 3: a TIMESTAMPTZ. today: an OffsetDateTime shifted to UTC in Java (or a Timestamp re-read).
+        // alternative: the instant's UTC wall clock as a TIMESTAMP, in SQL.
+        String tz = "2024-01-02 03:04:05.123456+05:00";
+        switch (db) {
+            case "duckdb" -> out.add(new Case("3-tz", tz, "CAST('" + tz + "' AS TIMESTAMPTZ)",
+                    "CAST(timezone('UTC', CAST('" + tz + "' AS TIMESTAMPTZ)) AS TIMESTAMP)"));
+            case "h2" -> out.add(new Case("3-tz", tz, "CAST('" + tz + "' AS TIMESTAMP WITH TIME ZONE)",
+                    "CAST(CAST('" + tz + "' AS TIMESTAMP WITH TIME ZONE) AT TIME ZONE 'UTC' AS TIMESTAMP)"));
+            case "postgres" -> out.add(new Case("3-tz", tz, "CAST('" + tz + "' AS TIMESTAMPTZ)",
+                    "(CAST('" + tz + "' AS TIMESTAMPTZ) AT TIME ZONE 'UTC')"));
+            default -> { }
+        }
+        // site 4: a BC date-time, top level and as an array's element (an element is never re-read as java.time).
+        // alternative: the database's own text of it (a TEMPORAL_TEXT slot).
+        switch (db) {
+            case "duckdb" -> {
+                out.add(new Case("4-bc", "top", "CAST('0044-03-15 (BC) 10:00:00' AS TIMESTAMP)",
+                        "CAST(CAST('0044-03-15 (BC) 10:00:00' AS TIMESTAMP) AS VARCHAR)"));
+                out.add(new Case("4-bc", "array", "[CAST('0044-03-15 (BC) 10:00:00' AS TIMESTAMP)]",
+                        "CAST([CAST('0044-03-15 (BC) 10:00:00' AS TIMESTAMP)] AS VARCHAR)"));
+                out.add(new Case("4-bc", "date", "CAST('0044-03-15 (BC)' AS DATE)",
+                        "CAST(CAST('0044-03-15 (BC)' AS DATE) AS VARCHAR)"));
+                out.add(new Case("4-bc", "date-array", "[CAST('0044-03-15 (BC)' AS DATE)]",
+                        "CAST([CAST('0044-03-15 (BC)' AS DATE)] AS VARCHAR)"));
+            }
+            case "h2" -> {
+                out.add(new Case("4-bc", "top", "TIMESTAMP '-0043-03-15 10:00:00'",
+                        "CAST(TIMESTAMP '-0043-03-15 10:00:00' AS VARCHAR)"));
+                out.add(new Case("4-bc", "array", "ARRAY[TIMESTAMP '-0043-03-15 10:00:00']",
+                        "CAST(ARRAY[TIMESTAMP '-0043-03-15 10:00:00'] AS VARCHAR)"));
+                out.add(new Case("4-bc", "date", "DATE '-0043-03-15'", "CAST(DATE '-0043-03-15' AS VARCHAR)"));
+            }
+            case "postgres" -> {
+                out.add(new Case("4-bc", "top", "TIMESTAMP '0044-03-15 10:00:00 BC'",
+                        "CAST(TIMESTAMP '0044-03-15 10:00:00 BC' AS TEXT)"));
+                out.add(new Case("4-bc", "array", "ARRAY[TIMESTAMP '0044-03-15 10:00:00 BC']",
+                        "CAST(ARRAY[TIMESTAMP '0044-03-15 10:00:00 BC'] AS TEXT)"));
+                out.add(new Case("4-bc", "date", "DATE '0044-03-15 BC'", "CAST(DATE '0044-03-15 BC' AS TEXT)"));
+            }
+            default -> { }
+        }
+        // site 2's twin, measurable here: does the driver keep a DECIMAL's trailing zeros (BigQuery's does not)?
+        String dec = db.equals("sqlite") ? "CAST('1.50' AS NUMERIC)" : "CAST(1.50 AS DECIMAL(10,2))";
+        out.add(new Case("2-scale", "1.50 as DECIMAL(10,2)", dec, "CAST(" + dec + " AS VARCHAR(40))"));
+        return out;
+    }
+
+    static void run(Connection c, String db, Case k) {
+        System.out.println("-- site " + k.site() + " [" + k.what() + "]");
+        show(c, "today", k.today(), true);
+        show(c, "alt  ", k.alternative(), false);
+    }
+
+    static void show(Connection c, String label, String expr, boolean reread) {
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery("SELECT " + expr)) {
+            rs.next();
+            Object o = rs.getObject(1);
+            String cls = o == null ? "null" : o.getClass().getName();
+            StringBuilder b = new StringBuilder("   " + label + ": " + cls + " " + describe(o));
+            b.append(" | getString=").append(rs.getString(1));
+            b.append(" | md=").append(rs.getMetaData().getColumnTypeName(1)).append("/").append(rs.getMetaData().getColumnType(1));
+            if (reread && (o instanceof java.sql.Timestamp || o instanceof OffsetDateTime)) {
+                b.append(" | reread LDT=").append(tryGet(rs, LocalDateTime.class)).append(" ODT=").append(tryGet(rs, OffsetDateTime.class));
+            }
+            if (reread && o instanceof java.sql.Date) {
+                b.append(" | reread LD=").append(tryGet(rs, LocalDate.class));
+            }
+            System.out.println(b);
+        } catch (Exception e) {
+            System.out.println("   " + label + ": REFUSED " + e.getClass().getSimpleName() + ": " + firstLine(e.getMessage())
+                    + "   [" + expr + "]");
+        }
+    }
+
+    static String describe(Object o) throws SQLException {
+        if (o instanceof Float f) return f + " -> double " + (double) f + " ; lite " + Double.parseDouble(Float.toString(f));
+        if (o instanceof java.sql.Timestamp t) return t + " toLocalDateTime=" + t.toLocalDateTime() + " toInstant=" + t.toInstant()
+                + " era=" + era(t);
+        if (o instanceof java.sql.Date d) return d + " toLocalDate=" + d.toLocalDate() + " era=" + era(d);
+        if (o instanceof OffsetDateTime odt) return odt + " ->UTC " + odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        if (o instanceof java.sql.Array arr) {
+            Object[] items = (Object[]) arr.getArray();
+            StringBuilder b = new StringBuilder("[");
+            for (Object i : items) b.append(i == null ? "null" : i.getClass().getSimpleName() + ":" + describe(i)).append(", ");
+            return b.append("]").toString();
+        }
+        if (o instanceof java.math.BigDecimal d) return d.toPlainString() + " scale=" + d.scale();
+        return String.valueOf(o);
+    }
+
+    static String era(java.util.Date d) {
+        GregorianCalendar g = new GregorianCalendar();
+        g.setTime(d);
+        return g.get(Calendar.ERA) == GregorianCalendar.BC ? "BC" : "AD";
+    }
+
+    static String tryGet(ResultSet rs, Class<?> k) {
+        try { return String.valueOf(rs.getObject(1, k)); } catch (Exception e) { return "REFUSED(" + firstLine(e.getMessage()) + ")"; }
+    }
+
+    static String firstLine(String s) { return s == null ? "" : s.split("\n")[0]; }
+}

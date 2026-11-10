@@ -1,0 +1,44 @@
+JdbcDecode.java: 30
+    BigDecimal.valueOf x4  lines [399, 400, 401, 403]
+    Double.parseDouble x3  lines [386, 596, 629]
+    Double.valueOf x1  lines [391]
+    Integer.parseInt x1  lines [415]
+    bitLength x3  lines [379, 593, 626]
+    doubleValue x2  lines [387, 390]
+    getYear x2  lines [343, 349]
+    intValue x1  lines [175]
+    longValue x3  lines [379, 593, 626]
+    new BigDecimal x4  lines [402, 404, 405, 597]
+    new BigInteger x1  lines [375]
+    scale x2  lines [286, 374]
+    setScale x1  lines [286]
+    stripTrailingZeros x1  lines [374]
+    toBigIntegerExact x1  lines [374]
+PlanParameters.java: 8
+    Double.isFinite x1  lines [180]
+    Integer.valueOf x1  lines [107]
+    getYear x4  lines [191, 191, 197, 197]
+    scale x1  lines [203]
+    setScale x1  lines [203]
+PlanRunner.java: 2
+    getNano x2  lines [1002, 1002]
+RaisedErrors.java: 2
+    Integer.parseInt x2  lines [135, 136]
+WireTypes.java: 1
+    Math. x1  lines [32]
+MongoDbDecode.java: 21
+    BigDecimal.valueOf x4  lines [221, 223, 253, 256]
+    Double.valueOf x1  lines [243]
+    bitLength x1  lines [229]
+    doubleValue x1  lines [240]
+    intValue x1  lines [58]
+    longValue x4  lines [229, 237, 253, 270]
+    negate x1  lines [204]
+    new BigDecimal x1  lines [259]
+    new BigInteger x1  lines [225]
+    scale x2  lines [210, 221]
+    stripTrailingZeros x2  lines [210, 221]
+    toBigIntegerExact x2  lines [220, 223]
+MongoDbStatements.java: 1
+    getNano x1  lines [311]
+TOTAL 65 in 38 files

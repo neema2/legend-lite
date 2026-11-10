@@ -1,0 +1,3 @@
+# //spec:corpus_duckdb and //spec:corpus_h2 (host and database passes): every P3COUNT line the four actions printed (an action that reached no counted arm prints none)
+INFO: From CorpusHostPass //spec:judge_host_duckdb:
+P3COUNT 4.bc.timestamp-arm-ad 2 [MinimalCorpusTest.run]

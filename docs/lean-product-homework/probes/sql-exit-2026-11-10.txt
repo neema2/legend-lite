@@ -1,0 +1,151 @@
+=== duckdb v1.5.6 / driver 1.0
+-- site 1-real [0.1]
+   today: java.lang.Float 0.1 -> double 0.10000000149011612 ; lite 0.1 | getString=0.1 | md=FLOAT/6
+   alt  : java.lang.Double 0.1 | getString=0.1 | md=DOUBLE/8
+-- site 1-real [1.1]
+   today: java.lang.Float 1.1 -> double 1.100000023841858 ; lite 1.1 | getString=1.1 | md=FLOAT/6
+   alt  : java.lang.Double 1.1 | getString=1.1 | md=DOUBLE/8
+-- site 1-real [0.3333333]
+   today: java.lang.Float 0.3333333 -> double 0.3333333134651184 ; lite 0.3333333 | getString=0.3333333 | md=FLOAT/6
+   alt  : java.lang.Double 0.3333333 | getString=0.3333333 | md=DOUBLE/8
+-- site 1-real [16777217]
+   today: java.lang.Float 1.6777216E7 -> double 1.6777216E7 ; lite 1.6777216E7 | getString=1.6777216E7 | md=FLOAT/6
+   alt  : java.lang.Double 1.6777216E7 | getString=1.6777216E7 | md=DOUBLE/8
+-- site 1-real [3.4028235E38]
+   today: java.lang.Float 3.4028235E38 -> double 3.4028234663852886E38 ; lite 3.4028235E38 | getString=3.4028235E38 | md=FLOAT/6
+   alt  : java.lang.Double 3.4028235E38 | getString=3.4028235E38 | md=DOUBLE/8
+-- site 1-real [1.0E-45]
+   today: java.lang.Float 1.4E-45 -> double 1.401298464324817E-45 ; lite 1.4E-45 | getString=1.4E-45 | md=FLOAT/6
+   alt  : java.lang.Double 1.0E-45 | getString=1.0E-45 | md=DOUBLE/8
+-- site 1-real [-0.0]
+   today: java.lang.Float 0.0 -> double 0.0 ; lite 0.0 | getString=0.0 | md=FLOAT/6
+   alt  : java.lang.Double 0.0 | getString=0.0 | md=DOUBLE/8
+-- site 1-real [123456.789]
+   today: java.lang.Float 123456.79 -> double 123456.7890625 ; lite 123456.79 | getString=123456.79 | md=FLOAT/6
+   alt  : java.lang.Double 123456.79 | getString=123456.79 | md=DOUBLE/8
+-- site 3-tz [2024-01-02 03:04:05.123456+05:00]
+   today: java.time.OffsetDateTime 2024-01-01T22:04:05.123456Z ->UTC 2024-01-01T22:04:05.123456 | getString=2024-01-01T22:04:05.123456Z | md=TIMESTAMP WITH TIME ZONE/2014 | reread LDT=2024-01-01T22:04:05.123456 ODT=2024-01-01T22:04:05.123456Z
+   alt  : java.sql.Timestamp 2024-01-01 22:04:05.123456 toLocalDateTime=2024-01-01T22:04:05.123456 toInstant=2024-01-01T22:04:05.123456Z era=AD | getString=2024-01-01 22:04:05.123456 | md=TIMESTAMP/93
+-- site 4-bc [top]
+   today: java.sql.Timestamp 0044-03-15 10:00:00.0 toLocalDateTime=0044-03-15T10:00 toInstant=-0043-03-13T10:00:00Z era=BC | getString=0044-03-15 10:00:00.0 | md=TIMESTAMP/93 | reread LDT=-0043-03-15T10:00 ODT=REFUSED(Can't convert value to OffsetDateTime, Java type: class java.time.OffsetDateTime, SQL type: TIMESTAMP)
+   alt  : java.lang.String 0044-03-15 (BC) 10:00:00 | getString=0044-03-15 (BC) 10:00:00 | md=VARCHAR/12
+-- site 4-bc [array]
+   today: org.duckdb.DuckDBArray [Timestamp:0044-03-15 10:00:00.0 toLocalDateTime=0044-03-15T10:00 toInstant=-0043-03-13T10:00:00Z era=BC, ] | getString=['0044-03-15 (BC) 10:00:00'] | md=TIMESTAMP[]/2003
+   alt  : java.lang.String ['0044-03-15 (BC) 10:00:00'] | getString=['0044-03-15 (BC) 10:00:00'] | md=VARCHAR/12
+-- site 4-bc [date]
+   today: java.time.LocalDate -0043-03-15 | getString=-0043-03-15 | md=DATE/91
+   alt  : java.lang.String 0044-03-15 (BC) | getString=0044-03-15 (BC) | md=VARCHAR/12
+-- site 4-bc [date-array]
+   today: org.duckdb.DuckDBArray [LocalDate:-0043-03-15, ] | getString=['0044-03-15 (BC)'] | md=DATE[]/2003
+   alt  : java.lang.String ['0044-03-15 (BC)'] | getString=['0044-03-15 (BC)'] | md=VARCHAR/12
+-- site 2-scale [1.50 as DECIMAL(10,2)]
+   today: java.math.BigDecimal 1.50 scale=2 | getString=1.50 | md=DECIMAL(10,2)/3
+   alt  : java.lang.String 1.50 | getString=1.50 | md=VARCHAR/12
+=== h2 2.5.252 (2026-09-23) / driver 2.5.252 (2026-09-23)
+-- site 1-real [0.1]
+   today: java.lang.Float 0.1 -> double 0.10000000149011612 ; lite 0.1 | getString=0.1 | md=REAL/7
+   alt  : java.lang.Double 0.1 | getString=0.1 | md=DOUBLE PRECISION/8
+-- site 1-real [1.1]
+   today: java.lang.Float 1.1 -> double 1.100000023841858 ; lite 1.1 | getString=1.1 | md=REAL/7
+   alt  : java.lang.Double 1.1 | getString=1.1 | md=DOUBLE PRECISION/8
+-- site 1-real [0.3333333]
+   today: java.lang.Float 0.3333333 -> double 0.3333333134651184 ; lite 0.3333333 | getString=0.3333333 | md=REAL/7
+   alt  : java.lang.Double 0.3333333 | getString=0.3333333 | md=DOUBLE PRECISION/8
+-- site 1-real [16777217]
+   today: java.lang.Float 1.6777216E7 -> double 1.6777216E7 ; lite 1.6777216E7 | getString=1.6777216E7 | md=REAL/7
+   alt  : java.lang.Double 1.6777216E7 | getString=1.6777216E7 | md=DOUBLE PRECISION/8
+-- site 1-real [3.4028235E38]
+   today: java.lang.Float 3.4028235E38 -> double 3.4028234663852886E38 ; lite 3.4028235E38 | getString=3.4028235E38 | md=REAL/7
+   alt  : java.lang.Double 3.4028235E38 | getString=3.4028235E38 | md=DOUBLE PRECISION/8
+-- site 1-real [1.0E-45]
+   today: java.lang.Float 1.4E-45 -> double 1.401298464324817E-45 ; lite 1.4E-45 | getString=1.4E-45 | md=REAL/7
+   alt  : java.lang.Double 1.4E-45 | getString=1.4E-45 | md=DOUBLE PRECISION/8
+-- site 1-real [-0.0]
+   today: java.lang.Float 0.0 -> double 0.0 ; lite 0.0 | getString=0.0 | md=REAL/7
+   alt  : java.lang.Double 0.0 | getString=0.0 | md=DOUBLE PRECISION/8
+-- site 1-real [123456.789]
+   today: java.lang.Float 123456.79 -> double 123456.7890625 ; lite 123456.79 | getString=123456.79 | md=REAL/7
+   alt  : java.lang.Double 123456.79 | getString=123456.79 | md=DOUBLE PRECISION/8
+-- site 3-tz [2024-01-02 03:04:05.123456+05:00]
+   today: java.time.OffsetDateTime 2024-01-02T03:04:05.123456+05:00 ->UTC 2024-01-01T22:04:05.123456 | getString=2024-01-02 03:04:05.123456+05 | md=TIMESTAMP WITH TIME ZONE/2014 | reread LDT=2024-01-01T22:04:05.123456 ODT=2024-01-02T03:04:05.123456+05:00
+   alt  : java.sql.Timestamp 2024-01-01 22:04:05.123456 toLocalDateTime=2024-01-01T22:04:05.123456 toInstant=2024-01-01T22:04:05.123456Z era=AD | getString=2024-01-01 22:04:05.123456 | md=TIMESTAMP/93
+-- site 4-bc [top]
+   today: java.sql.Timestamp 0044-03-17 10:00:00.0 toLocalDateTime=0044-03-17T10:00 toInstant=-0043-03-15T10:00:00Z era=BC | getString=-0043-03-15 10:00:00 | md=TIMESTAMP/93 | reread LDT=-0043-03-15T10:00 ODT=-0043-03-15T10:00Z
+   alt  : java.lang.String -0043-03-15 10:00:00 | getString=-0043-03-15 10:00:00 | md=CHARACTER VARYING/12
+-- site 4-bc [array]
+   today: org.h2.jdbc.JdbcArray [Timestamp:0044-03-17 10:00:00.0 toLocalDateTime=0044-03-17T10:00 toInstant=-0043-03-15T10:00:00Z era=BC, ] | getString=[-0043-03-15 10:00:00] | md=TIMESTAMP(9) ARRAY/2003
+   alt  : java.lang.String [-0043-03-15 10:00:00] | getString=[-0043-03-15 10:00:00] | md=CHARACTER VARYING/12
+-- site 4-bc [date]
+   today: java.sql.Date 0044-03-17 toLocalDate=0044-03-17 era=BC | getString=-0043-03-15 | md=DATE/91 | reread LD=-0043-03-15
+   alt  : java.lang.String -0043-03-15 | getString=-0043-03-15 | md=CHARACTER VARYING/12
+-- site 2-scale [1.50 as DECIMAL(10,2)]
+   today: java.math.BigDecimal 1.50 scale=2 | getString=1.50 | md=DECIMAL/3
+   alt  : java.lang.String 1.50 | getString=1.50 | md=CHARACTER VARYING/12
+=== sqlite 3.47.1 / driver 3.47.1.0
+-- site 1-real [0.1]
+   today: java.lang.Double 0.1 | getString=0.1 | md=FLOAT/6
+   alt  : java.lang.Double 0.1 | getString=0.1 | md=FLOAT/6
+-- site 1-real [1.1]
+   today: java.lang.Double 1.1 | getString=1.1 | md=FLOAT/6
+   alt  : java.lang.Double 1.1 | getString=1.1 | md=FLOAT/6
+-- site 1-real [0.3333333]
+   today: java.lang.Double 0.3333333 | getString=0.3333333 | md=FLOAT/6
+   alt  : java.lang.Double 0.3333333 | getString=0.3333333 | md=FLOAT/6
+-- site 1-real [16777217]
+   today: java.lang.Double 1.6777217E7 | getString=16777217.0 | md=FLOAT/6
+   alt  : java.lang.Double 1.6777217E7 | getString=16777217.0 | md=FLOAT/6
+-- site 1-real [3.4028235E38]
+   today: java.lang.Double 3.4028235E38 | getString=3.4028235e+38 | md=FLOAT/6
+   alt  : java.lang.Double 3.4028235E38 | getString=3.4028235e+38 | md=FLOAT/6
+-- site 1-real [1.0E-45]
+   today: java.lang.Double 1.0E-45 | getString=1.0e-45 | md=FLOAT/6
+   alt  : java.lang.Double 1.0E-45 | getString=1.0e-45 | md=FLOAT/6
+-- site 1-real [-0.0]
+   today: java.lang.Double -0.0 | getString=0.0 | md=FLOAT/6
+   alt  : java.lang.Double 0.0 | getString=0.0 | md=FLOAT/6
+-- site 1-real [123456.789]
+   today: java.lang.Double 123456.789 | getString=123456.789 | md=FLOAT/6
+   alt  : java.lang.Double 123456.789 | getString=123456.789 | md=FLOAT/6
+-- site 2-scale [1.50 as DECIMAL(10,2)]
+   today: java.lang.Double 1.5 | getString=1.5 | md=FLOAT/6
+   alt  : java.lang.String 1.5 | getString=1.5 | md=TEXT/12
+=== postgres 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) / driver 42.7.13
+-- site 1-real [0.1]
+   today: java.lang.Float 0.1 -> double 0.10000000149011612 ; lite 0.1 | getString=0.1 | md=float4/7
+   alt  : java.lang.Double 0.1 | getString=0.1 | md=float8/8
+-- site 1-real [1.1]
+   today: java.lang.Float 1.1 -> double 1.100000023841858 ; lite 1.1 | getString=1.1 | md=float4/7
+   alt  : java.lang.Double 1.1 | getString=1.1 | md=float8/8
+-- site 1-real [0.3333333]
+   today: java.lang.Float 0.3333333 -> double 0.3333333134651184 ; lite 0.3333333 | getString=0.3333333 | md=float4/7
+   alt  : java.lang.Double 0.3333333 | getString=0.3333333 | md=float8/8
+-- site 1-real [16777217]
+   today: java.lang.Float 1.6777216E7 -> double 1.6777216E7 ; lite 1.6777216E7 | getString=1.6777216e+07 | md=float4/7
+   alt  : java.lang.Double 1.6777216E7 | getString=16777216 | md=float8/8
+-- site 1-real [3.4028235E38]
+   today: java.lang.Float 3.4028235E38 -> double 3.4028234663852886E38 ; lite 3.4028235E38 | getString=3.4028235e+38 | md=float4/7
+   alt  : java.lang.Double 3.4028235E38 | getString=3.4028235e+38 | md=float8/8
+-- site 1-real [1.0E-45]
+   today: java.lang.Float 1.4E-45 -> double 1.401298464324817E-45 ; lite 1.4E-45 | getString=1e-45 | md=float4/7
+   alt  : java.lang.Double 1.0E-45 | getString=1e-45 | md=float8/8
+-- site 1-real [-0.0]
+   today: java.lang.Float 0.0 -> double 0.0 ; lite 0.0 | getString=0 | md=float4/7
+   alt  : java.lang.Double 0.0 | getString=0 | md=float8/8
+-- site 1-real [123456.789]
+   today: java.lang.Float 123456.79 -> double 123456.7890625 ; lite 123456.79 | getString=123456.79 | md=float4/7
+   alt  : java.lang.Double 123456.79 | getString=123456.79 | md=float8/8
+-- site 3-tz [2024-01-02 03:04:05.123456+05:00]
+   today: java.sql.Timestamp 2024-01-01 22:04:05.123456 toLocalDateTime=2024-01-01T22:04:05.123456 toInstant=2024-01-01T22:04:05.123456Z era=AD | getString=2024-01-01 22:04:05.123456+00 | md=timestamptz/93 | reread LDT=REFUSED(Cannot convert the column of type TIMESTAMPTZ to requested type java.time.LocalDateTime.) ODT=2024-01-01T22:04:05.123456Z
+   alt  : java.sql.Timestamp 2024-01-01 22:04:05.123456 toLocalDateTime=2024-01-01T22:04:05.123456 toInstant=2024-01-01T22:04:05.123456Z era=AD | getString=2024-01-01 22:04:05.123456 | md=timestamp/93
+-- site 4-bc [top]
+   today: java.sql.Timestamp 0044-03-15 10:00:00.0 toLocalDateTime=0044-03-15T10:00 toInstant=-0043-03-13T10:00:00Z era=BC | getString=0044-03-15 10:00:00 BC | md=timestamp/93 | reread LDT=-0043-03-15T10:00 ODT=-0043-03-15T10:00Z
+   alt  : java.lang.String 0044-03-15 10:00:00 BC | getString=0044-03-15 10:00:00 BC | md=text/12
+-- site 4-bc [array]
+   today: org.postgresql.jdbc.PgArray [Timestamp:0044-03-15 10:00:00.0 toLocalDateTime=0044-03-15T10:00 toInstant=-0043-03-13T10:00:00Z era=BC, ] | getString={"0044-03-15 10:00:00 BC"} | md=_timestamp/2003
+   alt  : java.lang.String {"0044-03-15 10:00:00 BC"} | getString={"0044-03-15 10:00:00 BC"} | md=text/12
+-- site 4-bc [date]
+   today: java.sql.Date 0044-03-15 toLocalDate=0044-03-15 era=BC | getString=0044-03-15 BC | md=date/91 | reread LD=-0043-03-15
+   alt  : java.lang.String 0044-03-15 BC | getString=0044-03-15 BC | md=text/12
+-- site 2-scale [1.50 as DECIMAL(10,2)]
+   today: java.math.BigDecimal 1.50 scale=2 | getString=1.50 | md=numeric/2
+   alt  : java.lang.String 1.50 | getString=1.50 | md=varchar/12

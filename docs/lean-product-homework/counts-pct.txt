@@ -1,0 +1,10 @@
+7.pivot.envelope-at-run.json	30
+      pct/pct_duckdb_relation: 10
+      pct/pct_h2: 10
+      pct/pct_sqlite_relation: 10
+      e.g. PctPlanRoute.execute
+7.pivot.generated-column	144
+      pct/pct_duckdb_relation: 48
+      pct/pct_h2: 48
+      pct/pct_sqlite_relation: 48
+      e.g. PctPlanRoute.execute

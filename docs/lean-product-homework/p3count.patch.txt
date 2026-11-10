@@ -1,0 +1,221 @@
+diff --git a/core/src/main/java/com/legend/exec/JdbcDecode.java b/core/src/main/java/com/legend/exec/JdbcDecode.java
+index 511a72ef..fa48868b 100644
+--- a/core/src/main/java/com/legend/exec/JdbcDecode.java
++++ b/core/src/main/java/com/legend/exec/JdbcDecode.java
+@@ -283,7 +283,7 @@ final class JdbcDecode {
+                 // a driver that drops a decimal's trailing zeros (BigQuery's): the slot's declared scale is the
+                 // value's own, its digits padded back -- setScale to a greater scale never rounds
+                 int scale = driver.dropsDecimalZeros() ? declaredScale(c) : -1;
+-                return scale > d.scale() ? d.setScale(scale) : d;
++                return scale > d.scale() ? com.legend.base.P3Count.hit("2.bigquery-pad", d.setScale(scale)) : d;
+             }
+             case BOOLEAN -> {
+                 return bool(v, c);
+@@ -309,6 +309,7 @@ final class JdbcDecode {
+                 return map(v, c, driver);
+             }
+             case BY_PURE_TYPE -> {
++                com.legend.base.P3Count.hit("x.by-pure-type:" + (type.contains("::") ? "class/enum/Any" : type) + ":" + v.getClass().getSimpleName());
+                 // no slot (a late-bound grid's column, a pivot's generated column): the Pure type decides
+             }
+         }
+@@ -322,8 +323,8 @@ final class JdbcDecode {
+             case LocalDateTime t -> PureDateLiteral.fromDatabaseTimestamp(t);
+             // a structure's leaf, never re-read, or a driver that re-reads no timestamp: its wall clock, its era kept
+             case java.sql.Timestamp ts -> PureDateLiteral.fromDatabaseTimestamp(wallClock(ts));
+-            case OffsetDateTime o -> PureDateLiteral.fromDatabaseTimestamp(
+-                    o.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime());
++            case OffsetDateTime o -> com.legend.base.P3Count.hit(o.getOffset().equals(ZoneOffset.UTC) ? "3.tz.utc-already" : "3.tz.shifted", PureDateLiteral.fromDatabaseTimestamp(
++                    o.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime()));
+             // a DATE the database holds is a day, whichever slot declares it (the canon's own dispatch: a column
+             // declared DATE may hold timestamps, and the driver's kind says which)
+             case LocalDate d -> PureDateLiteral.fromLocalDate(d);
+@@ -340,12 +341,14 @@ final class JdbcDecode {
+      *  says which, and an astronomical year is 1 minus a BC year. */
+     static LocalDateTime wallClock(java.sql.Timestamp ts) {
+         LocalDateTime t = ts.toLocalDateTime();
++        com.legend.base.P3Count.hit(beforeChrist(ts) ? "4.bc.timestamp-repaired" : "4.bc.timestamp-arm-ad");
+         return beforeChrist(ts) ? t.withYear(1 - t.getYear()) : t;
+     }
+ 
+     /** A driver's {@link java.sql.Date} as the day it holds, its era kept ({@link #wallClock}'s rule). */
+     static LocalDate day(java.sql.Date d) {
+         LocalDate day = d.toLocalDate();
++        com.legend.base.P3Count.hit(beforeChrist(d) ? "4.bc.date-repaired" : "4.bc.date-arm-ad");
+         return beforeChrist(d) ? day.withYear(1 - day.getYear()) : day;
+     }
+ 
+@@ -383,7 +386,7 @@ final class JdbcDecode {
+         return switch (v) {
+             case Double d -> d;
+             // a REAL's own digits, as the JSON writer's shortest text spelled them, never the widened binary
+-            case Float f -> Double.parseDouble(Float.toString(f));
++            case Float f -> com.legend.base.P3Count.hit("1.real.floating", Double.parseDouble(Float.toString(f)));
+             case BigDecimal d -> d.doubleValue();
+             case Long l -> (double) l;
+             case Integer n -> (double) n;
+@@ -401,7 +404,7 @@ final class JdbcDecode {
+             case Short n -> BigDecimal.valueOf(n);
+             case BigInteger b -> new BigDecimal(b);
+             case Double d -> BigDecimal.valueOf(d);
+-            case Float f -> new BigDecimal(Float.toString(f));
++            case Float f -> com.legend.base.P3Count.hit("1.real.decimal", new BigDecimal(Float.toString(f)));
+             case String s -> new BigDecimal(s.trim());
+             default -> throw refused(v, c);
+         };
+@@ -436,7 +439,7 @@ final class JdbcDecode {
+             case Byte n -> Byte.toString(n);
+             case BigInteger b -> b.toString();
+             case Double d -> Double.toString(d);
+-            case Float f -> Float.toString(f);
++            case Float f -> com.legend.base.P3Count.hit("1.real.text", Float.toString(f));
+             default -> throw refused(v, c);
+         };
+     }
+@@ -593,9 +596,9 @@ final class JdbcDecode {
+                 case BigInteger b -> b.bitLength() <= 63 ? (Object) b.longValue() : b;
+                 case BigDecimal d -> d;
+                 case Double d -> d;
+-                case Float f -> Double.parseDouble(Float.toString(f));
+-                case String s -> s.contains(".") || s.contains("e") || s.contains("E") ? new BigDecimal(s.trim())
+-                        : integral(s, c);
++                case Float f -> com.legend.base.P3Count.hit("1.real.number", Double.parseDouble(Float.toString(f)));
++                case String s -> s.contains(".") || s.contains("e") || s.contains("E") ? com.legend.base.P3Count.hit("5.number-text.decimal", new BigDecimal(s.trim()))
++                        : com.legend.base.P3Count.hit("5.number-text.integral", integral(s, c));
+                 default -> throw refused(v, c);
+             };
+         }
+@@ -616,9 +619,9 @@ final class JdbcDecode {
+         return switch (v) {
+             case String s -> {
+                 String t = s.trim();
+-                yield t.startsWith("{") || t.startsWith("[") ? com.legend.result.RowDecode.cell(Json.parse(t), c) : s;
++                yield t.startsWith("{") || t.startsWith("[") ? com.legend.base.P3Count.hitN("5.any-text.json-parsed:" + c.type(), com.legend.result.RowDecode.cell(Json.parse(t), c)) : com.legend.base.P3Count.hit("5.any-text.string:" + c.type(), s);
+             }
+-            case byte[] b -> com.legend.result.RowDecode.cell(Json.parse(new String(b, StandardCharsets.UTF_8)), c);
++            case byte[] b -> com.legend.base.P3Count.hitN("5.any-bytes.json-parsed", com.legend.result.RowDecode.cell(Json.parse(new String(b, StandardCharsets.UTF_8)), c));
+             case Boolean b -> b;
+             case Long l -> l;
+             case Integer n -> (long) n;
+@@ -626,7 +629,7 @@ final class JdbcDecode {
+             case BigInteger b -> b.bitLength() <= 63 ? (Object) b.longValue() : b;
+             case BigDecimal d -> d;
+             case Double d -> d;
+-            case Float f -> Double.parseDouble(Float.toString(f));
++            case Float f -> com.legend.base.P3Count.hit("1.real.any", Double.parseDouble(Float.toString(f)));
+             case LocalDateTime t -> temporal(t, c);
+             case java.sql.Timestamp t -> temporal(t, c);
+             case LocalDate d -> temporal(d, c);
+diff --git a/core/src/main/java/com/legend/result/Output.java b/core/src/main/java/com/legend/result/Output.java
+index 5f5334fb..6b80b787 100644
+--- a/core/src/main/java/com/legend/result/Output.java
++++ b/core/src/main/java/com/legend/result/Output.java
+@@ -55,6 +55,7 @@ public sealed interface Output
+                     // builder entry refuses before a write program changes anything; made from the announced columns
+                     // only where the plan states none (a dynamic pivot's: the phase 3 audit, 2026-10-27)
+                     if (stated == null) {
++                        com.legend.base.P3Count.hit("7.pivot.envelope-at-run.json");
+                         yield PureV1Writer.relation(e.out(), columns -> PureV1Writer.envelope(e.facts(), sql, columns));
+                     }
+                     PureV1Writer.Envelope made = PureV1Writer.envelope(e.facts(), sql, stated);
+@@ -70,6 +71,7 @@ public sealed interface Output
+                     java.util.List<ExecutionPlan.Column> stated = plan.answerColumns();
+                     // the JSON route's rule (Engine above): the metadata from the plan's stated columns before any
+                     // statement runs; from the announced columns only where the plan states none
++                    com.legend.base.P3Count.hit(stated == null ? "7.pivot.envelope-at-run.arrow" : "7.envelope-planned.arrow");
+                     yield stated == null
+                             ? new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, columns))
+                             : new ArrowWriter(a.out(), PureV1Writer.arrowMetadata(a.facts(), sql, stated));
+diff --git a/core/src/main/java/com/legend/result/PureV1Writer.java b/core/src/main/java/com/legend/result/PureV1Writer.java
+index 71143ddf..a19ffa7e 100644
+--- a/core/src/main/java/com/legend/result/PureV1Writer.java
++++ b/core/src/main/java/com/legend/result/PureV1Writer.java
+@@ -83,7 +83,7 @@ public final class PureV1Writer implements ResultSink {
+                             // (the plan names a primitive by its short name, the table by its path: every dynamic
+                             // pivot's engine answer was refused until 2026-10-27, found by the PCT read as the engine's
+                             // adapter reads it, the result boundary program's stage 1, step 3)
+-                            ? primitive(facts, c)
++                            ? com.legend.base.P3Count.hit("7.pivot.generated-column", primitive(facts, c))
+                             : null;
+             if (t == null) {
+                 throw new IllegalStateException("column '" + c.name() + "' is none the compiler typed: "
+diff --git a/core/src/main/java/com/legend/result/RowDecode.java b/core/src/main/java/com/legend/result/RowDecode.java
+index 0401c96b..555e4f1c 100644
+--- a/core/src/main/java/com/legend/result/RowDecode.java
++++ b/core/src/main/java/com/legend/result/RowDecode.java
+@@ -51,6 +51,7 @@ public final class RowDecode {
+     public static List<Object> cells(Json.Obj row, List<ExecutionPlan.Column> columns) {
+         boolean anyByName = columns.stream().anyMatch(c -> row.fields().containsKey(c.name()));
+         boolean positional = !anyByName && row.fields().size() == columns.size();
++        com.legend.base.P3Count.hit(positional ? "6.positional.by-position" : "6.positional.by-name");
+         List<Json.Node> byPosition = positional ? new ArrayList<>(row.fields().values()) : List.of();
+         List<Object> out = new ArrayList<>(columns.size());
+         for (int i = 0; i < columns.size(); i++) {
+@@ -299,7 +300,7 @@ public final class RowDecode {
+         };
+         // a REAL (four bytes) its own shortest digits, as JdbcDecode reads the driver's float: a host that widens it to
+         // a double (DuckDB-WASM's, Python's) hands 0.10000000149011612 for 0.1 (the phase 3 audit, 2026-10-27)
+-        return slotWord(c.slot()).equals("REAL") && Double.isFinite(d) ? Double.parseDouble(Float.toString((float) d))
++        return slotWord(c.slot()).equals("REAL") && Double.isFinite(d) ? com.legend.base.P3Count.hit("1.real.rowdecode", Double.parseDouble(Float.toString((float) d)))
+                 : d;
+     }
+ 
+# the new file the patch adds (git diff does not show untracked files): base/src/main/java/com/legend/base/P3Count.java
+// THROWAWAY (P3 research, 2026-11-10): never committed.
+package com.legend.base;
+
+public final class P3Count {
+    private P3Count() {
+    }
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong> COUNTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.Set<String>> WHERE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            java.util.TreeMap<String, Long> sorted = new java.util.TreeMap<>();
+            COUNTS.forEach((k, v) -> sorted.put(k, v.get()));
+            StringBuilder b = new StringBuilder();
+            sorted.forEach((k, v) -> b.append("P3COUNT ").append(k).append(' ').append(v).append(' ')
+                    .append(WHERE.getOrDefault(k, java.util.Set.of())).append('\n'));
+            System.err.print(b);
+            String dir = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+            if (dir != null) {
+                try {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(dir, "p3count.txt"), b.toString());
+                } catch (java.io.IOException ignored) {
+                    // a measurement
+                }
+            }
+        }));
+    }
+
+    public static <T> T hit(String key, T v) {
+        hit(key);
+        return v;
+    }
+
+    public static <T> @Nullable T hitN(String key, @Nullable T v) {
+        hit(key);
+        return v;
+    }
+
+    public static void hit(String key) {
+        long n = COUNTS.computeIfAbsent(key, k -> new java.util.concurrent.atomic.AtomicLong()).incrementAndGet();
+        if (n <= 400) {
+            java.util.Set<String> where = WHERE.computeIfAbsent(key,
+                    k -> java.util.concurrent.ConcurrentHashMap.newKeySet());
+            if (where.size() < 6) {
+                for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
+                    String c = e.getClassName();
+                    if (c.endsWith("Test") || c.contains("Test$") || c.contains(".pct.") && c.contains("Pct")) {
+                        where.add(c.substring(c.lastIndexOf('.') + 1) + "." + e.getMethodName());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}

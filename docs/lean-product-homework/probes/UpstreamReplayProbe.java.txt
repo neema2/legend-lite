@@ -1,0 +1,91 @@
+// P3: legend-engine 4.145.0's TDS JSON cell, REPLAYED from its source on today's drivers (2026-11-10). This is NOT the
+// engine runner: it copies, call for call, what the pinned sources do with one cell, so a reviewer can check each line
+// against them. Where the engine runner is asked (docs/result-boundary-homework/README.md §7's recipe), it wins.
+//   RelationalResult.getValue (RelationalResult.java:469-546): a column whose JDBC type is TIMESTAMP (93) is
+//     getTimestamp(i, GregorianCalendar(GMT)); a DATE (91) getDate(i); else getObject(i)
+//     (SQLResultDBColumnsMetaData.java:52-60 decides "timestamp" and "date" by the JDBC type code alone).
+//   ValueTransformer.transformWrappedRelationalValueForJSON (ValueTransformer.java:33-49): a Timestamp
+//     "yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ" of toInstant().atOffset(UTC); a java.sql.Date toLocalDate() "yyyy-MM-dd";
+//     else the column's transformer (the identity for a primitive) then
+//   ExecutionResultObjectMapperFactory.convertPurePrimitiveToJson (ExecutionResultObjectMapperFactory.java:70-87):
+//     a String quoted; null, NaN and the infinities null; else value.toString().
+//   RelationalResult.getTransformedValue (RelationalResult.java:548-647), the graph fetch's read: REAL/FLOAT/DOUBLE
+//     getDouble; TIMESTAMP getTimestamp(GMT) -> PureDate.fromSQLTimestamp; DATE getDate -> PureDate.fromSQLDate.
+// Same jars and command line as SqlExitProbe.
+import java.sql.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+
+public class UpstreamReplayProbe {
+    static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ");
+
+    public static void main(String[] a) throws Exception {
+        Map<String, String> urls = new LinkedHashMap<>();
+        urls.put("duckdb", "jdbc:duckdb:");
+        urls.put("h2", "jdbc:h2:mem:up");
+        if (a.length > 0) urls.put("postgres", a[0]);
+        for (var e : urls.entrySet()) {
+            try (Connection c = DriverManager.getConnection(e.getValue())) {
+                System.out.println("=== " + e.getKey());
+                for (String[] k : cases(e.getKey())) {
+                    try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery("SELECT " + k[1])) {
+                        rs.next();
+                        System.out.println(String.format("  %-22s TDS JSON: %-42s graph fetch read: %s", k[0], json(rs),
+                                fetch(rs)));
+                    } catch (Exception ex) {
+                        System.out.println("  " + k[0] + " REFUSED " + ex.getMessage().split("\n")[0]);
+                    }
+                }
+            }
+        }
+    }
+
+    static List<String[]> cases(String db) {
+        List<String[]> out = new ArrayList<>();
+        String realKw = db.equals("duckdb") ? "FLOAT" : "REAL";
+        for (String r : new String[]{"0.1", "123456.789", "1.0E-45"}) out.add(new String[]{"real " + r, "CAST(" + r + " AS " + realKw + ")"});
+        String tz = "2024-01-02 03:04:05.123456+05:00";
+        out.add(new String[]{"timestamptz +05", db.equals("h2") ? "CAST('" + tz + "' AS TIMESTAMP WITH TIME ZONE)" : "CAST('" + tz + "' AS TIMESTAMPTZ)"});
+        switch (db) {
+            case "duckdb" -> {
+                out.add(new String[]{"ts 44 BC Mar 15", "CAST('0044-03-15 (BC) 10:00:00' AS TIMESTAMP)"});
+                out.add(new String[]{"date 44 BC Mar 15", "CAST('0044-03-15 (BC)' AS DATE)"});
+            }
+            case "h2" -> {
+                out.add(new String[]{"ts 44 BC Mar 15", "TIMESTAMP '-0043-03-15 10:00:00'"});
+                out.add(new String[]{"date 44 BC Mar 15", "DATE '-0043-03-15'"});
+            }
+            default -> {
+                out.add(new String[]{"ts 44 BC Mar 15", "TIMESTAMP '0044-03-15 10:00:00 BC'"});
+                out.add(new String[]{"date 44 BC Mar 15", "DATE '0044-03-15 BC'"});
+            }
+        }
+        out.add(new String[]{"ts 1500-01-01", "CAST('1500-01-01 10:00:00' AS TIMESTAMP)"});
+        out.add(new String[]{"date 1500-01-01", "CAST('1500-01-01' AS DATE)"});
+        out.add(new String[]{"decimal 1.50", "CAST(1.50 AS DECIMAL(10,2))"});
+        return out;
+    }
+
+    static String json(ResultSet rs) throws SQLException {
+        int t = rs.getMetaData().getColumnType(1);
+        Object v = t == Types.TIMESTAMP ? rs.getTimestamp(1, new GregorianCalendar(TimeZone.getTimeZone("GMT")))
+                : t == Types.DATE ? rs.getDate(1) : rs.getObject(1);
+        if (v instanceof Timestamp ts) return "\"" + TS.format(ts.toInstant().atOffset(ZoneOffset.UTC)) + "\"";
+        if (v instanceof java.sql.Date d) return "\"" + d.toLocalDate().format(DATE) + "\"";
+        if (v instanceof String s) return "\"" + s + "\"";
+        if (v == null || v instanceof Double d && (d.isNaN() || d.isInfinite()) || v instanceof Float f && (f.isNaN() || f.isInfinite())) return "null";
+        return v.toString() + "   (" + v.getClass().getSimpleName() + ")";
+    }
+
+    static String fetch(ResultSet rs) throws SQLException {
+        int t = rs.getMetaData().getColumnType(1);
+        return switch (t) {
+            case Types.REAL, Types.FLOAT, Types.DOUBLE -> "getDouble=" + rs.getDouble(1);
+            case Types.TIMESTAMP -> "Timestamp(GMT).toInstant=" + rs.getTimestamp(1, new GregorianCalendar(TimeZone.getTimeZone("GMT"))).toInstant();
+            case Types.DATE -> "Date.toLocalDate=" + rs.getDate(1).toLocalDate();
+            default -> "getObject=" + rs.getObject(1);
+        };
+    }
+}
