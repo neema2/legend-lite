@@ -3,7 +3,6 @@
 
 package com.legend.planner;
 
-import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.NameQuoting;
 import com.legend.sql.SqlDdl;
@@ -39,11 +38,8 @@ import java.util.Set;
 record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release,
         Map<String, String> content) {
 
-    /** The column a source's table holds each element in, as the source's output names it. */
+    /** The one column a source's table holds, as the source's single output names it. */
     static final String COLUMN = "data";
-
-    /** The type of a frame's ordinal column (each element's place). */
-    private static final SqlDdl.ColumnType ORDINAL_TYPE = new SqlDdl.ColumnType.Plain(SqlDdl.ColumnType.Kind.INTEGER);
 
     /** {@code q}'s {@code data:} sources read from their tables, and the load that makes them, on {@code dialect}'s
      *  database (a dialect with no JSON source refuses by name, as it refused the source until then). */
@@ -137,49 +133,30 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<Exec
                 }
                 SqlDdl.ColumnType type = dialect.dataSourceColumn(u.url());
                 String content = content(u.url());
-                // a JSON source frame's relation reads each element's place beside it (TypedSourceUrl.ORDINAL): its
-                // table holds the ordinal too, a table of its own
-                boolean ordinal = u.outputs().stream().anyMatch(o -> o.name().equals(TypedSourceUrl.ORDINAL));
-                String table = tables.computeIfAbsent((ordinal ? "ordinal:" : "plain:") + content,
-                        key -> made(content, u.url(), type, ordinal));
-                Map<String, SqlDdl.ColumnType> stored = new LinkedHashMap<>();
-                stored.put(COLUMN, type);
-                if (ordinal) {
-                    stored.put(TypedSourceUrl.ORDINAL, ORDINAL_TYPE);
-                }
-                return new SqlSource.Table(table, u.alias(), u.outputs(), false,
-                        java.util.Collections.unmodifiableMap(stored), NameQuoting.BARE);
+                String table = tables.computeIfAbsent(content, c -> made(c, u.url(), type));
+                return new SqlSource.Table(table, u.alias(), u.outputs(), false, Map.of(COLUMN, type),
+                        NameQuoting.BARE);
             }
         }
 
-        /** The table of the content {@code c} (with each element's place where {@code ordinal}): its drop, create and
-         *  fill planned, its drop at release. */
-        private String made(String c, String url, SqlDdl.ColumnType type, boolean ordinal) {
-            String name = "legend_data_" + com.legend.cache.Hash.ofUtf8(c).hex().substring(0, 16)
-                    + (ordinal ? "_ord" : "");
+        /** The table of the content {@code c}: its drop, create and fill planned, its drop at release. */
+        private String made(String c, String url, SqlDdl.ColumnType type) {
+            String name = "legend_data_" + com.legend.cache.Hash.ofUtf8(c).hex().substring(0, 16);
             // the session's own table dropped first, and when the request lets the session go: qualified to the
             // session's temporary schema, so never a user's table of the same name
             String drop = dialect.render(new SqlDdl.DropTable(dialect.temporarySchema(), name, NameQuoting.BARE));
             steps.add(new ExecutionPlan.LoadStep.Statement(drop));
             release.add(new ExecutionPlan.LoadStep.Statement(drop));
             drops.add(drop);
-            List<SqlDdl.Column> columns = new ArrayList<>();
-            columns.add(new SqlDdl.Column(COLUMN, false, type, false, false));
-            if (ordinal) {
-                columns.add(new SqlDdl.Column(TypedSourceUrl.ORDINAL, false, ORDINAL_TYPE, false, false));
-            }
             steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(new SqlDdl.CreateTable(null, name,
-                    NameQuoting.BARE, columns, true))));
+                    NameQuoting.BARE, List.of(new SqlDdl.Column(COLUMN, false, type, false, false)), true))));
             List<List<String>> rows = new ArrayList<>();
-            List<String> elements = elements(c, url);
-            for (int i = 0; i < elements.size(); i++) {
-                rows.add(ordinal ? List.of(elements.get(i), String.valueOf(i)) : List.of(elements.get(i)));
+            for (String element : elements(c, url)) {
+                rows.add(List.of(element));
             }
-            // the elements as a content blob of inserts, each cell its column's typed literal (A2)
-            List<String> names = ordinal ? List.of(COLUMN, TypedSourceUrl.ORDINAL) : List.of(COLUMN);
-            List<SqlDdl.ColumnType> types = ordinal ? List.of(type, ORDINAL_TYPE) : List.of(type);
+            // the elements as a content blob of inserts, each element its column's typed literal (A2)
             com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null,
-                    name, NameQuoting.BARE, names, Set.of(), names.size(), rows, types), dialect,
+                    name, NameQuoting.BARE, List.of(COLUMN), Set.of(), 1, rows, List.of(type)), dialect,
                     "the data: source's payload (" + rows.size() + " element(s), its session table " + name + ")");
             steps.addAll(planned.steps());
             bundle.putAll(planned.content());
@@ -209,23 +186,14 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<Exec
     }
 
     /**
-     * A payload's elements, each its text as written (whitespace around it dropped), as upstream's JSON reader reads a
-     * {@code JsonModelConnection}'s data: an ARRAY's elements, split at the array's own commas (a string's escapes and
-     * the nesting of objects and arrays followed); else ONE OBJECT, or a STREAM of objects one after another (the
-     * engine's concatenated spelling, {@code {..}{..}} or one per line); an empty payload, none (A5: the JSON source
-     * frame's forms, its literal rows deleted, so one splitter serves every data: source). Anything else is refused by
-     * name. Java cuts the text and parses no value: the database reads each element's JSON.
+     * A JSON array's elements, each its text as written (whitespace around it dropped): split at the array's own commas,
+     * a string's escapes and the nesting of objects and arrays followed. A payload that is not one JSON array is
+     * refused by name (the database read it as {@code JSON[]}, which refused it too).
      */
     static List<String> elements(String content, String url) {
         String t = content.strip();
-        if (t.isEmpty()) {
-            return List.of();
-        }
-        if (t.charAt(0) != '[') {
-            return objects(t, url);
-        }
-        if (t.length() < 2 || t.charAt(t.length() - 1) != ']') {
-            throw refused(url);
+        if (t.length() < 2 || t.charAt(0) != '[' || t.charAt(t.length() - 1) != ']') {
+            throw new com.legend.error.NotImplementedException("a data: source's payload is one JSON array: " + url);
         }
         List<String> out = new ArrayList<>();
         int depth = 0;
@@ -255,69 +223,18 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<Exec
                 }
             }
             if (depth < 0) {
-                throw refused(url);
+                throw new com.legend.error.NotImplementedException("a data: source's payload is one JSON array: "
+                        + url);
             }
         }
         if (inString || depth != 0) {
-            throw refused(url);
+            throw new com.legend.error.NotImplementedException("a data: source's payload is one JSON array: " + url);
         }
         String last = t.substring(start, t.length() - 1).strip();
         if (!last.isEmpty() || !out.isEmpty()) {
             out.add(element(t, start, t.length() - 1, url));
         }
         return out;
-    }
-
-    /** One object, or a stream of objects one after another (whitespace between them), each its text. */
-    private static List<String> objects(String t, String url) {
-        List<String> out = new ArrayList<>();
-        int i = 0;
-        while (i < t.length()) {
-            char ch = t.charAt(i);
-            if (Character.isWhitespace(ch)) {
-                i++;
-                continue;
-            }
-            if (ch != '{') {
-                throw refused(url);
-            }
-            int start = i;
-            int depth = 0;
-            boolean inString = false;
-            boolean escaped = false;
-            for (; i < t.length(); i++) {
-                char c = t.charAt(i);
-                if (inString) {
-                    if (escaped) {
-                        escaped = false;
-                    } else if (c == '\\') {
-                        escaped = true;
-                    } else if (c == '"') {
-                        inString = false;
-                    }
-                } else if (c == '"') {
-                    inString = true;
-                } else if (c == '{') {
-                    depth++;
-                } else if (c == '}') {
-                    depth--;
-                    if (depth == 0) {
-                        i++;
-                        break;
-                    }
-                }
-            }
-            if (depth != 0 || inString) {
-                throw refused(url);
-            }
-            out.add(t.substring(start, i));
-        }
-        return out;
-    }
-
-    private static com.legend.error.NotImplementedException refused(String url) {
-        return new com.legend.error.NotImplementedException("a data: source's payload is a JSON array, an object or a"
-                + " stream of objects: " + url);
     }
 
     private static String element(String t, int from, int to, String url) {

@@ -262,6 +262,18 @@ Deleted from the plan:
 - **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
   (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
 - **The matrix:** in process 162 of 162 green (34 red before A5); on Postgres the three catalog cells B4 owns.
+- **The JSON source frame's literal rows are NOT deleted in A5** (measured 2026-11-10): a runtime value's
+  `JsonModelConnection` payload for a class no mapping binds still reaches the statement as literal rows
+  (`resolver.JsonSourceFrame`). Moving it onto the `data:` road (the frame as the payload's `sourceUrl` relation, its
+  row ordinal a column of the payload's table) was built and measured, and reverted: it costs 20 DuckDB and 10 H2
+  corpus tests (the XStore and result-sourcing graph fetches). The test road's judges render their statements by roads
+  of their own that take no `data:` rewrite (`JudgePlans`, the verdict batch), the referee replays on H2, and H2 holds
+  no `data:` table (its dialect has no JSON source column). It moves with B2a and B2b, when the test road's statements
+  and the referee's replay take the plan's loads, with H2's `data:` table measured first. Census M10 is REOPENED,
+  PENDING B2a (it was counted deleted at L6 with the frame's rows standing; L6's deletions stay guarded).
+- **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
+  (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
+- **The matrix:** in process 162 of 162 green (34 red before A5); on Postgres the three catalog cells B4 owns.
 - **The JSON source frame** (a runtime value's `JsonModelConnection` for a class no mapping binds) is the payload's
   `sourceUrl` relation of its JSON text and each element's place (`TypedSourceUrl.ORDINAL`, the frame's row identity);
   `DataSources` makes its session table with the ordinal where the relation reads it. Its literal rows
@@ -284,7 +296,7 @@ Deleted from the plan:
 | ✔ | **Checkpoint:** tenets audit, then correctness, every finding fixed; one lane round on all eleven databases; the timing check | |
 | **B** | **The rest of P1: the census to zero** | |
 | B1 | The seed forms (`setUpDataSQLs`): the author's statements beside `executeInDb`, not converted (the user: yes) | census M7 |
-| B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner | census M3 |
+| B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner; and every statement the test road's judges render (`JudgePlans`, the verdict batch) takes the `data:` rewrite, so the JSON source frame's literal rows go (H2's `data:` table measured first; A5 measured the move: 20 DuckDB and 10 H2 corpus tests depend on it) | census M3, M10 |
 | B2b | The referee replays its own H2 copy of the plan's loads (from A2) | census M15, the referee |
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes) | census M15, the fixtures |
 | B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. **Design APPROVED by the user, 2026-11-10** (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`): ONE read-only query per table whose `WITH` clauses carry the chain (the starting rows `ORDER BY` key `LIMIT 20`, one level per navigation step, no recursion), all in one read transaction, NO temporary tables; the default starting rows (no row identifiers given) ARE built, by upstream's rule read from the pinned sources; upstream's 46 SQL-text comparisons become a register row (its data checks all run); the TDG appeal and `TestDataGeneratorRun` deleted. S143's skip is lifted when it passes | census M13 |
