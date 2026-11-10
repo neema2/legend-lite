@@ -1167,6 +1167,9 @@ public final class MongoDb extends AnsiSqlRenderer {
             case JSON_MERGE_PATCH -> mergePatch(writer, a);
             case JSON_PRETTY -> throw new DialectCapability("a pretty-printed JSON text reached MongoDb, which has"
                     + " no JSON text operator");
+            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
+            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
+                    parentPrec);
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);

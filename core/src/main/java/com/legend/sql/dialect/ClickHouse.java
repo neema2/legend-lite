@@ -1726,6 +1726,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     .append(") + ").piece(operand(a, 1)).append(", ").piece(operand(a, 1)).append(") END)");
             case INT_DIVIDE -> writer.append("(CASE WHEN ").expr(a.get(1), 0).append(" = 0 THEN NULL ELSE intDivOrZero(")
                     .expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") END)");
+            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
+            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
+                    parentPrec);
             case BOOL_TO_TEXT -> writer.append("toString(").expr(a.get(0), 0).append(")");
             case BIT_NOT -> writer.append("bitNot(toInt64(").expr(a.get(0), 0).append("))");
             case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");
@@ -2140,9 +2143,19 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // the wall clock in the zone at the instant (DuckDB's of a zoned value, Trino's), as a naive UTC value:
             // toTimeZone keeps the instant and changes only how it prints (measured)
             case DATE_AT_TIME -> throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
-            case TIMEZONE -> writer.append("addSeconds(toDateTime64(").expr(a.get(1), 0)
-                    .append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(").expr(a.get(1), 0).append(", 6, 'UTC'), ")
-                    .expr(a.get(0), 0).append(")))");
+            // a plain value read as a wall time in the zone (instantIn's inner call): its text read in the zone, the
+            // instant as the naive UTC value every other arm reads (the correctness audit's S3, A6, 2026-11-10: until
+            // then read as a UTC instant, shifted the wrong way). Measured with clickhouse local 25.8 against DuckDB's
+            // timezone(): equal, but at a DST change's repeated hour, read in its earlier offset (DuckDB: its later)
+            case TIMEZONE -> {
+                if (!zonedInstant(a.get(1))) {
+                    yield writer.append("toTimeZone(toDateTime64(toString(").expr(a.get(1), 0).append("), 6, ")
+                            .expr(a.get(0), 0).append("), 'UTC')");
+                }
+                yield writer.append("addSeconds(toDateTime64(").expr(a.get(1), 0)
+                        .append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(").expr(a.get(1), 0)
+                        .append(", 6, 'UTC'), ").expr(a.get(0), 0).append(")))");
+            }
             // (of a DateTime64: a Date32 is refused, measured)
             case EPOCH_SECONDS -> writer.append("(toFloat64(toUnixTimestamp64Micro(toDateTime64(").expr(a.get(0), 0)
                     .append(", 6, 'UTC'))) / 1000000)");

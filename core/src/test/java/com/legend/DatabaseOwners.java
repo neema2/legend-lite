@@ -184,6 +184,10 @@ final class DatabaseOwners {
             // a database that aborts its transaction on an error (DuckDB) with one that rolls back the statement alone
             // (H2) by design, as RaiseRecoveryTest compares the connectors' recoveries
             "core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A6 (the correctness audit's S3, the tenets audit's M-6):
+            // a zoned connection's DateTime parameter and a Decimal's text, each answered alike on DuckDB and H2 by design
+            "core/src/test/java/com/legend/planner/ZonedDateTimeParameterTest.java",
+            "core/src/test/java/com/legend/planner/DecimalTextTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

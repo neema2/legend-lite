@@ -477,6 +477,14 @@ public class H2 extends AnsiSqlRenderer {
                     .append(")) = ").expr(a.get(1), 0).append(")");
             // boolean text (P7): H2 CAST prints 'TRUE' — the reference
             // prints 'true'; NULL stays NULL through the CASE.
+            // a Decimal's or a Number's text in plain digits, as upstream prints the number (the user's ruling of
+            // 2026-11-09, S175: "use decfloat ... h2 has a string printer"): H2's own number printer, TO_CHAR, whose
+            // leading zero before a fraction is written back (measured on 2.5.252: 100, 1000, 2.5, 0.000001, -0.5,
+            // 1E+40 plain), where its VARCHAR cast of a DECFLOAT writes 1E+2 -- for every operand the Lowerer marks by
+            // its Pure type (the tenets audit's M-6, A6, 2026-11-10: until then this dialect walked the operand's shape,
+            // decfloatShaped, and missed an if, a max, a let and a computed column)
+            case DECIMAL_TO_TEXT -> writer.append("REGEXP_REPLACE(TO_CHAR(").expr(c.args().get(0), 0)
+                    .append("), '^(-?)\\.', '$10.')");
             case BOOL_TO_TEXT -> writer.append("CASE WHEN ").expr(a.get(0), 0).append(" THEN 'true' WHEN NOT ")
                     .expr(a.get(0), 0).append(" THEN 'false' END");
             // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
@@ -615,7 +623,17 @@ public class H2 extends AnsiSqlRenderer {
             case SHA1 -> digest(writer, "SHA-1", c.args());
             case SHA256 -> digest(writer, "SHA-256", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
-            case TIMEZONE -> writer.function("timezone", c.args());
+            // DuckDB's timezone(zone, t), which H2 lacks (the correctness audit's S3, A6, 2026-11-10: a regression from
+            // a58c212b, every DateTime parameter on a zoned connection failed at run). An instant becomes the zone's
+            // wall time: its text in the zone's own offset (FORMATDATETIME prints a zoned value so; a CAST of one goes
+            // through the session's zone), read back as a plain timestamp. A plain value is read as a wall time in the
+            // zone: its text with the zone's name, cast to an instant. Measured on 2.5.252 under a non-UTC session
+            // against DuckDB's timezone(), DST changes included, the nine fraction digits kept (ZonedDateTimeParameterTest)
+            case TIMEZONE -> zonedInstant(a.get(1))
+                    ? writer.append("CAST(FORMATDATETIME((").expr(a.get(1), 0).append(") AT TIME ZONE ")
+                            .expr(a.get(0), 0).append(", 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS TIMESTAMP(9))")
+                    : writer.append("CAST(CONCAT(CAST(").expr(a.get(1), 0).append(" AS VARCHAR), ' ', ")
+                            .expr(a.get(0), 0).append(") AS TIMESTAMP(9) WITH TIME ZONE)");
             // H2 adds a date and a time to a timestamp (its datetime arithmetic; designed, not measured here)
             case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
                     .expr(a.get(1), 6));
@@ -1156,29 +1174,7 @@ public class H2 extends AnsiSqlRenderer {
             return writer.append("CASE WHEN ").expr(c.value(), 0).append(" THEN 'true' WHEN NOT ").expr(c.value(), 0)
                     .append(" THEN 'false' END");
         }
-        if (c.target() == com.legend.sql.SqlType.Scalar.VARCHAR && decfloatShaped(c.value())) {
-            // a DECFLOAT's text in plain digits, as upstream prints the number (the user's ruling of 2026-11-09, S175:
-            // "use decfloat ... h2 has a string printer"): H2's own number printer, TO_CHAR, whose leading zero before
-            // a fraction is written back (measured on 2.5.252: 100, 1000, 2.5, 0.000001, -0.5, 1E+40 plain), where its
-            // VARCHAR cast writes 1E+2
-            return writer.append("REGEXP_REPLACE(TO_CHAR(").expr(c.value(), 0).append("), '^(-?)\\.', '$10.')");
-        }
         return super.variantAwareCast(writer, c);
-    }
-
-    /** Whether {@code x} is a DECFLOAT value: a Decimal or a Number parameter ({@link #parameterType}), or arithmetic
-     *  over one (H2's DECFLOAT absorbs every other number it meets); by node shape, never a guessed column type. */
-    private static boolean decfloatShaped(SqlExpr x) {
-        if (x instanceof SqlExpr.PlanParam p) {
-            return p.declared() == com.legend.sql.DeclaredKind.DECIMAL || p.declared() == com.legend.sql.DeclaredKind.NUMBER;
-        }
-        if (x instanceof SqlExpr.Call call) {
-            return switch (call.fn()) {
-                case PLUS, MINUS, TIMES, DIVIDE, NEGATE, ABS -> call.args().stream().anyMatch(H2::decfloatShaped);
-                default -> false;
-            };
-        }
-        return false;
     }
 
     /** {@code JSON_TYPE}: H2 has no {@code json_type} (2026-11-05: the database judge's canon reached it once H2's JSON

@@ -1605,6 +1605,43 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         };
     }
 
+    /**
+     * Whether {@code e} is an INSTANT for {@link com.legend.sql.SqlFn#TIMEZONE}'s two meanings, DuckDB's
+     * {@code timezone(zone, t)}: a plain {@code t} read as a wall time in the zone is an instant, and an instant becomes
+     * the zone's wall time, a plain value. An operand is an instant by its type (a zoned timestamp) or as a
+     * {@code timezone()} of a plain one -- every lowering nests the two so ({@code localIn}, {@code instantIn}, a zoned
+     * parameter, a format's zone shift), and the inner call is typed plain though it is an instant. The one rule of every
+     * dialect that spells the two apart (the correctness audit's S3, A6, 2026-11-10: BigQuery's and Snowflake's own until
+     * then; H2's and the three that refuse the plain read in a named zone take it here).
+     */
+    protected static boolean zonedInstant(SqlExpr e) {
+        if (e instanceof SqlExpr.Call c && c.fn() == com.legend.sql.SqlFn.TIMEZONE && c.args().size() == 2) {
+            return !zonedInstant(c.args().get(1));
+        }
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ;
+    }
+
+    /** The zone names that are UTC, as a zone literal spells them. */
+    private static final java.util.Set<String> UTC_ZONE_NAMES = java.util.Set.of("UTC", "GMT", "Etc/UTC", "Z");
+
+    /**
+     * {@code c}, a {@code TIMEZONE} call, refused by name where it reads a PLAIN value as a wall time in a zone that is
+     * not UTC (instantIn's inner call): a dialect whose arm reads every operand as a UTC instant ({@code product}'s)
+     * would shift it the wrong way -- the wall time plus the zone's offset, where the instant is the wall time minus
+     * it (the correctness audit's S3, A6, 2026-11-10: "check every other dialect's arm"). In UTC the two meanings are
+     * one, so a UTC read stands as written.
+     */
+    protected static void refusePlainReadInAZone(SqlExpr.Call c, String product) {
+        SqlExpr zone = c.args().get(0);
+        if (!zonedInstant(c.args().get(1))
+                && !(zone instanceof SqlExpr.StringLit z && UTC_ZONE_NAMES.contains(z.value()))) {
+            throw new DialectCapability("a date-time read as a wall time in the zone "
+                    + (zone instanceof SqlExpr.StringLit z ? "'" + z.value() + "'" : "a query computes") + " (instantIn's): "
+                    + product + "'s time-zone conversion reads its operand as a UTC instant, which would shift it the"
+                    + " wrong way, so it is refused by name until its spelling is measured");
+        }
+    }
+
     /** A placeholder's declared cast: the SQL type's name, and how the value is bound as text (null: as it is). */
     public record ParameterType(String name, RenderedStatement.@com.legend.base.Nullable AsText asText) {
         public ParameterType {

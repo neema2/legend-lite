@@ -1515,6 +1515,11 @@ final class Fold {
         if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
             return SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v);
         }
+        // a Decimal's or a Number's cell: its plain digits, the semantic node pureToString writes (A6, M-6)
+        if (t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || t == com.legend.compiler.element.type.Type.Primitive.NUMBER) {
+            return SqlExpr.Call.of(SqlFn.DECIMAL_TO_TEXT, v);
+        }
         // NUMERIC CHARTER Rule 2: a Float-declared cell converts to DOUBLE
         // once before it is spelled (a Float computed in an integer or
         // decimal kind by the database prints 52.0, never 52)

@@ -166,7 +166,8 @@ class PlanMakerTest {
 
     /** Each database's placeholder of a Date and of a DateTime parameter, as its dialect writes it from upstream's
      *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at nine
-     *  digits, ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), Databricks' {@code to_date} and
+     *  digits, ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), BigQuery's
+     *  Date upstream's own {@code PARSE_DATE} (A6, 2026-11-10: S182 withdrawn), Databricks' {@code to_date} and
      *  {@code to_timestamp}, Snowflake's {@code '…'::timestamp} at nine digits; a dialect that writes none refuses by
      *  name, never inheriting another's. */
     @Test
@@ -177,6 +178,7 @@ class PlanMakerTest {
                 Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
                 Databricks	CAST(? AS DATE)	CAST(? AS TIMESTAMP)
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
+                BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(? AS DATETIME)
                 ClickHouse	WHEN toInt32(substring(?, 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");

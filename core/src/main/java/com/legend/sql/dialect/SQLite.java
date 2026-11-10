@@ -1560,6 +1560,9 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
+            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
+                    parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // NULL-skipping, as DuckDB's (SQLite's max/min of several are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("max", a));

@@ -282,6 +282,36 @@ Deleted from the plan:
   `JsonModelConnection`'s data: an array's elements, one object, or a stream of objects; an empty payload is no row
   (until A5 a query's `sourceUrl` took an array alone, and the frame an array of objects alone).
 
+### A6 as built (2026-11-10)
+
+- **H2's time zone** (the correctness audit's S3, a regression from a58c212b: H2 has no `timezone` function, so every
+  DateTime parameter on a zoned connection failed at run). `SqlFn.TIMEZONE` keeps DuckDB's two meanings: an instant to
+  the zone's wall time, and a plain value read as a wall time in the zone (its instant). One rule tells them apart in
+  every dialect that spells both (`AnsiSqlRenderer.zonedInstant`: an operand typed as a zoned timestamp, or a
+  `timezone()` of a plain one). H2 spells the first `CAST(FORMATDATETIME(x AT TIME ZONE zone, ...) AS TIMESTAMP(9))`
+  (FORMATDATETIME prints a zoned value in its own offset; a CAST of one goes through the session's zone) and the second
+  `CAST(CONCAT(CAST(x AS VARCHAR), ' ', zone) AS TIMESTAMP(9) WITH TIME ZONE)`. Measured on 2.5.252 under a non-UTC
+  session against DuckDB's `timezone()`: 16 cases equal, DST changes and nine fraction digits included
+  (`ZonedDateTimeParameterTest`: a parameter and its literal, in a computed column, answer alike on DuckDB and H2).
+- **The other dialects' arms, checked the same way:** DuckDB and Postgres have the function; BigQuery and Snowflake
+  already told the two meanings apart; MariaDB and SQLite refuse a zone that is not UTC; MongoDB tells them apart.
+  Trino, ClickHouse and Databricks read every operand as a UTC instant, which is right for the first meaning and wrong
+  the other way for a plain value read in a named zone (`instantIn`'s inner call: the wall time plus the zone's offset
+  where the instant is the wall time minus it). Trino now spells it `CAST(at_timezone(with_timezone(x, zone), 'UTC')
+  AS TIMESTAMP(6))` (measured on the embedded Trino 483) and ClickHouse `toTimeZone(toDateTime64(toString(x), 6, zone),
+  'UTC')` (measured with clickhouse local 25.8); both equal DuckDB. Databricks, which has no server here, refuses that
+  one case by name (`refusePlainReadInAZone`; §9).
+- **At a DST change's repeated hour** H2, Trino and ClickHouse read a wall time in its earlier offset, DuckDB in its
+  later (measured: 01:30 on 2024-11-03 in New York is 05:30 UTC on the first three, 06:30 on DuckDB). `instantIn` is
+  lite's own function (the Cypher island's, whose lanes are DuckDB and Postgres), so this is no difference from upstream.
+- **A Decimal's or a Number's text** (the tenets audit's M-6): `SqlFn.DECIMAL_TO_TEXT`, a semantic node the Lowerer marks
+  by the operand's Pure type, as it marks a Boolean's (`Scalars.pureToString`, `Fold.cellText`). Every dialect writes the
+  VARCHAR cast it wrote until then; H2 writes `TO_CHAR` with its leading zero restored for every such operand. The
+  dialect's shape walk (`H2.decfloatShaped`) is deleted: it missed an `if`, a `max`, a let and a computed column, where
+  `100` printed `1E+2` (`DecimalTextTest`, five shapes and five values, on DuckDB and H2).
+- **BigQuery's Date parameter** is upstream's own `PARSE_DATE('%Y-%m-%d', ?)` (`bigQueryExtension.pure` lines 45-47, read
+  from the pinned sources; unverified on BigQuery). S182 is withdrawn.
+
 ## 6. The whole plan, in order
 
 | # | Step | Ends with |
@@ -419,3 +449,6 @@ None: D is fully ruled (§6.1, 2026-11-10).
 - One statement that reads both the catalog and a user's tables, a possible product feature (the user, 2026-11-10:
   "later we might want a product feature across both"). Until then it is refused by name.
 - PR #81, the timeseries line, in its own session.
+- Databricks' reading of a plain date-time as a wall time in a named zone (`instantIn`'s inner call), refused by name
+  until it is measured on a Databricks (A6, 2026-11-10: `to_utc_timestamp` is the candidate; Trino's and ClickHouse's
+  were measured).

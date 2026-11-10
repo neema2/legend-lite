@@ -968,6 +968,9 @@ public final class Trino extends AnsiSqlRenderer {
             case REM -> writer.append("MOD(").expr(a.get(0), 0).append(", ").piece(divisor(a.get(1))).append(")");
             case MOD -> writer.append("MOD(MOD(").expr(a.get(0), 0).append(", ").piece(divisor(a.get(1))).append(") + ")
                     .expr(a.get(1), 6).append(", ").piece(divisor(a.get(1))).append(")");
+            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
+            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
+                    parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS VARCHAR)");
             case BIT_NOT -> writer.append("bitwise_not(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
             // floor without the BIGINT conversion
@@ -1151,6 +1154,14 @@ public final class Trino extends AnsiSqlRenderer {
     /** The {@code TIMEZONE} arm of {@link #call}. */
     private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
+        if (!zonedInstant(a.get(1))) {
+            // a plain value read as a wall time in the zone (instantIn's inner call; a UTC read is the same): its
+            // instant, as the naive UTC value the arm below reads back (the correctness audit's S3, A6, 2026-11-10:
+            // until then read as a UTC instant, shifted the wrong way). Measured on Trino 483 against DuckDB's
+            // timezone(): equal, but at a DST change's repeated hour, read in its earlier offset (DuckDB: its later)
+            return writer.append("CAST(at_timezone(with_timezone(").expr(a.get(1), 0).append(", ")
+                    .piece(zone(a.get(0))).append("), 'UTC') AS TIMESTAMP(6))");
+        }
         writer.append("CAST(at_timezone(");
         if (typeOf(a.get(1)) == SqlType.Scalar.TIMESTAMPTZ) {
             writer.expr(a.get(1), 0);

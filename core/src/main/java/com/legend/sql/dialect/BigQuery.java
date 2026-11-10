@@ -1569,6 +1569,9 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             case PARSE_INT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS INT64)");
+            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
+            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
+                    parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
             // in for itself, or for another when NULL, so only all-NULL is NULL
@@ -2978,9 +2981,26 @@ public final class BigQuery extends AnsiSqlRenderer {
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
+            // (a Date's placeholder is upstream's own PARSE_DATE, placeholder() below; its text bound as a date's)
             case DATE -> new ParameterType("DATE", new RenderedStatement.AsText(null));
             case DATE_TIME -> new ParameterType("DATETIME", new RenderedStatement.AsText(6));
         };
+    }
+
+    /**
+     * A Date parameter's placeholder as upstream's BigQuery extension writes a Date's and a StrictDate's literal:
+     * {@code PARSE_DATE('%Y-%m-%d', '%s')} ({@code bigQueryExtension.pure} lines 45-47), the value bound as its date text
+     * -- so a date-time given for it fails as upstream's does, in BigQuery's words for that function (A6, 2026-11-10:
+     * S182 withdrawn, a {@code CAST(? AS DATE)} until then). Read from the pinned sources, unverified on BigQuery (none
+     * here). Every other parameter as the base writes it.
+     */
+    @Override
+    protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        if (p.declared() == com.legend.sql.DeclaredKind.DATE) {
+            return writer.append("PARSE_DATE('%Y-%m-%d', ").bind(textBind(p, new RenderedStatement.AsText(null)))
+                    .append(")");
+        }
+        return super.placeholder(writer, p);
     }
 
     // ==================================================================

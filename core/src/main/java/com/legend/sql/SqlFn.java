@@ -112,6 +112,11 @@ public enum SqlFn {
     ROUND_HALF_UP, ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
+    /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic
+     *  node the Lowerer marks by the operand's Pure type, as {@link #BOOL_TO_TEXT} is -- each dialect spells it, most
+     *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
+     *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
+    DECIMAL_TO_TEXT,
     /** A Float's Pure literal spelling (2026-10-11): every zero {@code 0.0}, the exponent unfolded to fixed point, at
      *  least one fraction digit -- the kind-faithful carrier's text of a double (lowering/LiteralSpelling). One call
      *  per value, which each dialect spells (dialect/FloatCanonText the portable decomposition). */

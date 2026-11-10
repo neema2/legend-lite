@@ -2860,6 +2860,11 @@ final class Scalars {
         if (t == Type.Primitive.BOOLEAN) {
             return SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, x);
         }
+        // a Decimal's or a Number's text is a SEMANTIC node too (the tenets audit's M-6, A6, 2026-11-10): the operand's
+        // Pure type is known HERE, its plain digits each dialect's to spell
+        if (t == Type.Primitive.DECIMAL || t == Type.Primitive.NUMBER) {
+            return SqlExpr.Call.of(SqlFn.DECIMAL_TO_TEXT, x);
+        }
         return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
     }
 
