@@ -298,12 +298,18 @@ Deleted from the plan:
   Trino, ClickHouse and Databricks read every operand as a UTC instant, which is right for the first meaning and wrong
   the other way for a plain value read in a named zone (`instantIn`'s inner call: the wall time plus the zone's offset
   where the instant is the wall time minus it). Trino now spells it `CAST(at_timezone(with_timezone(x, zone), 'UTC')
-  AS TIMESTAMP(6))` (measured on the embedded Trino 483) and ClickHouse `toTimeZone(toDateTime64(toString(x), 6, zone),
-  'UTC')` (measured with clickhouse local 25.8); both equal DuckDB. Databricks, which has no server here, refuses that
-  one case by name (`refusePlainReadInAZone`; §9).
-- **At a DST change's repeated hour** H2, Trino and ClickHouse read a wall time in its earlier offset, DuckDB in its
-  later (measured: 01:30 on 2024-11-03 in New York is 05:30 UTC on the first three, 06:30 on DuckDB). `instantIn` is
-  lite's own function (the Cypher island's, whose lanes are DuckDB and Postgres), so this is no difference from upstream.
+  AS TIMESTAMP(6))` (measured on the embedded Trino 483), ClickHouse `toTimeZone(toDateTime64(toString(x), 6, zone),
+  'UTC')` (measured with clickhouse local 25.8) and Databricks `to_utc_timestamp(x, zone)` beside its
+  `from_utc_timestamp` (measured on the Databricks lane, runtime 4.2.0, the session in UTC: the orchestrator's relay of
+  2026-11-10 18:19 UTC); all three equal DuckDB on the 16 cases. H2's zoned type is named `TIMESTAMP(9) WITH TIME ZONE`
+  (its `TIMESTAMPTZ` was no H2 type).
+- **At a DST change** `instantIn`'s rule is java.time's (`ZonedDateTime.ofLocal`, stated in its declaration): a
+  repeated wall time names its EARLIER offset's instant, a missing one is shifted forward by the gap. Measured: Trino and
+  Databricks follow it whole. H2 and ClickHouse read a missing wall time in its later offset (02:30 on 2024-03-10 in New
+  York is 06:30 UTC there, 07:30 by the rule). DuckDB reads a repeated one in its later offset (01:30 on 2024-11-03 is
+  06:30 UTC there, 05:30 by the rule), and no call or two of DuckDB's chooses the earlier. These are known
+  cross-database differences, with no register row: `instantIn` is lite's own function (the Cypher island's, whose
+  lanes are DuckDB and Postgres), with no upstream counterpart.
 - **A Decimal's or a Number's text** (the tenets audit's M-6): `SqlFn.DECIMAL_TO_TEXT`, a semantic node the Lowerer marks
   by the operand's Pure type, as it marks a Boolean's (`Scalars.pureToString`, `Fold.cellText`). Every dialect writes the
   VARCHAR cast it wrote until then; H2 writes `TO_CHAR` with its leading zero restored for every such operand. The
@@ -449,6 +455,3 @@ None: D is fully ruled (§6.1, 2026-11-10).
 - One statement that reads both the catalog and a user's tables, a possible product feature (the user, 2026-11-10:
   "later we might want a product feature across both"). Until then it is refused by name.
 - PR #81, the timeseries line, in its own session.
-- Databricks' reading of a plain date-time as a wall time in a named zone (`instantIn`'s inner call), refused by name
-  until it is measured on a Databricks (A6, 2026-11-10: `to_utc_timestamp` is the candidate; Trino's and ClickHouse's
-  were measured).

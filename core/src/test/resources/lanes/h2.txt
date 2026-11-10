@@ -235,8 +235,8 @@ TypeInferenceIntegrationTest#testMinBy_TopK	measured 2026-10-29: UNNEST reached 
 TypeInferenceIntegrationTest#testMinNoArgs	measured 2026-10-29: LIST_MIN reached a dialect without a list encoding
 TypeInferenceIntegrationTest#testMinNumbers	measured 2026-10-29: LIST_POSITION reached a dialect without a list encoding
 TypeInferenceIntegrationTest#testNullableComparisonWithVariantTo	measured 2026-10-29: Data conversion error converting "JSON to BIGINT"; SQL statement:  SELECT "_tds0"."id" AS "id", "_tds0"."value" AS "valu
-TypeInferenceIntegrationTest#testParseDateNoFormat	measured 2026-10-29: Function "TIMEZONE" not found; SQL statement:  SELECT timezone('UTC', CAST('2014-02-27T10:01:35.231+0000' AS TIMESTAMPTZ
-TypeInferenceIntegrationTest#testParseDateWithTimezone	measured 2026-10-29: Function "TIMEZONE" not found; SQL statement:  SELECT timezone('UTC', CAST('2014-02-27T10:01:35.231-0500' AS TIMESTAMPTZ
+TypeInferenceIntegrationTest#testParseDateNoFormat	measured 2026-11-10 (A6, H2 spells the zone conversion and names its zoned type; it reads no +0000 offset): Cannot parse "TIMESTAMP WITH TIME ZONE" constant "2014-02-27T10:01:35.231+0000"; SQL statement:
+TypeInferenceIntegrationTest#testParseDateWithTimezone	measured 2026-11-10 (A6, H2 spells the zone conversion and names its zoned type; it reads no -0500 offset): Cannot parse "TIMESTAMP WITH TIME ZONE" constant "2014-02-27T10:01:35.231-0500"; SQL statement:
 TypeInferenceIntegrationTest#testPercentileContinuousOnList	measured 2026-10-29: collection reduction 'QUANTILE_CONT' reached a dialect without a list encoding
 TypeInferenceIntegrationTest#testPercentileContinuousOnListQuartile	measured 2026-10-29: collection reduction 'QUANTILE_CONT' reached a dialect without a list encoding
 TypeInferenceIntegrationTest#testPercentile_Continuous	measured 2026-10-29: collection reduction 'QUANTILE_CONT' reached a dialect without a list encoding

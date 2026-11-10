@@ -1569,9 +1569,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             case PARSE_INT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS INT64)");
-            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
-            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
-                    parentPrec);
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
             // in for itself, or for another when NULL, so only all-NULL is NULL

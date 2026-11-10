@@ -67,9 +67,11 @@ class ProjectRowsTest {
     /** The project's connection, and the same connection on an in-memory database its opener names (legend-engine's
      *  test specification). */
     private static final String HELD = """
+            ###Connection
             RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             """;
     private static final String OPENER_NAMED = """
+            ###Connection
             RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
             """;
 
@@ -92,15 +94,15 @@ class ProjectRowsTest {
      *  (the M1 correctness audit's C1, 2026-11-09: since L2 the connection no longer carried the test data, and the
      *  server's key named the project alone). */
     private static final String WITH_U = """
+            ###Connection
             RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: H2; specification: LocalH2 { testDataSetupSqls: ['create table if not exists PARTY.U(ID INT)', 'delete from PARTY.U', 'insert into PARTY.U values (7)']; }; auth: DefaultH2; }
             """;
 
     @Test
     void twoEditionsWhoseTestDataDifferAreTwoDatabases() throws Exception {
         String withU = PARTY.replace(HELD.strip(), WITH_U.strip()).replace(
-                "Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200)) ) )",
-                "Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))"
-                        + " Table U (ID INTEGER PRIMARY KEY) ) )");
+                "Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200)) ) )",
+                "Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200)) Table U (ID INTEGER PRIMARY KEY) ) )");
         org.junit.jupiter.api.Assertions.assertNotEquals(PARTY, withU);
         String withoutU = withU.replace(WITH_U.strip(), OPENER_NAMED.strip());
         org.junit.jupiter.api.Assertions.assertNotEquals(withU, withoutU);

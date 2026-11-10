@@ -2013,9 +2013,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             // dialects keep the 64-bit BIGINT cast
             case PARSE_INT -> writer.append("cast(").expr(a.get(0), 0).append(" as integer)");
             // bool text keeps the golden cast spelling byte-for-byte
-            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
-            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
-                    parentPrec);
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("cast(").expr(a.get(0), 0).append(" as varchar)");
             case CHR -> writer.append("char(").expr(a.get(0), 0).append(")");
             case LENGTH -> writer.append("char_length(").expr(a.get(0), 0).append(")");

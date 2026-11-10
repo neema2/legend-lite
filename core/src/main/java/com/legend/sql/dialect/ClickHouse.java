@@ -1726,9 +1726,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     .append(") + ").piece(operand(a, 1)).append(", ").piece(operand(a, 1)).append(") END)");
             case INT_DIVIDE -> writer.append("(CASE WHEN ").expr(a.get(1), 0).append(" = 0 THEN NULL ELSE intDivOrZero(")
                     .expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") END)");
-            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
-            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
-                    parentPrec);
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("toString(").expr(a.get(0), 0).append(")");
             case BIT_NOT -> writer.append("bitNot(toInt64(").expr(a.get(0), 0).append("))");
             case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");

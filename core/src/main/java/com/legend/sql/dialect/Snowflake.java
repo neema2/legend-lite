@@ -1346,9 +1346,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
-            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
-            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
-                    parentPrec);
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());

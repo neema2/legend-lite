@@ -987,6 +987,19 @@ public final class Databricks extends AnsiSqlRenderer {
             SqlFn.LIST_REVERSE, SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.LIST_SLICE, SqlFn.LIST_PRODUCT, SqlFn.LIST_LENGTH,
             SqlFn.LIST_FLATTEN);
 
+    /**
+     * DuckDB's {@code timezone(zone, t)} in its two meanings ({@link #zonedInstant}), the platform's timestamps UTC
+     * instants (the session in UTC): an instant becomes the zone's wall time, {@code from_utc_timestamp}; a plain value
+     * read as a wall time in the zone becomes its instant, {@code to_utc_timestamp}. Measured on the Databricks lane
+     * (runtime 4.2.0, the orchestrator's relay of 2026-11-10 18:19 UTC; A6): equal to DuckDB's on 16 cases, and
+     * java.time's whole rule at a DST change -- a repeated hour read in its earlier offset, a missing one shifted forward.
+     */
+    private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        return writer.append(zonedInstant(a.get(1)) ? "from_utc_timestamp(" : "to_utc_timestamp(")
+                .expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
@@ -1106,9 +1119,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case CONCAT_JOIN -> writer.append("concat_ws('', ").join(a, ", ", this::asText).append(")");
             case INT_DIVIDE -> writer.append("(").expr(a.get(0), 6).append(" div ").expr(a.get(1), 6).append(")");
             // the base spells VARCHAR, which needs a length here
-            // a Decimal's or a Number's text (A6, M-6): the VARCHAR cast this dialect wrote for it until then
-            case DECIMAL_TO_TEXT -> writer.expr(new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.VARCHAR),
-                    parentPrec);
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
             // floor without the BIGINT conversion (Spark's floor of a double is a BIGINT: past 2^63 it overflows)
@@ -1164,10 +1175,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case DATE_AT_TIME -> throw new DialectCapability("a time of day: Databricks has no TIME type");
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants): measured by the
             // PCT's format with a zone (13:07:44 UTC is 08:07:44 in EST)
-            case TIMEZONE -> {
-                refusePlainReadInAZone(c, "Databricks");
-                yield writer.append("from_utc_timestamp(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
-            }
+            case TIMEZONE -> timezone(writer, c);
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("(CAST(unix_micros(").expr(a.get(0), 0).append(") AS DOUBLE) / 1000000)");
             case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Databricks keeps"

@@ -44,7 +44,9 @@ public class H2 extends AnsiSqlRenderer {
             case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
-            case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            // H2 names a zoned timestamp so, to the nanosecond as its TIMESTAMP(9) is (A6, 2026-11-10: "TIMESTAMPTZ" is
+            // no H2 type, so a zoned literal's cast failed at run)
+            case TIMESTAMPTZ -> "TIMESTAMP(9) WITH TIME ZONE";
             case JSON -> "JSON";
             // to the nanosecond: H2's TIME keeps no fraction of a second (its default precision is 0, measured
             // 2.1.214; the independent review, 2026-10-18)
