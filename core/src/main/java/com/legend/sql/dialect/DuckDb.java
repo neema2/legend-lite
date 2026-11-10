@@ -854,12 +854,10 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     /**
-     * {@code data:application/json,[...]} inlines the payload as a JSON
-     * array unnested one row per element; {@code file:} reads objects, the
-     * file a POINTER bound at the run (L6, the user's ruling of 2026-11-10:
-     * the runner binds the path its admission allows, never written into the
-     * statement). One {@code data} column either way (the engine's scheme
-     * dispatch).
+     * {@code file:} reads objects, the file a POINTER bound at the run (L6a, the user's ruling of 2026-11-10: the runner
+     * binds the path its admission allows, never written into the statement), its one {@code data} column (the engine's
+     * scheme dispatch). A {@code data:} source never reaches here: it is the plan's load into a session table, which
+     * the query reads ({@code planner.DataSources}, L6b; until then its payload was a SQL literal).
      */
     @Override
     protected SqlWriter sourceUrl(SqlWriter writer, String url) {
@@ -867,19 +865,14 @@ public final class DuckDb extends AnsiSqlRenderer {
             return writer.append("SELECT json AS data FROM read_json_objects(").bind(new RenderedStatement.Bind("",
                     new RenderedStatement.Binding.Source(url))).append(")");
         }
-        return writer.append(dataSourceUrl(url));
+        throw new IllegalStateException("a sourceUrl of scheme other than file: reached the dialect (a data: source is"
+                + " the plan's load, planner.DataSources): " + url);
     }
 
-    private String dataSourceUrl(String url) {
-        if (url.startsWith("data:")) {
-            int comma = url.indexOf(',');
-            if (comma < 0) {
-                throw new IllegalStateException("invalid data: URI (no comma): " + url);
-            }
-            String content = url.substring(comma + 1);
-            return "SELECT unnest(CAST(" + stringLit(content) + " AS JSON[])) AS data";
-        }
-        throw new IllegalStateException("unsupported sourceUrl scheme: " + url);
+    /** {@inheritDoc} DuckDB holds each element in a {@code JSON} column, read as the array's elements were. */
+    @Override
+    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
     }
 
     /** Pure semantics ride the expansion: exists([])=false, forAll([])=true. */

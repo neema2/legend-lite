@@ -133,7 +133,12 @@ class DataMechanismCensusTest {
                             "fixtureIsolated", "fixtureProvided", "FixtureAside", "setFixtureAside", "replayAside",
                             "replayRestore", "fixture_aside_postgres_test"),
                     "ArchitectureTest.theDoorsOnlyCompose")),
-            new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Pending("L6")),
+            // L6, 2026-11-10 (the user's rulings: a file: source is a pointer, as a table is; data written in the
+            // model travels with the plan, through one load at every size): the file: source's path pasted into the
+            // statement, and the data: payload as a SQL literal
+            new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Deleted("L6", List.of(
+                    "read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))",
+                    "SELECT unnest(CAST(\" + stringLit(content)"))),
             new Row("M11", "a query's literal relations and instances, and their writes",
                     new Staying("P9: a statement's literal rows come from lowering alone")),
             new Row("M12", "model-derived constants in statements",
@@ -160,10 +165,7 @@ class DataMechanismCensusTest {
             "M1", List.of("project.made()", "o.put(\"made\"", "getArr(\"made\")", "keyOnly("),
             // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
             // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
-            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"),
-            // L6a, 2026-11-10 (the user's ruling: a file: source is a pointer, as a table is): its path pasted into
-            // the statement's text, and the planning machine's path made from the URL
-            "M10", List.of("read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))"));
+            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"));
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */
@@ -225,6 +227,7 @@ class DataMechanismCensusTest {
         // M7-seed counted deleted until the M1 audits the same day: M1, M3 and M7-seed PENDING, M4 BOUNDED by its
         // ruling). A row leaves PENDING with its slice and this count rises with it, in the same change, with its date and slice
         long deleted = ROWS.stream().filter(r -> r.state() instanceof Deleted).count();
-        assertEquals(2, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // 2 -> 3 (2026-11-10, L6: M10 deleted, its file: path in SQL and its data: literal)
+        assertEquals(3, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

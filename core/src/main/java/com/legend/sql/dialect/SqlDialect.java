@@ -43,6 +43,14 @@ public interface SqlDialect {
         return true;
     }
 
+    /** The column type a {@code data:} source's session table holds its JSON elements in (L6b, 2026-11-10: the source a
+     *  load into a temporary table, {@code planner.DataSources}); refused by name where this database reads no JSON
+     *  source, as the source itself was until then. */
+    default com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
+        throw new com.legend.sql.DialectCapability("sourceUrl reached a dialect without an external-source encoding: "
+                + url);
+    }
+
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
      *  none) and only read after (a server engine's system database, SystemDatabase). Default: the table, then
      *  one INSERT of its rows -- this interface's own DDL and DML renders. */

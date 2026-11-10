@@ -2558,14 +2558,15 @@ final class ArchitectureTest {
      * <strong>P2, a load's steps (the tenets re-audit's A-5, 2026-11-09: until then named in a javadoc, guarded only
      * inside exec).</strong> A plan's {@code LoadStep} -- a statement, rows, a file and its delivery -- is made by the
      * planner's makers of statements and rows alone: {@code setup.CsvSeed}, {@code setup.Ddl}, {@code setup.RowLoad},
-     * {@code planner.PlanMaker}, {@code planner.SystemCatalog}, {@code testplan.EffectPlanner}; the plan's JSON reader
-     * rebuilds what a writer wrote.
+     * {@code planner.PlanMaker}, {@code planner.SystemCatalog}, {@code planner.DataSources} (2026-11-10, L6b),
+     * {@code testplan.EffectPlanner}; the plan's JSON reader rebuilds what a writer wrote.
      */
     @Test
     void onlyThePlannersMakersMakeALoadStep() {
         noClasses()
             .that().resideInAPackage("com.legend..")
-            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad)|planner\\.(PlanMaker|SystemCatalog)"
+            // planner.DataSources since 2026-11-10 (L6b: a query's data: sources as one load into session tables)
+            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad)|planner\\.(PlanMaker|SystemCatalog|DataSources)"
                     + "|testplan\\.EffectPlanner|executionplan\\.PlanJson)(\\$.*)?")
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(

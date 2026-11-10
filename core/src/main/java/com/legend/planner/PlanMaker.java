@@ -122,11 +122,13 @@ public final class PlanMaker {
         Decided decided = decide(l.ctx(), runtime);
         SqlDialect dialect = decided.dialect();
         Metamodel metamodel = metamodel(l, dialect);
-        ExecutionPlan.Target target = target(decided.target(), Objects.requireNonNull(runtime), l.ctx(), dialect,
-                metamodel, projectDatabase);
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
-        // metamodel table on a server read by its session name (Metamodel.renames)
-        SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
+        // metamodel table on a server read by its session name (Metamodel.renames); each data: source read from the
+        // session table the target's load makes of it (L6b, 2026-11-10)
+        DataSources data = DataSources.of(metamodel.read(EnumValueTables.apply(l.plan())), dialect);
+        ExecutionPlan.Target target = data.onto(target(decided.target(), Objects.requireNonNull(runtime), l.ctx(),
+                dialect, metamodel, projectDatabase));
+        SqlQuery lowered = data.query();
         return ExecutionPlan.reading(declarations(declared, l.ctx()),
                 stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
     }

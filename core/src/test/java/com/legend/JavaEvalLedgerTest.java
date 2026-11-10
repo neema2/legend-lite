@@ -1485,6 +1485,10 @@ class JavaEvalLedgerTest {
                     // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L2 (P2): the one place a plan's load is made and the
                     // one identity scheme (a digest of the steps' content, every digest in it); data in, no value computed
                     "LoadPlanner.java",
+                    // 2026-11-10, docs/DATA_IN_THE_PLAN_2026_11_09.md L6b: a query's data: sources as one load into
+                    // session tables named by their content's digest, the payload split into its elements verbatim
+                    // (build-time model text, compared never computed) and the source read as its table
+                    "DataSources.java",
                     // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L4b (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md): the one
                     // maker of a system target and of the store's loads -- the catalog's ONCE load (its tables, the
                     // platform's rows), a model's registration (its rows less the platform's, compared as multisets of

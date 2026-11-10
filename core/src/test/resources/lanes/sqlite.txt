@@ -84,6 +84,7 @@ PivotCheckerTest$SqlGeneration#testSingleColumnPivotSql	measured 2026-10-29: a p
 RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayCrossProduct	measured 2026-10-29: Should use UNNEST for array access ==> expected: <true> but was: <false>
 RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayWithEmptyArray	measured 2026-10-29: Should use LEFT JOIN LATERAL for empty array support ==> expected: <true> but was: <false>
 RelationalMappingIntegrationTest$GapFeatures#testSchemaTable	measured 2026-10-29: [SQLITE_ERROR] SQL error or missing database (near "SCHEMA": syntax error)
+SourceUrlUserCallableTest#equalSourcesShareOneTableAndAUnionReadsIt	measured 2026-11-10 (SQLite): sourceUrl reached a dialect without an external-source encoding:
 SourceUrlUserCallableTest#userCallable_dataUri_extendsAndProjects	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"a":1,"b":"x"},{"a":2,"b":"y"}]
 StagedRowsTest#aDeleteOfTheRowsAnotherRelationNames	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
 StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'

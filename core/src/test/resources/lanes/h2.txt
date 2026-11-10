@@ -165,6 +165,7 @@ ScalarFunctionIntegrationTest#testPctJaroWinklerDiff	measured 2026-10-29: Functi
 ScalarFunctionIntegrationTest#testPctJaroWinklerSame	measured 2026-10-29: Function "JARO_WINKLER_SIMILARITY" not found; SQL statement:  SELECT jaro_winkler_similarity('John Smith', 'John Smith')
 ScalarFunctionIntegrationTest#testReverseString	measured 2026-10-29: Function "REVERSE" not found; SQL statement:  SELECT reverse('hello') AS "value" [90022-214]
 ScalarFunctionIntegrationTest#testSplitSimple	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
+SourceUrlUserCallableTest#equalSourcesShareOneTableAndAUnionReadsIt	measured 2026-11-10 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 SourceUrlUserCallableTest#userCallable_dataUri_extendsAndProjects	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"a":1,"b":"x"},{"a":2,"b":"y"}]
 StructFilterIntegrationTest#testExistsInSelectFilterLegalName	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
 StructFilterIntegrationTest#testExistsInSelectFilterLegalNameP3	measured 2026-10-29: UNNEST reached a dialect without an unnest placement

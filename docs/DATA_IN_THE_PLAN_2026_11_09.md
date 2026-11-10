@@ -343,6 +343,23 @@ doesn't extract it to a content store? ... I'm not so sure it's any different fr
   a case that admits nothing is refused by name. Census M10's `file:` half reads zero (`REMOVED_SO_FAR`); its `data:`
   half is L6b.
 
+### L6b as built: a data: source is a load (2026-11-10, branch `claude/total-wall`)
+
+The orchestrator's reading of decision 1 (2026-11-10): always a load, with no SQL-literal form at any size.
+- **The plan:** `planner.DataSources` turns each distinct `data:` content a query reads into a session table named by
+  its digest (`legend_data_<16 hex>`). The target gets a `PER_ACQUISITION` load whose steps drop the table, create it
+  TEMPORARY with one column of the dialect's JSON type (`SqlDialect.dataSourceColumn`), and insert each array element's
+  JSON text, verbatim. The query reads the table where the source stood, at any depth (a subquery's, a union's). Two
+  sources of equal content read one table.
+- **Lifetime:** the table is the session's own and gone with it, as the metamodel's per-query tables are. It is remade
+  on each acquisition, dropped first, so a run reads exactly the plan's rows.
+- **Deleted:** DuckDB's `data:` arm, the payload as a SQL literal. A dialect with no JSON source refuses by name, as
+  it refused the source before (H2, SQLite: their floor lines).
+- **Tests:** `SourceUrlUserCallableTest` checks the digest-named TEMPORARY table, a statement that holds no payload,
+  and a union of two equal sources that answers both arms' rows from one table. Census M10 is DELETED.
+- **Still to come (L6c):** the content store, for model text above the threshold (M1's large fill, a large `data:`
+  payload). Below the threshold the rows ride in the load's steps, as here.
+
 ### L5 as built: no fixture between a body's plan and its run (2026-11-10, branch `claude/total-wall`)
 
 Option C, upstream's shape (the orchestrator's word, 2026-11-10): legend-engine runs a package's setups at the package's
@@ -420,6 +437,12 @@ The guarantee is mechanical. Each is a test that fails if a second way back open
    inline below a threshold, with its digest, and above it goes to the content store and the plan carries a reference.
    The threshold is measured first (the demo, markets at 1.87 MB, a stress body); about 16 KB, near a query's own SQL
    at p99, is the starting proposal.
+   - **Clarified 2026-11-10 (the orchestrator, reading this ruling for L6b):** "inline below a threshold" is where the
+     BYTES travel, never what a statement holds. Below the threshold the rows ride inline in the plan, in the load's
+     steps, with their digest; above it the plan carries a content reference into the content store. Either way the
+     database receives them through one load, and the query reads the session table: a SQL literal of model data is
+     never written, at any size (M10's inlining deleted). A model's LIVE source (`file:`) is not model text: it is a
+     pointer (L6a).
 2. **When a project's `###Data` loads (ruled 2026-11-09).** At first use, `ONCE` per identity, and kept: a register
    row (`docs/SEMANTICS_REGISTER.md` S171). The catalog's rows load with the model, as its design rules.
 3. **(Folded into 2.)**
