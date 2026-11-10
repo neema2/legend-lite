@@ -257,6 +257,19 @@ public final class PlanSessions {
         return new Acquired(session, target);
     }
 
+    /** A request's release as a resource ({@link Source#release} when closed), so a run's try-with-resources releases
+     *  what it acquired whatever its outcome, a release's failure suppressed into the run's own. */
+    @FunctionalInterface
+    public interface Releasing extends AutoCloseable {
+        @Override
+        void close();
+    }
+
+    /** {@code on}'s release, to close when the request lets its session go. */
+    public static Releasing releasing(Source on) {
+        return on::release;
+    }
+
     /** The cadences a source that ACQUIRES a session for its target runs itself: the acquisition's loads, and the
      *  release that drops what they made. */
     private static boolean acquisitions(ExecutionPlan.Load.Cadence cadence) {

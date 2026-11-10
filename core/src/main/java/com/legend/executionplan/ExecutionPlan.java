@@ -922,7 +922,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             public Statements {
                 Objects.requireNonNull(ref, "ref");
                 Objects.requireNonNull(of, "of");
-                if (of.isBlank()) {
+                if (of.strip().isEmpty()) {
                     throw new IllegalArgumentException("a load's statements name the data they load: " + ref);
                 }
                 if (ref.namespace() != DataRef.Namespace.CONTENT || !(ref.format() instanceof DataRef.Statements)) {

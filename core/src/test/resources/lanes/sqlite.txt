@@ -72,10 +72,6 @@ JsonM2MChainIntegrationTest$MultiSource#testPersonFromFirstSource	measured 2026-
 JsonM2MIntegrationTest#testGraphFetchFromJson	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
 JsonM2MIntegrationTest#testProjectFromJson	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
 JsonM2MIntegrationTest#testProjectWithFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
-MetamodelMappingStoreTest#resolvePrimaryKeyPrecedence	measured 2026-10-29: expected: <[aName]> but was: <[id]>
-MetamodelQueryFunctionsTest#classMappingsByClass	measured 2026-10-29: A's root set is visible through the include ==> expected: <[a]> but was: <[]>
-MetamodelQueryFunctionsTest#propertyMappingInference	measured 2026-10-29: Cannot cast a collection of size 0 to multiplicity [1]
-MetamodelQueryFunctionsTest#propertyMappingsByName	measured 2026-10-29: expected: <[bName]> but was: <[]>
 PivotCheckerTest$MultiColumnPivot#testTwoColumnPivot	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
 PivotCheckerTest$SingleColumnPivot#testComputedMultiplicationExpression	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
 PivotCheckerTest$SingleColumnPivot#testLiteralCountExpression	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT

@@ -168,9 +168,13 @@ Deleted from the plan:
   table on every database (green); SQLite's boolean round-trips. SQLite's date-time still reads back at its text's
   written precision where every other database reads nine subsecond digits: the decoder's rule
   (`JdbcDecode.temporal`), raised as a question, its two cells pinned.
-- **Still refused, for the user's ruling:** a date, date-time or time cell outside its ISO shape (upstream quotes it and
-  the database parses it); a BINARY, VARBINARY, OTHER, DISTINCT, ARRAY or OBJECT column's data (upstream writes the raw
-  token), not loaded yet.
+- **Ruled by the user, 2026-11-10 ("Yes to both"):**
+  1. A date, date-time or time cell outside its ISO shape is written as text the DATABASE casts (as upstream: quoted,
+     the database parses it; Java parses nothing); a database that rejects it fails under the load's name (rule 5).
+     A BINARY, VARBINARY, OTHER, DISTINCT, ARRAY or OBJECT column's data stays refused as not implemented yet, by name
+     (§9).
+  2. The decoder reads a store's declared TIMESTAMP column on SQLite as on every other database (`JdbcDecode.temporal`:
+     the database's timestamp, not the text's written precision), so the type round trip's two SQLite cells are green.
 
 ### A3 as built (2026-11-10)
 
@@ -336,6 +340,8 @@ Deleted from the plan:
 - The corpus and stress burn-down.
 - Native file loaders per database (§1.3), when someone needs one.
 - The features M17 names (ExternalFormat, ModelStore and ServiceStore data, mapping test suites).
+- Model data for BINARY, VARBINARY, OTHER, DISTINCT, ARRAY and OBJECT columns (the user's ruling, 2026-11-10: refused by
+  name as not implemented yet until then; `RowLoad`).
 - One statement that reads both the catalog and a user's tables, a possible product feature (the user, 2026-11-10:
   "later we might want a product feature across both"). Until then it is refused by name.
 - PR #81, the timeseries line, in its own session.

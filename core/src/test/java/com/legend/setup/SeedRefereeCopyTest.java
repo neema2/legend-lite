@@ -69,9 +69,21 @@ class SeedRefereeCopyTest {
     @Test
     void aCellItsTypeCannotTakeIsRefusedNamingTheTableColumnAndValue() {
         var refused = assertThrows(com.legend.error.DataError.class,
-                () -> planned("default\\nT\\nID,NAME,ON_DAY,OK\\n1,a,2020-13-45x,true\\n"));
-        assertEquals("the table T's column ON_DAY is DATE, and its data holds '2020-13-45x', which is not one",
+                () -> planned("default\\nT\\nID,NAME,ON_DAY,OK\\nx1,a,2020-01-02,true\\n"));
+        assertEquals("the table T's column ID is INTEGER, and its data holds 'x1', which is not one",
                 refused.getMessage());
+    }
+
+    /** A date cell outside its ISO shape is text the DATABASE casts (the user's ruling, 2026-11-10): upstream quotes it
+     *  and its database parses it; Java parses nothing. */
+    @Test
+    void aDateOutsideItsIsoShapeIsTextTheDatabaseCasts() {
+        RowLoad load = new RowLoad(null, "U", com.legend.sql.NameQuoting.BARE, List.of("D"), java.util.Set.of(), 1,
+                List.of(List.of("2020-01-02"), List.of("2020-01-02 10:00:00")),
+                List.of(new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.DATE)));
+        String insert = load.statements(Databases.dialect(DatabaseType.DuckDB)).get(0);
+        assertTrue(insert.contains("DATE '2020-01-02'") && insert.contains("'2020-01-02 10:00:00'")
+                && insert.toUpperCase(java.util.Locale.ROOT).contains("CAST("), insert);
     }
 
     @Test

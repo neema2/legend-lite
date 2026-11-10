@@ -112,9 +112,11 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
      * The cell {@code text} of column {@code c} as the literal of its column's declared {@code type}: an integer
      * column's an integer ({@code 1.0} as {@code 1}), any other number there its digits, which the database assigns as
      * it assigns upstream's raw token; a float's a float; a decimal's a decimal of its digits; a bit's a boolean ({@code true}, {@code false}, {@code 1},
-     * {@code 0}, any case); a date's, a date-time's and a time's their typed literal, the text as written in its ISO
-     * shape; a semi-structured column's the text as JSON; text, or a column of no declared type, a string. A cell the
-     * type cannot take, or a type no load writes, is refused naming the table, the column and the value.
+     * {@code 0}, any case); a date's, a date-time's and a time's their typed literal where the text is in its ISO shape,
+     * any other text cast by the database (the user's ruling, 2026-11-10: as upstream's quoted cell, which its database
+     * parses); a semi-structured column's the text as JSON; text, or a column of no declared type, a string. A number or
+     * a boolean the type cannot take is refused naming the table, the column and the value; a column of a type no load
+     * writes yet (BINARY, VARBINARY, OTHER, DISTINCT, ARRAY, OBJECT) is refused as not implemented yet.
      */
     private SqlExpr cell(String text, SqlDdl.@Nullable ColumnType type, int c) {
         if (type == null) {
@@ -154,24 +156,15 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
                     case "false", "0" -> new SqlExpr.BoolLit(false);
                     default -> throw refused(c, text, "BIT");
                 };
-                case DATE -> {
-                    if (!DATE.matcher(t).matches()) {
-                        throw refused(c, text, "DATE");
-                    }
-                    yield new SqlExpr.DateLit(t);
-                }
-                case TIMESTAMP, TIMESTAMP_NS -> {
-                    if (!DATE_TIME.matcher(t).matches()) {
-                        throw refused(c, text, p.kind().name());
-                    }
-                    yield new SqlExpr.TimestampLit(t);
-                }
-                case TIME -> {
-                    if (!TIME.matcher(t).matches()) {
-                        throw refused(c, text, "TIME");
-                    }
-                    yield new SqlExpr.TimeLit(t);
-                }
+                // an ISO shape is the dialect's typed literal; any other text the DATABASE casts, as upstream's quoted
+                // cell is parsed by its database (the user's ruling, 2026-11-10, "Yes to both"): Java parses nothing,
+                // and a text the database rejects fails under the load's name
+                case DATE -> DATE.matcher(t).matches() ? new SqlExpr.DateLit(t)
+                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.DATE);
+                case TIMESTAMP, TIMESTAMP_NS -> DATE_TIME.matcher(t).matches() ? new SqlExpr.TimestampLit(t)
+                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.TIMESTAMP);
+                case TIME -> TIME.matcher(t).matches() ? new SqlExpr.TimeLit(t)
+                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.TIME);
                 case JSON -> new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.JSON);
                 case VARCHAR -> new SqlExpr.StringLit(text);
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw unsupported(c, p.kind().name());

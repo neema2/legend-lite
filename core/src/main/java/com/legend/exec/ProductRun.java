@@ -98,22 +98,9 @@ public final class ProductRun {
             };
             // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10); what the
             // request's acquisition made is released whatever its outcome (§3 rules 2 and 4, A4), before its session
-            // -- and a kept session's lock -- goes
-            Throwable failed = null;
-            try {
+            // -- and a kept session's lock -- goes: a release that fails after the run failed is suppressed into it
+            try (PlanSessions.Releasing released = PlanSessions.releasing(on)) {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
-            } catch (Throwable t) {
-                failed = t;
-                throw t;
-            } finally {
-                try {
-                    on.release();
-                } catch (RuntimeException releaseFailed) {
-                    if (failed == null) {
-                        throw releaseFailed;
-                    }
-                    failed.addSuppressed(releaseFailed);
-                }
             }
         }
     }
