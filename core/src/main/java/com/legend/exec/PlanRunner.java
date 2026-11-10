@@ -579,59 +579,77 @@ public final class PlanRunner {
         boolean system = seeds.target().database() instanceof ExecutionPlan.Database.System;
         Statements seeding = Statements.marked(st, system ? StatementOrigin.SYSTEM : StatementOrigin.SEED);
         try {
-            for (ExecutionPlan.LoadStep each : seeds.steps()) {
-                switch (each) {
-                    case ExecutionPlan.LoadStep.Statement s -> {
-                        StatementOrigin.sent(seeding.mark(), s.sql());
-                        answered.add(seeding.execute(s.sql()));
-                    }
-                    case ExecutionPlan.LoadStep.Statements s -> {
-                        // the model's data: the blob's statements, from the load's own bundle (verified when the load
-                        // was made or read), each sent as it is written (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1)
-                        for (String statement : com.legend.executionplan.DataRef.Statements.decode(
-                                java.util.Objects.requireNonNull(seeds.content().get(s.ref().digest()),
-                                        "a load's bundle holds every digest its steps read"))) {
-                            StatementOrigin.sent(seeding.mark(), statement);
-                            seeding.execute(statement);
-                        }
-                        answered.add(false);
-                    }
-                    case ExecutionPlan.LoadStep.File f -> {
-                        // the file by its reference, its verified bytes delivered as the plan says (DataLoads): the model's
-                        // text above the inline threshold from the load's own bundle (L6c, verified when the load was
-                        // made or read), any other file through the stores the run was given
-                        byte[] bytes = f.ref().namespace() == com.legend.executionplan.DataRef.Namespace.CONTENT
-                                ? java.util.Objects.requireNonNull(seeds.content().get(f.ref().digest()),
-                                        "a load's bundle holds every digest its steps read").getBytes(
-                                        java.nio.charset.StandardCharsets.UTF_8)
-                                : DataLoads.verified(f.ref(), stores);
-                        switch (f.delivery()) {
-                            case ExecutionPlan.LoadStep.Delivery.Reads reads -> {
-                                // a copy of the runner's own, which the database reads with its own reader, each
-                                // statement's ? the copy's path
-                                try (DataLoads.Staged staged = DataLoads.stage(f.ref(), bytes, f.sizeLimitMegabytes())) {
-                                    for (String statement : reads.statements()) {
-                                        StatementOrigin.sent(seeding.mark(), statement);
-                                        try {
-                                            seeding.readsFile(statement, staged.path());
-                                        } catch (com.legend.error.DataError e) {
-                                            // the database's own words, the file named (its reader cannot name it)
-                                            throw new com.legend.error.DataError("the file '" + f.ref().name()
-                                                    + "': " + e.getMessage(), e);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        answered.add(false);
-                    }
-                }
-            }
+            // a load happens whole or not at all (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 1, A4): its steps in
+            // one transaction, its own or the caller's (a program's, a catalog turn's), joined -- a refusal leaves none
+            // of its rows
+            seeding.inTransaction(() -> {
+                deliver(seeds, seeding, stores, answered);
+                return null;
+            });
         } finally {
             ran.accept(List.copyOf(answered));
         }
         if (memo) {
             session.state().establish(key);
+        }
+    }
+
+    /** {@code seeds}' steps sent in order on {@code seeding}, each step's answer recorded in {@code answered} as it
+     *  runs: a statement's, a statements blob's each as written, a file's statements reading its verified copy. */
+    private static void deliver(ExecutionPlan.Load seeds, Statements seeding,
+            com.legend.executionplan.DataStores stores, List<Boolean> answered) {
+        for (ExecutionPlan.LoadStep each : seeds.steps()) {
+            switch (each) {
+                case ExecutionPlan.LoadStep.Statement s -> {
+                    StatementOrigin.sent(seeding.mark(), s.sql());
+                    answered.add(seeding.execute(s.sql()));
+                }
+                case ExecutionPlan.LoadStep.Statements s -> {
+                    // the model's data: the blob's statements, from the load's own bundle (verified when the load
+                    // was made or read), each sent as it is written (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1)
+                    for (String statement : com.legend.executionplan.DataRef.Statements.decode(
+                            java.util.Objects.requireNonNull(seeds.content().get(s.ref().digest()),
+                                    "a load's bundle holds every digest its steps read"))) {
+                        StatementOrigin.sent(seeding.mark(), statement);
+                        try {
+                            seeding.execute(statement);
+                        } catch (com.legend.error.DataError e) {
+                            // the database's own words, the data named (§3 rule 5): the plan names it
+                            throw new com.legend.error.DataError(s.of() + ": " + e.getMessage(), e);
+                        }
+                    }
+                    answered.add(false);
+                }
+                case ExecutionPlan.LoadStep.File f -> {
+                    // the file by its reference, its verified bytes delivered as the plan says (DataLoads): the model's
+                    // text above the inline threshold from the load's own bundle (L6c, verified when the load was
+                    // made or read), any other file through the stores the run was given
+                    byte[] bytes = f.ref().namespace() == com.legend.executionplan.DataRef.Namespace.CONTENT
+                            ? java.util.Objects.requireNonNull(seeds.content().get(f.ref().digest()),
+                                    "a load's bundle holds every digest its steps read").getBytes(
+                                    java.nio.charset.StandardCharsets.UTF_8)
+                            : DataLoads.verified(f.ref(), stores);
+                    switch (f.delivery()) {
+                        case ExecutionPlan.LoadStep.Delivery.Reads reads -> {
+                            // a copy of the runner's own, which the database reads with its own reader, each
+                            // statement's ? the copy's path
+                            try (DataLoads.Staged staged = DataLoads.stage(f.ref(), bytes, f.sizeLimitMegabytes())) {
+                                for (String statement : reads.statements()) {
+                                    StatementOrigin.sent(seeding.mark(), statement);
+                                    try {
+                                        seeding.readsFile(statement, staged.path());
+                                    } catch (com.legend.error.DataError e) {
+                                        // the database's own words, the file named (its reader cannot name it)
+                                        throw new com.legend.error.DataError("the file '" + f.ref().name()
+                                                + "': " + e.getMessage(), e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    answered.add(false);
+                }
+            }
         }
     }
 

@@ -107,8 +107,9 @@ public final class PlanJson {
      *  blob of SQL statements (the {@code statements} format) by digest; the {@code rows} step and format are gone; the
      *  bundle's inline part bounded per plan ({@link #INLINE_LIMIT_BYTES}), a program step's loads included. 39 since
      *  2026-11-10 (A3): a file's load is the database's reading of it alone, {@code reads}; the {@code streamed}
-     *  delivery is gone (a database with no reader refuses the file by name). */
-    public static final int VERSION = 39;
+     *  delivery is gone (a database with no reader refuses the file by name). 40 since 2026-11-10 (A4): a load's
+     *  {@code statements} step names the data it loads ({@code of}), which a refusal names. */
+    public static final int VERSION = 40;
 
     private PlanJson() {
     }
@@ -677,6 +678,7 @@ public final class PlanJson {
             case LoadStep.Statements st -> {
                 o.put("_type", SetupTag.statements.name());
                 o.put("ref", ref(st.ref()));
+                o.put("of", st.of());
             }
             case LoadStep.File f -> {
                 o.put("_type", SetupTag.file.name());
@@ -1028,7 +1030,7 @@ public final class PlanJson {
                 Json.Obj ref = o.getObj("ref");
                 yield new LoadStep.Statements(new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")),
                         ref.getString("name"), ref.getString("digest"), ref.getLong("size"),
-                        format(ref.getObj("format"))));
+                        format(ref.getObj("format"))), o.getString("of"));
             }
             case file -> {
                 // the reference refuses a path-shaped name as it is read (DataRef: never a machine's path in a plan)

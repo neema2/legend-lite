@@ -61,6 +61,12 @@ final class DuckDbConnector implements DatabaseConnector {
         return null;
     }
 
+    /** {@inheritDoc} Yes: DuckDB aborts the whole transaction on a failed statement and refuses every statement after it until a rollback (measured: "Current transaction is aborted (please ROLLBACK)"). */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return true;
+    }
+
     /** {@inheritDoc} The dialect's {@code jsonSpellsNonFiniteNumbers} until D72 (2026-10-30), carried: Yes: DuckDB's JSON writes a double that is not finite as {@code NaN}, {@code Infinity} or
      *  {@code -Infinity} (a float divided by a zero inside a list; the Cypher TCK's ordered values of every type). */
     @Override

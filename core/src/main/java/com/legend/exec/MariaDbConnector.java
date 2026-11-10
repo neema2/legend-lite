@@ -50,6 +50,12 @@ class MariaDbConnector implements DatabaseConnector {
         return new RaiseRecovery("SELECT @legend_raise", "SET @legend_raise = NULL");
     }
 
+    /** {@inheritDoc} No: MariaDB and MySQL roll back the failed statement alone; the transaction goes on. */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
     @Override
     public String storelessDeclaration() {
         throw new IllegalArgumentException(type() + " is a server: its storeless runtime declares the session's"

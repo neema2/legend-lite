@@ -42,6 +42,12 @@ public final class PlanSessions {
         default SourceAdmission admitted() {
             return SourceAdmission.none();
         }
+
+        /** The request lets go of what it acquired (§3 rules 2 and 4, A4): where this source ran a target's acquisition
+         *  loads, its {@code AT_RELEASE} loads run now -- the session tables they made, dropped -- whatever the
+         *  request's outcome. The product door calls it in {@code finally}. A source that ran none releases nothing. */
+        default void release() {
+        }
     }
 
     /** {@code sessions} on which a plan's live sources may read under {@code admitted}'s directories (L6, 2026-11-10:
@@ -64,6 +70,11 @@ public final class PlanSessions {
         @Override
         public StatementOrigin mark() {
             return inner.mark();
+        }
+
+        @Override
+        public void release() {
+            inner.release();
         }
     }
 
@@ -218,7 +229,7 @@ public final class PlanSessions {
      *  target names or refuses the target: never a plan run with less data than it names (the re-audit's A-3). */
     static void refuseUnrun(ExecutionPlan.Target target, String what, boolean acquires) {
         java.util.List<ExecutionPlan.Load> unrun = target.loads().stream()
-                .filter(l -> !(acquires && l.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION)).toList();
+                .filter(l -> !(acquires && acquisitions(l.cadence()))).toList();
         ExecutionPlan.Project project = switch (target.database()) {
             case ExecutionPlan.Database.Declared d -> d.project();
             case ExecutionPlan.Database.Platform p -> p.project();
@@ -244,6 +255,12 @@ public final class PlanSessions {
         // holds (the re-audit's A-3, 2026-11-09: until then skipped silently)
         refuseUnrun(target, "a session acquired for it", true);
         return new Acquired(session, target);
+    }
+
+    /** The cadences a source that ACQUIRES a session for its target runs itself: the acquisition's loads, and the
+     *  release that drops what they made. */
+    private static boolean acquisitions(ExecutionPlan.Load.Cadence cadence) {
+        return cadence == ExecutionPlan.Load.Cadence.PER_ACQUISITION || cadence == ExecutionPlan.Load.Cadence.AT_RELEASE;
     }
 
     /** {@link #acquired} on a session of a database made for the target -- a project's own ({@link #projectDatabase}),
@@ -281,6 +298,21 @@ public final class PlanSessions {
             // source that refuses a target's loads)
             return Sessions.view(session);
         }
+
+        @Override
+        public void release() {
+            boolean ran;
+            synchronized (state) {
+                // the acquisition's loads ran, or began: what they made is dropped (a drop of what is not there is none)
+                ran = state[0] || state[1];
+            }
+            if (!ran) {
+                return;
+            }
+            try (var run = com.legend.base.RunScope.enter()) {
+                loads(session, target, ExecutionPlan.Load.Cadence.AT_RELEASE);
+            }
+        }
     }
 
     /** {@code target}'s loads established on {@code session} now, inside the run that acquired it. */
@@ -312,7 +344,7 @@ public final class PlanSessions {
             // it reaches the runner through a caller's source with a system opener (M10a), never the shared one
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not the shared one");
-            case ExecutionPlan.Database.Platform p -> Sessions.view(SHARED.getOrOpenSlowly(key, Sessions::closed,
+            case ExecutionPlan.Database.Platform p -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
                     () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
@@ -321,7 +353,7 @@ public final class PlanSessions {
                     yield connector.open(d.connection());
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
-                    case Sessions.Opening.Held h -> Sessions.view(SHARED.getOrOpenSlowly(key, Sessions::closed,
+                    case Sessions.Opening.Held h -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
                             () -> setUpOpened(Sessions.openHeld(h), target)));
                     case Sessions.Opening.Named n -> {
                         String usersName = n.name();
@@ -408,7 +440,8 @@ public final class PlanSessions {
         return switch (target.database()) {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not a project's");
-            case ExecutionPlan.Database.Platform p -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+            // a kept session serves one request at a time (§3 rule 4, A4): the view holds its lock until closed
+            case ExecutionPlan.Database.Platform p -> Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
                     () -> made(Sessions.openPrivate(p.type()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
@@ -433,7 +466,7 @@ public final class PlanSessions {
                         PROJECTS.getOrOpenSlowly(key, Sessions::closed, () -> made(Sessions.openNamed(n, name), target));
                         yield Sessions.openNamed(n, name);
                     }
-                    case Sessions.Opening.Held h -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+                    case Sessions.Opening.Held h -> Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
                             () -> made(Sessions.openHeld(h), target)));
                 };
             }

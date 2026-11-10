@@ -868,6 +868,14 @@ public final class DuckDb extends AnsiSqlRenderer {
                 + " the plan's load, planner.DataSources): " + url);
     }
 
+    /** {@inheritDoc} DuckDB's {@code temp} catalog: {@code DROP TABLE IF EXISTS temp.t} drops the session's temporary
+     *  table and leaves a user's {@code t} as it is, where an unqualified drop would drop the user's when the session
+     *  has none (measured 2026-11-10 on 1.5.6). */
+    @Override
+    public String temporarySchema() {
+        return "temp";
+    }
+
     /** {@inheritDoc} DuckDB holds each element in a {@code JSON} column, read as the array's elements were. */
     @Override
     public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {

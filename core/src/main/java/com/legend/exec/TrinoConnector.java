@@ -84,6 +84,12 @@ final class TrinoConnector implements DatabaseConnector {
         return null;
     }
 
+    /** {@inheritDoc} No: Trino holds no transaction the platform opens across statements (none is kept in a turn). */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
     /** {@inheritDoc} The dialect's {@code opensFailedResultsWithoutColumns} until D72 (2026-10-30), carried: Measured 2026-10-12: a date 12,345,678,912 days on opens with no columns, its error on the first
      *  read; a statement that succeeds always reports its columns. */
     @Override

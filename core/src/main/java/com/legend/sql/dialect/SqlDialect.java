@@ -51,6 +51,14 @@ public interface SqlDialect {
                 + url);
     }
 
+    /** The schema a session's own TEMPORARY tables live in, as a drop names it so it drops the session's table and never
+     *  a user's table of the same name (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2, A4): refused by name where
+     *  this dialect has no session tables a load makes (a {@code data:} source's: {@link #dataSourceColumn}). */
+    default String temporarySchema() {
+        throw new com.legend.sql.DialectCapability("a session's temporary schema reached a dialect that makes no"
+                + " session table of a load's");
+    }
+
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
      *  none) and only read after (a server engine's system database, SystemDatabase). Default: the table, then
      *  one INSERT of its rows -- this interface's own DDL and DML renders. */

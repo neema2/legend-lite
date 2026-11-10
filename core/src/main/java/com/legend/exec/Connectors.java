@@ -112,6 +112,11 @@ public final class Connectors {
         }
 
         @Override
+        public boolean abortsTransactionOnError() {
+            throw unbuilt();   // refused by name, as every fact of an unbuilt connector
+        }
+
+        @Override
         public Decoding decoding() {
             throw unbuilt();   // refused by name, as every fact of an unbuilt connector (the D72 audit)
         }

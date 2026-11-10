@@ -96,8 +96,25 @@ public final class ProductRun {
                     yield PlanSessions.of(session);
                 }
             };
-            // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10)
-            PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
+            // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10); what the
+            // request's acquisition made is released whatever its outcome (§3 rules 2 and 4, A4), before its session
+            // -- and a kept session's lock -- goes
+            Throwable failed = null;
+            try {
+                PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
+            } catch (Throwable t) {
+                failed = t;
+                throw t;
+            } finally {
+                try {
+                    on.release();
+                } catch (RuntimeException releaseFailed) {
+                    if (failed == null) {
+                        throw releaseFailed;
+                    }
+                    failed.addSuppressed(releaseFailed);
+                }
+            }
         }
     }
 

@@ -22,16 +22,19 @@ import java.util.Set;
  * model travels with the plan, and the database receives it through one load at every size -- never a SQL literal):
  * each distinct content a session table named by its digest ({@code legend_data_<16 hex>}), made and filled by a load
  * on the query's target, established on acquisition, and read by the query where the source stood (at any depth: a
- * subquery's, a union's). Two sources of equal content read one table. The table is TEMPORARY -- the session's own,
- * gone with it, as the metamodel's per-query tables are -- and remade on each acquisition (dropped first), so a run
- * reads exactly the plan's rows. The payload is split into its elements verbatim, never re-printed: the database reads
- * each element's JSON text, as it read the whole array until then.
+ * subquery's, a union's). Two sources of equal content read one table. The table is TEMPORARY -- the session's own --
+ * dropped before it is made and again when the request lets its session go (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3
+ * rules 2 and 4, A4: the target's AT_RELEASE load), each drop qualified to the session's temporary schema so it never
+ * drops a user's table of the same name; a run reads exactly the plan's rows. The payload is split into its elements
+ * verbatim, never re-printed: the database reads each element's JSON text, as it read the whole array until then.
  *
  * @param query   the query reading each source's table
  * @param steps   the load's steps: per content, the table dropped, created and filled
+ * @param release the release's steps: per content, the table dropped
  * @param content the bundle the steps read: each payload's elements, a content blob of inserts (A2)
  */
-record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<String, String> content) {
+record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release,
+        Map<String, String> content) {
 
     /** The one column a source's table holds, as the source's single output names it. */
     static final String COLUMN = "data";
@@ -41,6 +44,7 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
     static DataSources of(SqlQuery q, SqlDialect dialect) {
         Map<String, String> tables = new LinkedHashMap<>();
         List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
+        List<ExecutionPlan.LoadStep> release = new ArrayList<>();
         Map<String, String> bundle = new LinkedHashMap<>();
         SqlQuery read = new SqlRewriter() {
             @Override
@@ -52,8 +56,12 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
                 String content = content(u.url());
                 String table = tables.computeIfAbsent(content, c -> {
                     String name = "legend_data_" + com.legend.cache.Hash.ofUtf8(c).hex().substring(0, 16);
-                    steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(
-                            new SqlDdl.DropTable(null, name, NameQuoting.BARE))));
+                    // the session's own table dropped first, and when the request lets the session go: qualified to
+                    // the session's temporary schema, so never a user's table of the same name
+                    String drop = dialect.render(new SqlDdl.DropTable(dialect.temporarySchema(), name,
+                            NameQuoting.BARE));
+                    steps.add(new ExecutionPlan.LoadStep.Statement(drop));
+                    release.add(new ExecutionPlan.LoadStep.Statement(drop));
                     steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(new SqlDdl.CreateTable(null, name,
                             NameQuoting.BARE, List.of(new SqlDdl.Column(COLUMN, false, type, false, false)), true))));
                     List<List<String>> rows = new ArrayList<>();
@@ -62,7 +70,9 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
                     }
                     // the elements as a content blob of inserts, each element its column's typed literal (A2)
                     com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(
-                            null, name, NameQuoting.BARE, List.of(COLUMN), Set.of(), 1, rows, List.of(type)), dialect);
+                            null, name, NameQuoting.BARE, List.of(COLUMN), Set.of(), 1, rows, List.of(type)), dialect,
+                            "the data: source's payload (" + rows.size() + " element(s), its session table " + name
+                                    + ")");
                     steps.addAll(planned.steps());
                     bundle.putAll(planned.content());
                     return name;
@@ -71,7 +81,8 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
                         NameQuoting.BARE);
             }
         }.rewrite(q);
-        return new DataSources(read, List.copyOf(steps), java.util.Collections.unmodifiableMap(new LinkedHashMap<>(bundle)));
+        return new DataSources(read, List.copyOf(steps), List.copyOf(release),
+                java.util.Collections.unmodifiableMap(new LinkedHashMap<>(bundle)));
     }
 
     /** {@code target} with the load that makes the tables, established on acquisition; {@code target} as it is where
@@ -82,6 +93,7 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Map<Strin
         }
         List<ExecutionPlan.Load> loads = new ArrayList<>(target.loads());
         loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, steps, target.bare(), content));
+        loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_RELEASE, release, target.bare(), Map.of()));
         return new ExecutionPlan.Target(target.database(), target.session(), loads);
     }
 

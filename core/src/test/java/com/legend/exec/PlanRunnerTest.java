@@ -294,13 +294,44 @@ class PlanRunnerTest {
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
                     List.of(), List.of()), com.legend.setup.LoadSteps.of(List.of(statement(
                             "CREATE TABLE K (A VARCHAR(10), B VARCHAR(10))"))).then(com.legend.setup.LoadSteps.blob(
-                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"))));
+                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "the data of the table K")));
             long before = setupStatements();
             assertEquals("3", run(ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(
                     "SELECT CAST(COUNT(*) AS VARCHAR(10)) FROM K", List.of(), target, null))), PlanSessions.shared()),
                     connection.qualifiedName());
             assertEquals(3, setupStatements() - before, "the DDL and the blob's two inserts: "
                     + connection.qualifiedName());
+        }
+    }
+
+    /** A load happens whole or not at all, and its refusal names its data (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3
+     *  rules 1 and 5, A4): a blob whose second insert the database refuses leaves none of the first's rows, on every
+     *  in-process database, and the refusal names the table's data in the database's own words. */
+    @Test
+    void aLoadThatFailsPartWayLeavesNoneOfItsRows_andItsRefusalNamesItsData() throws Exception {
+        for (com.legend.testbackend.TestBackend b : TestBackends.inProcess()) {
+            try (java.sql.Connection c = b.open(); java.sql.Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE WHOLE_K (A VARCHAR(10))");
+                ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(b.planType(),
+                        null), List.of(), List.of());
+                com.legend.setup.LoadSteps steps = com.legend.setup.LoadSteps.blob(List.of(
+                        "INSERT INTO WHOLE_K VALUES ('a')", "INSERT INTO NO_SUCH_TABLE VALUES ('b')"),
+                        "the data of the table WHOLE_K");
+                ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
+                        steps, target);
+                Sessions.Session session = com.legend.testbackend.TestSessions.over(c);
+                var refused = assertThrows(com.legend.error.DataError.class, () -> {
+                    try (var run = com.legend.base.RunScope.enter()) {
+                        PlanRunner.seed(load, session, PlanRunner.opened(session, load.target()),
+                                com.legend.executionplan.DataStores.none(), ran -> { });
+                    }
+                }, b.name());
+                assertTrue(refused.getMessage().startsWith("the data of the table WHOLE_K: "), refused.getMessage());
+                try (java.sql.ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM WHOLE_K")) {
+                    rs.next();
+                    assertEquals(0, rs.getInt(1), b.name() + ": the load left a row of its");
+                }
+            }
         }
     }
 

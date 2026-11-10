@@ -136,4 +136,10 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
+
+    /** {@inheritDoc} No: H2 rolls back the failed statement alone; its transaction goes on. */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
 }

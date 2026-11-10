@@ -71,7 +71,11 @@ class SourceUrlUserCallableTest {
                 .substring(0, 16);
         assertTrue(sql.contains(table), sql);
         var loads = plan.answerSql().target().loads();
-        assertEquals(1, loads.size(), "one load: " + loads);
+        // the table's load, and its release (A4, 2026-11-10: dropped, qualified to the session's temporary schema, when
+        // the request lets the session go)
+        assertEquals(2, loads.size(), "two loads: " + loads);
+        assertEquals(List.of("Drop table if exists temp." + table + ";"), statements(loads.get(1)));
+        assertEquals(com.legend.executionplan.ExecutionPlan.Load.Cadence.AT_RELEASE, loads.get(1).cadence());
         List<String> steps = statements(loads.get(0));
         assertEquals(3, steps.size(), String.valueOf(steps));
         assertTrue(steps.get(0).contains(table) && steps.get(0).toUpperCase(java.util.Locale.ROOT).startsWith("DROP"),

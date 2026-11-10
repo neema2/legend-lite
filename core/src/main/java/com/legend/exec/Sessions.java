@@ -50,6 +50,9 @@ public final class Sessions {
          *  session in a view-holder's hands). */
         private final Object token = new Object();
 
+        /** One request at a time on a kept session ({@link Sessions#locked}): its views' lock. */
+        final java.util.concurrent.locks.ReentrantLock requests = new java.util.concurrent.locks.ReentrantLock();
+
         Session() {
         }
 
@@ -263,6 +266,60 @@ public final class Sessions {
         return new View(session, null);
     }
 
+    /** A view of a KEPT session (a project's database, a lane's shared one) that serves one request at a time
+     *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 4, A4): it takes the owner's lock when made and lets it go when
+     *  closed, so two requests never run statements on one connection at once (two payloads' tables dropped and made
+     *  over each other: the correctness audit's S8). Reentrant: a request's nested views of its own session wait on
+     *  nothing. */
+    static Session locked(Session owner) {
+        Session root = owner;
+        while (root instanceof View v) {
+            root = v.owner;
+        }
+        return new Locked(owner, root.requests);
+    }
+
+    /** {@link #locked}'s view: the lock held from its making to its first close. */
+    private static final class Locked extends Session {
+        private final Session owner;
+        private final java.util.concurrent.locks.ReentrantLock lock;
+        private final java.util.concurrent.atomic.AtomicBoolean held = new java.util.concurrent.atomic.AtomicBoolean(true);
+
+        Locked(Session owner, java.util.concurrent.locks.ReentrantLock lock) {
+            lock.lock();
+            this.owner = owner;
+            this.lock = lock;
+        }
+
+        @Override
+        Connection connection() {
+            return owner.connection();
+        }
+
+        @Override
+        Object identity() {
+            return owner.identity();
+        }
+
+        @Override
+        public SessionState state() {
+            return owner.state();
+        }
+
+        @Override
+        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace traced) {
+            return owner.statementsOf(traced);
+        }
+
+        @Override
+        public void close() {
+            // a view: the owner closes; the request's lock goes
+            if (held.compareAndSet(true, false)) {
+                lock.unlock();
+            }
+        }
+    }
+
     /** {@link #view(Session)} whose statements publish each query's stamp to {@code trace} (the body driver's). */
     static Session view(Session session, @com.legend.base.Nullable ExecutionTrace trace) {
         return new View(session, trace);
@@ -281,8 +338,8 @@ public final class Sessions {
      *  (a connector's own) is never closed by this test: none is kept in a handle store. */
     public static boolean closed(Session session) {
         Session s = session;
-        while (s instanceof View v) {
-            s = v.owner;
+        while (s instanceof View || s instanceof Locked) {
+            s = s instanceof View v ? v.owner : ((Locked) s).owner;
         }
         if (s instanceof Lazy l) {
             Session o = l.ifOpened();
@@ -408,6 +465,7 @@ public final class Sessions {
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
+        session.state().turnBegan();
     }
 
     /** A run's turn on the catalog ends: its transaction rolled back -- whatever the run registered or read -- and
@@ -415,6 +473,7 @@ public final class Sessions {
     static void endTurn(Session session) {
         com.legend.base.RunScope.opening("a catalog's turn");
         session.state().rolledBack();
+        session.state().turnEnded();
         try {
             Connection c = session.connection();
             c.rollback();

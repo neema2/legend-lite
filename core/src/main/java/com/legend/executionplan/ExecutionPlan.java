@@ -287,8 +287,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             for (LoadStep step : steps) {
                 switch (step) {
                     case LoadStep.Statement st -> field(sb.append('S'), st.sql());
-                    case LoadStep.Statements st -> field(field(sb.append('T'), st.ref().name()), st.ref().digest())
-                            .append(st.ref().size()).append(':');
+                    case LoadStep.Statements st -> field(field(field(sb.append('T'), st.ref().name()),
+                            st.ref().digest()).append(st.ref().size()).append(':'), st.of());
                     case LoadStep.File f -> {
                         field(field(field(sb.append('F'), f.ref().namespace().name()), f.ref().name()), f.ref().digest());
                         sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
@@ -380,7 +380,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  a program's node, run inside the run's own transaction on the catalog -- which is rolled back when the
              *  run ends, so no other run sees it -- once per run (the seeds' memo, which the rollback clears); refused
              *  by name on a session that holds no such transaction. */
-            PER_TRANSACTION
+            PER_TRANSACTION,
+            /** A target's RELEASE (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rules 2 and 4, A4): run when a request
+             *  lets go of the session acquired for its target, whatever the request's outcome -- the session tables an
+             *  acquisition's load made (a {@code data:} payload's), dropped, so a kept session holds none of them after
+             *  the request. Run by the source that ran the target's acquisition loads ({@code PlanSessions.acquired});
+             *  never on a database the platform keeps made with them, nor as a program's node. */
+            AT_RELEASE
         }
     }
 
@@ -796,13 +802,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             loads = List.copyOf(loads);
             java.util.Set<String> identities = new java.util.HashSet<>();
             boolean acquired = false;
+            boolean released = false;
             for (Load load : loads) {
-                // the project's Data first (made once with the database), then what each acquisition establishes
-                if (load.cadence() == Load.Cadence.PER_ACQUISITION) {
+                // the project's Data first (made once with the database), then what each acquisition establishes, then
+                // what its release drops
+                if (load.cadence() == Load.Cadence.AT_RELEASE) {
+                    released = true;
+                } else if (load.cadence() == Load.Cadence.PER_ACQUISITION && !released) {
                     acquired = true;
-                } else if (load.cadence() != Load.Cadence.ONCE || acquired) {
+                } else if (load.cadence() != Load.Cadence.ONCE || acquired || released) {
                     throw new IllegalArgumentException("a target's loads are its ONCE loads, then its PER_ACQUISITION"
-                            + " ones: " + load.identity() + " is " + load.cadence());
+                            + " ones, then its AT_RELEASE ones: " + load.identity() + " is " + load.cadence());
                 }
                 if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
                         || !load.target().session().equals(session)) {
@@ -904,11 +914,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          * typed literals), named by its digest in the load's bundle, each sent as it is written. All model data takes
          * it -- a connection's test data, a project's Data, the catalog's rows, a seed, a payload's elements -- whatever
          * its size: where the bytes travel (inside the plan's JSON or beside it) is the plan writer's
-         * ({@code PlanJson.writeBundle}).
+         * ({@code PlanJson.writeBundle}). {@code of} names the data as a refusal names it -- "the data of the table
+         * PEOPLE", "the data: source's payload ..." -- so a statement the database refuses is refused naming its data
+         * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5, A4), in the database's own words.
          */
-        record Statements(DataRef ref) implements LoadStep {
+        record Statements(DataRef ref, String of) implements LoadStep {
             public Statements {
                 Objects.requireNonNull(ref, "ref");
+                Objects.requireNonNull(of, "of");
+                if (of.isBlank()) {
+                    throw new IllegalArgumentException("a load's statements name the data they load: " + ref);
+                }
                 if (ref.namespace() != DataRef.Namespace.CONTENT || !(ref.format() instanceof DataRef.Statements)) {
                     throw new IllegalArgumentException("a load's statements are a CONTENT blob of statements: " + ref);
                 }

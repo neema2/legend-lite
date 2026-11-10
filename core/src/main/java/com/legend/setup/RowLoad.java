@@ -184,7 +184,8 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
         return columns.isEmpty() ? "#" + (c + 1) : columns.get(c);
     }
 
-    private String where() {
+    /** The table as a refusal names it: {@code schema.table}, or the table alone in the default schema. */
+    public String where() {
         return (schema == null || schema.equals("default") ? "" : schema + ".") + table;
     }
 

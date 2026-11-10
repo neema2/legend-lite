@@ -92,9 +92,9 @@ class DataDeliveryMatrixTest {
             "matrix:SERVER/FROM_SEED/DuckDB", "matrix:SERVER/FROM_SEED/H2", "matrix:SERVER/FROM_SEED/SQLite",
             "matrix:TEST_BODY/FROM_SEED/DuckDB", "matrix:TEST_BODY/FROM_SEED/H2", "matrix:TEST_BODY/FROM_SEED/SQLite",
             // (A3, 2026-11-10: SQLite refuses a file by name, as the design says, where it streamed it)
-            // A4, refusals name the data: a bad payload's refusal names no payload (a bad value's names its table and
-            // column since A2, 2026-11-10: a cell its column's type cannot take is refused at planning)
-            "failure:BAD_PAYLOAD/DuckDB",
+            // (A4, 2026-11-10: a bad payload's refusal names the data: source's payload, the plan's label on its load;
+            // a bad value's names its table and column since A2: a cell its column's type cannot take is refused at
+            // planning)
             // A5, one road: a data: source crashes where it is not the product read's answer (generatePlan's text,
             // a write, a test body) and fails a service; a file: source is admitted nowhere by default (the user's
             // ruling: any file) and crashes or is refused on every door but the read
@@ -759,9 +759,9 @@ class DataDeliveryMatrixTest {
      * compared (a pin either way would be flaky). Measured 2026-11-10 (A1): two requests on the server's kept project
      * database drop and create one payload's {@code legend_data_*} table at once ("already exists"; the correctness
      * audit's S8). A4 (§3 rule 4: a kept session serves one request at a time, and a payload's table lives and dies with
-     * its request) fixes it and moves the cell to the strict comparison. The list only shrinks.
+     * its request) fixed it, 2026-11-10, and the cell is compared strictly since. The list only shrinks.
      */
-    static final Set<String> RACES = Set.of("failure:CONCURRENT/DuckDB");
+    static final Set<String> RACES = Set.of();
 
     static void put(Map<String, String> into, String id, String line) {
         into.put(id, line);

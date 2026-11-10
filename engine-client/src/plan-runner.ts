@@ -76,7 +76,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // step and format are gone -- a load is refused by name here, as at 37 (until B3)
 // 39 since 2026-11-10: a file's load is the database's reading of it alone (the streamed delivery gone) -- a load is
 // refused by name here, as at 38
-const PLAN_VERSION = 39;
+// 40 since 2026-11-10: a load's statements step names the data it loads (of) -- a load is refused by name here, as at 39
+const PLAN_VERSION = 40;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

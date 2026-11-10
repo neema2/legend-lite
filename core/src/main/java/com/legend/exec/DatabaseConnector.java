@@ -48,6 +48,12 @@ public interface DatabaseConnector {
      *  Each connector answers: a default would lose a new database's held message without a word. */
     @com.legend.base.Nullable RaiseRecovery raiseRecovery();
 
+    /** Whether this database ABORTS its whole transaction when a statement in it fails, refusing every statement after
+     *  it until a rollback (DuckDB, Postgres), where another rolls back the failed statement alone (H2, SQLite): a run's
+     *  turn on the catalog is rolled back at once after a failure where it aborts, so the run's next statement runs
+     *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 3, A4). Each connector answers. */
+    boolean abortsTransactionOnError();
+
     /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one
      *  row, one column; null where none is held), {@code reset} clears it so a later failure cannot read a stale one. */
     record RaiseRecovery(String read, String reset) {

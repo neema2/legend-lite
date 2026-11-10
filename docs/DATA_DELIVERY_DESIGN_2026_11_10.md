@@ -193,6 +193,29 @@ Deleted from the plan:
 - **The referee's seed copy** (A2's fix, found here): one text per load step, a blob's inserts one script, so the
   edge's ledger, which records a step's text by its place, stays aligned for a table of more than 1,000 rows.
 
+### A4 as built (2026-11-10)
+
+- **Rule 1, whole or not at all:** `PlanRunner.seed` runs a load's steps in one transaction (`Statements.inTransaction`:
+  its own, or the caller's joined -- a program's, a catalog turn's). A blob whose second insert fails leaves none of the
+  first's rows on DuckDB, H2 and SQLite (`PlanRunnerTest`). H2 commits on DDL, so a load's created table can outlive a
+  failed insert; its rows do not.
+- **Rule 2, no leftovers:** a `data:` payload's session table is dropped qualified to the session's temporary schema
+  (`SqlDialect.temporarySchema`, DuckDB's `temp`: an unqualified drop drops a user's table of the same name when the
+  session has none, measured), before it is made and again at release: a target's new `AT_RELEASE` load, run by the
+  acquiring source when the request lets its session go, whatever the outcome (`PlanSessions.Source.release`, the
+  product door's `finally`). A database the platform keeps made with a target's tables (a lane's shared one) never runs it.
+- **Rule 3, DuckDB's aborted turn:** a failed statement inside a run's turn on the catalog rolls the turn back at once
+  where the database aborts its transaction (each connector answers `abortsTransactionOnError`: DuckDB, Postgres), the
+  session's memo cleared so the run's registration establishes again at its next step (`CatalogTurnFailureTest`); H2,
+  which rolls back the failed statement alone, keeps the turn's work.
+- **Rule 4, one request at a time:** a view of a kept store's session (the server's project database, a lane's shared
+  one) takes the session's lock when made and lets it go when closed (`Sessions.locked`). The matrix's concurrency case
+  is compared strictly now: 0 of 80 requests wrong (the race set is empty).
+- **Rule 5, refusals name the data:** a load's statements step carries `of`, the data it loads as a refusal names it
+  ("the data of the table PEOPLE", "the data: source's payload (2 element(s), its session table ...)"), prefixed to the
+  database's own words (plan format 40). The matrix's bad payload is green.
+- S173's text updated: the database's reader reads each cell as text and the INSERT casts it.
+
 ## 6. The whole plan, in order
 
 | # | Step | Ends with |

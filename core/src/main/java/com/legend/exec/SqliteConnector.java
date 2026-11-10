@@ -60,4 +60,10 @@ final class SqliteConnector implements DatabaseConnector {
     public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
+
+    /** {@inheritDoc} No: SQLite rolls back the failed statement alone; its transaction goes on. */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
 }

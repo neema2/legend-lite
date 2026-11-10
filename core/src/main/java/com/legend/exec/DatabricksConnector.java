@@ -43,6 +43,12 @@ final class DatabricksConnector implements DatabaseConnector {
         return null;
     }
 
+    /** {@inheritDoc} No: Databricks holds no transaction the platform opens across statements (none is kept in a turn). */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
     /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver answers getObject(int, LocalDateTime.class)
      *  with the timestamp as text. A timestamp cell keeps the driver's Timestamp;
      *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */

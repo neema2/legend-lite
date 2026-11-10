@@ -43,6 +43,12 @@ final class BigQueryConnector implements DatabaseConnector {
         return null;
     }
 
+    /** {@inheritDoc} No: BigQuery holds no transaction the platform opens across statements (none is kept in a turn). */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
     /** {@inheritDoc} The dialect's {@code dropsDecimalTrailingZeros} until D72 (2026-10-30), carried: The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured:
      *  BigQueryJsonArray, BigQueryJsonStruct), DATETIME and TIMESTAMP as java.sql.Timestamp, and NUMERIC and BIGNUMERIC
      *  as a BigDecimal with its trailing zeros dropped ({@code BIGNUMERIC '3.0'} reads 3, measured): the column's

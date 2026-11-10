@@ -626,7 +626,8 @@ public final class ProgramRunner {
      *  name (the cadence a contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09). */
     static void refuseTargetCadence(ExecutionPlan.Load load) {
         if (load.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION
-                || load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
+                || load.cadence() == ExecutionPlan.Load.Cadence.ONCE
+                || load.cadence() == ExecutionPlan.Load.Cadence.AT_RELEASE) {
             throw new IllegalStateException("a " + load.cadence() + " load (" + load.identity() + ") is a target's,"
                     + " established where its target is acquired or made: never a program's node");
         }

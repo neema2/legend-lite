@@ -64,6 +64,12 @@ public final class MongoDbConnector implements DatabaseConnector {
         return null;
     }
 
+    /** {@inheritDoc} No: a MongoDB session holds no SQL transaction the platform opens. */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
     /** {@inheritDoc} None: a server, whose connection is the engine's MongoDBConnection. */
     @Override
     public String storelessDeclaration() {

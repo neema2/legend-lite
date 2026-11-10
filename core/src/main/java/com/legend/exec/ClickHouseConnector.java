@@ -42,4 +42,10 @@ final class ClickHouseConnector implements DatabaseConnector {
     public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
+
+    /** {@inheritDoc} No: ClickHouse holds no transaction the platform opens across statements (none is kept in a turn). */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
 }

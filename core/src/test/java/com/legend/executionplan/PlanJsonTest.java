@@ -77,7 +77,7 @@ class PlanJsonTest {
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
                 List.of("SET TimeZone='UTC'"), List.of()),
                 com.legend.setup.LoadSteps.of(List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)")))
-                        .then(com.legend.setup.LoadSteps.blob(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"))));
+                        .then(com.legend.setup.LoadSteps.blob(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"), "the data of the table T")));
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
@@ -110,7 +110,7 @@ class PlanJsonTest {
     @Test
     void aStatementsStepIsAContentBlobOfStatements() {
         var refused = assertThrows(IllegalArgumentException.class, () -> new LoadStep.Statements(new DataRef(
-                DataRef.Namespace.RESOURCE, "x.json", "0".repeat(64), 2, DataRef.Statements.JSON)));
+                DataRef.Namespace.RESOURCE, "x.json", "0".repeat(64), 2, DataRef.Statements.JSON), "the data of x"));
         assertTrue(refused.getMessage().contains("a CONTENT blob of statements"), refused.getMessage());
         var empty = assertThrows(IllegalArgumentException.class, () -> DataRef.Statements.decode("[]"));
         assertTrue(empty.getMessage().contains("non-empty JSON array of strings"), empty.getMessage());
@@ -140,15 +140,16 @@ class PlanJsonTest {
         // the same day: a reference's declared format, an object, and the one streamed delivery (L2); 33 the same day: a
         // PER_TRANSACTION load, the system catalog's registration (L4b); 38 since 2026-11-10: the model's data a load
         // step of statements, a content blob by digest, the rows step and format gone (A2)
-        // 39 the same day: a file's load the database's reading of it alone (A3)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":39,"), json);
+        // 39 the same day: a file's load the database's reading of it alone (A3); 40 the same day: a statements step
+        // names its data (A4)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":40,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v39 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v40 plan"), refused.getMessage());
     }
 
     @Test

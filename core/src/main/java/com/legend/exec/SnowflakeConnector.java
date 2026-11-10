@@ -42,6 +42,12 @@ final class SnowflakeConnector implements DatabaseConnector {
         return null;
     }
 
+    /** {@inheritDoc} No: Snowflake rolls back the failed statement alone; its transaction goes on. */
+    @Override
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
     /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
      *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
      *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */

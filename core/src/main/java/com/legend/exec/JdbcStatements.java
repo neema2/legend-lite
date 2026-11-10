@@ -65,7 +65,31 @@ final class JdbcStatements implements Statements {
      *  looked at, every failure paid the session's metadata read), else the database's own text
      *  ({@link RaisedErrors#dataError(SQLException, java.util.function.Supplier)}). */
     private com.legend.error.DataError failed(SQLException e) {
-        return RaisedErrors.dataError(e, () -> held(c));
+        com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> held(c));
+        if (state.inTurn() && aborts()) {
+            // a statement failed inside a run's turn on the catalog (§3 rule 3, A4) on a database that has aborted the
+            // turn's whole transaction (DuckDB), refusing every statement until a rollback: the turn rolls back now and
+            // a new transaction starts with the run's next statement; what the run registered there is forgotten, and
+            // establishes again at its next step (the memo cleared)
+            state.rolledBack();
+            try {
+                c.rollback();
+            } catch (SQLException rollback) {
+                failure.addSuppressed(rollback);
+            }
+        }
+        return failure;
+    }
+
+    /** Whether {@code c}'s database aborts its transaction on a failed statement ({@link
+     *  DatabaseConnector#abortsTransactionOnError}); a session no connector declares, no. */
+    private boolean aborts() {
+        try {
+            DatabaseConnector connector = Connectors.of(c);
+            return connector != null && connector.abortsTransactionOnError();
+        } catch (SQLException unreadable) {
+            return false;
+        }
     }
 
     /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two

@@ -28,6 +28,10 @@ public final class SessionState {
      *  back is undone with it, and the next statement runs it again. */
     private final Set<List<String>> sessionStatementsRun = new HashSet<>();
 
+    /** Whether the session is in a run's TURN on the process's catalog (L4b): a transaction its holder rolls back when
+     *  the run ends, in which a failed statement is rolled back at once ({@link #inTurn}). */
+    private boolean inTurn;
+
     /** A session no connection keys (a connector's own): its state is its own. */
     public SessionState() {
     }
@@ -72,5 +76,23 @@ public final class SessionState {
     public synchronized void rolledBack() {
         sessionStatementsRun.clear();
         seeded.clear();
+    }
+
+    /** A run's turn on the catalog began on this session ({@code Sessions.beginTurn}). */
+    synchronized void turnBegan() {
+        inTurn = true;
+    }
+
+    /** The run's turn ended ({@code Sessions.endTurn}). */
+    synchronized void turnEnded() {
+        inTurn = false;
+    }
+
+    /** Whether the session is in a run's turn on the catalog: a statement that fails there rolls the turn's
+     *  transaction back at once, and the run's registrations establish again at its next step
+     *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 3, A4: DuckDB aborts its whole transaction on an error, and
+     *  refuses every statement after it until a rollback). */
+    synchronized boolean inTurn() {
+        return inTurn;
     }
 }

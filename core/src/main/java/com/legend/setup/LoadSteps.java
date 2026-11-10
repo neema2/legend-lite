@@ -38,8 +38,8 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
     }
 
     /** {@code statements} as one step reading them from a content blob (none for no statement): the form all model
-     *  data takes, named by the blob's SHA-256. */
-    public static LoadSteps blob(List<String> statements) {
+     *  data takes, named by the blob's SHA-256; {@code of} names the data, as a refusal of a statement names it. */
+    public static LoadSteps blob(List<String> statements, String of) {
         if (statements.isEmpty()) {
             return NONE;
         }
@@ -48,12 +48,19 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
         String digest = com.legend.cache.Hash.ofUtf8(json).hex();
         DataRef ref = new DataRef(DataRef.Namespace.CONTENT, "statements/" + digest + ".json", digest,
                 json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length, DataRef.Statements.JSON);
-        return new LoadSteps(List.of(new ExecutionPlan.LoadStep.Statements(ref)), Map.of(digest, json));
+        return new LoadSteps(List.of(new ExecutionPlan.LoadStep.Statements(ref, of)), Map.of(digest, json));
     }
 
-    /** {@code load}'s rows as {@code dialect} writes them, in one blob ({@link #blob}): none for a load of no row. */
+    /** {@code load}'s rows as {@code dialect} writes them, in one blob ({@link #blob}) named as the table's data: none
+     *  for a load of no row. */
     public static LoadSteps rows(RowLoad load, com.legend.sql.dialect.SqlDialect dialect) {
-        return blob(load.statements(dialect));
+        return rows(load, dialect, "the data of the table " + load.where());
+    }
+
+    /** {@link #rows(RowLoad, com.legend.sql.dialect.SqlDialect)} named {@code of} (a payload's elements, which their
+     *  session table only holds). */
+    public static LoadSteps rows(RowLoad load, com.legend.sql.dialect.SqlDialect dialect, String of) {
+        return blob(load.statements(dialect), of);
     }
 
     /** These steps, then {@code next}'s, reading both bundles. */

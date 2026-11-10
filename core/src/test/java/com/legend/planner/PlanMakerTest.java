@@ -280,15 +280,17 @@ class PlanMakerTest {
         assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
                 && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
                 && p.project() == null, String.valueOf(t.database()));
-        // its one load: the data: source's session table (L6b, 2026-11-10: model data reaches the database through a
-        // load, never a SQL literal)
-        assertEquals(1, t.loads().size(), String.valueOf(t.loads()));
+        // its loads: the data: source's session table (L6b, 2026-11-10: model data reaches the database through a
+        // load, never a SQL literal) and its release, which drops the table when the request lets the session go
+        // (A4, 2026-11-10)
+        assertEquals(2, t.loads().size(), String.valueOf(t.loads()));
         assertEquals(ExecutionPlan.Load.Cadence.PER_ACQUISITION, t.loads().get(0).cadence());
+        assertEquals(ExecutionPlan.Load.Cadence.AT_RELEASE, t.loads().get(1).cadence());
         // the server's plan: the project's database, keyed by the model's stores, filled with nothing -- the run
         // finds it from the plan alone
         ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
         assertTrue(served.database() instanceof ExecutionPlan.Database.Platform q
-                && q.project() != null && served.loads().size() == 1
+                && q.project() != null && served.loads().size() == 2
                 && served.loads().get(0).identity().equals(t.loads().get(0).identity()), String.valueOf(served));
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {
