@@ -10,6 +10,9 @@
 > - M17 "not implemented yet";
 > - the test-data generator is a product feature and stays.
 >
+> **Updated 2026-11-10 (afternoon)** with the user's rulings on D (errors and print forms, §6.1) and the homework results
+> (§7). §6.2 lists the recommendations still waiting for the user's yes; none of them blocks A, B or C.
+>
 > It replaces the delivery part of `docs/DATA_IN_THE_PLAN_2026_11_09.md` (§2.3-2.5, §4 L4-L6) where they differ. That
 > document's other rulings (§8) stand.
 
@@ -138,9 +141,9 @@ Deleted from the plan:
 | B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner | census M3 |
 | B2b | The referee replays its own H2 copy of the plan's loads (from A2) | census M15, the referee |
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes) | census M15, the fixtures |
-| B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront (temporary tables joined in the database, recursive SQL for a self-reference) and returns one plan; exec runs it; a writer gives the CSV. Its design is written and reviewed first (§7). S143's skip is lifted when it passes | census M13 |
+| B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. The homework (§7) found it is ONE fixed sequence of SQL: no step depends on row values, each level is a temporary table joined to its parent's inside the database, a self-reference is as deep as the query's navigation (no recursive SQL), and an empty level is a zero-row table; the default seed (not offered by lite) would be one more temporary table, not a second round. Its design is written and reviewed by the user first. S143's skip is lifted when it passes | census M13 |
 | B2e | Data parsed but used by no feature yet (ExternalFormat data, ModelStore data, ServiceStore stubs, mapping-test data): recorded as NOT IMPLEMENTED YET, with the rule that when built its data takes the model-data path; listed as feature gaps | census M17 |
-| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed | census M14 |
+| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first) | census M14 |
 | B4 | **Every catalog statement runs on the process's in-process catalog, whatever database holds the user's data** (the user, 2026-11-10: "B4 sounds good for now"). The measurement found no planned statement, among about 30,000 across core, PCT and both corpora, that reads the catalog's tables and a user's tables together: the planner refuses that shape by name. Mixing exists only across separate statements on separate sessions. So no catalog lives on a server: the server forms (per-query temp tables on the user's session, form 2; inline VALUES, form 3) are deleted, and a statement mixing the two stays refused by name. `Class.all()` is the platform plus every loaded project, as ruled 2026-11-08 | census M5, M6 |
 | ✔ | **Checkpoint:** audits and fixes; the census reads zero pending | |
 | **C** | **P4's last two** | |
@@ -149,8 +152,8 @@ Deleted from the plan:
 | ✔ | **Checkpoint:** audits and fixes | |
 | **D** | **P2, the edge** | |
 | D0 | **Find every piece of compatibility hidden in the product** (the user, 2026-11-10). This covers scalar functions' guards that embed Pure text, SQL that spells a number, date or value the way Pure would print it, error messages formatted for upstream, `EngineStyle` reached from product code, and any other place the product stringifies for compatibility. One inventory lists each site: what it does, the product's TYPED behaviour instead (a guard that raises a typed error, or returns null or NaN, as the function's product semantics say), and what the edge does to stay compatible. Where a product outcome changes (an error where there was text, a null where there was a value), the change goes to the user in one sitting before it lands | the inventory, its rulings |
-| D0+ | **D0 is done** (`docs/COMPAT_IN_PRODUCT_INVENTORY_2026_11_10.md` on `claude/p2-compat-inventory`, d5863312: eight kinds of site, nine questions). **It is being extended** with every place the product prints a value as text, after the user's ruling on print forms: "for toString and format make string etc we should pick something very very simple and easy for product to do on all databases nothing complex". So Pure's exact print forms are compatibility and go to the edge | the inventory, with its print-form section |
-| D1 | The compatibility code moves into one edge package: engine-text printers, appeals, referee wiring, `RawSqlBoundary`, and every site D0 found. **The product's guards become typed errors** (a kind and its operands; Pure's text only at the edge), **plus explicit safe variants as a product feature** (e.g. a divide that returns null on a zero divisor, typed `[0..1]`), for analytics where one bad row must not fail a whole query (the user, 2026-11-10: "I like the error plus explicit version"). The product prints simply (§D0+). No product statement carries Pure-formatted text | |
+| D0+ | **D0 is done** (`docs/COMPAT_IN_PRODUCT_INVENTORY_2026_11_10.md` on `claude/p2-compat-inventory`, e7809be7: nine kinds of site with the print forms (§13) and the safe variants (§14), sixteen questions). The print forms were then measured on eleven databases (`docs/data-delivery-homework/PRINT_FORM_PROBE_2026_11_10.md`) | the inventory; the measurement |
+| D1 | The compatibility code moves into one edge package: engine-text printers, appeals, referee wiring, `RawSqlBoundary`, and every site D0 found. The product's errors and print forms become §6.1's rules. No product statement carries Pure-formatted text; Pure's and the engine's exact texts are spelled only by the edge | |
 | D2 | The rule that the product never depends on the edge, plus a guard that no product SQL or MIR carries a compatibility spelling (Pure-formatted message text, Pure number or date printing) | |
 | ✔ | **Checkpoint:** audits and fixes | |
 | **E** | **P3, lean product** (every site ruled, `docs/LEAN_PRODUCT_P3_2026_11_10.md` §12) | |
@@ -161,14 +164,56 @@ Deleted from the plan:
 | F1 | One full run: every database, the local gate, both corpora, both stress suites, H2's PCT, unprivileged Postgres; every break fixed | |
 | F2 | One PR for `claude/total-wall` against `main`; the user merges | |
 
+### 6.1 The product's errors and print forms (RULED by the user, 2026-11-10)
+
+- **Errors: strict and typed by default, with explicit safe versions** ("I like the error plus explicit version"). A bad
+  input (a zero divisor, the log of a non-positive number, an unparsable text) raises a typed error. A safe version
+  returns empty instead, typed `[0..1]`, for analytics where one bad row must not fail a query. The timeseries line
+  confirmed it relies on no bad-input behaviour and wants `safeDivide` first, then `safeLog`.
+- **A value is typed unless the query asks for a string.** A string means one simple text per type, the same on every
+  database, produced by the database in one format call ("pick something very very simple and easy for product to do on
+  all databases nothing complex"; "Why can't we have a standard string format across databases"):
+
+| type | the product's text | notes |
+|---|---|---|
+| Integer | plain digits | |
+| Decimal | plain digits at its declared scale (`1.50`) | the type for exact amounts (money, Bitcoin): "use decimal where need" |
+| Float | **6 decimals, trailing zeros and a trailing `.` trimmed** (`1.5`, `0.3`, `1234567.89`) | the same text on every database measured below about 4.5 billion; below 0.0000005 prints `0`; register rows: exact halfway values round differently by database, `-0` kept or not, binary noise above 4.5 billion on DuckDB, ClickHouse and Snowflake ("let's go back to 6 ... and use decimal where need") |
+| Boolean | `true` / `false` | a `CASE` where the database prints `1` |
+| StrictDate | `2024-01-02` | |
+| DateTime | **ISO 8601 in UTC, six fraction digits and `Z`** (`2024-01-02T10:30:00.123456Z`) | one call on ten of eleven databases; SQLite needs a small expression (its times are text, its format prints milliseconds). Nanoseconds (nine digits) only on the databases that store them (DuckDB's nanosecond type, H2, ClickHouse, Trino, Snowflake), refused by name elsewhere ("Timestamp yes") |
+| String, Enum | as is; the value's name | |
+
+  Pure's own exact texts (its Float and date forms, `+0000`, list and instance forms, the TDS text) and the engine's are
+  compatibility: the edge spells them.
+
+### 6.2 Recommendations waiting for the user's yes (all in D; none blocks A, B or C)
+
+1. The safe versions: `safeDivide`, `safeLog` and the safe parse functions first, more when someone needs one; named with
+   the `safe` prefix unless Pure's sources already have a name; in a lite namespace, not `meta::pure::functions` (whose
+   signatures are verified against Pure's); empty in, empty out.
+2. A Float divided by zero raises, as legend-pure does for any zero divisor (lite's Float lane returns Infinity today):
+   a register row.
+3. A product error carries its kind and where it happened in the query, a fixed text known at planning; not the
+   offending value (building that text in SQL is what made Snowflake's compile 2.2-2.6x slower). Pure's full sentence
+   with the value stays at the edge, for PCT and `pure/v1`.
+4. D0's questions as recommended: Q3 (sqrt's text at the edge), Q4 and Q6 (the product's own wording per error kind;
+   the engine's only at `pure/v1`), Q5 (the engine-only SQL spellings to an edge decorator), Q8 (pivot names bare in the
+   product), Q12 (lists, pairs, maps, instances and relations: `toString` refused by name in the product), Q13 (`format`'s
+   `%s`, `%d`, `%f`, `%t{}` in the product, `%r` and Pure's padding rule at the edge), Q14 (`makeString` skips an empty
+   element, as Pure's lists hold no nulls), Q15 (Pure's exact texts at the edge as the edge's own SQL render target).
+   Q7, Q9, Q10, Q11 and Q16 are settled by §6.1 and item 1.
+
 ## 7. Homework before its step (read or measured, never guessed)
 
 | Item | For | How | State |
 |---|---|---|---|
 | Does any statement combine the catalog with user tables? What is undesigned about the server catalog? | B4 | the worker's throwaway probe over core, PCT and the corpora | DONE: none combine; the planner refuses the shape; B4 decided (§6) |
-| Every piece of compatibility hidden in the product (D0) | D0 | a read-only research session, in parallel with A | running |
-| The test-data generator: can every step be planned upfront? (self-references, depth, an empty level) | B2d | read `testdatagen/`, the PCT TDG tests and upstream's TDG as spec input | to do, in the orchestrator session |
-| Remote files' credentials | B3 | read `datacube/src/remote.ts` and the `Secret` host operation | to do |
+| Every piece of compatibility hidden in the product (D0) | D0 | a read-only research session, in parallel with A | DONE: `docs/COMPAT_IN_PRODUCT_INVENTORY_2026_11_10.md` (branch `claude/p2-compat-inventory`) |
+| Which print forms every database makes in one call | D1 | the five lane sessions, read-only, on eleven databases (MongoDB not measured) | DONE: `docs/data-delivery-homework/PRINT_FORM_PROBE_2026_11_10.md`; ruled §6.1 |
+| The test-data generator: can every step be planned upfront? (self-references, depth, an empty level) | B2d | read `testdatagen/`, the PCT TDG tests and upstream's TDG as spec input | DONE: one fixed sequence (`docs/data-delivery-homework/TEST_DATA_GENERATOR_HOMEWORK_2026_11_10.md`) |
+| Remote files' credentials | B3 | read `datacube/src/remote.ts` and the `Secret` host operation | DONE: keys are written into SQL text today (`docs/data-delivery-homework/REMOTE_FILE_CREDENTIALS_HOMEWORK_2026_11_10.md`); whether DuckDB's `CREATE SECRET` takes bound parameters is measured in B3 |
+| MongoDB's print forms | D1 | the lane round | at the A checkpoint |
 | The DuckDB wide-by-one-empty CSV record: can DuckDB's own SQL refuse it? | A3 | one try; else a register row for the user | in A3 |
 | Every piece of compatibility hidden in the product (scalar guards with Pure text, Pure-style spellings in SQL, upstream-formatted messages) | D0 | read lowering (`Scalars` and the other lowerings), every dialect, the writers and the error paths; grep for Pure-format text in product SQL and messages | before D starts |
 
