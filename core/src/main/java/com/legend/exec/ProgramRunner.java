@@ -161,16 +161,7 @@ public final class ProgramRunner {
      * tables' drops, after its appeals have read lite's rows.
      */
     public static void release(List<String> statements, PlanSessions.Source sessions, ExecutionPlan.Target on) {
-        if (statements.isEmpty()) {
-            return;
-        }
-        try (var run = com.legend.base.RunScope.enter(); Sessions.Session session = sessions.open(on)) {
-            // the teardown of the loads that made what they drop, counted as a target's AT_RELEASE load is: SEED
-            Statements st = PlanRunner.opened(session, on, StatementOrigin.SEED);
-            for (String statement : statements) {
-                PlanRunner.sendStatement(statement, st);
-            }
-        }
+        PlanRunner.release(statements, sessions, on);
     }
 
     private static void programRun(Program program, Map<String, ?> values, PlanSessions.Source sessions,

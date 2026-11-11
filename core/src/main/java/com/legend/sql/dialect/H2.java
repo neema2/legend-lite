@@ -57,10 +57,17 @@ public class H2 extends AnsiSqlRenderer {
     public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         String name = base.toUpperCase(java.util.Locale.ROOT);
         String qualified = DATA_SCHEMA + "." + name;
-        String schema = "CREATE SCHEMA IF NOT EXISTS " + DATA_SCHEMA;
-        return new SqlDialect.DataTable(DATA_SCHEMA, name, java.util.List.of(schema), java.util.List.of(
+        java.util.List<String> release = new java.util.ArrayList<>(dataSchema());
+        release.add("DROP TABLE IF EXISTS " + qualified);
+        return new SqlDialect.DataTable(DATA_SCHEMA, name, dataSchema(), java.util.List.of(
                 "CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS " + qualified + " (" + ddlColumns(columns) + ") TRANSACTIONAL",
-                "DELETE FROM " + qualified), java.util.List.of(schema, "DROP TABLE IF EXISTS " + qualified));
+                "DELETE FROM " + qualified), release);
+    }
+
+    /** {@inheritDoc} {@code LEGEND_SESSION}, whose statement commits an open transaction even where it exists. */
+    @Override
+    public java.util.List<String> dataSchema() {
+        return java.util.List.of("CREATE SCHEMA IF NOT EXISTS " + DATA_SCHEMA);
     }
 
     /** {@inheritDoc} H2 holds each element in a {@code JSON} column, navigated as the frame's VALUES are (measured on

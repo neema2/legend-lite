@@ -229,12 +229,18 @@ public final class Postgres extends AnsiSqlRenderer {
         return SqlDialect.DataDelivery.SESSION_TABLE;
     }
 
+    /** The session's own schema, where a temporary table lives (a temporary table may be named in no other). */
+    private static final String TEMP_SCHEMA = "pg_temp";
+
     @Override
     public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
-        String drop = "DROP TABLE IF EXISTS pg_temp." + ddlIdentifier(base, false);
-        String create = render(new com.legend.sql.SqlDdl.CreateTable(null, base, com.legend.sql.NameQuoting.BARE,
-                columns, true));
-        return new SqlDialect.DataTable(null, base, java.util.List.of(), java.util.List.of(drop, create),
+        // pg_temp throughout -- the make, the fills, the reads and the drop (the second audit's S10, 2026-11-11): an
+        // unqualified name finds the session's temporary table first only while pg_temp leads the search_path, which a
+        // connection may set otherwise; qualified, no statement can reach a user's table of the name
+        String drop = "DROP TABLE IF EXISTS " + TEMP_SCHEMA + "." + ddlIdentifier(base, false);
+        String create = render(new com.legend.sql.SqlDdl.CreateTable(TEMP_SCHEMA, base,
+                com.legend.sql.NameQuoting.BARE, columns, true));
+        return new SqlDialect.DataTable(TEMP_SCHEMA, base, java.util.List.of(), java.util.List.of(drop, create),
                 java.util.List.of(drop));
     }
 

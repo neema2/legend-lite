@@ -125,8 +125,11 @@ public final class PlanMaker {
                 p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS, true,
                         projectDatabase);
             }
+            // its data: tables' drops the plan's release, sent once the run is over whatever its outcome (the second
+            // audit's S12, 2026-11-11: as the program's last steps they were never sent when a step before them failed)
             return ExecutionPlan.writing(declarations(declared, query.context()),
-                    new ExecutionPlan.Sequence(products(p.steps())));
+                    new ExecutionPlan.Sequence(products(p.steps())),
+                    p.release().isEmpty() ? null : new ExecutionPlan.Release(p.release(), p.target()));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
@@ -218,13 +221,25 @@ public final class PlanMaker {
         }
         List<PlannedStep> out = new ArrayList<>(steps.size());
         for (PlannedStep step : steps) {
-            out.add(step instanceof PlannedStep.Product p && p.node() instanceof ExecutionPlan.Check c
-                    && c.sql().stamp() != null && !read.contains(c.sql().stamp())
-                    ? new PlannedStep.Product(new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(),
-                            c.sql().slots(), c.sql().target(), c.sql().tree(), c.sql().regions())))
-                    : step);
+            out.add(switch (step) {
+                case PlannedStep.Product p when p.node() instanceof ExecutionPlan.Check c && unread(c, read) ->
+                        new PlannedStep.Product(unstamped(c));
+                case PlannedStep.FrameRun f when unread(f.check(), read) -> new PlannedStep.FrameRun(unstamped(f.check()));
+                default -> step;
+            });
         }
         return out;
+    }
+
+    /** Whether {@code c} mints a stamp no statement reads. */
+    private static boolean unread(ExecutionPlan.Check c, Set<String> read) {
+        return c.sql().stamp() != null && !read.contains(c.sql().stamp());
+    }
+
+    /** {@code c} minting no stamp. */
+    private static ExecutionPlan.Check unstamped(ExecutionPlan.Check c) {
+        return new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(), c.sql().slots(), c.sql().target(),
+                c.sql().tree(), c.sql().regions()));
     }
 
     /** {@code steps}, every one a product node: a product program holds no extension's step. */
@@ -232,7 +247,7 @@ public final class PlanMaker {
         List<ExecutionPlan.Node> out = new ArrayList<>(steps.size());
         for (PlannedStep step : steps) {
             if (!(step instanceof PlannedStep.Product p)) {
-                throw new IllegalStateException("a product program holds an extension's step");
+                throw new IllegalStateException("a product program holds a test door's step: " + step);
             }
             out.add(p.node());
         }
@@ -284,6 +299,7 @@ public final class PlanMaker {
     private static List<ExecutionPlan.Sql> sqls(PlannedStep step) {
         return switch (step) {
             case PlannedStep.Product p -> sqls(p.node());
+            case PlannedStep.FrameRun f -> sqls(f.check());
             case PlannedStep.Extension e -> {
                 List<ExecutionPlan.Sql> out = new ArrayList<>();
                 e.declared().forEach(n -> out.addAll(sqls(n)));
@@ -325,7 +341,7 @@ public final class PlanMaker {
         Programmed programmed = programmed(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
                 systemRouted, false);
         return new TestProgram(declarations(declared, query.context()), programmed.steps(), programmed.dataLoads(),
-                programmed.release(), programmed.target(), programmed.ahead());
+                programmed.release(), programmed.target());
     }
 
     /** A program the test door planned (the plan-as-data design's step 3, 2026-11-08): its declared parameters and its
@@ -333,10 +349,9 @@ public final class PlanMaker {
      *  plan's; the loads among them that make its {@code data:} tables, and their drops, which the test door's runner
      *  sends once the body's run and its appeals are over (B2a, 2026-11-11: an appeal reads lite's rows after the run,
      *  and H2's drop commits an open transaction) on {@code target}, the program's own, where they were made (the B2a
-     *  audit's S2); {@code ahead}, the steps the planner placed ahead of the program's first (the tables' prepare), by
-     *  which every place a test kind recorded is shifted. */
+     *  audit's S2). */
     public record TestProgram(List<ExecutionPlan.Parameter> parameters, List<PlannedStep> steps,
-            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target, int ahead) {
+            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target) {
         public TestProgram {
             parameters = List.copyOf(parameters);
             steps = List.copyOf(steps);
@@ -357,9 +372,10 @@ public final class PlanMaker {
 
     /** A program's steps, and what its statements read: the system metamodel store's tables, another source (the
      *  product's door re-plans a program reading the store alone on the process's catalog); the test door's, the loads
-     *  that make its {@code data:} tables and their drops, sent after its run (B2a). */
+     *  that make its {@code data:} tables and their drops, sent after its run whatever its outcome (B2a; the query
+     *  door's since the second audit's S12). */
     private record Programmed(List<PlannedStep> steps, boolean readsSystem, boolean readsOther,
-            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target, int ahead) {
+            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target) {
     }
 
     /**
@@ -443,14 +459,13 @@ public final class PlanMaker {
         // what the steps planned ahead made and no statement placed (an appeal's rows, read after the run), placed
         // last (B2a)
         state.placeMade();
-        boolean releasedAfter = door == ProgramState.Door.TEST;
-        List<PlannedStep> steps = finished(state, !releasedAfter);
+        List<PlannedStep> steps = finished(state);
         if (!systemSeeded && systemTargetOf(steps) != null) {
             throw new IllegalStateException("a step of the program reads the graph's system store and no seed step is"
                     + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
         return new Programmed(steps, state.readsSystem(), state.readsOther(), state.dataLoads(),
-                releasedAfter ? state.dataReleases() : List.of(), target, state.dataPrepare().isEmpty() ? 0 : 1);
+                state.dataReleases(), target);
     }
 
     /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
@@ -646,7 +661,7 @@ public final class PlanMaker {
      *  audit's B7a: an unread stamp would still be minted, and refused on a session whose statements carry no
      *  comment), and the staged tables dropped after the answer (a failed program's transaction takes them back with
      *  its writes where the dialect drops them with it). */
-    private static List<PlannedStep> finished(ProgramState state, boolean dropsData) {
+    private static List<PlannedStep> finished(ProgramState state) {
         List<PlannedStep> steps = withoutUnreadStamps(state.steps());
         everyReadStampBound(steps);
         SqlDialect dialect = state.dialect();
@@ -664,13 +679,9 @@ public final class PlanMaker {
                     new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()),
                     null)));
         }
-        // the program's data: tables dropped after its answer (A5: a payload's table lives and dies with the request,
-        // §3 rule 4), each drop its database's ({@link SqlDialect#dataTable}); the test door's are its runner's, after
-        // the body's appeals (B2a)
-        for (String drop : dropsData ? state.dataReleases() : List.<String>of()) {
-            steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(drop, List.of(),
-                    state.target(), null, List.of()), null)));
-        }
+        // the program's data: tables are dropped by its plan's release, never by a step of its own (A5: a payload's
+        // table lives and dies with the request, §3 rule 4; the second audit's S12: a last step is not sent when a step
+        // before it fails): the test door's after the body's appeals (B2a), the query door's after the run
         return steps;
     }
 

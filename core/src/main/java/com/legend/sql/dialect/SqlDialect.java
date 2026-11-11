@@ -81,6 +81,15 @@ public interface SqlDialect {
         }
     }
 
+    /** The statements that make the schema this database's {@code data:} session tables live in, where it needs one
+     *  made (H2's {@code LEGEND_SESSION}); none elsewhere. A {@link DataTable}'s {@code prepare}, and made ONCE with the
+     *  graph's system catalog on a database the platform runs in process ({@code SystemCatalog.target}), so a body
+     *  routed there sends no statement that commits the catalog's run transaction (the user's veto, 2026-11-11, of the
+     *  refusal the B2a audit's S2 had placed). */
+    default java.util.List<String> dataSchema() {
+        return java.util.List.of();
+    }
+
     /** {@code base}'s {@link DataTable} of {@code columns} on this database. */
     default DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         throw new com.legend.sql.DialectCapability("a data: source's session table reached a dialect that makes no"

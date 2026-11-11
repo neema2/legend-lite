@@ -179,3 +179,19 @@ public class BigQueryDelivery2Probe {
         return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
     }
 }
+
+// MEASURED 2026-11-11 by the BigQuery lane at c72fc8765 (google-cloud-bigquery-jdbc 1.6.0). The session connection
+// opened as the lane's system connection is (EnableSession=1 as a driver Properties entry, not a URL suffix); no
+// statement needed a fix. The answers:
+//   SELECT 1: ordinary about 230 ms, session about 400-540 ms (a session doubles each query's latency, as 2026-10-22).
+//   A. NOT measured: the user's-table half (every statement on legend_lite_pct.legend_data_probe2 was refused by
+//      BigQuery, the dataset absent or not writable by the lane's account). Measured: CREATE TEMP TABLE _SESSION.<name>
+//      works on the session connection, fills and reads back, is private (another session's read refused), and DROP
+//      TABLE IF EXISTS _SESSION.<name> succeeds, again when the session holds none.
+//   B. One bound parameter, UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) WITH OFFSET: the quote, the line break, the order,
+//      the empty array, nested and typed values kept.
+//   C.   records    inline (ordinary)               session table (5,000-row inserts)   bound parameter (ordinary)
+//        2          390 ms                          4,191 ms                            716 ms
+//        1,000      528 ms                          6,914 ms                            798 ms
+//        10,000     1,273 ms                        10,516 ms                           1,543 ms
+//        100,000    REFUSED (6.57M chars)           105,195 ms                          7,643 ms

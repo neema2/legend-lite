@@ -82,7 +82,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.Batched("golden", null, false), 1), new Appeal(3, "tdg", Appeal.Kind.TDG, null, null, null,
                 RootLoop.NO_APPEAL)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict,
-                true, anyTarget(), new TestPlan.Release(List.of("DROP TABLE IF EXISTS temp.legend_data_0123456789abcdef"),
+                true, anyTarget(), new com.legend.executionplan.ExecutionPlan.Release(List.of("DROP TABLE IF EXISTS temp.legend_data_0123456789abcdef"),
                 anyTarget()));
 
         assertNull(TestPlanJson.roundTripDifference(plan));

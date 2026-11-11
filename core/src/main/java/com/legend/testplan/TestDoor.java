@@ -124,27 +124,13 @@ public final class TestDoor {
         TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
         PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
         List<PlannedStep> planned = program.steps();
-        // the frame runs' places in the program's steps, shifted by the steps the planner placed ahead of its first
-        // (the data: tables' prepare: the B2a audit's note)
-        java.util.Set<Integer> frameRuns = new java.util.TreeSet<>();
-        for (int place : kinds.frameRuns()) {
-            frameRuns.add(place + program.ahead());
-        }
-        for (int place : frameRuns) {
-            if (place >= planned.size() || !(planned.get(place) instanceof PlannedStep.Product p
-                    && p.node() instanceof ExecutionPlan.Check)) {
-                throw new IllegalStateException("the frame run at place " + place + " of the test door's plan is not"
-                        + " a check of its steps");
-            }
-        }
         // each step the planner holds as the test plan holds it: a product node, a frame let's eager run (M9: sent under
-        // its own origin, LET -- a fact of the plan), or the verdict step the library placed under its handle
+        // its own origin, LET -- a fact of the plan, marked where it was planned), or the verdict step the library
+        // placed under its handle
         List<TestPlan.TestStep> steps = new java.util.ArrayList<>(planned.size());
         for (int i = 0; i < planned.size(); i++) {
-            boolean frameRun = frameRuns.contains(i);
             steps.add(switch (planned.get(i)) {
-                case PlannedStep.Product p when frameRun ->
-                        new TestPlan.FrameRun((ExecutionPlan.Check) p.node());
+                case PlannedStep.FrameRun f -> new TestPlan.FrameRun(f.check());
                 case PlannedStep.Product p -> new TestPlan.Run(p.node());
                 case PlannedStep.Extension e -> kinds.extension(e.handle());
             });
@@ -170,7 +156,7 @@ public final class TestDoor {
         // door planned it beside the plan until then)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
                 PlanMaker.testSessionTarget(body.context(), runtime), program.release().isEmpty() ? null
-                        : new TestPlan.Release(program.release(), program.target()));
+                        : new com.legend.executionplan.ExecutionPlan.Release(program.release(), program.target()));
     }
 
     /**

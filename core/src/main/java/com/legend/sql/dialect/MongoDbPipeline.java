@@ -107,8 +107,12 @@ final class MongoDbPipeline {
                     + " an authored SQL text");
             case SqlSource.Catalog c -> throw new DialectCapability("a catalog grid reached MongoDb: its catalog"
                     + " (listCollections) is not read as a grid yet");
-            case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"
-                    + " source encoding");
+            case SqlSource.SourceUrl u -> {
+                // an unread data: source is a planner defect, refused as every renderer refuses it (the second
+                // audit's S8, 2026-11-11: MongoDB raised a capability where the others raise the defect)
+                AnsiSqlRenderer.refuseUnread(u.url());
+                throw new DialectCapability("sourceUrl reached MongoDb: no external source encoding");
+            }
             case SqlSource.Pivot p -> baseOf(p.source());
         };
     }
@@ -390,8 +394,12 @@ final class MongoDbPipeline {
                     + " an authored SQL text");
             case SqlSource.Catalog c -> throw new DialectCapability("a catalog grid reached MongoDb: its catalog"
                     + " (listCollections) is not read as a grid yet");
-            case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"
-                    + " source encoding");
+            case SqlSource.SourceUrl u -> {
+                // an unread data: source is a planner defect, refused as every renderer refuses it (the second
+                // audit's S8, 2026-11-11: MongoDB raised a capability where the others raise the defect)
+                AnsiSqlRenderer.refuseUnread(u.url());
+                throw new DialectCapability("sourceUrl reached MongoDb: no external source encoding");
+            }
             case SqlSource.Pivot p -> pivot(w, p, st, shape);
         }
     }

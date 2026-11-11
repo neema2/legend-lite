@@ -220,3 +220,21 @@ public class SnowflakeDelivery2Probe {
         return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
     }
 }
+
+// MEASURED 2026-11-11 by the Snowflake lane at c72fc8765 (Snowflake JDBC 4.4.0, server 10.40.103), on a NEW session
+// (the lane's openSystem(): the held session has no current schema, so DDL is refused there). Probe SQL unchanged;
+// toUpperCase took Locale.ROOT (Error Prone). The lane's verbatim output is in the orchestrator's session; the answers:
+//   A. INFORMATION_SCHEMA.TABLES lists both: the permanent BASE TABLE and the temporary LOCAL TEMPORARY; SHOW TABLES
+//      lists the temporary one only (it hides the shadowed permanent table).
+//   B. The guarded drop (TABLE_TYPE = 'LOCAL TEMPORARY') drops only the temporary table; the user's row stays; with only
+//      the user's table it drops nothing; with neither it raises nothing. Cost: 1.0-2.0 s per call (Snowflake Scripting).
+//   C. CREATE OR REPLACE TEMPORARY and CREATE TEMPORARY IF NOT EXISTS both made a NEW temporary table; neither touched
+//      the user's table (a second session read the user's row).
+//   D. One bound parameter, FLATTEN(PARSE_JSON(?)): the quote, the line break, the order and the empty array kept;
+//      1.50 reads 1.5 (TYPEOF DECIMAL), a JSON null NULL_VALUE.
+//   E. No size limit hit at 100,000 records in any form.
+//        records    inline VALUES   session table (make, 1,000-row inserts, read, guarded drop)   bound parameter
+//        2          133 ms          2,099 ms                                                        122 ms
+//        1,000      212 ms          2,087 ms                                                        205 ms
+//        10,000     1,186 ms        6,941 ms                                                        163 ms
+//        100,000    16,964 ms       73,171 ms                                                       484 ms

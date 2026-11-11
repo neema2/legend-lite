@@ -23,11 +23,33 @@ import java.util.Objects;
  *                   (the plan-as-data design's slice 5, 2026-11-09: a fact of the plan, so a plan read back from its
  *                   JSON runs alone -- until then the door read it off the typed query and handed it beside the plan)
  */
-public record ExecutionPlan(List<Parameter> parameters, Node root, boolean writes) {
+public record ExecutionPlan(List<Parameter> parameters, Node root, boolean writes,
+        @com.legend.base.Nullable Release release) {
 
     public ExecutionPlan {
         parameters = List.copyOf(parameters);
         Objects.requireNonNull(root, "root");
+    }
+
+    /** A plan with no release. */
+    public ExecutionPlan(List<Parameter> parameters, Node root, boolean writes) {
+        this(parameters, root, writes, null);
+    }
+
+    /**
+     * A plan's RELEASE: {@code statements} sent in order on {@code on}'s session once the run is over, whatever its
+     * outcome -- after its transaction ended, so a drop that commits an open transaction (H2's) commits none of the
+     * run's -- its {@code data:} tables' drops (B2a, 2026-11-11; the product door's since the second audit's S12, the
+     * same day: they were the program's last steps, never sent when a step before them failed). A test plan's too.
+     */
+    public record Release(List<String> statements, Target on) {
+        public Release {
+            statements = List.copyOf(statements);
+            Objects.requireNonNull(on, "on");
+            if (statements.isEmpty()) {
+                throw new IllegalArgumentException("a release sends at least one statement: a plan with none has none");
+            }
+        }
     }
 
     /** A plan that reads: it changes no store. */
@@ -38,6 +60,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     /** A plan that writes: a program that changes a store. */
     public static ExecutionPlan writing(List<Parameter> parameters, Node root) {
         return new ExecutionPlan(parameters, root, true);
+    }
+
+    /** A plan that writes, with its {@link Release} (null: none). */
+    public static ExecutionPlan writing(List<Parameter> parameters, Node root,
+            @com.legend.base.Nullable Release release) {
+        return new ExecutionPlan(parameters, root, true, release);
     }
 
     /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of

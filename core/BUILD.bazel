@@ -1126,6 +1126,7 @@ junit_test(
     memory_mb = 1536,
     size = "medium",
     srcs = [
+        "src/test/java/com/legend/integration/CsvJsonColumnTest.java",
         "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
         "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
     ],

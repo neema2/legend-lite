@@ -83,7 +83,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // (fraction) -- a slot this runner binds no list for
 // 44 since 2026-11-11: a sourceUrl source names its form and a load may be SOURCE (a live source's session table) --
 // a load is refused by name here, as at 42
-const PLAN_VERSION = 44;
+// 45 since 2026-11-11: a plan may carry its release (on, statements: its data: tables' drops, sent once the run is
+// over whatever its outcome) -- refused by name here, as a load is
+const PLAN_VERSION = 45;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -122,10 +124,11 @@ export class PlanRefusal extends Error {
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
 export async function runPlan(plan: string, session: PlanSession, o: { readonly joined?: boolean } = {}): Promise<string> {
-  const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step };
+  const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step; release?: unknown };
   if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
     throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
   }
+  if (read.release !== undefined) throw new PlanRefusal("a plan with a release (its data: tables' drops) is not run here: the loads that make them are refused by name");
   if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');

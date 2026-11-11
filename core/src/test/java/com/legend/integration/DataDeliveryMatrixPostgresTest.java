@@ -51,11 +51,18 @@ class DataDeliveryMatrixPostgresTest {
         DataDeliveryMatrixTest.roundTrip(POSTGRES, RED, false);
     }
 
+    /** A CSV with an embedded JSON column (item 5d), on Postgres: its JSONB takes the cells. */
+    @Test
+    void aCsvsJsonColumn() throws Exception {
+        CsvJsonColumnTest.onPostgres();
+    }
+
     /**
      * A data: source's session table is the session's own on Postgres (the B2a audit's S4, 2026-11-11: the measurement
      * of Postgres's {@code SqlDialect.dataTable}): a user's table of its name in the session's own schema is neither
-     * read nor dropped -- the table made TEMPORARY, its drop qualified to {@code pg_temp}, the read unqualified finding
-     * the session's temporary table first -- and the session holds no table of the name once the request lets it go.
+     * read nor dropped -- the table made TEMPORARY and every statement naming it qualified to {@code pg_temp} (the
+     * second audit's S10, 2026-11-11), so a session whose search_path puts {@code pg_temp} after the user's schema still
+     * reads its own table -- and the session holds no table of the name once the request lets it go.
      */
     @Test
     void aDataTableIsTheSessionsOwn() throws Exception {
@@ -70,6 +77,8 @@ class DataDeliveryMatrixPostgresTest {
             // the user's table of the name, holding a row of the user's
             s.execute("CREATE TABLE " + table + " (data TEXT)");
             s.execute("INSERT INTO " + table + " VALUES ('the user''s row')");
+            // an unqualified name would now find the user's table first (S10's witness)
+            s.execute("SET search_path TO public, pg_temp");
             com.legend.result.Collector collector = new com.legend.result.Collector();
             com.legend.Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(data.model()),
                             data.query()), data.runtime(),

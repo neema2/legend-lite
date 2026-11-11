@@ -319,12 +319,22 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
    - Test the dialect literal writers for a quote and a backslash.
    - Fix the two probe texts' quoting: `probes/BigQueryDataTable.java.txt` and `probes/DatabricksDataTable.java.txt`.
    - S190 then names no database: close it.
-2. **H2's system catalog.** The worker had refused "a system-routed body reading a `data:` source on H2"; that refusal
-   is VETOED. Instead:
+2. **H2's system catalog, DONE (the commit after c72fc876):** the catalog's ONCE load makes `LEGEND_SESSION`
+   (`SqlDialect.dataSchema`), the refusal is deleted, and a body routed to the catalog sends neither the prepare nor a
+   drop: a release on the catalog ran INSIDE the run's turn (measured: H2's DROP committed the registration, the next
+   run collided), and the turn's rollback takes the rows anyway. `BodyRouterParityTest.dataSourcePrograms`. The
+   worker had refused "a system-routed body reading a `data:` source on H2"; that refusal was VETOED. The ask was:
    - make `LEGEND_SESSION` part of the system catalog's once-made schema;
    - delete the `ProgramState.placeMade` refusal, and add a test;
    - confirm the catalog's release runs after its run transaction is rolled back (H2's DROP commits).
-3. **The second audit's findings** (on 862a4d02..2f164ec4). S6-S12 were handed to the worker's own subagent:
+3. **The second audit's findings** (on 862a4d02..2f164ec4). **S6-S12 DONE (the commit after c72fc876)**, each with a
+   test: S6 the tables held to one home database, a write's read too (`DataSourcesDeliveryTest`); S7 a frame run is
+   its own planned step (`PlannedStep.FrameRun`), no place arithmetic; S8 one refusal on every renderer, MongoDB's
+   too (`DataDeliveryDeclaredTest`); S9 a refused payload records nothing, a routed body's plan carries no release;
+   S10 `pg_temp` on every statement (`DataDeliveryMatrixPostgresTest`, a search_path with pg_temp last); S11 and S12
+   a writing query's drops are its plan's RELEASE (`ExecutionPlan.Release`, plan version 45, the test plan's the same
+   record), sent after the run's rollback whatever its outcome (`DataReleaseTest`); the stale AT_STEP wording fixed.
+   The original list:
    - **S5, DONE (the commit after dad2dc77):** `DateCtorRule`'s Float-second path writes its text carrier in six digits
      (ISO_MICRO) on every database, so a known second of more is refused at planning by name, and a computed one by the
      statement's own raise (its DECIMAL(38, 9) value against itself rounded to six); MongoDB, which keeps milliseconds,
@@ -379,7 +389,15 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
     - **The cell:** CSV test data whose JSON column holds a comma, a doubled quote and a nested object, plus an empty
       cell and a NULL.
     - **Where:** every in-process database, and Postgres on its lane, then a field read by path.
-    - Not yet tested. If it fails, tell the user before ledgering it.
+    - **DONE (the commit after c72fc876):** `CsvJsonColumnTest` on DuckDB, H2, SQLite and Postgres: a comma, CSV's
+      doubled quotes and a nested object read by path; an empty cell and `---null---` NULL. Green everywhere.
+5e. **JSON delivery, round 2 (the user's question, 2026-11-11: "how to represent the data in the plan vs the database
+    mechanism"; probes `docs/data-delivery-homework/probes/*Delivery2.java.txt`, answers recorded there).** At 100,000
+    records: Snowflake inline 17.0 s, temp table 73 s, the payload as ONE bound parameter 0.48 s; BigQuery inline
+    refused (over 1 MB), temp table 105 s, parameter 7.6 s; ClickHouse's driver writes a parameter into the text (no
+    gain), its session temp table 2.6 s and unbounded. The orchestrator's recommendation, ASKED, NOT RULED: Snowflake
+    and BigQuery take the payload as one bound parameter the database splits; ClickHouse a session temp table; the
+    rest unchanged; the parameter form elsewhere measured later.
 6. **B3's measurement, done:** DuckDB 1.5.6 binds credentials as parameters, so the credential mechanism is clean:
    - `CREATE TEMPORARY SECRET s (TYPE S3, KEY_ID ?, SECRET ?, REGION ...)` and `CREATE OR REPLACE TEMPORARY SECRET ...
      SCOPE ?` both prepare and bind;

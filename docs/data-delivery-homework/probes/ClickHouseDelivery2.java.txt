@@ -168,3 +168,21 @@ public class ClickHouseDelivery2Probe {
         return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
     }
 }
+
+// MEASURED 2026-11-11 by the ClickHouse lane at c72fc8765 (clickhouse-jdbc 0.10.0, server 25.8.2.29, the embedded
+// lane server). Probe unchanged. Run twice: on the lane's ordinary URL (which raises max_query_size to 16 MiB) and on a
+// plain URL (the server's default, 256 KiB). The answers:
+//   A. A session costs nothing measurable: SELECT 1 is 2-4 ms on either connection.
+//   B. The driver writes a bound parameter INTO the statement's text (a literal): the parameter form is bounded by
+//      max_query_size as inline is ("Max query size exceeded ... failed at position 132", where the ? sits). The quote,
+//      the line break, the order, the empty array, nested and typed values kept.
+//   C. format(JSONAsString, '<payload>') reads objects correctly, but REFUSES an empty array (NOT_FOUND_COLUMN_IN_BLOCK).
+//   D.   records    inline (values())   session table (1,000-row inserts)   bound parameter   format()
+//        default max_query_size (256 KiB):
+//        1,000      60 ms               59 ms                                10 ms             4 ms
+//        10,000     REFUSED             279 ms                               REFUSED           REFUSED
+//        100,000    REFUSED             2,502 ms                             REFUSED           REFUSED
+//        max_query_size 16 MiB (the lane's URL):
+//        100,000    5,311 ms            2,576 ms (read 11 ms)                488 ms            192 ms
+//      At the default limit only the session table is unbounded; every one-statement form is text, bounded by a
+//      connection setting.

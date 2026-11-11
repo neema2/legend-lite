@@ -79,10 +79,6 @@ final class TestKinds implements ProgramKinds {
     // file's rows were rendered as the referee's insert for every plan, with no edge too)
     private final Map<ExecutionPlan.Node, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds =
             new IdentityHashMap<>();
-    /** The places in the program's sequence of the frame lets' eager-run steps this program planned (M9): the walk
-     *  sends a frame's run under its own statement origin (LET), which the plan does not say; the router's sink names
-     *  it to the runner. By place, not identity: the finished plan rebuilds a check whose stamp nothing reads. */
-    private final Set<Integer> frameRuns = new java.util.TreeSet<>();
     /** The seed sources placed since the program's last write. */
     private final Set<Seeds.Sources> established = new HashSet<>();
     /** The seeds' steps, generated once per sources value. */
@@ -254,12 +250,10 @@ final class TestKinds implements ProgramKinds {
         String stamp = minted != null ? frames.adoptStamp(minted) : frames.newStamp();
         PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
         if (!lazy) {
-            // planned before its place is taken: the data: tables its statement reads are placed ahead of it, so its
-            // place is the program's size once it is planned (B2a, 2026-11-11; the steps the planner places ahead of
-            // the program's first, the tables' prepare, shift every place alike: TestProgram.ahead)
+            // planned before it is placed: the data: tables its statement reads are placed ahead of it (B2a); marked as
+            // a frame run where it is placed (the second audit's S7: a place shifted by what is placed ahead of it)
             ExecutionPlan.Check run = eagerRun(program, index, fc, stamp);
-            frameRuns.add(program.size());
-            program.add(run);
+            program.addFrameRun(run);
         }
         // a frame the database judge does not run at its let but a CHECK reads (a println: a statement that is no
         // assert, 2026-11-06): registered for its readers as the host road's frames are, LAZY -- the check's own
@@ -512,11 +506,6 @@ final class TestKinds implements ProgramKinds {
     /** The seed steps this program planned, each with the referee's copy of its load (B2b). */
     Map<ExecutionPlan.Node, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds() {
         return Collections.unmodifiableMap(seeds);
-    }
-
-    /** The places of the frame lets' eager-run steps this program planned (M9). */
-    Set<Integer> frameRuns() {
-        return Collections.unmodifiableSet(frameRuns);
     }
 
     /** A CSV file's load {@code e}, placed after the open script as a load of its own, run every time it is reached

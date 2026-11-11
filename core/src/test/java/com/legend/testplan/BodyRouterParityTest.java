@@ -861,18 +861,27 @@ class BodyRouterParityTest {
                 AFTER_RUN.remove();
             }
             // S2: a system-routed body's tables made, read and dropped on the system database, its program's target;
-            // where the session table needs a prepare that commits (H2's schema), refused by name: the catalog's run
-            // transaction, which the run rolls back, would be committed
+            // where the session table needs a prepare that commits (H2's schema), the catalog made it ONCE with its own
+            // tables, so the body sends none and the catalog's run transaction, which the run rolls back, stays
+            // uncommitted (the user's veto, 2026-11-11, of the refusal that stood here)
             String systemAndData = "{| assertEquals('M', x::M.name); assertEquals(2, "
                     + DATA_SOURCE.replace("->from(x::RT)", "") + "->size());}";
             assertTrue(BodyClass.systemRouted(typed(ctx, systemAndData), "x::RT"), "system-routed: " + systemAndData);
             Run routed = run(backend, ctx, "x::RT", systemAndData, "select count(*) from FIRM", FIRM_ROWS, mode);
-            if (probe.prepare().isEmpty()) {
-                assertEquals("ok", routed.outcome, mode + ": " + routed.verdicts);
-            } else {
-                assertTrue(routed.outcome.startsWith("NotImplementedException: a data: source read by a body routed"
-                        + " to the graph's system catalog"), mode + ": " + routed.outcome);
-            }
+            assertEquals("ok", routed.outcome, mode + ": " + routed.verdicts);
+            // (the catalog's statements go to its own session, not the recorded one: the witness that no prepare
+            // committed the run's registration is the next run's, below -- before the veto, measured, it collided)
+            // the second audit's S9: the routed body's tables are made on the system database, its program's target,
+            // and released by the catalog turn's rollback -- its plan carries no release, whose drop would commit the
+            // turn on H2
+            com.legend.testexecutionplan.TestPlan routedPlan = com.legend.TestExecution.planBody(typed(ctx,
+                    systemAndData), "x::RT", com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
+            assertNull(routedPlan.release(), mode + ": " + routedPlan.release());
+            assertTrue(routedPlan.steps().stream().anyMatch(st -> st instanceof com.legend.testexecutionplan.TestPlan.Run r
+                    && r.node() instanceof com.legend.executionplan.ExecutionPlan.Load l
+                    && l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.SOURCE
+                    && l.target().database() instanceof com.legend.executionplan.ExecutionPlan.Database.System),
+                    mode + ": the data: table's load is on the system database: " + routedPlan.steps());
             // and the catalog intact after: the next system-routed run registers the model again
             Run again = run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", "select count(*) from FIRM",
                     FIRM_ROWS, mode);

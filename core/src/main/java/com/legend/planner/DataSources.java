@@ -79,9 +79,10 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
         private final List<String> drops = new ArrayList<>();
         private final Map<String, String> bundle = new LinkedHashMap<>();
         private final java.util.Set<String> prepare = new java.util.LinkedHashSet<>();
-        /** Where the tables are made, as the reads that made or read one named it: the graph's system database
-         *  (true, a system-routed body's) or the body's own (false) -- one of the two, or the reads are refused. */
-        private final java.util.Set<Boolean> onSystem = new java.util.HashSet<>(2);
+        /** The HOME database the tables are made on: the first read's that made or read one, every later read's too,
+         *  or it is refused by name (the second audit's S6, 2026-11-11: until then only "system or not" was held, and a
+         *  write's read held nothing). Null until a statement reads a {@code data:} source. */
+        private ExecutionPlan.@com.legend.base.Nullable Database home;
 
         /** The tables of one plan written in {@code dialect}. */
         public Tables(SqlDialect dialect) {
@@ -132,21 +133,42 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
             Rewriter r = rewriter();
             SqlQuery read = r.rewrite(q);
             if (r.read) {
-                boolean system = on.database() instanceof ExecutionPlan.Database.System;
-                onSystem.add(system);
-                if (onSystem.size() > 1) {
-                    throw new com.legend.error.NotImplementedException("a statement reads a data: source on the "
-                            + (system ? "graph's system database" : "body's own database") + ", where the body's data:"
-                            + " tables are made on the " + (system ? "body's own database" : "graph's system database")
-                            + ": a statement reading the system metamodel store and a data: source is not planned");
-                }
+                atHome(on);
             }
             return read;
         }
 
-        /** {@code dml}'s rows and conditions reading each {@code data:} source's table. */
-        SqlDml read(SqlDml dml) {
+        /** Holds the tables to one database: {@code on}'s, the first time; a later read on another refused by name. */
+        private void atHome(ExecutionPlan.Target on) {
+            if (home == null) {
+                home = on.database();
+            } else if (!home.equals(on.database())) {
+                boolean system = on.database() instanceof ExecutionPlan.Database.System;
+                throw new com.legend.error.NotImplementedException("a statement reads a data: source on "
+                        + describe(on.database()) + ", where the body's data: tables are made on " + describe(home)
+                        + (system || home instanceof ExecutionPlan.Database.System
+                                ? ": a statement reading the system metamodel store and a data: source is not planned"
+                                : ": one body's data: tables are made on one database"));
+            }
+        }
+
+        private static String describe(ExecutionPlan.Database database) {
+            return database instanceof ExecutionPlan.Database.System ? "the graph's system database"
+                    : "the body's own database";
+        }
+
+        /** {@code dml}'s rows and conditions reading each {@code data:} source's table, for a statement on {@code on}'s
+         *  session (held to the tables' home, as a query's read is). */
+        SqlDml read(SqlDml dml, ExecutionPlan.Target on) {
             Rewriter r = rewriter();
+            SqlDml read = rewritten(dml, r);
+            if (r.read) {
+                atHome(on);
+            }
+            return read;
+        }
+
+        private SqlDml rewritten(SqlDml dml, Rewriter r) {
             return switch (dml) {
                 case SqlDml.InsertSelect i -> new SqlDml.InsertSelect(i.schema(), i.table(), i.quoting(), i.columns(),
                         i.quotedColumns(), r.rewrite(i.query()));

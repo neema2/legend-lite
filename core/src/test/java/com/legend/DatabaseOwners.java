@@ -203,6 +203,12 @@ final class DatabaseOwners {
             // 2026-11-11 (the lanes' probes, relayed): Snowflake's, BigQuery's and Databricks' forms of a data: payload and
             // the empty payload on every database that writes it as rows, each named, by design
             "core/src/test/java/com/legend/planner/DataSourcesDeliveryTest.java",
+            // 2026-11-11 (the second audit's S11 and S12): a writing query's data: tables released after its rollback, on
+            // DuckDB and H2 by design, each table counted in its database's own catalog
+            "core/src/test/java/com/legend/integration/DataReleaseTest.java",
+            // 2026-11-11 (the total wall's item 5d, the user's question): a CSV's JSON column read by path on each
+            // in-process database and Postgres, by design
+            "core/src/test/java/com/legend/integration/CsvJsonColumnTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

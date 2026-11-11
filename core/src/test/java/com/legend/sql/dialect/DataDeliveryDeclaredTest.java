@@ -57,6 +57,32 @@ class DataDeliveryDeclaredTest {
                 "each database's data: delivery, as measured (a change is a measurement and this list's edit)");
     }
 
+    /** An unread {@code data:} source -- one the planner did not turn into its delivery -- reaching any renderer is the
+     *  planner's defect, refused by one type and message on every database (the second audit's S8, 2026-11-11:
+     *  MongoDB's pipeline raised a capability refusal where the SQL dialects raise the defect). */
+    @Test
+    void anUnreadDataSourceIsOneRefusalOnEveryDatabase() {
+        List<com.legend.sql.OutputCol> outputs = List.of(new com.legend.sql.OutputCol("data",
+                com.legend.sql.SqlType.Scalar.JSON, true, com.legend.sql.OutputCol.Origin.DERIVED));
+        com.legend.sql.SqlQuery unread = com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.SourceUrl(
+                "data:application/json,[1]", "t0", outputs, com.legend.sql.SqlSource.SourceUrl.Form.ELEMENTS));
+        int rendered = 0;
+        for (com.legend.model.ConnectionDefinition.DatabaseType type
+                : com.legend.model.ConnectionDefinition.DatabaseType.values()) {
+            SqlDialect dialect;
+            try {
+                dialect = com.legend.database.Databases.dialect(type);
+            } catch (com.legend.error.NotImplementedException none) {
+                continue;
+            }
+            IllegalStateException refused = assertThrows(IllegalStateException.class, () -> dialect.render(unread),
+                    type + ": an unread data: source is the planner's defect");
+            assertEquals(true, refused.getMessage().contains("reached a render unread"), type + ": " + refused);
+            rendered++;
+        }
+        assertEquals(true, rendered >= 12, "every database's renderer asked: " + rendered);
+    }
+
     @Test
     void aSessionTableIsSpelledExactlyWhereItIsDeclared() {
         for (com.legend.model.ConnectionDefinition.DatabaseType type

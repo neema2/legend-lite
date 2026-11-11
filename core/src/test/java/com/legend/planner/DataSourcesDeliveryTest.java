@@ -41,6 +41,50 @@ class DataSourcesDeliveryTest {
         return Databases.dialect(type);
     }
 
+    /** A payload refused when it is cut (not one array, not records) leaves NOTHING recorded -- no make, fill or drop
+     *  for the next take -- on a database that makes a session table: the cut comes ahead of the make and the release
+     *  (the B2a audit's note; the second audit's S9, 2026-11-11: a make with no fill, and its drop twice at the next
+     *  take). The next read of a good payload takes its own table's steps alone. */
+    @Test
+    void aRefusedPayloadRecordsNothing() {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite,
+                DatabaseType.Postgres)) {
+            DataSources.Tables tables = new DataSources.Tables(dialect(type));
+            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> tables.read(frame("data:application/json,[{\"t\":1}, 7]")),
+                    type + ": a record that is no object");
+            DataSources.Tables.Made none = tables.take();
+            assertTrue(none.steps().isEmpty() && none.release().isEmpty() && none.drops().isEmpty()
+                    && none.content().isEmpty(), type + ": nothing recorded: " + none);
+            tables.read(frame(PAYLOAD));
+            DataSources.Tables.Made one = tables.take();
+            assertEquals(1, one.drops().stream().filter(d -> d.toLowerCase(java.util.Locale.ROOT).contains("drop")).count(),
+                    type + ": one table's drop: " + one.drops());
+        }
+    }
+
+    /** One body's tables are made on ONE database, the first read's: a later read there -- a query's or a write's --
+     *  takes the same table, and a read on another database is refused by name (the second audit's S6, 2026-11-11: only
+     *  "system or not" was held, and a write's read held nothing). */
+    @Test
+    void theTablesKeepToTheirHomeDatabase() {
+        DataSources.Tables tables = new DataSources.Tables(dialect(DatabaseType.DuckDB));
+        ExecutionPlan.Target home = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                com.legend.executionplan.DatabaseType.DuckDB, "home"), List.of(), List.of());
+        ExecutionPlan.Target other = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                com.legend.executionplan.DatabaseType.DuckDB, "other"), List.of(), List.of());
+        tables.read(frame(PAYLOAD), home);
+        tables.read(frame(PAYLOAD), home);
+        assertEquals(1, tables.take().drops().size(), "one table, read twice at home");
+        org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
+                () -> tables.read(frame(PAYLOAD), other), "a query's read on another database");
+        com.legend.sql.SqlDml write = new com.legend.sql.SqlDml.InsertSelect(null, "T", com.legend.sql.NameQuoting.BARE,
+                List.of("data", SqlSource.SourceUrl.PLACE), java.util.Set.of(), frame(PAYLOAD));
+        org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
+                () -> tables.read(write, other), "a write's read on another database");
+        tables.read(write, home);
+    }
+
     /** Snowflake: VALUES of the texts (PARSE_JSON is refused inside VALUES), the select over it parsing them -- the
      *  lane's form (a), a quote doubled and a backslash escaped (measured: {@code 'back\\slash'}). */
     @Test

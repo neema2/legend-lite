@@ -128,9 +128,9 @@ public final class ProgramState {
     /**
      * {@code q} reading each {@code data:} source from its table (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4, A5: data
      * written in the model is the plan's load on every road, never a literal): a content not read before is made by
-     * the program's own load ({@code AT_STEP}), placed now -- ahead of the statement that reads it -- on the program's
-     * session, and dropped after the program's answer ({@link #dataReleases}). A program's statements run in one
-     * transaction, so a failed program's tables go with its writes where the database's DDL is transactional.
+     * the program's own load ({@code SOURCE}: a live source's session table, no write of the body's), placed now --
+     * ahead of the statement that reads it -- on the program's session, and dropped by the plan's release once the run
+     * is over, whatever its outcome ({@link #dataReleases}; on the graph's system catalog, by its turn's rollback).
      */
     public SqlQuery read(SqlQuery q) {
         reads(PlanMaker.tableReads(q, query.context(),
@@ -144,7 +144,7 @@ public final class ProgramState {
      *  a store write writes another source than the metamodel's. */
     public com.legend.sql.SqlDml read(com.legend.sql.SqlDml dml) {
         reads.add(Reads.OTHER);
-        com.legend.sql.SqlDml read = data.read(dml);
+        com.legend.sql.SqlDml read = data.read(dml, target);
         placeMade();
         return read;
     }
@@ -169,25 +169,32 @@ public final class ProgramState {
     }
 
     /** The tables made since the last placement -- a statement's, or the steps planned ahead of the program -- placed
-     *  now, as the program's own load ({@code AT_STEP}) after the steps planned so far. */
+     *  now, as the program's own load ({@code SOURCE}) after the steps planned so far. */
     void placeMade() {
         DataSources.Tables.Made made = data.take();
-        if (!made.prepare().isEmpty() && target.database() instanceof ExecutionPlan.Database.System) {
-            // a database whose session table needs a prepare (H2's schema statement, and its drop) commits an open
-            // transaction there, and on the graph's system catalog the run's transaction holds the model's
-            // registration, which the run rolls back (measured 2026-11-11: committed, the next run's registration
-            // collided): refused by name, never committed (the B2a audit's S2)
-            throw new com.legend.error.NotImplementedException("a data: source read by a body routed to the graph's"
-                    + " system catalog on " + dialect.getClass().getSimpleName() + ": its session table's statements"
-                    + " commit the catalog's run transaction, which the run rolls back");
+        // a session table's prepare (H2's schema statement) commits an open transaction, and on the graph's system
+        // catalog the run's transaction holds the model's registration, which the run rolls back (measured
+        // 2026-11-11: committed, the next run's registration collided): the catalog made it ONCE with its own tables
+        // (SystemCatalog.target), so a body routed there sends none (the user's veto, 2026-11-11, of the refusal the
+        // B2a audit's S2 had placed). Nor any DROP: a release on the catalog runs inside the run's turn, which is held
+        // until the run's sessions close, and H2's DROP commits it (measured 2026-11-11: the next run's registration
+        // collided); the turn is rolled back whole when the run ends (SystemDatabase), taking the table's rows -- and,
+        // where the database's DDL is transactional (DuckDB, SQLite), the table -- with it. A table H2 keeps is the
+        // catalog session's own, empty, and named by its content: the next make of it empties and fills it again.
+        boolean catalog = target.database() instanceof ExecutionPlan.Database.System;
+        if (catalog && !SystemCatalog.madeOnce(target, made.prepare())) {
+            throw new IllegalStateException("a data: session table's schema statements " + made.prepare()
+                    + " are not the system catalog's ONCE load's on " + target.database());
         }
         if (!made.steps().isEmpty()) {
             ExecutionPlan.Load load = LoadPlanner.load(ExecutionPlan.Load.Cadence.SOURCE, made.steps(), target,
                     made.content());
             add(load);
             dataLoads.add(load);
-            dataReleases.addAll(made.drops());
-            dataPrepare.addAll(made.prepare());
+            if (!catalog) {
+                dataReleases.addAll(made.drops());
+                dataPrepare.addAll(made.prepare());
+            }
         }
     }
 
@@ -219,6 +226,12 @@ public final class ProgramState {
     /** Places {@code step} after the steps planned so far. */
     public void add(ExecutionPlan.Node step) {
         steps.add(new PlannedStep.Product(step));
+    }
+
+    /** Places {@code run}, a frame let's eager run (M9), after the steps planned so far, marked as one
+     *  ({@link PlannedStep.FrameRun}). */
+    public void addFrameRun(ExecutionPlan.Check run) {
+        steps.add(new PlannedStep.FrameRun(run));
     }
 
     /** Places the extension's step {@code handle} after the steps planned so far, reading {@code declared} (the

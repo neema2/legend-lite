@@ -41,18 +41,8 @@ import java.util.Objects;
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session, @com.legend.base.Nullable Release release) {
-
-    /** A plan's release: {@code statements} sent in order on {@code on}'s session. */
-    public record Release(List<String> statements, ExecutionPlan.Target on) {
-        public Release {
-            statements = List.copyOf(statements);
-            Objects.requireNonNull(on, "on");
-            if (statements.isEmpty()) {
-                throw new IllegalArgumentException("a release sends at least one statement: a plan with none has none");
-            }
-        }
-    }
+        boolean answersLastVerdict, ExecutionPlan.Target session,
+        ExecutionPlan.@com.legend.base.Nullable Release release) {
 
     public TestPlan {
         Objects.requireNonNull(session, "session");

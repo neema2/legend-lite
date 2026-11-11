@@ -118,8 +118,10 @@ public final class PlanJson {
      *  digits of a second its database keeps of an element ({@code fraction}), which the runner holds an element to.
      *  44 since 2026-11-11 (B2a and its audit): a {@code sourceUrl} source names its form ({@code ELEMENTS}, an array's
      *  elements; {@code RECORDS}, a JSON connection's records and their places), and a load may be {@code SOURCE}, a
-     *  live source's session table at its place, which writes no store of the body's. */
-    public static final int VERSION = 44;
+     *  live source's session table at its place, which writes no store of the body's. 45 since 2026-11-11 (the second
+     *  audit's S12): a plan may carry its {@code release} (its target {@code on} and its {@code statements}), sent once
+     *  its run is over whatever the outcome. */
+    public static final int VERSION = 45;
 
     private PlanJson() {
     }
@@ -186,6 +188,9 @@ public final class PlanJson {
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("root", node(plan.root()));
         out.put("writes", plan.writes());
+        if (plan.release() != null) {
+            out.put("release", releaseJson(plan.release()));
+        }
         out.put("loads", hoistLoads(out));
         return out;
     }
@@ -817,7 +822,22 @@ public final class PlanJson {
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(readParameter((Json.Obj) n));
         }
-        return new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
+        return new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"),
+                releaseOf(o.getObjOr("release", null)));
+    }
+
+    /** A plan's {@link ExecutionPlan.Release} as JSON: its target and its statements (a test plan's format writes its
+     *  own so). */
+    public static Map<String, Object> releaseJson(ExecutionPlan.Release release) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("on", target(release.on()));
+        out.put("statements", release.statements());
+        return out;
+    }
+
+    /** {@link #releaseJson}'s inverse; null for none. */
+    public static ExecutionPlan.@com.legend.base.Nullable Release releaseOf(Json.@com.legend.base.Nullable Obj o) {
+        return o == null ? null : new ExecutionPlan.Release(o.getStringArray("statements"), readTarget(o.getObj("on")));
     }
 
     /** Each load of {@code section} that holds no bundle inline given the blobs its CONTENT file steps name (L6c): a

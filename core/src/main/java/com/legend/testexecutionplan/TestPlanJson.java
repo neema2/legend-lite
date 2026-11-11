@@ -89,10 +89,7 @@ public final class TestPlanJson {
         out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("session", PlanJson.targetJson(plan.session()));
         if (plan.release() != null) {
-            Map<String, Object> release = new LinkedHashMap<>();
-            release.put("on", PlanJson.targetJson(plan.release().on()));
-            release.put("statements", plan.release().statements());
-            out.put("release", release);
+            out.put("release", PlanJson.releaseJson(plan.release()));
         }
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
@@ -239,8 +236,8 @@ public final class TestPlanJson {
                 PlanJson.targetOf(o.getObj("session")), release(o.getObjOr("release", null)));
     }
 
-    private static TestPlan.@com.legend.base.Nullable Release release(Json.@com.legend.base.Nullable Obj o) {
-        return o == null ? null : new TestPlan.Release(o.getStringArray("statements"), PlanJson.targetOf(o.getObj("on")));
+    private static ExecutionPlan.@com.legend.base.Nullable Release release(Json.@com.legend.base.Nullable Obj o) {
+        return PlanJson.releaseOf(o);
     }
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------
