@@ -65,36 +65,15 @@ public final class ProgramState {
     private enum Reads { SYSTEM, OTHER }
 
     /**
-     * Which reads a program's pass admits (B4, 2026-11-11): every one ({@code ANY}: the test door, whose class rule
-     * routed the body); on the product door, its first pass on the runtime's own database ({@code FIND}: a statement
-     * reading the system store ends it, {@link ReadsTheCatalog}, and one reading it after another source is refused by
-     * name) and its pass on the process's catalog ({@code ONLY}: a statement reading another source refused by name).
-     * Each decided as a statement is prepared, before it is lowered or written ({@link #prepared}).
+     * Which reads a program's pass admits, and what it plans (B4, 2026-11-11): every one ({@code ANY}: the test door,
+     * whose class rule routed the body); on the product door, its PROBE -- every statement prepared with its lets,
+     * resolution alone, nothing lowered or written ({@link #probing}), what they read recorded -- then its pass on the
+     * runtime's own database ({@code RUNTIME}: the probe found no read of the system store, and a statement reading it
+     * is a defect, said by name) or on the process's catalog ({@code CATALOG}: a statement reading another source --
+     * one the probe cannot see, a file, a payload, raw SQL -- refused by name). Each decided as a statement is prepared,
+     * before it is lowered or written ({@link #prepared}): from its resolved stores' identity, never a table's name.
      */
-    enum CatalogReads { ANY, FIND, ONLY }
-
-    /**
-     * The product door's program reads the system metamodel store (B4, 2026-11-11): raised by its first pass, on the
-     * runtime's own database, as the first statement reading the store is prepared -- before it is lowered or written
-     * in the runtime's dialect, which may refuse a shape the catalog's writes (Snowflake's {@code CREATE TEMPORARY TABLE
-     * AS}) -- so the door plans the program whole on the process's catalog ({@code PlanMaker.plan}). A planning
-     * decision, no failure: it carries no message and no stack, and only {@code PlanMaker.plan} catches it.
-     *
-     * <p>Why a signal and not a decision made before planning (the orchestrator's question, 2026-11-11): whether a
-     * statement reads the store is known exactly only once it is resolved with the program's lets -- a system class's
-     * {@code all()}, the store's own tables, an element read as a value through its tracked row, each through the user
-     * functions and the lets it inlines, a staged let's table read under its rows' store -- which is this pass's own
-     * work, statement by statement ({@link #prepared}, the one funnel every prepared statement passes). A scan of the
-     * typed program ahead of it would be the test road's {@code BodyClass.systemRouted} rebuilt in the planner, or a
-     * second resolution of every statement with the lets planned again; a cheaper scan over-approximates (an element
-     * handed to {@code execute} reads no store) and would plan such a program on the catalog and refuse it. Raised from
-     * that funnel, it also holds for a statement kind added later.
-     */
-    static final class ReadsTheCatalog extends RuntimeException {
-        ReadsTheCatalog() {
-            super(null, null, false, false);
-        }
-    }
+    enum CatalogReads { ANY, PROBE, RUNTIME, CATALOG }
 
     /** The reads this pass admits ({@link CatalogReads}). */
     private final CatalogReads catalogReads;
@@ -199,11 +178,10 @@ public final class ProgramState {
             }
         }
         if (st.stores().contains(com.legend.builtin.SystemMetamodel.STORE_FQN)) {
-            if (catalogReads == CatalogReads.FIND) {
-                if (reads.contains(Reads.OTHER)) {
-                    throw besideAnotherSource();
-                }
-                throw new ReadsTheCatalog();
+            if (catalogReads == CatalogReads.RUNTIME) {
+                throw new IllegalStateException("a statement of a program planned on its runtime's database reads the"
+                        + " system metamodel store, where the program's probe found none: the probe and the plan"
+                        + " resolved the statement apart");
             }
             reads.add(Reads.SYSTEM);
         }
@@ -212,14 +190,30 @@ public final class ProgramState {
     /** A statement reads, or writes, another source than the system metamodel store: a user's store, a file, a
      *  payload, the connection's own SQL, a store write. On the product door's catalog pass refused by name. */
     void readsAnotherSource() {
-        if (catalogReads == CatalogReads.ONLY) {
-            throw besideAnotherSource();
+        if (catalogReads == CatalogReads.CATALOG) {
+            throw besideAnotherSource(query, runtime);
         }
         reads.add(Reads.OTHER);
     }
 
-    /** The product door's refusal of a program reading the system store beside another source. */
-    private com.legend.error.NotImplementedException besideAnotherSource() {
+    /** Whether this pass is the product door's probe: its statements prepared, nothing lowered or written. */
+    boolean probing() {
+        return catalogReads == CatalogReads.PROBE;
+    }
+
+    /** Whether a statement prepared so far reads the system metamodel store. */
+    boolean readsSystem() {
+        return reads.contains(Reads.SYSTEM);
+    }
+
+    /** Whether a statement prepared so far reads, or writes, another source than the system metamodel store. */
+    boolean readsOther() {
+        return reads.contains(Reads.OTHER);
+    }
+
+    /** The product door's refusal of {@code query}'s program on {@code runtime}, reading the system store beside another
+     *  source. */
+    static com.legend.error.NotImplementedException besideAnotherSource(TypedQuery query, String runtime) {
         return new com.legend.error.NotImplementedException("a program reading the system metamodel store beside"
                 + " another source, or writing a store, on " + com.legend.database.Databases.dialect(
                 com.legend.Compiler.executesOn(query.context(), runtime).type()).getClass().getSimpleName() + ": the"

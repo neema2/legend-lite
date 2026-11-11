@@ -96,20 +96,20 @@ public final class PlanMaker {
         if (query.writes()) {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
-            Programmed p;
-            try {
-                p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS, false,
-                        projectDatabase);
-            } catch (ProgramState.ReadsTheCatalog readsTheCatalog) {
-                // a program reading the system metamodel store alone runs on the process's CATALOG, as such a query
-                // does (A5, 2026-11-10: until then its statements read the store from the program's own database,
-                // which holds none of it), planned whole there in the catalog's dialect on every database (B4,
-                // 2026-11-11: the first pass ends as its first statement reading the store is prepared, never writing
-                // it in a server's dialect); a statement reading another source beside it is refused by name as it is
-                // prepared, in either pass (ProgramState.prepared)
-                p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS, true,
-                        projectDatabase);
+            // WHERE THE PROGRAM RUNS, decided before it is planned (B4, 2026-11-11; the audit's findings 1 and 3, the
+            // user's ruling "why are we keying anything system metamodel by table name?"): a pass that prepares every
+            // statement with its lets -- resolution alone, nothing lowered or written -- reads each one's stores by
+            // their identity (ProductStatements.Statement.stores: its typed references, never a table's name). A
+            // program reading the system metamodel store runs on the process's CATALOG, as such a query does (A5,
+            // 2026-11-10), planned whole there in the catalog's dialect on every database; beside another source it is
+            // refused by name
+            Programmed probe = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS,
+                    false, projectDatabase, true);
+            if (probe.readsSystem() && probe.readsOther()) {
+                throw ProgramState.besideAnotherSource(query, Objects.requireNonNull(runtime));
             }
+            Programmed p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS,
+                    probe.readsSystem(), projectDatabase, false);
             // its data: tables' drops the plan's release, sent once the run is over whatever its outcome (the second
             // audit's S12, 2026-11-11: as the program's last steps they were never sent when a step before them failed)
             return ExecutionPlan.writing(declarations(declared, query.context()),
@@ -332,7 +332,7 @@ public final class PlanMaker {
             ProgramKinds kinds, boolean systemRouted) {
         List<QueryParameters.Declared> declared = query.parameters();
         Programmed programmed = programmed(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
-                systemRouted, false);
+                systemRouted, false, false);
         return new TestProgram(declarations(declared, query.context()), programmed.steps(), programmed.dataLoads(),
                 programmed.release(), programmed.target());
     }
@@ -366,7 +366,8 @@ public final class PlanMaker {
     /** A program's steps; the test door's, the loads that make its {@code data:} tables and their drops, sent after its
      *  run whatever its outcome (B2a; the query door's since the second audit's S12). */
     private record Programmed(List<PlannedStep> steps,
-            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target) {
+            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target,
+            boolean readsSystem, boolean readsOther) {
     }
 
     /**
@@ -382,7 +383,8 @@ public final class PlanMaker {
      */
     private static Programmed programmed(TypedQuery query, @Nullable String runtime,
             List<SqlExpr.PlanParam> slots, Set<Feature> features,
-            ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase) {
+            ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase,
+            boolean probe) {
         Decided decided = decide(query.context(), runtime);
         com.legend.executionplan.DatabaseType runsOn = ConnectionPlans.type(decided.target().type());
         // a program routed to the system store is written in its catalog's dialect, whatever database holds the user's
@@ -410,7 +412,8 @@ public final class PlanMaker {
         ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), dialect, target,
                 slots, features, plannedAhead != null ? plannedAhead : new DataSources.Tables(dialect),
                 door != ProgramState.Door.QUERY ? ProgramState.CatalogReads.ANY
-                        : systemRouted ? ProgramState.CatalogReads.ONLY : ProgramState.CatalogReads.FIND);
+                        : probe ? ProgramState.CatalogReads.PROBE
+                        : systemRouted ? ProgramState.CatalogReads.CATALOG : ProgramState.CatalogReads.RUNTIME);
         // the let kinds' effect scan, memoized over the program (LetPlanner.kind)
         Map<FunctionId, Boolean> effectMemo = new HashMap<>();
         // the model's registration on the process's catalog, placed by the program's state ahead of every step that
@@ -447,6 +450,10 @@ public final class PlanMaker {
                 planStatement(state, i, stmt, last, door, on);
             }
         }
+        if (state.probing()) {
+            // the probe's answer: what the statements read, nothing planned
+            return new Programmed(List.of(), List.of(), List.of(), target, state.readsSystem(), state.readsOther());
+        }
         // what the steps planned ahead made and no statement placed (an appeal's rows, read after the run), placed
         // last (B2a)
         state.placeMade();
@@ -456,7 +463,7 @@ public final class PlanMaker {
                     + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
         return new Programmed(steps, state.dataLoads(),
-                state.dataReleases(), target);
+                state.dataReleases(), target, state.readsSystem(), state.readsOther());
     }
 
     /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
@@ -532,6 +539,12 @@ public final class PlanMaker {
         state.prepared(st);
         // a raw read acts on the connection's own database
         state.readsAnotherSource();
+        if (state.probing()) {
+            // the probe: the let bound as the plan binds it, nothing written
+            state.let(StagedRows.gridBoundTo(let.name(), gridRead(StagedRows.gridTable(let.name(), i), state.dialect()),
+                    raw, let.info()));
+            return;
+        }
         Prepared.Planned sp = ProductStatements.planned(st);
         Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
                 withStamps(state.slots(), state.frames()), state.sites());
@@ -561,6 +574,12 @@ public final class PlanMaker {
                 state.features(), state.frames());
         state.prepared(st);
         Prepared.Planned sp = ProductStatements.planned(st);
+        if (state.probing()) {
+            // the probe: the let bound as the plan binds it, nothing lowered or written
+            state.let(StagedRows.boundTo(let.name(), table, rows.info(),
+                    StagedRows.storeOf(sp.body(), ctx, state.runtime()), let.info()));
+            return;
+        }
         Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
                 withStamps(state.slots(), state.frames()), state.sites());
         SqlQuery q = state.read(FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
@@ -594,6 +613,13 @@ public final class PlanMaker {
         ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), stmt), state.runtime(), i,
                 state.features(), state.frames(), Map.of(), last && door == ProgramState.Door.TEST);
         state.prepared(st);
+        if (state.probing()) {
+            // the probe: what the statement reads, nothing lowered or written; a store write writes another source
+            if (st.prepared() instanceof Prepared.StoreWrite) {
+                state.readsAnotherSource();
+            }
+            return;
+        }
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
         if (constant != null) {
             // a value the program wrote: the answer where it is the last statement (a test's as the walk answers

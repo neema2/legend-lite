@@ -142,28 +142,43 @@ class CatalogOnEveryDatabaseTest {
     }
 
     /**
-     * A user's table named as a metamodel table ({@code results}, {@code classes}) is the user's (the B4 audit's
-     * finding 1, 2026-11-11): a writing program reading it stays on the runtime's own database -- the decision is the
-     * statement's resolved stores', never a table's name. A database whose dialect stages no query's rows refuses the
-     * program by its own name.
+     * A user's table named as ANY table of the system metamodel store is the user's (the B4 audit's finding 1, and the
+     * user's ruling of 2026-11-11: "Why are we keying anything system metamodel by table name? That seems bad"): on
+     * every relational database, a query, a writing program and a test body reading it stay on the runtime's own
+     * database -- the decision is the statements' resolved stores' identity, never a table's name. (A database whose
+     * dialect stages no query's rows refuses the program by its own name.) The genuine catalog reads are routed to the
+     * catalog by the other tests of this class.
      */
     @Test
-    void aUsersTableNamedAsAMetamodelTableIsTheUsers() {
-        for (String table : List.of("results", "classes")) {
+    void aUsersTableNamedAsAnyMetamodelTableIsTheUsers() {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        for (var schema : Compiler.compileModel("").findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
+                .orElseThrow().schemas()) {
+            for (var def : schema.tables()) {
+                names.add(def.name());
+            }
+        }
+        assertTrue(names.containsAll(List.of("classes", "results", "activities", "plans", "functions", "mappings")),
+                names.toString());
+        for (String table : names) {
             for (DatabaseType type : Databases.relational()) {
                 var ctx = Compiler.compileModel(model(type).replace("Table T", "Table " + table)
                         .replace("[s::DB] T", "[s::DB] " + table));
-                ExecutionPlan plan;
+                String where = type + " " + table;
+                List<ExecutionPlan.Sql> sent = new ArrayList<>(sqls(Compiler.query(ctx,
+                        "|s::Item.all()->project(~[n:x|$x.name])").executionPlan("s::RT").root()));
                 try {
-                    plan = Compiler.query(ctx, "{| let r = s::Item.all()->project(~[n:x|$x.name])"
-                            + "->meta::legend::lite::stage(); $r;}").executionPlan("s::RT");
+                    sent.addAll(sqls(Compiler.query(ctx, "{| let r = s::Item.all()->project(~[n:x|$x.name])"
+                            + "->meta::legend::lite::stage(); $r;}").executionPlan("s::RT").root()));
                 } catch (com.legend.sql.DialectCapability refused) {
-                    assertTrue(refused.getMessage().contains("temporary table"), type + ": " + refused.getMessage());
-                    continue;
+                    assertTrue(refused.getMessage().contains("temporary table"), where + ": " + refused.getMessage());
                 }
-                for (ExecutionPlan.Sql sql : sqls(plan.root())) {
+                sent.addAll(sqls(TestExecution.planBody(Compiler.query(ctx,
+                        "{| assertEquals(0, s::Item.all()->size());}"), "s::RT", ExecuteOptions.NONE)));
+                assertFalse(sent.isEmpty(), where);
+                for (ExecutionPlan.Sql sql : sent) {
                     assertFalse(sql.target().database() instanceof ExecutionPlan.Database.System,
-                            type + " " + table + ": " + sql.statement());
+                            where + ": " + sql.statement());
                 }
             }
         }
