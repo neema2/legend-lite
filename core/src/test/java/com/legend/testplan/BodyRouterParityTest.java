@@ -1022,6 +1022,9 @@ class BodyRouterParityTest {
             assertEquals(0, originsOf(moved.origins)[StatementOrigin.SYSTEM.ordinal()],
                     "nothing sent to the system session: " + body);
         }
+        // B1 (2026-11-11, docs/data-delivery-homework/B_BRIEF_2026_11_10.md §1; census M7-seed STAYING): the form's
+        // statements are the effect script's -- its bracket, abort and ledger theirs -- and in no load of the plan
+        assertSeedFormInTheScriptAlone(ctx, body);
         // the data computed: the walk evaluates it as a statement; the program road refuses by name, so the body stays
         String computed = body.replace("[$firmCsv]", "[$firmCsv->toUpper()]");
         assertNull(BodyClass.of(typed(ctx, computed), "x::RT", true), "a computed seed stays: " + computed);
@@ -1031,6 +1034,36 @@ class BodyRouterParityTest {
         assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(ctx, seedOnly), "x::RT", true), seedOnly);
         assertParity(backend, ctx, "x::RT", seedOnly, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST);
+    }
+
+    /** {@code body}'s seed form ({@code 'Cyl'}'s row) planned into an effect's script and into no load: neither a step's
+     *  load nor the session's (B1, census M7-seed STAYING: the form's texts are the author's folded effect). */
+    private static void assertSeedFormInTheScriptAlone(ModelContext ctx, String body) {
+        com.legend.testexecutionplan.TestPlan plan = com.legend.TestExecution.planBody(typed(ctx, body), "x::RT",
+                com.legend.ExecuteOptions.NONE);
+        List<String> scripts = new ArrayList<>();
+        List<com.legend.executionplan.ExecutionPlan.Load> loads = new ArrayList<>(plan.session().loads());
+        for (com.legend.testexecutionplan.TestPlan.TestStep step : plan.steps()) {
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Run r) {
+                if (r.node() instanceof com.legend.executionplan.ExecutionPlan.Effect e && e.script() != null) {
+                    scripts.addAll(e.script().statements());
+                }
+                if (r.node() instanceof com.legend.executionplan.ExecutionPlan.Load u) {
+                    loads.add(u);
+                }
+            }
+        }
+        List<String> loaded = new ArrayList<>();
+        for (com.legend.executionplan.ExecutionPlan.Load u : loads) {
+            loaded.addAll(u.content().values());
+            for (com.legend.executionplan.ExecutionPlan.LoadStep step : u.steps()) {
+                if (step instanceof com.legend.executionplan.ExecutionPlan.LoadStep.Statement st) {
+                    loaded.add(st.sql());
+                }
+            }
+        }
+        assertTrue(scripts.stream().anyMatch(t -> t.contains("Cyl")), "the form's insert in a script: " + scripts);
+        assertTrue(loaded.stream().noneMatch(t -> t.contains("Cyl")), "the form's insert in a load: " + loaded);
     }
 
     /** M7: the frame programs under the DATABASE judge: a frame is never run at its let -- the asserts' sides reference

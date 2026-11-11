@@ -398,11 +398,21 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
             value = dd.body().value();
         }
-        if (!(value instanceof Protocol.PRelationalCsvData csv)) {
-            throw new Skip("embedded data kind '"
-                    + value.getClass().getSimpleName().substring(1)
-                    + "' is not provisioned by this runner");
-        }
+        // every kind a suite's data may be, classified (B2e, 2026-11-11, census M17: until then a kind but relational CSV
+        // was a skip): a store's relational rows are provisioned; the rest is a feature not implemented yet, by name
+        String feature = "a service test's data for the store " + store;
+        Protocol.PRelationalCsvData csv = switch (value) {
+            case Protocol.PRelationalCsvData r -> r;
+            case Protocol.PDataReference r -> throw new IllegalStateException("a reference resolved above: " + r);
+            case Protocol.PModelStoreData m -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(m, feature));
+            case Protocol.PExternalFormatData e -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(e, feature));
+            case Protocol.PServiceStoreData st -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(st, feature));
+            case Protocol.PRelationData r -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(r, feature));
+        };
         for (Protocol.PRelationalCsvTable t : csv.tables()) {
             if (t.values() == null) {
                 // JSON may leave a table's values out; with no header line there are no columns to seed

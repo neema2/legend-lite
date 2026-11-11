@@ -473,9 +473,9 @@ final class TestKinds implements ProgramKinds {
                 load(program, e, resource(values.get(0)));
                 continue;
             }
-            // a seed form's statements stay the effect script's (the M1 correctness audit's C3, 2026-11-09: as a load
-            // they lost the script's transaction bracket and abort, its ledger on failure and the B8 refusal; their
-            // move to a load is designed with M7-seed)
+            // a seed form's statements are the effect script's, the author's statements beside executeInDb, never a
+            // load (B1, 2026-11-11, census M7-seed STAYING: as a load they lost the script's transaction bracket and
+            // abort, its ledger on failure and the B8 refusal -- the M1 correctness audit's C3, 2026-11-09)
             script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
                     e.env().withDialect(program.dialect())));
         }

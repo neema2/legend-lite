@@ -128,12 +128,14 @@ class DataMechanismCensusTest {
             // engine's catalog, M5's check 3, not designed
             new Row("M6", "the system metamodel store on the product road", new Pending("M5's server catalog (forms 2"
                     + " and 3: a server engine's session TEMP tables, a server with none's inline rows)")),
-            // PENDING (the M1 correctness audit's C3, 2026-11-09): a seed form mapped over executeInDb was made a load
-            // at L2 and put back the same day -- as a load it lost the effect script's transaction bracket and abort, its
-            // ledger on failure and the B8 refusal. Its move is designed with the runner's transaction for loads
-            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed", new Pending("L5b"
-                    + " (2026-11-10, re-sliced: a load step inside the effect script, keeping its bracket, abort, ledger and"
-                    + " B8 refusal; L5 itself was the fixtures, option C)")),
+            // STAYING (B1, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B1, the user's yes): a seed form
+            // mapped over executeInDb is the author's statements beside executeInDb, folded into the effect's script --
+            // its bracket, abort, ledger and the B8 refusal the script's -- and never converted to a load (made one at L2
+            // and put back the same day: the M1 correctness audit's C3, 2026-11-09). Guard: the form's texts sit in an
+            // effect's script and in no load (BodyRouterParityTest.seedFormEffectMapPrograms)
+            new Row("M7-seed", "the seed forms (setUpDataSQLs and its kin) planned through CsvSeed",
+                    new Staying("BodyRouterParityTest.seedFormEffectMapPrograms: the author's statements, folded into"
+                            + " the effect's script, in no load")),
             // L1, 2026-11-09: loadCsvToDbTable is a File load by reference; the path it put in a statement is gone
             new Row("M8", "loadCsvToDbTable: the planning machine's path in a statement (D3)", new Deleted("L1", List.of(
                     // the dialects' reader over a path written into the statement
@@ -191,7 +193,16 @@ class DataMechanismCensusTest {
                     new Pending("L8")),
             new Row("M16", "parameters, keyed keys, counts, host rows",
                     new Staying("P9: parameters come from the caller alone")),
-            new Row("M17", "data parsed and never loaded", new Pending("L8")),
+            // BOUNDED (B2e, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2e and §9's gaps, the user's
+            // "not implemented yet"): every reader of a model's data switches over its kinds without a default; a
+            // relational store's CSV rows are the one kind loaded, and a feature that would read another refuses it by
+            // name (a service test's ModelStore, ExternalFormat, ServiceStore or Relation data), where it was dropped
+            // unnamed (ProjectData's continues) or skipped (ServiceTestRunner). When built, such data takes the
+            // model-data path, a load
+            new Row("M17", "data parsed and never loaded", new Bounded("B2e", List.of(
+                    "is not provisioned by this runner",
+                    "if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv))"),
+                    "EmbeddedDataKindsTest")),
             new Row("M7-authored", "executeInDb: SQL the user wrote",
                     new Staying("P9: an effect's statements are the author's text, folded")));
 

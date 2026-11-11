@@ -78,7 +78,8 @@ public record ProjectData(String name, List<String> open, List<String> use, List
     public static String rowsKey(ModelContext ctx) {
         StringBuilder out = new StringBuilder();
         for (DataDefinition data : ctx.dataElements().toList()) {
-            if (data.body().value() instanceof Protocol.PRelationalCsvData csv) {
+            Protocol.PRelationalCsvData csv = tables(data);
+            if (csv != null) {
                 for (Protocol.PRelationalCsvTable t : csv.tables()) {
                     out.append(t.schema()).append('\n').append(t.table()).append('\n')
                             .append(t.values() == null ? "" : t.values()).append("\n-\n");
@@ -97,8 +98,9 @@ public record ProjectData(String name, List<String> open, List<String> use, List
      */
     public static @com.legend.base.Nullable String refusal(ModelContext ctx) {
         for (DataDefinition data : ctx.dataElements().toList()) {
-            if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv)) {
-                continue;
+            Protocol.PRelationalCsvData csv = tables(data);
+            if (csv == null) {
+                continue;   // no table of the project's database (tables())
             }
             for (Protocol.PRelationalCsvTable t : csv.tables()) {
                 if (t.values() == null) {
@@ -133,9 +135,9 @@ public record ProjectData(String name, List<String> open, List<String> use, List
         }
         List<CsvSeed.Step> out = new ArrayList<>();
         for (DataDefinition data : ctx.dataElements().toList()) {
-            // only rows a relational store holds: a model store's or an external format's data is not a table's
-            if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv)) {
-                continue;
+            Protocol.PRelationalCsvData csv = tables(data);
+            if (csv == null) {
+                continue;   // no table of the project's database (tables())
             }
             for (Protocol.PRelationalCsvTable t : csv.tables()) {
                 String database = declaringAll(ctx, t.schema(), t.table()).get(0);
@@ -143,6 +145,29 @@ public record ProjectData(String name, List<String> open, List<String> use, List
             }
         }
         return out;
+    }
+
+    /**
+     * The rows {@code data} puts in the project's database's tables, or null where it puts none, each kind named (B2e,
+     * 2026-11-11, census M17: until then every kind but relational CSV was passed over unnamed). The project's database
+     * holds a relational store's tables, as the model declares them; a reference names another Data element, filled
+     * itself; and the other kinds are no relational store's rows: upstream reads them only in the tests whose data they
+     * are (a model store's instances, an external format's document, a service store's stubs, a relation's rows for a
+     * function's test), which read them where they run -- never from a project's database.
+     */
+    static Protocol.@com.legend.base.Nullable PRelationalCsvData tables(DataDefinition data) {
+        Protocol.PEmbeddedDataValue value = data.body().value();
+        if (value == null) {
+            return null;   // a resolver-form element: its data is its resolvers', each a store's, read by a test
+        }
+        return switch (value) {
+            case Protocol.PRelationalCsvData csv -> csv;
+            case Protocol.PDataReference r -> null;
+            case Protocol.PModelStoreData m -> null;
+            case Protocol.PExternalFormatData e -> null;
+            case Protocol.PServiceStoreData s -> null;
+            case Protocol.PRelationData r -> null;
+        };
     }
 
     /**
