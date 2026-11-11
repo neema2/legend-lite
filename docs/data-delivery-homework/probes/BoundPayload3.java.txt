@@ -1,0 +1,188 @@
+// The data: delivery probe, round 3 (the user, 2026-11-11: "should we try those [JSON bound parameters] on clickhouse
+// and trino? And maybe even mongo and others like postgres/MySQL if makes sense?"). Measure only.
+// Usage: javac BoundPayload3Probe.java && java -cp <the database's JDBC driver jars>:. BoundPayload3Probe <database> '<jdbc url>' [user] [password]
+//   <database>: postgres | mysql | mariadb | trino | clickhouse | duckdb | sqlite
+// For each database it asks:
+//   A. the whole JSON payload as ONE bound parameter, split into rows by the database itself (its forms below): the
+//      quote, the line break, the order, the empty array, nested and typed values; and whether the driver binds the
+//      parameter beside the statement or writes it into the text (a large payload's refusal names a text limit if so);
+//   B. the cost and the size limit at 2, 1,000, 10,000 and 100,000 records of: each parameter form, and lite's form
+//      today -- a session table (CREATE TEMPORARY TABLE, 1,000-row INSERTs, read, DROP) on postgres, mysql, mariadb,
+//      duckdb, sqlite; the statement's own VALUES rows on trino and clickhouse.
+// Each line prints its milliseconds and a refusal's first line. Never print a credential or a URL that holds one.
+import java.sql.*;
+import java.util.*;
+
+public class BoundPayload3Probe {
+    static String db;
+
+    /** The database's forms: each a statement reading the payload's elements as (data, ord) from one placeholder,
+     *  or, where noted, the placeholder twice. */
+    static Map<String, String> forms() {
+        Map<String, String> f = new LinkedHashMap<>();
+        switch (db) {
+            case "postgres" -> f.put("jsonb_array_elements", "SELECT e.value AS data, e.ordinality - 1 AS ord FROM"
+                    + " jsonb_array_elements(CAST(? AS jsonb)) WITH ORDINALITY AS e(value, ordinality)");
+            case "mysql", "mariadb" -> {
+                f.put("json_table JSON PATH", "SELECT j.data AS data, j.ord - 1 AS ord FROM JSON_TABLE(?, '$[*]'"
+                        + " COLUMNS (ord FOR ORDINALITY, data JSON PATH '$')) AS j");
+                f.put("json_table + JSON_EXTRACT (twice)", "SELECT JSON_EXTRACT(p.doc, CONCAT('$[', j.ord - 1, ']'))"
+                        + " AS data, j.ord - 1 AS ord FROM (SELECT ? AS doc) p, JSON_TABLE(p.doc, '$[*]' COLUMNS (ord"
+                        + " FOR ORDINALITY)) AS j");
+            }
+            case "trino" -> f.put("unnest(array(json))", "SELECT t.e AS data, t.o - 1 AS ord FROM"
+                    + " UNNEST(CAST(json_parse(?) AS ARRAY(JSON))) WITH ORDINALITY AS t(e, o)");
+            case "clickhouse" -> {
+                f.put("JSONExtractArrayRaw(?)", "SELECT a[i] AS data, i - 1 AS ord FROM (SELECT JSONExtractArrayRaw(?)"
+                        + " AS a) ARRAY JOIN arrayEnumerate(a) AS i");
+                f.put("server-side {payload:String}", "SELECT a[i] AS data, i - 1 AS ord FROM (SELECT"
+                        + " JSONExtractArrayRaw({payload:String}) AS a) ARRAY JOIN arrayEnumerate(a) AS i");
+            }
+            case "duckdb" -> {
+                f.put("json_each", "SELECT value AS data, CAST(key AS BIGINT) AS ord FROM json_each(CAST(? AS JSON))");
+                f.put("unnest(json[])", "SELECT u.data, u.ord - 1 AS ord FROM (SELECT unnest(CAST(? AS JSON[])) AS data,"
+                        + " generate_subscripts(CAST(? AS JSON[]), 1) AS ord) u");
+            }
+            case "sqlite" -> f.put("json_each", "SELECT value AS data, key AS ord FROM json_each(?)");
+            default -> throw new IllegalArgumentException(db);
+        }
+        return f;
+    }
+
+    /** Lite's form today, its parts: a session table (make, fills, read, drop) or the statement's own VALUES rows. */
+    static boolean sessionTable() {
+        return !db.equals("trino") && !db.equals("clickhouse");
+    }
+
+    public static void main(String[] a) throws Exception {
+        db = a[0];
+        try (Connection c = a.length > 2 ? DriverManager.getConnection(a[1], a[2], a.length > 3 ? a[3] : null)
+                : DriverManager.getConnection(a[1]); Statement s = c.createStatement()) {
+            System.out.println("0 driver :: " + c.getMetaData().getDriverName() + " " + c.getMetaData().getDriverVersion()
+                    + " :: server " + c.getMetaData().getDatabaseProductVersion());
+            String two = "[{\"t\":\"it's\"},{\"t\":\"a\\nb\",\"n\":1.50,\"o\":{\"k\":\"v\"}},null,7,\"s\"]";
+            for (Map.Entry<String, String> f : forms().entrySet()) {
+                param("A1 " + f.getKey(), c, "SELECT data, ord FROM (" + f.getValue() + ") x ORDER BY ord", two);
+                param("A2 " + f.getKey() + ", empty", c, "SELECT data, ord FROM (" + f.getValue() + ") x ORDER BY ord", "[]");
+            }
+            for (int n : new int[] {2, 1000, 10000, 100000}) {
+                List<String> el = elements(n);
+                String array = "[" + String.join(",", el) + "]";
+                for (Map.Entry<String, String> f : forms().entrySet()) {
+                    param("B n=" + n + " " + f.getKey() + " (" + array.length() + " chars bound)", c,
+                            "SELECT count(*), max(ord) FROM (" + f.getValue() + ") x", array);
+                }
+                if (sessionTable()) {
+                    long t0 = System.nanoTime();
+                    String t = db.equals("duckdb") ? "temp.legend_data_probe3" : db.equals("postgres")
+                            ? "pg_temp.legend_data_probe3" : "legend_data_probe3";
+                    String jsonType = switch (db) {
+                        case "postgres" -> "jsonb";
+                        case "sqlite" -> "TEXT";
+                        default -> "JSON";
+                    };
+                    boolean ok = step("B n=" + n + " table make", s, (db.equals("mysql") || db.equals("mariadb")
+                            ? "CREATE TEMPORARY TABLE " : "CREATE TEMPORARY TABLE ") + t + " (data " + jsonType + ", ord INTEGER)");
+                    for (int from = 0; ok && from < n; from += 1000) {
+                        StringBuilder ins = new StringBuilder("INSERT INTO " + t + " VALUES ");
+                        for (int i = from; i < Math.min(n, from + 1000); i++) {
+                            ins.append(i > from ? ", " : "").append("('").append(lit(el.get(i))).append("', ").append(i).append(')');
+                        }
+                        ok = quiet("B n=" + n + " table fill at " + from, s, ins.toString());
+                    }
+                    query("B n=" + n + " table read", s, "SELECT count(*), max(ord) FROM " + t);
+                    step("B n=" + n + " table drop", s, (db.equals("mysql") || db.equals("mariadb")
+                            ? "DROP TEMPORARY TABLE IF EXISTS " : "DROP TABLE IF EXISTS ") + t);
+                    System.out.println("B n=" + n + " table total :: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+                } else {
+                    StringBuilder v = new StringBuilder();
+                    for (int i = 0; i < n; i++) {
+                        v.append(i > 0 ? ", " : "").append("('").append(lit(el.get(i))).append("', ").append(i).append(')');
+                    }
+                    String inline = db.equals("trino")
+                            ? "SELECT count(*), max(ord) FROM (VALUES " + v + ") AS t(data, ord)"
+                            : "SELECT count(), max(ord) FROM values('data String, ord Int32', " + v + ")";
+                    query("B n=" + n + " inline VALUES (" + inline.length() + " chars)", s, inline);
+                }
+            }
+        }
+    }
+
+    /** n records: a quote, an escaped line break, a number and a decimal in each. */
+    static List<String> elements(int n) {
+        List<String> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add("{\"id\":" + i + ",\"name\":\"n'" + i + "\",\"note\":\"a\\nb\",\"x\":" + i + ".5}");
+        }
+        return out;
+    }
+
+    /** A string literal's body: a quote doubled; a backslash escaped where the database escapes with it. */
+    static String lit(String s) {
+        boolean backslash = db.equals("mysql") || db.equals("mariadb") || db.equals("clickhouse");
+        return (backslash ? s.replace("\\", "\\\\") : s).replace("'", "''");
+    }
+
+    static boolean step(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms " + first(e));
+            return false;
+        }
+    }
+
+    static boolean quiet(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + first(e) + " :: " + sql.length() + " chars");
+            return false;
+        }
+    }
+
+    static void query(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try (ResultSet r = s.executeQuery(sql)) {
+            System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static void param(String what, Connection c, String sql, String payload) {
+        long t0 = System.nanoTime();
+        try (PreparedStatement p = c.prepareStatement(sql)) {
+            int marks = sql.length() - sql.replace("?", "").length();
+            for (int i = 1; i <= Math.max(1, marks); i++) {
+                p.setString(i, payload);
+            }
+            try (ResultSet r = p.executeQuery()) {
+                System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+            }
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static List<List<String>> rows(ResultSet r) throws SQLException {
+        List<List<String>> out = new ArrayList<>();
+        int n = r.getMetaData().getColumnCount();
+        while (r.next() && out.size() < 10) {
+            List<String> row = new ArrayList<>();
+            for (int i = 1; i <= n; i++) {
+                row.add(r.getString(i));
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    static String first(SQLException e) {
+        return String.valueOf(e.getMessage()).split("\n")[0];
+    }
+}
