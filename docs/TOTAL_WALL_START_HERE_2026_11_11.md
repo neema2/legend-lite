@@ -688,10 +688,13 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 - **Open with the user:** the B2d.3 design's R1-R5 (`docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md`
   §5 on `claude/total-wall-b2d3`; the orchestrator recommended R1 upstream's error in `generateTestData` and the default
   only as the server route, R2 the seed's 10 by key, R3 the message without the example keys, R4 a note, R5 faithful
-  cells in the routes' table order); a saved DataCube page holding a presigned link (the user proposed stripping the
-  token and saving the rest with a warning; recommended, with the address saved as needing a fresh link); the
-  BusinessDate corpus test refused after its reload (recommended: track each table's state at planning -- a full
-  replacement ends the swap, a partial write is refused -- designed now, built with B2d.3).
+  cells in the routes' table order); .
+- **A saved DataCube page holding a presigned link:** strip the whole query string and save the rest with a warning, the
+  address saved as needing a fresh link (the user's proposal, "can we strip the presigned and save the rest of report
+  with warning?", agreed 2026-11-11; built by the B3 worker).
+- **The BusinessDate corpus test refused after its reload** (`initDatabase()` after `loadAndTestExecution`): kept refused
+  by name under S192, the read-only reload ("agree"); per-table state tracking at planning (a full replacement ends the
+  swap, a partial write refused) goes to the later list as a follow-up to think about (§10).
 
 ## 6. What remains, in order
 
@@ -981,6 +984,12 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
   `duplicate()`, H2's same in-memory URL; SQLite stays serialized), and (B) meanwhile a bounded wait refused by name
   ("the catalog is busy"). Measurement plan: N concurrent runs registering the same model's rows on one DuckDB and one
   H2 catalog through pooled connections, recording conflicts, blocking and throughput against today's single turn.
+- **The generator's reload, per-table state tracking** (the user, 2026-11-11: "let's put a follow-up to think about
+  state tracking"): after `loadAndTestExecution`, track each table's state at planning -- a statement that fully replaces
+  a swapped table (drop and re-create, or empty and refill) ends its swap; a partial write to a swapped table is refused
+  by name -- so a body that resets the database after the reload (the corpus's
+  `testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates`) runs as upstream's does. Today it is refused by
+  name (S192).
 - **Programs:** P5 (judge parity on H2); P6 (no fallbacks, honest appeals); the corpus and stress burn-down.
 - **PR #81** (timeseries), in its own session.
 
