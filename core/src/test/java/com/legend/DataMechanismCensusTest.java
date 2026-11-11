@@ -110,12 +110,15 @@ class DataMechanismCensusTest {
             // L2, 2026-11-09: the test road's seeds are loads made by the one load planner (LoadPlanner, one identity
             // scheme), and the plan's connection description no longer carries the raw test data. B2a, 2026-11-11: the
             // seeds' steps are the load planner's (LoadPlanner.seeds, sharing the product's declared-data maker,
-            // LoadPlanner.declared), Seeds.planned gone. B2b, 2026-11-11: the referee's copy of a seed is a load (the
-            // edge's RefereeLoad: the plan's steps in the referee's dialect, the rows a content blob), nothing makes or
-            // reads SeedTexts; PENDING still: its file's deletion, which waits on the user's word (the file is not the
-            // session's that emptied it). Its deleted symbols so far read zero (theRemovedSymbolsReadZero)
+            // LoadPlanner.declared), Seeds.planned gone. DELETED by B2b, 2026-11-11: the referee's copy of a seed is a
+            // load (the edge's RefereeLoad: the plan's steps in the referee's dialect, the rows a content blob), and
+            // SeedTexts, emptied by 57e2c445, deleted by its creator (00e67e38)
             new Row("M3", "test data on the test road (the seed Load, SeedTexts, the raw text in a target)",
-                    new Pending("the deletion of SeedTexts.java, unused since B2b, on the user's word")),
+                    new Deleted("B2b", List.of("Seeds.key(", "Seeds.planned(",
+                            "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
+                            "o.optionalString(\"testDataSetupCsv\")", "o.put(\"testDataSetupSqls\"",
+                            "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup", "new SeedTexts(",
+                            "record SeedTexts(", "refereeCopy("))),
             // L2, 2026-11-09 (the orchestrator's decision: option 1, upstream's own harness shape): BOUNDED, not deleted (the M1 tenets audit's finding 2): the
             // harness keeps the upstream-faithful overlay (a synthetic connection carrying the suite's CSV, as
             // legend-engine's service test runner builds one, and RuntimeKey, a cache of overlay contexts by value); its
@@ -208,12 +211,12 @@ class DataMechanismCensusTest {
             // user's yes): the Java test fixtures' own JDBC writes BOUNDED by their guard, not converted -- each file's
             // literal write sends pinned, a total ceiling that only falls; the referee's replay of seed texts moved
             // with B2b (2026-11-11): the mirror replays the referee's copy of the plan's loads, a file's by its own
-            // CSVREAD over the verified bytes (ReplayRefereeFileReadTest), no Java splitting its cells; PENDING still:
-            // the deletion of the splitter's file (base.CsvCells, unused by any load since B2b), on the user's word
+            // CSVREAD over the verified bytes (ReplayRefereeFileReadTest), no Java splitting its cells; DELETED: the
+            // splitter's file (base.CsvCells), emptied by 57e2c445, deleted by its creator (00e67e38)
             new Row("M15-fixtures", "harnesses seed by JDBC (the Java test fixtures' own writes)",
                     new Bounded("B2c", List.of(), "FixtureWriteCensusTest")),
             new Row("M15-referee", "the referee's mirror replays seed texts (the edge's SeedTexts)",
-                    new Pending("the deletion of base.CsvCells and SeedTexts, unused since B2b, on the user's word")),
+                    new Deleted("B2b", List.of("CsvCells.table(", "class CsvCells", "planned.recorded()"))),
             new Row("M16", "parameters, keyed keys, counts, host rows",
                     new Staying("P9: parameters come from the caller alone")),
             // BOUNDED (B2e, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2e and §9's gaps, the user's
@@ -239,15 +242,6 @@ class DataMechanismCensusTest {
     /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets
      *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). */
     static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of(
-            // L2: the seeds' own identity scheme (folded into LoadPlanner.identity), the plan's copy of a connection's
-            // raw test data written and read, and the node a seed was until L1
-            "M3", List.of("Seeds.key(", "Seeds.planned(", "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
-                    "o.optionalString(\"testDataSetupCsv\")", "o.put(\"testDataSetupSqls\"",
-                    "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup",
-                    // B2b, 2026-11-11: the referee's copy of a seed made and planned as texts
-                    "new SeedTexts(", "refereeCopy("),
-            // B2b, 2026-11-11: the referee's copy of a CSV file's rows split in Java, and its text recorded
-            "M15-referee", List.of("CsvCells.table(", "planned.recorded()"),
             // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
             // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
             "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"),
@@ -321,7 +315,8 @@ class DataMechanismCensusTest {
         // L6c: M1 deleted, the fill's statement text, the fill only a ONCE load); 4 -> 3 (2026-11-10, A5: M10 REOPENED
         // -- not a deletion undone, a count corrected: the JSON source frame's literal rows were never deleted, and the
         // design's §5 asks the census kept honest; its row says why and when it moves); 3 -> 4 (2026-11-11, B2a: M10
-        // deleted, the JSON connection's frame its payload's data: load on every road)
-        assertEquals(4, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // deleted, the JSON connection's frame its payload's data: load on every road); 4 -> 6 (2026-11-11, B2b: M3 and
+        // M15-referee deleted, the referee's copy of a seed a load and its files gone, 57e2c445 and 00e67e38)
+        assertEquals(6, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }
