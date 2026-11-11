@@ -26,8 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * THE GENERATOR AS ONE PLANNED STATEMENT (B2d, the user's approved design of 2026-11-10): on every database with an
  * in-memory instance, the planner's one read-only statement answers the same test-data text as the interleaved run
  * that fetched into temporary tables (TestDataGeneratorRun, the test side's, deleted when the test road takes this
- * plan) -- a two-table join, a self-join (one clause per navigation step), a text cell scrubbed (a quote, a comma) and
- * hashed -- and as many fetch texts; it creates nothing on the database.
+ * plan) -- a two-table join, a self-join (one clause per navigation step), a text cell hashed -- and as many fetch
+ * texts; it creates nothing on the database. ONE DIFFERENCE, by the user's ruling 3 (2026-11-10, "faithful to the real
+ * data, line breaks included"; register S191): a text cell holding a comma, a double quote or a line break is one quoted
+ * cell, RFC 4180, a single quote kept, where the run (as upstream's Pure writer) replaced {@code '} with a space,
+ * {@code ,} with {@code ;} and a line break with a space.
  */
 class TestDataPlannerTest {
 
@@ -75,20 +78,38 @@ class TestDataPlannerTest {
                     s.execute(sql);
                 }
             }
-            // a two-table join, its text scrubbed, then hashed
-            for (boolean hash : List.of(false, true)) {
-                assertSame(type, c, ctx, dialect, "|t::Person.all()->project([p|$p.name, p|$p.bicycles.id],"
-                        + " ['n', 'b'])", twoAndThree, hash);
-            }
+            String join = "|t::Person.all()->project([p|$p.name, p|$p.bicycles.id], ['n', 'b'])";
+            // a two-table join, its text written faithfully -- the run's text but for S191's one cell -- then hashed
+            assertSame(type, c, ctx, dialect, join, twoAndThree, false,
+                    run -> run.replace("o neil; jr", "\"o'neil, jr\""));
+            assertSame(type, c, ctx, dialect, join, twoAndThree, true, run -> run);
             // a self-join two steps deep: one clause per navigation step
             assertSame(type, c, ctx, dialect, "|t::Person.all()->project([p|$p.manager.manager.name], ['m'])", four,
-                    false);
+                    false, run -> run);
+            // ruling 3 whole: a comma, a double quote and a line break in one cell, quoted, its quotes doubled; a
+            // single quote kept; a NULL ---null---
+            try (Statement s = c.createStatement()) {
+                s.execute("INSERT INTO PERSON (ID, NAME, MANAGERID) VALUES (5, 'o''neil, \"jr\"\nthe 2nd', 1),"
+                        + " (6, NULL, 1)");
+                s.execute("INSERT INTO BICYCLE (ID, PERSONID) VALUES (14, 5)");
+            }
+            List<TestDataGenerator.TableRowIds> fiveAndSix = List.of(new TestDataGenerator.TableRowIds("default",
+                    "PERSON", List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(5L)),
+                            new TestDataGenerator.RowId(List.of("ID"), List.of(6L)))));
+            String faithful = "default\nPERSON\nID,NAME\n5,\"o'neil, \"\"jr\"\"\nthe 2nd\"\n6,---null---\n-----\n"
+                    + "default\nBICYCLE\nID,PERSONID\n14,5\n-----\n";
+            assertSame(type, c, ctx, dialect, join, fiveAndSix, false, run -> {
+                assertTrue(run.contains("5,o neil; \"jr\" the 2nd\n"), "the run's lossy cell (S191): " + run);
+                return faithful;
+            });
         }
     }
 
-    /** The planned statement's text, run, equals the run's; one fetch text per fetch; no table made. */
+    /** The planned statement's text, run, equals {@code expected} of the run's text; one fetch text per fetch; no table
+     *  made. */
     private static void assertSame(DatabaseType type, Connection c, ModelContext ctx, SqlDialect dialect, String query,
-            List<TestDataGenerator.TableRowIds> ids, boolean hash) throws Exception {
+            List<TestDataGenerator.TableRowIds> ids, boolean hash,
+            java.util.function.UnaryOperator<String> expected) throws Exception {
         TestDataGeneratorRun.Result run = TestDataGeneratorRun.generate(ctx, query(query), "t::M", ids, null, hash,
                 com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), target(type), dialect,
                 (db, view, temps) -> {
@@ -102,7 +123,8 @@ class TestDataPlannerTest {
             assertTrue(r.next(), sql);
             text = r.getString(1);
         }
-        assertEquals(run.dataCsvString(), text, type + " " + query + (hash ? " hashed" : "") + ":\n" + sql);
+        assertEquals(expected.apply(run.dataCsvString()), text, type + " " + query + (hash ? " hashed" : "") + ":\n"
+                + sql);
         assertEquals(run.sqls().size(), planned.fetches().size(), type + " " + query + ": one text per fetch");
         // each fetch's own text runs, read-only
         for (com.legend.sql.SqlQuery fetch : planned.fetches()) {

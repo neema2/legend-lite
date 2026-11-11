@@ -300,9 +300,15 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
        hashed in SQL, NULL as `---null---`, STRING_AGG in order, `-----` between tables.
      - It replaces the design's "one SELECT per table plus a writer". The orchestrator accepted that, as consistent by
        itself and the database doing the work.
-     - It must still show ruling 3's FAITHFUL output: a cell with a comma, double quote or line break quoted per
-       RFC 4180, nothing replaced. Prove it with a test on DuckDB, H2 and SQLite whose data holds all three plus a NULL.
-       A difference from upstream's lossy golden is the faithful-output register row.
+     - Ruling 3's FAITHFUL output, DONE: a cell with a comma, double quote or line break (CR or LF) is quoted per
+       RFC 4180 in SQL, nothing replaced (B2d.1 had scrubbed like upstream; fixed). `TestDataPlannerTest` on DuckDB, H2
+       and SQLite: all three plus a single quote in one cell, and a NULL. The difference from upstream's lossy writer is
+       register row S191.
+     - Upstream's `loadAndTestExecution` (answered 2026-11-11): 30 tests call it, all in `testDataGeneration.pure`; 2
+       have statements after it and 0 of those read a replaced table (one re-creates the database first, one replaces
+       the same tables again). Its reload drops and re-creates EVERY table of the database (`setUpDataSQLs` ->
+       `schemaAndTableSetup(dbConfig, [])`, toDDL.pure:155-177), so "the query over the slice" swaps every table: the
+       slice's for their rows, every other for no row. No test asserts its Boolean.
    - **B2d.2, the test road:**
      - (1) `assertTestData` becomes a database set comparison per table (EXCEPT both ways, plus header equality, the
        expected side a planning constant). Accepted: it is upstream's comparison by other means.

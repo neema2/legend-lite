@@ -50,8 +50,10 @@ class FixtureWriteCensusTest {
     /** The total's ceiling: it only falls. 906 -> 910 (2026-11-11, the B2a audit's S3 and S4): the session table's
      *  drop-safety tests make the USER'S table of its name -- the one row no plan may hold, since the plan's own must
      *  never reach it -- on every in-process database that spells one (DataTableSessionTest, 2) and on Postgres
-     *  (DataDeliveryMatrixPostgresTest, 2). */
-    private static final int CEILING = 910;
+     *  (DataDeliveryMatrixPostgresTest, 2). 910 -> 912 (2026-11-11, B2d, the user's ruling 3, register S191): the
+     *  generator's faithful-output case seeds a cell holding a line break (TestDataPlannerTest, 2), which the test-data
+     *  reader cannot read until B2d.2 makes it quote-aware -- then those two become its CSV and the ceiling falls back. */
+    private static final int CEILING = 912;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -171,6 +173,10 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/testcases/IqParity.java", 1),
             Map.entry("core/src/test/java/com/legend/testcases/PostgresSeed.java", 4),
             Map.entry("core/src/test/java/com/legend/testcases/SqlParity.java", 1),
+            // 2026-11-11, B2d (the user's ruling 3, register S191): the generator's faithful-output case seeds a cell
+            // holding a line break, which the test-data reader (CsvSeed) cannot read until B2d.2 makes it quote-aware;
+            // these two writes become that case's CSV then, and this pin goes
+            Map.entry("core/src/test/java/com/legend/testdatagen/TestDataPlannerTest.java", 2),
             Map.entry("core/src/test/java/com/legend/testplan/RenderedTextTest.java", 2),
             Map.entry("spec/src/test/java/com/legend/harness/ReplayReferee.java", 7),
             Map.entry("testing/src/main/java/com/legend/testing/EmbeddedPostgres.java", 1),

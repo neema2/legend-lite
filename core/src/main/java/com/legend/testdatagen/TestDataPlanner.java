@@ -48,7 +48,7 @@ import static com.legend.testdatagen.TestDataGenerator.storeTable;
  * <p>Every fetch of the query's relation tree is a {@code WITH} clause: the starting rows (the identifiers' rows of the
  * root table, ordered by key, at most 20), then one clause per navigation step joined to its parent's (a self-reference
  * one per step, never recursive SQL), each at most 20 rows by key. Each table's lines are the distinct rows of all its
- * fetches, their text cells hashed or scrubbed IN SQL (which columns are text: the store's declared types, at
+ * fetches, their text cells hashed or written faithfully (RFC 4180 quoting) IN SQL (which columns are text: the store's declared types, at
  * planning), a NULL {@code ---null---}, joined in order by the database ({@code STRING_AGG}); the headers are the
  * store's, planning constants. Nothing is created on the database, so nothing is left after a failure, and no Java
  * reads a row: the database answers the text. {@link Planned#sqls} are the fetches' own texts (each its clauses and
@@ -255,7 +255,7 @@ public final class TestDataPlanner {
     }
 
     /** {@code f}'s lines as one text: its fetches' distinct rows, each cell's display text (a text cell hashed or
-     *  scrubbed, a NULL {@code ---null---}) joined by commas, each line ending in a line break, in the cells' order. */
+     *  quoted where it holds a comma, a quote or a line break, a NULL {@code ---null---}) joined by commas, each line ending in a line break, in the cells' order. */
     private static SqlQuery lines(Walk walk, Fetched f, List<String> cs, boolean hashStrings) {
         SqlQuery union = null;
         for (String cte : f.ctes()) {
@@ -273,10 +273,7 @@ public final class TestDataPlanner {
             } else if (hashStrings) {
                 projs.add(new SqlSelect.Projection(hashString(cell), tc, null));
             } else {
-                // the CSV's scrub (quote, comma, line break), in SQL
-                projs.add(new SqlSelect.Projection(replace(replace(replace(cell,
-                        SqlExpr.Call.of(SqlFn.CHR, new SqlExpr.IntLit(39)), " "), new SqlExpr.StringLit(","), ";"),
-                        SqlExpr.Call.of(SqlFn.CHR, new SqlExpr.IntLit(10)), " "), tc, null));
+                projs.add(new SqlSelect.Projection(faithful(cell), tc, null));
             }
         }
         SqlSelect cells = new SqlSelect(projs, false, new SqlSource.Subselect(distinct, "_u", null), null, List.of(),
@@ -300,7 +297,7 @@ public final class TestDataPlanner {
                 List.of());
     }
 
-    /** Whether a column of {@code t} holds text, which the CSV hashes or scrubs: its declared type, at planning. */
+    /** Whether a column of {@code t} holds text, which the CSV hashes or quotes: its declared type, at planning. */
     static boolean isText(RelationalDataType t) {
         return switch (t) {
             case RelationalDataType.Varchar v -> true;
@@ -437,6 +434,29 @@ public final class TestDataPlanner {
                 SqlExpr.Call.of(SqlFn.RIGHT, h, SqlExpr.Call.of(SqlFn.MOD, length, new SqlExpr.IntLit(5))));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, s),
                 new SqlExpr.NullLit())), tiled);
+    }
+
+    /**
+     * A text cell written FAITHFULLY (the user's ruling 3, 2026-11-10, B_BRIEF §9: "faithful to the real data, line
+     * breaks included"; register S191): as it is, unless it holds a comma, a double quote or a line break (CR or LF),
+     * when it is one quoted cell, RFC 4180 -- its quotes doubled, the whole in quotes; a single quote as it is, nothing
+     * replaced and nothing lost (upstream's Pure writer replaces {@code '} with a space, {@code ,} with {@code ;} and a
+     * line break with a space). The database decides each cell, in SQL; a NULL stays NULL ({@code ---null---} after).
+     */
+    private static SqlExpr faithful(SqlExpr cell) {
+        SqlExpr quoted = holds(cell, new SqlExpr.StringLit(","));
+        for (SqlExpr special : List.of(new SqlExpr.StringLit("\""), SqlExpr.Call.of(SqlFn.CHR, new SqlExpr.IntLit(10)),
+                SqlExpr.Call.of(SqlFn.CHR, new SqlExpr.IntLit(13)))) {
+            quoted = SqlExpr.Call.of(SqlFn.OR, quoted, holds(cell, special));
+        }
+        SqlExpr doubled = new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit("\""),
+                replace(cell, new SqlExpr.StringLit("\""), "\"\""), new SqlExpr.StringLit("\"")), SqlTyping.UNKNOWN);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(quoted, doubled)), cell);
+    }
+
+    /** Whether {@code cell} holds {@code text}. */
+    private static SqlExpr holds(SqlExpr cell, SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.STRPOS, cell, text), new SqlExpr.IntLit(0));
     }
 
     private static SqlExpr replace(SqlExpr s, SqlExpr from, String to) {
