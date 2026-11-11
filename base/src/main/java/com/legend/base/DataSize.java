@@ -6,8 +6,8 @@ package com.legend.base;
 /**
  * The size a load admits: a file of more megabytes than its load's limit is refused, never cut, in upstream's words
  * (legend-pure's {@code CsvReader.readCsv}). Its own class (the A checkpoint's tenets audit, 4b, 2026-11-10): the run
- * checks a file's size before its database reads it, and reaches no parser of its cells ({@link CsvCells}, the edge's
- * and the planner's), which {@code ArchitectureTest.execParsesNoData} holds.
+ * checks a file's size before its database reads it, and reaches no parser of its cells (there is none since B2b: a
+ * database reads a file itself), which {@code ArchitectureTest.execParsesNoData} holds.
  */
 public final class DataSize {
 

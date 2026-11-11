@@ -51,18 +51,23 @@ class SeedRefereeCopyTest {
         csv.append("\\n-----\\ndefault\\nU\\nID\\n7\\n");
         CsvSeed.Planned planned = planned(csv.toString());
         List<ExecutionPlan.LoadStep> steps = planned.steps().steps();
-        assertEquals(steps.size(), planned.refereeCopy().size(), "one referee text per step: " + planned.refereeCopy());
+        LoadSteps copy = planned.refereeLoad();
+        assertEquals(steps.size(), copy.steps().size(), "one step of the referee's copy per step: " + copy.steps());
         ExecutionPlan.LoadStep.Statements tBlob = (ExecutionPlan.LoadStep.Statements) steps.stream()
                 .filter(ExecutionPlan.LoadStep.Statements.class::isInstance).findFirst().orElseThrow();
         List<String> inserts = DataRef.Statements.decode(planned.steps().content().get(tBlob.ref().digest()));
         assertEquals(3, inserts.size(), "2,001 rows, three inserts of at most 1,000");
         assertTrue(inserts.get(0).contains("(1, 'n1', DATE '2020-01-02', FALSE)"), inserts.get(0));
         int at = steps.indexOf(tBlob);
-        String copy = planned.refereeCopy().get(at);
-        assertEquals(3, copy.split(";\\s*\n|;\\s*$").length, "the referee's copy of the blob: its three inserts");
-        // the step after the blob is U's DDL, and its text is U's
+        // the referee's copy of the blob: a blob of its own, its three inserts the referee's spelling
+        ExecutionPlan.LoadStep.Statements refereeBlob = assertInstanceOf(ExecutionPlan.LoadStep.Statements.class,
+                copy.steps().get(at));
+        assertEquals(3, DataRef.Statements.decode(copy.content().get(refereeBlob.ref().digest())).size(),
+                "the referee's copy of the blob: its three inserts");
+        // the step after the blob is U's DDL, and its copy is U's
         assertInstanceOf(ExecutionPlan.LoadStep.Statement.class, steps.get(at + 1));
-        assertTrue(planned.refereeCopy().get(at + 1).contains("U"), planned.refereeCopy().get(at + 1));
+        String uCopy = assertInstanceOf(ExecutionPlan.LoadStep.Statement.class, copy.steps().get(at + 1)).sql();
+        assertTrue(uCopy.contains("U"), uCopy);
     }
 
     @Test

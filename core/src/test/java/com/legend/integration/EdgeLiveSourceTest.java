@@ -46,7 +46,8 @@ class EdgeLiveSourceTest {
                         ? lf.body() : List.of(parsed);
         var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(List.of()), ctx);
         com.legend.sql.dialect.RawSqlBoundary.Recorder recorder = new com.legend.sql.dialect.RawSqlBoundary.Recorder();
-        ExecuteOptions options = ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder), DataStores.none());
+        ExecuteOptions options = ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, DataStores.none()),
+                DataStores.none());
         try (Connection c = DataDeliveryMatrixTest.session(PLATFORM)) {
             Collector edged = new Collector();
             TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), "x::RT",

@@ -207,15 +207,16 @@ class ServiceTestProvisionKeyTest {
     }
 
     /** The same guard under the compatibility edge (the M1 correctness audit's C2, 2026-11-09): the suite's data reaches
-     *  the plan as a load and, by name, in the edge's own record of a seed's statements -- {@code SeedTexts}, the
-     *  referee's copy, census row M15 (PENDING until L8 replays the plan's loads) -- and nowhere else. */
+     *  the plan as a load and, by digest, in the edge's own record of a seed -- {@code RefereeLoad}, the referee's copy
+     *  of the load, its rows a content blob (B2b, 2026-11-11: until then {@code SeedTexts}, texts) -- and nowhere
+     *  else. */
     @org.junit.jupiter.api.Test
-    void underTheEdgeTheSuitesDataIsALoadAndTheRefereesSeedTextsAlone() {
+    void underTheEdgeTheSuitesDataIsALoadAndTheRefereesCopyAlone() {
         String json;
         try (ServiceTestRunner r = runner(Compiler.compileModel(MODEL))) {
             json = r.planJson(service("local::ServiceA"), "suiteA", "readsA", com.legend.ExecuteOptions.recording(
-                    new com.legend.edge.CompatEdge(new com.legend.sql.dialect.RawSqlBoundary.Recorder()),
-                    com.legend.executionplan.DataStores.none()));
+                    new com.legend.edge.CompatEdge(new com.legend.sql.dialect.RawSqlBoundary.Recorder(),
+                            com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none()));
         }
         com.legend.json.Json.Obj plan = (com.legend.json.Json.Obj) com.legend.json.Json.parse(json,
                 new com.legend.json.Json.Config(com.legend.executionplan.PlanJson.MAX_DEPTH));
@@ -223,12 +224,12 @@ class ServiceTestProvisionKeyTest {
         find(plan, "", false, where);
         org.junit.jupiter.api.Assertions.assertTrue(where.stream().anyMatch(ServiceTestProvisionKeyTest::inLoadSteps),
                 json);
-        // the edge's record alone beside the loads: its seed texts, pinned to that field (the re-audit's small item,
+        // the edge's record alone beside the loads: its copy's bundle, pinned to that field (the re-audit's small item,
         // 2026-11-09: until then any string under the extensions passed)
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), where.stream()
-                .filter(w -> !inLoadSteps(w) && !(w.startsWith("outside:/extensions/byStep/") && w.contains("/texts/")))
-                .toList(), "the suite's row outside a load's steps and the edge's seed texts: " + json);
-        org.junit.jupiter.api.Assertions.assertTrue(json.contains("\"seedTexts\""), "the edge's seed texts: " + json);
+                .filter(w -> !inLoadSteps(w) && !(w.startsWith("outside:/extensions/byStep/") && w.contains("/content/")))
+                .toList(), "the suite's row outside a load's steps and the edge's copy's bundle: " + json);
+        org.junit.jupiter.api.Assertions.assertTrue(json.contains("\"refereeLoad\""), "the edge's copy: " + json);
     }
 
     /** Whether {@code where} (a {@link #find} path) is inside a load node's steps. */

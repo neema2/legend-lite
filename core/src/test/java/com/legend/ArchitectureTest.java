@@ -1786,14 +1786,16 @@ final class ArchitectureTest {
      * <strong>No exec class parses data</strong> (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5; the A checkpoint's tenets
      * audit's 4b, 2026-11-10: the guard the design named was not built). A load's data reaches the database as the
      * plan's statements or as a file its database reads; exec delivers bytes and statements and reads none of the data's
-     * cells: no exec class depends on the CSV parser ({@code base.CsvCells}, the planner's and the edge's). Its one reach
-     * until then, the size check ({@code DataLoads.stage}), moved to {@code base.DataSize}, which parses nothing.
+     * cells: no exec class depends on the CSV parser ({@code base.CsvCells}, named here, never referenced: no load reads
+     * it since B2b, 2026-11-11, and its file is deleted by its creator's commit, so the rule holds whether or not it is
+     * there). Its one reach until then, the size check ({@code DataLoads.stage}), moved to {@code base.DataSize}, which
+     * parses nothing.
      */
     @Test
     void execParsesNoData() {
         noClasses()
             .that().resideInAPackage("com.legend.exec..")
-            .should().dependOnClassesThat().belongToAnyOf(com.legend.base.CsvCells.class)
+            .should().dependOnClassesThat().haveFullyQualifiedName("com.legend.base.CsvCells")
             .as("exec parses no data: a load's cells are the database's to read (design §5)")
             .check(CORE_PROD_CLASSES);
     }

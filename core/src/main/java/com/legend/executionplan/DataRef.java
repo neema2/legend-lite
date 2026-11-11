@@ -90,9 +90,9 @@ public record DataRef(Namespace namespace, String name, String digest, long size
     }
 
     /**
-     * Comma-separated text, UTF-8, its first record a header (the user's ruling, 2026-11-09, decision 6): the cells as
-     * {@code com.legend.base.CsvCells} splits them, which is upstream's rule (legend-pure's {@code loadCsvToDbTable}:
-     * Commons CSV 1.5's {@code EXCEL}, an empty cell NULL). A record whose width is not the header's is refused, never
+     * Comma-separated text, UTF-8, its first record a header (the user's ruling, 2026-11-09, decision 6): the cells by
+     * upstream's rule (legend-pure's {@code loadCsvToDbTable}: Commons CSV 1.5's {@code EXCEL}, an empty cell NULL),
+     * read by the database's own reader (A3; the referee's too since B2b). A record whose width is not the header's is refused, never
      * padded or cut. Its options are a small closed set, each added when a real file needs one with the default's
      * value as its default (decision 6); today the delimiter and the quote, each the default's.
      *

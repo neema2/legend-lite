@@ -1888,8 +1888,8 @@ class BodyRouterParityTest {
             // a run under the compatibility rules is handed the edge, which records the ledger; lite's own records
             // none (the plan-as-data design's step 8, 2026-11-08: an edge implies the compatibility rules)
             ExecuteOptions options = (COMPAT.get()
-                    ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder),
-                            com.legend.executionplan.DataStores.none())
+                    ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder,
+                            com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
                     : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's

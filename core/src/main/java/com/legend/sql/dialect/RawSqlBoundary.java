@@ -34,8 +34,67 @@ public final class RawSqlBoundary {
 
     /** One EXECUTED raw statement: the corpus's own H2 text and whether
      * it produced a result set (a query) — the executor's fact, never a
-     * reading of the text. */
-    public record Raw(String sql, boolean query) {
+     * reading of the text. {@code read}: where the entry is a FILE'S LOAD
+     * on the referee's own database (B2b, 2026-11-11), the file's verified
+     * bytes and the statements that read a copy of them, each {@code ?} the
+     * copy's path, as the plan's load reads its own copy ({@code sql} then
+     * their text, joined, for the ledger's reader); none for a statement. */
+    public record Raw(String sql, boolean query, @com.legend.base.Nullable FileRead read) {
+        public Raw {
+            if (read != null && query) {
+                throw new IllegalArgumentException("a file's load answers no rows: " + sql);
+            }
+        }
+
+        public Raw(String sql, boolean query) {
+            this(sql, query, null);
+        }
+    }
+
+    /**
+     * A FILE'S LOAD AS THE REFEREE REPLAYS IT (B2b, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): the bytes of
+     * the file the plan's load read, verified against its reference by the edge, and the referee's own statements that
+     * read a copy of them ({@code statements}, each {@code ?} the copy's path; the referee's H2 {@code CSVREAD}), then
+     * {@code after}, which undo what they set, run on every exit. The referee writes the copy and deletes it: no Java
+     * reads the file's cells (until B2b the edge split them, {@code base.CsvCells}, census M15).
+     */
+    public record FileRead(byte[] bytes, List<String> statements, List<String> after) {
+        public FileRead {
+            bytes = bytes.clone();
+            statements = List.copyOf(statements);
+            after = List.copyOf(after);
+            if (statements.isEmpty()) {
+                throw new IllegalArgumentException("a file's load of no statement");
+            }
+        }
+
+        @Override
+        public byte[] bytes() {
+            return bytes.clone();
+        }
+
+        /** The statements, then the undo, as one text (the ledger's reader's). */
+        public String text() {
+            List<String> all = new ArrayList<>(statements);
+            all.addAll(after);
+            return String.join(";\n", all);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof FileRead f && java.util.Arrays.equals(bytes, f.bytes)
+                    && statements.equals(f.statements) && after.equals(f.after);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(java.util.Arrays.hashCode(bytes), statements, after);
+        }
+
+        @Override
+        public String toString() {
+            return "FileRead[" + bytes.length + " bytes, " + text() + "]";
+        }
     }
 
     /** THE RAW-SQL LEDGER (Phase 2b, batch 137): an OBJECT the caller
@@ -62,6 +121,12 @@ public final class RawSqlBoundary {
             entries.add(new Raw(sql, query));
         }
 
+        /** A file's load ran on the plan's target: the referee replays {@code read} -- its own statements over a
+         *  copy of the verified bytes -- where it replays a seed (B2b). */
+        public void recordRead(FileRead read) {
+            entries.add(new Raw(read.text(), false, read));
+        }
+
         public List<Raw> entries() {
             return java.util.Collections.unmodifiableList(entries);
         }
@@ -69,8 +134,8 @@ public final class RawSqlBoundary {
         /** The NON-QUERY statements only — the referee's seeds: a query
          * never seeds, and this subsequence is append-only across a
          * session's tests, so the mirror's cursor indexes it stably. */
-        public List<String> seeds() {
-            return entries.stream().filter(r -> !r.query()).map(Raw::sql).toList();
+        public List<Raw> seeds() {
+            return entries.stream().filter(r -> !r.query()).toList();
         }
 
         /** Ledger position for a transactional attempt: entries and seeds. */

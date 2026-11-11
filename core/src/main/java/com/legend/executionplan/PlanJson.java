@@ -734,6 +734,33 @@ public final class PlanJson {
         return ref;
     }
 
+    /** A load step's JSON, as a plan's load writes it: the compatibility edge's record of the referee's copy of a load
+     *  writes its steps so (B2b, 2026-11-11). */
+    public static Map<String, Object> loadStepJson(LoadStep step) {
+        return setupStep(step);
+    }
+
+    /** A load step read from {@link #loadStepJson}'s JSON. */
+    public static LoadStep loadStepOf(Json.Obj o) {
+        return readLoadStep(o);
+    }
+
+    /** A load's bundle read: each text by its digest, a text whose bytes are not its digest refused by name here, where
+     *  an untrusted plan is read (the portable SHA-256: the planner runs on WebAssembly, which has no MessageDigest); the
+     *  load refuses a bundle that lacks a digest its steps read. {@code what} names the bundle's holder. */
+    public static Map<String, String> contentOf(Json.@com.legend.base.Nullable Obj bundle, String what) {
+        Map<String, String> content = new LinkedHashMap<>();
+        if (bundle != null) {
+            bundle.fields().forEach((digest, text) -> content.put(digest, ((Json.Str) text).value()));
+        }
+        content.forEach((digest, text) -> {
+            if (!com.legend.cache.Hash.ofUtf8(text).hex().equals(digest)) {
+                throw new IllegalArgumentException(what + "'s bundle holds bytes that are not their digest " + digest);
+            }
+        });
+        return content;
+    }
+
     private static Map<String, Object> setupStep(LoadStep step) {
         Map<String, Object> o = new LinkedHashMap<>();
         switch (step) {
@@ -918,20 +945,8 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("steps").items()) {
                     steps.add(readLoadStep((Json.Obj) n));
                 }
-                Map<String, String> content = new LinkedHashMap<>();
-                Json.Obj bundle = o.getObjOr(CONTENT, null);
-                if (bundle != null) {
-                    bundle.fields().forEach((digest, text) -> content.put(digest, ((Json.Str) text).value()));
-                }
-                // a text whose bytes are not its digest refused by name here, where an untrusted plan is read (the
-                // portable SHA-256: the planner runs on WebAssembly, which has no MessageDigest); the load refuses a
-                // bundle that lacks a digest its steps read
-                content.forEach((digest, text) -> {
-                    if (!com.legend.cache.Hash.ofUtf8(text).hex().equals(digest)) {
-                        throw new IllegalArgumentException("the load " + o.getString("identity") + "'s bundle holds"
-                                + " bytes that are not their digest " + digest);
-                    }
-                });
+                Map<String, String> content = contentOf(o.getObjOr(CONTENT, null), "the load "
+                        + o.getString("identity"));
                 yield new ExecutionPlan.Load(o.getString("identity"),
                         ExecutionPlan.Load.Cadence.valueOf(o.getString("cadence")), steps,
                         readTarget(o.getObj("target")), content);

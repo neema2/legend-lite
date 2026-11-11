@@ -838,8 +838,19 @@ class DataDeliveryMatrixTest {
                         com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE));
                 try (Connection c = session(DatabaseType.H2)) {
                     try (java.sql.Statement st = c.createStatement()) {
-                        for (String statement : planned.refereeCopy()) {
-                            st.execute(statement);
+                        com.legend.setup.LoadSteps refereeCopy = planned.refereeLoad();
+                        for (com.legend.executionplan.ExecutionPlan.LoadStep step : refereeCopy.steps()) {
+                            switch (step) {
+                                case com.legend.executionplan.ExecutionPlan.LoadStep.Statement s -> st.execute(s.sql());
+                                case com.legend.executionplan.ExecutionPlan.LoadStep.Statements s -> {
+                                    for (String insert : com.legend.executionplan.DataRef.Statements.decode(
+                                            refereeCopy.content().get(s.ref().digest()))) {
+                                        st.execute(insert);
+                                    }
+                                }
+                                case com.legend.executionplan.ExecutionPlan.LoadStep.File f ->
+                                        throw new IllegalStateException("a seed's copy reads no file: " + f.ref());
+                            }
                         }
                     }
                     return readOn(c, TYPES_MODEL.formatted(DatabaseType.H2, TestBackends.of(DatabaseType.H2)

@@ -74,10 +74,11 @@ final class TestKinds implements ProgramKinds {
     /** Each effect step this program planned, its segment and ledger texts beside it (M5): beside the plan, never in
      *  it. */
     private final Map<ExecutionPlan.Node, TestDoor.Effect> effects = new IdentityHashMap<>();
-    /** Each seed step this program planned, its statements' ledger texts beside it (M5). */
+    /** Each seed step this program planned, the referee's copy of its load beside it (M5; a load since B2b). */
     // each load's referee texts, made only when an edge asks for them (the M1 tenets audit's finding 8, 2026-11-09: a
     // file's rows were rendered as the referee's insert for every plan, with no edge too)
-    private final Map<ExecutionPlan.Node, java.util.function.Supplier<List<String>>> seeds = new IdentityHashMap<>();
+    private final Map<ExecutionPlan.Node, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds =
+            new IdentityHashMap<>();
     /** The places in the program's sequence of the frame lets' eager-run steps this program planned (M9): the walk
      *  sends a frame's run under its own statement origin (LET), which the plan does not say; the router's sink names
      *  it to the runner. By place, not identity: the finished plan rebuilds a check whose stamp nothing reads. */
@@ -270,8 +271,8 @@ final class TestKinds implements ProgramKinds {
                 lazy ? stamp : null));
     }
 
-    /** The bytes the test-input resource {@code path} names (a Pure resource path: its leading {@code /} the
-     *  resources' root) and their reference, read once at planning for the digest; refused by name where the run was
+    /** The reference of the test-input resource {@code path} names (a Pure resource path: its leading {@code /} the
+     *  resources' root), its bytes read once at planning for the digest; refused by name where the run was
      *  given no store for resources or the file is missing (before anything is sent). */
     private Resource resource(String path) {
         String name = path.startsWith("/") ? path.substring(1) : path;
@@ -289,11 +290,12 @@ final class TestKinds implements ProgramKinds {
         }
         return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
                 name, com.legend.executionplan.DataStores.sha256(bytes), bytes.length,
-                com.legend.executionplan.DataRef.Csv.DEFAULT), bytes);
+                com.legend.executionplan.DataRef.Csv.DEFAULT));
     }
 
-    /** A resource's reference and the bytes it digests. */
-    private record Resource(com.legend.executionplan.DataRef ref, byte[] bytes) {
+    /** A resource's reference: the bytes it digests are read by the run, verified there (B2b: the referee's copy is
+     *  the same file, so the planner keeps none of them). */
+    private record Resource(com.legend.executionplan.DataRef ref) {
     }
 
     /** Each {@code size(execute(...))} in {@code statement} (BodyClass.eagerInlineExecute): the execute's query run
@@ -410,7 +412,7 @@ final class TestKinds implements ProgramKinds {
         program.add(setup);
         // the referee's own copy, written in its dialect (A2), the edge's data -- when an edge asks for it (the A
         // checkpoint's tenets audit, 8)
-        seeds.put(setup, planned::refereeCopy);
+        seeds.put(setup, planned::refereeLoad);
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer
@@ -507,8 +509,8 @@ final class TestKinds implements ProgramKinds {
         return Collections.unmodifiableMap(effects);
     }
 
-    /** The seed steps this program planned, each with its statements' ledger texts. */
-    Map<ExecutionPlan.Node, java.util.function.Supplier<List<String>>> seeds() {
+    /** The seed steps this program planned, each with the referee's copy of its load (B2b). */
+    Map<ExecutionPlan.Node, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds() {
         return Collections.unmodifiableMap(seeds);
     }
 
@@ -521,13 +523,13 @@ final class TestKinds implements ProgramKinds {
      *  ({@code AT_STEP}), the referee's copy of its rows beside it as a seed's (a file of no row: the database reads
      *  none). Its identity: the file's digest and the statements it is delivered by. */
     private void load(ProgramState program, Prepared.Effect e, Resource resource) {
-        EffectPlanner.PlannedLoad planned = EffectPlanner.loadCsv(e.call(), resource.ref(), resource.bytes(),
+        EffectPlanner.PlannedLoad planned = EffectPlanner.loadCsv(e.call(), resource.ref(),
                 e.body(), e.env().withDialect(program.dialect()));
         close(program);
         ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                 List.of(planned.step()), program.target());
         program.add(load);
-        seeds.put(load, () -> List.of(planned.recorded().get()));
+        seeds.put(load, () -> com.legend.setup.LoadSteps.of(List.of(planned.referee().get())));
     }
 
     /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)

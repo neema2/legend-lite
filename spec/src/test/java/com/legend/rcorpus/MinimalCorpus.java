@@ -595,8 +595,10 @@ public final class MinimalCorpus {
             referee = new com.legend.harness.ReplayReferee(recorder);
             // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
             // 2026-11-09): a CSV load's plan names its file by reference and digest, the run reads it from here
-            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder),
-                            com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()))
+            // the same stores the edge's: the referee's copy of a CSV load reads the bytes the plan's load read (B2b)
+            com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
+                    Corpus.RELATIONAL.getParent().getParent());
+            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
                     // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
                     // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                     .withEngineCompat(true);

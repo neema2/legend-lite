@@ -154,10 +154,13 @@ public final class EffectPlanner {
         };
     }
 
-    /** A CSV file's load as the program runs it ({@code step}), with the text the replay ledger records for it
-     *  ({@code recorded}: the referee's insert of the file's rows -- the referee's copy of the data, as every seed's is
-     *  until the design's L8 replays the plan's loads), or none where the file holds no row (no load is planned). */
-    public record PlannedLoad(ExecutionPlan.LoadStep.File step, java.util.function.Supplier<String> recorded) {
+    /** A CSV file's load as the program runs it ({@code step}), with THE REFEREE'S COPY of it ({@code referee}, B2b,
+     *  2026-11-11): the same file by the same reference, read by the replay referee's own H2 ({@code CSVREAD}), as
+     *  every seed's copy is the plan's load in the referee's dialect -- written when an edge asks for it (a format its
+     *  reader cannot take refused by name there). Until B2b the referee's copy was the file's cells, split in Java
+     *  ({@code base.CsvCells}, census M15). */
+    public record PlannedLoad(ExecutionPlan.LoadStep.File step,
+            java.util.function.Supplier<ExecutionPlan.LoadStep.File> referee) {
     }
 
     /**
@@ -165,12 +168,11 @@ public final class EffectPlanner {
      * 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L1): the file by its reference {@code ref} -- never its path, never
      * its rows -- delivered as the program's database takes it ({@link SqlDialect#csvLoad}); the table the store
      * navigation the call names, its columns in declared order, the file's cells loaded positionally after its header
-     * (legend-engine's native drops the header and inserts each row into the table's columns). {@code bytes} are the
-     * bytes {@code ref} digests, read at planning for the reference: the referee's copy is their rows, split only when
-     * an edge asks.
+     * (legend-engine's native drops the header and inserts each row into the table's columns); the referee's copy the
+     * same file read by its own H2, written only when an edge asks.
      */
     public static PlannedLoad loadCsv(TypedNativeCall call,
-            com.legend.executionplan.DataRef ref, byte[] bytes, List<TypedSpec> body, PlanEnv env) {
+            com.legend.executionplan.DataRef ref, List<TypedSpec> body, PlanEnv env) {
         var table = com.legend.compiler.spec.typed.StoreElementIdentity.tableRef(call.args().get(1),
                 x -> peelToOne(x, body));
         if (table == null) {
@@ -212,15 +214,21 @@ public final class EffectPlanner {
             throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
                     + qualified + "': " + e.getMessage());
         }
-        // the referee's copy of the rows (the compatibility edge's replay, census M15 until B2b, which replays the
-        // referee's own H2 copy of the plan's loads), split from the bytes only when an edge asks for it: the edge's
-        // data, never the product's path (base.CsvCells' one caller since A3)
+        // the referee's copy (B2b): the same file, read by the replay referee's own H2 with its CSVREAD and record
+        // checks (the referee's H2 2.1.214 runs H2's spelling as written, measured 2026-11-11), the edge's data, never
+        // the product's path -- written when an edge asks, a format H2's reader cannot take refused by name there
         return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Reads(
-                reads.statements(), reads.after()), SIZE_LIMIT_MEGABYTES),
-                () -> refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns, quoted,
-                        columns.size(), com.legend.base.CsvCells.table(new String(bytes,
-                                java.nio.charset.StandardCharsets.UTF_8), csv.delimiter(), csv.quote(), columns.size()))
-                        .values()));
+                reads.statements(), reads.after()), SIZE_LIMIT_MEGABYTES), () -> {
+                    SqlDialect.CsvLoad referee;
+                    try {
+                        referee = refereeDdl().csvLoad(load);
+                    } catch (com.legend.sql.DialectCapability e) {
+                        throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the referee's copy of the CSV"
+                                + " file '" + ref.name() + "' for table '" + qualified + "': " + e.getMessage());
+                    }
+                    return new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Reads(
+                            referee.statements(), referee.after()), SIZE_LIMIT_MEGABYTES);
+                });
     }
 
     /** The largest file {@code loadCsvToDbTable} loads: upstream's, in both its natives (legend-pure 5.99.0:

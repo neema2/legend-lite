@@ -181,7 +181,7 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
      * full recorded history (extensions + seeds). {@code work} runs on
      * the seeded statement either way.
      */
-    static <T> T onReferee(java.util.@com.legend.base.Nullable List<String> seeds,
+    static <T> T onReferee(java.util.@com.legend.base.Nullable List<com.legend.sql.dialect.RawSqlBoundary.Raw> seeds,
             Session session, Work<T> work) {
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
@@ -200,23 +200,16 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
         try (Connection referee = com.legend.testbackend.TestBackends.referee()
                         .openReferee(session.freshDbName() + id);
                 Statement st = referee.createStatement()) {
-            for (String seed : seeds == null ? List.<String>of() : seeds) {
-                for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                    if (one.isBlank()) {
-                        continue;
-                    }
-                    if (session.seedFailPrefix() == null) {
-                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
-                        st.execute(one);
-                    } else {
-                        try {
-                            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
-                            st.execute(one);
-                        } catch (SQLException e) {
-                            throw new RefereeVerify.Unverifiable(
-                                    session.seedFailPrefix()
-                                            + e.getMessage(), e, true);
-                        }
+            for (com.legend.sql.dialect.RawSqlBoundary.Raw seed : seeds == null ? List.<com.legend.sql.dialect.RawSqlBoundary.Raw>of() : seeds) {
+                if (session.seedFailPrefix() == null) {
+                    replay(st, seed);
+                } else {
+                    try {
+                        replay(st, seed);
+                    } catch (SQLException e) {
+                        throw new RefereeVerify.Unverifiable(
+                                session.seedFailPrefix()
+                                        + e.getMessage(), e, true);
                     }
                 }
             }
@@ -230,23 +223,70 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
     /** The mirror's incremental seed replay (verify + the TDG replay
      * share it — never a twin). */
     private static void applyPendingSeeds(MirrorState mirror, Statement st,
-            java.util.@com.legend.base.Nullable List<String> seeds) {
-        List<String> ledger = seeds == null ? List.of() : seeds;
+            java.util.@com.legend.base.Nullable List<com.legend.sql.dialect.RawSqlBoundary.Raw> seeds) {
+        List<com.legend.sql.dialect.RawSqlBoundary.Raw> ledger = seeds == null ? List.of() : seeds;
         while (mirror.applied < ledger.size()) {
-            String seed = ledger.get(mirror.applied);
-            for (String one : seed.split(";\\s*\n|;\\s*$")) {
+            try {
+                replay(st, ledger.get(mirror.applied));
+            } catch (SQLException e) {
+                mirror.poison = "seed replay: " + e.getMessage();
+                throw new RefereeVerify.Unverifiable(mirror.poison, e, true);
+            }
+            mirror.applied++;
+        }
+    }
+
+    /**
+     * One ledger entry replayed on the referee: a statement's text (each
+     * of its statements, split where a line ends in {@code ;}), or a
+     * FILE'S LOAD (B2b, 2026-11-11): the file's verified bytes written to
+     * a copy of the referee's own, its statements sent with each {@code ?}
+     * the copy's path (H2's {@code CSVREAD} reads it, as the plan's own
+     * database read its copy), the undo run on every exit, the copy
+     * deleted. No Java reads the file's cells.
+     */
+    private static void replay(Statement st, com.legend.sql.dialect.RawSqlBoundary.Raw seed) throws SQLException {
+        com.legend.sql.dialect.RawSqlBoundary.FileRead read = seed.read();
+        if (read == null) {
+            for (String one : seed.sql().split(";\\s*\n|;\\s*$")) {
                 if (one.isBlank()) {
                     continue;
                 }
-                try {
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
+                st.execute(one);
+            }
+            return;
+        }
+        java.nio.file.Path copy;
+        try {
+            copy = java.nio.file.Files.createTempFile("legend-referee-", ".csv");
+            java.nio.file.Files.write(copy, read.bytes());
+        } catch (java.io.IOException e) {
+            throw new SQLException("the referee's copy of a file: " + e.getMessage(), e);
+        }
+        try {
+            try {
+                for (String one : read.statements()) {
                     com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
-                    st.execute(one);
-                } catch (SQLException e) {
-                    mirror.poison = "seed replay: " + e.getMessage();
-                    throw new RefereeVerify.Unverifiable(mirror.poison, e, true);
+                    try (java.sql.PreparedStatement ps = st.getConnection().prepareStatement(one)) {
+                        if (ps.getParameterMetaData().getParameterCount() == 1) {
+                            ps.setString(1, copy.toString());
+                        }
+                        ps.execute();
+                    }
+                }
+            } finally {
+                for (String undo : read.after()) {
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
+                    st.execute(undo);
                 }
             }
-            mirror.applied++;
+        } finally {
+            try {
+                java.nio.file.Files.deleteIfExists(copy);
+            } catch (java.io.IOException e) {
+                throw new SQLException("the referee's copy of a file, not deleted: " + e.getMessage(), e);
+            }
         }
     }
 
@@ -256,7 +296,7 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
     // =================================================================
 
     public static @com.legend.base.Nullable String verify(
-            java.util.@com.legend.base.Nullable List<String> seeds,
+            java.util.@com.legend.base.Nullable List<com.legend.sql.dialect.RawSqlBoundary.Raw> seeds,
             java.util.@com.legend.base.Nullable List<String> extraSeeds,
             String goldenSql,
             TypedSide ours,
@@ -289,13 +329,15 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
             });
         }
         // FRESH path: per-verify extras append to the replayed history
-        java.util.List<String> all = seeds;
+        java.util.List<com.legend.sql.dialect.RawSqlBoundary.Raw> all = seeds;
         if (extraSeeds != null && !extraSeeds.isEmpty()) {
             all = new java.util.ArrayList<>(seeds == null
                     ? List.of() : seeds);
-            all.addAll(extraSeeds);
+            for (String x : extraSeeds) {
+                all.add(new com.legend.sql.dialect.RawSqlBoundary.Raw(x, false));
+            }
         }
-        java.util.List<String> allSeeds = all;
+        java.util.List<com.legend.sql.dialect.RawSqlBoundary.Raw> allSeeds = all;
         return onReferee(allSeeds, VERIFY_SESSION,
                 st -> RefereeVerify.compareFrame(st, goldenSql, ours, enumDecode,
                         graphEnumProp, facts));
@@ -309,7 +351,7 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
      * PER-VERIFY synthesized statements (tempTableForIn derivations)
      * that must NEVER advance the family mirror's incremental cursor. */
     public static @com.legend.base.Nullable String verifyAuto(Connection session,
-            java.util.@com.legend.base.Nullable List<String> seeds,
+            java.util.@com.legend.base.Nullable List<com.legend.sql.dialect.RawSqlBoundary.Raw> seeds,
             java.util.@com.legend.base.Nullable List<String> extraSeeds,
             String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
@@ -354,7 +396,7 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
      * match; text = REAL divergence; Unverifiable = the caller's
      * counted decline. */
     public static @com.legend.base.Nullable String tdgSqlReplay(
-            java.util.@com.legend.base.Nullable List<String> seeds,
+            java.util.@com.legend.base.Nullable List<com.legend.sql.dialect.RawSqlBoundary.Raw> seeds,
             String goldenSql, Connection session, String ourSql) {
         if (!RefereeVerify.ready()) {
             throw new RefereeVerify.Unverifiable("h2 driver not on classpath",
@@ -416,7 +458,7 @@ public final class ReplayReferee implements com.legend.testexec.SqlReplayReferee
      * independent of our side. {@code ancestors} = {tempName, goldenSql}
      * pairs root-first. */
     public static @com.legend.base.Nullable String tdgChainedReplay(
-            java.util.@com.legend.base.Nullable List<String> seeds,
+            java.util.@com.legend.base.Nullable List<com.legend.sql.dialect.RawSqlBoundary.Raw> seeds,
             List<String[]> ancestors, String goldenSql,
             List<RefereeVerify.Cells> oursRows) {
         if (!RefereeVerify.ready()) {

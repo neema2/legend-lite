@@ -35,8 +35,9 @@ public final class TestPlanJson {
      *  each load once, every target naming it by identity; 13 (2026-11-10, L5): an appeal's rows name no stores for the
      *  harness to provide, the on-demand fixtures deleted (census M9); 14 (2026-11-11, B2a): the statements the runner
      *  sends after the run and its appeals, {@code release}; 15 the same day (the B2a audit's S2): the release names its
-     *  target ({@code on}), the program's, where its tables were made. */
-    public static final int VERSION = 15;
+     *  target ({@code on}), the program's, where its tables were made; 16 the same day (B2b): the edge's record of a
+     *  seed is the referee's copy as a load ({@code refereeLoad}: its steps and bundle), no longer its texts. */
+    public static final int VERSION = 16;
 
     private TestPlanJson() {
     }

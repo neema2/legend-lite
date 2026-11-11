@@ -110,11 +110,12 @@ class DataMechanismCensusTest {
             // L2, 2026-11-09: the test road's seeds are loads made by the one load planner (LoadPlanner, one identity
             // scheme), and the plan's connection description no longer carries the raw test data. B2a, 2026-11-11: the
             // seeds' steps are the load planner's (LoadPlanner.seeds, sharing the product's declared-data maker,
-            // LoadPlanner.declared), Seeds.planned gone. PENDING still: the referee's copy of a seed's rows (the edge's
-            // SeedTexts) is replayed from the plan's loads only at B2b. Its deleted symbols so far read zero
-            // (theRemovedSymbolsReadZero)
+            // LoadPlanner.declared), Seeds.planned gone. B2b, 2026-11-11: the referee's copy of a seed is a load (the
+            // edge's RefereeLoad: the plan's steps in the referee's dialect, the rows a content blob), nothing makes or
+            // reads SeedTexts; PENDING still: its file's deletion, which waits on the user's word (the file is not the
+            // session's that emptied it). Its deleted symbols so far read zero (theRemovedSymbolsReadZero)
             new Row("M3", "test data on the test road (the seed Load, SeedTexts, the raw text in a target)",
-                    new Pending("B2b (SeedTexts, the referee's copy of a seed)")),
+                    new Pending("the deletion of SeedTexts.java, unused since B2b, on the user's word")),
             // L2, 2026-11-09 (the orchestrator's decision: option 1, upstream's own harness shape): BOUNDED, not deleted (the M1 tenets audit's finding 2): the
             // harness keeps the upstream-faithful overlay (a synthetic connection carrying the suite's CSV, as
             // legend-engine's service test runner builds one, and RuntimeKey, a cache of overlay contexts by value); its
@@ -205,12 +206,14 @@ class DataMechanismCensusTest {
             new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Pending("L7")),
             // M15 in its two halves, as M7 is (B2c, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2c, the
             // user's yes): the Java test fixtures' own JDBC writes BOUNDED by their guard, not converted -- each file's
-            // literal write sends pinned, a total ceiling that only falls; the referee's replay of seed texts moves
-            // with B2b
+            // literal write sends pinned, a total ceiling that only falls; the referee's replay of seed texts moved
+            // with B2b (2026-11-11): the mirror replays the referee's copy of the plan's loads, a file's by its own
+            // CSVREAD over the verified bytes (ReplayRefereeFileReadTest), no Java splitting its cells; PENDING still:
+            // the deletion of the splitter's file (base.CsvCells, unused by any load since B2b), on the user's word
             new Row("M15-fixtures", "harnesses seed by JDBC (the Java test fixtures' own writes)",
                     new Bounded("B2c", List.of(), "FixtureWriteCensusTest")),
             new Row("M15-referee", "the referee's mirror replays seed texts (the edge's SeedTexts)",
-                    new Pending("B2b")),
+                    new Pending("the deletion of base.CsvCells and SeedTexts, unused since B2b, on the user's word")),
             new Row("M16", "parameters, keyed keys, counts, host rows",
                     new Staying("P9: parameters come from the caller alone")),
             // BOUNDED (B2e, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2e and §9's gaps, the user's
@@ -233,7 +236,11 @@ class DataMechanismCensusTest {
             // raw test data written and read, and the node a seed was until L1
             "M3", List.of("Seeds.key(", "Seeds.planned(", "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
                     "o.optionalString(\"testDataSetupCsv\")", "o.put(\"testDataSetupSqls\"",
-                    "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup"),
+                    "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup",
+                    // B2b, 2026-11-11: the referee's copy of a seed made and planned as texts
+                    "new SeedTexts(", "refereeCopy("),
+            // B2b, 2026-11-11: the referee's copy of a CSV file's rows split in Java, and its text recorded
+            "M15-referee", List.of("CsvCells.table(", "planned.recorded()"),
             // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
             // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
             "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"),

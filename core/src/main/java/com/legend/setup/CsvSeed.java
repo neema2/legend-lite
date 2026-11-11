@@ -77,37 +77,38 @@ public final class CsvSeed {
         }
     }
 
-    /** A seed as the plan runs it ({@code steps}), beside THE REFEREE'S COPY ({@code refereeCopy}): the same
-     *  statements written in the replay referee's own dialect (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1, A2:
-     *  "the planner renders the same rows a second time in H2's dialect and carries that copy as the edge's data") --
-     *  the platform's DDL and the rows' inserts the referee's, an author's statement as its author wrote it. */
-    public record Planned(LoadSteps steps, java.util.function.Supplier<List<String>> referee) {
+    /** A seed as the plan runs it ({@code steps}), beside THE REFEREE'S COPY ({@code referee}): the same load written
+     *  in the replay referee's own dialect, one step for each of the plan's (docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+     *  §1.1, A2: "the planner renders the same rows a second time in H2's dialect and carries that copy as the edge's
+     *  data"; B2b, 2026-11-11: a load, its rows a content blob by digest, as the plan's are -- until then a list of
+     *  texts) -- the platform's DDL and the rows' inserts the referee's, an author's statement as its author wrote it. */
+    public record Planned(LoadSteps steps, java.util.function.Supplier<LoadSteps> referee) {
         public Planned {
             java.util.Objects.requireNonNull(referee, "referee");
         }
 
         /** The referee's copy, written when an edge first asks for it, once (the A checkpoint's tenets audit, 8,
-         *  2026-11-10: demand-driven, as {@code EffectPlanner}'s copy of a file's rows is; until then every test
-         *  plan wrote every seed's copy in H2's dialect whether or not a judgment could reach the referee). */
-        public List<String> refereeCopy() {
+         *  2026-11-10: demand-driven, as {@code EffectPlanner}'s copy of a file's load is; until then every test plan
+         *  wrote every seed's copy in H2's dialect whether or not a judgment could reach the referee). */
+        public LoadSteps refereeLoad() {
             return referee.get();
         }
     }
 
     /** {@code make}'s value, made on its first {@link #get} and kept. */
-    private static final class Once implements java.util.function.Supplier<List<String>> {
-        private final java.util.function.Supplier<List<String>> make;
-        private volatile @com.legend.base.Nullable List<String> made;
+    private static final class Once implements java.util.function.Supplier<LoadSteps> {
+        private final java.util.function.Supplier<LoadSteps> make;
+        private volatile @com.legend.base.Nullable LoadSteps made;
 
-        Once(java.util.function.Supplier<List<String>> make) {
+        Once(java.util.function.Supplier<LoadSteps> make) {
             this.make = make;
         }
 
         @Override
-        public synchronized List<String> get() {
-            List<String> m = made;
+        public synchronized LoadSteps get() {
+            LoadSteps m = made;
             if (m == null) {
-                m = List.copyOf(make.get());
+                m = make.get();
                 made = m;
             }
             return m;
@@ -139,34 +140,32 @@ public final class CsvSeed {
     }
 
     /** {@link #planned}, with the referee's copy of every step written by {@code referee} (the replay referee's
-     *  dialect, its caller's to name: this library reaches no database's registry): ONE text per load step, in the
-     *  steps' order, as the edge's ledger records a step's text by its place ({@code CompatEdge.seeded}) -- a table's
-     *  rows, one step however many inserts it holds, its inserts as one script, each ending its line with {@code ;}
-     *  (the referee splits a text there). */
+     *  dialect, its caller's to name: this library reaches no database's registry): ONE step of the copy per load step,
+     *  in the steps' order, as the edge records the copy's steps by the places of the plan's that ran
+     *  ({@code CompatEdge.seeded}) -- a table's rows one blob of the referee's inserts, however many it holds. */
     public static Planned planned(List<Step> steps, com.legend.sql.dialect.SqlDialect dialect,
             com.legend.sql.dialect.SqlDialect referee) {
         LoadSteps planned = planned(steps, dialect);
         List<Step> kept = List.copyOf(steps);
         return new Planned(planned, new Once(() -> {
-            List<String> copy = new ArrayList<>();
+            LoadSteps.Builder copy = new LoadSteps.Builder();
             for (Step step : kept) {
                 switch (step) {
-                    case Step.Sql blob -> copy.addAll(com.legend.sql.RawSql.splitStatements(blob.text()));
-                    case Step.Rows rows -> {
-                        List<String> inserts = rows.load().refereeStatements(referee);
-                        if (!inserts.isEmpty()) {
-                            copy.add(String.join("\n", inserts));
-                        }
-                    }
-                    case Step.Schema d -> copy.addAll(step.texts(referee));
-                    case Step.Clear c -> copy.addAll(step.texts(referee));
+                    // an author's statements as written: the referee runs the engine's H2 text
+                    case Step.Sql blob -> com.legend.sql.RawSql.splitStatements(blob.text()).forEach(copy::statement);
+                    case Step.Rows rows -> copy.add(LoadSteps.blob(rows.load().refereeStatements(referee),
+                            "the data of the table " + rows.load().where()));
+                    case Step.Schema d -> step.texts(referee).forEach(copy::statement);
+                    case Step.Clear c -> step.texts(referee).forEach(copy::statement);
                 }
             }
-            if (planned.steps().size() != copy.size()) {
+            LoadSteps built = copy.build();
+            if (planned.steps().size() != built.steps().size()) {
                 throw new IllegalStateException("a seed's " + planned.steps().size() + " step(s) and its referee's "
-                        + copy.size() + " text(s): the ledger records a step's text by its place");
+                        + built.steps().size() + " step(s): the edge records the copy's steps by the places of the"
+                        + " plan's that ran");
             }
-            return copy;
+            return built;
         }));
     }
 

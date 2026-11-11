@@ -107,8 +107,10 @@ exec	base cache diagnostics error execution_plan json result sql values
 exec_program	base error exec execution_plan result
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the plan-as-data design's step 8): `edge`, the compatibility edge --
 # its records in a test plan (the referee's ledger texts), their codec and the edge a harness hands a run; the product
-# reaches it not at all (G5), the harnesses do.
-edge	base json sql_dialect test_plan
+# reaches it not at all (G5), the harnesses do. 2026-11-11 (B2b, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): it reaches
+# the plan's records (execution_plan) -- a seed's referee's copy is a load, its steps the plan's, written by the plan's
+# codec, a file's bytes verified against the plan's reference.
+edge	base execution_plan json sql_dialect test_plan
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its

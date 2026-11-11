@@ -446,7 +446,8 @@ legend_java_library(
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
     resource_strip_prefix = "core/src/main/edge",
-    deps = ["//base", "//json", ":sql_dialect", ":test_plan"],
+    # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec
+    deps = ["//base", "//json", ":execution_plan", ":sql_dialect", ":test_plan"],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
@@ -515,8 +516,6 @@ legend_java_binary(
 _CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 
 _CENSUS_READS = _CORE_READS + [
-    # base's CSV split, registered by name in JavaEvalLedgerTest (the total wall's M1 audit, 2026-11-09)
-    "//base:csv_cells_src",
     # the host's plan runner, whose plan version the census holds equal to the planner's (P7, 2026-11-09)
     "//engine-client:plan_runner_src",
     "//parser-equivalence:srcs",
