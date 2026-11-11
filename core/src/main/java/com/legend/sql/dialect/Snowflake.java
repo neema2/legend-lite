@@ -3156,10 +3156,15 @@ public final class Snowflake extends AnsiSqlRenderer {
             texts = parsed[c] || v.rows().stream().allMatch(r -> constant(r.get(col)));
         }
         if (texts) {
+            // each other column cast to its declared type: a VALUES column types by its literals (the empty form's one 0
+            // is a NUMBER(1,0), measured by the lane, 2026-11-11), so both forms answer one type
+            boolean declared = v.outputs().size() == v.columns().size();
             writer.append("(SELECT ");
             for (int c = 0; c < parsed.length; c++) {
-                writer.append(c > 0 ? ", " : "").append(parsed[c] ? "PARSE_JSON(column" + (c + 1) + ")"
-                        : "column" + (c + 1)).append(" AS ").append(aliasIdent(v.columns().get(c)));
+                String column = "column" + (c + 1);
+                writer.append(c > 0 ? ", " : "").append(parsed[c] ? "PARSE_JSON(" + column + ")"
+                        : declared ? "CAST(" + column + " AS " + castTypeName(v.outputs().get(c).type()) + ")"
+                        : column).append(" AS ").append(aliasIdent(v.columns().get(c)));
             }
             writer.append(" FROM VALUES ");
             for (int r = 0; r < v.rows().size(); r++) {

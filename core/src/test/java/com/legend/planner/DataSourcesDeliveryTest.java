@@ -49,7 +49,7 @@ class DataSourcesDeliveryTest {
         DataSources d = DataSources.of(frame(PAYLOAD), snowflake);
         String sql = snowflake.render(d.query());
         assertTrue(d.steps().isEmpty() && d.content().isEmpty(), "no load: " + d);
-        assertTrue(sql.contains("(SELECT PARSE_JSON(column1) AS \"data\", column2 AS \"u_frame_ord__\" FROM VALUES"
+        assertTrue(sql.contains("(SELECT PARSE_JSON(column1) AS \"data\", CAST(column2 AS BIGINT) AS \"u_frame_ord__\" FROM VALUES"
                 + " ('{\"t\":\"it''s a\\\\\\\\b\"}', 0), ('{\"t\":\"x\\\\ny\"}', 1)) AS \"t0\""), sql);
     }
 
