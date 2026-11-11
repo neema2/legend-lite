@@ -76,6 +76,38 @@ public final class Databricks extends AnsiSqlRenderer {
         return 6;
     }
 
+    /** {@inheritDoc} A session table of the load's (measured by the Databricks lane, 2026-11-11): a {@code TEMPORARY}
+     *  table is the session's own -- another connection reads the user's table of the name, which it leaves untouched
+     *  -- and {@code DROP TEMPORARY TABLE IF EXISTS} drops it alone, a silent no-op once it is gone. */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.SESSION_TABLE;
+    }
+
+    /** {@inheritDoc} Its name single-part and the {@code TEMPORARY} keyword on every statement (a qualified name is
+     *  refused, TEMP_TABLE_*_REQUIRES_SINGLE_PART_NAME, and a plain {@code DROP TABLE} while a temporary table of the
+     *  name exists: the lane's measurement); its elements a {@code VARIANT}, which each insert's {@code parse_json} fills
+     *  and the query's variant reads take. */
+    @Override
+    public SqlDialect.DataTable dataTable(String base, List<com.legend.sql.SqlDdl.Column> columns) {
+        StringBuilder spelled = new StringBuilder();
+        for (com.legend.sql.SqlDdl.Column col : columns) {
+            spelled.append(spelled.length() > 0 ? ", " : "").append(ddlIdentifier(col.name(), col.declaredQuoted()))
+                    .append(' ').append(col.type() instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
+                            && p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.JSON ? "VARIANT" : ddlType(col.type()))
+                    .append(ddlNullability(col.primaryKey() || col.notNull()));
+        }
+        String drop = "DROP TEMPORARY TABLE IF EXISTS " + base;
+        return new SqlDialect.DataTable(null, base, List.of(), List.of(drop,
+                "CREATE TEMPORARY TABLE " + base + " (" + spelled + ")"), List.of(drop));
+    }
+
+    /** {@inheritDoc} Each element's JSON, a {@code VARIANT}. */
+    @Override
+    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -1502,10 +1534,22 @@ public final class Databricks extends AnsiSqlRenderer {
         return w -> w.append("CAST(").piece(body).append(" AS BIGINT)");
     }
 
-    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too. */
+    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too, in
+     *  exact BIGINT arithmetic (the audit of 862a4d02..2f164ec4, S13, 2026-11-11: Spark's {@code /} answers a DOUBLE,
+     *  exact for a microsecond epoch only to about 2255, as measured on Trino; unmeasured on Databricks itself, the
+     *  lane's). */
     private static SqlWriter.Piece epochBoundaries(SqlWriter.Piece from, SqlWriter.Piece to, long perUnit) {
-        return w -> w.append("(floor(unix_micros(CAST(").piece(to).append(" AS TIMESTAMP)) / " + perUnit
-                + ") - floor(unix_micros(CAST(").piece(from).append(" AS TIMESTAMP)) / " + perUnit + "))");
+        SqlWriter.Piece unit = w -> w.append(String.valueOf(perUnit));
+        return w -> w.append("(").piece(floorDiv(v -> v.append("unix_micros(CAST(").piece(to).append(" AS TIMESTAMP))"),
+                unit)).append(" - ").piece(floorDiv(v -> v.append("unix_micros(CAST(").piece(from)
+                .append(" AS TIMESTAMP))"), unit)).append(")");
+    }
+
+    /** {@code a} divided by the positive {@code b}, floored (before 1970 too), in BIGINT: {@code a} less its
+     *  non-negative remainder ({@code pmod}), divided exactly ({@code div}). */
+    private static SqlWriter.Piece floorDiv(SqlWriter.Piece a, SqlWriter.Piece b) {
+        return w -> w.append("((").piece(a).append(" - pmod(").piece(a).append(", ").piece(b).append(")) div ")
+                .piece(b).append(")");
     }
 
     /** DuckDB's time_bucket: fixed units binned from 1970-01-01 (weeks from the Monday 1969-12-29) in microseconds,
@@ -1517,9 +1561,11 @@ public final class Databricks extends AnsiSqlRenderer {
         SqlWriter.Piece n = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS BIGINT)");
         if (micros != null) {
             long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
-            return w -> w.append("timestamp_micros(CAST(floor((unix_micros(").piece(t).append(") - (" + origin
-                    + ")) / (").piece(n).append(" * " + micros + ")) AS BIGINT) * ").piece(n).append(" * " + micros
-                    + " + (" + origin + "))");
+            // exact BIGINT floor division (S13: Spark's / answers a DOUBLE)
+            SqlWriter.Piece size = w -> w.append("(").piece(n).append(" * " + micros + ")");
+            SqlWriter.Piece since = w -> w.append("(unix_micros(").piece(t).append(") - (" + origin + "))");
+            return w -> w.append("timestamp_micros(").piece(floorDiv(since, size)).append(" * ").piece(size)
+                    .append(" + (" + origin + "))");
         }
         Integer months = unit == com.legend.sql.DatePart.MONTH ? Integer.valueOf(1)
                 : unit == com.legend.sql.DatePart.YEAR ? Integer.valueOf(12) : null;

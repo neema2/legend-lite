@@ -381,6 +381,10 @@ test_suite(
         # the MongoDB v0 end to end on the embedded MongoDB 8.0 (docs/MONGODB_PLAN_2026_10_16.md §11, 2026-10-17):
         # manual until a per-push lane for it is the user's call
         "//core:mongodb_plan_test",
+        # a data: source on every embedded server database, each by its declared delivery (2026-11-11, the user: "we
+        # need to make json work everywhere"; core/BUILD.bazel's data_source_servers_test): manual, its five servers'
+        # lane, as MongoDB's plan test is (the orchestrator's catch, 2026-11-11: the product job's lane guard)
+        "//core:data_source_servers_test",
         # the five PCT suites on the embedded MongoDB 8.0, channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md
         # §6, 2026-10-17)
         "//pct:pct_mongodb",

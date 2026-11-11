@@ -59,6 +59,35 @@ class DataSourceServersTest {
         assertReads(DatabaseType.MongoDB, SqlDialect.DataDelivery.INLINE);
     }
 
+    /** An EMPTY payload on each database that writes the rows into the statement (the orchestrator's ruling,
+     *  2026-11-11: JSON everywhere, the empty payload too): the relation's columns and no row, on the server. */
+    @Test
+    void anEmptyPayloadReadsNoRowOnEachInlineServer() throws Exception {
+        for (DatabaseType type : java.util.List.of(DatabaseType.Trino, DatabaseType.ClickHouse,
+                DatabaseType.MongoDB)) {
+            // an element source's payload is one JSON array (an empty text is refused by name, as on every database)
+            assertEquals("[]", inline(type, QUERY.replace(PAYLOAD, "data:application/json,[]")), type.name());
+        }
+    }
+
+    /** {@code type}'s plan of {@code query}, on a database whose delivery is INLINE: no load, its JSON rows. */
+    private static String inline(DatabaseType type, String query) throws Exception {
+        var backend = TestBackends.of(type);
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")), query)
+                .executionPlan(StorelessRuntime.RUNTIME);
+        StringWriter out = new StringWriter();
+        if (type == DatabaseType.MongoDB) {
+            PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), PlanCases.Written.JSON.writer(out,
+                    plan.answerShape()));
+        } else {
+            try (java.sql.Connection c = backend.open()) {
+                PlanRunner.stream(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                        PlanCases.Written.JSON.writer(out, plan.answerShape()));
+            }
+        }
+        return out.toString();
+    }
+
     /** {@code type}'s plan of the query: delivered as {@code delivery} says -- a load making the session table, or no
      *  load and the payload in the statement -- and answering the payload's rows, in order. */
     private static void assertReads(DatabaseType type, SqlDialect.DataDelivery delivery) throws Exception {
@@ -73,18 +102,9 @@ class DataSourceServersTest {
         } else {
             assertTrue(!json.contains("legend_data_"), type + ": no session table: " + json);
         }
-        StringWriter out = new StringWriter();
         if (delivery == SqlDialect.DataDelivery.INLINE) {
             // no load: the plan streams on the session its target names (MongoDB's connector), or on the test's own
-            if (type == DatabaseType.MongoDB) {
-                PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), PlanCases.Written.JSON.writer(out,
-                        plan.answerShape()));
-            } else {
-                try (java.sql.Connection c = backend.open()) {
-                    PlanRunner.stream(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                            PlanCases.Written.JSON.writer(out, plan.answerShape()));
-                }
-            }
+            assertEquals(ROWS, inline(type, QUERY), type + ": the payload's rows, sorted");
         } else {
             // a fresh session on the server's test database, the test's own (a declared URL takes no load of a plan's):
             // the target's loads -- the session table made, and dropped when the request lets the session go -- run on
@@ -106,8 +126,6 @@ class DataSourceServersTest {
                     assertTrue(gone.getMessage().contains("doesn't exist"), type + ": " + gone.getMessage());
                 }
             }
-            return;
         }
-        assertEquals(ROWS, out.toString(), type + ": the payload's rows, sorted");
     }
 }

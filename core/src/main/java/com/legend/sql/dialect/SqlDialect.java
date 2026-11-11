@@ -90,25 +90,23 @@ public interface SqlDialect {
     /**
      * How a {@code data:} payload reaches this database, chosen at planning (B, 2026-11-11, the user: "we need to make
      * json work everywhere"; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): each a DECLARATION of the dialect's, measured,
-     * never a fallback from one form to another.
+     * never a fallback from one form to another. Every database has one (the lanes' probes of 2026-11-11 closed the
+     * last three; register S190 withdrawn): there is no refused delivery.
      */
     enum DataDelivery {
         /** A session table the plan's load makes, fills and drops ({@link #dataTable}): the database holds one. */
         SESSION_TABLE,
         /** The payload's elements as the statement's own rows (a relation of literals: VALUES, MongoDB's
-         *  {@code $documents}), where the database holds no session table of a load's (measured: Trino's tables are
-         *  every connection's; MongoDB's collections every client's; ClickHouse keeps a temporary table only in an HTTP
-         *  session the plan cannot name). The data in the statement's text: BOUNDED to these databases (census
-         *  M18). */
-        INLINE,
-        /** Neither measured on this database yet: a {@code data:} source refused by name. */
-        REFUSED
+         *  {@code $documents}, BigQuery's array), where the database holds no session table of a load's that a plan can
+         *  make and drop safely (measured: Trino's tables are every connection's; MongoDB's collections every client's;
+         *  ClickHouse keeps a temporary table only in an HTTP session the plan cannot name; Snowflake's drop of a
+         *  temporary table that is gone drops a user's permanent table of the name; BigQuery's needs a session its
+         *  connection does not open). The data in the statement's text: BOUNDED to these databases (census M18). */
+        INLINE
     }
 
-    /** This database's {@link DataDelivery}: refused unless the dialect declares a measured one. */
-    default DataDelivery dataDelivery() {
-        return DataDelivery.REFUSED;
-    }
+    /** This database's {@link DataDelivery}, measured: each dialect declares its own (no default). */
+    DataDelivery dataDelivery();
 
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
      *  none) and only read after (a server engine's system database, SystemDatabase). Default: the table, then

@@ -10,12 +10,21 @@
 // The SQL is the candidate spelling, written from the database's documentation, NOT measured: the probe's output
 // decides SqlDialect.dataTable for BigQuery, or its refusal by name (a register row).
 // a BigQuery TEMP table exists only inside a script or a session (the connection must be opened with createSession=true): the probe shows whether the driver's statements share one; the user's table needs a dataset (legend_lite_probe) the lane's project holds.
+// THE LANE'S ANSWER (the BigQuery lane at 5fe98b92, relayed by the orchestrator, 2026-11-11): CREATE TEMP TABLE is
+// refused on lite's ordinary connection ("requires a script or session"; the lanes set EnableSession=1 on the system
+// connection alone), and even in a session an unqualified name falls through to the URL's DefaultDataset once the temp
+// table is gone (only _SESSION.<name> is safe). So BigQuery takes the payload as the statement's own rows (INLINE):
+//   SELECT data, ord FROM UNNEST([JSON '{"t":"it\'s"}', JSON '{"t":"a\\nb"}']) AS data WITH OFFSET AS ord ORDER BY ord
+// keeps the quote, the line break and the order; UNNEST(CAST([] AS ARRAY<JSON>)) is no row; the STRUCT form (lite's
+// valuesSource) the same. QUOTING FIXED HERE after that run: a quote in a BigQuery literal is \' ('' is a syntax error),
+// so the fill's SQL text it\\'s (an escaped backslash, then the literal's end) is now it\'s, and the user's row
+// 'the user''s row' is now 'the user\'s row'.
 import java.sql.*;
 
 public class BigQueryDataTableProbe {
     static final String USER_TABLE = "CREATE TABLE legend_lite_probe.legend_data_probe (data STRING)";
     static final String[] MAKE = new String[] {"CREATE TEMP TABLE legend_data_probe (data JSON, u_frame_ord__ INT64)"};
-    static final String[] INSERT = new String[] {"INSERT INTO legend_data_probe VALUES (JSON '{\"t\":\"it\\\\'s\"}', 0), (JSON '{\"t\":\"a\\\\\\\\nb\"}', 1)"};
+    static final String[] INSERT = new String[] {"INSERT INTO legend_data_probe VALUES (JSON '{\"t\":\"it\\'s\"}', 0), (JSON '{\"t\":\"a\\\\\\\\nb\"}', 1)"};
     static final String READ = "SELECT TO_JSON_STRING(data), u_frame_ord__, JSON_VALUE(data, '$.t') FROM legend_data_probe ORDER BY u_frame_ord__";
     static final String DROP = "DROP TABLE IF EXISTS legend_data_probe";
 
@@ -24,8 +33,8 @@ public class BigQueryDataTableProbe {
                 : DriverManager.getConnection(a[0]); Statement s = c.createStatement()) {
             step("1 the user's table", s, USER_TABLE);
             step("1 the user's row", s, USER_TABLE.contains("legend_lite_probe.")
-                    ? "INSERT INTO legend_lite_probe.legend_data_probe VALUES ('the user''s row')"
-                    : "INSERT INTO legend_data_probe VALUES ('the user''s row')");
+                    ? "INSERT INTO legend_lite_probe.legend_data_probe VALUES ('the user\\'s row')"
+                    : "INSERT INTO legend_data_probe VALUES ('the user\\'s row')");
             for (String m : MAKE) step("2 make", s, m);
             for (String i : INSERT) step("2 fill", s, i);
             query("2 read", s, READ);

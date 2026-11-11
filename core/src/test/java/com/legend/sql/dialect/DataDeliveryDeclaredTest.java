@@ -19,8 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * declaration ({@link SqlDialect#dataDelivery}), measured, and the payload written into the statement's own rows is
  * BOUNDED to the databases that hold no session table of a load's -- never a default, never a fallback from a session
  * table that failed. A database moves between the lists only with its measurement (a probe in
- * docs/data-delivery-homework/probes): a new INLINE one must show it holds no session table; a REFUSED one is a probe not
- * yet run (Snowflake, Databricks, BigQuery: their lane sessions'; register S190).
+ * docs/data-delivery-homework/probes, or a lane's probe the orchestrator relays): a new INLINE one must show it holds no
+ * session table a plan can make and drop safely (Snowflake, BigQuery: their lanes' probes of 2026-11-11). Every database
+ * has a delivery: none refuses a {@code data:} payload (register S190 withdrawn, 2026-11-11).
  */
 class DataDeliveryDeclaredTest {
 
@@ -50,9 +51,9 @@ class DataDeliveryDeclaredTest {
                 Map.entry("Trino", SqlDialect.DataDelivery.INLINE),
                 Map.entry("ClickHouse", SqlDialect.DataDelivery.INLINE),
                 Map.entry("MongoDB", SqlDialect.DataDelivery.INLINE),
-                Map.entry("Snowflake", SqlDialect.DataDelivery.REFUSED),
-                Map.entry("Databricks", SqlDialect.DataDelivery.REFUSED),
-                Map.entry("BigQuery", SqlDialect.DataDelivery.REFUSED)), new java.util.HashMap<>(declared),
+                Map.entry("Snowflake", SqlDialect.DataDelivery.INLINE),
+                Map.entry("Databricks", SqlDialect.DataDelivery.SESSION_TABLE),
+                Map.entry("BigQuery", SqlDialect.DataDelivery.INLINE)), new java.util.HashMap<>(declared),
                 "each database's data: delivery, as measured (a change is a measurement and this list's edit)");
     }
 

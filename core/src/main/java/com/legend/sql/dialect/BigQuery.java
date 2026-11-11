@@ -124,6 +124,16 @@ public final class BigQuery extends AnsiSqlRenderer {
         return 6;
     }
 
+    /** {@inheritDoc} The statement's own rows (measured by the BigQuery lane, 2026-11-11): a {@code TEMP} table needs a
+     *  script or a session, which lite's connection does not open ("requires a script or session"), and even in one an
+     *  unqualified name falls through to the connection's default dataset once the temporary table is gone, so only a
+     *  {@code _SESSION}-qualified drop is safe; its array of rows ({@link #valuesSource}) keeps the payload's quote and
+     *  line break, and its order. */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.INLINE;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override

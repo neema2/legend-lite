@@ -1151,6 +1151,12 @@ public final class Trino extends AnsiSqlRenderer {
             case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc to " + part
                     + " has no Trino spelling");
         };
+        if (part == com.legend.sql.DatePart.MICROSECOND) {
+            // Trino's date_trunc takes no microsecond unit ("'microsecond' is not a valid TIMESTAMP field", measured on
+            // 483: the audit of 862a4d02..2f164ec4, S13): the value's exact epoch microseconds, floored, as a timestamp
+            SqlWriter.Piece t = w -> w.expr(a.get(1), 0);
+            return writer.piece(fromMicros(micros(t)));
+        }
         writer.append(toDate ? "CAST(date_trunc(" : "date_trunc(").append(stringLit(intervalUnit(part))).append(", ")
                 .expr(a.get(1), 0).append(")");
         return toDate ? writer.append(" AS DATE)") : writer;
@@ -1514,9 +1520,11 @@ public final class Trino extends AnsiSqlRenderer {
     }
 
     /** The naive UTC timestamp {@code x} microseconds after 1970 (through from_unixtime_nanos: date_add has no
-     *  microsecond unit). */
+     *  microsecond unit), its nanoseconds a {@code DECIMAL(38, 0)}: a BIGINT's overflows past 2262 (measured on 483,
+     *  S13: "bigint multiplication overflow" for 2300). */
     private static SqlWriter.Piece fromMicros(SqlWriter.Piece x) {
-        return w -> w.append("CAST(at_timezone(from_unixtime_nanos((").piece(x).append(") * 1000), 'UTC') AS TIMESTAMP(6))");
+        return w -> w.append("CAST(at_timezone(from_unixtime_nanos(CAST(").piece(x)
+                .append(" AS DECIMAL(38, 0)) * 1000), 'UTC') AS TIMESTAMP(6))");
     }
 
     /** The naive UTC timestamp {@code x} nanoseconds after 1970 (a {@code DECIMAL}: from_unixtime_nanos takes one),
@@ -1525,10 +1533,21 @@ public final class Trino extends AnsiSqlRenderer {
         return w -> w.append("CAST(at_timezone(from_unixtime_nanos(").piece(x).append("), 'UTC') AS TIMESTAMP(9))");
     }
 
-    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too. */
+    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too, in
+     *  exact BIGINT arithmetic (the audit of 862a4d02..2f164ec4, S13, 2026-11-11: a DOUBLE holds a microsecond epoch
+     *  exactly only to about 2255, measured on Trino 483: 9007199254740993 floored to ...992). */
     private static SqlWriter.Piece epochBoundaries(SqlWriter.Piece from, SqlWriter.Piece to, long perUnit) {
-        return w -> w.append("(floor(CAST(").piece(micros(to)).append(" AS DOUBLE) / " + perUnit
-                + ") - floor(CAST(").piece(micros(from)).append(" AS DOUBLE) / " + perUnit + "))");
+        SqlWriter.Piece unit = w -> w.append(String.valueOf(perUnit));
+        return w -> w.append("(").piece(floorDiv(micros(to), unit)).append(" - ").piece(floorDiv(micros(from), unit))
+                .append(")");
+    }
+
+    /** {@code a} divided by the positive {@code b}, floored (before 1970 too), in BIGINT: {@code a} less its
+     *  non-negative remainder, divided exactly (Trino's {@code mod} takes the dividend's sign; measured exact past
+     *  2^53 and floored for negatives on 483). */
+    private static SqlWriter.Piece floorDiv(SqlWriter.Piece a, SqlWriter.Piece b) {
+        return w -> w.append("((").piece(a).append(" - mod(mod(").piece(a).append(", ").piece(b).append(") + ")
+                .piece(b).append(", ").piece(b).append(")) / ").piece(b).append(")");
     }
 
     /** DuckDB's time_bucket: fixed units binned from 1970-01-01 (weeks from the Monday 1969-12-29) in microseconds,
@@ -1541,9 +1560,11 @@ public final class Trino extends AnsiSqlRenderer {
         SqlWriter.Piece n = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS BIGINT)");
         if (micros != null) {
             long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
-            return w -> w.piece(fromMicros(v -> v.append("CAST(floor(CAST(").piece(micros(t)).append(" - (" + origin
-                    + ") AS DOUBLE) / (").piece(n).append(" * " + micros + ")) AS BIGINT) * ").piece(n)
-                    .append(" * " + micros + " + (" + origin + ")")));
+            // exact BIGINT floor division (S13: a DOUBLE rounded a microsecond epoch past about 2255)
+            SqlWriter.Piece size = w -> w.append("(").piece(n).append(" * " + micros + ")");
+            SqlWriter.Piece since = w -> w.append("(").piece(micros(t)).append(" - (" + origin + "))");
+            return w -> w.piece(fromMicros(v -> v.piece(floorDiv(since, size)).append(" * ").piece(size)
+                    .append(" + (" + origin + ")")));
         }
         Integer months = unit == com.legend.sql.DatePart.MONTH ? Integer.valueOf(1)
                 : unit == com.legend.sql.DatePart.YEAR ? Integer.valueOf(12) : null;

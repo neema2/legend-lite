@@ -293,16 +293,23 @@ Deleted from the plan:
   TEMPORARY TABLE`: another connection reads the user's table of the name, the drop never reaches it); ClickHouse 25.8
   holds one in an HTTP session only (without one the table is gone with its request, and the read names the user's
   table of the name); Trino (the memory connector) and MongoDB 8.0 hold none (a second connection reads the table; on
-  MongoDB the drop by name drops the user's collection). Snowflake, Databricks and BigQuery are their lane sessions'
-  to measure at the B checkpoint; refused by name until then (register S190).
+  MongoDB the drop by name drops the user's collection). Snowflake, Databricks and BigQuery, measured by their lanes
+  at 5fe98b92 (2026-11-11, relayed by the orchestrator; the probes' texts): Databricks holds one (`CREATE`/`DROP
+  TEMPORARY TABLE IF EXISTS`, single-part, private, the user's table untouched); Snowflake's temporary table has no safe
+  drop (`DROP TABLE IF EXISTS` drops the user's permanent table once the temporary one is gone); BigQuery's needs a
+  session lite's connection does not open, and only a `_SESSION`-qualified drop is safe.
 - **JSON on every database (the user, 2026-11-11: "we need to make json work everywhere"):** the delivery is the
   dialect's DECLARATION (`SqlDialect.dataDelivery`), chosen at planning from the measurements above, never a fallback:
-  a SESSION TABLE on DuckDB, H2, SQLite, Postgres, MariaDB and MySQL (`DROP`/`CREATE TEMPORARY TABLE`, the session's
-  own); the STATEMENT'S OWN ROWS on Trino (VALUES, each element `json_parse`d), ClickHouse (its `values` table
-  function; a session id minted per run is exec's, so a plan cannot name its session's temporary table) and MongoDB
-  (a `$documents` stage, each element the document it spells) -- census M18, BOUNDED to these three
-  (`DataDeliveryDeclaredTest`); REFUSED by name on the three not yet measured. A payload of no element is refused by
-  name where it would be rows (VALUES holds at least one). Measured on each embedded server: `DataSourceServersTest`.
+  a SESSION TABLE on DuckDB, H2, SQLite, Postgres, MariaDB, MySQL and Databricks (`DROP`/`CREATE TEMPORARY TABLE`,
+  the session's own); the STATEMENT'S OWN ROWS on Trino (VALUES, each element `json_parse`d), ClickHouse (its `values`
+  table function; a session id minted per run is exec's, so a plan cannot name its session's temporary table), MongoDB
+  (a `$documents` stage, each element the document it spells), Snowflake (VALUES of the texts, the select over it
+  `PARSE_JSON`ing them: the lane's form) and BigQuery (an array of typed structs, unnested) -- census M18, BOUNDED to
+  these five (`DataDeliveryDeclaredTest`). No database refuses a `data:` payload (S190 withdrawn, 2026-11-11). A payload
+  of no element is the relation's columns and no row everywhere (the orchestrator's ruling, 2026-11-11): where it would
+  be rows, one typed NULL row removed by `WHERE FALSE`, the lowering's empty TDS literal's shape
+  (`DataSourcesDeliveryTest`). Measured on each embedded server: `DataSourceServersTest` (the empty payload on Trino,
+  ClickHouse and MongoDB too).
 - **The text plan (generatePlan, arrowPlan):** `TypedQuery.plan` is one statement's text, which carries neither a load
   nor a bound path: a `data:` or `file:` source is refused by name before render
   (`PlanMaker.refuseLiveSourcesInText`), and the execution plan carries both. **Not yet as §4 says:** the text is not

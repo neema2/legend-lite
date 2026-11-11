@@ -187,6 +187,9 @@ Run `git log --oneline 5e9fcef8..origin/claude/total-wall` for anything newer. E
 ran.
 
 ```
+(next)   the lanes' delivery rulings (Snowflake, BigQuery INLINE; Databricks SESSION_TABLE; the empty payload; S190
+         withdrawn; the servers test in heavy) and the second audit's S13 (exact BIGINT floor division)
+60e59850 this start-here file, rewritten for a session on any account
 5a44e274 B2d.1: the test-data generator as ONE planned read-only statement (TestDataPlanner)
 8b128599 this start-here file (first version) and three design docs copied in
 fca77fec Trino's scalar TIMESTAMP keeps nine digits (the second audit's M1)
@@ -246,7 +249,7 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
 | | SQLite | `temp.` |
 | | Postgres | `pg_temp.` |
 | | MariaDB, MySQL | `CREATE`/`DROP TEMPORARY TABLE` |
-| | **Databricks** | `CREATE TEMPORARY TABLE <single-part name>`; drop with `DROP TEMPORARY TABLE IF EXISTS <name>`. Measured: private, and the drop is a silent no-op when the table is absent. A qualified name is refused, and a plain `DROP TABLE` is refused while the temp table exists. Databricks quotes `'` as `\'` and a backslash as `\\`; `''` concatenates two literals |
+| | **Databricks** | `CREATE TEMPORARY TABLE <single-part name>`; drop with `DROP TEMPORARY TABLE IF EXISTS <name>`. Measured: private, and the drop is a silent no-op when the table is absent. A qualified name is refused, and a plain `DROP TABLE` is refused while the temp table exists. Databricks quotes `'` as `\'` and a backslash as `\\`; `''` concatenates two literals. **Lite's column is a `VARIANT`** (the lane measured `STRING`): each insert writes `parse_json('…')` and the query's variant reads need a variant -- the lane round confirms it, and also that a temporary TABLE read inside an EXISTS works (a session table's comment in `Databricks.sessionTable` measured UC_COMMAND_NOT_SUPPORTED there) |
 | INLINE | Trino | `VALUES` + `json_parse` |
 | | ClickHouse | `values()` |
 | | MongoDB | `$documents` of `{"$literal": doc}` |
@@ -258,8 +261,10 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
 
 ### 4.4 In flight at the worker (verify each in the code: done only if its test exists and passes)
 
-1. **Fold in Snowflake INLINE, BigQuery INLINE and Databricks SESSION_TABLE** (§4.3), plus the zero-row form on the
-   INLINE databases.
+1. **DONE (the commit after 60e59850):** Snowflake INLINE, BigQuery INLINE and Databricks SESSION_TABLE (§4.3), plus
+   the zero-row form on the INLINE databases (one typed NULL row and `WHERE FALSE`, the empty TDS literal's shape;
+   `DataSourcesDeliveryTest`, and `DataSourceServersTest` on Trino, ClickHouse and MongoDB). `REFUSED` is gone from
+   `DataDelivery`: each dialect declares its own (no default); the engine's text dialects refuse by name.
    - Test the dialect literal writers for a quote and a backslash.
    - Fix the two probe texts' quoting: `probes/BigQueryDataTable.java.txt` and `probes/DatabricksDataTable.java.txt`.
    - S190 then names no database: close it.
@@ -281,11 +286,13 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
    - **S10:** qualify Postgres's table with `pg_temp`.
    - **S11:** H2's release after a writing body's rollback, with a test.
    - **S12:** the query door's `data:` drops on every outcome.
-   - **S13 (comes after B2d):** `epochBoundaries` and `timeBucket` in DECIMAL(38,0) or BIGINT, not DOUBLE microseconds
-     (inexact after about 2255); and refuse Trino `date_trunc('microsecond')` by name if it fails at run.
+   - **S13, DONE (the commit after 60e59850):** exact BIGINT floor division on Trino (`(a - mod(mod(a,b)+b,b)) / b`)
+     and Databricks (`(a - pmod(a,b)) div b`); Trino's microsecond truncation through the epoch's micros (its
+     `date_trunc('microsecond')` fails at run, measured); `fromMicros` through DECIMAL(38,0) past 2262. Measured on
+     Trino 483: before 1970, in 2300, and past 2^53; `//pct:pct_trino_standard` green.
    - Also stale "AT_STEP" wording.
-4. **The CI lane guard.** `//core:data_source_servers_test` (manual) is in no `//gates` lane and not in `heavy`, so the PR
-   CI's lane guard (`gates-run.yml:258`) will likely fail. Place it as the other manual server-only targets are placed.
+4. **The CI lane guard, DONE (the commit after 60e59850):** `//core:data_source_servers_test` is in `//gates:heavy`
+   beside `mongodb_plan_test`; the guard's query is empty locally.
 5. **B2d (the generator), in slices.**
    - **B2d.1, done:** `TestDataPlanner`, ONE read-only statement.
      - Each fetch is a `WITH` clause: starting rows by id, ordered by key, `LIMIT 20`, one clause per navigation step.

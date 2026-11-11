@@ -106,4 +106,26 @@ class TrinoNanosecondTest {
             assertFalse(sql.contains("TIMESTAMP(6)"), query + " -> " + sql);
         }
     }
+
+    /** The audit of 862a4d02..2f164ec4's S13 (2026-11-11): the sub-day boundaries and the fixed-length time bucket
+     *  divide the epoch's microseconds in exact BIGINT arithmetic, never a DOUBLE (exact only to about 2255, measured
+     *  on Trino 483), and a truncation to the microsecond, which Trino's date_trunc refuses at run, is the epoch's
+     *  floored microseconds as a timestamp. */
+    @Test
+    @DisplayName("boundaries and buckets floor-divide BIGINTs; a microsecond truncation is the epoch's microseconds")
+    void subDayArithmeticIsExact() {
+        String diff = render(SqlExpr.Call.of(SqlFn.DATE_DIFF, new SqlExpr.DatePartLit(DatePart.HOUR), X, X));
+        String bucket = render(SqlExpr.Call.of(SqlFn.TIME_BUCKET, new SqlExpr.DatePartLit(DatePart.MINUTE),
+                new SqlExpr.IntLit(5), X));
+        String trunc = render(SqlExpr.Call.of(SqlFn.DATE_TRUNC, new SqlExpr.DatePartLit(DatePart.MICROSECOND), X));
+        for (String sql : List.of(diff, bucket)) {
+            assertTrue(sql.contains("mod(mod("), sql);
+            assertFalse(sql.contains("AS DOUBLE) /"), sql);
+        }
+        assertFalse(trunc.contains("date_trunc('microsecond'"), trunc);
+        assertTrue(trunc.contains("from_unixtime_nanos("), trunc);
+        System.out.println("S13-SQL diff: " + diff.replace('\n', ' '));
+        System.out.println("S13-SQL bucket: " + bucket.replace('\n', ' '));
+        System.out.println("S13-SQL trunc: " + trunc.replace('\n', ' '));
+    }
 }

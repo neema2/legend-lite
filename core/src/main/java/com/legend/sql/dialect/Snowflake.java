@@ -84,6 +84,15 @@ public final class Snowflake extends AnsiSqlRenderer {
         return 9;
     }
 
+    /** {@inheritDoc} The statement's own rows (measured by the Snowflake lane, 2026-11-11): a {@code TEMPORARY} table
+     *  is private, but no drop of it is safe -- {@code DROP TABLE IF EXISTS} drops a user's PERMANENT table of the name
+     *  once the temporary one is gone (it dropped one), {@code DROP TEMPORARY TABLE} is a syntax error -- and a
+     *  temporary table shadows the user's for the rest of a pooled session. */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.INLINE;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -3129,13 +3138,45 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
-    /** VALUES takes constants only (ARRAY_CONSTRUCT and PARSE_JSON are refused there, measured): rows holding any
-     *  other expression are a UNION ALL of selects. */
+    /** VALUES takes constants only (ARRAY_CONSTRUCT and PARSE_JSON are refused there, measured): a column of JSON
+     *  texts is VALUES of the texts, which the select over it parses ({@code data:}'s inline rows: the lane's form,
+     *  measured 2026-11-11, the rows' order and a quote and a line break kept; a NULL text a {@code NULL::STRING}, as
+     *  measured); rows holding any other expression are a UNION ALL of selects. */
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
         boolean constants = v.rows().stream().allMatch(r -> r.stream().allMatch(Snowflake::constant));
         if (constants && !v.rows().isEmpty()) {
             return super.valuesSource(writer, v);
+        }
+        boolean[] parsed = new boolean[v.columns().size()];
+        boolean texts = !v.rows().isEmpty();
+        for (int c = 0; c < parsed.length && texts; c++) {
+            int col = c;
+            parsed[c] = v.rows().stream().allMatch(r -> jsonText(r.get(col)));
+            texts = parsed[c] || v.rows().stream().allMatch(r -> constant(r.get(col)));
+        }
+        if (texts) {
+            writer.append("(SELECT ");
+            for (int c = 0; c < parsed.length; c++) {
+                writer.append(c > 0 ? ", " : "").append(parsed[c] ? "PARSE_JSON(column" + (c + 1) + ")"
+                        : "column" + (c + 1)).append(" AS ").append(aliasIdent(v.columns().get(c)));
+            }
+            writer.append(" FROM VALUES ");
+            for (int r = 0; r < v.rows().size(); r++) {
+                writer.append(r > 0 ? ", (" : "(");
+                List<SqlExpr> row = v.rows().get(r);
+                for (int c = 0; c < row.size(); c++) {
+                    writer.append(c > 0 ? ", " : "");
+                    SqlExpr cell = parsed[c] ? ((SqlExpr.Cast) row.get(c)).value() : row.get(c);
+                    if (cell instanceof SqlExpr.NullLit) {
+                        writer.append(parsed[c] ? "NULL::STRING" : "NULL");
+                    } else {
+                        writer.expr(cell, 0);
+                    }
+                }
+                writer.append(")");
+            }
+            return writer.append(") AS ").append(aliasIdent(v.alias()));
         }
         if (v.rows().isEmpty()) {
             throw new DialectCapability("an empty VALUES reached Snowflake");
@@ -3158,6 +3199,13 @@ public final class Snowflake extends AnsiSqlRenderer {
             }
         }
         return writer.append(") AS ").append(aliasIdent(v.alias()));
+    }
+
+    /** A JSON text written as a value: a constant text (or NULL) cast to JSON. */
+    private static boolean jsonText(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.JSON
+                && (c.value() instanceof SqlExpr.NullLit || c.value() instanceof SqlExpr.StringLit s
+                        && s.value().indexOf('\u0000') < 0);
     }
 
     private static boolean constant(SqlExpr e) {

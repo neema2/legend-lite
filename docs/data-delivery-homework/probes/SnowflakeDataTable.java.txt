@@ -10,6 +10,13 @@
 // The SQL is the candidate spelling, written from the database's documentation, NOT measured: the probe's output
 // decides SqlDialect.dataTable for Snowflake, or its refusal by name (a register row).
 // Snowflake's TEMPORARY table shadows a permanent one of the name; its drop drops the temporary first -- and, where the session holds none, the PERMANENT one: step 4 shows it, and if so this spelling is unsafe and the dialect needs a name no user holds or a refusal.
+// THE LANE'S ANSWER (the Snowflake lane at 5fe98b92, relayed by the orchestrator, 2026-11-11): CREATE TEMPORARY TABLE
+// works and is private, but NO DROP OF IT IS SAFE: DROP TABLE IF EXISTS drops the temporary table where it exists and
+// otherwise the user's PERMANENT table of the name (measured: it dropped one); DROP TEMPORARY TABLE is a syntax error;
+// and a temporary table shadows the user's for the rest of a pooled session. So Snowflake takes the payload as the
+// statement's own rows (INLINE), the lane's form (a), lite's Snowflake.valuesSource:
+//   SELECT PARSE_JSON(column1) AS data, column2 AS u_frame_ord__ FROM VALUES ('{"t":"it''s"}', 0), ('{"t":"a\\nb"}', 1)
+// keeps the quote, the line break and the order; FROM VALUES (NULL::STRING, 0) WHERE FALSE is no row.
 import java.sql.*;
 
 public class SnowflakeDataTableProbe {

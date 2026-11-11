@@ -10,11 +10,19 @@
 // The SQL is the candidate spelling, written from the database's documentation, NOT measured: the probe's output
 // decides SqlDialect.dataTable for Databricks, or its refusal by name (a register row).
 // Databricks SQL has no temporary TABLE, only a temporary VIEW -- a view over literal rows, which is the statement holding the data, not a load: the probe records it; the likely answer is a refusal by name.
+// THE LANE'S ANSWER (the Databricks lane at 5fe98b92, runtime 4.2.0, relayed by the orchestrator, 2026-11-11):
+// CREATE TEMPORARY TABLE <single-part name> (data STRING, u_frame_ord__ INT) is private (another connection sees the
+// user's table only; the user's permanent table of the name untouched); INSERT INTO <name> VALUES (...) fills it;
+// DROP TEMPORARY TABLE IF EXISTS <name> drops it alone, a silent no-op when absent. A qualified name is refused for
+// CREATE and DROP (TEMP_TABLE_*_REQUIRES_SINGLE_PART_NAME); a plain DROP TABLE is refused while a temporary table of the
+// name exists. So Databricks takes a SESSION_TABLE (Databricks.dataTable). QUOTING FIXED HERE after that run: a quote
+// in a Databricks literal is \' and a backslash \\ ('' is NOT an escape: two literals concatenated, "user''s" read
+// back as "users"), so the fill's SQL text it\\'s is now it\'s and 'the user''s row' now 'the user\'s row'.
 import java.sql.*;
 
 public class DatabricksDataTableProbe {
     static final String USER_TABLE = "CREATE TABLE legend_data_probe (data STRING)";
-    static final String[] MAKE = new String[] {"DROP VIEW IF EXISTS legend_data_probe_session", "CREATE TEMPORARY VIEW legend_data_probe_session AS SELECT * FROM VALUES ('{\"t\":\"it\\\\'s\"}', 0), ('{\"t\":\"a\\\\\\\\nb\"}', 1) AS t(data, u_frame_ord__)"};
+    static final String[] MAKE = new String[] {"DROP VIEW IF EXISTS legend_data_probe_session", "CREATE TEMPORARY VIEW legend_data_probe_session AS SELECT * FROM VALUES ('{\"t\":\"it\\'s\"}', 0), ('{\"t\":\"a\\\\\\\\nb\"}', 1) AS t(data, u_frame_ord__)"};
     static final String[] INSERT = new String[] {};
     static final String READ = "SELECT data, u_frame_ord__, get_json_object(data, '$.t') FROM legend_data_probe_session ORDER BY u_frame_ord__";
     static final String DROP = "DROP VIEW IF EXISTS legend_data_probe_session";
@@ -24,8 +32,8 @@ public class DatabricksDataTableProbe {
                 : DriverManager.getConnection(a[0]); Statement s = c.createStatement()) {
             step("1 the user's table", s, USER_TABLE);
             step("1 the user's row", s, USER_TABLE.contains("legend_lite_probe.")
-                    ? "INSERT INTO legend_lite_probe.legend_data_probe VALUES ('the user''s row')"
-                    : "INSERT INTO legend_data_probe VALUES ('the user''s row')");
+                    ? "INSERT INTO legend_lite_probe.legend_data_probe VALUES ('the user\\'s row')"
+                    : "INSERT INTO legend_data_probe VALUES ('the user\\'s row')");
             for (String m : MAKE) step("2 make", s, m);
             for (String i : INSERT) step("2 fill", s, i);
             query("2 read", s, READ);

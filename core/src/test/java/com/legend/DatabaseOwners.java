@@ -200,6 +200,9 @@ final class DatabaseOwners {
             // 2026-11-11 (the user: JSON on every database): a data: source on each embedded server, by the delivery
             // each dialect declares, by design
             "core/src/test/java/com/legend/exec/DataSourceServersTest.java",
+            // 2026-11-11 (the lanes' probes, relayed): Snowflake's, BigQuery's and Databricks' forms of a data: payload and
+            // the empty payload on every database that writes it as rows, each named, by design
+            "core/src/test/java/com/legend/planner/DataSourcesDeliveryTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

@@ -657,6 +657,11 @@ class CarrierDifferentialTest {
         }
 
         @Override
+        public SqlDialect.DataDelivery dataDelivery() {
+            return duck.dataDelivery();
+        }
+
+        @Override
         protected String formatText(SqlExpr.FormatLit fl) {
             return strftimeText(fl);
         }

@@ -196,9 +196,6 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
                     case INLINE -> {
                         return inline(u, frame);
                     }
-                    case REFUSED -> throw new com.legend.sql.DialectCapability("a data: source on "
-                            + dialect.getClass().getSimpleName() + ": no delivery of a data: payload is measured on"
-                            + " this database yet (a session table or its inline rows; register S190)");
                 }
                 SqlDdl.ColumnType type = dialect.dataSourceColumn(u.url());
                 SqlDialect.DataTable table = tables.computeIfAbsent(new Key(content(u.url()), frame),
@@ -214,16 +211,24 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
          * ({@link SqlDialect.DataDelivery#INLINE}; census M18, BOUNDED to those databases): each element, or a frame's
          * record and its place, a row -- the element's JSON text the database parses ({@code CAST(... AS JSON)}, as its
          * dialect spells it: Trino's {@code json_parse}, MongoDB's document). The payload cut as the session table's is
-         * ({@link #elements}, {@link #records}), never re-printed. A payload of no element has no row to write, and is
-         * refused by name on these databases (VALUES holds at least one row).
+         * ({@link #elements}, {@link #records}), never re-printed. A payload of no element is the relation's columns
+         * and no row (the orchestrator's ruling, 2026-11-11: JSON everywhere, the empty payload too): one row of typed
+         * NULLs, which VALUES needs, removed by {@code WHERE FALSE} -- the shape the lowering's empty TDS literal and the
+         * planner's empty system table already take, which every dialect writes.
          */
         private SqlSource inline(SqlSource.SourceUrl u, boolean frame) {
             String content = content(u.url());
             List<String> elements = frame ? records(content, u.url()) : elements(content, u.url());
+            List<String> columns = frame ? List.of(COLUMN, ORDINAL) : List.of(COLUMN);
             if (elements.isEmpty()) {
-                throw new com.legend.sql.DialectCapability("a data: source of no element on "
-                        + dialect.getClass().getSimpleName() + ", which holds a payload as the statement's own rows:"
-                        + " there is no row to write");
+                List<SqlExpr> none = new ArrayList<>(List.of(new SqlExpr.Cast(new SqlExpr.NullLit(),
+                        com.legend.sql.SqlType.Scalar.JSON)));
+                if (frame) {
+                    none.add(new SqlExpr.IntLit(0));
+                }
+                return new SqlSource.Subselect(com.legend.sql.SqlSelect.starOf(new SqlSource.Values(List.of(none),
+                        columns, u.alias() + "_none", u.outputs())).withWhere(new SqlExpr.BoolLit(false)), u.alias(),
+                        null);
             }
             List<List<SqlExpr>> rows = new ArrayList<>(elements.size());
             for (int i = 0; i < elements.size(); i++) {
@@ -231,8 +236,7 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
                         com.legend.sql.SqlType.Scalar.JSON);
                 rows.add(frame ? List.of(element, new SqlExpr.IntLit(i)) : List.of(element));
             }
-            return new SqlSource.Values(rows, frame ? List.of(COLUMN, ORDINAL) : List.of(COLUMN), u.alias(),
-                    u.outputs());
+            return new SqlSource.Values(rows, columns, u.alias(), u.outputs());
         }
 
         /** The table of {@code key}: made, filled and released as its database spells a session table. */

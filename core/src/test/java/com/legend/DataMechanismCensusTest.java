@@ -234,7 +234,8 @@ class DataMechanismCensusTest {
             // BOUNDED (2026-11-11, the user's ruling: "we need to make json work everywhere"; the orchestrator's brief
             // of that day, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): a data: payload is a session table the plan's
             // load makes wherever the database holds one, and the statement's own rows (VALUES, $documents) only on the
-            // databases measured to hold none -- Trino, ClickHouse, MongoDB -- each a dialect's declaration
+            // databases measured to hold none a plan can make and drop safely -- Trino, ClickHouse, MongoDB, Snowflake,
+            // BigQuery (the last two the lanes' probes, 2026-11-11) -- each a dialect's declaration
             // (SqlDialect.dataDelivery), never a default and never a fallback
             new Row("M18", "a data: payload as the statement's own rows", new Bounded("JSON on every database",
                     List.of(), "DataDeliveryDeclaredTest")));
