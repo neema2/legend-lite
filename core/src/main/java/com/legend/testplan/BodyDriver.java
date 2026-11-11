@@ -210,6 +210,15 @@ public final class BodyDriver {
                     new com.legend.planner.DataSources.Tables(route.dialect()));
         }
 
+        /** This environment reading and making the body's data: tables through {@code other}'s (one body, one set of
+         *  tables: B4's audit, finding 4 -- a system-routed body on a server plans its appeals on its own environment
+         *  and its program on the catalog's, {@link #onCatalogBody}, and every table either makes is the program's to
+         *  place, or a read on another database is refused by name, {@code DataSources.Tables}). */
+        ExecEnv sharingTables(ExecEnv other) {
+            return other.data == data ? this : new ExecEnv(plan, target, options, activity, verdictBatch, engineText,
+                    failureMessage, appealOn, verdictIds, appeals, other.data);
+        }
+
         /** Whether this environment's statements run on the graph's system database. */
         boolean onSystem() {
             return target.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System;

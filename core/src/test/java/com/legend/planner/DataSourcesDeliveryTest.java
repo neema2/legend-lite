@@ -85,6 +85,23 @@ class DataSourcesDeliveryTest {
         tables.read(write, home);
     }
 
+    /** One body's tables are written in one database's dialect (B4, 2026-11-11, the audit's finding 4): a read on a
+     *  database of another -- the process's catalog beside a body on a server -- is refused by name. */
+    @Test
+    void aReadOnADatabaseOfAnotherDialectIsRefusedByName() {
+        ExecutionPlan.Target catalog = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "platform"), List.of(), List.of());
+        for (DatabaseType type : Databases.relational()) {
+            if (Databases.dialect(type).getClass() == Databases.dialect(Databases.PLATFORM).getClass()) {
+                continue;
+            }
+            DataSources.Tables tables = new DataSources.Tables(dialect(type));
+            var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> tables.read(frame(PAYLOAD), catalog), type.name());
+            assertTrue(refused.getMessage().contains("data: tables are written for"), type + ": " + refused.getMessage());
+        }
+    }
+
     /** Snowflake and BigQuery: the payload as ONE bound parameter the database splits (round 2's measurement, the
      *  user's ruling of 2026-11-11) -- no load, the payload never the statement's text, its one JSON array the bound
      *  value, a frame's place the split's index or offset. */

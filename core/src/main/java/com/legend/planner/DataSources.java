@@ -135,12 +135,17 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
 
         /** Holds the tables to one database: {@code on}'s, the first time; a later read on another refused by name. */
         private void atHome(ExecutionPlan.Target on) {
-            if (on.database() instanceof ExecutionPlan.Database.System s && com.legend.database.Databases.dialect(
-                    ConnectionPlans.model(s.type())).getClass() != dialect.getClass()) {
-                // a side routed to the process's catalog beside a body on a server keeps the body's tables, written in
-                // the body's dialect (B4, 2026-11-11): the catalog of another dialect holds none of them
-                throw new com.legend.error.NotImplementedException("a statement reads a data: source on the process's"
-                        + " catalog (" + s.type() + "), where the body's data: tables are written for "
+            com.legend.executionplan.DatabaseType engine = switch (on.database()) {
+                case ExecutionPlan.Database.System s -> s.type();
+                case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
+                case ExecutionPlan.Database.Platform p -> p.type();
+            };
+            if (com.legend.database.Databases.dialect(ConnectionPlans.model(engine)).getClass() != dialect.getClass()) {
+                // one body's tables are written in one database's dialect: a body on a server and its statements on the
+                // process's catalog share them (B4, 2026-11-11, the audit's finding 4), and a read on a database of
+                // another dialect is refused by name
+                throw new com.legend.error.NotImplementedException("a statement reads a data: source on "
+                        + describe(on.database()) + ", where the body's data: tables are written for "
                         + dialect.getClass().getSimpleName() + ": a statement reading the system metamodel store and a"
                         + " data: source is not planned on a database the platform does not run in process");
             }
