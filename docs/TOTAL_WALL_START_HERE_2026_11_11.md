@@ -403,6 +403,14 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
    - `duckdb_secrets()` shows `persistent=false`;
    - `DROP TEMPORARY SECRET` works;
    - the probe is `probes/DuckDbBoundSecret.java.txt`.
+7. **B4, done on `claude/total-wall-b4`** (census M5, M6 DELETED; every catalog statement on the in-process catalog, a
+   server's on the platform's own engine's). Known residuals, dated 2026-11-11, not built:
+   - An `assertError` read routed to the catalog beside a body on a user database sets its savepoint on the body's own
+     session, guarding nothing there. Harmless today: H2's and SQLite's catalogs do not abort a transaction, and on
+     DuckDB's the model's registration is placed ahead of every catalog step, so a rolled-back turn registers again
+     (`CatalogTurnFailureTest`).
+   - (Resolved by 560e99a: a store-free statement before a program's first catalog read is no longer written in the
+     server's dialect first; the product door probes the program, resolution only, and plans it once.)
 
 ### 4.5 The last lane round (35)
 
@@ -898,6 +906,12 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
 - **Features M17 names:** ModelStore, ExternalFormat, ServiceStore and Relation data; mapping and function test suites.
 - **Model data for these column types:** BINARY, VARBINARY, OTHER, DISTINCT, ARRAY, OBJECT.
 - **A statement over both the catalog and user tables.**
+- **The catalog's turn lock, after the total wall** (B4's audit, finding 6, 2026-11-11). One lock with no timeout
+  serializes every run reading an engine's catalog, process-wide, held while a product query streams its answer.
+  Proposal: (A) a pool of connections to one in-memory catalog per engine, each run its own transaction (DuckDB
+  `duplicate()`, H2's same in-memory URL; SQLite stays serialized), and (B) meanwhile a bounded wait refused by name
+  ("the catalog is busy"). Measurement plan: N concurrent runs registering the same model's rows on one DuckDB and one
+  H2 catalog through pooled connections, recording conflicts, blocking and throughput against today's single turn.
 - **Programs:** P5 (judge parity on H2); P6 (no fallbacks, honest appeals); the corpus and stress burn-down.
 - **PR #81** (timeseries), in its own session.
 
