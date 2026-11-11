@@ -1035,7 +1035,11 @@ junit_test(
     name = "data_source_servers_test",
     memory_mb = 1536,
     size = "large",
-    srcs = ["src/test/java/com/legend/exec/DataSourceServersTest.java"],
+    srcs = [
+        "src/test/java/com/legend/exec/DataSourceServersTest.java",
+        # each payload form read back on every SQL server (the JSON pass, 2026-11-11)
+        "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
+    ],
     data = [
         "@embedded_clickhouse//:clickhouse",
         "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
@@ -1064,8 +1068,10 @@ junit_test(
         ":core",
         ":test_cases",
         ":test_backends",
+        "//json",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -1129,6 +1135,8 @@ junit_test(
         "src/test/java/com/legend/integration/CsvJsonColumnTest.java",
         "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
         "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
+        # each payload form read back on Postgres (the JSON pass, 2026-11-11)
+        "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
     ],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
@@ -1139,10 +1147,12 @@ junit_test(
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
+        "//json",
         ":core",
         ":core_tests_lib",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],
     visibility = ["//gates:__pkg__"],
 )

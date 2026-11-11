@@ -55,33 +55,69 @@ final class ProgramRunnerTest {
         return PlanSessions.acquired(TestSessions.over(conn), target);
     }
 
-    /** The test-is-the-product plan's M10a: a target naming the graph's SYSTEM database opens the session its holder
-     *  hands the source for it (a non-closing view), every other target the caller's own; the shared source and a
-     *  writing open refuse a System target by name (the runner knows no database). */
+    /** The test-is-the-product plan's M10a: a target naming the process's catalog opens the session its leases hand the
+     *  source for it (a non-closing view), every other target the caller's own; with no leases, the caller's own
+     *  session, the shared source and a writing open refuse it by name (the runner knows no database). */
     @Test
     void aSystemTargetOpensTheSystemOpenersSession() throws Exception {
         try (Connection other = TestBackends.platform().open()) {
             Sessions.Session body = TestSessions.over(conn);
             Sessions.Session system = TestSessions.over(other);
-            ExecutionPlan.Target systemTarget = new ExecutionPlan.Target(
-                    new ExecutionPlan.Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
-                    List.of(), List.of());
+            // the process's catalog as the planner names it (B4, 2026-11-11: a target of no load that makes it is
+            // refused by name, aSystemTargetThatMakesNoCatalogIsRefusedByName)
+            ExecutionPlan.Target systemTarget = com.legend.planner.SystemCatalog.target(
+                    com.legend.Compiler.compileModel(""), com.legend.planner.ConnectionPlans.type(Databases.PLATFORM));
             // the run's leases of the system databases (2026-11-09: the leases themselves, where a function was handed)
-            try (SystemDatabase.Leases leases = SystemDatabase.leases(java.util.Map.of())) {
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 PlanSessions.Source source = PlanSessions.of(body, null, leases);
                 assertEquals(Sessions.identity(leases.sessionFor(systemTarget)),
                         Sessions.identity(source.open(systemTarget)), "the System target opens the leased session");
                 assertEquals(Sessions.identity(body), Sessions.identity(source.open(target)),
                         "any other target the caller's own");
             }
-            assertEquals(Sessions.identity(body), Sessions.identity(PlanSessions.of(body, null, null).open(systemTarget)),
-                    "no opener: the caller's own for every target");
+            // no leases: the caller's own session does not make the catalog, so the catalog's target is refused by
+            // name there, never answered on a session holding none of it (B4, 2026-11-11: until then a target of no load
+            // opened the caller's own)
+            var unmade = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    () -> PlanSessions.of(body, null, null).open(systemTarget));
+            assertTrue(unmade.getMessage().contains("ONCE"), unmade.getMessage());
             var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
                     () -> PlanSessions.shared().open(systemTarget));
             assertTrue(refused.getMessage().contains("system database"), refused.getMessage());
             var refusedWrite = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
                     () -> PlanSessions.shared().openToChange(systemTarget));
             assertTrue(refusedWrite.getMessage().contains("read-only"), refusedWrite.getMessage());
+        }
+    }
+
+    /** A system database's target names the process's catalog by the load that makes it (B4, 2026-11-11, the audit's
+     *  finding 5): a target with none -- a graph's own system database, which no plan names since -- is refused by
+     *  name. */
+    @Test
+    void aSystemTargetThatMakesNoCatalogIsRefusedByName() {
+        ExecutionPlan.Target bare = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"), List.of(), List.of());
+        try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
+            var refused = assertThrows(IllegalStateException.class, () -> leases.sessionFor(bare));
+            assertTrue(refused.getMessage().contains("makes the catalog"), refused.getMessage());
+        }
+    }
+
+    /** A system database is the process's in-process catalog (B4, 2026-11-11): a target naming one on a server engine
+     *  is refused by name when a run reaches it -- the host's system connection that served it is deleted, and nothing
+     *  routes it to a user's session. */
+    @Test
+    void aSystemDatabaseOnAServerEngineIsRefusedByName() {
+        for (var type : Databases.relational()) {
+            if (Databases.dialect(type).inProcess()) {
+                continue;
+            }
+            ExecutionPlan.Target server = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                    com.legend.planner.ConnectionPlans.type(type), "a-graph"), List.of(), List.of());
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
+                var refused = assertThrows(IllegalStateException.class, () -> leases.sessionFor(server), type.name());
+                assertTrue(refused.getMessage().contains("in process"), type + ": " + refused.getMessage());
+            }
         }
     }
 

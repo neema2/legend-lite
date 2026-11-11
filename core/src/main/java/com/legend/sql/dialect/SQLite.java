@@ -131,30 +131,35 @@ public final class SQLite extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
     }
 
-    /** {@inheritDoc} In SQLite's {@code temp} schema, which holds a connection's TEMPORARY tables alone (B2a, measured
-     *  2026-11-11 on 3.47.1, docs/data-delivery-homework/probes/SqliteTemp.java.txt): {@code DROP TABLE IF EXISTS
-     *  temp.t} never reaches a user's {@code main.t} and is a no-op where the connection holds none; an unqualified read
-     *  finds the temporary table first; another connection does not see it. The drop is spelled here: a schema-qualified
-     *  name is otherwise one delimited name on SQLite ({@link #tableName}). */
-    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in its {@code temp} schema its load made and its release dropped). */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return sessionTable(payload);
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
     }
 
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 3.47: 100,000
+     *  records in 45 ms): each element its JSON text, a frame's record its place as the array's key (from 0, the
+     *  payload's order); an empty array no row. {@code json_each} answers an atom as its SQL value -- a string unquoted,
+     *  a JSON null SQL's NULL, true 1 -- so each is put back as its JSON text (a string quoted, {@code null},
+     *  {@code true}, {@code false}; a number its text, a real as SQLite prints it: {@code 1.50} reads {@code 1.5},
+     *  measured; the element's own text is reachable only by a path lookup per element, quadratic: 19 s at 100,000),
+     *  with no JSON subtype, as a column of JSON text holds it (measured: a {@code CASE} carries none). */
     @Override
-    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
-        String drop = "DROP TABLE IF EXISTS temp." + ddlIdentifier(base, false);
-        String create = render(new com.legend.sql.SqlDdl.CreateTable(null, base, com.legend.sql.NameQuoting.BARE,
-                columns, true));
-        return new SqlDialect.DataTable(null, base, java.util.List.of(), java.util.List.of(drop, create),
-                java.util.List.of(drop));
-    }
-
-    /** {@inheritDoc} SQLite holds each element's JSON text in a column it navigates with its JSON functions. */
-    @Override
-    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
-        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT CASE legend_payload.type WHEN 'text' THEN json_quote(legend_payload.value)"
+                + " WHEN 'null' THEN 'null' WHEN 'true' THEN 'true' WHEN 'false' THEN 'false'"
+                + " ELSE CAST(legend_payload.value AS TEXT) END AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.key AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM json_each(");
+        return bindPayload(writer, u).append(") AS legend_payload");
     }
 
     /** {@inheritDoc} 9: a date-time is its text, every digit kept (S181, A7, 2026-11-10). */

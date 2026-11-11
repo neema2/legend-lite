@@ -42,7 +42,6 @@ import com.legend.model.MappingDefinition;
 import com.legend.planner.BodyPlanner;
 import com.legend.planner.ConnectionLets;
 import com.legend.planner.LetPlanner;
-import com.legend.planner.SystemRoutes;
 import com.legend.planner.FramePlanner;
 import com.legend.planner.ProductStatements;
 import com.legend.compiler.spec.ResultEnvelopeSplice;
@@ -180,17 +179,14 @@ public enum BodyClass {
      * user store's table, a {@code from()}, an {@code execute} or a handle over a runtime) -- each through the user
      * functions it calls, a lambda literal's body left aside (a lambda is a value: the native that runs one against
      * a store, an execute or a handle, is itself the read the scan names; a lambda handed to a SQL-text generator,
-     * {@code toSQLString(|Product.all()...)}, runs nowhere) -- on a runtime whose engine the platform runs in
-     * process (the system tables keep their names there). The frame, effect and store-write exclusions are the
-     * class's ({@link #of}, {@code assertProgram}), not this predicate's. Such a body's program runs on the graph's
-     * system database, the one session the walk routes each of its sides to; a body mixing the two stores has two
-     * targets and stays on the walk, by name.
+     * {@code toSQLString(|Product.all()...)}, runs nowhere) -- on any runtime (B4, 2026-11-11: until then only one
+     * whose engine the platform runs in process; the store is the process's catalog whatever database holds the
+     * user's data). The frame, effect and store-write exclusions are the class's ({@link #of}, {@code assertProgram}),
+     * not this predicate's. Such a body's program runs on the process's catalog, the one session each of its sides is
+     * routed to; a body mixing the two stores has two targets, each statement routed by its own stores.
      */
     public static boolean systemRouted(TypedQuery query, String runtime) {
         ModelContext ctx = query.context();
-        if (!SystemRoutes.inProcess(ctx, runtime)) {
-            return false;
-        }
         Set<String> systemClasses = systemClasses(ctx);
         Map<FunctionId, Boolean> systemMemo = new HashMap<>();
         Map<FunctionId, Boolean> userMemo = new HashMap<>();

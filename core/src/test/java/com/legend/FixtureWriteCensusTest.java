@@ -55,8 +55,10 @@ class FixtureWriteCensusTest {
      *  reader cannot read until B2d.2 makes it quote-aware -- then those two become its CSV and the ceiling falls back.
      *  912 -> 911 (2026-11-11, B2d.2's audit, H2 and M4): those two are TestDataPlannerTest's CSV now (the reader
      *  quote-aware), and GeneratedTestDataProgramTest seeds one text cell holding the empty text (1), which no CSV can
-     *  seed (the reader loads an empty cell as NULL), for the reload's empty-text-as-NULL case. */
-    private static final int CEILING = 911;
+     *  seed (the reader loads an empty cell as NULL), for the reload's empty-text-as-NULL case. 911 -> 907 (2026-11-11,
+     *  the JSON pass merged: no session table remains, so its drop-safety tests went -- DataTableSessionTest deleted,
+     *  DataDeliveryMatrixPostgresTest's user's table of the name with it, 4). */
+    private static final int CEILING = 907;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -71,9 +73,7 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/exec/ContainsOverloadTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/DataLoadsTest.java", 6),
             // 2026-11-11, the B2a audit's S3: a user's table of a session table's name (the ceiling's note)
-            Map.entry("core/src/test/java/com/legend/exec/DataTableSessionTest.java", 2),
             // 2026-11-11, the B2a audit's S4: a user's table of a session table's name on Postgres (the ceiling's note)
-            Map.entry("core/src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/ExecuteFrameTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", 4),
             Map.entry("core/src/test/java/com/legend/exec/ExecutorTest.java", 4),

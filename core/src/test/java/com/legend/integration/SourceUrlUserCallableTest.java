@@ -58,64 +58,40 @@ class SourceUrlUserCallableTest {
                 + " @meta::pure::metamodel::type::Integer)])->select(~[a])";
     }
 
-    /** A data: source is a load into a session table named by its content's digest (L6b, 2026-11-10: data written in
-     *  the model travels with the plan, never a SQL literal): the statement names the table and holds no payload; the
-     *  target's load drops, creates (TEMPORARY: the session's own) and fills it. */
+    /** A data: source is ONE BOUND PARAMETER of its statement (the JSON pass, 2026-11-11; until then a load into a
+     *  session table named by its content's digest, L6b, and its release, A4): the statement holds no payload, one slot
+     *  binds it by its digest, the statement's content holds its text, and the target loads nothing. */
     @Test
-    void aDataSourceIsALoadIntoASessionTableNamedByItsDigest() {
+    void aDataSourceIsOneBoundParameterOfItsStatement() {
         com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(MIN_MODEL),
                 source(PAYLOAD) + "->from(test::RT)").executionPlan("test::RT");
-        String sql = plan.answerSql().statement();
-        assertTrue(!sql.contains("\"a\":1"), "no payload in the statement: " + sql);
-        String table = "legend_data_" + com.legend.cache.Hash.ofUtf8(PAYLOAD.substring(PAYLOAD.indexOf(',') + 1)).hex()
-                .substring(0, 16);
-        assertTrue(sql.contains(table), sql);
-        var loads = plan.answerSql().target().loads();
-        // the table's load, and its release (A4, 2026-11-10: dropped, qualified to the session's temporary schema, when
-        // the request lets the session go)
-        assertEquals(2, loads.size(), "two loads: " + loads);
-        assertEquals(List.of("Drop table if exists temp." + table + ";"), statements(loads.get(1)));
-        assertEquals(com.legend.executionplan.ExecutionPlan.Load.Cadence.AT_RELEASE, loads.get(1).cadence());
-        List<String> steps = statements(loads.get(0));
-        assertEquals(3, steps.size(), String.valueOf(steps));
-        assertTrue(steps.get(0).contains(table) && steps.get(0).toUpperCase(java.util.Locale.ROOT).startsWith("DROP"),
-                steps.get(0));
-        assertTrue(steps.get(1).toUpperCase(java.util.Locale.ROOT).contains("TEMPORARY") && steps.get(1).contains(table),
-                steps.get(1));
-        assertTrue(steps.get(2).contains("{\"a\":1,\"b\":\"x\"}") && steps.get(2).contains("{\"a\":2,\"b\":\"y\"}"),
-                steps.get(2));
-        assertEquals(com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION, loads.get(0).cadence());
+        com.legend.executionplan.ExecutionPlan.Sql sql = plan.answerSql();
+        assertTrue(!sql.statement().contains("\"a\":1") && !sql.statement().contains("legend_data_"),
+                "no payload and no session table in the statement: " + sql.statement());
+        String digest = com.legend.cache.Hash.ofUtf8(PAYLOAD.substring(PAYLOAD.indexOf(',') + 1)).hex();
+        assertEquals(List.of(new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest)),
+                sql.slots().stream().map(com.legend.executionplan.ExecutionPlan.Slot::binding).toList());
+        assertEquals(java.util.Map.of(digest, PAYLOAD.substring(PAYLOAD.indexOf(',') + 1)), sql.content());
+        assertEquals(List.of(), sql.target().loads(), "no load");
     }
 
-    /** {@code load}'s statements in order: a statement's, and a blob's each (the elements, A2: a content blob of
-     *  inserts). */
-    private static List<String> statements(com.legend.executionplan.ExecutionPlan.Load load) {
-        List<String> out = new java.util.ArrayList<>();
-        for (com.legend.executionplan.ExecutionPlan.LoadStep step : load.steps()) {
-            switch (step) {
-                case com.legend.executionplan.ExecutionPlan.LoadStep.Statement s -> out.add(s.sql());
-                case com.legend.executionplan.ExecutionPlan.LoadStep.Statements st -> out.addAll(
-                        com.legend.executionplan.DataRef.Statements.decode(load.content().get(st.ref().digest())));
-                case com.legend.executionplan.ExecutionPlan.LoadStep.File f -> throw new IllegalStateException(
-                        "no file in a data: source's load");
-            }
-        }
-        return out;
-    }
-
-    /** Two data: sources of equal content read one table in a session, and a data: source inside a union (each arm a
-     *  subquery) still reads its table: the union answers both arms' rows (L6b's tests, the orchestrator's three). */
+    /** Two data: sources of equal content are one text in the plan (the JSON pass, 2026-11-11: each its statement's
+     *  bound parameter, both naming the one digest, the statement's content holding it once), and a data: source inside
+     *  a union (each arm a subquery) still reads its payload: the union answers both arms' rows. */
     @Test
-    void equalSourcesShareOneTableAndAUnionReadsIt() throws Exception {
+    void equalSourcesAreOneTextAndAUnionReadsIt() throws Exception {
         String q = source(PAYLOAD) + "->concatenate(" + source(PAYLOAD) + ")->from(test::RT)";
         com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(MIN_MODEL),
                 q).executionPlan("test::RT");
-        long creates = statements(plan.answerSql().target().loads().get(0)).stream()
-                .filter(s -> s.toUpperCase(java.util.Locale.ROOT).startsWith("CREATE")).count();
-        assertEquals(1, creates, "one table for two equal sources");
+        com.legend.executionplan.ExecutionPlan.Sql sql = plan.answerSql();
+        String digest = com.legend.cache.Hash.ofUtf8(PAYLOAD.substring(PAYLOAD.indexOf(',') + 1)).hex();
+        assertEquals(List.of(new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest),
+                new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest)),
+                sql.slots().stream().map(com.legend.executionplan.ExecutionPlan.Slot::binding).toList());
+        assertEquals(1, sql.content().size(), "one text for two equal sources: " + sql.content().keySet());
         try (Connection c = LaneFloor.backend().open()) {
             Lean.Result r = Lean.run(MIN_MODEL, q, "test::RT", c);
-            assertEquals(4, r.rows().size(), "both arms read the one table: " + r.rows());
+            assertEquals(4, r.rows().size(), "both arms read the payload: " + r.rows());
         }
     }
 }

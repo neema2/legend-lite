@@ -48,14 +48,13 @@ public final class TestRunner {
      * {@code runProgram}: no fixture is provided between the body's plan and its run.
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
-            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
             com.legend.executionplan.DataStores stores, @Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer) {
         lites(answer);
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
-            run(plan, session, systemConnections, stores, edge, callers, referee, answer, StatementOrigin.OTHER);
+            run(plan, session, stores, edge, callers, referee, answer, StatementOrigin.OTHER);
         }
     }
 
@@ -70,7 +69,6 @@ public final class TestRunner {
      * whoever made it (the slice 3 invariant audit, 2026-11-08; the door checked it until slice 5).
      */
     public static void run(TestPlan plan, Sessions.Session session,
-            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
             com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin) {
@@ -91,7 +89,7 @@ public final class TestRunner {
             // system-routed, else the second, read-only session a statement reading the system store alone runs on
             // (per-statement routing, 2026-11-03) -- found by the plan's target (SystemDatabase: the engine's current
             // one, leased for the run), opened when a step first asks
-            try (SystemDatabase.Leases leases = SystemDatabase.leases(systemConnections)) {
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 SystemDatabase.Leases systemSessions = leases;
                 Moved moved = new Moved(plan, edge, answer, early, listener, run);
                 // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
@@ -100,26 +98,22 @@ public final class TestRunner {
                         com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
                                 golden, ours, textEqual, referee, l, reader, sessions);
                 PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, null, systemSessions), origin);
-                // the plan's release -- its data: tables' drops -- sent once the run and its appeals are over, whatever
-                // their outcome (B2a, 2026-11-11: an appeal reads lite's rows after the run)
-                try (TestRun.Released released = TestRun.releasing(plan, sessions)) {
-                    try {
-                        TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved);
-                    } catch (RuntimeException runFailed) {
-                        // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is
-                        // the body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a
-                        // wall's refusal, the JVM's -- passes untouched: nothing is decided after it)
-                        throw appeals.afterFailure(runFailed, session, systemSessions,
-                                sessionsByTarget(session, systemSessions), decider);
-                    }
-                    // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is
-                    // the body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the
-                    // caller)
-                    appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
-                    if (answer != null && plan.answersLastVerdict()) {
-                        // a body whose last statement is an assert answers its verdict as host rows, as the walk does
-                        com.legend.testexec.SideShapes.host(moved.lastVerdict(), answer);
-                    }
+                try {
+                    TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved);
+                } catch (RuntimeException runFailed) {
+                    // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is
+                    // the body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a
+                    // wall's refusal, the JVM's -- passes untouched: nothing is decided after it)
+                    throw appeals.afterFailure(runFailed, session, systemSessions,
+                            sessionsByTarget(session, systemSessions), decider);
+                }
+                // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is
+                // the body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the
+                // caller)
+                appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
+                if (answer != null && plan.answersLastVerdict()) {
+                    // a body whose last statement is an assert answers its verdict as host rows, as the walk does
+                    com.legend.testexec.SideShapes.host(moved.lastVerdict(), answer);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

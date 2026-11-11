@@ -30,9 +30,9 @@ public interface DatabaseConnector {
      *  ({@link Sessions#openingFor}). */
     Sessions.Opening opening(com.legend.executionplan.Connection def);
 
-    /** Whether it has a private in-process instance ({@link #openPrivate}). A server has none: its system database is
-     *  on a system connection the host configures ({@link Sessions.Opener}). Each connector answers: a default would
-     *  send a new in-process database's system database to the host's connection. */
+    /** Whether it has a private in-process instance ({@link #openPrivate}): the engines the process's catalog is made
+     *  on (B4, 2026-11-11: a server has none, and its statements reading the system store run on the platform's own
+     *  engine's catalog). Each connector answers: a default would make a catalog on a server. */
     boolean inProcess();
 
     /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine);

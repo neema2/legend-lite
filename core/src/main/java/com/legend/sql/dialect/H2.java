@@ -31,50 +31,12 @@ import java.util.Set;
  */
 public class H2 extends AnsiSqlRenderer {
 
-    /** The schema of lite's own that H2's {@code data:} session tables live in ({@link #dataTable}). */
-    static final String DATA_SCHEMA = "LEGEND_SESSION";
-
-    /**
-     * {@inheritDoc} A {@code LOCAL TEMPORARY} table in a schema of lite's own, measured on 2.5.252 and 2.1.214
-     * (docs/data-delivery-homework/H2_DATA_TABLE_MEASURED_2026_11_11.md): H2 holds a session's temporary table in the
-     * schema it names, where a drop by name -- unqualified, {@code PUBLIC.} or {@code SESSION.} -- reaches a user's table
-     * of the name, and {@code IF NOT EXISTS} in {@code PUBLIC} captures one; and a drop inside a transaction commits it.
-     * So the table is made {@code IF NOT EXISTS ... TRANSACTIONAL} in {@code LEGEND_SESSION} and emptied, filled, and
-     * dropped only at release; the name upper case, so the read's delimited spelling and the make's bare one name one
-     * table. The schema's statement commits an open transaction, even where the schema exists (homework 6), so it is
-     * the program's PREPARE, sent before its first statement (the B2a audit's note: a program that wrote, then read a
-     * payload, was committed there; measured 2026-11-11, probes/H2Release.java.txt: a schema made first, a later write
-     * still rolls back). A drop in a schema that was never made raises ("Schema not found", measured), so the release
-     * makes it first: it runs after the run, in no transaction of the run's.
-     */
-    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    /** {@inheritDoc} The statement's own rows (the JSON pass, the user's ruling of 2026-11-11: "for h2 should we also
+     *  inline so we can get rid of all the temp table code completely?"): H2 refuses an array parameter of more than
+     *  65,536 elements, so a payload is not bound here; its rows took 460 ms for 100,000 records (measured). */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return sessionTable(payload);
-    }
-
-    @Override
-    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
-        String name = base.toUpperCase(java.util.Locale.ROOT);
-        String qualified = DATA_SCHEMA + "." + name;
-        java.util.List<String> release = new java.util.ArrayList<>(dataSchema());
-        release.add("DROP TABLE IF EXISTS " + qualified);
-        return new SqlDialect.DataTable(DATA_SCHEMA, name, dataSchema(), java.util.List.of(
-                "CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS " + qualified + " (" + ddlColumns(columns) + ") TRANSACTIONAL",
-                "DELETE FROM " + qualified), release);
-    }
-
-    /** {@inheritDoc} {@code LEGEND_SESSION}, whose statement commits an open transaction even where it exists. */
-    @Override
-    public java.util.List<String> dataSchema() {
-        return java.util.List.of("CREATE SCHEMA IF NOT EXISTS " + DATA_SCHEMA);
-    }
-
-    /** {@inheritDoc} H2 holds each element in a {@code JSON} column, navigated as the frame's VALUES are (measured on
-     *  2.5.252, the H2 data table's homework 8). */
-    @Override
-    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
-        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    public com.legend.sql.SqlSource deliver(SqlDialect.DataPayload payload) {
+        return inlineRows(payload);
     }
 
     /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal keeps the digits it is written with, nine at most (S181, A7, 2026-11-10). */
@@ -319,6 +281,16 @@ public class H2 extends AnsiSqlRenderer {
      * case-sensitive session a bare invented name would uppercase in
      * result-set LABELS and break label-reading consumers (the PCT
      * minted-name decode saw 'ID' for 'id' — the batch-C blocker). */
+    /** {@inheritDoc} A column the source declares PHYSICAL (a {@code data:} payload's rows, {@link #inlineRows}: its
+     *  queries read the element bare, as a table's column) is spelled as a reference to it is ({@link #columnName}),
+     *  so the case-sensitive session names one column (the JSON pass, 2026-11-11). */
+    @Override
+    protected String valuesColumn(com.legend.sql.SqlSource.Values v, int i) {
+        String name = v.columns().get(i);
+        return v.outputs().stream().anyMatch(o -> o.name().equals(name)
+                && o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL) ? execPart(name) : aliasIdent(name);
+    }
+
     @Override
     protected String aliasIdent(String name) {
         if (name.length() > 1 && name.charAt(0) == '"'
@@ -1221,17 +1193,26 @@ public class H2 extends AnsiSqlRenderer {
             return jsonParseCast(writer, c);
         }
         // a scalar cast over a navigation extracts TEXT first: H2 rejects JSON -> number/boolean casts outright and
-        // its VARCHAR cast keeps the JSON quoting (probed) -- TRIM strips it; numbers and booleans carry no quotes. A
-        // JSON null is SQL's NULL (its VARCHAR cast is the text null, where a JSON string "null" keeps its quotes), and
-        // a decimal target takes the text as a scalar one does (the lane round 33's stress finding, 2026-11-10: once
-        // A2 loaded a document as parsed JSON, a null read as 'null' and a JSON number cast to NUMERIC was refused)
+        // its VARCHAR cast is the value's JSON text (probed). A JSON STRING is that text unquoted and unescaped: H2
+        // normalizes a string when it parses it -- an escaped solidus is a solidus, a backslash-u escape of any but a
+        // control character the character itself -- so its text escapes only a quote, a backslash and a control
+        // character (backslash-b, -f, -n, -r, -t, or backslash-u and four hex digits), each of which STRINGDECODE (the
+        // Java string literal's decoding) reads back exactly, an escaped backslash before a u included (measured on
+        // 2.5.252, the JSON pass's H2 fix, 2026-11-11: until then
+        // TRIM stripped the quotes and kept every escape, so "a\\b" read a\\b, and a string's own edge quotes went
+        // with them). H2 has no JSON_VALUE. A number or a boolean is its text; a JSON null is SQL's NULL (its text the
+        // word null, where a JSON string "null" is quoted); a decimal target takes the text as a scalar one does (the
+        // lane round 33's stress finding, 2026-11-10)
         boolean navigation = c.value() instanceof SqlExpr.Call call
                 && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
                 || c.value() instanceof SqlExpr.StructGet;
         if (navigation && (c.target() instanceof com.legend.sql.SqlType.Scalar
                 || c.target() instanceof com.legend.sql.SqlType.Decimal)) {
-            return writer.append("CAST(TRIM(BOTH '\"' FROM NULLIF(CAST(").expr(c.value(), 0)
-                    .append(" AS VARCHAR), 'null')) AS ").append(castTypeName(c.target())).append(")");
+            writer.append("CAST(CASE WHEN CAST(").expr(c.value(), 0).append(" AS VARCHAR) LIKE '\"%' THEN STRINGDECODE(")
+                    .append("SUBSTRING(CAST(").expr(c.value(), 0).append(" AS VARCHAR), 2, LENGTH(CAST(")
+                    .expr(c.value(), 0).append(" AS VARCHAR)) - 2)) ELSE NULLIF(CAST(").expr(c.value(), 0)
+                    .append(" AS VARCHAR), 'null') END AS ");
+            return writer.append(castTypeName(c.target())).append(")");
         }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
         // two rows the since-deleted byte channel lost): a

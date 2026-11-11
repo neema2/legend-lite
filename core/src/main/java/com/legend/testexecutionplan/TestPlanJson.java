@@ -36,8 +36,10 @@ public final class TestPlanJson {
      *  harness to provide, the on-demand fixtures deleted (census M9); 14 (2026-11-11, B2a): the statements the runner
      *  sends after the run and its appeals, {@code release}; 15 the same day (the B2a audit's S2): the release names its
      *  target ({@code on}), the program's, where its tables were made; 16 the same day (B2b): the edge's record of a
-     *  seed is the referee's copy as a load ({@code refereeLoad}: its steps and bundle), no longer its texts. */
-    public static final int VERSION = 16;
+     *  seed is the referee's copy as a load ({@code refereeLoad}: its steps and bundle), no longer its texts; 17
+     *  (2026-11-11, the JSON pass): no {@code release} -- a body makes no {@code data:} session table to drop, its
+     *  payloads bound or inline -- and the product's version 48. */
+    public static final int VERSION = 17;
 
     private TestPlanJson() {
     }
@@ -88,9 +90,6 @@ public final class TestPlanJson {
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("session", PlanJson.targetJson(plan.session()));
-        if (plan.release() != null) {
-            out.put("release", PlanJson.releaseJson(plan.release()));
-        }
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
         if (!plan.extensionsByStep().isEmpty() || !plan.extensionsByVerdict().isEmpty()) {
@@ -233,11 +232,7 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), release(o.getObjOr("release", null)));
-    }
-
-    private static ExecutionPlan.@com.legend.base.Nullable Release release(Json.@com.legend.base.Nullable Obj o) {
-        return PlanJson.releaseOf(o);
+                PlanJson.targetOf(o.getObj("session")));
     }
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------

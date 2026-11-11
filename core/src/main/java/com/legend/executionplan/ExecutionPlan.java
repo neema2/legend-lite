@@ -23,33 +23,11 @@ import java.util.Objects;
  *                   (the plan-as-data design's slice 5, 2026-11-09: a fact of the plan, so a plan read back from its
  *                   JSON runs alone -- until then the door read it off the typed query and handed it beside the plan)
  */
-public record ExecutionPlan(List<Parameter> parameters, Node root, boolean writes,
-        @com.legend.base.Nullable Release release) {
+public record ExecutionPlan(List<Parameter> parameters, Node root, boolean writes) {
 
     public ExecutionPlan {
         parameters = List.copyOf(parameters);
         Objects.requireNonNull(root, "root");
-    }
-
-    /** A plan with no release. */
-    public ExecutionPlan(List<Parameter> parameters, Node root, boolean writes) {
-        this(parameters, root, writes, null);
-    }
-
-    /**
-     * A plan's RELEASE: {@code statements} sent in order on {@code on}'s session once the run is over, whatever its
-     * outcome -- after its transaction ended, so a drop that commits an open transaction (H2's) commits none of the
-     * run's -- its {@code data:} tables' drops (B2a, 2026-11-11; the product door's since the second audit's S12, the
-     * same day: they were the program's last steps, never sent when a step before them failed). A test plan's too.
-     */
-    public record Release(List<String> statements, Target on) {
-        public Release {
-            statements = List.copyOf(statements);
-            Objects.requireNonNull(on, "on");
-            if (statements.isEmpty()) {
-                throw new IllegalArgumentException("a release sends at least one statement: a plan with none has none");
-            }
-        }
     }
 
     /** A plan that reads: it changes no store. */
@@ -60,12 +38,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     /** A plan that writes: a program that changes a store. */
     public static ExecutionPlan writing(List<Parameter> parameters, Node root) {
         return new ExecutionPlan(parameters, root, true);
-    }
-
-    /** A plan that writes, with its {@link Release} (null: none). */
-    public static ExecutionPlan writing(List<Parameter> parameters, Node root,
-            @com.legend.base.Nullable Release release) {
-        return new ExecutionPlan(parameters, root, true, release);
     }
 
     /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
@@ -395,11 +367,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             /** A program's own load at its place ({@code loadCsvToDbTable}): run every time it is reached, a write as
              *  an effect is, never skipped. */
             AT_STEP,
-            /** A LIVE SOURCE'S SESSION TABLE at its place (a {@code data:} payload's, a JSON connection's frame: B2a,
-             *  2026-11-11): run every time it is reached, never skipped, and NO WRITE of the body's -- the table is the
-             *  session's own, dropped at the plan's release -- so a seed established before it stays established and an
-             *  appeal held before it is still decided (the B2a audit's S1: as AT_STEP it was a write). */
-            SOURCE,
             /** A target's load (a connection's declared test data, L2): established when a session is acquired for the
              *  target, a write, as legend-engine establishes a test connection on each acquisition. Per source (the
              *  contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09): a caller's session
@@ -417,13 +384,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  a program's node, run inside the run's own transaction on the catalog -- which is rolled back when the
              *  run ends, so no other run sees it -- once per run (the seeds' memo, which the rollback clears); refused
              *  by name on a session that holds no such transaction. */
-            PER_TRANSACTION,
-            /** A target's RELEASE (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rules 2 and 4, A4): run when a request
-             *  lets go of the session acquired for its target, whatever the request's outcome -- the session tables an
-             *  acquisition's load made (a {@code data:} payload's), dropped, so a kept session holds none of them after
-             *  the request. Run by the source that ran the target's acquisition loads ({@code PlanSessions.acquired});
-             *  never on a database the platform keeps made with them, nor as a program's node. */
-            AT_RELEASE
+            PER_TRANSACTION
         }
     }
 
@@ -669,16 +630,42 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * test-is-the-product plan's M3f, R17 C4): the runner mints the comment the statement is sent under before it sends
      * it and binds it under that name, for the statement's own slots and the steps after (an activity row records the
      * comment of the statement that ran its frame, minted per execution as legend-engine mints it).
+     * {@code content}: the {@code data:} payloads its slots bind ({@link Binding.Payload}), each text by its SHA-256 --
+     * the SAME bundle a load's is (the JSON pass, 2026-11-11, the user's "include the digest reference": the payload's
+     * bytes once in the plan's data, inline in its JSON below {@code PlanJson.INLINE_LIMIT_BYTES}, beside it above,
+     * every text verified against its digest where a plan is read): exactly the digests its slots name, a payload slot
+     * whose digest it lacks or a text no slot binds refused by name here, as a load's bundle is.
      */
     public record Sql(String statement, List<Slot> slots, Target target,
             com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
-            @com.legend.base.Nullable String stamp) {
+            @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
         public Sql {
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
             regions = List.copyOf(regions);
             Region.check(statement.length(), slots, regions, s -> s.binding() instanceof Binding.Key);
+            content = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(content));
+            java.util.Set<String> named = new java.util.TreeSet<>();
+            for (Slot slot : slots) {
+                if (slot.binding() instanceof Binding.Payload payload) {
+                    named.add(payload.digest());
+                    if (!content.containsKey(payload.digest())) {
+                        throw new IllegalArgumentException("a statement binds the payload " + payload.digest()
+                                + ", which its content lacks");
+                    }
+                }
+            }
+            if (!named.equals(content.keySet())) {
+                throw new IllegalArgumentException("a statement's content holds a payload no slot binds");
+            }
+        }
+
+        /** A statement binding no payload. */
+        public Sql(String statement, List<Slot> slots, Target target,
+                com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
+                @com.legend.base.Nullable String stamp) {
+            this(statement, slots, target, tree, regions, stamp, java.util.Map.of());
         }
 
         /** A statement whose stamp nothing reads. */
@@ -695,7 +682,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This statement, its own execution-trace stamp bound under {@code name}. */
         public Sql stamped(String name) {
-            return new Sql(statement, slots, target, tree, regions, name);
+            return new Sql(statement, slots, target, tree, regions, name, content);
+        }
+
+        /** This statement minting no stamp. */
+        public Sql unstamped() {
+            return new Sql(statement, slots, target, tree, regions, null, content);
         }
 
         /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session
@@ -814,11 +806,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
 
         /** A {@code data:} payload's one JSON array, the plan's own value, bound as its text to a statement that splits
-         *  it itself (its dialect's delivery, 2026-11-11: Snowflake's and BigQuery's); the slot names no declared
-         *  parameter. Census M18: the payload in the plan, BOUNDED to those databases. */
-        record Payload(String json) implements Binding {
+         *  it itself (its dialect's delivery, 2026-11-11); named by its SHA-256 {@code digest}, its text the
+         *  statement's {@link Sql#content} (the JSON pass, 2026-11-11: the payload's bytes once in the plan's data, as a
+         *  load's are); the slot names no declared parameter. Census M18: the payload in the plan. */
+        record Payload(String digest) implements Binding {
             public Payload {
-                Objects.requireNonNull(json, "json");
+                Objects.requireNonNull(digest, "digest");
             }
         }
     }
@@ -848,17 +841,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             loads = List.copyOf(loads);
             java.util.Set<String> identities = new java.util.HashSet<>();
             boolean acquired = false;
-            boolean released = false;
             for (Load load : loads) {
-                // the project's Data first (made once with the database), then what each acquisition establishes, then
-                // what its release drops
-                if (load.cadence() == Load.Cadence.AT_RELEASE) {
-                    released = true;
-                } else if (load.cadence() == Load.Cadence.PER_ACQUISITION && !released) {
+                // the project's Data first (made once with the database), then what each acquisition establishes (the
+                // AT_RELEASE cadence went with the data: session tables it dropped: the JSON pass, 2026-11-11)
+                if (load.cadence() == Load.Cadence.PER_ACQUISITION) {
                     acquired = true;
-                } else if (load.cadence() != Load.Cadence.ONCE || acquired || released) {
+                } else if (load.cadence() != Load.Cadence.ONCE || acquired) {
                     throw new IllegalArgumentException("a target's loads are its ONCE loads, then its PER_ACQUISITION"
-                            + " ones, then its AT_RELEASE ones: " + load.identity() + " is " + load.cadence());
+                            + " ones: " + load.identity() + " is " + load.cadence());
                 }
                 if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
                         || !load.target().session().equals(session)) {
@@ -926,14 +916,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
         }
 
-        /** THE GRAPH'S SYSTEM DATABASE on {@code type} (the test-is-the-product plan's M10a, the narrow M4,
-         *  2026-11-01): the metamodel store's tables, written once per graph by the one who opens it -- the sessions
-         *  source a caller hands the runner; the runner knows no database (the user ruling of 2026-09-02: separate
-         *  from every user connection). A test body reading the metamodel store runs its program here; the product's
-         *  own metamodel carriage is unchanged (the user, 2026-11-01: a product follow-up). {@code graphKey} names WHICH
-         *  store (the plan-as-data design's step 7, 2026-11-08, 2.6): a hash of the store's content -- every table's
-         *  definition and the graph's rows -- so two plans of one graph name one store, and the plan, not the compiled
-         *  graph object beside it, says which. */
+        /** THE PROCESS'S CATALOG on {@code type} (the test-is-the-product plan's M10a, 2026-11-01; L4b, 2026-11-09;
+         *  B4, 2026-11-11): the system metamodel store's tables and the platform's rows, made once a process on an
+         *  engine the platform runs in process by the target's ONCE load, separate from every user connection (the
+         *  user's ruling of 2026-09-02); a model's own rows are registered in a run's turn. Every statement reading the
+         *  store runs here, whatever database holds the user's data. {@code graphKey} names the catalog: the platform's
+         *  content key ({@code SystemCatalog}'s), the same in every plan (a graph's own store, keyed by its content,
+         *  until L4b). */
         record System(DatabaseType type, String graphKey) implements Database {
             public System {
                 Objects.requireNonNull(type, "type");

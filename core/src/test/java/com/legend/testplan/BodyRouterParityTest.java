@@ -51,11 +51,6 @@ class BodyRouterParityTest {
      *  may only explain), so the tests of them run their programs, on both roads, under those rules. */
     private static final ThreadLocal<Boolean> COMPAT = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    /** A look at the body's own connection when the referee is asked (an appeal being decided, after the run), and
-     *  once the run is over, before the connection closes: none unless a test sets one (dataSourcePrograms). */
-    private static final ThreadLocal<java.util.function.Consumer<Connection>> AT_APPEAL = new ThreadLocal<>();
-    private static final ThreadLocal<java.util.function.Consumer<Connection>> AFTER_RUN = new ThreadLocal<>();
-
     private interface Body {
         void run() throws Exception;
     }
@@ -795,93 +790,50 @@ class BodyRouterParityTest {
             + "->from(x::RT)";
 
     /**
-     * A test body reading a {@code data:} source (B2a and its audit, 2026-11-11), under both judges, on every
-     * in-process backend whose database spells a session table: its table's load is a live source's ({@code SOURCE}),
-     * NO WRITE of the body's, so an engine-text appeal held before it is still decided (the audit's S1: as a write, the
-     * appeal was refused, "held before a later write"); the release -- its drop -- is the last statement the session
-     * takes, after the appeals have read lite's rows, on a failing body too (S3); and a system-routed body's tables are
-     * made, and dropped, on the graph's system database, its program's own target (S2).
+     * A test body reading a {@code data:} source (B2a and its audit, 2026-11-11; the JSON pass, the same day: the payload
+     * is its statement's own, bound or inline, so no load, no session table and no release), under both judges, on every
+     * in-process backend: an engine-text appeal held before it is still decided; a failing body fails as its assert says;
+     * and a system-routed body reads its payload on the process's catalog, its plan holding no load of a payload's.
      */
     @ParameterizedTest
     @MethodSource("backends")
     void dataSourcePrograms(TestBackend backend) throws Exception {
-        com.legend.sql.dialect.SqlDialect.DataTable probe;
-        try {
-            probe = backend.dialect().dataTable("legend_data_probe", List.of());
-        } catch (com.legend.sql.DialectCapability refused) {
-            return;   // no session table spelled there: a data: source is refused by name
-        }
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
         String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
         // the golden a text of its own with ours's rows, so the referee replays it after the run
         String sameRows = "SELECT * FROM (" + ours + ") AS q";
-        // the session table's name read off a run's statements: its content's digest
-        Run first = run(backend, ctx, "x::RT", "{| assertEquals(2, " + DATA_SOURCE + "->size());}",
-                "select count(*) from FIRM", FIRM_ROWS);
-        assertEquals("ok", first.outcome, first.verdicts.toString());
-        java.util.regex.Matcher named = java.util.regex.Pattern.compile("(?i)legend_data_[0-9a-f]{16}(_o)?")
-                .matcher(String.join("\n", first.statements));
-        assertTrue(named.find(), "the read names the session table: " + first.statements);
-        String table = backend.dialect().dataTable(named.group().toLowerCase(java.util.Locale.ROOT), List.of()).read();
         for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
                 com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
-            List<String> atAppeal = new ArrayList<>();
-            List<String> afterRun = new ArrayList<>();
-            AT_APPEAL.set(c -> atAppeal.add(database(c, "select count(*) from " + table)));
-            AFTER_RUN.set(c -> afterRun.add(database(c, "select count(*) from " + table)));
-            try {
-                // S1: the appeal held at the first assert, the data: table's load after it -- decided, MATCH
-                String appealThenData = "{| meta::relational::functions::asserts::assertSameSQL('" + pure(sameRows)
-                        + "', " + producer + "); assertEquals(2, " + DATA_SOURCE + "->size());}";
-                Run[] decided = new Run[1];
-                com.legend.testplan.PlanningOptions.JudgeMode m = mode;
-                inCompatibilityMode(() -> decided[0] = run(backend, ctx, "x::RT", appealThenData,
-                        "select count(*) from FIRM", FIRM_ROWS, m));
-                assertEquals("ok", decided[0].outcome, mode + ": the appeal before a data: load is decided: "
-                        + decided[0].verdicts);
-                assertTrue(originsOf(decided[0].origins)[StatementOrigin.REFEREE_OURS.ordinal()] >= 1,
-                        mode + ": the appeal's rows leg ran: " + decided[0].statements);
-                // S3: the release after the appeal read lite's rows -- the table there when the referee was asked,
-                // gone once the run is over
-                assertTrue(!atAppeal.isEmpty() && atAppeal.stream().allMatch("2,"::equals),
-                        mode + ": the session table held its rows at the appeal: " + atAppeal);
-                assertEquals(1, afterRun.size());
-                assertTrue(afterRun.get(0).startsWith("refused"), mode + ": released after the run: " + afterRun);
-                // S3: a failing body's release still runs
-                afterRun.clear();
-                Run failed = run(backend, ctx, "x::RT", "{| assertEquals(3, " + DATA_SOURCE + "->size());}",
-                        "select count(*) from FIRM", FIRM_ROWS, mode);
-                assertTrue(failed.outcome.startsWith("AssertFailed"), mode + ": " + failed.outcome);
-                assertTrue(afterRun.get(0).startsWith("refused"), mode + ": the failed body's release ran: "
-                        + afterRun);
-            } finally {
-                AT_APPEAL.remove();
-                AFTER_RUN.remove();
-            }
-            // S2: a system-routed body's tables made, read and dropped on the system database, its program's target;
-            // where the session table needs a prepare that commits (H2's schema), the catalog made it ONCE with its own
-            // tables, so the body sends none and the catalog's run transaction, which the run rolls back, stays
-            // uncommitted (the user's veto, 2026-11-11, of the refusal that stood here)
+            // the appeal held at the first assert, the payload's read after it -- decided, MATCH
+            String appealThenData = "{| meta::relational::functions::asserts::assertSameSQL('" + pure(sameRows)
+                    + "', " + producer + "); assertEquals(2, " + DATA_SOURCE + "->size());}";
+            Run[] decided = new Run[1];
+            com.legend.testplan.PlanningOptions.JudgeMode m = mode;
+            inCompatibilityMode(() -> decided[0] = run(backend, ctx, "x::RT", appealThenData,
+                    "select count(*) from FIRM", FIRM_ROWS, m));
+            assertEquals("ok", decided[0].outcome, mode + ": the appeal before a payload's read is decided: "
+                    + decided[0].verdicts);
+            assertTrue(originsOf(decided[0].origins)[StatementOrigin.REFEREE_OURS.ordinal()] >= 1,
+                    mode + ": the appeal's rows leg ran: " + decided[0].statements);
+            assertTrue(decided[0].statements.stream().noneMatch(st -> st.toLowerCase(java.util.Locale.ROOT)
+                    .contains("legend_data_")), mode + ": no session table: " + decided[0].statements);
+            Run failed = run(backend, ctx, "x::RT", "{| assertEquals(3, " + DATA_SOURCE + "->size());}",
+                    "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertTrue(failed.outcome.startsWith("AssertFailed"), mode + ": " + failed.outcome);
+            // a system-routed body reads its payload on the process's catalog, in the catalog's dialect
             String systemAndData = "{| assertEquals('M', x::M.name); assertEquals(2, "
                     + DATA_SOURCE.replace("->from(x::RT)", "") + "->size());}";
             assertTrue(BodyClass.systemRouted(typed(ctx, systemAndData), "x::RT"), "system-routed: " + systemAndData);
             Run routed = run(backend, ctx, "x::RT", systemAndData, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", routed.outcome, mode + ": " + routed.verdicts);
-            // (the catalog's statements go to its own session, not the recorded one: the witness that no prepare
-            // committed the run's registration is the next run's, below -- before the veto, measured, it collided)
-            // the second audit's S9: the routed body's tables are made on the system database, its program's target,
-            // and released by the catalog turn's rollback -- its plan carries no release, whose drop would commit the
-            // turn on H2
             com.legend.testexecutionplan.TestPlan routedPlan = com.legend.TestExecution.planBody(typed(ctx,
                     systemAndData), "x::RT", com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
-            assertNull(routedPlan.release(), mode + ": " + routedPlan.release());
-            assertTrue(routedPlan.steps().stream().anyMatch(st -> st instanceof com.legend.testexecutionplan.TestPlan.Run r
+            assertTrue(routedPlan.steps().stream().noneMatch(st -> st instanceof com.legend.testexecutionplan.TestPlan.Run r
                     && r.node() instanceof com.legend.executionplan.ExecutionPlan.Load l
-                    && l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.SOURCE
-                    && l.target().database() instanceof com.legend.executionplan.ExecutionPlan.Database.System),
-                    mode + ": the data: table's load is on the system database: " + routedPlan.steps());
+                    && !(l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_TRANSACTION)),
+                    mode + ": no load of a payload's: " + routedPlan.steps());
             // and the catalog intact after: the next system-routed run registers the model again
             Run again = run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", "select count(*) from FIRM",
                     FIRM_ROWS, mode);
@@ -1941,10 +1893,6 @@ class BodyRouterParityTest {
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
             }
-            java.util.function.Consumer<Connection> afterRun = AFTER_RUN.get();
-            if (afterRun != null) {
-                afterRun.accept(c);
-            }
             long[] after = StatementOrigin.snapshot();
             long[] delta = new long[after.length];
             for (int i = 0; i < delta.length; i++) {
@@ -2018,10 +1966,6 @@ class BodyRouterParityTest {
         public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.testexecutionplan.TypedSide ours,
                 @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String rootClassFqn,
                 ReplayFacts facts, com.legend.testexecutionplan.Appeal.Enums enums) {
-            java.util.function.Consumer<Connection> look = AT_APPEAL.get();
-            if (look != null) {
-                look.accept(c);
-            }
             List<String> golden = new ArrayList<>();
             try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(goldenSql)) {
                 int n = rs.getMetaData().getColumnCount();

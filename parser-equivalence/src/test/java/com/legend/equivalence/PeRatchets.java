@@ -43,7 +43,10 @@ public final class PeRatchets {
             "own_corpus.matched 3116 -> 3117 (2026-11-11, B2a): JsonSourceFrameArrayTextTest's class, the frame's model",
             "own_corpus.matched 3117 -> 3136 (2026-11-11, B2d.2 and its audit round): the test-data generator's tests'"
                     + " models (GeneratedTestDataProgramTest's store, mapping, helpers and runtimes, TestDataPlannerTest's"
-                    + " and ReservedNamesGenerationTest's)");
+                    + " and ReservedNamesGenerationTest's)",
+            "own_corpus.matched 3136 -> 3145 (2026-11-11, the JSON pass, 101b557, merged onto B2d.2's count; it measured"
+                    + " 3117 -> 3126 on its own branch): the Pure texts its rewritten and new tests hold (JsonPayloadFormsTest,"
+                    + " DataSourcesDeliveryTest, DataReleaseTest, SourceUrlUserCallableTest, BodyRouterParityTest.dataSourcePrograms)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -71,8 +71,8 @@ public final class ProductRun {
     private static void runCalledBack(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
             Establish establish, ResultSink sink, int batchRows) throws IOException {
         // a write on the caller's session, its declared setup established, is established as a read is: the program's
-        // target's acquisition loads run on the session first, and released when the request lets it go (A5,
-        // 2026-11-10: until then the caller's session refused them, so a write never read its declared test data)
+        // target's acquisition loads run on the session first (A5, 2026-11-10: until then the caller's session refused
+        // them, so a write never read its declared test data)
         boolean establishedOnTheCallers = establish == Establish.DECLARED_SETUP
                 && sessions instanceof SessionSource.Given;
         if (!plan.writes() && !plan.sendsTheAnswer()) {
@@ -82,21 +82,14 @@ public final class ProductRun {
         ExecutionPlan.Target target = plan.writes() ? home(plan) : plan.answerSql().target();
         if (plan.writes() && !establishedOnTheCallers
                 && !(target.database() instanceof ExecutionPlan.Database.System)) {
-            try (PlanSessions.Releasing released = releasing(plan, planSessions)) {
-                PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows);
-            }
+            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows);
             return;
-        }
-        if (target.database() instanceof ExecutionPlan.Database.System && plan.release() != null) {
-            // the catalog's turn is rolled back whole when the run ends: a table made in it needs no drop, and a drop
-            // inside the turn commits it on H2 (ProgramState.placeMade)
-            throw new IllegalStateException("a plan on the system catalog carries a release: " + plan.release());
         }
         if (target.database() instanceof ExecutionPlan.Database.System) {
             // a query reading the metamodel alone, answered on the process's catalog (L4's product half, 2026-11-10):
             // the run's turn on it, the model's registration inside it, rolled back when the run ends -- never the
             // caller's session, which holds no catalog
-            try (SystemDatabase.Leases leases = SystemDatabase.leases(Map.of())) {
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(PlanSessions.system(leases),
                         planSessions.admitted()), sink, batchRows);
             }
@@ -119,23 +112,9 @@ public final class ProductRun {
                     yield PlanSessions.of(session);
                 }
             };
-            // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10); what the
-            // request's acquisition made is released whatever its outcome (§3 rules 2 and 4, A4), before its session
-            // -- and a kept session's lock -- goes: a release that fails after the run failed is suppressed into it
-            try (PlanSessions.Releasing released = PlanSessions.releasing(on);
-                    PlanSessions.Releasing planReleased = releasing(plan, on)) {
-                PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
-            }
+            // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10)
+            PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
         }
-    }
-
-    /** {@code plan}'s release ({@link ExecutionPlan.Release}), sent on {@code sessions} when closed: once the run is
-     *  over -- its transaction ended -- whatever its outcome, a failed release suppressed into the run's own failure
-     *  (the second audit's S12, 2026-11-11). Nothing where the plan has none. */
-    private static PlanSessions.Releasing releasing(ExecutionPlan plan, PlanSessions.Source sessions) {
-        ExecutionPlan.Release release = plan.release();
-        return release == null ? () -> { }
-                : () -> PlanRunner.release(release.statements(), sessions, release.on());
     }
 
     /** The one target a writing plan's steps run on (the runner holds them to one: {@code PlanRunner.sequence}). */

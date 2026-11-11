@@ -125,14 +125,34 @@ class DataMechanismCensusTest {
             // data reaches a plan only as a load, which the guard proves
             new Row("M4", "service-suite data through a synthetic connection (the overlay kept; its data a load)",
                     new Bounded("L2", List.of(), "ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad")),
-            new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4 (a server"
-                    + " engine's whole store per graph: the catalog design's check 3)")),
+            // L4a/L4b (2026-11-09): the system store's load named by its content, the walk's own seeding door gone, the
+            // whole store seeded per graph on an in-process engine replaced by the process's catalog (the platform's rows
+            // made once, a model's registered in the run's turn). DELETED by B4 (2026-11-11, the user's ruling "B4 sounds
+            // good for now", reconfirmed that day: every statement reading the store runs on the in-process catalog): a
+            // test body, a judge's side and a statement routed beside its body on a SERVER database read the catalog of
+            // the platform's own engine, written in its dialect -- the server's form (the host's system connection, the
+            // store as its session's temporary tables read through renames) deleted. Proof: CatalogOnEveryDatabaseTest,
+            // DataDeliveryMatrixPostgresTest's TEST_BODY and SERVICE catalog cells
+            new Row("M5", "the system metamodel store on the test road", new Deleted("B4", List.of(
+                    "Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()",
+                    // B4: the server's system connection, its options and the routes' renames
+                    "SystemRoutes.renames(", "SystemRoutes.routed(", "SystemRoutes.inProcess(", "openSystem(engine",
+                    "systemConnections.get(engine)", "options.systemConnections()",
+                    "public ExecuteOptions withSystemConnections",
+                    "Map.of(backend.planType(), backend::openSystem)"))),
             // L4's product half (2026-11-10): form 1 deleted -- every in-process product query reads the process's
-            // catalog, the server's project road too (the server holds no model: each request is the one-request
-            // case). Forms 2 and 3 (a server engine's TEMP tables, a server with none's inline rows) wait on a server
-            // engine's catalog, M5's check 3, not designed
-            new Row("M6", "the system metamodel store on the product road", new Pending("M5's server catalog (forms 2"
-                    + " and 3: a server engine's session TEMP tables, a server with none's inline rows)")),
+            // catalog. DELETED by B4 (2026-11-11, the same ruling): forms 2 and 3 -- a server engine's session TEMP
+            // tables, a server with none's inline rows -- deleted; a query or a writing program reading the store on any
+            // database runs on the catalog, written in its dialect, and one reading the store beside another source is
+            // refused by name. Proof: CatalogOnEveryDatabaseTest, PlanMakerTest
+            // .theMetamodelStoresTablesAreTheInProcessCatalogsOnEveryDatabase, DataDeliveryMatrixPostgresTest's READ and
+            // WRITE catalog cells
+            new Row("M6", "the system metamodel store on the product road", new Deleted("B4", List.of(
+                    "setup.addAll(Ddl.metamodelSteps", "metamodel.setup()", "!projectDatabase && dialect.inProcess()",
+                    // B4: the server's two forms -- the session's temporary tables and the query's inline rows
+                    "metamodel.session()", "metamodel.read(", "Metamodel.NONE", "Ddl.metamodelTemporary(",
+                    "metamodelTemporaryRows(", "Ddl.systemTable(", "temporaryTables()", "inlineRows(def",
+                    "dialect.sessionTable(new"))),
             // STAYING (B1, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B1, the user's yes): a seed form
             // mapped over executeInDb is the author's statements beside executeInDb, folded into the effect's script --
             // its bracket, abort, ledger and the B8 refusal the script's -- and never converted to a load (made one at L2
@@ -188,13 +208,11 @@ class DataMechanismCensusTest {
             // that take no data: rewrite, the referee replays on H2, and H2 holds no data: table. It moves with B2a/B2b.
             // L6's deletions stay guarded (REMOVED_SO_FAR)
             // DELETED at B2a, 2026-11-11 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): the JSON connection's frame is its
-            // payload's data: source relation, its records and their places the plan's load into a session table each
-            // database spells (SqlDialect.dataTable: DuckDB's temp, H2's LEGEND_SESSION LOCAL TEMPORARY, SQLite's temp,
-            // each measured); a test body's judges read every data: source through the body's one set of tables, which
-            // its program places ahead of the step that reads one, and the edge records the load as nothing
-            // (LiveSourceLoad); the drops run after the body's appeals (TestPlan.release). The 20 DuckDB and 10 H2
-            // corpus tests A5 measured pass. Proof: JsonM2M*IntegrationTest on DuckDB, H2 and SQLite, EdgeLiveSourceTest,
-            // DataSourcesRecordsTest
+            // payload's data: source relation, its records and their places -- at B2a the plan's load into a session
+            // table each database spelled; since the JSON pass (the same day, M18) the statement's own bound parameter
+            // or rows, a record's place the split's ordinal. The 20 DuckDB and 10 H2 corpus tests A5 measured pass.
+            // Proof: JsonM2M*IntegrationTest on DuckDB, H2 and SQLite, EdgeLiveSourceTest, DataSourcesRecordsTest,
+            // JsonPayloadFormsTest
             new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Deleted("B2a", List.of(
                     // L6: the file: source's path pasted into the statement, and DuckDB's data: payload as a SQL literal
                     "read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))",
@@ -243,20 +261,26 @@ class DataMechanismCensusTest {
             // rows (VALUES, $documents) on Trino, ClickHouse and MongoDB, which hold none a plan can make and drop
             // safely; ONE bound parameter the database splits on Snowflake and BigQuery (round 2's probes, the user's
             // ruling of 2026-11-11: 0.48 s at 100,000 records on Snowflake, against 17 s as rows and 73 s as a table) --
-            // each the dialect's answer (SqlDialect.deliver), never a default and never a fallback
+            // each the dialect's answer (SqlDialect.deliver), never a default and never a fallback. THE JSON PASS
+            // (2026-11-11, the user's rulings: "move everything off temp table", H2 inline "so we can get rid of all the
+            // temp table code completely", "Yes on Databricks", the digest reference): ONE bound parameter on every
+            // database that splits one (Postgres, MySQL, MariaDB, DuckDB, SQLite, Trino, ClickHouse, Databricks,
+            // Snowflake, BigQuery; measured at 100,000 records), the statement's own rows on H2 and MongoDB and on
+            // Databricks above its 1 MiB parameter limit; the payload's text once in the plan, its statement's content
+            // by SHA-256. The session table, its load, its release and the edge's record of it DELETED: their symbols
+            // read zero. Proof: DataDeliveryDeclaredTest, DataSourcesDeliveryTest, JsonPayloadFormsTest (in process,
+            // Postgres, the servers), DataReleaseTest (no release exists)
             new Row("M18", "a data: payload in the statement (its own rows, or one bound parameter)",
-                    new Bounded("JSON on every database",
-                    List.of(), "DataDeliveryDeclaredTest")));
+                    new Bounded("the JSON pass", List.of("Delivered.Table", "sessionTable(", "dataTable(",
+                            "dataSchema(", "LEGEND_SESSION", "LiveSourceLoad", "Cadence.AT_RELEASE", "Cadence.SOURCE",
+                            "ExecutionPlan.Release", "placeMade(", "dataReleases(", "sharingTables(",
+                            "DataSources.Tables", "PlanSessions.releasing(", "TEMP_SCHEMA", "liveSource()"),
+                    "DataDeliveryDeclaredTest")));
 
     /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets
-     *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). */
-    static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of(
-            // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
-            // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
-            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"),
-            // L4's product half (2026-11-10): form 1, the metamodel's tables made in an in-process query's own database
-            // as the target's setup -- every in-process product query reads the process's catalog
-            "M6", List.of("setup.addAll(Ddl.metamodelSteps", "metamodel.setup()", "!projectDatabase && dialect.inProcess()"));
+     *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). None pending with a partial list
+     *  since B4 (2026-11-11): M5's and M6's moved into their DELETED rows. */
+    static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of();
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */
@@ -327,7 +351,8 @@ class DataMechanismCensusTest {
         // deleted, the JSON connection's frame its payload's data: load on every road); 4 -> 6 (2026-11-11, B2b: M3 and
         // M15-referee deleted, the referee's copy of a seed a load and its files gone, 57e2c445 and 00e67e38); 6 -> 7
         // (2026-11-11, B2d.2: M13-output deleted, the generator one planned read-only statement, its interleaved run
-        // and the TDG appeal gone)
-        assertEquals(7, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // and the TDG appeal gone); 7 -> 9 (2026-11-11, the merge of B4 into the generator's branch: M5 and M6 deleted,
+        // every statement reading the system store on the in-process catalog, the server's forms gone)
+        assertEquals(9, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

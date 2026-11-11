@@ -25,10 +25,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A test body reading a {@code data:} source under the compatibility edge (the orchestrator's late item of the A
  * checkpoint, 2026-11-10; the matrix's cell EDGE/DATA_SOURCE, beside {@link DataDeliveryMatrixTest}): the edge's ledger
  * records a body's seeds by the texts the test planner made for each, and a live source's session table has none, so
- * the run crashed at it ("no ledger texts planned"), then was refused by name at planning. Since B2a (2026-11-11) the
- * edge plans a live source's load as a record of its own, {@code LiveSourceLoad}, which it records as nothing -- the
- * referee replays legend-engine's text, which reads no table of lite's: the body answers its rows under the edge as on
- * lite's own test door.
+ * the run crashed at it ("no ledger texts planned"), then was refused by name at planning; from B2a (2026-11-11) the
+ * edge planned the table's load as a record it recorded as nothing. Since the JSON pass (the same day) the payload is
+ * its statement's own -- bound or inline -- so the body has no load the edge could record: it answers its rows under
+ * the edge as on lite's own test door, and the ledger holds no seed.
  */
 class EdgeLiveSourceTest {
 
@@ -54,10 +54,9 @@ class EdgeLiveSourceTest {
                     SessionSource.given(TestSessions.over(c)), (name, pass, detail) -> { }, null, options,
                     new Output.Rows(edged));
             assertEquals(DataDeliveryMatrixTest.ROWS, DataDeliveryMatrixTest.strings(edged));
-            // the load that made the table is in no ledger: the referee's replay reads no table of lite's
+            // no load of the payload's, so none in the ledger
             assertTrue(recorder.seeds().isEmpty(), String.valueOf(recorder.seeds()));
-            // lite's own test door, on the same session, answers it (the table the edge's run made is gone: released
-            // after the run)
+            // lite's own test door, on the same session, answers it
             Collector collector = new Collector();
             TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), "x::RT",
                     SessionSource.given(TestSessions.over(c)), (name, pass, detail) -> { }, null,

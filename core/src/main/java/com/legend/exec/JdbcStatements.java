@@ -86,6 +86,35 @@ final class JdbcStatements implements Statements {
         return failure;
     }
 
+    /**
+     * {@code failure}, the database's own refusal of a statement that binds a {@code data:} payload, naming the payload
+     * (the JSON pass, 2026-11-11): the database splits the payload itself, so its refusal -- a malformed element, a
+     * connection's statement or packet limit (ClickHouse's {@code max_query_size}, MySQL's and MariaDB's
+     * {@code max_allowed_packet}) -- reaches the caller saying which payload it was, as a load's failure names what it
+     * loads. A raised message (pure's own, {@link RaisedErrors}) keeps its exact text; a statement binding no payload
+     * is told as it is.
+     */
+    private static com.legend.error.DataError naming(SQLException e, com.legend.error.DataError failure,
+            List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+        if (!String.valueOf(failure.getMessage()).equals(String.valueOf(e.getMessage()))) {
+            return failure;   // a raise, its text pure's own
+        }
+        for (int i = 0; i < slots.size(); i++) {
+            if (slots.get(i).binding() instanceof ExecutionPlan.Binding.Payload payload) {
+                int characters = values.get(i) instanceof PlanParameters.One one && one.value() instanceof String text
+                        ? text.length() : 0;
+                com.legend.error.DataError named = new com.legend.error.DataError("the statement reading the data:"
+                        + " payload " + payload.digest().substring(0, 16) + " (" + characters + " characters) was"
+                        + " refused: " + failure.getMessage(), failure.getCause() != null ? failure.getCause() : e);
+                for (Throwable suppressed : failure.getSuppressed()) {
+                    named.addSuppressed(suppressed);
+                }
+                return named;
+            }
+        }
+        return failure;
+    }
+
     /** Whether the target's database aborts its transaction on a failed statement ({@link
      *  DatabaseConnector#abortsTransactionOnError}): asked inside a run's turn alone, whose statements a plan target has
      *  checked ({@link #check}); a turn's statement on a session none checked is a defect, said by name (until the
@@ -197,7 +226,7 @@ final class JdbcStatements implements Statements {
             }
             return st.executeUpdate();
         } catch (SQLException e) {
-            throw failed(e);
+            throw naming(e, failed(e), slots, values);
         }
     }
 
@@ -298,7 +327,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw failed(e);
+            throw naming(e, failed(e), slots, values);
         }
     }
 
@@ -351,7 +380,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw failed(e);
+            throw naming(e, failed(e), slots, values);
         }
     }
 
@@ -381,7 +410,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw failed(e);
+            throw naming(e, failed(e), slots, values);
         }
     }
 
@@ -510,8 +539,15 @@ final class JdbcStatements implements Statements {
             }
             case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
                     + " cell unexpanded: the runner writes a keyed body for its keys before it is sent");
-            // a data: payload's one JSON array, the plan's own value, as its text: the database splits it
-            case ExecutionPlan.Binding.Payload payload -> st.setString(index, payload.json());
+            // a data: payload's one JSON array, the plan's own value (its statement's content, PlanRunner.value), as its
+            // text: the database splits it
+            case ExecutionPlan.Binding.Payload payload -> {
+                if (!(value instanceof PlanParameters.One one && one.value() instanceof String text)) {
+                    throw new IllegalStateException("slot " + index + " binds the payload " + payload.digest()
+                            + " given no text");
+                }
+                st.setString(index, text);
+            }
             case ExecutionPlan.Binding.Source src -> {
                 // the path the run admitted for the source's location (PlanRunner.admitted), as its text
                 if (!(value instanceof PlanParameters.One one && one.value() instanceof String path)) {

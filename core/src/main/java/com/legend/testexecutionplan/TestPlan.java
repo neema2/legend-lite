@@ -33,16 +33,10 @@ import java.util.Objects;
  * @param session             the target of the session the body runs on: its runtime's, planned (the plan-as-data
  *                            design's slice 5, 2026-11-09: until then the door planned it from the model beside the
  *                            plan, so a plan read back from its JSON could not open its own session)
- * @param release             what is sent once the body's run and its appeals are over, whatever their outcome: its
- *                            {@code data:} tables' drops on the program's target, where they were made (B2a,
- *                            2026-11-11 -- an appeal reads lite's rows after the run, and H2's drop commits an open
- *                            transaction; a system-routed body's tables are the system database's, the B2a audit's
- *                            S2); null where it made none
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session,
-        ExecutionPlan.@com.legend.base.Nullable Release release) {
+        boolean answersLastVerdict, ExecutionPlan.Target session) {
 
     public TestPlan {
         Objects.requireNonNull(session, "session");
@@ -61,8 +55,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session,
-                release);
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session);
     }
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {

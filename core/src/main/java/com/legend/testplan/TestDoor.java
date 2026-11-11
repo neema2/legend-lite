@@ -87,13 +87,6 @@ public final class TestDoor {
         default @Nullable String frameStamp(int statement) {
             return null;
         }
-
-        /** The body's {@code data:} tables the asserts' statements were read through (B2a, 2026-11-11): the program
-         *  reads through the same ones and places what they made ahead of the step that reads it; null where the
-         *  asserts planned none. */
-        default com.legend.planner.DataSources.@Nullable Tables dataTables() {
-            return null;
-        }
     }
 
     /** {@link #plan}, no assert planned and nothing for the edge. */
@@ -141,7 +134,7 @@ public final class TestDoor {
         // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
         if (edge != null) {
-            liveSources(planned, seeds, program.dataLoads()).forEach(i -> byStep.put(i, edge.liveSource()));
+            unseededLoads(planned, seeds);
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
                     e.statements().stream().map(Recorded::query).toList())));
             seeds.forEach((i, copy) -> {
@@ -155,33 +148,25 @@ public final class TestDoor {
         // the session the body runs on: its runtime's database, the test door's own target (slice 5, 2026-11-09: the
         // door planned it beside the plan until then)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.testSessionTarget(body.context(), runtime), program.release().isEmpty() ? null
-                        : new com.legend.executionplan.ExecutionPlan.Release(program.release(), program.target()));
+                PlanMaker.testSessionTarget(body.context(), runtime));
     }
 
     /**
-     * Under the compatibility edge, the load steps of the body's program that make its {@code data:} tables
-     * ({@code dataLoads}, B2a, 2026-11-11): each a live source's session table, which the edge records as nothing (the
-     * referee replays legend-engine's text, which reads no table of lite's). Any other load the test planner did not
-     * seed is refused by name: the edge's ledger records a body's seeds by the texts the planner made for each
-     * ({@code TestKinds.seeds}), and a load with none would fail the run at it. The graph's system store's load is no
-     * body's, and the ledger records none of it, as at the run.
+     * Under the compatibility edge, every load step of the body's program is a seed the test planner planned texts for
+     * ({@code TestKinds.seeds}), which the edge's ledger records; one with none is refused by name, since it would fail
+     * the run at it. The graph's system store's load is no body's, and the ledger records none of it, as at the run.
+     * (A {@code data:} payload's session table, recorded as nothing, went with the JSON pass, 2026-11-11: a payload is
+     * bound or inline.)
      */
-    private static List<Integer> liveSources(List<PlannedStep> steps,
-            Map<Integer, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds,
-            List<ExecutionPlan.Load> dataLoads) {
-        List<Integer> live = new java.util.ArrayList<>();
+    private static void unseededLoads(List<PlannedStep> steps,
+            Map<Integer, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds) {
         for (int i = 0; i < steps.size(); i++) {
             if (steps.get(i) instanceof PlannedStep.Product p && p.node() instanceof ExecutionPlan.Load u
                     && !(u.target().database() instanceof ExecutionPlan.Database.System) && !seeds.containsKey(i)) {
-                if (!dataLoads.contains(u)) {
-                    throw new IllegalStateException("a load step of the test door's plan (" + u.identity() + ") is"
-                            + " neither a seed the edge's ledger records nor a data: source's session table");
-                }
-                live.add(i);
+                throw new IllegalStateException("a load step of the test door's plan (" + u.identity() + ") is not a"
+                        + " seed the edge's ledger records");
             }
         }
-        return live;
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library

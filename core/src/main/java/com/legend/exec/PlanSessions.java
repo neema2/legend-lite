@@ -42,12 +42,6 @@ public final class PlanSessions {
         default SourceAdmission admitted() {
             return SourceAdmission.any();
         }
-
-        /** The request lets go of what it acquired (§3 rules 2 and 4, A4): where this source ran a target's acquisition
-         *  loads, its {@code AT_RELEASE} loads run now -- the session tables they made, dropped -- whatever the
-         *  request's outcome. The product door calls it in {@code finally}. A source that ran none releases nothing. */
-        default void release() {
-        }
     }
 
     /** {@code sessions} on which a plan's live sources may read under {@code admitted}'s directories (L6, 2026-11-10:
@@ -71,11 +65,6 @@ public final class PlanSessions {
         public StatementOrigin mark() {
             return inner.mark();
         }
-
-        @Override
-        public void release() {
-            inner.release();
-        }
     }
 
     /** {@code sessions} whose statements are counted under {@code mark}. */
@@ -98,13 +87,6 @@ public final class PlanSessions {
         @Override
         public SourceAdmission admitted() {
             return inner.admitted();
-        }
-
-        // what the request acquired goes when it lets go, whatever wraps its sessions (the correctness audit's note,
-        // 2026-11-10: until then a marked source ran no AT_RELEASE load)
-        @Override
-        public void release() {
-            inner.release();
         }
     }
 
@@ -169,26 +151,24 @@ public final class PlanSessions {
 
     /**
      * A SERVER LANE'S SESSIONS (the PCT's, moved here from its harness as data, 2026-11-09): a target with setup on the
-     * plan's own sessions ({@link #shared}: a server's database is the user's, so its own source refuses it by name); a
-     * target whose session statements are {@code optionsOnly} -- the dialect's own options, run on any session again as
-     * on a new one -- on {@code held}, the lane's held session, where it holds one; any other on a new owned session from
-     * {@code fresh}, closed with the plan's use of it (a table of the session's own, the system metamodel store's, lives
-     * only on a session of its own: round 14, 2026-11-03).
+     * plan's own sessions ({@link #shared}: a server's database is the user's, so its own source refuses it by name);
+     * any other on {@code held}, the lane's held session, where it holds one, else on a new owned session from
+     * {@code fresh}, closed with the plan's use of it. (A target whose session statements were more than the dialect's
+     * options -- the system metamodel store's session tables, round 14 -- took a new session even beside a held one,
+     * until B4, 2026-11-11: the store is the process's in-process catalog.)
      */
-    public static Source lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
-            Sessions.Opener fresh) {
-        return new Lane(held, java.util.List.copyOf(optionsOnly), java.util.Objects.requireNonNull(fresh, "fresh"));
+    public static Source lane(Sessions.@com.legend.base.Nullable Session held, Sessions.Opener fresh) {
+        return new Lane(held, java.util.Objects.requireNonNull(fresh, "fresh"));
     }
 
-    private record Lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
-            Sessions.Opener fresh) implements Source {
+    private record Lane(Sessions.@com.legend.base.Nullable Session held, Sessions.Opener fresh) implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
             if (!target.loads().isEmpty()) {
                 return openShared(target);
             }
             Sessions.Session h = held;
-            return h != null && target.session().equals(optionsOnly) ? Sessions.view(h) : Sessions.open(fresh);
+            return h != null ? Sessions.view(h) : Sessions.open(fresh);
         }
     }
 
@@ -236,7 +216,7 @@ public final class PlanSessions {
      *  target names or refuses the target: never a plan run with less data than it names (the re-audit's A-3). */
     static void refuseUnrun(ExecutionPlan.Target target, String what, boolean acquires) {
         java.util.List<ExecutionPlan.Load> unrun = target.loads().stream()
-                .filter(l -> !(acquires && acquisitions(l.cadence()))).toList();
+                .filter(l -> !(acquires && l.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION)).toList();
         ExecutionPlan.Project project = switch (target.database()) {
             case ExecutionPlan.Database.Declared d -> d.project();
             case ExecutionPlan.Database.Platform p -> p.project();
@@ -262,25 +242,6 @@ public final class PlanSessions {
         // holds (the re-audit's A-3, 2026-11-09: until then skipped silently)
         refuseUnrun(target, "a session acquired for it", true);
         return new Acquired(session, target);
-    }
-
-    /** A request's release as a resource ({@link Source#release} when closed), so a run's try-with-resources releases
-     *  what it acquired whatever its outcome, a release's failure suppressed into the run's own. */
-    @FunctionalInterface
-    public interface Releasing extends AutoCloseable {
-        @Override
-        void close();
-    }
-
-    /** {@code on}'s release, to close when the request lets its session go. */
-    public static Releasing releasing(Source on) {
-        return on::release;
-    }
-
-    /** The cadences a source that ACQUIRES a session for its target runs itself: the acquisition's loads, and the
-     *  release that drops what they made. */
-    private static boolean acquisitions(ExecutionPlan.Load.Cadence cadence) {
-        return cadence == ExecutionPlan.Load.Cadence.PER_ACQUISITION || cadence == ExecutionPlan.Load.Cadence.AT_RELEASE;
     }
 
     /** {@link #acquired} on a session of a database made for the target -- a project's own ({@link #projectDatabase}),
@@ -318,21 +279,6 @@ public final class PlanSessions {
             // source that refuses a target's loads)
             return Sessions.view(session);
         }
-
-        @Override
-        public void release() {
-            boolean ran;
-            synchronized (state) {
-                // the acquisition's loads ran, or began: what they made is dropped (a drop of what is not there is none)
-                ran = state[0] || state[1];
-            }
-            if (!ran) {
-                return;
-            }
-            try (var run = com.legend.base.RunScope.enter()) {
-                loads(session, target, ExecutionPlan.Load.Cadence.AT_RELEASE);
-            }
-        }
     }
 
     /** {@code target}'s loads established on {@code session} now, inside the run that acquired it. */
@@ -359,18 +305,12 @@ public final class PlanSessions {
         // finds it is made (the re-audit's A-7, 2026-11-09)
         target.loads().forEach(PlanRunner::verifyIdentity);
         Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
-        // a target whose loads are a request's own (a data: payload's session tables, released when the request lets
-        // go: AT_RELEASE) is never kept -- a kept store per payload held one more database for the process, its
-        // release never run there (the correctness audit's note, 2026-11-10): its own session, closed with the request
-        boolean requestsOwn = target.loads().stream()
-                .anyMatch(l -> l.cadence() == ExecutionPlan.Load.Cadence.AT_RELEASE);
         return switch (target.database()) {
             // the graph's system database is the body driver's (opened once per graph, its store the plan's seed step):
             // it reaches the runner through a caller's source with a system opener (M10a), never the shared one
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not the shared one");
-            case ExecutionPlan.Database.Platform p -> requestsOwn ? openOwn(target)
-                    : Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
+            case ExecutionPlan.Database.Platform p -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
                             () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
@@ -379,17 +319,13 @@ public final class PlanSessions {
                     yield connector.open(d.connection());
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
-                    case Sessions.Opening.Held h -> requestsOwn ? openOwn(target)
-                            : Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
+                    case Sessions.Opening.Held h -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
                                     () -> setUpOpened(Sessions.openHeld(h), target)));
                     case Sessions.Opening.Named n -> {
                         String usersName = n.name();
                         if (usersName != null) {
                             refuseLoads(target, d, "an in-memory database the user named ('" + usersName + "')");
                             yield Sessions.openNamed(n, usersName);
-                        }
-                        if (requestsOwn) {
-                            yield openOwn(target);
                         }
                         Named named = NAMED.getOrOpenSlowly(key, held -> Sessions.closed(held.keeper()), () -> {
                             String name = "plan_" + key.hex().substring(0, 16) + "_" + ATTEMPTS.incrementAndGet();

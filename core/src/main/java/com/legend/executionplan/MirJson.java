@@ -217,6 +217,9 @@ public final class MirJson {
                 o.put("columns", new ArrayList<Object>(v.columns()));
                 o.put("alias", v.alias());
                 o.put("outputs", outputCols(v.outputs()));
+                if (v.payload() != null) {
+                    o.put("payload", v.payload());
+                }
             }
             case SqlSource.Dual d -> o.put("_type", SourceTag.dual.name());
             case SqlSource.SourceUrl u -> {
@@ -888,7 +891,7 @@ public final class MirJson {
                     rows.add(readExprs((Json.Arr) n));
                 }
                 yield new SqlSource.Values(rows, strings(o.getArr("columns")), o.getString("alias"),
-                        readOutputCols(o.getArr("outputs")));
+                        readOutputCols(o.getArr("outputs")), o.getStringOr("payload", null));
             }
             case dual -> new SqlSource.Dual();
             case sourceUrl -> new SqlSource.SourceUrl(o.getString("url"), o.getString("alias"),

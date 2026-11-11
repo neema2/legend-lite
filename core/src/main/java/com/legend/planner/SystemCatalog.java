@@ -6,10 +6,12 @@ package com.legend.planner;
 /**
  * THE SYSTEM CATALOG, planned (L4b, 2026-11-09; docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.1-4.5, the implementation
  * plan of docs/PLAN_AS_DATA_2026_11_07.md, hole 2): the one maker of a target naming a system database and of the system
- * metamodel store's loads. On a database the platform runs in process, the process's catalog -- its tables and the
- * platform's rows one ONCE load, each model's own rows a registration of inserts in the run's transaction; on a server
- * engine, the graph's own store, whole, in its session's temporary tables. Knowledge, derived once per graph and engine;
- * the routing a body takes to it is {@link SystemRoutes}'.
+ * metamodel store's loads. The store is the PROCESS'S CATALOG on a database the platform runs in process -- its tables
+ * and the platform's rows one ONCE load, each model's own rows a registration of inserts in the run's transaction --
+ * whatever database holds the user's data (B4, 2026-11-11, the user's ruling "B4 sounds good for now", reconfirmed that
+ * day: every statement reading the store runs on the in-process catalog; the server forms -- the whole store as a
+ * server session's temporary tables, or as a query's inline rows -- are deleted). Knowledge, derived once per graph and
+ * engine; the routing a body takes to it is {@link SystemRoutes}'.
  */
 public final class SystemCatalog {
 
@@ -17,77 +19,77 @@ public final class SystemCatalog {
     }
 
     /**
-     * The target naming the system database a program over {@code ctx} reads the metamodel store on, for {@code type}'s
-     * engine and {@code session}'s statements (L4b, 2026-11-09, docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.1-4.5): on a
-     * database the platform runs in process, the process's CATALOG -- named by the platform's content key, made once with
-     * the store's tables and the platform's rows (its ONCE load), each program registering its model's own rows in its
-     * run's transaction, rolled back when the run ends ({@link #seeds}); on a server engine, the graph's own system
-     * database on the host's system connection, named by the graph's key, its whole store in temporary tables (the
-     * design's check 3). The one maker of a system target.
+     * The engine of the process's catalog a program on {@code runtime}'s database reads the system metamodel store on
+     * (B4, 2026-11-11): the runtime's own where the platform runs it in process (DuckDB, H2, SQLite: an H2 lane keeps
+     * exercising the metamodel's statements on H2), else the platform's own engine ({@code Databases.PLATFORM}) -- one
+     * catalog per process for every server database, never a second road on the server. A statement reading the store
+     * alone is planned in this engine's dialect ({@link #dialect}); one reading the store beside a user's table stays
+     * refused by name.
+     */
+    public static com.legend.executionplan.DatabaseType engine(com.legend.executionplan.DatabaseType runtime) {
+        return com.legend.database.Databases.dialect(ConnectionPlans.model(runtime)).inProcess() ? runtime
+                : ConnectionPlans.type(com.legend.database.Databases.PLATFORM);
+    }
+
+    /** The dialect a statement on {@code runtime}'s database that reads the catalog is written in: its catalog's
+     *  engine's ({@link #engine}). */
+    public static com.legend.sql.dialect.SqlDialect dialect(com.legend.executionplan.DatabaseType runtime) {
+        return com.legend.database.Databases.dialect(ConnectionPlans.model(engine(runtime)));
+    }
+
+    /**
+     * The target naming the process's CATALOG a program on {@code runtime}'s database reads the metamodel store on (L4b,
+     * 2026-11-09, docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.1-4.5; B4, 2026-11-11: on every database, its engine
+     * {@link #engine}'s): named by the platform's content key, made once with the store's tables and the platform's
+     * rows (its ONCE load), each program registering its model's own rows in its run's transaction, rolled back when the
+     * run ends ({@link #seeds}); its session statements its engine's dialect's. The one maker of a system target.
      */
     public static com.legend.executionplan.ExecutionPlan.Target target(com.legend.compiler.element.ModelContext ctx,
-            com.legend.executionplan.DatabaseType type, java.util.List<String> session) {
-        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(ConnectionPlans.model(type));
-        if (!dialect.inProcess()) {
-            return new com.legend.executionplan.ExecutionPlan.Target(
-                    new com.legend.executionplan.ExecutionPlan.Database.System(type, SystemRoutes.graphKey(ctx)), session,
-                    java.util.List.of());
-        }
+            com.legend.executionplan.DatabaseType runtime) {
+        com.legend.executionplan.DatabaseType type = engine(runtime);
+        com.legend.sql.dialect.SqlDialect dialect = dialect(type);
+        java.util.List<String> session = dialect.sessionSetup();
         var bare = new com.legend.executionplan.ExecutionPlan.Target(
                 new com.legend.executionplan.ExecutionPlan.Database.System(type, Platform.KEY), session,
                 java.util.List.of());
         var once = com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE;
         Seeded platform = ctx.derived(SeedMemo.class, c -> new SeedMemo()).platform.computeIfAbsent(type, t -> {
-            // the catalog's own tables and rows, and the schema a body's data: session tables live in (H2's), made
-            // once here, outside any run's transaction: a body routed to the catalog sends no statement that commits
-            // the run's registration, which the run rolls back (madeOnce)
-            var steps = steps(store(ctx), dialect, true, Platform::rows).then(com.legend.setup.LoadSteps.of(
-                    dialect.dataSchema().stream().<com.legend.executionplan.ExecutionPlan.LoadStep>map(
-                            com.legend.executionplan.ExecutionPlan.LoadStep.Statement::new).toList()));
+            // the catalog's own tables and rows, made once here, outside any run's transaction (until the JSON pass,
+            // 2026-11-11, H2's schema for a body's data: session tables too)
+            var steps = steps(store(ctx), dialect, true, Platform::rows);
             return new Seeded(LoadPlanner.identity(once, steps.steps()), steps);
         });
         return new com.legend.executionplan.ExecutionPlan.Target(bare.database(), session,
                 java.util.List.of(platform.load(once, bare)));
     }
 
-    /** Whether {@code target}'s ONCE load -- the process's catalog's, {@link #target} -- sends each of
-     *  {@code statements} ({@code SqlDialect.dataSchema}): what a program routed to it need not send itself. */
-    static boolean madeOnce(com.legend.executionplan.ExecutionPlan.Target target, java.util.List<String> statements) {
-        java.util.Set<String> once = new java.util.HashSet<>();
-        for (var load : target.loads()) {
-            if (load.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE) {
-                for (var step : load.steps()) {
-                    if (step instanceof com.legend.executionplan.ExecutionPlan.LoadStep.Statement s) {
-                        once.add(s.sql());
-                    }
-                }
-            }
-        }
-        return once.containsAll(statements);
-    }
-
-    /** The graph's system metamodel store's load on {@code system} (a target {@link #target} made), written in
-     *  {@code dialect} (the program's): on the process's catalog, the model's REGISTRATION -- its own rows
-     *  ({@code MetamodelSeeds} less the platform's), inserts with no DDL, {@code PER_TRANSACTION} -- or null where the
-     *  model adds no row; on a server engine's system database, every table of the store, its DDL and the graph's rows,
-     *  as the session's temporary tables read by their system names ({@code Ddl.metamodelTemporary}, {@link SystemRoutes#renames}),
-     *  a seed ({@code BEFORE_STEP}) the session holds once. Made by the load planner, named by its content as every load
-     *  is (L4a, 2026-11-09). Knowledge, derived once per graph and engine. */
+    /** The graph's system metamodel store's load on {@code system} (the catalog's target, {@link #target}), written in
+     *  its engine's dialect: the model's REGISTRATION -- its own rows ({@code MetamodelSeeds} less the platform's),
+     *  inserts with no DDL, {@code PER_TRANSACTION} -- or null where the model adds no row. Made by the load planner,
+     *  named by its content as every load is (L4a, 2026-11-09). Knowledge, derived once per graph and engine. */
     public static com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Load seeds(
-            com.legend.compiler.element.ModelContext ctx, com.legend.executionplan.ExecutionPlan.Target system,
-            com.legend.sql.dialect.SqlDialect dialect) {
+            com.legend.compiler.element.ModelContext ctx, com.legend.executionplan.ExecutionPlan.Target system) {
         if (!(system.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System s)) {
             throw new IllegalArgumentException("the system store's seeds go to the graph's system database, not "
                     + system.database());
         }
-        var cadence = dialect.inProcess() ? com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_TRANSACTION
-                : com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        var cadence = com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_TRANSACTION;
         Seeded seeded = ctx.derived(SeedMemo.class, c -> new SeedMemo()).steps.computeIfAbsent(s.type(), engine -> {
-            var steps = dialect.inProcess() ? steps(store(ctx), dialect, false, table -> ownRows(ctx, table))
-                    : steps(store(ctx), dialect, true, table -> MetamodelSeeds.rows(table, ctx));
+            var steps = steps(store(ctx), catalogDialect(engine), false, table -> ownRows(ctx, table));
             return new Seeded(steps.isEmpty() ? "" : LoadPlanner.identity(cadence, steps.steps()), steps);
         });
         return seeded.steps().isEmpty() ? null : seeded.load(cadence, system);
+    }
+
+    /** The dialect of the catalog on {@code engine} (a system target's engine, always one the platform runs in process:
+     *  {@link #engine}); another refused by name. */
+    private static com.legend.sql.dialect.SqlDialect catalogDialect(com.legend.executionplan.DatabaseType engine) {
+        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(ConnectionPlans.model(engine));
+        if (!dialect.inProcess()) {
+            throw new IllegalArgumentException("a system database on " + engine + ": the process's catalog is made on a"
+                    + " database the platform runs in process");
+        }
+        return dialect;
     }
 
     /** One engine's steps, with the bundle they read, and their load's identity ({@link LoadPlanner#identity}),
@@ -169,9 +171,9 @@ public final class SystemCatalog {
                 new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
     }
 
-    /** {@code store}'s tables as steps in {@code dialect}, each table's rows {@code rows} gives: on a database the platform
-     *  runs in process under their own names ({@code Ddl.metamodelSteps}, with {@code ddl}; else the rows alone,
-     *  {@code Ddl.metamodelRowSteps}), else as the session's temporary tables ({@code Ddl.metamodelTemporary}). */
+    /** {@code store}'s tables as steps in {@code dialect} (a catalog's, in process), each table's rows {@code rows}
+     *  gives, under their own names: with their DDL ({@code Ddl.metamodelSteps}, {@code ddl}), else the rows alone
+     *  ({@code Ddl.metamodelRowSteps}). */
     private static com.legend.setup.LoadSteps steps(
             com.legend.model.DatabaseDefinition store, com.legend.sql.dialect.SqlDialect dialect, boolean ddl,
             java.util.function.Function<String, java.util.List<java.util.List<String>>> rows) {
@@ -179,15 +181,8 @@ public final class SystemCatalog {
         for (var schema : store.schemas()) {
             for (var def : schema.tables()) {
                 java.util.List<java.util.List<String>> table = rows.apply(def.name());
-                if (dialect.inProcess()) {
-                    out.add(ddl ? com.legend.setup.Ddl.metamodelSteps(def, schema.name(), table, dialect)
-                            : com.legend.setup.Ddl.metamodelRowSteps(def, schema.name(), table, dialect));
-                } else {
-                    for (String statement : com.legend.setup.Ddl.metamodelTemporary(def, schema.name(), table,
-                            dialect)) {
-                        out.statement(statement);
-                    }
-                }
+                out.add(ddl ? com.legend.setup.Ddl.metamodelSteps(def, schema.name(), table, dialect)
+                        : com.legend.setup.Ddl.metamodelRowSteps(def, schema.name(), table, dialect));
             }
         }
         return out.build();
@@ -239,24 +234,19 @@ public final class SystemCatalog {
     }
 
     /**
-     * The process's CATALOG as a PRODUCT query names it (L4's product half, 2026-11-10,
-     * docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.4, the one-request model): {@link #target}'s, with the model's
-     * registration -- its own rows, as {@link #seeds} writes them -- as the target's acquisition load
-     * ({@code PER_ACQUISITION}), which the catalog's lease runs inside the run's turn, rolled back when the run ends
-     * ({@code SystemDatabase.Leases}). A model that adds no row registers nothing. On a database the platform runs in
-     * process only (a server engine's catalog is M5's, not designed).
+     * The process's CATALOG as a PRODUCT query on {@code runtime}'s database names it (L4's product half, 2026-11-10,
+     * docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.4, the one-request model; B4, 2026-11-11: on every database):
+     * {@link #target}'s, with the model's registration -- its own rows, as {@link #seeds} writes them -- as the target's
+     * acquisition load ({@code PER_ACQUISITION}), which the catalog's lease runs inside the run's turn, rolled back when
+     * the run ends ({@code SystemDatabase.Leases}). A model that adds no row registers nothing.
      */
     public static com.legend.executionplan.ExecutionPlan.Target forQuery(com.legend.compiler.element.ModelContext ctx,
-            com.legend.executionplan.DatabaseType type, java.util.List<String> session,
-            com.legend.sql.dialect.SqlDialect dialect) {
-        if (!dialect.inProcess()) {
-            throw new IllegalArgumentException("a product query's catalog on " + type + ": the process's catalog is"
-                    + " made on a database the platform runs in process");
-        }
-        var catalog = target(ctx, type, session);
+            com.legend.executionplan.DatabaseType runtime) {
+        var catalog = target(ctx, runtime);
+        com.legend.executionplan.DatabaseType type = engine(runtime);
         var acquisition = com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION;
         Seeded own = ctx.derived(SeedMemo.class, c -> new SeedMemo()).acquired.computeIfAbsent(type, engine -> {
-            var steps = steps(store(ctx), dialect, false, table -> ownRows(ctx, table));
+            var steps = steps(store(ctx), catalogDialect(engine), false, table -> ownRows(ctx, table));
             return new Seeded(steps.isEmpty() ? "" : LoadPlanner.identity(acquisition, steps.steps()), steps);
         });
         if (own.steps().isEmpty()) {

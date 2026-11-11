@@ -54,13 +54,7 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
     /** {@code load}'s rows as {@code dialect} writes them, in one blob ({@link #blob}) named as the table's data: none
      *  for a load of no row. */
     public static LoadSteps rows(RowLoad load, com.legend.sql.dialect.SqlDialect dialect) {
-        return rows(load, dialect, "the data of the table " + load.where());
-    }
-
-    /** {@link #rows(RowLoad, com.legend.sql.dialect.SqlDialect)} named {@code of} (a payload's elements, which their
-     *  session table only holds). */
-    public static LoadSteps rows(RowLoad load, com.legend.sql.dialect.SqlDialect dialect, String of) {
-        return blob(load.statements(dialect), of);
+        return blob(load.statements(dialect), "the data of the table " + load.where());
     }
 
     /** These steps, then {@code next}'s, reading both bundles. */

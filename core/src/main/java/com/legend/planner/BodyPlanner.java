@@ -470,14 +470,14 @@ public final class BodyPlanner {
     }
 
     /** {@code value}'s plan as a side reads it (the lets spliced, the user calls inlined, the natives staged, the stores
-     *  resolved, the system route's tables named, the body prepared and lowered on the identity lane), or null when
+     *  resolved, the system route's catalog's dialect taken, the body prepared and lowered on the identity lane), or null when
      *  the value is answered with no plan ({@link Prepared}). The driver's {@code planBare} with no rider, no splice
      *  hook and no session: nothing opened, nothing run (the frame's planned CTE reads it). */
     public static @Nullable Bare bare(TypedSpec value, List<TypedSpec> letPrefix,
             SpecCompiler specs, PlanEnv env) {
         List<TypedSpec> body = sideBody(value, letPrefix, specs, env, null);
         SystemRoutes.Route route = SystemRoutes.of(body, env);
-        PlanEnv routed = route == null ? env : SystemRoutes.routed(env, SystemRoutes.renames(route));
+        PlanEnv routed = route == null ? env : SystemRoutes.onCatalog(env, route);
         if (!(prepare(body, routed) instanceof Prepared.Planned p)) {
             return null;
         }

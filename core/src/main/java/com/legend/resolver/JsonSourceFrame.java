@@ -26,10 +26,11 @@ import java.util.Map;
  * THE JSON SOURCE FRAME (XStore leg §1, re-platformed by JAVA_EVICTION_PLAN
  * E3; onto the load by B2a, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md
  * §5): a {@code JsonModelConnection(class=C, url='data:application/json,…')}
- * realizes as the payload's {@code data:} source relation -- a session table
- * the plan's load makes, one row per record holding its raw JSON text and its
- * place ({@link TypedSourceUrl#ORDINAL}); the planner cuts the payload into its
- * records and loads them ({@code planner.DataSources}). The DATABASE does all
+ * realizes as the payload's {@code data:} source relation -- one row per
+ * record holding its raw JSON text and its place ({@link TypedSourceUrl#ORDINAL});
+ * the planner cuts the payload into its records and its database's dialect
+ * reads them in the statement itself, one bound parameter or its own rows
+ * ({@code planner.DataSources}; the JSON pass, 2026-11-11). The DATABASE does all
  * reading (every property binds as a typed variant extraction over the
  * {@code data} cell: registered {@code get} + the {@code to(@T)} cast +
  * {@code toOne}). The CLASS DECLARATION is the schema (model-driven DDL

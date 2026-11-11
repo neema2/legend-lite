@@ -198,29 +198,31 @@ public class MariaDb extends AnsiSqlRenderer {
         return 6;
     }
 
-    /** {@inheritDoc} A session table of the load's: MariaDB's (and MySQL's) TEMPORARY table is the connection's own --
-     *  another connection reads a user's table of the name, the drop never reaches it, and neither statement commits
-     *  an open transaction (measured 2026-11-11 on MariaDB 11.4 and MySQL 8.4: probes/MariaDbDataTable.java.txt,
-     *  MySqlDataTable.java.txt). */
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11): no
+     *  statement but the query's. Its size is bounded by the connection's {@code max_allowed_packet}, a setting the
+     *  database enforces (its refusal reaches the caller). */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return sessionTable(payload);
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
     }
 
-    /** {@inheritDoc} {@code DROP TEMPORARY TABLE} names the session's temporary table alone (a user's table of the name
-     *  untouched, measured), so the make starts there and the release is it; the table unqualified, the session's
-     *  own, read before a permanent table of its name. */
+    /** A {@code data:} payload bound as one parameter, split here by {@code JSON_TABLE} (the JSON pass, 2026-11-11,
+     *  measured on MariaDB 11.4: 100,000 records in 121 ms, {@code 1.50} kept as written): each element its JSON, a
+     *  frame's record its place as the ordinality from 0 (the payload's order); an empty array no row. */
     @Override
-    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
-        String drop = "DROP TEMPORARY TABLE IF EXISTS " + base;
-        return new SqlDialect.DataTable(null, base, java.util.List.of(), java.util.List.of(drop,
-                "CREATE TEMPORARY TABLE " + base + " (" + ddlColumns(columns) + ")"), java.util.List.of(drop));
-    }
-
-    /** {@inheritDoc} Each element's JSON text, which MariaDB's JSON functions read (its JSON column is text). */
-    @Override
-    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
-        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.legend_element AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.legend_ord - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM JSON_TABLE(");
+        return bindPayload(writer, u).append(", '$[*]' COLUMNS (legend_ord FOR ORDINALITY,"
+                + " legend_element JSON PATH '$')) AS legend_payload");
     }
 
     /** {@inheritDoc} 6: its date-time column is a {@code DATETIME(6)} (S181, A7, 2026-11-10). */

@@ -468,7 +468,7 @@ public final class CarrierStrategies extends SqlRewriter {
                             alias, null);
             case com.legend.sql.SqlSource.Values v ->
                     new com.legend.sql.SqlSource.Values(v.rows(),
-                            v.columns(), alias, v.outputs());
+                            v.columns(), alias, v.outputs(), v.payload());
             default -> null;
         };
     }

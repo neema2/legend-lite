@@ -8,6 +8,7 @@ import com.legend.sql.DialectCapability;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
+import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 
 import java.util.List;
@@ -218,36 +219,29 @@ public final class Postgres extends AnsiSqlRenderer {
         return PostgresHostOperations.INSTANCE;
     }
 
-    /** {@inheritDoc} In the session's own {@code pg_temp} schema (B2a, the B2a audit's S4, 2026-11-11; measured on the
-     *  unprivileged lane, DataDeliveryMatrixPostgresTest.aDataTableIsTheSessionsOwn): {@code DROP TABLE IF EXISTS
-     *  pg_temp.t} never reaches a user's {@code public.t} and is a no-op where the session holds none; an unqualified
-     *  read finds the session's temporary table first (pg_temp is searched first). Postgres's DDL is transactional, so
-     *  nothing commits early. */
-    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in {@code pg_temp} its load made and its release dropped). */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return sessionTable(payload);
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
     }
 
-    /** The session's own schema, where a temporary table lives (a temporary table may be named in no other). */
-    private static final String TEMP_SCHEMA = "pg_temp";
-
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 16: 100,000
+     *  records in 259 ms): each element a {@code JSONB}, a frame's record its place as the ordinality from 0 (the
+     *  payload's order); an empty array no row. */
     @Override
-    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
-        // pg_temp throughout -- the make, the fills, the reads and the drop (the second audit's S10, 2026-11-11): an
-        // unqualified name finds the session's temporary table first only while pg_temp leads the search_path, which a
-        // connection may set otherwise; qualified, no statement can reach a user's table of the name
-        String drop = "DROP TABLE IF EXISTS " + TEMP_SCHEMA + "." + ddlIdentifier(base, false);
-        String create = render(new com.legend.sql.SqlDdl.CreateTable(TEMP_SCHEMA, base,
-                com.legend.sql.NameQuoting.BARE, columns, true));
-        return new SqlDialect.DataTable(TEMP_SCHEMA, base, java.util.List.of(), java.util.List.of(drop, create),
-                java.util.List.of(drop));
-    }
-
-    /** {@inheritDoc} Postgres holds each element in a {@code JSONB} column, navigated as its Variant reads are. */
-    @Override
-    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
-        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.ordinality - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM jsonb_array_elements(CAST(");
+        return bindPayload(writer, u).append(" AS JSONB)) WITH ORDINALITY AS legend_payload(value, ordinality)");
     }
 
     /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,

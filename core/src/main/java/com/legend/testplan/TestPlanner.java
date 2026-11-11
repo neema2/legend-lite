@@ -96,10 +96,11 @@ public final class TestPlanner {
                 BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
                 com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
                         java.util.Objects.requireNonNull(runtimeFqn));
-                // named, never opened at planning: the run opens the system database's session, and the program's
-                // seed step writes the store (a server engine is refused by the class rule before this, so the tables
-                // keep their names)
-                env = on.withTarget(BodyDriver.systemTarget(typed.context(), route, dialect));
+                // named, never opened at planning: the run opens the catalog's session, and the program's seed step
+                // registers the model's rows; the body written in the catalog's dialect (B4, 2026-11-11: DuckDB's for a
+                // body on a server, whose engine-text appeals still read the user's tables on the body's own
+                // environment, bodyEnv)
+                env = on.onCatalogBody(route);
             }
             if (assertsPlanned) {
                 // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM

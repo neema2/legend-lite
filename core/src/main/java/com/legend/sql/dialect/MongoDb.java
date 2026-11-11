@@ -2448,8 +2448,8 @@ public final class MongoDb extends AnsiSqlRenderer {
      *  a user's collection of the name (measured 2026-11-11 on 8.0: probes/MongoDbDataTable.java.txt), so a payload is
      *  the pipeline's own {@code $documents} stage, each element the document it spells. */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return new SqlDialect.Delivered.Read(inlineRows(payload));
+    public com.legend.sql.SqlSource deliver(SqlDialect.DataPayload payload) {
+        return inlineRows(payload);
     }
 
     /** {@inheritDoc} 3: a BSON date keeps milliseconds (S181, A7, 2026-11-10). */
@@ -2756,11 +2756,6 @@ public final class MongoDb extends AnsiSqlRenderer {
     /** {@inheritDoc} No: an aggregation pipeline, which a {@code MongoDBConnection} declares (D4). */
     @Override
     public boolean relational() {
-        return false;
-    }
-
-    @Override
-    public boolean temporaryTables() {
         return false;
     }
 

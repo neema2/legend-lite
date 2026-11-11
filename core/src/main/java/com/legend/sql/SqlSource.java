@@ -91,6 +91,18 @@ public sealed interface SqlSource {
 
         /** A RECORDS source's column of each record's place. */
         public static final String PLACE = "u_frame_ord__";
+
+        /** The location of a {@code data:} payload bound by its statement, as the plan's typed tree names it: by its
+         *  SHA-256 ({@code digest}), its text the statement's content (the JSON pass, 2026-11-11). A tree that names a
+         *  payload so is never rendered again: its statement was written when it was planned. */
+        public static String byDigest(String digest) {
+            return "data:application/json;sha256=" + digest + ",";
+        }
+
+        /** Whether {@code url} names a payload by its digest ({@link #byDigest}). */
+        public static boolean namesByDigest(String url) {
+            return url.startsWith("data:application/json;sha256=");
+        }
     }
 
     /** A base table &mdash; or, {@code call}, a TABULAR FUNCTION: a named
@@ -173,9 +185,18 @@ public sealed interface SqlSource {
         }
     }
 
-    /** {@code (VALUES (...), (...)) AS alias(col, ...)} &mdash; TDS / instance literals. */
+    /** {@code (VALUES (...), (...)) AS alias(col, ...)} &mdash; TDS / instance literals. {@code payload}: where these
+     *  are the rows of a {@code data:} payload a dialect writes into its statement ({@code SqlDialect.inlineRows}), the
+     *  payload's SHA-256, set by the planner, which names the payload by it in the typed tree a plan carries beside the
+     *  statement ({@link SourceUrl#byDigest}: the rows are the statement's text, once -- the JSON pass, 2026-11-11);
+     *  null for every other relation of literals. Renderers read no part of it. */
     record Values(List<List<SqlExpr>> rows, List<String> columns, String alias,
-                  List<OutputCol> outputs) implements SqlSource {
+                  List<OutputCol> outputs, @com.legend.base.Nullable String payload) implements SqlSource {
+
+        /** Literal rows of no payload. */
+        public Values(List<List<SqlExpr>> rows, List<String> columns, String alias, List<OutputCol> outputs) {
+            this(rows, columns, alias, outputs, null);
+        }
     }
 
     /** An AUTHORED raw SQL text as a relation source —

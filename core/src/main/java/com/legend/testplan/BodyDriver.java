@@ -69,10 +69,7 @@ public final class BodyDriver {
             com.legend.testplan.VerdictIds verdictIds,
             // the body's engine-text appeals by number, shared likewise (the plan-as-data design's step 4, 2026-11-08):
             // planning's registry, the plan carrying those its verdicts name (step 8b)
-            EngineTextAppeals appeals,
-            // the body's data: tables, shared likewise (B2a, 2026-11-11): every statement a judge plans reads each data:
-            // source through them, and the body's program reads through the same ones and places what they made
-            com.legend.planner.DataSources.Tables data) {
+            EngineTextAppeals appeals) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), a fresh trace, no batch. */
@@ -85,18 +82,18 @@ public final class BodyDriver {
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, new ActivityComments(), null, null, null, null,
-                    new com.legend.testplan.VerdictIds(), new EngineTextAppeals(),
-                    new com.legend.planner.DataSources.Tables(dialect));
+                    new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
         }
 
         ModelContext ctx() {
             return plan.ctx();
         }
 
-        /** {@code q} reading each {@code data:} source from the body's table of its content (B2a, 2026-11-11): what a
-         *  judge's statement is planned from -- and what a probe renders, so it renders what will be planned. */
+        /** {@code q} reading each {@code data:} source as this environment's database takes it (the JSON pass,
+         *  2026-11-11: by the statement itself, in its dialect): what a judge's statement is planned from -- and what a
+         *  probe renders, so it renders what will be planned. */
         com.legend.sql.SqlQuery read(com.legend.sql.SqlQuery q) {
-            return data.read(q, target);
+            return com.legend.planner.DataSources.read(q, dialect());
         }
         @com.legend.base.Nullable String runtimeFqn() {
             return plan.runtimeFqn();
@@ -131,17 +128,17 @@ public final class BodyDriver {
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
                     : new ExecEnv(p, target, options, activity, verdictBatch,
-                            engineText, failureMessage, appealOn, verdictIds, appeals, data);
+                            engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.testplan.VerdictBatch b) {
             return new ExecEnv(plan, target, options, activity, b, engineText,
-                    failureMessage, appealOn, verdictIds, appeals, data);
+                    failureMessage, appealOn, verdictIds, appeals);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(PlanningOptions o) {
             return new ExecEnv(plan.withFeatures(o.features()), target, o, activity,
-                    verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals, data);
+                    verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
@@ -155,14 +152,14 @@ public final class BodyDriver {
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
             return new ExecEnv(plan, target, options, activity, verdictBatch, c,
-                    failureMessage, appealOn, verdictIds, appeals, data);
+                    failureMessage, appealOn, verdictIds, appeals);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
             return new ExecEnv(plan, target, options, activity, verdictBatch,
-                    engineText, m, appealOn, verdictIds, appeals, data);
+                    engineText, m, appealOn, verdictIds, appeals);
         }
         /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
          *  system-routed body's engine-text assert under the database judge: its rows read the user's tables on the
@@ -170,15 +167,39 @@ public final class BodyDriver {
          *  2026-11-06), or none: the appeal planned under this environment. */
         ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
             return new ExecEnv(plan, target, options, activity, verdictBatch,
-                    engineText, failureMessage, on, verdictIds, appeals, data);
+                    engineText, failureMessage, on, verdictIds, appeals);
         }
 
-        /** The same environment over another target -- the graph's system database for a body that reads the
-         *  metamodel (targets compare by value: two sides on one database name one target). */
+        /** The same environment over another target -- the process's catalog for a body that reads the metamodel
+         *  (targets compare by value: two sides on one database name one target) -- written in that target's dialect:
+         *  the catalog's where it is not the runtime's own engine (B4, 2026-11-11: a side of a body on a server, which
+         *  every judge plans by retargeting), the runtime's again off it. */
         ExecEnv withTarget(com.legend.executionplan.ExecutionPlan.Target other) {
-            return other.equals(target) ? this
-                    : new ExecEnv(plan, other, options, activity, verdictBatch,
-                            engineText, failureMessage, appealOn, verdictIds, appeals, data);
+            if (other.equals(target)) {
+                return this;
+            }
+            com.legend.executionplan.@com.legend.base.Nullable DatabaseType from = besideCatalog(target);
+            com.legend.executionplan.@com.legend.base.Nullable DatabaseType to = besideCatalog(other);
+            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(com.legend.database.Databases.dialect(
+                    to != null ? com.legend.planner.ConnectionPlans.model(to)
+                            : com.legend.Compiler.executesOn(ctx(), runtimeFqn()).type()));
+            return new ExecEnv(p, other, options, activity, verdictBatch, engineText, failureMessage, appealOn,
+                    verdictIds, appeals);
+        }
+
+        /** The engine of the catalog {@code t} names where it is not the runtime's own engine (a body on a server);
+         *  null for any other target. */
+        private com.legend.executionplan.@com.legend.base.Nullable DatabaseType besideCatalog(
+                com.legend.executionplan.ExecutionPlan.Target t) {
+            return t.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System s
+                    && s.type() != com.legend.planner.ConnectionPlans.type(com.legend.Compiler.executesOn(ctx(),
+                    runtimeFqn()).type()) ? s.type() : null;
+        }
+
+        /** The same environment over the process's CATALOG ({@link #systemTarget}) for a whole SYSTEM-ROUTED body
+         *  ({@code route}), written in the catalog's dialect ({@link #withTarget}). */
+        ExecEnv onCatalogBody(com.legend.planner.SystemRoutes.Route route) {
+            return withTarget(systemTarget(ctx(), route));
         }
 
         /** Whether this environment's statements run on the graph's system database. */
@@ -584,33 +605,30 @@ public final class BodyDriver {
      * serialize wraps the from) contribute via the walk. */
 
     /** THE SYSTEM DATABASE ROUTE (user ruling 2026-09-02): a body reading the metamodel store executes on the
-     * GRAPH's own system database -- separate from every user connection, written once per graph, never per execution
-     * ({@link SystemDatabase}). The route is the planner's, a fact of the body's plan (the seam program's S2h and S4a,
-     * 2026-10-31: the database and store it reads, the tables' names its plan is written with, a body mixing the store
-     * with a user store refused by name); planning NAMES its target ({@link #systemTarget}) and the run opens its
-     * session, seeded by the plan's own seed step (I3, 2026-11-07: the session the walk opened here deleted).
-     * {@code env} as it is where the body reads no system store. */
+     * process's CATALOG -- separate from every user connection, made once per process, a model's rows registered in
+     * the run's turn ({@link SystemDatabase}) -- on every database (B4, 2026-11-11: DuckDB's for a server). The route is
+     * the planner's, a fact of the body's plan (the seam program's S2h and S4a, 2026-10-31: the catalog and store it
+     * reads, the dialect its plan is written in, a body mixing the store with a user store refused by name); planning
+     * NAMES its target ({@link #systemTarget}) and the run opens its session (I3, 2026-11-07: the session the walk
+     * opened here deleted). {@code env} as it is where the body reads no system store. */
     private static ExecEnv openRoute(com.legend.planner.SystemRoutes.@com.legend.base.Nullable Route route,
             ExecEnv env) {
         if (route == null) {
             return env;
         }
-        return env.withTarget(systemTarget(env.ctx(), route, env.dialect()));
+        return env.withTarget(systemTarget(env.ctx(), route));
     }
 
-    /** The target naming the graph's system database for {@code route}'s engine, in {@code dialect}'s session setup. */
+    /** The target naming the process's catalog of {@code route}'s engine. */
     static com.legend.executionplan.ExecutionPlan.Target systemTarget(ModelContext ctx,
-            com.legend.planner.SystemRoutes.Route route, com.legend.sql.dialect.SqlDialect dialect) {
-        return com.legend.planner.SystemCatalog.target(ctx, com.legend.planner.ConnectionPlans.type(route.engine()),
-                dialect.sessionSetup());
+            com.legend.planner.SystemRoutes.Route route) {
+        return com.legend.planner.SystemCatalog.target(ctx, route.engine());
     }
 
     /** The system store's route for a body the class rule found system-routed ({@code BodyClass.systemRouted}):
-     *  the runtime's engine and the system metamodel store. */
+     *  the catalog of the runtime's database and the system metamodel store. */
     static com.legend.planner.SystemRoutes.Route systemRouteOf(ModelContext ctx, String runtimeFqn) {
-        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
-                new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
-        return new com.legend.planner.SystemRoutes.Route(com.legend.Compiler.executesOn(ctx, runtimeFqn).type(), store);
+        return com.legend.planner.SystemRoutes.route(ctx, runtimeFqn);
     }
 
     /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */

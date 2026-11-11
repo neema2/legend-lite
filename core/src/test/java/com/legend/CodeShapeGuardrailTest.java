@@ -50,10 +50,12 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
-            // 2026-11-11 (the second audit's S6): the one body's data: tables' HOME database, set once by the first
-            // statement that reads a data: source and held against every later one (DataSources.Tables.atHome); the
-            // tables' own maps and lists beside it are final fields of mutable collections, the same state
-            "DataSources.home",
+            // 2026-11-11 (B4, the audit's finding 2): one program's decision of its model's registration on the
+            // process's catalog, a latch set once by the program's planning (ProgramState.registerOnTheCatalog), and the
+            // load it decided, placed ahead of every step that reads the catalog -- one instance per program pass
+            "ProgramState.catalogRegistered", "ProgramState.registration",
+            // (2026-11-11, the JSON pass: "DataSources.home", the one body's data: tables' home database, left with the
+            // tables themselves -- a payload is its statement's own, bound or inline, and the rewrite holds no state)
             // 2026-11-09 (the user's question "why do we have any callbacks?"): the service test's answer is a receiver
             // told the answer's shape before its columns (Output.Rows), where the run called a factory of the runner's
             // until then; it holds the writer it made for that shape, set once, read by each row after

@@ -91,8 +91,8 @@ public final class Snowflake extends AnsiSqlRenderer {
      *  user's permanent table of the name); no size limit met; the quote, the line break, the order and the empty
      *  array kept. */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return new SqlDialect.Delivered.Read(payload.bound());
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,

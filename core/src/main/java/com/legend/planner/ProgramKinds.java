@@ -40,12 +40,4 @@ public interface ProgramKinds {
     default java.util.List<com.legend.executionplan.ExecutionPlan.Node> plannedAhead() {
         return java.util.List.of();
     }
-
-    /** The {@code data:} tables the steps planned before the program read through (a test's asserts' sides and verdict
-     *  statements: B2a, 2026-11-11), which the program's statements read through too -- one table per content for the
-     *  whole body -- and whose steps it places ahead of the step that first reads one (the next statement's, or the
-     *  extension's step at its place); null where nothing was planned ahead (the program's own, fresh). */
-    default DataSources.@com.legend.base.Nullable Tables dataTables() {
-        return null;
-    }
 }

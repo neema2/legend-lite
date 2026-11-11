@@ -99,12 +99,6 @@ final class AgreementAsserts implements TestDoor.Asserts {
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
     }
 
-    /** The body's {@code data:} tables (B2a): both halves were planned on copies of one environment, which share them. */
-    @Override
-    public com.legend.planner.DataSources.Tables dataTables() {
-        return host.dataTables();
-    }
-
     /**
      * {@code typed}'s asserts planned for both judges on {@code env} (the body's environment; its session the program's
      * one target), {@code bodyEnv} the body's own where it is SYSTEM-ROUTED ({@link HostAsserts#plan}'s): the host half

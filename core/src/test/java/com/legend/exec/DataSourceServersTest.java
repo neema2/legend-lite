@@ -21,10 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A {@code data:} SOURCE ON EVERY SERVER DATABASE THIS SESSION RUNS (the user, 2026-11-11: "we need to make json work
- * everywhere"; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): the payload's elements read as a relation on each embedded
- * server, by the delivery its dialect answers ({@link SqlDialect#deliver}) -- a session table the plan's load
- * makes on MariaDB and MySQL (their {@code TEMPORARY} table, measured), the statement's own rows on Trino (VALUES),
- * ClickHouse ({@code values}) and MongoDB ({@code $documents}), which hold no session table a plan can name.
+ * everywhere"; the JSON pass, the same day: "move everything off temp table"): the payload read by the statement
+ * itself, as its dialect delivers it ({@link SqlDialect#deliver}) -- one bound parameter the database splits on MariaDB
+ * ({@code JSON_TABLE}), MySQL ({@code JSON_TABLE}'s ordinals and {@code JSON_EXTRACT}), Trino ({@code UNNEST} of
+ * {@code json_parse}) and ClickHouse ({@code JSONExtractArrayRaw}), the statement's own documents on MongoDB
+ * ({@code $documents}) -- no load and no session table anywhere; and on each SQL server the payload's elements read
+ * back exactly, a frame's records with their places, an empty array no row
+ * ({@code integration.JsonPayloadFormsTest#assertReadsBack}).
  */
 class DataSourceServersTest {
 
@@ -36,43 +39,55 @@ class DataSourceServersTest {
     private static final String ROWS = "[{\"ID\":1,\"NAME\":\"a\"},{\"ID\":2,\"NAME\":\"b\"}]";
 
     @Test
-    void mariaDbReadsItsSessionTable() throws Exception {
-        assertReads(DatabaseType.MariaDB, true);
+    void mariaDbBindsThePayload() throws Exception {
+        assertReads(DatabaseType.MariaDB);
     }
 
     @Test
-    void mySqlReadsItsSessionTable() throws Exception {
-        assertReads(DatabaseType.MySQL, true);
+    void mySqlBindsThePayload() throws Exception {
+        assertReads(DatabaseType.MySQL);
     }
 
     @Test
-    void trinoReadsItsOwnRows() throws Exception {
-        assertReads(DatabaseType.Trino, false);
+    void trinoBindsThePayload() throws Exception {
+        assertReads(DatabaseType.Trino);
     }
 
     @Test
-    void clickHouseReadsItsOwnRows() throws Exception {
-        assertReads(DatabaseType.ClickHouse, false);
+    void clickHouseBindsThePayload() throws Exception {
+        assertReads(DatabaseType.ClickHouse);
     }
 
     @Test
     void mongoDbReadsItsOwnDocuments() throws Exception {
-        assertReads(DatabaseType.MongoDB, false);
+        assertReads(DatabaseType.MongoDB);
     }
 
-    /** An EMPTY payload on each database that writes the rows into the statement (the orchestrator's ruling,
-     *  2026-11-11: JSON everywhere, the empty payload too): the relation's columns and no row, on the server. */
+    /** An EMPTY payload on each server (the orchestrator's ruling, 2026-11-11: JSON everywhere, the empty payload too):
+     *  the relation's columns and no row, on the server. */
     @Test
-    void anEmptyPayloadReadsNoRowOnEachInlineServer() throws Exception {
-        for (DatabaseType type : java.util.List.of(DatabaseType.Trino, DatabaseType.ClickHouse,
-                DatabaseType.MongoDB)) {
+    void anEmptyPayloadReadsNoRowOnEachServer() throws Exception {
+        for (DatabaseType type : java.util.List.of(DatabaseType.MariaDB, DatabaseType.MySQL, DatabaseType.Trino,
+                DatabaseType.ClickHouse, DatabaseType.MongoDB)) {
             // an element source's payload is one JSON array (an empty text is refused by name, as on every database)
-            assertEquals("[]", inline(type, QUERY.replace(PAYLOAD, "data:application/json,[]")), type.name());
+            assertEquals("[]", rows(type, QUERY.replace(PAYLOAD, "data:application/json,[]")), type.name());
         }
     }
 
-    /** {@code type}'s plan of {@code query}, on a database whose delivery is INLINE: no load, its JSON rows. */
-    private static String inline(DatabaseType type, String query) throws Exception {
+    /** The payload's elements read back exactly on each SQL server: a quote, a backslash, a line break, nested and
+     *  typed values, a string and a null element; a frame's records with their places; an empty array no row. */
+    @Test
+    void aPayloadReadsBackOnEachSqlServer() throws Exception {
+        for (DatabaseType type : java.util.List.of(DatabaseType.MariaDB, DatabaseType.MySQL, DatabaseType.Trino,
+                DatabaseType.ClickHouse)) {
+            try (java.sql.Connection c = TestBackends.of(type).open()) {
+                com.legend.integration.JsonPayloadFormsTest.assertReadsBack(type, c);
+            }
+        }
+    }
+
+    /** {@code type}'s plan of {@code query}, run: no load, its JSON rows. */
+    private static String rows(DatabaseType type, String query) throws Exception {
         var backend = TestBackends.of(type);
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")), query)
                 .executionPlan(StorelessRuntime.RUNTIME);
@@ -89,53 +104,23 @@ class DataSourceServersTest {
         return out.toString();
     }
 
-    /** Whether {@code dialect} answers a payload with a session table (else its statement reads it itself). */
-    private static boolean sessionTable(SqlDialect dialect) {
-        return dialect.deliver(new SqlDialect.DataPayload(new com.legend.sql.SqlSource.SourceUrl(
-                "data:application/json,[1]", "t0", List.of(new com.legend.sql.OutputCol("data",
-                        com.legend.sql.SqlType.Scalar.JSON, true, com.legend.sql.OutputCol.Origin.DERIVED)),
-                com.legend.sql.SqlSource.SourceUrl.Form.ELEMENTS), "legend_data_0123456789abcdef", List.of("1")))
-                instanceof SqlDialect.Delivered.Table;
-    }
-
-    /** {@code type}'s plan of the query: delivered as {@code sessionTable} says -- a load making the session table, or no
-     *  load and the payload in the statement -- and answering the payload's rows, in order. */
-    private static void assertReads(DatabaseType type, boolean sessionTable) throws Exception {
+    /** {@code type}'s plan of the query: no load and no session table, the payload its statement's own -- one bound
+     *  parameter, or MongoDB's documents -- answering the payload's rows, in order. */
+    private static void assertReads(DatabaseType type) throws Exception {
         var backend = TestBackends.of(type);
-        assertEquals(sessionTable, sessionTable(backend.dialect()), type + "'s delivery, as its dialect answers");
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")), QUERY)
                 .executionPlan(StorelessRuntime.RUNTIME);
         String json = com.legend.executionplan.PlanJson.write(plan);
-        if (sessionTable) {
-            assertTrue(json.contains("legend_data_"), type + ": the payload's session table is the plan's load: "
-                    + json);
-        } else {
-            assertTrue(!json.contains("legend_data_"), type + ": no session table: " + json);
-        }
-        if (!sessionTable) {
-            // no load: the plan streams on the session its target names (MongoDB's connector), or on the test's own
-            assertEquals(ROWS, inline(type, QUERY), type + ": the payload's rows, sorted");
-        } else {
-            // a fresh session on the server's test database, the test's own (a declared URL takes no load of a plan's):
-            // the target's loads -- the session table made, and dropped when the request lets the session go -- run on
-            // it, as the product's door runs them on a session it is given
-            try (java.sql.Connection c = backend.open()) {
-                com.legend.result.Collector rows = new com.legend.result.Collector();
-                com.legend.Execution.run(Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")),
-                                QUERY), StorelessRuntime.RUNTIME,
-                        SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
-                        PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                        ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(rows));
-                assertEquals("[[1, a], [2, b]]", String.valueOf(rows.collected().rows().stream().map(r -> r.stream()
-                        .map(String::valueOf).toList()).toList()), type + ": the payload's rows, sorted");
-                // the session table released with the request: the session holds none of the name
-                try (java.sql.Statement st = c.createStatement()) {
-                    String table = json.substring(json.indexOf("legend_data_"), json.indexOf("legend_data_") + 28);
-                    java.sql.SQLException gone = org.junit.jupiter.api.Assertions.assertThrows(
-                            java.sql.SQLException.class, () -> st.executeQuery("SELECT 1 FROM " + table));
-                    assertTrue(gone.getMessage().contains("doesn't exist"), type + ": " + gone.getMessage());
-                }
-            }
-        }
+        assertTrue(!json.contains("legend_data_") && plan.answerSql().target().loads().isEmpty(),
+                type + ": no session table, no load: " + json);
+        boolean bound = backend.dialect().deliver(new SqlDialect.DataPayload(new com.legend.sql.SqlSource.SourceUrl(
+                "data:application/json,[1]", "t0", List.of(new com.legend.sql.OutputCol("data",
+                        com.legend.sql.SqlType.Scalar.JSON, true, com.legend.sql.OutputCol.Origin.DERIVED)),
+                com.legend.sql.SqlSource.SourceUrl.Form.ELEMENTS), List.of("1")))
+                instanceof com.legend.sql.SqlSource.SourceUrl;
+        assertEquals(type != DatabaseType.MongoDB, bound, type + "'s delivery, as its dialect answers");
+        assertEquals(bound, plan.answerSql().slots().stream().anyMatch(sl -> sl.binding()
+                instanceof ExecutionPlan.Binding.Payload), type + ": the payload is a bound slot: " + json);
+        assertEquals(ROWS, rows(type, QUERY), type + ": the payload's rows, sorted");
     }
 }
