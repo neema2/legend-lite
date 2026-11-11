@@ -80,4 +80,30 @@ class TrinoNanosecondTest {
                     && refused.getMessage().contains("refused, never cut"), refused.getMessage());
         }
     }
+
+    /** A Trino runtime of no table, to plan a query of literals on. */
+    private static final String TRINO_MODEL = """
+            ###Relational
+            Database t::DB ( )
+            ###Connection
+            RelationalDatabaseConnection t::C { store: t::DB; type: Trino; specification: Trino { host: '127.0.0.1';
+              port: 8080; catalog: 'memory'; schema: 'default'; }; auth: Test; }
+            ###Runtime
+            Runtime t::RT { mappings: []; connections: [ t::DB: [ c: t::C ] ]; }
+            """;
+
+    /** The audit of 862a4d02..2f164ec4's M1 (2026-11-11): a REAL parseDate and cast(@DateTime), lowered as a query is,
+     *  cast to Trino's scalar TIMESTAMP -- nine digits, never the TIMESTAMP(6) that rounds (the lowering wraps the
+     *  parse in a cast, which the dialect's own arm test could not see). */
+    @Test
+    @DisplayName("a lowered parseDate and cast(@DateTime) cast to TIMESTAMP(9), never a rounding TIMESTAMP(6)")
+    void aLoweredParseAndCastKeepNineDigits() {
+        com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(TRINO_MODEL);
+        for (String query : List.of("|parseDate('2024-01-02T03:04:05.123456789+0000')",
+                "|'2024-01-02T03:04:05.123456789+0000'->cast(@DateTime)")) {
+            String sql = com.legend.Compiler.query(ctx, query).plan("t::RT").sql();
+            assertTrue(sql.contains("TIMESTAMP(9)"), query + " -> " + sql);
+            assertFalse(sql.contains("TIMESTAMP(6)"), query + " -> " + sql);
+        }
+    }
 }

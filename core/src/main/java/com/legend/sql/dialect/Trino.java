@@ -117,8 +117,11 @@ public final class Trino extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
-            case TIMESTAMP -> "TIMESTAMP(6)";
-            case TIMESTAMPTZ -> "TIMESTAMP(6) WITH TIME ZONE";
+            // nine digits (the audit of 862a4d02..2f164ec4, M1, 2026-11-11): a cast to TIMESTAMP(6) ROUNDS a value's
+            // digits past the microsecond (measured on 483: .123456789 to .123457), so every cast to a date-time --
+            // a parse's, cast(@DateTime)'s -- keeps the nine Trino holds; a column's DDL is ddlType's own
+            case TIMESTAMP -> "TIMESTAMP(9)";
+            case TIMESTAMPTZ -> "TIMESTAMP(9) WITH TIME ZONE";
             case JSON -> "JSON";
             case TIME -> "TIME(6)";
             case DECIMAL_TEXT -> 
