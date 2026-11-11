@@ -92,10 +92,6 @@ class SentStatementsAreThePlansTest {
                 }
             }
         }
-        // its release's statements, sent once the run is over (the second audit's S12, 2026-11-11)
-        if (plan.release() != null) {
-            out.addAll(plan.release().statements());
-        }
         return out;
     }
 }

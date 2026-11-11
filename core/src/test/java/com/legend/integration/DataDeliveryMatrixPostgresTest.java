@@ -66,47 +66,15 @@ class DataDeliveryMatrixPostgresTest {
     }
 
     /**
-     * A data: source's session table is the session's own on Postgres (the B2a audit's S4, 2026-11-11: the measurement
-     * of Postgres's {@code SqlDialect.dataTable}): a user's table of its name in the session's own schema is neither
-     * read nor dropped -- the table made TEMPORARY and every statement naming it qualified to {@code pg_temp} (the
-     * second audit's S10, 2026-11-11), so a session whose search_path puts {@code pg_temp} after the user's schema still
-     * reads its own table -- and the session holds no table of the name once the request lets it go.
+     * A data: payload read back exactly on Postgres (the JSON pass, 2026-11-11: one bound parameter, split by
+     * {@code jsonb_array_elements}; until then a session table in {@code pg_temp}, which the B2a audit's S4 and the
+     * second audit's S10 measured here): a quote, a backslash, a line break, nested and typed values, a string and a null
+     * element; a frame's records with their places; an empty array no row ({@link JsonPayloadFormsTest}).
      */
     @Test
-    void aDataTableIsTheSessionsOwn() throws Exception {
-        String content = DataDeliveryMatrixTest.PAYLOAD.substring(DataDeliveryMatrixTest.PAYLOAD.indexOf(',') + 1);
-        String table = "legend_data_" + com.legend.cache.Hash.ofUtf8(content).hex().substring(0, 16);
-        DataDeliveryMatrixTest.Data data = new DataDeliveryMatrixTest.Data(DataDeliveryMatrixTest.model(
-                DataDeliveryMatrixTest.bareConnection(DatabaseType.Postgres), ""), "|sourceUrl('"
-                + DataDeliveryMatrixTest.PAYLOAD + "')" + DataDeliveryMatrixTest.FROM_JSON, DataDeliveryMatrixTest.ROWS,
-                "x::RT");
-        try (java.sql.Connection c = DataDeliveryMatrixTest.session(DatabaseType.Postgres);
-             java.sql.Statement s = c.createStatement()) {
-            // the user's table of the name, holding a row of the user's
-            s.execute("CREATE TABLE " + table + " (data TEXT)");
-            s.execute("INSERT INTO " + table + " VALUES ('the user''s row')");
-            // an unqualified name would now find the user's table first (S10's witness)
-            s.execute("SET search_path TO public, pg_temp");
-            com.legend.result.Collector collector = new com.legend.result.Collector();
-            com.legend.Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(data.model()),
-                            data.query()), data.runtime(),
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
-                    com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(collector));
-            org.junit.jupiter.api.Assertions.assertEquals(DataDeliveryMatrixTest.ROWS,
-                    DataDeliveryMatrixTest.strings(collector));
-            // the user's table as it was
-            try (java.sql.ResultSet r = s.executeQuery("SELECT data FROM " + table)) {
-                org.junit.jupiter.api.Assertions.assertTrue(r.next());
-                org.junit.jupiter.api.Assertions.assertEquals("the user's row", r.getString(1));
-                org.junit.jupiter.api.Assertions.assertFalse(r.next());
-            }
-            // the session's own table of the name, gone with the request
-            try (java.sql.ResultSet r = s.executeQuery("SELECT count(*) FROM pg_tables WHERE tablename = '" + table
-                    + "' AND schemaname LIKE 'pg_temp%'")) {
-                org.junit.jupiter.api.Assertions.assertTrue(r.next());
-                org.junit.jupiter.api.Assertions.assertEquals(0, r.getInt(1));
-            }
+    void aPayloadReadsBack() throws Exception {
+        try (java.sql.Connection c = DataDeliveryMatrixTest.session(DatabaseType.Postgres)) {
+            JsonPayloadFormsTest.assertReadsBack(DatabaseType.Postgres, c);
         }
     }
 }

@@ -97,8 +97,6 @@ public final class TestPlanner {
                 // body on a server, whose engine-text appeals still read the user's tables on the body's own
                 // environment, bodyEnv)
                 env = on.onCatalogBody(route);
-                // one set of data: tables for the body: its appeals' too (B4's audit, finding 4)
-                bodyEnv = bodyEnv.sharingTables(env);
             }
             if (assertsPlanned) {
                 // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM

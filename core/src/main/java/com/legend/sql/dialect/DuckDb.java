@@ -884,8 +884,8 @@ public final class DuckDb extends AnsiSqlRenderer {
     /**
      * {@code file:} reads objects, the file a POINTER bound at the run (L6a, the user's ruling of 2026-11-10: the runner
      * binds the path its admission allows, never written into the statement), its one {@code data} column (the engine's
-     * scheme dispatch). A {@code data:} source never reaches here: it is the plan's load into a session table, which
-     * the query reads ({@code planner.DataSources}, L6b; until then its payload was a SQL literal).
+     * scheme dispatch). A {@code data:} source never reaches here: it is one bound parameter its own
+     * {@link #sourceUrl(SqlWriter, SqlSource.SourceUrl)} splits ({@code planner.DataSources}; the JSON pass, 2026-11-11).
      */
     @Override
     protected SqlWriter sourceUrl(SqlWriter writer, String url) {
@@ -897,28 +897,29 @@ public final class DuckDb extends AnsiSqlRenderer {
         return super.sourceUrl(writer, url);
     }
 
-    /** {@inheritDoc} In DuckDB's {@code temp} catalog: {@code DROP TABLE IF EXISTS temp.t} drops the session's
-     *  temporary table and leaves a user's {@code t} as it is, where an unqualified drop would drop the user's when the
-     *  session has none (measured 2026-11-10 on 1.5.6, A4): dropped there first, then made TEMPORARY. */
-    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in its {@code temp} schema its load made and its release dropped). */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return sessionTable(payload);
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
     }
 
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 1.5: 100,000
+     *  records in 83 ms): each element its {@code JSON}, a frame's record its place as the array's key (from 0, the
+     *  payload's order); an empty array no row. */
     @Override
-    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
-        String drop = render(new com.legend.sql.SqlDdl.DropTable("temp", base, com.legend.sql.NameQuoting.BARE));
-        String create = render(new com.legend.sql.SqlDdl.CreateTable(null, base, com.legend.sql.NameQuoting.BARE,
-                columns, true));
-        return new SqlDialect.DataTable(null, base, java.util.List.of(), java.util.List.of(drop, create),
-                java.util.List.of(drop));
-    }
-
-    /** {@inheritDoc} DuckDB holds each element in a {@code JSON} column, read as the array's elements were. */
-    @Override
-    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
-        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.key AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM json_each(CAST(");
+        return bindPayload(writer, u).append(" AS JSON)) AS legend_payload");
     }
 
     /** Pure semantics ride the expansion: exists([])=false, forAll([])=true. */

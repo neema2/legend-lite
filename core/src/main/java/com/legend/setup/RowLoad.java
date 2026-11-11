@@ -74,8 +74,7 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
         return out;
     }
 
-    /** The load as ONE insert of every row: a server's session table, which its dialect makes of one insert
-     *  ({@code SqlDialect.sessionTable}; the server forms B4 deletes). */
+    /** The load as ONE insert of every row. */
     public SqlDml.InsertValues values() {
         return insert(rows);
     }

@@ -36,14 +36,6 @@ public interface SqlDialect {
         return java.util.List.of();
     }
 
-    /** The column type a {@code data:} source's session table holds its JSON elements in (L6b, 2026-11-10: the source a
-     *  load into a temporary table, {@code planner.DataSources}); refused by name where this database reads no JSON
-     *  source, as the source itself was until then. */
-    default com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
-        throw new com.legend.sql.DialectCapability("sourceUrl reached a dialect without an external-source encoding: "
-                + url);
-    }
-
     /** The digits of a second a {@code TIMESTAMP} column keeps, as this dialect's DDL declares one: a known value of
      *  more is refused at planning, never cut (S181, the user's ruling of 2026-11-10; a load's cell,
      *  {@code setup.RowLoad}). A {@code TIMESTAMP_NS} column keeps nine wherever a dialect declares one. Each dialect
@@ -51,58 +43,17 @@ public interface SqlDialect {
     int timestampColumnDigits();
 
     /**
-     * A {@code data:} source's SESSION TABLE as this database makes, reads and drops it (B2a, 2026-11-11; the drop-safety
-     * rule of docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2, measured per database): {@code prepare}, what a program
-     * sends before its first statement where it makes any such table (H2's schema, whose statement commits an open
-     * transaction: the B2a audit's note), none elsewhere; {@code make}, the statements that leave the session holding an
-     * empty {@code name} of {@code columns} (a TEMPORARY table, the session's own), which the content's inserts then
-     * fill; {@code release}, those that drop it, never a user's table of the name and never raising where it was never
-     * made; the inserts' and the reads' {@code schema} ({@code null}: unqualified) and {@code name}. Refused by name
-     * where this database holds no session table of a load's.
-     */
-    record DataTable(@com.legend.base.Nullable String schema, String name, java.util.List<String> prepare,
-            java.util.List<String> make, java.util.List<String> release) {
-        public DataTable {
-            prepare = java.util.List.copyOf(prepare);
-            make = java.util.List.copyOf(make);
-            release = java.util.List.copyOf(release);
-        }
-
-        /** The name a query reads: qualified where the table lives in a schema of its own. */
-        public String read() {
-            return schema == null ? name : schema + "." + name;
-        }
-    }
-
-    /** The statements that make the schema this database's {@code data:} session tables live in, where it needs one
-     *  made (H2's {@code LEGEND_SESSION}); none elsewhere. A {@link DataTable}'s {@code prepare}, and made ONCE with the
-     *  graph's system catalog on a database the platform runs in process ({@code SystemCatalog.target}), so a body
-     *  routed there sends no statement that commits the catalog's run transaction (the user's veto, 2026-11-11, of the
-     *  refusal the B2a audit's S2 had placed). */
-    default java.util.List<String> dataSchema() {
-        return java.util.List.of();
-    }
-
-    /** {@code base}'s {@link DataTable} of {@code columns} on this database. */
-    default DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
-        throw new com.legend.sql.DialectCapability("a data: source's session table reached a dialect that makes no"
-                + " session table of a load's: " + base);
-    }
-
-    /**
      * A {@code data:} payload as the planner hands it to the dialect (the user, 2026-11-11: "how to represent the data in
      * the plan vs the database mechanism ... Shouldn't that all be delegated to dialect to decide?"): ONE representation
-     * whatever the database -- the source it was read from, its elements cut once (an array's elements, or a frame's
-     * records in their order) and the name a session table of it takes (by its content's digest). How it reaches the
-     * database is {@link #deliver}'s, the dialect's alone.
+     * whatever the database -- the source it was read from and its elements cut once (an array's elements, or a frame's
+     * records in their order). How it reaches the database is {@link #deliver}'s, the dialect's alone.
      */
-    record DataPayload(com.legend.sql.SqlSource.SourceUrl source, String base, java.util.List<String> elements) {
+    record DataPayload(com.legend.sql.SqlSource.SourceUrl source, java.util.List<String> elements) {
         /** The element's column: each element's JSON. */
         public static final String ELEMENT = "data";
 
         public DataPayload {
             java.util.Objects.requireNonNull(source, "source");
-            java.util.Objects.requireNonNull(base, "base");
             elements = java.util.List.copyOf(elements);
         }
 
@@ -123,7 +74,7 @@ public interface SqlDialect {
         }
 
         /** The source, its payload the elements' one array: what a statement that splits the payload itself reads
-         *  ({@link Delivered.Read}), its dialect binding {@link #array} to its placeholder when it renders it. */
+         *  ({@link #deliver}), its dialect binding {@link #array} to its placeholder when it renders it. */
         public com.legend.sql.SqlSource.SourceUrl bound() {
             return new com.legend.sql.SqlSource.SourceUrl("data:application/json," + array(), source.alias(),
                     source.outputs(), source.form());
@@ -131,47 +82,15 @@ public interface SqlDialect {
     }
 
     /**
-     * How a payload reaches this database, the dialect's answer ({@link #deliver}): a session TABLE the plan's load
-     * makes, fills with the elements and drops ({@link #dataTable}), or a source the statement READS itself -- its own
-     * rows ({@link #inlineRows}) or the payload as one bound parameter the database splits. The planner places the
-     * answer and decides nothing (2026-11-11: until then it switched on a declared kind and built the rows itself).
+     * The source a statement reads {@code payload} from on this database, measured per database (the JSON pass,
+     * 2026-11-11, the user's rulings: "move everything off temp table", and for H2 "inline so we can get rid of all the
+     * temp table code completely"): the payload as ONE bound parameter the database splits ({@link DataPayload#bound},
+     * which this dialect renders), or the statement's own rows ({@link #inlineRows}) where a database takes no such
+     * parameter. No session table, no load, no release: the statement alone. Each dialect answers its own, no
+     * default; the planner places the answer and decides nothing (2026-11-11: until then it switched on a declared kind
+     * and built the rows itself).
      */
-    sealed interface Delivered permits Delivered.Table, Delivered.Read {
-        /** A session table of the payload's elements, its {@code columns} as made: made, filled and dropped by the
-         *  plan, read by the statement. */
-        record Table(DataTable table, java.util.List<com.legend.sql.SqlDdl.Column> columns) implements Delivered {
-            public Table {
-                java.util.Objects.requireNonNull(table, "table");
-                columns = java.util.List.copyOf(columns);
-            }
-        }
-
-        /** A source the statement reads the payload from itself. */
-        record Read(com.legend.sql.SqlSource source) implements Delivered {
-            public Read {
-                java.util.Objects.requireNonNull(source, "source");
-            }
-        }
-    }
-
-    /** How {@code payload} reaches this database, measured per database (docs/data-delivery-homework/probes): each
-     *  dialect answers its own, no default; there is no refused delivery (register S190 withdrawn). */
-    Delivered deliver(DataPayload payload);
-
-    /** {@code payload} as this database's session table ({@link #dataTable}), its columns the element in this
-     *  database's JSON type ({@link #dataSourceColumn}) and a frame's place: the answer of a dialect whose database holds
-     *  a session table of a load's. */
-    default Delivered.Table sessionTable(DataPayload payload) {
-        java.util.List<com.legend.sql.SqlDdl.Column> columns = new java.util.ArrayList<>(java.util.List.of(
-                new com.legend.sql.SqlDdl.Column(DataPayload.ELEMENT, false, dataSourceColumn(payload.source().url()),
-                        false, false)));
-        if (payload.frame()) {
-            columns.add(new com.legend.sql.SqlDdl.Column(com.legend.sql.SqlSource.SourceUrl.PLACE, false,
-                    new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.INTEGER), false,
-                    false));
-        }
-        return new Delivered.Table(dataTable(payload.base(), columns), columns);
-    }
+    com.legend.sql.SqlSource deliver(DataPayload payload);
 
     /** {@code payload}'s elements as the statement's own rows (a relation of literals; census M18, BOUNDED to the
      *  databases whose dialect answers so): each element, or a frame's record and its place, a row -- the element's

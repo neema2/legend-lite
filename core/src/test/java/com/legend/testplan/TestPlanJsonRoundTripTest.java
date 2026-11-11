@@ -75,15 +75,12 @@ class TestPlanJsonRoundTripTest {
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
                 new EffectTexts.Statement("select", true))), refereeLoad()));
-        // a live source's load: the edge records none of it (B2a, 2026-11-11)
-        byStep.put(1, List.of(new com.legend.edge.LiveSourceLoad()));
         Map<Integer, List<Extension>> byVerdict = new LinkedHashMap<>();
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
                 new Appeal.Batched("golden", null, false), 1), new Appeal(3, "tdg", Appeal.Kind.TDG, null, null, null,
                 RootLoop.NO_APPEAL)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict,
-                true, anyTarget(), new com.legend.executionplan.ExecutionPlan.Release(List.of("DROP TABLE IF EXISTS temp.legend_data_0123456789abcdef"),
-                anyTarget()));
+                true, anyTarget());
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }

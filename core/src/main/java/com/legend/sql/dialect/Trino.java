@@ -91,12 +91,44 @@ public final class Trino extends AnsiSqlRenderer {
         return 9;
     }
 
-    /** {@inheritDoc} Trino holds no session table: its tables are the catalog's, every connection's (measured
-     *  2026-11-11 on the memory connector: probes/TrinoDataTable.java.txt), so a payload is the statement's own
-     *  VALUES rows, each element parsed by {@code json_parse}. */
+    /** The longest statement text Trino takes (its {@code query.max-length}, 1,000,000 characters by default; the
+     *  JSON pass, 2026-11-11). */
+    static final int MAX_QUERY_LENGTH = 1_000_000;
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11; until then
+     *  the statement's own VALUES rows: Trino holds no session table, probes/TrinoDataTable.java.txt). Trino's driver
+     *  writes a parameter into the statement's text, a string literal with each quote doubled, and the text is bounded
+     *  ({@link #MAX_QUERY_LENGTH}): a payload whose literal alone is longer can never run, and is refused here, at
+     *  planning, by name. */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return new SqlDialect.Delivered.Read(inlineRows(payload));
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        String array = payload.array();
+        long literal = array.length() + 2L + array.chars().filter(c -> c == '\'').count();
+        if (literal > MAX_QUERY_LENGTH) {
+            throw new DialectCapability("a data: payload of " + payload.elements().size() + " element(s), its text "
+                    + literal + " characters as Trino's driver writes it into the statement, exceeds Trino's"
+                    + " statement limit of " + MAX_QUERY_LENGTH + " characters (query.max-length)");
+        }
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 483): each
+     *  element a {@code JSON}, a frame's record its place as the ordinality from 0 (the payload's order); an empty
+     *  array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.legend_element AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.legend_ord - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM UNNEST(CAST(json_parse(");
+        return bindPayload(writer, u).append(") AS ARRAY(JSON))) WITH ORDINALITY AS legend_payload(legend_element,"
+                + " legend_ord)");
     }
 
     /** {@inheritDoc} 6: its date-time column is a {@code TIMESTAMP(6)} (S181, A7, 2026-11-10). */

@@ -4,183 +4,171 @@
 package com.legend.planner;
 
 import com.legend.database.Databases;
-import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
+import com.legend.sql.dialect.RenderedStatement;
 import com.legend.sql.dialect.SqlDialect;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A {@code data:} payload ON THE LANES' DATABASES, as their probes measured it (the orchestrator's rulings of
- * 2026-11-11; register S190 withdrawn: every database has a delivery): Snowflake's and BigQuery's the statement's own
- * rows, Databricks' a session table whose literals escape a quote and a backslash with a backslash; and an EMPTY payload
- * on every database that writes its rows into the statement -- the relation's columns and no row.
+ * A {@code data:} payload AS EACH DATABASE TAKES IT (the JSON pass, 2026-11-11, the user's rulings: "move everything off
+ * temp table", H2 inline "so we can get rid of all the temp table code completely", "Yes on Databricks"): the payload
+ * as one bound parameter the database splits -- its measured statement pinned per database, the payload never the
+ * statement's text -- or the statement's own rows on H2 and MongoDB, and on Databricks above its parameter limit; a
+ * statement length a database bounds refused at planning by name (Trino's); an empty payload no row everywhere; a
+ * payload that is no array, or no records, refused by name before any dialect is asked. No database makes a table.
  */
 class DataSourcesDeliveryTest {
 
     /** A payload whose record holds a quote, a backslash and a line break. */
     private static final String PAYLOAD = "data:application/json,[{\"t\":\"it's a\\\\b\"},{\"t\":\"x\\ny\"}]";
 
-    private static SqlQuery frame(String url) {
+    private static final String ARRAY = PAYLOAD.substring(PAYLOAD.indexOf(',') + 1);
+
+    private static SqlSource.SourceUrl source(String url) {
         List<OutputCol> outputs = List.of(new OutputCol("data", SqlType.Scalar.JSON, true, OutputCol.Origin.DERIVED),
                 new OutputCol(SqlSource.SourceUrl.PLACE, SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED));
-        return SqlSelect.starOf(new SqlSource.SourceUrl(url, "t0", outputs, SqlSource.SourceUrl.Form.RECORDS));
+        return new SqlSource.SourceUrl(url, "t0", outputs, SqlSource.SourceUrl.Form.RECORDS);
+    }
+
+    private static SqlQuery frame(String url) {
+        return SqlSelect.starOf(source(url));
     }
 
     private static SqlDialect dialect(DatabaseType type) {
         return Databases.dialect(type);
     }
 
-    /** A payload refused when it is cut (not one array, not records) leaves NOTHING recorded -- no make, fill or drop
-     *  for the next take -- on a database that makes a session table: the cut comes ahead of the make and the release
-     *  (the B2a audit's note; the second audit's S9, 2026-11-11: a make with no fill, and its drop twice at the next
-     *  take). The next read of a good payload takes its own table's steps alone. */
-    @Test
-    void aRefusedPayloadRecordsNothing() {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite,
-                DatabaseType.Postgres)) {
-            DataSources.Tables tables = new DataSources.Tables(dialect(type));
-            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
-                    () -> tables.read(frame("data:application/json,[{\"t\":1}, 7]")),
-                    type + ": a record that is no object");
-            DataSources.Tables.Made none = tables.take();
-            assertTrue(none.steps().isEmpty() && none.release().isEmpty() && none.drops().isEmpty()
-                    && none.content().isEmpty(), type + ": nothing recorded: " + none);
-            tables.read(frame(PAYLOAD));
-            DataSources.Tables.Made one = tables.take();
-            assertEquals(1, one.drops().stream().filter(d -> d.toLowerCase(java.util.Locale.ROOT).contains("drop")).count(),
-                    type + ": one table's drop: " + one.drops());
-        }
-    }
+    /** Each database's measured statement for a frame's payload bound as one parameter (the JSON pass's
+     *  measurements, 2026-11-11; Snowflake's and BigQuery's round 2's). */
+    static final Map<DatabaseType, String> BOUND = Map.ofEntries(
+            Map.entry(DatabaseType.Postgres, "SELECT legend_payload.value AS \"data\", CAST(legend_payload.ordinality"
+                    + " - 1 AS BIGINT) AS \"u_frame_ord__\" FROM jsonb_array_elements(CAST(? AS JSONB)) WITH ORDINALITY"
+                    + " AS legend_payload(value, ordinality)"),
+            Map.entry(DatabaseType.DuckDB, "FROM json_each(CAST(? AS JSON)) AS legend_payload"),
+            Map.entry(DatabaseType.SQLite, "SELECT CASE legend_payload.type WHEN 'text' THEN"
+                    + " json_quote(legend_payload.value) WHEN 'null' THEN 'null' WHEN 'true' THEN 'true' WHEN 'false'"
+                    + " THEN 'false' ELSE CAST(legend_payload.value AS TEXT) END AS"),
+            Map.entry(DatabaseType.MariaDB, "FROM JSON_TABLE(?, '$[*]' COLUMNS (legend_ord FOR ORDINALITY,"
+                    + " legend_element JSON PATH '$')) AS legend_payload"),
+            Map.entry(DatabaseType.MySQL, "SELECT JSON_EXTRACT(legend_doc.legend_payload, CONCAT('$[',"
+                    + " legend_rows.legend_ord - 1, ']')) AS"),
+            Map.entry(DatabaseType.Trino, "FROM UNNEST(CAST(json_parse(?) AS ARRAY(JSON))) WITH ORDINALITY AS"
+                    + " legend_payload(legend_element, legend_ord)"),
+            Map.entry(DatabaseType.ClickHouse, "FROM (SELECT JSONExtractArrayRaw(?) AS legend_elements) ARRAY JOIN"
+                    + " arrayEnumerate(legend_elements) AS legend_index"),
+            Map.entry(DatabaseType.Databricks, "FROM variant_explode(parse_json(?))"),
+            Map.entry(DatabaseType.Snowflake, "SELECT legend_payload.value AS \"data\", CAST(legend_payload.index AS"
+                    + " BIGINT) AS \"u_frame_ord__\" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) legend_payload"),
+            Map.entry(DatabaseType.BigQuery, "SELECT legend_payload AS `data`, legend_place AS `u_frame_ord__` FROM"
+                    + " UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS legend_payload WITH OFFSET AS legend_place"));
 
-    /** One body's tables are made on ONE database, the first read's: a later read there -- a query's or a write's --
-     *  takes the same table, and a read on another database is refused by name (the second audit's S6, 2026-11-11: only
-     *  "system or not" was held, and a write's read held nothing). */
-    @Test
-    void theTablesKeepToTheirHomeDatabase() {
-        DataSources.Tables tables = new DataSources.Tables(dialect(DatabaseType.DuckDB));
-        ExecutionPlan.Target home = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
-                com.legend.executionplan.DatabaseType.DuckDB, "home"), List.of(), List.of());
-        ExecutionPlan.Target other = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
-                com.legend.executionplan.DatabaseType.DuckDB, "other"), List.of(), List.of());
-        tables.read(frame(PAYLOAD), home);
-        tables.read(frame(PAYLOAD), home);
-        assertEquals(1, tables.take().drops().size(), "one table, read twice at home");
-        org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
-                () -> tables.read(frame(PAYLOAD), other), "a query's read on another database");
-        com.legend.sql.SqlDml write = new com.legend.sql.SqlDml.InsertSelect(null, "T", com.legend.sql.NameQuoting.BARE,
-                List.of("data", SqlSource.SourceUrl.PLACE), java.util.Set.of(), frame(PAYLOAD));
-        org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
-                () -> tables.read(write, other), "a write's read on another database");
-        tables.read(write, home);
-    }
+    /** The databases whose statement holds the payload's rows itself. */
+    static final List<DatabaseType> INLINE = List.of(DatabaseType.H2, DatabaseType.MongoDB);
 
-    /** One body's tables are written in one database's dialect (B4, 2026-11-11, the audit's finding 4): a read on a
-     *  database of another -- the process's catalog beside a body on a server -- is refused by name. */
     @Test
-    void aReadOnADatabaseOfAnotherDialectIsRefusedByName() {
-        ExecutionPlan.Target catalog = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
-                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "platform"), List.of(), List.of());
-        for (DatabaseType type : Databases.relational()) {
-            if (Databases.dialect(type).getClass() == Databases.dialect(Databases.PLATFORM).getClass()) {
-                continue;
-            }
-            DataSources.Tables tables = new DataSources.Tables(dialect(type));
-            var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> tables.read(frame(PAYLOAD), catalog), type.name());
-            assertTrue(refused.getMessage().contains("data: tables are written for"), type + ": " + refused.getMessage());
-        }
-    }
-
-    /** Snowflake and BigQuery: the payload as ONE bound parameter the database splits (round 2's measurement, the
-     *  user's ruling of 2026-11-11) -- no load, the payload never the statement's text, its one JSON array the bound
-     *  value, a frame's place the split's index or offset. */
-    @Test
-    void snowflakeAndBigQueryBindThePayloadAsOneParameter() {
-        String array = PAYLOAD.substring(PAYLOAD.indexOf(',') + 1);
-        for (var expected : java.util.Map.of(
-                DatabaseType.Snowflake, "SELECT legend_payload.value AS \"data\", CAST(legend_payload.index AS BIGINT)"
-                        + " AS \"u_frame_ord__\" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) legend_payload",
-                DatabaseType.BigQuery, "SELECT legend_payload AS `data`, legend_place AS `u_frame_ord__` FROM"
-                        + " UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS legend_payload WITH OFFSET AS legend_place")
-                .entrySet()) {
+    void eachDatabaseBindsThePayloadAsOneParameterInItsMeasuredStatement() {
+        for (var expected : BOUND.entrySet()) {
             SqlDialect dialect = dialect(expected.getKey());
-            DataSources d = DataSources.of(frame(PAYLOAD), dialect);
-            assertTrue(d.steps().isEmpty() && d.content().isEmpty() && d.release().isEmpty(), "no load: " + d);
-            com.legend.sql.dialect.RenderedStatement written = dialect.renderStatement(d.query());
+            RenderedStatement written = dialect.renderStatement(DataSources.read(frame(PAYLOAD), dialect));
             assertTrue(written.sql().contains(expected.getValue()), expected.getKey() + ": " + written.sql());
-            assertEquals(List.of(new com.legend.sql.dialect.RenderedStatement.Binding.Payload(array)),
-                    written.binds().stream().map(com.legend.sql.dialect.RenderedStatement.Bind::binding).toList(),
+            assertEquals(List.of(new RenderedStatement.Binding.Payload(ARRAY)),
+                    written.binds().stream().map(RenderedStatement.Bind::binding).toList(),
                     expected.getKey() + ": the payload is the bound value");
-            assertTrue(!written.sql().contains("it's"), expected.getKey() + ": never the text: " + written.sql());
+            assertTrue(!written.sql().contains("it's") && !written.sql().toLowerCase(java.util.Locale.ROOT)
+                    .contains("legend_data_"), expected.getKey() + ": never the text, never a table: " + written.sql());
             // an empty payload: the empty array bound, no row (measured)
             for (String url : List.of("data:application/json,[]", "data:application/json,")) {
-                com.legend.sql.dialect.RenderedStatement empty = dialect.renderStatement(
-                        DataSources.of(frame(url), dialect).query());
-                assertEquals(List.of(new com.legend.sql.dialect.RenderedStatement.Binding.Payload("[]")),
-                        empty.binds().stream().map(com.legend.sql.dialect.RenderedStatement.Bind::binding).toList(),
+                RenderedStatement empty = dialect.renderStatement(DataSources.read(frame(url), dialect));
+                assertEquals(List.of(new RenderedStatement.Binding.Payload("[]")),
+                        empty.binds().stream().map(RenderedStatement.Bind::binding).toList(),
                         expected.getKey() + " " + url);
             }
         }
     }
 
-    /** Databricks: the session table made, filled and dropped by name -- single-part, TEMPORARY on every statement,
-     *  the elements a VARIANT -- and each element's literal escaping a quote and a backslash with a backslash
-     *  ({@code ''} is two literals there, measured). */
+    /** Every database with a dialect is one of the two lists: none makes a table, none refuses a payload. */
     @Test
-    void databricksFillsItsTemporaryTable() {
-        SqlDialect databricks = dialect(DatabaseType.Databricks);
-        DataSources d = DataSources.of(frame(PAYLOAD), databricks);
-        List<String> statements = new ArrayList<>();
-        for (ExecutionPlan.LoadStep step : d.steps()) {
-            if (step instanceof ExecutionPlan.LoadStep.Statement s) {
-                statements.add(s.sql());
+    void everyDatabaseIsBoundOrInline() {
+        for (DatabaseType type : DatabaseType.values()) {
+            SqlDialect dialect;
+            try {
+                dialect = Databases.dialect(type);
+            } catch (com.legend.error.NotImplementedException none) {
+                continue;   // no dialect at all: no query reaches the database
             }
+            assertTrue(BOUND.containsKey(type) || INLINE.contains(type), type + " is bound or inline");
+            SqlSource read = dialect.deliver(new SqlDialect.DataPayload(source(PAYLOAD), List.of("{\"t\":1}")));
+            assertEquals(BOUND.containsKey(type), read instanceof SqlSource.SourceUrl, type.name());
         }
-        String table = statements.get(0).substring("DROP TEMPORARY TABLE IF EXISTS ".length());
-        assertTrue(table.matches("legend_data_[0-9a-f]{16}_o"), table);
-        assertEquals(List.of("DROP TEMPORARY TABLE IF EXISTS " + table, "CREATE TEMPORARY TABLE " + table
-                + " (`data` VARIANT, `u_frame_ord__` INTEGER)"), statements);
-        List<String> released = new ArrayList<>();
-        for (ExecutionPlan.LoadStep step : d.release()) {
-            released.add(((ExecutionPlan.LoadStep.Statement) step).sql());
-        }
-        assertEquals(List.of("DROP TEMPORARY TABLE IF EXISTS " + table), released);
-        List<String> inserts = new ArrayList<>();
-        for (String blob : d.content().values()) {
-            inserts.addAll(com.legend.executionplan.DataRef.Statements.decode(blob));
-        }
-        assertEquals(1, inserts.size(), String.valueOf(inserts));
-        assertTrue(inserts.get(0).contains("parse_json('{\"t\":\"it\\'s a\\\\\\\\b\"}')"), inserts.get(0));
-        assertTrue(inserts.get(0).contains("parse_json('{\"t\":\"x\\\\ny\"}')"), inserts.get(0));
-        assertTrue(databricks.render(d.query()).contains(table), "the query reads the table");
     }
 
-    /** An empty payload on each database that writes the rows into the statement: its columns, no row -- one typed
-     *  NULL row removed by WHERE FALSE (the lowering's empty TDS literal's shape); never refused, never a load. */
+    /** H2 and MongoDB write the rows into the statement: an empty payload is the relation's columns and no row -- one
+     *  typed NULL row removed by WHERE FALSE (the lowering's empty TDS literal's shape), MongoDB's {@code $match}. */
     @Test
     void anEmptyPayloadIsNoRowOnEveryInlineDatabase() {
-        for (DatabaseType type : List.of(DatabaseType.Trino, DatabaseType.ClickHouse, DatabaseType.MongoDB)) {
+        for (DatabaseType type : INLINE) {
             SqlDialect dialect = dialect(type);
-            assertEquals(com.legend.sql.dialect.DataDeliveryDeclaredTest.Kind.INLINE,
-                    com.legend.sql.dialect.DataDeliveryDeclaredTest.kindOf(dialect), type.name());
             for (String url : List.of("data:application/json,[]", "data:application/json,")) {
-                DataSources d = DataSources.of(frame(url), dialect);
-                assertTrue(d.steps().isEmpty() && d.content().isEmpty(), type + ": no load: " + d);
-                String sql = dialect.render(d.query());
-                assertTrue(type == DatabaseType.MongoDB ? sql.contains("$match") : sql.contains("WHERE FALSE")
-                        || sql.contains("WHERE false") || sql.contains("WHERE 1 = 0"), type + ": " + sql);
+                String sql = dialect.render(DataSources.read(frame(url), dialect));
+                assertTrue(type == DatabaseType.MongoDB ? sql.contains("$match") : sql.contains("WHERE FALSE"),
+                        type + ": " + sql);
             }
+            String rows = dialect.render(DataSources.read(frame(PAYLOAD), dialect));
+            assertTrue(type == DatabaseType.MongoDB || rows.contains("it''s"), type + ": the rows inline: " + rows);
+        }
+    }
+
+    /** Databricks binds up to its driver's parameter limit (1 MiB of characters, measured) and writes the rows
+     *  inline above it -- VALUES of the elements' texts the select over it parses (the lane's measured form). */
+    @Test
+    void databricksBindsUpToItsParameterLimitAndWritesTheRowsAbove() {
+        SqlDialect databricks = dialect(DatabaseType.Databricks);
+        String element = "{\"t\":\"" + "x".repeat(1000) + "\"}";
+        int under = 1_048_576 / (element.length() + 1) - 1;
+        String small = "data:application/json,[" + String.join(",", java.util.Collections.nCopies(under, element)) + "]";
+        RenderedStatement bound = databricks.renderStatement(DataSources.read(frame(small), databricks));
+        assertEquals(1, bound.binds().size(), "bound under the limit");
+        String large = "data:application/json,[" + String.join(",", java.util.Collections.nCopies(under + 2, element))
+                + "]";
+        RenderedStatement inline = databricks.renderStatement(DataSources.read(frame(large), databricks));
+        assertEquals(List.of(), inline.binds(), "inline above the limit");
+        assertTrue(inline.sql().contains("(SELECT parse_json(legend_rows.col1) AS `data`, legend_rows.col2 AS"
+                + " `u_frame_ord__` FROM VALUES ('{\"t\":\"xx"), inline.sql().substring(0, 200));
+    }
+
+    /** Trino's driver writes a parameter into the statement's text, which Trino bounds at 1,000,000 characters: a
+     *  payload whose literal alone is longer can never run, refused at planning by name. */
+    @Test
+    void trinoRefusesAPayloadLongerThanItsStatementLimitAtPlanning() {
+        SqlDialect trino = dialect(DatabaseType.Trino);
+        String element = "{\"t\":\"" + "x".repeat(1000) + "\"}";
+        String url = "data:application/json,[" + String.join(",", java.util.Collections.nCopies(1000, element)) + "]";
+        var refused = assertThrows(com.legend.sql.DialectCapability.class, () -> DataSources.read(frame(url), trino));
+        assertTrue(refused.getMessage().contains("1000 element(s)") && refused.getMessage().contains("1000000")
+                && refused.getMessage().contains("query.max-length"), refused.getMessage());
+    }
+
+    /** A payload that is no array of records is refused by name before any dialect is asked, on every database. */
+    @Test
+    void aPayloadThatIsNoRecordsIsRefusedByNameEverywhere() {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite,
+                DatabaseType.Postgres, DatabaseType.Trino)) {
+            var refused = assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> DataSources.read(frame("data:application/json,[{\"t\":1}, 7]"), dialect(type)),
+                    type + ": a record that is no object");
+            assertTrue(refused.getMessage().contains("payload"), type + ": " + refused.getMessage());
         }
     }
 }

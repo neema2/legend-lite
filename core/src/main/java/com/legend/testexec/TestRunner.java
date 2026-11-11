@@ -98,26 +98,22 @@ public final class TestRunner {
                         com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
                                 golden, ours, textEqual, referee, l, reader, sessions);
                 PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, null, systemSessions), origin);
-                // the plan's release -- its data: tables' drops -- sent once the run and its appeals are over, whatever
-                // their outcome (B2a, 2026-11-11: an appeal reads lite's rows after the run)
-                try (TestRun.Released released = TestRun.releasing(plan, sessions)) {
-                    try {
-                        TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved);
-                    } catch (RuntimeException runFailed) {
-                        // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is
-                        // the body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a
-                        // wall's refusal, the JVM's -- passes untouched: nothing is decided after it)
-                        throw appeals.afterFailure(runFailed, session, systemSessions,
-                                sessionsByTarget(session, systemSessions), decider);
-                    }
-                    // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is
-                    // the body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the
-                    // caller)
-                    appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
-                    if (answer != null && plan.answersLastVerdict()) {
-                        // a body whose last statement is an assert answers its verdict as host rows, as the walk does
-                        com.legend.testexec.SideShapes.host(moved.lastVerdict(), answer);
-                    }
+                try {
+                    TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved);
+                } catch (RuntimeException runFailed) {
+                    // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is
+                    // the body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a
+                    // wall's refusal, the JVM's -- passes untouched: nothing is decided after it)
+                    throw appeals.afterFailure(runFailed, session, systemSessions,
+                            sessionsByTarget(session, systemSessions), decider);
+                }
+                // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is
+                // the body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the
+                // caller)
+                appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
+                if (answer != null && plan.answersLastVerdict()) {
+                    // a body whose last statement is an assert answers its verdict as host rows, as the walk does
+                    com.legend.testexec.SideShapes.host(moved.lastVerdict(), answer);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

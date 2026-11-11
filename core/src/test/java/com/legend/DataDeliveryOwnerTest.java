@@ -17,10 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE DELIVERY IS THE DIALECT'S ALONE (the user, 2026-11-11: "Shouldn't that all be delegated to dialect to decide?"):
- * how a {@code data:} payload reaches a database -- a session table, the statement's own rows, one bound parameter --
- * is {@code SqlDialect.deliver}'s answer. The planner hands the payload to it in ONE place ({@code DataSources}) and
- * places the answer; no planner source makes a session table's statements or a payload's rows itself, nor reads a
- * declared delivery kind (until 2026-11-11 it switched on {@code SqlDialect.dataDelivery()} and built the rows).
+ * how a {@code data:} payload reaches a database -- one bound parameter the database splits, or the statement's own
+ * rows (the JSON pass, 2026-11-11: the session table went) -- is {@code SqlDialect.deliver}'s answer. The planner hands
+ * the payload to it in ONE place ({@code DataSources}) and places the answer; no planner source builds a payload's rows
+ * or its bound source itself, nor reads a declared delivery kind (until 2026-11-11 it switched on
+ * {@code SqlDialect.dataDelivery()} and built the rows).
  */
 @Tag("census")
 class DataDeliveryOwnerTest {
@@ -36,7 +37,9 @@ class DataDeliveryOwnerTest {
             }
             String text = Files.readString(f, StandardCharsets.UTF_8);
             delivers += text.split("\\.deliver\\(", -1).length - 1;
-            for (String decided : List.of(".dataTable(", ".inlineRows(", "DataDelivery")) {
+            // 2026-11-11, the JSON pass: the session table's spelling (SqlDialect's dataTable) left with the table;
+            // the bound source's own spelling (".bound()") joins the rows'
+            for (String decided : List.of(".inlineRows(", ".bound()", "DataDelivery")) {
                 assertTrue(!text.contains(decided), f.getFileName() + " holds a delivery decision: " + decided);
             }
         }

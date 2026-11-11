@@ -3,9 +3,6 @@
 
 package com.legend.planner;
 
-import com.legend.executionplan.ExecutionPlan;
-import com.legend.sql.NameQuoting;
-import com.legend.sql.SqlDdl;
 import com.legend.sql.SqlDml;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
@@ -14,278 +11,96 @@ import com.legend.sql.SqlSource;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
- * A QUERY'S {@code data:} SOURCES AS A LOAD (docs/DATA_IN_THE_PLAN_2026_11_09.md L6b, 2026-11-10: data written in the
- * model travels with the plan, and the database receives it through one load at every size -- never a SQL literal):
- * each distinct content a session table named by its digest ({@code legend_data_<16 hex>}), made and filled by a load
- * on the query's target, established on acquisition, and read by the query where the source stood (at any depth: a
- * subquery's, a union's). Two sources of equal content read one table. The table is the session's own, made, read and
- * dropped as its database spells a session table ({@link SqlDialect#dataTable}: never a user's table of the name,
- * docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rules 2 and 4, A4), dropped when the request lets its session go (the
- * target's AT_RELEASE load); a run reads exactly the plan's rows. The payload is split into its elements verbatim,
- * never re-printed: the database reads each element's JSON text. A JSON connection's FRAME (B2a, 2026-11-11: the
- * source's form is {@code RECORDS}) takes its connection's forms -- an array of records, one record, or a
- * stream of them; an empty payload no record -- and its table holds each record's place beside its text.
- *
- * @param query   the query reading each source's table
- * @param steps   the load's steps: per content, the table dropped, created and filled
- * @param release the release's steps: per content, the table dropped
- * @param content the bundle the steps read: each payload's elements, a content blob of inserts (A2)
+ * A STATEMENT'S {@code data:} SOURCES, each read where it stands -- at any depth: a subquery's, a union's, a write's rows
+ * -- from the source its database's dialect answers ({@link SqlDialect#deliver}; the JSON pass, 2026-11-11, the user's
+ * rulings "move everything off temp table" and, for H2, "inline so we can get rid of all the temp table code
+ * completely"): the payload as one bound parameter the database splits, or the statement's own rows. The payload is cut
+ * once into its elements verbatim, never re-printed -- an array's elements, or a JSON connection's FRAME's records
+ * (its form {@code RECORDS}: an array of records, one record, or a stream of them; an empty payload no record), each
+ * beside its place -- and handed to the dialect, whose answer is placed here: the planner decides nothing about how a
+ * payload reaches its database. No load, no session table, no release: a statement reads its payload itself, so a
+ * rewrite holds no state and every statement is read in the dialect it is written in. (Until the JSON pass each
+ * content was a session table its load made, its release dropped, and one body's tables were held to one database.)
  */
-public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release,
-        Map<String, String> content) {
+public final class DataSources {
 
-
-    /** {@code q}'s {@code data:} sources read from their tables, and the load that makes them, on {@code dialect}'s
-     *  database (a dialect with no JSON source refuses by name, as it refused the source until then). */
-    static DataSources of(SqlQuery q, SqlDialect dialect) {
-        Tables tables = new Tables(dialect);
-        SqlQuery read = tables.read(q);
-        Tables.Made made = tables.take();
-        // a query's tables are its acquisition's load, its own transaction: the database's prepare first in it
-        List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
-        for (String statement : made.prepare()) {
-            steps.add(new ExecutionPlan.LoadStep.Statement(statement));
-        }
-        steps.addAll(made.steps());
-        return new DataSources(read, steps, made.release(), made.content());
+    private DataSources() {
     }
 
-    /**
-     * The {@code data:} tables of one plan (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4, A5: a {@code data:} source is
-     * rewritten wherever a statement is planned -- a query's, a program's statements and staged lets, a store write's
-     * rows, a test body's): each content one table, made by the steps {@link #take} hands on since the last take, read
-     * by every statement after. A product query's are its target's acquisition load ({@link #onto}); a program's its
-     * own load at the step before the first statement that reads it, dropped after the program's answer
-     * ({@code ProgramState.read}). A test body's are one for the body (B2a, 2026-11-11): its judges' statements, planned
-     * before its program, read through the same tables as its program's, which places what they made ahead of the step
-     * that reads it ({@code ProgramKinds.dataTables}).
-     */
-    public static final class Tables {
-        private final SqlDialect dialect;
-        private final Map<Key, SqlDialect.DataTable> tables = new LinkedHashMap<>();
-        private final List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
-        private final List<ExecutionPlan.LoadStep> release = new ArrayList<>();
-        private final List<String> drops = new ArrayList<>();
-        private final Map<String, String> bundle = new LinkedHashMap<>();
-        private final java.util.Set<String> prepare = new java.util.LinkedHashSet<>();
-        /** The HOME database the tables are made on: the first read's that made or read one, every later read's too,
-         *  or it is refused by name (the second audit's S6, 2026-11-11: until then only "system or not" was held, and a
-         *  write's read held nothing). Null until a statement reads a {@code data:} source. */
-        private ExecutionPlan.@com.legend.base.Nullable Database home;
+    /** {@code q} reading each {@code data:} source as {@code dialect}'s database takes it. */
+    public static SqlQuery read(SqlQuery q, SqlDialect dialect) {
+        return new Rewriter(dialect).rewrite(q);
+    }
 
-        /** The tables of one plan written in {@code dialect}. */
-        public Tables(SqlDialect dialect) {
+    /** {@code dml}'s rows and conditions reading each {@code data:} source as {@code dialect}'s database takes it. */
+    public static SqlDml read(SqlDml dml, SqlDialect dialect) {
+        Rewriter r = new Rewriter(dialect);
+        return switch (dml) {
+            case SqlDml.InsertSelect i -> new SqlDml.InsertSelect(i.schema(), i.table(), i.quoting(), i.columns(),
+                    i.quotedColumns(), r.rewrite(i.query()));
+            case SqlDml.Merge m -> new SqlDml.Merge(m.schema(), m.table(), m.quoting(), m.columns(),
+                    m.quotedColumns(), m.keys(), r.rewrite(m.query()), m.alias(), m.sourceAlias());
+            case SqlDml.Update u -> new SqlDml.Update(u.schema(), u.table(), u.quoting(), u.alias(),
+                    u.storedTypes(), u.assignments().stream().map(a -> new SqlDml.Update.Assignment(a.column(),
+                            a.quoted(), r.expression(a.value()))).toList(),
+                    u.where() == null ? null : r.expression(u.where()));
+            case SqlDml.DeleteWhere d -> new SqlDml.DeleteWhere(d.schema(), d.table(), d.quoting(), d.alias(),
+                    d.storedTypes(), d.where() == null ? null : r.expression(d.where()));
+            case SqlDml.CreateTempTableAs c -> new SqlDml.CreateTempTableAs(c.table(), r.rewrite(c.query()),
+                    c.columns(), c.staged());
+            // rows written as literals, a staged table's name, a file's path: no query source in them
+            case SqlDml.InsertValues v -> v;
+            case SqlDml.InsertFromTable t -> t;
+            case SqlDml.DeleteAll d -> d;
+            case SqlDml.LoadCsv l -> l;
+        };
+    }
+
+    /** {@code tree}, a statement's typed tree as its plan carries it, each {@code data:} source whose payload is one of
+     *  {@code digests} (its statement's content, bound) named by its digest ({@link SqlSource.SourceUrl#byDigest}):
+     *  the payload's text once in the plan, the statement's content (the JSON pass, 2026-11-11). */
+    static SqlQuery byDigest(SqlQuery tree, java.util.Set<String> digests) {
+        return new SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.SourceUrl u && u.url().startsWith("data:")
+                        && !SqlSource.SourceUrl.namesByDigest(u.url())) {
+                    String digest = com.legend.cache.Hash.ofUtf8(content(u.url())).hex();
+                    if (digests.contains(digest)) {
+                        return new SqlSource.SourceUrl(SqlSource.SourceUrl.byDigest(digest), u.alias(), u.outputs(),
+                                u.form());
+                    }
+                }
+                return s;
+            }
+        }.rewrite(tree);
+    }
+
+    /** The rewriter: a {@code data:} source becomes the source its dialect delivers it as. */
+    private static final class Rewriter extends SqlRewriter {
+        private final SqlDialect dialect;
+
+        Rewriter(SqlDialect dialect) {
             this.dialect = dialect;
         }
 
-        /** The dialect the tables' statements are written in. */
-        SqlDialect dialect() {
-            return dialect;
+        SqlExpr expression(SqlExpr e) {
+            return rewriteExpr(e);
         }
 
-        /** A table's identity: its content, and whether it is a frame's (which holds each record's place too). */
-        private record Key(String content, boolean frame) {
-        }
-
-        /** The steps made since the last take: the new tables' drops, creates and fills, their drops at release (as
-         *  a release's steps, and as their statements), the bundle the fills read, and what their database sends before
-         *  a program's first statement ({@link SqlDialect.DataTable#prepare}). */
-        record Made(List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release, List<String> drops,
-                Map<String, String> content, List<String> prepare) {
-        }
-
-        /** What the reads since the last take made, handed on once. */
-        Made take() {
-            Made made = new Made(List.copyOf(steps), List.copyOf(release), List.copyOf(drops),
-                    java.util.Collections.unmodifiableMap(new LinkedHashMap<>(bundle)), List.copyOf(prepare));
-            steps.clear();
-            release.clear();
-            drops.clear();
-            bundle.clear();
-            prepare.clear();
-            return made;
-        }
-
-        /** {@code q} reading each {@code data:} source's table, each table not made before made by the steps the next
-         *  take hands on. */
-        public SqlQuery read(SqlQuery q) {
-            return rewriter().rewrite(q);
-        }
-
-        /**
-         * {@link #read(SqlQuery)} for a statement that runs on {@code on}'s session: one body's tables are made on one
-         * database, so a statement that reads one on another -- a judge's side on the graph's system database beside a
-         * program on the user's, or the reverse -- is refused by name here, at planning (the B2a audit's note: it
-         * failed at run, "table not found").
-         */
-        public SqlQuery read(SqlQuery q, ExecutionPlan.Target on) {
-            Rewriter r = rewriter();
-            SqlQuery read = r.rewrite(q);
-            if (r.read) {
-                atHome(on);
+        @Override
+        protected SqlSource source(SqlSource s) {
+            if (!(s instanceof SqlSource.SourceUrl u) || !u.url().startsWith("data:")) {
+                return s;
             }
-            return read;
+            String content = content(u.url());
+            List<String> elements = u.form() == SqlSource.SourceUrl.Form.RECORDS ? records(content, u.url())
+                    : elements(content, u.url());
+            return dialect.deliver(new SqlDialect.DataPayload(u, elements));
         }
-
-        /** Holds the tables to one database: {@code on}'s, the first time; a later read on another refused by name. */
-        private void atHome(ExecutionPlan.Target on) {
-            com.legend.executionplan.DatabaseType engine = switch (on.database()) {
-                case ExecutionPlan.Database.System s -> s.type();
-                case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
-                case ExecutionPlan.Database.Platform p -> p.type();
-            };
-            if (com.legend.database.Databases.dialect(ConnectionPlans.model(engine)).getClass() != dialect.getClass()) {
-                // one body's tables are written in one database's dialect: a body on a server and its statements on the
-                // process's catalog share them (B4, 2026-11-11, the audit's finding 4), and a read on a database of
-                // another dialect is refused by name
-                throw new com.legend.error.NotImplementedException("a statement reads a data: source on "
-                        + describe(on.database()) + ", where the body's data: tables are written for "
-                        + dialect.getClass().getSimpleName() + ": a statement reading the system metamodel store and a"
-                        + " data: source is not planned on a database the platform does not run in process");
-            }
-            if (home == null) {
-                home = on.database();
-            } else if (!home.equals(on.database())) {
-                boolean system = on.database() instanceof ExecutionPlan.Database.System;
-                throw new com.legend.error.NotImplementedException("a statement reads a data: source on "
-                        + describe(on.database()) + ", where the body's data: tables are made on " + describe(home)
-                        + (system || home instanceof ExecutionPlan.Database.System
-                                ? ": a statement reading the system metamodel store and a data: source is not planned"
-                                : ": one body's data: tables are made on one database"));
-            }
-        }
-
-        private static String describe(ExecutionPlan.Database database) {
-            return database instanceof ExecutionPlan.Database.System ? "the graph's system database"
-                    : "the body's own database";
-        }
-
-        /** {@code dml}'s rows and conditions reading each {@code data:} source's table, for a statement on {@code on}'s
-         *  session (held to the tables' home, as a query's read is). */
-        SqlDml read(SqlDml dml, ExecutionPlan.Target on) {
-            Rewriter r = rewriter();
-            SqlDml read = rewritten(dml, r);
-            if (r.read) {
-                atHome(on);
-            }
-            return read;
-        }
-
-        private SqlDml rewritten(SqlDml dml, Rewriter r) {
-            return switch (dml) {
-                case SqlDml.InsertSelect i -> new SqlDml.InsertSelect(i.schema(), i.table(), i.quoting(), i.columns(),
-                        i.quotedColumns(), r.rewrite(i.query()));
-                case SqlDml.Merge m -> new SqlDml.Merge(m.schema(), m.table(), m.quoting(), m.columns(),
-                        m.quotedColumns(), m.keys(), r.rewrite(m.query()), m.alias(), m.sourceAlias());
-                case SqlDml.Update u -> new SqlDml.Update(u.schema(), u.table(), u.quoting(), u.alias(),
-                        u.storedTypes(), u.assignments().stream().map(a -> new SqlDml.Update.Assignment(a.column(),
-                                a.quoted(), r.expression(a.value()))).toList(),
-                        u.where() == null ? null : r.expression(u.where()));
-                case SqlDml.DeleteWhere d -> new SqlDml.DeleteWhere(d.schema(), d.table(), d.quoting(), d.alias(),
-                        d.storedTypes(), d.where() == null ? null : r.expression(d.where()));
-                case SqlDml.CreateTempTableAs c -> new SqlDml.CreateTempTableAs(c.table(), r.rewrite(c.query()),
-                        c.columns(), c.staged());
-                // rows written as literals, a staged table's name, a file's path: no query source in them
-                case SqlDml.InsertValues v -> v;
-                case SqlDml.InsertFromTable t -> t;
-                case SqlDml.DeleteAll d -> d;
-                case SqlDml.LoadCsv l -> l;
-            };
-        }
-
-        private Rewriter rewriter() {
-            return new Rewriter();
-        }
-
-        /** The rewriter: a {@code data:} source becomes its content's table, made the first time it is read. */
-        private final class Rewriter extends SqlRewriter {
-            /** Whether a statement it rewrote read a {@code data:} source. */
-            private boolean read;
-
-            SqlExpr expression(SqlExpr e) {
-                return rewriteExpr(e);
-            }
-
-            @Override
-            protected SqlSource source(SqlSource s) {
-                if (!(s instanceof SqlSource.SourceUrl u) || !u.url().startsWith("data:")) {
-                    return s;
-                }
-                read = true;
-                boolean frame = u.form() == SqlSource.SourceUrl.Form.RECORDS;
-                // the payload cut FIRST, once, whatever the database (a payload refused leaves nothing recorded: the B2a
-                // audit's note), then handed to the dialect, whose answer is placed here -- the planner decides nothing
-                // about how it reaches the database (the user, 2026-11-11: "Shouldn't that all be delegated to dialect
-                // to decide?")
-                Key key = new Key(content(u.url()), frame);
-                List<String> elements = frame ? records(key.content(), u.url()) : elements(key.content(), u.url());
-                return switch (dialect.deliver(new SqlDialect.DataPayload(u, base(key), elements))) {
-                    case SqlDialect.Delivered.Read r -> r.source();
-                    case SqlDialect.Delivered.Table t -> {
-                        SqlDialect.DataTable table = tables.computeIfAbsent(key, k -> made(t.table(), elements,
-                                t.columns()));
-                        Map<String, SqlDdl.ColumnType> stored = new java.util.LinkedHashMap<>();
-                        t.columns().forEach(c -> stored.put(c.name(), c.type()));
-                        yield new SqlSource.Table(table.read(), u.alias(), u.outputs(), false, stored,
-                                NameQuoting.BARE);
-                    }
-                };
-            }
-        }
-
-        /** The session table's base name for {@code key}: its content's digest, a frame's marked. */
-        private static String base(Key key) {
-            return "legend_data_" + com.legend.cache.Hash.ofUtf8(key.content()).hex().substring(0, 16)
-                    + (key.frame() ? "_o" : "");
-        }
-
-        /** {@code table}, the dialect's session table of a payload's {@code elements}: made, filled and released as its
-         *  database spells it, its fill the elements as a content blob of inserts. */
-        private SqlDialect.DataTable made(SqlDialect.DataTable table, List<String> elements,
-                List<SqlDdl.Column> columns) {
-            boolean frame = columns.size() > 1;
-            List<SqlDdl.ColumnType> types = columns.stream().map(SqlDdl.Column::type).toList();
-            List<List<String>> rows = new ArrayList<>();
-            for (int i = 0; i < elements.size(); i++) {
-                rows.add(frame ? List.of(elements.get(i), String.valueOf(i)) : List.of(elements.get(i)));
-            }
-            // the elements as a content blob of inserts, each element its column's typed literal (A2)
-            com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(
-                    table.schema(), table.name(), NameQuoting.BARE, columns.stream().map(SqlDdl.Column::name).toList(),
-                    Set.of(), columns.size(), rows, types), dialect,
-                    "the data: source's payload (" + rows.size() + " element(s), its session table " + table.read()
-                            + ")");
-            prepare.addAll(table.prepare());
-            for (String statement : table.make()) {
-                steps.add(new ExecutionPlan.LoadStep.Statement(statement));
-            }
-            for (String statement : table.release()) {
-                release.add(new ExecutionPlan.LoadStep.Statement(statement));
-                drops.add(statement);
-            }
-            steps.addAll(planned.steps());
-            bundle.putAll(planned.content());
-            return table;
-        }
-    }
-
-
-    /** {@code target} with the load that makes the tables, established on acquisition; {@code target} as it is where
-     *  the query reads no {@code data:} source. */
-    ExecutionPlan.Target onto(ExecutionPlan.Target target) {
-        if (steps.isEmpty()) {
-            return target;
-        }
-        List<ExecutionPlan.Load> loads = new ArrayList<>(target.loads());
-        loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, steps, target.bare(), content));
-        loads.add(LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_RELEASE, release, target.bare(), Map.of()));
-        return new ExecutionPlan.Target(target.database(), target.session(), loads);
     }
 
     /** The payload after the {@code data:} URL's comma. */

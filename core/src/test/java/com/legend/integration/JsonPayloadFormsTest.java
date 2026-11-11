@@ -1,0 +1,174 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.integration;
+
+import com.legend.Compiler;
+import com.legend.Execution;
+import com.legend.exec.PlanSessions;
+import com.legend.exec.ProductRun;
+import com.legend.exec.SessionSource;
+import com.legend.json.Json;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.result.Collector;
+import com.legend.result.Output;
+import com.legend.sql.OutputCol;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
+import com.legend.sql.dialect.RenderedStatement;
+import com.legend.sql.dialect.SqlDialect;
+import com.legend.testbackend.StorelessRuntime;
+import com.legend.testbackend.TestBackends;
+import com.legend.testbackend.TestSessions;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * A {@code data:} PAYLOAD READ BACK ON EVERY DATABASE, BY THE FORM ITS DIALECT ANSWERS (the JSON pass, 2026-11-11: the
+ * payload bound as one parameter the database splits, or the statement's own rows on H2; no session table anywhere):
+ * through the product door, a payload whose elements hold a quote, a backslash, a line break, nested and typed values,
+ * a string element and a null element -- each element read back as the JSON value it is, in the payload's order (a
+ * number's text as its database prints it: DuckDB's {@code json_each} prints {@code 1.50} as {@code 1.5}, MySQL's JSON
+ * likewise, SQLite a top-level real so, measured), its members read back typed; an empty array no row; and a JSON
+ * connection's frame (records with their place) read back on each database by its dialect's own statement. The
+ * in-process databases run here; Postgres's matrix test and the server matrix's test call {@link #assertReadsBack}.
+ */
+public class JsonPayloadFormsTest {
+
+    /** The payload's JSON text: a quote, a backslash, a line break, nested and typed values; a string, a null, a whole
+     *  number and a real element. */
+    static final String JSON = "[{\"i\":1,\"t\":\"it's a\\\\b\",\"n\":1.50,\"o\":{\"k\":[1,\"x\"]},\"b\":true},"
+            + "{\"i\":2,\"t\":\"x\\ny\",\"n\":null,\"o\":{}},\"s\",null,7,2.50]";
+
+    /** The query's text for {@code json} inside a Pure string: a quote and a backslash escaped. */
+    static String pure(String json) {
+        return json.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    static String source(String json) {
+        return "|sourceUrl('data:application/json," + pure(json) + "')";
+    }
+
+    static List<DatabaseType> inProcess() {
+        return TestBackends.inProcess().stream().map(b -> b.type()).distinct().toList();
+    }
+
+    @ParameterizedTest
+    @MethodSource("inProcess")
+    void aPayloadReadsBackOnEachInProcessDatabase(DatabaseType db) throws Exception {
+        try (Connection c = TestBackends.of(db).open()) {
+            assertReadsBack(db, c);
+        }
+    }
+
+    /** Every check on {@code db}, over the session {@code c}. */
+    public static void assertReadsBack(DatabaseType db, Connection c) throws Exception {
+        String model = TestBackends.of(db).withStorelessRuntime("");
+        // each element, as the JSON value it is, in the payload's order
+        List<List<Object>> raw = run(c, model, source(JSON) + "->from(" + StorelessRuntime.RUNTIME + ")");
+        List<Object> elements = new ArrayList<>();
+        for (List<Object> row : raw) {
+            assertTrue(row.get(0) instanceof String, db + ": an element is its JSON text, a JSON null too: " + row);
+            elements.add(value(Json.parse((String) row.get(0))));
+        }
+        List<Object> expected = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) Json.parse(JSON)).items()) {
+            expected.add(value(n));
+        }
+        assertEquals(expected, elements, db + ": the elements, in order: " + raw);
+        // the members, typed: an integer, a decimal, a boolean, a JSON null member (a string member's escapes are the
+        // elements' check above: one database's field read keeps a JSON string's escapes, as it did before the JSON
+        // pass -- its member read, reported, not this pass's)
+        List<List<Object>> typed = run(c, model, source(JSON) + "->extend(~[i: r|cast(get($r.data, 'i'), @Integer),"
+                + " n: r|cast(get($r.data, 'n'), @Float), b: r|cast(get($r.data, 'b'), @Boolean)])"
+                + "->filter(r|$r.i->isNotEmpty())->select(~[i, n, b])->sort(~i->ascending())->from("
+                + StorelessRuntime.RUNTIME + ")");
+        assertEquals(List.of(List.of("1", "1.5", "true"), List.of("2", "null", "null")), strings(typed),
+                db + ": the members");
+        // an empty array: no row
+        assertEquals(List.of(), run(c, model, source("[]") + "->from(" + StorelessRuntime.RUNTIME + ")"),
+                db + ": an empty array");
+        assertFrameReadsBack(db, c);
+    }
+
+    /**
+     * A JSON connection's FRAME on {@code db}: records and each one's place from 0, read by the statement its dialect
+     * writes for a {@code data:} source of records ({@link SqlDialect#deliver}) with its payload bound as the plan binds
+     * it, or its rows inline -- the place the payload's order.
+     */
+    static void assertFrameReadsBack(DatabaseType db, Connection c) throws Exception {
+        SqlDialect dialect = TestBackends.of(db).dialect();
+        String records = "[{\"t\":\"it's\"},{\"t\":\"a\\nb\"},{\"t\":\"c\"}]";
+        List<OutputCol> outputs = List.of(new OutputCol("data", SqlType.Scalar.JSON, true, OutputCol.Origin.DERIVED),
+                new OutputCol(SqlSource.SourceUrl.PLACE, SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED));
+        SqlSource.SourceUrl url = new SqlSource.SourceUrl("data:application/json," + records, "t0", outputs,
+                SqlSource.SourceUrl.Form.RECORDS);
+        List<String> cut = List.of("{\"t\":\"it's\"}", "{\"t\":\"a\\nb\"}", "{\"t\":\"c\"}");
+        SqlSource read = dialect.deliver(new SqlDialect.DataPayload(url, cut));
+        RenderedStatement statement = dialect.renderStatement(SqlSelect.starOf(read));
+        Map<Long, Object> byPlace = new TreeMap<>();
+        try (java.sql.PreparedStatement p = c.prepareStatement(statement.sql())) {
+            int i = 1;
+            for (RenderedStatement.Bind b : statement.binds()) {
+                assertTrue(b.binding() instanceof RenderedStatement.Binding.Payload, db + ": " + b);
+                p.setString(i++, ((RenderedStatement.Binding.Payload) b.binding()).json());
+            }
+            try (java.sql.ResultSet rs = p.executeQuery()) {
+                while (rs.next()) {
+                    byPlace.put(rs.getLong(SqlSource.SourceUrl.PLACE), value(Json.parse(rs.getString("data"))));
+                }
+            }
+        }
+        Map<Long, Object> expected = new TreeMap<>();
+        for (int i = 0; i < cut.size(); i++) {
+            expected.put((long) i, value(Json.parse(cut.get(i))));
+        }
+        assertEquals(expected, byPlace, db + ": the frame's records by their place: " + statement.sql());
+    }
+
+    /** A JSON value as a comparable Java value: an object's members by name, a number by its value (its text's scale
+     *  aside), a null a marker. */
+    static Object value(Json.Node n) {
+        return switch (n) {
+            case Json.Obj o -> {
+                Map<String, Object> m = new TreeMap<>();
+                o.fields().forEach((k, v) -> m.put(k, value(v)));
+                yield m;
+            }
+            case Json.Arr a -> a.items().stream().map(JsonPayloadFormsTest::value).toList();
+            case Json.Str s -> s.value();
+            case Json.Num num -> num.token() != null ? new BigDecimal(num.token()).stripTrailingZeros()
+                    : num.isInteger() ? BigDecimal.valueOf(num.longValue())
+                    : BigDecimal.valueOf(num.doubleValue()).stripTrailingZeros();
+            case Json.Bool b -> b.value();
+            case Json.Null x -> "<null>";
+        };
+    }
+
+    private static List<List<Object>> run(Connection c, String model, String query) throws Exception {
+        Collector collector = new Collector();
+        Execution.run(Compiler.query(Compiler.compileModel(model), query), StorelessRuntime.RUNTIME,
+                SessionSource.given(TestSessions.over(c)), PlanSessions.of(TestSessions.over(c)),
+                ProductRun.Establish.DECLARED_SETUP, new Output.Rows(collector));
+        return collector.collected().rows();
+    }
+
+    private static List<List<String>> strings(List<List<Object>> rows) {
+        List<List<String>> out = new ArrayList<>();
+        for (List<Object> row : rows) {
+            out.add(row.stream().map(String::valueOf).toList());
+        }
+        return out;
+    }
+}

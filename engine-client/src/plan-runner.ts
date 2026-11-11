@@ -88,7 +88,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 46 the same day: a slot may bind a data: payload's JSON array (payload: Snowflake's and BigQuery's delivery) -- not a
 // host database's plan
 // 48 since 2026-11-11 (the JSON pass; 47 is B3's uploads): a payload slot names its text by its SHA-256 (payload's
-// digest), the text in its statement's content -- refused by name here, as at 46
+// digest), the text in its statement's content -- refused by name here, as at 46; and no plan carries a release and no
+// load is SOURCE or AT_RELEASE (every payload bound or inline: no session table)
 const PLAN_VERSION = 48;
 interface Column { readonly name: string; readonly type: string }
 type Step =
@@ -128,11 +129,10 @@ export class PlanRefusal extends Error {
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
 export async function runPlan(plan: string, session: PlanSession, o: { readonly joined?: boolean } = {}): Promise<string> {
-  const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step; release?: unknown };
+  const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step };
   if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
     throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
   }
-  if (read.release !== undefined) throw new PlanRefusal("a plan with a release (its data: tables' drops) is not run here: the loads that make them are refused by name");
   if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');

@@ -23,33 +23,11 @@ import java.util.Objects;
  *                   (the plan-as-data design's slice 5, 2026-11-09: a fact of the plan, so a plan read back from its
  *                   JSON runs alone -- until then the door read it off the typed query and handed it beside the plan)
  */
-public record ExecutionPlan(List<Parameter> parameters, Node root, boolean writes,
-        @com.legend.base.Nullable Release release) {
+public record ExecutionPlan(List<Parameter> parameters, Node root, boolean writes) {
 
     public ExecutionPlan {
         parameters = List.copyOf(parameters);
         Objects.requireNonNull(root, "root");
-    }
-
-    /** A plan with no release. */
-    public ExecutionPlan(List<Parameter> parameters, Node root, boolean writes) {
-        this(parameters, root, writes, null);
-    }
-
-    /**
-     * A plan's RELEASE: {@code statements} sent in order on {@code on}'s session once the run is over, whatever its
-     * outcome -- after its transaction ended, so a drop that commits an open transaction (H2's) commits none of the
-     * run's -- its {@code data:} tables' drops (B2a, 2026-11-11; the product door's since the second audit's S12, the
-     * same day: they were the program's last steps, never sent when a step before them failed). A test plan's too.
-     */
-    public record Release(List<String> statements, Target on) {
-        public Release {
-            statements = List.copyOf(statements);
-            Objects.requireNonNull(on, "on");
-            if (statements.isEmpty()) {
-                throw new IllegalArgumentException("a release sends at least one statement: a plan with none has none");
-            }
-        }
     }
 
     /** A plan that reads: it changes no store. */
@@ -60,12 +38,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     /** A plan that writes: a program that changes a store. */
     public static ExecutionPlan writing(List<Parameter> parameters, Node root) {
         return new ExecutionPlan(parameters, root, true);
-    }
-
-    /** A plan that writes, with its {@link Release} (null: none). */
-    public static ExecutionPlan writing(List<Parameter> parameters, Node root,
-            @com.legend.base.Nullable Release release) {
-        return new ExecutionPlan(parameters, root, true, release);
     }
 
     /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
@@ -395,11 +367,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             /** A program's own load at its place ({@code loadCsvToDbTable}): run every time it is reached, a write as
              *  an effect is, never skipped. */
             AT_STEP,
-            /** A LIVE SOURCE'S SESSION TABLE at its place (a {@code data:} payload's, a JSON connection's frame: B2a,
-             *  2026-11-11): run every time it is reached, never skipped, and NO WRITE of the body's -- the table is the
-             *  session's own, dropped at the plan's release -- so a seed established before it stays established and an
-             *  appeal held before it is still decided (the B2a audit's S1: as AT_STEP it was a write). */
-            SOURCE,
             /** A target's load (a connection's declared test data, L2): established when a session is acquired for the
              *  target, a write, as legend-engine establishes a test connection on each acquisition. Per source (the
              *  contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09): a caller's session
@@ -417,13 +384,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  a program's node, run inside the run's own transaction on the catalog -- which is rolled back when the
              *  run ends, so no other run sees it -- once per run (the seeds' memo, which the rollback clears); refused
              *  by name on a session that holds no such transaction. */
-            PER_TRANSACTION,
-            /** A target's RELEASE (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rules 2 and 4, A4): run when a request
-             *  lets go of the session acquired for its target, whatever the request's outcome -- the session tables an
-             *  acquisition's load made (a {@code data:} payload's), dropped, so a kept session holds none of them after
-             *  the request. Run by the source that ran the target's acquisition loads ({@code PlanSessions.acquired});
-             *  never on a database the platform keeps made with them, nor as a program's node. */
-            AT_RELEASE
+            PER_TRANSACTION
         }
     }
 
@@ -880,17 +841,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             loads = List.copyOf(loads);
             java.util.Set<String> identities = new java.util.HashSet<>();
             boolean acquired = false;
-            boolean released = false;
             for (Load load : loads) {
-                // the project's Data first (made once with the database), then what each acquisition establishes, then
-                // what its release drops
-                if (load.cadence() == Load.Cadence.AT_RELEASE) {
-                    released = true;
-                } else if (load.cadence() == Load.Cadence.PER_ACQUISITION && !released) {
+                // the project's Data first (made once with the database), then what each acquisition establishes (the
+                // AT_RELEASE cadence went with the data: session tables it dropped: the JSON pass, 2026-11-11)
+                if (load.cadence() == Load.Cadence.PER_ACQUISITION) {
                     acquired = true;
-                } else if (load.cadence() != Load.Cadence.ONCE || acquired || released) {
+                } else if (load.cadence() != Load.Cadence.ONCE || acquired) {
                     throw new IllegalArgumentException("a target's loads are its ONCE loads, then its PER_ACQUISITION"
-                            + " ones, then its AT_RELEASE ones: " + load.identity() + " is " + load.cadence());
+                            + " ones: " + load.identity() + " is " + load.cadence());
                 }
                 if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
                         || !load.target().session().equals(session)) {

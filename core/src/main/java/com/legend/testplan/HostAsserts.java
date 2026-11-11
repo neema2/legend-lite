@@ -71,22 +71,13 @@ final class HostAsserts implements TestDoor.Asserts {
      *  binds and the sides reading the frame's activities carry. */
     private final Map<Integer, String> frameStamps;
 
-    /** The body's {@code data:} tables its sides were read through (B2a): the program reads through them too. */
-    private final com.legend.planner.DataSources.Tables data;
-
     private HostAsserts(Map<Integer, Planned> byStatement, Map<Integer, String> frameStamps,
-            Map<Integer, Branched> branches, com.legend.planner.DataSources.Tables data) {
-        this.data = data;
+            Map<Integer, Branched> branches) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
         // (the plan-as-data design's step 5, 2026-11-08: no map by verdict -- the run reads a verdict's host facts
         // off the verdict, step 4b)
-    }
-
-    @Override
-    public com.legend.planner.DataSources.Tables dataTables() {
-        return data;
     }
 
     /**
@@ -259,7 +250,7 @@ final class HostAsserts implements TestDoor.Asserts {
         if (pendingLet != null && !raisedByAnAssert) {
             throw pendingLet;
         }
-        return new HostAsserts(planned, frameStamps, branches, env.data());
+        return new HostAsserts(planned, frameStamps, branches);
     }
 
     /** A branch statement planned: its condition a side (the lets before it), each side's statements a body of their

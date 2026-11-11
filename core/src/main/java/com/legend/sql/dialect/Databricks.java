@@ -76,39 +76,36 @@ public final class Databricks extends AnsiSqlRenderer {
         return 6;
     }
 
-    /** {@inheritDoc} A session table of the load's (measured by the Databricks lane, 2026-11-11): a {@code TEMPORARY}
-     *  table is the session's own -- another connection reads the user's table of the name, which it leaves untouched
-     *  -- and {@code DROP TEMPORARY TABLE IF EXISTS} drops it alone, a silent no-op once it is gone. (Measured for the
-     *  system store's server form, deleted with B4, 2026-11-11: a temporary TABLE was not read inside an EXISTS,
-     *  UC_COMMAND_NOT_SUPPORTED "Data source v2", where a scalar or IN subquery read it; the lane round re-measures it
-     *  for this table.) */
+    /** The most characters of parameters one statement binds (its driver's refusal: "the combined size of parameters
+     *  is N, exceeding the limit of 1048576 characters", measured by the Databricks lane, 2026-11-11,
+     *  docs/data-delivery-homework/probes/DatabricksDelivery2.java.txt). */
+    static final int MAX_PARAMETER_CHARS = 1_048_576;
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database, up to its parameter limit
+     *  ({@link #MAX_PARAMETER_CHARS}); above it, the statement's own rows (the JSON pass, the user's "Yes on
+     *  Databricks", 2026-11-11; measured: 10,000 records bound in 557 ms, 100,000 inline in 4,205 ms, where the session
+     *  table took 133,808). */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return sessionTable(payload);
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.array().length() <= MAX_PARAMETER_CHARS ? payload.bound() : inlineRows(payload);
     }
 
-    /** {@inheritDoc} Its name single-part and the {@code TEMPORARY} keyword on every statement (a qualified name is
-     *  refused, TEMP_TABLE_*_REQUIRES_SINGLE_PART_NAME, and a plain {@code DROP TABLE} while a temporary table of the
-     *  name exists: the lane's measurement); its elements a {@code VARIANT}, which each insert's {@code parse_json} fills
-     *  and the query's variant reads take. */
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured): each element a
+     *  {@code VARIANT}, a frame's record its place as its position from 0 (the payload's order); an empty array no
+     *  row. */
     @Override
-    public SqlDialect.DataTable dataTable(String base, List<com.legend.sql.SqlDdl.Column> columns) {
-        StringBuilder spelled = new StringBuilder();
-        for (com.legend.sql.SqlDdl.Column col : columns) {
-            spelled.append(spelled.length() > 0 ? ", " : "").append(ddlIdentifier(col.name(), col.declaredQuoted()))
-                    .append(' ').append(col.type() instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
-                            && p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.JSON ? "VARIANT" : ddlType(col.type()))
-                    .append(ddlNullability(col.primaryKey() || col.notNull()));
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
         }
-        String drop = "DROP TEMPORARY TABLE IF EXISTS " + base;
-        return new SqlDialect.DataTable(null, base, List.of(), List.of(drop,
-                "CREATE TEMPORARY TABLE " + base + " (" + spelled + ")"), List.of(drop));
-    }
-
-    /** {@inheritDoc} Each element's JSON, a {@code VARIANT}. */
-    @Override
-    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
-        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+        writer.append("SELECT value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(pos AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM variant_explode(parse_json(");
+        return bindPayload(writer, u).append("))");
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
@@ -293,9 +290,31 @@ public final class Databricks extends AnsiSqlRenderer {
     }
 
     /** An inline table, {@code VALUES (..), (..) AS t(a, b)}: a parenthesized VALUES is a syntax error here
-     *  (measured). */
+     *  (measured). A payload's rows ({@link #inlineRows}, above the parameter limit) are VALUES of the elements' texts,
+     *  which the select over it parses: the lane's measured form (2026-11-11, probes/DatabricksDelivery2.java.txt). */
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
+        if (!v.rows().isEmpty() && v.rows().stream().allMatch(r -> !r.isEmpty() && jsonText(r.get(0)))) {
+            writer.append("(SELECT parse_json(legend_rows.col1) AS ").append(aliasIdent(v.columns().get(0)));
+            for (int c = 1; c < v.columns().size(); c++) {
+                writer.append(", legend_rows.col").append(String.valueOf(c + 1)).append(" AS ")
+                        .append(aliasIdent(v.columns().get(c)));
+            }
+            writer.append(" FROM VALUES ");
+            for (int r = 0; r < v.rows().size(); r++) {
+                List<SqlExpr> row = v.rows().get(r);
+                writer.append(r > 0 ? ", (" : "(").expr(((SqlExpr.Cast) row.get(0)).value(), 0);
+                for (int c = 1; c < row.size(); c++) {
+                    writer.append(", ").expr(row.get(c), 0);
+                }
+                writer.append(")");
+            }
+            writer.append(" AS legend_rows(");
+            for (int c = 0; c < v.columns().size(); c++) {
+                writer.append(c > 0 ? ", col" : "col").append(String.valueOf(c + 1));
+            }
+            return writer.append(")) AS ").append(aliasIdent(v.alias()));
+        }
         writer.append("VALUES ");
         for (int r = 0; r < v.rows().size(); r++) {
             List<SqlExpr> row = v.rows().get(r);
@@ -313,6 +332,11 @@ public final class Databricks extends AnsiSqlRenderer {
         }
         return writer.append(" AS ").append(aliasIdent(v.alias())).append("(")
                 .append(String.join(", ", v.columns().stream().map(this::aliasIdent).toList())).append(")");
+    }
+
+    /** A JSON text parsed: a payload's element as its inline row holds it. */
+    private static boolean jsonText(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.JSON && c.value() instanceof SqlExpr.StringLit;
     }
 
     private static boolean allNull(SqlSource.Values v, int column) {

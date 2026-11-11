@@ -105,7 +105,8 @@ class ContentBundleTest {
         PlanJson.Bundle bundle = PlanJson.writeBundle(plan(2000));
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read(bundle.json(), Map.of()));
-        assertTrue(e.getMessage().contains("which its bundle lacks"), e.getMessage());
+        // the payload is its statement's bound parameter, its text the statement's content (the JSON pass, 2026-11-11)
+        assertTrue(e.getMessage().contains("which its content lacks"), e.getMessage());
     }
 
     @Test

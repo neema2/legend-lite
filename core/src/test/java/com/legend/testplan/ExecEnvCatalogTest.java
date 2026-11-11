@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A test body's environment ON THE PROCESS'S CATALOG (B4, 2026-11-11, the audit's finding 4): retargeted onto the
  * catalog it is written in the catalog's dialect, and back on the body's own target in the runtime's again -- the
- * runtime's own where the platform runs it in process, the planning half untouched there -- and a system-routed body's
- * two environments (the catalog's, its own for its appeals) read and make one set of data: tables.
+ * runtime's own where the platform runs it in process, the planning half untouched there -- and a system-routed body
+ * reads a data: source in the catalog's dialect, by its statement alone (the JSON pass, 2026-11-11).
  */
 class ExecEnvCatalogTest {
 
@@ -53,12 +53,17 @@ class ExecEnvCatalogTest {
             if (route.ownEngine()) {
                 assertSame(env.plan(), on.plan(), type + ": in process, the planning half untouched");
             }
-            // a system-routed body: the catalog's environment and the body's own share one set of data: tables
+            // a system-routed body on the catalog reads a data: source in the catalog's dialect, by its statement
+            // alone (the JSON pass, 2026-11-11: until then one set of session tables shared with the body's own)
             BodyDriver.ExecEnv body = env.onCatalogBody(route);
             assertEquals(catalog, body.dialect().getClass(), type + ": the body on the catalog");
-            assertSame(body.data(), env.sharingTables(body).data(), type + ": one set of tables");
-            assertTrue(route.ownEngine() || body.data() != env.data(),
-                    type + ": a server's body takes the catalog's tables, written in its dialect");
+            com.legend.sql.SqlQuery read = body.read(com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.SourceUrl(
+                    "data:application/json,[1]", "t0", java.util.List.of(new com.legend.sql.OutputCol("data",
+                            com.legend.sql.SqlType.Scalar.JSON, true, com.legend.sql.OutputCol.Origin.DERIVED)),
+                    com.legend.sql.SqlSource.SourceUrl.Form.ELEMENTS)));
+            assertTrue(!body.dialect().renderStatement(read).sql().toLowerCase(java.util.Locale.ROOT)
+                    .contains("legend_data_"),
+                    type + ": no session table");
         }
     }
 }

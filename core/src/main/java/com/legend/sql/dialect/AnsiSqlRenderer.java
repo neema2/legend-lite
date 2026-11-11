@@ -344,11 +344,16 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (!u.url().startsWith("data:") || comma < 0) {
             throw new IllegalStateException("a bound payload is a data: source's: " + u.url());
         }
+        if (SqlSource.SourceUrl.namesByDigest(u.url())) {
+            throw new IllegalStateException("a payload named by its digest reached a render (" + u.url() + "): a"
+                    + " plan's typed tree is carried, never rendered again; its statement was written at planning");
+        }
         return writer.bind(new RenderedStatement.Bind("", new RenderedStatement.Binding.Payload(
                 u.url().substring(comma + 1))));
     }
 
-    /** A {@code data:} source is the plan's load into a session table, which the query reads (planner.DataSources):
+    /** A {@code data:} source is the source its dialect delivers it as (planner.DataSources: a bound parameter this
+     *  dialect renders, or the statement's own rows):
      *  every road reads it so -- a query's, a program's, a test body's judges (B2a, 2026-11-11) -- so one that reaches a
      *  render is a planner defect, refused by name the same on every database (the B2a audit's note: DuckDB raised one
      *  type, H2 and SQLite another). */
@@ -356,7 +361,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (url.startsWith("data:")) {
             String shown = url.length() > 120 ? url.substring(0, 120) + "..." : url;
             throw new IllegalStateException("the data: source '" + shown + "' reached a render unread: a planned"
-                    + " statement reads it from its plan's load (planner.DataSources)");
+                    + " statement reads it as its dialect delivers it (planner.DataSources)");
         }
     }
 
@@ -593,7 +598,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             writer.append("(").list(v.rows().get(r)).append(")");
         }
         return writer.append(") AS ").append(aliasIdent(v.alias())).append("(")
-                .append(v.columns().stream().map(this::aliasIdent).collect(Collectors.joining(", "))).append(")");
+                .append(java.util.stream.IntStream.range(0, v.columns().size()).mapToObj(i -> valuesColumn(v, i))
+                        .collect(Collectors.joining(", "))).append(")");
+    }
+
+    /** The name of {@code v}'s column {@code i} in its alias list: a label ({@link #aliasIdent}). */
+    protected String valuesColumn(SqlSource.Values v, int i) {
+        return aliasIdent(v.columns().get(i));
     }
 
     /** Native PIVOT or a CASE-WHEN aggregation rewrite — no ANSI form exists. */
@@ -2299,8 +2310,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return ddlIdentifier(name, declaredQuoted);
     }
 
-    /** {@code columns} as a table's column list, each its name, type and nullability as this dialect's DDL spells them
-     *  (a session table's: {@link SqlDialect#dataTable}). */
+    /** {@code columns} as a table's column list, each its name, type and nullability as this dialect's DDL spells
+     *  them. */
     protected String ddlColumns(java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         StringBuilder sb = new StringBuilder();
         for (com.legend.sql.SqlDdl.Column col : columns) {

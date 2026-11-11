@@ -241,7 +241,7 @@ fca77fec Trino's scalar TIMESTAMP keeps nine digits (the second audit's M1)
 | M15-fixtures | the Java test fixtures' own JDBC writes | BOUNDED (`FixtureWriteCensusTest`) |
 | M15-referee | the referee's mirror replaying seed texts | DELETED (B2b) |
 | M17 | data parsed and never loaded | BOUNDED (B2e) |
-| M18 | a `data:` payload as the statement's own rows (the INLINE databases) | BOUNDED (`DataDeliveryDeclaredTest`) |
+| M18 | a `data:` payload in the statement: one bound parameter, or its own rows on H2 and MongoDB (§4.3) | BOUNDED (`DataDeliveryDeclaredTest`); its session table, release and edge record DELETED (the JSON pass, symbols pinned at zero) |
 
 **The scoreboard,** reported by the worker on every push:
 
@@ -254,61 +254,47 @@ fca77fec Trino's scalar TIMESTAMP keeps nine digits (the second audit's M1)
 | wide local set | about 50 min | about 510 targets; no longer per push |
 | unprivileged Postgres | about 170 s | |
 
-### 4.3 JSON on every database (done, except as noted in §4.4)
+### 4.3 JSON on every database (the JSON pass, 2026-11-11: no session table anywhere)
 
-The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at planning.
+The delivery is per database: `SqlDialect.deliver` returns the source the statement reads, measured, chosen at
+planning. There is no session table, no load, no release and no drop for a payload. The payload's text sits once in
+the plan, as its statement's content keyed by SHA-256 (§5.9).
 
-| delivery | databases | how |
+| delivery | database | the statement's source (measured at 100,000 records unless noted) |
 |---|---|---|
-| SESSION_TABLE | DuckDB | `temp.` |
-| | H2 | `LEGEND_SESSION` schema, LOCAL TEMPORARY … TRANSACTIONAL |
-| | SQLite | `temp.` |
-| | Postgres | `pg_temp.` |
-| | MariaDB, MySQL | `CREATE`/`DROP TEMPORARY TABLE` |
-| | **Databricks** | `CREATE TEMPORARY TABLE <single-part name>`; drop with `DROP TEMPORARY TABLE IF EXISTS <name>`. Measured: private, and the drop is a silent no-op when the table is absent. A qualified name is refused, and a plain `DROP TABLE` is refused while the temp table exists. Databricks quotes `'` as `\'` and a backslash as `\\`; `''` concatenates two literals. **Lite's column is a `VARIANT`** (the lane measured `STRING`): each insert writes `parse_json('…')` and the query's variant reads need a variant -- the lane round confirms it, and also that a temporary TABLE read inside an EXISTS works (a session table's comment in `Databricks.sessionTable` measured UC_COMMAND_NOT_SUPPORTED there) |
-| INLINE | Trino | `VALUES` + `json_parse` |
-| | ClickHouse | `values()` |
+| BOUND PARAMETER | Postgres 16 | `jsonb_array_elements(CAST(? AS JSONB)) WITH ORDINALITY AS legend_payload(value, ordinality)`, place = ordinality - 1. 259 ms |
+| | MySQL 8.4 | `(SELECT ? AS legend_payload) AS legend_doc, JSON_TABLE(legend_doc.legend_payload, '$[*]' COLUMNS (legend_ord FOR ORDINALITY)) AS legend_rows`, element `JSON_EXTRACT(doc, CONCAT('$[', ord - 1, ']'))`. 342 ms (MariaDB's form took 586) |
+| | MariaDB 11.4 | `JSON_TABLE(?, '$[*]' COLUMNS (legend_ord FOR ORDINALITY, legend_element JSON PATH '$'))`. 121 ms, keeps `1.50` as written |
+| | DuckDB 1.5 | `json_each(CAST(? AS JSON))`, place = key. 83 ms |
+| | SQLite 3.47 | `json_each(?)`, each atom put back as its JSON text (`CASE type WHEN 'text' THEN json_quote(value) WHEN 'null' THEN 'null' ...`), place = key. 45 ms |
+| | Trino 483 | `UNNEST(CAST(json_parse(?) AS ARRAY(JSON))) WITH ORDINALITY`. The driver writes `?` into the text, so a payload whose literal passes 1,000,000 characters (`query.max-length`) is refused at planning by name |
+| | ClickHouse 25.8 | `(SELECT JSONExtractArrayRaw(?) AS legend_elements) ARRAY JOIN arrayEnumerate(legend_elements) AS legend_index`. The driver writes `?` into the text: `max_query_size` (256 KiB by default; the lanes' URL sets 16 MiB) is a connection setting the database enforces. 390 ms at 16 MiB |
+| | Databricks | `variant_explode(parse_json(?))`, place = pos. 557 ms at 10,000. Above the driver's 1 MiB parameter limit, INLINE: `SELECT parse_json(col1) AS data, col2 AS ord FROM VALUES ('...', 0), ...` (4.2 s at 100,000) |
+| | Snowflake | `TABLE(FLATTEN(INPUT => PARSE_JSON(?)))`. 0.48 s |
+| | BigQuery | `UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) WITH OFFSET`. 7.6 s |
+| INLINE | H2 2.5 | `VALUES (JSON '...', 0), ...`. 460 ms. H2 refuses an array parameter over 65,536 elements |
 | | MongoDB | `$documents` of `{"$literal": doc}` |
-| BOUND PARAMETER (§5.9) | **Snowflake** | `SELECT legend_payload.value AS "data", CAST(legend_payload.index AS BIGINT) AS "u_frame_ord__" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) legend_payload`, the payload's one JSON array bound. Round 2: 0.48 s at 100,000 records (inline 17 s, temp table 73 s) |
-| | **BigQuery** | `SELECT legend_payload AS \`data\`, legend_place AS \`u_frame_ord__\` FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS legend_payload WITH OFFSET AS legend_place`. Round 2: 7.6 s at 100,000 records, where inline is refused (over 1 MB of text) |
 
-- **The empty payload** gives zero rows on every INLINE database, never a refusal. It is one typed NULL row filtered out
-  by `WHERE FALSE`, the shape of the empty TDS literal. All three cloud forms are measured: BigQuery, Snowflake and
-  Databricks, round 36.
-- **JSON lands in each database's own JSON type** (`SqlDialect.dataSourceColumn` gives `Kind.JSON`, and each dialect
-  spells it):
-
-  | database | JSON type |
-  |---|---|
-  | DuckDB | `JSON`, an alias of VARCHAR |
-  | H2 | `JSON` |
-  | SQLite | text through `json()` |
-  | Postgres | `JSONB` |
-  | MariaDB | `JSON`, an alias of LONGTEXT with a validity check |
-  | MySQL | `JSON` |
-  | Databricks | `VARIANT` |
-  | Snowflake | `VARIANT`, through `PARSE_JSON` |
-  | BigQuery | `JSON`, through `PARSE_JSON` |
-  | Trino | `JSON`, through `json_parse` |
-  | ClickHouse | the values() form |
-  | MongoDB | native documents |
-
-  Two traps were measured:
-  - Databricks's `CAST(variant AS STRING)` re-serialises the JSON with its keys SORTED. If any arm turns a variant back
-    into text, check it.
-  - On Snowflake, the empty form's place column types as `NUMBER(1,0)` from the literal 0. Cast it to match the
-    non-empty arm.
-- **Why INLINE for five databases, not their "temporary-ish" tables:**
-  - Trino's memory connector tables are shared by every connection.
-  - A MongoDB TTL collection is shared too: TTL only deletes old documents later. `$documents` needs no collection at all.
-  - Snowflake's temporary table has no safe drop.
-  - BigQuery's needs a session that lite's connection does not hold.
-  - ClickHouse's needs a per-run HTTP session id, which would be exec's to mint.
-- **The limit of INLINE:** the statement is as large as the payload. Each INLINE database's statement-size limit must be
-  a named refusal at planning, or a planned session setting, and never a raw error at run. The limits: ClickHouse
-  `max_query_size` (256 KiB by default), Trino `query.max-length`, Snowflake's and BigQuery's query-text limits, and
-  MongoDB's 16 MB command. In flight: §4.4.
-- Any drop must be spelled so it can never touch a user's table.
+- **Every form** returns no row for the empty array, and keeps a quote, a backslash, a line break, the order, nested values
+  and typed values. `JsonPayloadFormsTest` reads each element back by its JSON value through the product door: in
+  process, on Postgres (its matrix target) and on the servers (`data_source_servers_test`), plus a frame's records with
+  their places.
+- **A number's spelling is the database's.** DuckDB's `json_each` prints `1.50` as `1.5`, inside objects too. SQLite
+  does the same for a top-level real: getting the element's own text back needs a path lookup per element, which is
+  quadratic (19 s at 100,000). MySQL's JSON already did this. The values are JSON-equal, and member reads (`get`, cast)
+  are unchanged. Reported, not a register row.
+- **Size limits:**
+  - A limit that is the database's own property is refused at planning by name: Trino's 1,000,000 characters.
+  - A limit that is a connection setting is left to the database, and its refusal reaches the caller: ClickHouse's
+    `max_query_size`, MySQL's and MariaDB's `max_allowed_packet`.
+  - Databricks goes INLINE above 1 MiB.
+  - The INLINE statement is as large as the payload: H2 has no measured limit; MongoDB's command is 16 MB.
+- **Known, unchanged by the pass:** H2's string member read keeps a JSON string's escapes (`TRIM(BOTH '"' FROM CAST(x."t" AS
+  VARCHAR))`: a backslash doubled, a line break as `\n`), as it did on the session table. Pinned in
+  `JsonPayloadFormsTest.text`.
+- Two traps were measured earlier and still hold:
+  - Databricks's `CAST(variant AS STRING)` sorts the keys.
+  - Snowflake's empty form's place column types as `NUMBER(1,0)`.
 
 ### 4.4 In flight at the worker (verify each in the code: done only if its test exists and passes)
 
@@ -441,7 +427,7 @@ and the briefs' "RULED" items.
 | | **written in the model** (known at planning) | **a file** (outside the model) |
 |---|---|---|
 | examples | CSV test data, `###Data`, the catalog, `from()` seeds, a JSON connection's inline `data:` payload | `loadCsvToDbTable`, a `file:` source (CSV, JSON, Parquet), a remote file |
-| the plan holds | the rows as SQL: DDL plus chunked `INSERT … VALUES` of typed literals, in a content blob named by digest (or, for a `data:` payload, its session table or inline rows, §4.3) | a pointer (a reference and a digest), never the contents |
+| the plan holds | the rows as SQL: DDL plus chunked `INSERT … VALUES` of typed literals, in a content blob named by digest (or, for a `data:` payload, its statement's bound parameter or inline rows, §4.3; the session table went with the JSON pass) | a pointer (a reference and a digest), never the contents |
 | who reads it | the planner turns the model text into literals: allowed, because build-time model text is known at planning (`docs/JAVA_EVICTION_PLAN.md` §1) | the database, at run; exec binds the path, verified by digest |
 | where it works | **every database** | DuckDB (CSV, JSON, Parquet) and H2 (CSV, `CSVREAD`); every other database refuses by name (the user's "option 1") |
 
@@ -615,6 +601,31 @@ why the planner branched on the database. Ruled, on round 2's probes ("Yes diale
   is the slowest at every size (134 s at 100,000). Recommendation asked: the bound parameter, inline rows above 1 MiB.
 - **Pasted CSV as one bound JSON parameter:** an option to investigate in the data-loading program
   (`DATA_LOADING_TARGET_MODEL` §5 item 6).
+
+**The JSON pass, built (2026-11-11, branch `claude/total-wall-json`; the user's rulings: "Yes move everything off temp
+table, for h2 should we also inline so we can get rid of all the temp table code completely?", "Yes on Databricks", "Yes,
+include the digest reference in the JSON pass"):**
+- **The digest reference (plan v48; 47 is B3's).**
+  - A payload slot is `Binding.Payload(digest)`. The text is its statement's `content`, the same content-by-digest
+    bundle a load uses: inline below `PlanJson.INLINE_LIMIT_BYTES`, a blob beside the plan above it, and verified
+    against its digest where the plan is read.
+  - The statement's typed tree names the payload by its digest too (`SourceUrl.byDigest`), so the bytes appear once in
+    the plan. A render of such a tree is refused by name.
+  - The runner fetches the text by digest and binds it.
+  - The TypeScript runner's `PLAN_VERSION` is 48. Test plans are version 17, with no release.
+- **Every dialect's `deliver`** returns the statement's source (§4.3): bound wherever the database splits one
+  parameter, inline on H2 and MongoDB, and on Databricks above 1 MiB.
+- **Deleted:**
+  - In the dialects: the session table (`SqlDialect.DataTable`, `dataTable`, `dataSchema`, `sessionTable`,
+    `Delivered`, `dataSourceColumn`; H2's `LEGEND_SESSION`, Postgres's `pg_temp` spelling).
+  - In the plan and exec: the plan's and the test plan's `release`, the `SOURCE` and `AT_RELEASE` cadences,
+    `PlanSessions`' release, `ProductRun`/`TestRun`'s releasing, and `PlanRunner.release`.
+  - In the planner: `DataSources.Tables` and its home tracking (S6), `ProgramState`'s data loads, prepares and releases,
+    `SystemCatalog`'s schema in the ONCE load and `madeOnce`, and `BodyDriver.ExecEnv`'s shared tables (B4's
+    `sharingTables`).
+  - In the edge: `LiveSourceLoad`.
+  - The census's M18 pins these symbols at zero.
+
 
 ## 6. What remains, in order
 

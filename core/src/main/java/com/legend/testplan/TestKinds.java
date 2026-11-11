@@ -102,12 +102,6 @@ final class TestKinds implements ProgramKinds {
         this.stores = stores;
     }
 
-    /** The body's data: tables its asserts were read through (B2a, 2026-11-11). */
-    @Override
-    public com.legend.planner.DataSources.@com.legend.base.Nullable Tables dataTables() {
-        return asserts.dataTables();
-    }
-
     /** A statement reading the system metamodel store alone, in a program whose target is the user's: the graph's
      *  system database beside it (per-statement routing, the walker-deletion program, 2026-11-03). */
     @Override

@@ -642,8 +642,8 @@ public final class PureV1Api {
                         + "values (" + result.sql().slots().size() + "); legend-lite's server runs it");
             }
             if (!result.sql().target().loads().isEmpty()) {
-                // the statement reads what its target's loads make (a connection's test data, a project's Data, a
-                // data: source's session table), and a host runs the statement alone until B3 makes the hosts run a
+                // the statement reads what its target's loads make (a connection's test data, a project's Data), and a
+                // host runs the statement alone until B3 makes the hosts run a
                 // plan's loads (the A checkpoint's finding of B3's prep, 2026-11-10: until then the host's database
                 // failed on a table no load made, a catalog error, not a refusal by name: §3 rule 5)
                 throw new com.legend.error.NotImplementedException("a host runs one statement, and this query's"

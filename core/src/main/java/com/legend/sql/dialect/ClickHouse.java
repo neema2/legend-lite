@@ -115,12 +115,34 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return 9;
     }
 
-    /** {@inheritDoc} ClickHouse keeps a TEMPORARY table only in an HTTP session, which the plan cannot name
-     *  (measured 2026-11-11 on 25.8: probes/ClickHouseDataTable.java.txt; a session id minted per run is exec's, not
-     *  the plan's), so a payload is the statement's own rows, its {@code values} table function. */
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11; until then
+     *  the statement's own rows: ClickHouse keeps a TEMPORARY table only in an HTTP session, which the plan cannot name,
+     *  probes/ClickHouseDataTable.java.txt). Its driver writes the parameter into the statement's text, bounded by the
+     *  connection's {@code max_query_size} (256 KiB by default), a setting the database enforces (its refusal reaches
+     *  the caller). */
     @Override
-    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
-        return new SqlDialect.Delivered.Read(inlineRows(payload));
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 25.8:
+     *  probes/ClickHouseDelivery2.java.txt, 100,000 records in 390 ms at a 16 MiB {@code max_query_size}): each
+     *  element its raw JSON text, a frame's record its place as its index from 0 (the payload's order); an empty array
+     *  no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_elements[legend_index] AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_index - 1 AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM (SELECT JSONExtractArrayRaw(");
+        return bindPayload(writer, u).append(") AS legend_elements) ARRAY JOIN arrayEnumerate(legend_elements) AS"
+                + " legend_index");
     }
 
     /** {@inheritDoc} 0: its {@code TIMESTAMP} column is a {@code DateTime}, of whole seconds (S181, A7, 2026-11-10). */

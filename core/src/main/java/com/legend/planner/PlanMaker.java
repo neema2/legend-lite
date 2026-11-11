@@ -110,11 +110,8 @@ public final class PlanMaker {
             }
             Programmed p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS,
                     probe.readsSystem(), projectDatabase, false);
-            // its data: tables' drops the plan's release, sent once the run is over whatever its outcome (the second
-            // audit's S12, 2026-11-11: as the program's last steps they were never sent when a step before them failed)
             return ExecutionPlan.writing(declarations(declared, query.context()),
-                    new ExecutionPlan.Sequence(products(p.steps())),
-                    p.release().isEmpty() ? null : new ExecutionPlan.Release(p.release(), p.target()));
+                    new ExecutionPlan.Sequence(products(p.steps())));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
@@ -151,11 +148,10 @@ public final class PlanMaker {
                     EnumValueTables.apply(l.plan()), SystemCatalog.dialect(runsOn), catalog), st.reads().ownStamp()));
         }
         // an enumeration parameter compared with a mapped column: through that place's value table; each data: source
-        // read from the session table the target's load makes of it (L6b, 2026-11-10)
-        DataSources data = DataSources.of(EnumValueTables.apply(l.plan()), dialect);
-        ExecutionPlan.Target target = data.onto(target(decided.target(), Objects.requireNonNull(runtime), l.ctx(),
-                dialect, projectDatabase));
-        SqlQuery lowered = data.query();
+        // read as the target's database takes it, by the statement itself (the JSON pass, 2026-11-11)
+        ExecutionPlan.Target target = target(decided.target(), Objects.requireNonNull(runtime), l.ctx(), dialect,
+                projectDatabase);
+        SqlQuery lowered = DataSources.read(EnumValueTables.apply(l.plan()), dialect);
         return ExecutionPlan.reading(declarations(declared, l.ctx()),
                 stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
     }
@@ -332,23 +328,17 @@ public final class PlanMaker {
         List<QueryParameters.Declared> declared = query.parameters();
         Programmed programmed = programmed(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
                 systemRouted, false, false);
-        return new TestProgram(declarations(declared, query.context()), programmed.steps(), programmed.dataLoads(),
-                programmed.release(), programmed.target());
+        return new TestProgram(declarations(declared, query.context()), programmed.steps(), programmed.target());
     }
 
     /** A program the test door planned (the plan-as-data design's step 3, 2026-11-08): its declared parameters and its
      *  steps, each a product node or the extension's own step by its handle, which the test door turns into its own
-     *  plan's; the loads among them that make its {@code data:} tables, and their drops, which the test door's runner
-     *  sends once the body's run and its appeals are over (B2a, 2026-11-11: an appeal reads lite's rows after the run,
-     *  and H2's drop commits an open transaction) on {@code target}, the program's own, where they were made (the B2a
-     *  audit's S2). */
+     *  plan's, on {@code target}, the program's own. */
     public record TestProgram(List<ExecutionPlan.Parameter> parameters, List<PlannedStep> steps,
-            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target) {
+            ExecutionPlan.Target target) {
         public TestProgram {
             parameters = List.copyOf(parameters);
             steps = List.copyOf(steps);
-            dataLoads = List.copyOf(dataLoads);
-            release = List.copyOf(release);
         }
     }
 
@@ -362,11 +352,9 @@ public final class PlanMaker {
         return slots;
     }
 
-    /** A program's steps; the test door's, the loads that make its {@code data:} tables and their drops, sent after its
-     *  run whatever its outcome (B2a; the query door's since the second audit's S12). */
-    private record Programmed(List<PlannedStep> steps,
-            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target,
-            boolean readsSystem, boolean readsOther) {
+    /** A program's steps, its target, and what its statements read. */
+    private record Programmed(List<PlannedStep> steps, ExecutionPlan.Target target, boolean readsSystem,
+            boolean readsOther) {
     }
 
     /**
@@ -407,10 +395,8 @@ public final class PlanMaker {
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
         // construction read by two statements is one object in both, and every statement names its sites by the one
         // counter
-        DataSources.Tables plannedAhead = kinds.dataTables();
         ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), dialect, target,
-                slots, features, plannedAhead != null ? plannedAhead : new DataSources.Tables(dialect),
-                door != ProgramState.Door.QUERY ? ProgramState.CatalogReads.ANY
+                slots, features, door != ProgramState.Door.QUERY ? ProgramState.CatalogReads.ANY
                         : probe ? ProgramState.CatalogReads.PROBE
                         : systemRouted ? ProgramState.CatalogReads.CATALOG : ProgramState.CatalogReads.RUNTIME);
         // the let kinds' effect scan, memoized over the program (LetPlanner.kind)
@@ -451,18 +437,14 @@ public final class PlanMaker {
         }
         if (state.probing()) {
             // the probe's answer: what the statements read, nothing planned
-            return new Programmed(List.of(), List.of(), List.of(), target, state.readsSystem(), state.readsOther());
+            return new Programmed(List.of(), target, state.readsSystem(), state.readsOther());
         }
-        // what the steps planned ahead made and no statement placed (an appeal's rows, read after the run), placed
-        // last (B2a)
-        state.placeMade();
         List<PlannedStep> steps = finished(state);
         if (!state.catalogRegistered() && systemTargetOf(steps) != null) {
             throw new IllegalStateException("a step of the program reads the graph's system store and no seed step is"
                     + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
-        return new Programmed(steps, state.dataLoads(),
-                state.dataReleases(), target, state.readsSystem(), state.readsOther());
+        return new Programmed(steps, target, state.readsSystem(), state.readsOther());
     }
 
     /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
@@ -689,23 +671,11 @@ public final class PlanMaker {
         List<PlannedStep> steps = withoutUnreadStamps(state.steps());
         everyReadStampBound(steps);
         SqlDialect dialect = state.dialect();
-        // what the data: tables' database sends before the program's first statement (H2's schema, whose statement
-        // commits an open transaction: the B2a audit's note), the program's first step where it made any
-        if (!state.dataPrepare().isEmpty()) {
-            List<ExecutionPlan.LoadStep> prepare = state.dataPrepare().stream()
-                    .<ExecutionPlan.LoadStep>map(ExecutionPlan.LoadStep.Statement::new).toList();
-            ExecutionPlan.Load first = LoadPlanner.load(ExecutionPlan.Load.Cadence.SOURCE, prepare, state.target());
-            state.dataLoad(first);
-            steps.add(0, new PlannedStep.Product(first));
-        }
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
             steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(
                     new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()),
                     null)));
         }
-        // the program's data: tables are dropped by its plan's release, never by a step of its own (A5: a payload's
-        // table lives and dies with the request, §3 rule 4; the second audit's S12: a last step is not sent when a step
-        // before it fails): the test door's after the body's appeals (B2a), the query door's after the run
         return steps;
     }
 
@@ -804,7 +774,10 @@ public final class PlanMaker {
         List<ExecutionPlan.Region> regions = rendered.regions().stream()
                 .map(r -> new ExecutionPlan.Region(r.start(), r.end(), r.lead(), r.separator(), r.empty(),
                         r.firstBind(), r.bindCount(), r.counters())).toList();
-        return new ExecutionPlan.Sql(rendered.sql(), slots, target, tree, regions, null, content);
+        // the typed tree carried beside the statement names each bound payload by its digest, never its text (the
+        // JSON pass: the bytes once in the plan, the statement's content)
+        SqlQuery carried = tree == null || content.isEmpty() ? tree : DataSources.byDigest(tree, content.keySet());
+        return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content);
     }
 
     /**
@@ -987,8 +960,8 @@ public final class PlanMaker {
     /**
      * The text plan's refusal of a live source (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4, A5: "a door that cannot
      * carry a source refuses it by name before render"): generatePlan's and arrowPlan's plan is ONE statement's text,
-     * and a {@code data:} source is a load of the query's execution plan (its session table, made when a session is
-     * acquired), a {@code file:} source a path the execution plan binds when it runs -- neither of which a text carries.
+     * and a {@code data:} source is its statement's bound parameter in the execution plan (the JSON pass, 2026-11-11),
+     * a {@code file:} source a path the execution plan binds when it runs -- neither of which a text carries.
      * Until the hosts run a plan's loads (the design's B3), the text refuses them by name; the execution plan carries
      * both ({@code TypedQuery.executionPlan}).
      */

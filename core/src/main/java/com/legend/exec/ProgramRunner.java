@@ -154,16 +154,6 @@ public final class ProgramRunner {
         }
     }
 
-    /**
-     * A plan's RELEASE (B2a, 2026-11-11): {@code statements}, the plan's own, sent in order on {@code on}'s session once
-     * the run that made what they drop is over -- outside any transaction of the run's (H2's drop commits an open one,
-     * measured: docs/data-delivery-homework/H2_DATA_TABLE_MEASURED_2026_11_11.md 5) -- a test body's {@code data:}
-     * tables' drops, after its appeals have read lite's rows.
-     */
-    public static void release(List<String> statements, PlanSessions.Source sessions, ExecutionPlan.Target on) {
-        PlanRunner.release(statements, sessions, on);
-    }
-
     private static void programRun(Program program, Map<String, ?> values, PlanSessions.Source sessions,
             com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
         // every live source the program's statements read, admitted once at its entry (A5): each step's path finds it
@@ -548,8 +538,7 @@ public final class ProgramRunner {
                 boolean beside = rt.systemSession() != null
                         && u.target().database() instanceof ExecutionPlan.Database.System;
                 if (u.cadence() == ExecutionPlan.Load.Cadence.AT_STEP) {
-                    // a program's own load writes, as an effect does; a live source's session table (SOURCE) is no
-                    // write of the body's, as the plan says (the B2a audit's S1)
+                    // a program's own load writes, as an effect does
                     sink.writing(i);
                 }
                 PlanRunner.seed(u, beside ? Objects.requireNonNull(rt.systemSession()) : session,
@@ -646,8 +635,7 @@ public final class ProgramRunner {
      *  name (the cadence a contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09). */
     static void refuseTargetCadence(ExecutionPlan.Load load) {
         if (load.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION
-                || load.cadence() == ExecutionPlan.Load.Cadence.ONCE
-                || load.cadence() == ExecutionPlan.Load.Cadence.AT_RELEASE) {
+                || load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
             throw new IllegalStateException("a " + load.cadence() + " load (" + load.identity() + ") is a target's,"
                     + " established where its target is acquired or made: never a program's node");
         }

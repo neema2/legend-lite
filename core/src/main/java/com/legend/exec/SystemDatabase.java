@@ -163,11 +163,9 @@ public final class SystemDatabase {
                         case ONCE -> {
                         }
                         case PER_ACQUISITION -> PlanRunner.establishOn(load, catalog.session);
-                        case BEFORE_STEP, AT_STEP, SOURCE, PER_TRANSACTION -> throw new IllegalStateException("a " + load.cadence()
-                                + " load on the catalog's target: a program's step, never the target's");
-                        // the catalog holds no request's session table: its turn is rolled back whole when the run ends
-                        case AT_RELEASE -> throw new IllegalStateException("an AT_RELEASE load on the catalog's target:"
-                                + " a request's session tables are never the catalog's");
+                        case BEFORE_STEP, AT_STEP, PER_TRANSACTION -> throw new IllegalStateException("a "
+                                + load.cadence() + " load on the catalog's target: a program's step, never the"
+                                + " target's");
                     }
                 }
             } finally {

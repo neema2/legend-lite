@@ -54,32 +54,13 @@ public final class SystemCatalog {
                 java.util.List.of());
         var once = com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE;
         Seeded platform = ctx.derived(SeedMemo.class, c -> new SeedMemo()).platform.computeIfAbsent(type, t -> {
-            // the catalog's own tables and rows, and the schema a body's data: session tables live in (H2's), made
-            // once here, outside any run's transaction: a body routed to the catalog sends no statement that commits
-            // the run's registration, which the run rolls back (madeOnce)
-            var steps = steps(store(ctx), dialect, true, Platform::rows).then(com.legend.setup.LoadSteps.of(
-                    dialect.dataSchema().stream().<com.legend.executionplan.ExecutionPlan.LoadStep>map(
-                            com.legend.executionplan.ExecutionPlan.LoadStep.Statement::new).toList()));
+            // the catalog's own tables and rows, made once here, outside any run's transaction (until the JSON pass,
+            // 2026-11-11, H2's schema for a body's data: session tables too)
+            var steps = steps(store(ctx), dialect, true, Platform::rows);
             return new Seeded(LoadPlanner.identity(once, steps.steps()), steps);
         });
         return new com.legend.executionplan.ExecutionPlan.Target(bare.database(), session,
                 java.util.List.of(platform.load(once, bare)));
-    }
-
-    /** Whether {@code target}'s ONCE load -- the process's catalog's, {@link #target} -- sends each of
-     *  {@code statements} ({@code SqlDialect.dataSchema}): what a program routed to it need not send itself. */
-    static boolean madeOnce(com.legend.executionplan.ExecutionPlan.Target target, java.util.List<String> statements) {
-        java.util.Set<String> once = new java.util.HashSet<>();
-        for (var load : target.loads()) {
-            if (load.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE) {
-                for (var step : load.steps()) {
-                    if (step instanceof com.legend.executionplan.ExecutionPlan.LoadStep.Statement s) {
-                        once.add(s.sql());
-                    }
-                }
-            }
-        }
-        return once.containsAll(statements);
     }
 
     /** The graph's system metamodel store's load on {@code system} (the catalog's target, {@link #target}), written in

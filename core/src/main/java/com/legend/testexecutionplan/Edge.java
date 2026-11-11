@@ -25,10 +25,6 @@ public interface Edge {
     List<Extension> seed(List<com.legend.executionplan.ExecutionPlan.LoadStep> steps,
             java.util.Map<String, String> content);
 
-    /** A load step that makes a live source's session table (a {@code data:} payload's: B2a, 2026-11-11): the records to
-     *  plan at the step, which the run then tells {@link #seeded} as it tells a seed's. */
-    List<Extension> liveSource();
-
     /** A seed step's statements ran ({@code answeredRows}: whether each answered rows, those before a failure when it
      *  failed), {@code planned} the records planned at it. */
     void seeded(List<Extension> planned, List<Boolean> answeredRows);

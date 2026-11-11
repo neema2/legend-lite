@@ -208,13 +208,11 @@ class DataMechanismCensusTest {
             // that take no data: rewrite, the referee replays on H2, and H2 holds no data: table. It moves with B2a/B2b.
             // L6's deletions stay guarded (REMOVED_SO_FAR)
             // DELETED at B2a, 2026-11-11 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): the JSON connection's frame is its
-            // payload's data: source relation, its records and their places the plan's load into a session table each
-            // database spells (SqlDialect.dataTable: DuckDB's temp, H2's LEGEND_SESSION LOCAL TEMPORARY, SQLite's temp,
-            // each measured); a test body's judges read every data: source through the body's one set of tables, which
-            // its program places ahead of the step that reads one, and the edge records the load as nothing
-            // (LiveSourceLoad); the drops run after the body's appeals (TestPlan.release). The 20 DuckDB and 10 H2
-            // corpus tests A5 measured pass. Proof: JsonM2M*IntegrationTest on DuckDB, H2 and SQLite, EdgeLiveSourceTest,
-            // DataSourcesRecordsTest
+            // payload's data: source relation, its records and their places -- at B2a the plan's load into a session
+            // table each database spelled; since the JSON pass (the same day, M18) the statement's own bound parameter
+            // or rows, a record's place the split's ordinal. The 20 DuckDB and 10 H2 corpus tests A5 measured pass.
+            // Proof: JsonM2M*IntegrationTest on DuckDB, H2 and SQLite, EdgeLiveSourceTest, DataSourcesRecordsTest,
+            // JsonPayloadFormsTest
             new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Deleted("B2a", List.of(
                     // L6: the file: source's path pasted into the statement, and DuckDB's data: payload as a SQL literal
                     "read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))",
@@ -257,10 +255,21 @@ class DataMechanismCensusTest {
             // rows (VALUES, $documents) on Trino, ClickHouse and MongoDB, which hold none a plan can make and drop
             // safely; ONE bound parameter the database splits on Snowflake and BigQuery (round 2's probes, the user's
             // ruling of 2026-11-11: 0.48 s at 100,000 records on Snowflake, against 17 s as rows and 73 s as a table) --
-            // each the dialect's answer (SqlDialect.deliver), never a default and never a fallback
+            // each the dialect's answer (SqlDialect.deliver), never a default and never a fallback. THE JSON PASS
+            // (2026-11-11, the user's rulings: "move everything off temp table", H2 inline "so we can get rid of all the
+            // temp table code completely", "Yes on Databricks", the digest reference): ONE bound parameter on every
+            // database that splits one (Postgres, MySQL, MariaDB, DuckDB, SQLite, Trino, ClickHouse, Databricks,
+            // Snowflake, BigQuery; measured at 100,000 records), the statement's own rows on H2 and MongoDB and on
+            // Databricks above its 1 MiB parameter limit; the payload's text once in the plan, its statement's content
+            // by SHA-256. The session table, its load, its release and the edge's record of it DELETED: their symbols
+            // read zero. Proof: DataDeliveryDeclaredTest, DataSourcesDeliveryTest, JsonPayloadFormsTest (in process,
+            // Postgres, the servers), DataReleaseTest (no release exists)
             new Row("M18", "a data: payload in the statement (its own rows, or one bound parameter)",
-                    new Bounded("JSON on every database",
-                    List.of(), "DataDeliveryDeclaredTest")));
+                    new Bounded("the JSON pass", List.of("Delivered.Table", "sessionTable(", "dataTable(",
+                            "dataSchema(", "LEGEND_SESSION", "LiveSourceLoad", "Cadence.AT_RELEASE", "Cadence.SOURCE",
+                            "ExecutionPlan.Release", "placeMade(", "dataReleases(", "sharingTables(",
+                            "DataSources.Tables", "PlanSessions.releasing(", "TEMP_SCHEMA", "liveSource()"),
+                    "DataDeliveryDeclaredTest")));
 
     /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets
      *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). None pending with a partial list

@@ -143,10 +143,7 @@ public final class PlanRunner {
      *  with B4, 2026-11-11), of statements and rows, never a file nor a program's own load -- the database holds the metamodel and nothing else;
      *  refused by name otherwise. Its identity is its content's, as every load's (L4a, 2026-11-09). */
     static void systemStore(ExecutionPlan.Load seeds) {
-        // (a system-routed body's live source's session table, SOURCE, is the session's own, dropped at its release:
-        // no write of the store's; the B2a audit's S2)
-        if ((seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION
-                && seeds.cadence() != ExecutionPlan.Load.Cadence.SOURCE)
+        if (seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION
                 || seeds.steps().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.File)) {
             throw new IllegalStateException("a load on the graph's system database that is not the system store's"
                     + " seeds (" + seeds.cadence() + "): the database holds the graph's metamodel and nothing else");
@@ -384,9 +381,9 @@ public final class PlanRunner {
                 continue;
             }
             if (step instanceof ExecutionPlan.Load u) {
-                // a program's own load (a data: payload's table, A5): it writes the session, on the sequence's one
-                // target; a seed or a target's load is the program runner's or the source's, refused by name
-                if (u.cadence() != ExecutionPlan.Load.Cadence.AT_STEP && u.cadence() != ExecutionPlan.Load.Cadence.SOURCE) {
+                // a program's own load at its place: it writes the session, on the sequence's one target; a seed or a
+                // target's load is the program runner's or the source's, refused by name
+                if (u.cadence() != ExecutionPlan.Load.Cadence.AT_STEP) {
                     throw new NotImplementedException("a " + u.cadence() + " load in a plan the query door runs:"
                             + " seeds are the test door's (the program runner's, ProgramRunner.run), a target's loads"
                             + " its sessions'");
@@ -580,8 +577,7 @@ public final class PlanRunner {
     static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
             com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
         // a seed (BEFORE_STEP) and a registration (PER_TRANSACTION) are memoed; a program's own load and a target's
-        // (AT_STEP, PER_ACQUISITION, ONCE) write; a live source's session table (SOURCE) runs every time and writes no
-        // store of the body's
+        // (AT_STEP, PER_ACQUISITION, ONCE) write
         boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP
                 || seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION;
         if (seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION && session.ownsTransaction()) {
@@ -595,7 +591,7 @@ public final class PlanRunner {
             return;
         }
         verifyIdentity(seeds);
-        if (!memo && seeds.cadence() != ExecutionPlan.Load.Cadence.SOURCE) {
+        if (!memo) {
             // a program's own load writes, as an effect does: a seed established before it is established no more
             session.state().markWriting();
         }
@@ -1029,27 +1025,6 @@ public final class PlanRunner {
      *  set there (Postgres's {@code SET} is transactional) and the memo cannot see it. The one place a session's
      *  statements are taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}),
      *  on every path: a statement, a schema read, a setup step, a sequence, a keyed plan. */
-    /**
-     * A plan's RELEASE ({@link ExecutionPlan.Release}; B2a, 2026-11-11): {@code statements}, the plan's own, sent in
-     * order on {@code on}'s session once the run that made what they drop is over -- outside any transaction of the
-     * run's (H2's drop commits an open one, measured: docs/data-delivery-homework/H2_DATA_TABLE_MEASURED_2026_11_11.md
-     * 5): a test body's {@code data:} tables' drops after its appeals, a writing query's after its run whatever its
-     * outcome (the second audit's S12).
-     */
-    public static void release(java.util.List<String> statements, PlanSessions.Source sessions,
-            ExecutionPlan.Target on) {
-        if (statements.isEmpty()) {
-            return;
-        }
-        try (var run = com.legend.base.RunScope.enter(); Sessions.Session session = sessions.open(on)) {
-            // the teardown of the loads that made what they drop, counted as a target's AT_RELEASE load is: SEED
-            Statements st = opened(session, on, StatementOrigin.SEED);
-            for (String statement : statements) {
-                sendStatement(statement, st);
-            }
-        }
-    }
-
     static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
         return opened(session, target, StatementOrigin.OTHER);
     }

@@ -15,6 +15,23 @@
 >
 > It replaces the delivery part of `docs/DATA_IN_THE_PLAN_2026_11_09.md` (§2.3-2.5, §4 L4-L6) where they differ. That
 > document's other rulings (§8) stand.
+>
+> **Superseded in part, 2026-11-11 (the JSON pass, branch `claude/total-wall-json`; the user's rulings: "Yes move
+> everything off temp table, for h2 should we also inline so we can get rid of all the temp table code completely?",
+> "Yes on Databricks", "Yes, include the digest reference in the JSON pass").** Every passage below that describes a
+> `data:` payload's SESSION TABLE is history and no longer the product. That covers:
+> - its load and its `AT_RELEASE` drop (§3 rules 2 and 4 for payloads);
+> - `DataSources.Tables` and its home database (A5, S6);
+> - the `SOURCE` cadence;
+> - H2's `LEGEND_SESSION` and Postgres's `pg_temp` spelling;
+> - the plan's and the test plan's `release`;
+> - the edge's `LiveSourceLoad`;
+> - the B2a row's "session table per database".
+>
+> A payload is now its statement's own: one bound parameter the database splits, or the statement's own rows on H2
+> and MongoDB (and on Databricks above its 1 MiB parameter limit). Its text sits once in the plan, as the statement's
+> content keyed by SHA-256. The state and the measured forms are in `docs/TOTAL_WALL_START_HERE_2026_11_11.md` §4.3 and
+> §5.9; the census's M18 pins the deleted symbols at zero. Rules 2 and 4 still govern every other load.
 
 ## 0. Why
 
