@@ -14,6 +14,7 @@ import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
 import { hostSession, runPlan } from '../../engine-client/src/plan-runner.ts';
 import { colSpecs, fn, lambda, lit, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { ModelTable, TableModels } from './infer.ts';
+import type { Plan } from '../../engine-client/src/relation-type.ts';
 import type { TableOutput } from './layout/flow.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { catalogColumnsOf } from './upload.ts';
@@ -32,8 +33,8 @@ export interface TableWriteHost {
   readonly models: Pick<TableModels, 'tablesModel' | 'catalogColumnsSql' | 'hostOperations'>;
   /** The host's database held for the write alone (duckdb.ts exclusive). */
   hold<T>(work: (held: HeldConnection) => Promise<T>): Promise<T>;
-  /** A query over the box's own model planned: its SQL (the create's columns, its rows none). */
-  sqlOf(query: Lambda): Promise<string>;
+  /** A query over the box's own model planned: its SQL and the values it binds (the create's columns, its rows none). */
+  planOf(query: Lambda): Promise<Plan>;
   /** A program planned over `model` as an execution plan (PlanJson's text). */
   executionPlan(model: string, runtime: string, program: Lambda): Promise<string>;
 }
@@ -51,17 +52,25 @@ export async function writeTable(rows: Lambda, output: TableOutput, host: TableW
   }
   const body = rows.body[0];
   if (rows.parameters.length > 0 || rows.body.length !== 1 || body === undefined) throw new Error("an output's rows are one query of no parameter");
-  // the create's statement asked first: its columns the database's, as the box's rows type them, none of its rows
-  const made = output.mode === 'create' || output.mode === 'overwrite'
+  // the create's statement asked first: its columns the database's, as the box's rows type them, none of its rows -- the
+  // query's own values (a data: payload: M3) bound to its `?`s, which the create's statement keeps in their order
+  const shape = output.mode === 'create' || output.mode === 'overwrite'
+    ? await host.planOf(lambda([], fn('limit', body, lit.integer(0)))) : undefined;
+  const made = shape !== undefined
     ? await host.models.hostOperations(host.databaseType, [{
       op: 'relation', kind: 'table', target: { name: output.name }, replace: output.mode === 'overwrite',
-      from: { query: await host.sqlOf(lambda([], fn('limit', body, lit.integer(0)))) },
+      from: { query: shape.sql },
     }]) : [];
   return host.hold(async (held) => {
     const session = await hostSession(host.databaseType, held.rows, host.models);
     await session.transaction('begin');
     try {
-      for (const statement of made.flat()) await held.rows(statement, []);
+      const params = shape?.params ?? [];
+      // the values bind the one statement that reads the query; a create of several statements binds none of them
+      if (params.length > 0 && made.flat().length !== 1) {
+        throw new CubeRefusal(`'${output.name}' is made by ${made.flat().length} statements, and its rows' query binds a data: payload one of them reads: not written here`);
+      }
+      for (const statement of made.flat()) await held.rows(statement, params);
       // one model of its tables and the target, each read off the catalog as it is now (the target made just now, in
       // the same transaction)
       const engine = { run: (sql: string) => held.table(sql) };

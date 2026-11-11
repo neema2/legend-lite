@@ -1639,7 +1639,7 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
         held: (t) => given.held.some((h) => h.toLowerCase() === t.toLowerCase()),
         models: o.planner,
         hold: (work) => engine.exclusive(work),
-        sqlOf: async (q) => (await o.planner.plan(q)).sql,
+        planOf: (q) => o.planner.plan(q),
         executionPlan: async (model, runtime, program) => {
           const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });
           try {

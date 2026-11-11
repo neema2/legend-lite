@@ -32,6 +32,7 @@ import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
+import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
 import type { RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
@@ -120,6 +121,18 @@ interface Transport {
   /** Which module holds the models held: one more each time a module, or a worker with its own, starts (a handle
    *  taken under another is no longer held by anything). */
   generation: number;
+}
+
+/**
+ * A text plan as the planner answers it (Boundary.planned: `{"sql", "type", "plan"?}`): its SQL, the compiler's type of
+ * its result in upstream's RelationType shape, and -- where the text does not run alone -- the values its statement binds,
+ * read ONCE here from the plan it carries (plan-params.ts: each data: payload from the statement's content by its
+ * digest, verified by SHA-256; any other slot refused by name: the tenets audit's M3).
+ */
+function textPlan(text: string): Plan {
+  const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown };
+  const params = planParams(body.plan);
+  return { sql: body.sql, columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
 }
 
 /**
@@ -435,8 +448,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     // `{"sql", "type"}`: the SQL and the compiler's type of its result, in upstream's
     // RelationType shape -- the same renderer legend-lite's pure/v1 answers use.
-    const body = JSON.parse(decode(answer, pureGrammar)) as { sql: string; type: unknown };
-    const plan: Plan = { sql: body.sql, columns: relationColumns(body.type) };
+    const plan = textPlan(decode(answer, pureGrammar));
     // kept only while it is the planner's model still: an answer for a model since replaced is not this one's
     if (useCache && this.#options.model === model) this.#cache.set(key, plan);
     return plan;
@@ -538,8 +550,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   /** A plan's answer (planJson's, tagged) read as this planner reads its own: its SQL and the compiler's columns. */
   readPlan(answer: string, query: Lambda): Plan {
-    const body = JSON.parse(decode(answer, query)) as { sql: string; type: unknown };
-    return { sql: body.sql, columns: relationColumns(body.type) };
+    return textPlan(decode(answer, query));
   }
 
   /**

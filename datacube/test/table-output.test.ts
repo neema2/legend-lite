@@ -32,7 +32,7 @@ describe('a box written into a table of its host\'s database, in one transaction
     held: (t) => t === 'tw_src',
     models,
     hold: (work) => engine.exclusive(work),
-    sqlOf: async (q) => (await planner(model.model, model.runtime).plan(q)).sql,
+    planOf: (q) => planner(model.model, model.runtime).plan(q),
     executionPlan: (m, r, program) => planner(m, r).executionPlan(program),
   });
   /** The box's rows: the source's, or those `keep` holds for. */

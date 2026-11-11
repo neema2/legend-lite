@@ -123,6 +123,9 @@ export interface ExecutePlan {
   /** The statement's result columns with their type facts, by which the planner reads the rows back. */
   readonly resultColumns: readonly unknown[];
   readonly builder: { readonly _type: string };
+  /** Where `run` binds values (a data: payload, the tenets audit's M3): the execution plan, which carries them by digest
+   *  (plan-params.ts reads them). None for a statement that runs alone. */
+  readonly plan?: unknown;
 }
 
 export class WasmGrammar implements Grammar {
@@ -193,9 +196,13 @@ export class WasmGrammar implements Grammar {
     return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
-  /** The SQL a query compiles to on its runtime, and the type of its result (upstream's relationType shape). */
-  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: string; type: unknown }> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as { sql: string; type: unknown };
+  /** The SQL a query compiles to on its runtime, the type of its result (upstream's relationType shape), and -- where the
+   *  text does not run alone -- the execution plan it renders from, whose data: payloads its `?`s bind (plan-params.ts
+   *  reads them: the tenets audit's M3). */
+  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: string; type: unknown; plan?: unknown }> {
+    return JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as {
+      sql: string; type: unknown; plan?: unknown;
+    };
   }
 
   /** The SQL a query compiles to on its runtime -- legend-lite's plan, shown to a person ("Show SQL"). */

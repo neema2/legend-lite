@@ -12,6 +12,9 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { ConnectionSettings, establish, hostSession, PlanRefusal, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
+import { PlanParamsRefusal, planParams } from '../src/plan-params.ts';
+import { relationColumns } from '../src/relation-type.ts';
+import { BrowserEngine } from '../src/legend/browser-engine.ts';
 import { QueryError } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
@@ -216,10 +219,10 @@ describe("a plan's loads, established on a database the host made for its target
     assert.equal(await tables(db.engine), 'null', 'the load rolled back: no table made');
   });
 
-  it("a data: source's payload is bound, not loaded: no load and no release, and this runner refuses the payload by name", async () => {
+  it("a data: source's payload is bound, not loaded: no load and no release, and this runner binds it from the plan", async () => {
     // the JSON pass (2026-11-11): DuckDB binds a data: payload as one parameter its statement splits -- no session
-    // table, so no load makes one and no release drops it; the hosts' runner binds no payload yet (the orchestrator's
-    // ruling: refused by name until it binds one by its digest)
+    // table, so no load makes one and no release drops it; the hosts' runner binds it from the statement's content by
+    // its digest (the tenets audit's M3, 2026-11-11: until then refused by name)
     const plan = executionPlanOfLambda("|sourceUrl('data:application/json,[{\"ID\":1,\"NAME\":\"a\"},{\"ID\":2,\"NAME\":\"b\"}]')"
       + "->extend(~[ID: r|cast(get($r.data, 'ID'), @meta::pure::metamodel::type::Integer), NAME: r|cast(get($r.data, 'NAME'), @meta::pure::metamodel::type::String)])"
       + "->select(~[ID, NAME])->sort(~ID->ascending())->from(x::BareRT)", 'x::BareRT');
@@ -228,7 +231,11 @@ describe("a plan's loads, established on a database the host made for its target
     assert.equal((read.loads ?? []).length, 0, 'no load makes a session table');
     assert.equal(targetKey(plan), null, "it loads nothing: the host's own session serves it");
     const db = await fresh();
-    await assert.rejects(() => db.on((s) => runPlan(plan, s)), /binds a data: payload, which is not run here/);
+    assert.deepEqual(JSON.parse(await db.on((s) => runPlan(plan, s))), [{ ID: 1, NAME: 'a' }, { ID: 2, NAME: 'b' }]);
+    // a payload that is not its digest is refused by name, nothing run
+    const tampered = plan.replace('"NAME\\":\\"b\\"', '"NAME\\":\\"B\\"');
+    assert.notEqual(tampered, plan);
+    await assert.rejects(() => db.on((s) => runPlan(tampered, s)), /the data: source's payload is not the data it was planned against/);
   });
 
   it('a pivot whose columns the data names: its keys read first, its body written per key and run', async () => {
@@ -320,6 +327,64 @@ describe("a failure's words, the values a host holds taken out at the engine's Q
     // a failure that names no held value is said as it is, its cause kept
     await assert.rejects(() => engine.run("SELECT error('plain')", 0), (e: unknown) =>
       e instanceof QueryError && /plain/.test(e.message) && e.cause !== undefined);
+  });
+});
+
+// the tenets audit's M3 (2026-11-11, the orchestrator's go; the user's ruling "make json work everywhere"): a JSON
+// connection's frame is a data: source whose payload DuckDB binds as one parameter (the JSON pass); the tab reads the
+// payload from the plan it is given beside the text, by digest, verified once, and binds it -- the text keeps its `?`
+describe("a JSON connection's query in the tab: its payload bound from the plan, its records read back exactly (M3)", () => {
+  // a quote, a backslash, a line break, in an order no sort would give
+  const RECORDS = [{ name: "it's" }, { name: 'back\\slash' }, { name: 'two\nlines' }, { name: 'a' }];
+  const jsonModel = (records: readonly unknown[]): string => {
+    // the payload as JSON, written into the Pure string literal of its data: URL ('\' and '\'' escaped)
+    const url = `data:application/json,${JSON.stringify(records)}`.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return `Class m::Raw { name: String[1]; }
+Class m::P { name: String[1]; }
+###Mapping
+Mapping m::MM ( *m::P: Pure { ~src m::Raw name: $src.name } )
+###Runtime
+Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonModelConnection {
+    class: m::Raw; url: '${url}'; } }# ] ]; }
+`;
+  };
+  const QUERY = '|m::P.all()->project(~[name: p|$p.name])';
+  const planOf = async (model: string): Promise<{ sql: string; type: unknown; plan?: { root: { sql: { content: Record<string, string> } } } }> =>
+    JSON.parse(ok(answer(m, { kind: 'planModel', model, lambda: toJson(await grammar.lambda(QUERY)), runtime: 'm::RT' })));
+
+  it('the text plan binds the payload: read from its content by digest, bound, its records back in payload order', async () => {
+    const body = await planOf(jsonModel(RECORDS));
+    assert.ok(body.sql.includes('?') && !body.sql.includes('back') && !body.sql.includes('data:'), body.sql);
+    const params = planParams(body.plan);
+    assert.deepEqual(params.map((p) => JSON.parse(p) as unknown), [RECORDS]);
+    const answered = await engine.execute({ sql: body.sql, columns: relationColumns(body.type), params }, 0);
+    assert.deepEqual(answered.columns[0]!.values, RECORDS.map((r) => r.name));
+    // an empty array: no record, no row
+    const empty = await planOf(jsonModel([]));
+    const none = await engine.execute({ sql: empty.sql, columns: relationColumns(empty.type), params: planParams(empty.plan) }, 0);
+    assert.equal(none.rowCount, 0);
+  });
+
+  it("a payload that is not its digest is refused by name, nothing run", async () => {
+    const body = await planOf(jsonModel(RECORDS));
+    const content = body.plan!.root.sql.content;
+    const [digest] = Object.keys(content);
+    content[digest!] = content[digest!]!.replace('back', 'BACK');
+    assert.throws(() => planParams(body.plan), (e: unknown) => e instanceof PlanParamsRefusal
+      && /the data: source's payload is not the data it was planned against/.test(e.message));
+  });
+
+  it("the tab's pure/v1 execute (BrowserEngine) binds it too: the answer's rows are the records", async () => {
+    const browser = new BrowserEngine(grammar, engine, 'tester');
+    const text = await browser.executeText({
+      clientVersion: 'vX_X_X', function: await grammar.lambda(QUERY),
+      model: { _type: 'text', code: jsonModel(RECORDS) } as never, runtime: { runtime: 'm::RT' },
+      context: { _type: 'BaseExecutionContext' },
+    });
+    const answered = JSON.parse(text) as { result: { rows: { values: unknown[] }[] }; activities: { sql: string }[] };
+    assert.deepEqual(answered.result.rows.map((r) => r.values[0]), RECORDS.map((r) => r.name));
+    // the activity's SQL is the statement's text: its `?`, never the payload
+    assert.ok(!JSON.stringify(answered.activities).includes('back'), JSON.stringify(answered.activities));
   });
 });
 

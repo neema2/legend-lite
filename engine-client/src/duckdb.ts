@@ -75,6 +75,8 @@ export interface HeldConnection {
 /** A prepared statement, as DuckDB-WASM's connections give one. */
 export interface ArrowishPrepared {
   query(...params: unknown[]): ArrowishTable | Promise<ArrowishTable>;
+  /** Its result a batch at a time, as the connection's `send` gives one (DuckDB-WASM's prepared statements). */
+  send?(...params: unknown[]): AsyncIterable<ArrowishTable> | Iterable<ArrowishTable> | Promise<AsyncIterable<ArrowishTable> | Iterable<ArrowishTable>>;
   close?(): void | Promise<void>;
 }
 
@@ -437,13 +439,15 @@ export class DuckDbEngine implements QueryEngine {
   }
 
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
-    return { ...typedByPlan(await this.run(plan.sql, epoch, signal), plan), receipt: this.receipt() };
+    // the plan's own values its statement binds (a data: payload: plan-params.ts, M3), bound to its `?`s
+    return { ...typedByPlan(await this.run(plan.sql, epoch, signal, plan.params ?? []), plan), receipt: this.receipt() };
   }
 
   async run(
     sql: string,
     epoch: number,
     signal?: AbortSignal,
+    params: readonly string[] = [],
   ): Promise<RawTable> {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return this.#serialised(async () => {
@@ -455,11 +459,30 @@ export class DuckDbEngine implements QueryEngine {
       const started = performance.now();
       if (typeof this.#conn.send === 'function') {
         const acc = new BatchAccumulator();
-        await this.#batches(sql, signal, (batch) => acc.add(batch));
+        await this.#batches(sql, signal, (batch) => acc.add(batch), params);
         return acc.build(epoch, performance.now() - started);
       }
-      return this.#whole(sql, epoch, signal, started);
+      return this.#whole(sql, epoch, signal, started, params);
     });
+  }
+
+  /**
+   * `sql` prepared and its `?`s bound to `params` in order (a plan's payloads, M3): its result a batch at a time where
+   * the prepared statement streams (DuckDB-WASM's), else whole as one batch -- the prepared statement closed once read.
+   * A connection that prepares none refuses it by name.
+   */
+  async *#bound(sql: string, params: readonly string[]): AsyncIterable<ArrowishTable> {
+    if (this.#conn.prepare === undefined) throw new Error("this database binds no statement's values: a plan's payload is not run here");
+    const prepared = await this.#conn.prepare(sql);
+    try {
+      if (prepared.send !== undefined) {
+        for await (const batch of await prepared.send(...params)) yield batch;
+      } else {
+        yield await prepared.query(...params);
+      }
+    } finally {
+      await prepared.close?.();
+    }
   }
 
   /**
@@ -477,12 +500,13 @@ export class DuckDbEngine implements QueryEngine {
     return this.#serialised(async () => {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
       const started = performance.now();
+      const params = plan.params ?? [];
       if (typeof this.#conn.send === 'function') {
         await this.#batches(plan.sql, signal, (batch) =>
-          onChunk(typedByPlan(toRawTable(batch, epoch, performance.now() - started), plan)));
+          onChunk(typedByPlan(toRawTable(batch, epoch, performance.now() - started), plan)), params);
         return;
       }
-      onChunk(typedByPlan(await this.#whole(plan.sql, epoch, signal, started), plan));
+      onChunk(typedByPlan(await this.#whole(plan.sql, epoch, signal, started, params), plan));
     });
   }
 
@@ -562,10 +586,19 @@ export class DuckDbEngine implements QueryEngine {
     epoch: number,
     signal: AbortSignal | undefined,
     started: number,
+    params: readonly string[] = [],
   ): Promise<RawTable> {
     let table: ArrowishTable;
     try {
-      table = await this.#conn.query(sql);
+      if (params.length === 0) {
+        table = await this.#conn.query(sql);
+      } else {
+        const batches: ArrowishTable[] = [];
+        for await (const batch of this.#bound(sql, params)) batches.push(batch);
+        const acc = new BatchAccumulator();
+        for (const batch of batches) acc.add(batch);
+        return acc.build(epoch, performance.now() - started);
+      }
     } catch (cause) {
       throw this.#failed(cause, sql);
     }
@@ -585,6 +618,7 @@ export class DuckDbEngine implements QueryEngine {
     sql: string,
     signal: AbortSignal | undefined,
     onBatch: (batch: ArrowishTable) => void,
+    params: readonly string[] = [],
   ): Promise<void> {
     const send = this.#conn.send;
     if (!send) throw new Error('streaming unavailable');
@@ -602,7 +636,8 @@ export class DuckDbEngine implements QueryEngine {
 
     let batches: AsyncIterable<ArrowishTable>;
     try {
-      batches = await send.call(this.#conn, sql);
+      // a statement that binds values prepared and bound (#bound: its own batches); any other sent as it is
+      batches = params.length === 0 ? await send.call(this.#conn, sql) : this.#bound(sql, params);
     } catch (cause) {
       if (signal?.aborted) throw signal.reason ?? cause;
       throw this.#failed(cause, sql);

@@ -3,6 +3,7 @@ as it is at each query, a stream as it was read once; pandas, polars and Arrow a
 conversions hold exact values; an answer is typed by its plan; and what a frame cannot be is refused."""
 
 import datetime
+import json
 import unittest
 from decimal import Decimal
 
@@ -383,6 +384,55 @@ class ModelFor(unittest.TestCase):
             first.handle  # let go of (closed)
         # asked again, held again
         self.assertIsNotNone(self.frames.model_for(self.project(0)))
+
+
+class JsonConnection(unittest.TestCase):
+    """A JSON connection's query (the tenets audit's M3, 2026-11-11; the user's ruling "make json work everywhere"): its
+    frame a data: source whose payload DuckDB binds as one parameter (the JSON pass) -- read from the plan beside the
+    text by its digest, verified once (compiler.plan_params), and bound where Python runs the plan."""
+
+    # a quote, a backslash, a line break, in an order no sort would give
+    RECORDS = [{'name': "it's"}, {'name': 'back\\slash'}, {'name': 'two\nlines'}, {'name': 'a'}]
+    QUERY = '|m::P.all()->project(~[name: p|$p.name])'
+
+    @staticmethod
+    def model(records):
+        # the payload as JSON, written into the Pure string literal of its data: URL ('\\' and "'" escaped)
+        url = ('data:application/json,' + json.dumps(records)).replace('\\', '\\\\').replace("'", "\\'")
+        return (
+            'Class m::Raw { name: String[1]; }\nClass m::P { name: String[1]; }\n###Mapping\n'
+            'Mapping m::MM ( *m::P: Pure { ~src m::Raw name: $src.name } )\n###Runtime\n'
+            'Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonModelConnection {\n'
+            f"    class: m::Raw; url: '{url}'; }} }}# ] ]; }}\n")
+
+    def test_its_records_are_read_back_exactly_in_payload_order(self):
+        plan = ll.plan(self.model(self.RECORDS), ll.parse(self.QUERY), 'm::RT')
+        self.assertIn('?', plan.sql)
+        self.assertNotIn('back', plan.sql)
+        self.assertEqual([json.loads(p) for p in plan.params], [self.RECORDS])
+        frames = ll.Frames()
+        self.assertEqual(frames.run(plan).column('name').to_pylist(), [r['name'] for r in self.RECORDS])
+        with frames.reading() as read:
+            self.assertEqual(read.run(plan).column('name').to_pylist(), [r['name'] for r in self.RECORDS])
+        # an empty array: no record, no row
+        empty = ll.plan(self.model([]), ll.parse(self.QUERY), 'm::RT')
+        self.assertEqual(frames.run(empty).num_rows, 0)
+
+    def test_a_payload_that_is_not_its_digest_or_another_slot_is_refused_by_name(self):
+        from legend_lite import compiler
+        model = self.model(self.RECORDS)
+        planned = json.loads(compiler._answer(compiler.library().call('lite_plan_json', model, compiler._json.dumps(ll.parse(self.QUERY)),
+                                                                      'm::RT')))
+        statement = planned['plan']['root']['sql']
+        digest = next(iter(statement['content']))
+        statement['content'][digest] = statement['content'][digest].replace('back', 'BACK')
+        with self.assertRaises(compiler.PlanParamsRefused) as refused:
+            compiler.plan_params(planned['plan'])
+        self.assertIn("the data: source's payload is not the data it was planned against", str(refused.exception))
+        statement['slots'][0]['binding'] = {'_type': 'source', 'location': 'file:///x.json'}
+        with self.assertRaises(compiler.PlanParamsRefused) as refused:
+            compiler.plan_params(planned['plan'])
+        self.assertIn("binds a file source's path, which a host running the plan's text does not bind", str(refused.exception))
 
 
 class Refusals(unittest.TestCase):

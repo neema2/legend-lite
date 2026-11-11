@@ -780,7 +780,8 @@ export class CubeController {
       throw new CubeRefusal('this cube has no store to freeze a snapshot into.');
     }
     // the PULL is the live plan: it runs where the rows are, in that database's SQL
-    const sourceSql = (await this.#livePlanner.plan(query)).sql;
+    const pulled = await this.#livePlanner.plan(query);
+    const sourceSql = pulled.sql;
 
     // a copy of its own: modelled as it holds the rows once they land, and planned by its own planner from then on
     const copy = target.copy();
@@ -788,6 +789,8 @@ export class CubeController {
     try {
       await this.#snaps.snap(sourceSql, this.#guard.current, {
         ...(label !== undefined ? { label } : {}),
+        // the values the live plan binds (a data: payload: M3), carried into each statement that reads it
+        ...(pulled.params !== undefined ? { params: pulled.params } : {}),
         target: {
           table: copy.table,
           landed: async () => {

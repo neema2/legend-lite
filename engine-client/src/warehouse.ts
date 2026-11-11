@@ -239,6 +239,15 @@ export const SYSTEM_CLOCK: Clock = {
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
+/** A statement that binds values (a plan's data: payloads, M3) is not sent to the warehouse, which runs SQL text alone:
+ *  refused by name, never sent without them. */
+function refuseParams(sql: string, params: readonly string[] | undefined): void {
+  if (params !== undefined && params.length > 0) {
+    throw new QueryError(`this statement binds ${params.length} value(s) (a data: source's payload), which the warehouse does not take: `
+      + 'it runs on the tab\'s own database or legend-lite\'s server', sql);
+  }
+}
+
 export class WarehouseEngine implements QueryEngine {
   readonly name = 'warehouse';
   /** Its catalog's database type (`DuckDB`, `Postgres`): what a statement run on it is written for (Snap's count). */
@@ -333,7 +342,7 @@ export class WarehouseEngine implements QueryEngine {
    * cancelled on the server.
    */
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
-    return typedByPlan(await this.run(plan.sql, epoch, signal), plan);
+    return typedByPlan(await this.run(plan.sql, epoch, signal, plan.params), plan);
   }
 
   /** A planned query's rows chunk by chunk, as the server wrote them (its Arrow chunks). */
@@ -343,6 +352,7 @@ export class WarehouseEngine implements QueryEngine {
     onChunk: (chunk: ResultTable) => void,
     signal?: AbortSignal,
   ): Promise<void> {
+    refuseParams(plan.sql, plan.params);
     const started = performance.now();
     try {
       for await (const bytes of this.arrowChunks(plan.sql, signal)) {
@@ -355,7 +365,8 @@ export class WarehouseEngine implements QueryEngine {
     }
   }
 
-  async run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable> {
+  async run(sql: string, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable> {
+    refuseParams(sql, params);
     const started = performance.now();
     const batches: RecordBatch[] = [];
     let receipt: Receipt | undefined;

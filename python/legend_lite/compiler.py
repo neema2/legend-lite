@@ -8,6 +8,7 @@ compiled once and planned against many times, for as long as it is open.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,10 +58,54 @@ class Answer:
 
 @dataclass(frozen=True)
 class Plan:
-    """A query planned: the SQL to run, and the compiler's type of what it returns."""
+    """A query planned: the SQL to run, the compiler's type of what it returns, and the values its ``?``s bind, in
+    order -- the plan's own data: payloads (``plan_params``: the tenets audit's M3); none for a text that runs alone."""
 
     sql: str
     columns: tuple[Column, ...]
+    params: tuple[str, ...] = ()
+
+
+class PlanParamsRefused(ValueError):
+    """A plan whose statement binds what a host running its text does not bind, or whose payload is not the data it was
+    planned against: refused by name."""
+
+
+def plan_params(plan: Any) -> tuple[str, ...]:
+    """THE VALUES A PLAN'S STATEMENT BINDS THAT THE PLAN CARRIES (the tenets audit's M3, 2026-11-11; engine-client
+    plan-params.ts, the same rule): each data: payload -- the plan's own value, one JSON array -- read from the answering
+    statement's content by the digest its slot names, its bytes checked against that SHA-256, once, here where the host
+    reads the plan; any other slot (a parameter the run supplies, a key's cell, a file's path, a list) refused by name.
+    ``plan``: the execution plan (PlanJson, parsed), or None for a text that runs alone."""
+    if plan is None:
+        return ()
+    root = plan.get('root') if isinstance(plan, dict) else None
+    statement = root.get('sql') if isinstance(root, dict) else None
+    if not isinstance(statement, dict):
+        raise PlanParamsRefused(f"a text plan's statement is its root's (a typed result's), not a "
+                                f"{root.get('_type') if isinstance(root, dict) else root!r}'s")
+    return statement_params(statement)
+
+
+def statement_params(statement: dict[str, Any]) -> tuple[str, ...]:
+    """The values ``statement``'s slots bind (``plan_params``' rule), in its placeholders' order."""
+    content = statement.get('content') or {}
+    out = []
+    for slot in statement.get('slots') or []:
+        kind = slot['binding'].get('_type')
+        if kind != 'payload':
+            what = {'key': "a key's cell", 'source': "a file source's path", 'array': 'a list'}.get(kind, 'a value the run supplies')
+            raise PlanParamsRefused(f"'{slot['parameter']}' binds {what}, which a host running the plan's text does not bind")
+        digest = slot['binding'].get('digest', '')
+        text = content.get(digest)
+        if text is None:
+            raise PlanParamsRefused(f"the plan's statement binds the payload {digest}, which its content does not carry")
+        actual = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        if actual != digest:
+            raise PlanParamsRefused(f"the data: source's payload is not the data it was planned against: its digest is "
+                                    f'{actual}, where the plan names {digest}')
+        out.append(text)
+    return tuple(out)
 
 
 def _answer(text: str) -> str:
@@ -124,10 +169,11 @@ def read_planned(answer: str) -> Plan:
 
 
 def read_plan(answer: str) -> Plan:
-    """The planner's plan (``{"sql", "type"}``, the answer after its ``OK`` tag) as a Plan: the one reading of it, as
-    DataCube's planner reads it (lite-planner.ts ``readPlan``)."""
+    """The planner's plan (``{"sql", "type", "plan"?}``, the answer after its ``OK`` tag) as a Plan: the one reading of
+    it, as DataCube's planner reads it (lite-planner.ts ``readPlan``) -- the values its statement binds read once, here
+    (``plan_params``)."""
     out = _json.loads(answer)
-    return Plan(out['sql'], _columns(out['type']))
+    return Plan(out['sql'], _columns(out['type']), plan_params(out.get('plan')))
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:

@@ -300,11 +300,12 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
         return duckdb.Error(out)
 
 
-def execute_redacted(connection: Any, sql: str, held: Iterable[str]) -> Any:
-    """``sql`` run on ``connection``, a failure's words with every held value taken out (``redacted``)."""
+def execute_redacted(connection: Any, sql: str, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
+    """``sql`` run on ``connection``, its ``?``s bound to ``params`` (a plan's payloads: M3), a failure's words with every
+    held value taken out (``redacted``)."""
     failure: BaseException | None = None
     try:
-        return connection.execute(sql)
+        return connection.execute(sql, list(params)) if params else connection.execute(sql)
     except duckdb.Error as e:
         failure = redacted(e, held)
         if failure is None:
@@ -355,14 +356,15 @@ class Reading:
         # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
         self.held_values = held
 
-    def execute(self, sql: str) -> duckdb.DuckDBPyConnection:
+    def execute(self, sql: str, params: tuple[str, ...] = ()) -> duckdb.DuckDBPyConnection:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
         overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
         database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was.
         A failure's words name no value the engine holds (an expired presigned link's read repeats its URL: M2)."""
         failure: BaseException | None = None
         try:
-            return self.cursor.execute(sql)
+            # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
+            return self.cursor.execute(sql, list(params)) if params else self.cursor.execute(sql)
         except duckdb.Error as e:
             try:
                 _pin(self.cursor)
@@ -378,7 +380,7 @@ class Reading:
 
     def run(self, plan: compiler.Plan) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.execute(plan.sql).to_arrow_table(), plan)
+        return typed_by_plan(self.execute(plan.sql, plan.params).to_arrow_table(), plan)
 
 
 def _pin(cursor: duckdb.DuckDBPyConnection) -> None:
@@ -465,7 +467,8 @@ class Frames:
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).
         Only SQL a planner wrote for this database comes here."""
         with self._lock:
-            return typed_by_plan(execute_redacted(self.connection, plan.sql, self.held_values()).to_arrow_table(), plan)
+            return typed_by_plan(execute_redacted(self.connection, plan.sql, self.held_values(), plan.params).to_arrow_table(),
+                                 plan)
 
     def held_values(self) -> tuple[str, ...]:
         """Every value the kept remote files' settings bind that the engine holds (a bearer URL): what a failure's words

@@ -158,7 +158,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         held: (table) => tablesTaken?.(table) ?? true,
         models: local.tables,
         hold: (work) => engine.exclusive!(work),
-        sqlOf: async (query) => (await planner.plan(query)).sql,
+        planOf: (query) => planner.plan(query),
         executionPlan: async (model, runtime, program) => {
           const p = local.another(model, runtime);
           try {

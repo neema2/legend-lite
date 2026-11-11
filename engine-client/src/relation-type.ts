@@ -30,6 +30,9 @@ export interface PlanColumn {
 export interface Plan {
   readonly sql: string;
   readonly columns: readonly PlanColumn[];
+  /** The values the statement's `?`s bind, in order: the plan's own data: payloads, read from its content by digest and
+   *  verified once where the host read the plan (plan-params.ts, the tenets audit's M3). None for a text that runs alone. */
+  readonly params?: readonly string[];
 }
 
 /**

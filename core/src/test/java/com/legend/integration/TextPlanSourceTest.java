@@ -37,6 +37,10 @@ class TextPlanSourceTest {
         assertEquals(java.util.List.of(), text.target().loads(), "no load: " + text.target().loads());
         assertFalse(text.statement().content().isEmpty(), "the payload is the statement's content: " + text.statement());
         assertFalse(text.sql().contains("data:"), "the payload is bound, never the statement's text: " + text.sql());
+        // a host runs it (the tenets audit's M3, 2026-11-11): the payload its statement binds is no longer beyond its
+        // text -- the host binds it from the plan carried beside the text
+        assertEquals(null, text.beyondItsText(), text.sql());
+        assertTrue(text.bindsPayload(), text.sql());
         // a file: source: its path a slot the run binds, never the statement's text
         String file = "file:///no/such/rows.json";
         var read = Compiler.query(ctx, "|sourceUrl('" + file + "')" + DataDeliveryMatrixTest.FROM_JSON);
@@ -46,11 +50,14 @@ class TextPlanSourceTest {
         assertTrue(fileText.statement().slots().stream().anyMatch(s -> s.binding()
                 .equals(new com.legend.executionplan.ExecutionPlan.Binding.Source(file))), fileText.statement()::toString);
         assertFalse(fileText.sql().contains("no/such"), "the path is bound, never written: " + fileText.sql());
+        // a file: path a host does not bind: beyond its text still
+        assertEquals("its statement binds a file: source's path", fileText.beyondItsText());
     }
 
     /** generatePlan carries the execution plan its text renders from, where the text does not run alone (its loads and
-     *  slots: lite's own field beside upstream's plan); arrowPlan, whose host runs the text itself, carries it too, and
-     *  refuses by name what the host cannot run yet (a data: source's payload its statement binds: the JSON pass). */
+     *  slots: lite's own field beside upstream's plan); arrowPlan and the JSON execute's plan half, whose host runs the
+     *  text itself, carry it too, the payload its statement binds in its content (the tenets audit's M3, 2026-11-11:
+     *  until then refused by name), so the host binds it. */
     @Test
     void generatePlanAndArrowPlanCarryTheExecutionPlan() {
         String model = DataDeliveryMatrixTest.model(DataDeliveryMatrixTest.bareConnection(DatabaseType.DuckDB), "");
@@ -66,6 +73,17 @@ class TextPlanSourceTest {
         assertTrue(com.legend.json.Json.toCompact(carried).contains("\"payload\""),
                 "the data: source's payload slot: " + generated.json());
         var arrow = com.legend.server.PureV1Api.arrowPlan(request, java.util.List.of(model));
-        assertTrue(arrow.json().contains("its statement binds a data: source's payload"), arrow.json());
+        assertEquals(200, arrow.status(), arrow.json());
+        var arrowed = com.legend.json.Json.parseObject(arrow.json());
+        assertTrue(arrowed.getString("sql").contains("?") && !arrowed.getString("sql").contains("data:"), arrow.json());
+        var root = arrowed.getObj("plan").getObj("root").getObj("sql");
+        assertTrue(com.legend.json.Json.toCompact(root.getArr("slots")).contains("\"payload\""), arrow.json());
+        assertFalse(root.getObj("content").fields().isEmpty(), "the payload, the statement's content: " + arrow.json());
+        // the JSON execute's plan half: its `run` the statement, the plan beside it to bind from
+        var json = com.legend.server.PureV1Api.jsonPlan(request, java.util.List.of(model));
+        assertEquals(200, json.status(), json.json());
+        var planned = com.legend.json.Json.parseObject(json.json());
+        assertEquals(planned.getString("sql"), planned.getString("run"));
+        assertFalse(planned.getObj("plan").getObj("root").getObj("sql").getObj("content").fields().isEmpty(), json.json());
     }
 }

@@ -158,7 +158,7 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
       parse: (text) => local.planner.parse(text),
       // over their grid's own planner, held until it is answered
       summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
-        async (query) => rows.engine!.run((await rows.planner!.plan(query)).sql, 0))),
+        async (query) => { const p = await rows.planner!.plan(query); return rows.engine!.run(p.sql, 0, undefined, p.params); })),
       make: async (their, how) => {
         const other = others.get(their);
         if (!other) throw new Error('that grid is no longer on the page');
@@ -313,7 +313,7 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
       inputs: async (their) => (await opened.get(their)).inputs,
       parse: (text) => local.planner.parse(text),
       summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
-        async (query) => rows.engine!.run((await rows.planner!.plan(query)).sql, 0))),
+        async (query) => { const p = await rows.planner!.plan(query); return rows.engine!.run(p.sql, 0, undefined, p.params); })),
       make: async (their, asked) => {
         if (joined !== undefined) {
           // a Dynamic Input set again an append still: its pick kept (its settings' Keep the rows of sets it)

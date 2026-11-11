@@ -514,8 +514,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  save the rest of report with warning?" -- agreed): every way a page leaves the screen -- Save, a page file, a share
  *  link -- writes a remote file's link without its query string (cube-document.ts savedSource, page-document.ts
  *  pageAsSaved) and says so (freshLinksWarning); a saved page reopened asks for a fresh link (sources.ts reopenRemote).
- *  Measured 432,386. */
-const BUDGET = 433_000;
+ *  Measured 432,386.
+ *  433,000 -> 434,500 (2026-11-11, the B checkpoint's tenets audit, M3, the orchestrator's go: a JSON connection's
+ *  data: payload, which DuckDB binds as a parameter, is read where the tab reads a plan -- from the plan beside the text,
+ *  by its digest, verified (engine-client plan-params.ts, the synchronous SHA-256 moved there from page-hash.ts) -- and
+ *  bound where the engine runs it (duckdb.ts #bound), the snap, the join summary and the Output carrying it).
+ *  Measured 433,818. */
+const BUDGET = 434_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -726,8 +731,9 @@ const BUDGET = 433_000;
  *  same date). Measured 419,122.
  *  419,500 -> 420,500 (2026-11-11, the B checkpoint's tenets audit, M2: the engine says every database failure with the
  *  values its kept settings bind taken out -- a presigned link's URL, its query string, each parameter -- so an expired
- *  link's error names no token; connection-settings.ts heldTexts/redactHeld, duckdb.ts #failed). Measured 420,058. */
-const ENGINE_BUDGET = 420_500;
+ *  link's error names no token; connection-settings.ts heldTexts/redactHeld, duckdb.ts #failed). Measured 420,058.
+ *  420,500 -> 421,500 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 420,811. */
+const ENGINE_BUDGET = 421_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1111,8 +1117,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  plan runner at startup it measured 449,333). Measured 446,567.
  *  447,000 -> 448,000 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
  *  same date). Measured 447,348.
- *  448,000 -> 449,000 (2026-11-11, the tenets audit's M2 -- the engine page's note of the same date). Measured 448,290. */
-const WIDGET_BUDGET = 449_000;
+ *  448,000 -> 449,000 (2026-11-11, the tenets audit's M2 -- the engine page's note of the same date). Measured 448,290.
+ *  449,000 -> 450,000 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 449,043. */
+const WIDGET_BUDGET = 450_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -54,14 +54,11 @@ public record QueryPlan(com.legend.executionplan.ExecutionPlan plan, ExprType ro
     }
 
     /**
-     * What of this plan neither its text nor its target's declared data says, or null where nothing: a pivot whose keys
-     * are read first, a statement binding a {@code file:} source's path or a {@code data:} payload, or a target whose
-     * loads make a {@code data:} source's session table and drop it after. A host that runs a plan's TEXT itself (the
-     * tab's DuckDB, Python's) refuses such a plan by name, never sending it to fail on a table no load made
-     * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5) -- its runner takes each over as it learns to run it (B3:
-     * the hosts run a plan's loads; until then a target's test data and a project's Data are the host's own tables, as
-     * they were); upstream's plan (generatePlan) carries lite's execution plan beside its text for it, where for a
-     * connection's declared test data its connection already says it, as upstream's does.
+     * What of this plan a host that runs its TEXT itself (the tab's DuckDB, Python's) cannot run, or null where nothing:
+     * a pivot whose keys are read first, or a statement binding a {@code file:} source's path. Such a plan is refused
+     * by name there, never sent to fail (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5). A {@code data:} payload its
+     * statement binds is no longer one (the B checkpoint's tenets audit, M3, 2026-11-11, the orchestrator's go): the host
+     * reads it from the plan it is given beside the text, by digest, verified once ({@link #bindsPayload}).
      */
     public @com.legend.base.Nullable String beyondItsText() {
         if (plan.root() instanceof com.legend.executionplan.ExecutionPlan.Keyed) {
@@ -71,13 +68,18 @@ public record QueryPlan(com.legend.executionplan.ExecutionPlan plan, ExprType ro
             if (slot.binding() instanceof com.legend.executionplan.ExecutionPlan.Binding.Source) {
                 return "its statement binds a file: source's path";
             }
-            if (slot.binding() instanceof com.legend.executionplan.ExecutionPlan.Binding.Payload) {
-                return "its statement binds a data: source's payload";
-            }
         }
         // (a target's data: session table, its AT_RELEASE load, went with the JSON pass, 2026-11-11: a payload is its
-        // statement's bound parameter, above, or its own rows in the text)
+        // statement's bound parameter, which the host binds from the plan's content, or its own rows in the text)
         return null;
+    }
+
+    /** Whether the statement binds a {@code data:} payload: the plan's own value, its text the statement's content by
+     *  its SHA-256, which a host binds to its slot -- what the text alone does not say (generatePlan carries the plan
+     *  for it, as it does for what {@link #beyondItsText} names). */
+    public boolean bindsPayload() {
+        return statement().slots().stream().anyMatch(s -> s.binding()
+                instanceof com.legend.executionplan.ExecutionPlan.Binding.Payload);
     }
 
     /** Whether the text runs as it is: the plan is its one statement, which binds no value and whose target loads

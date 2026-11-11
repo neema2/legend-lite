@@ -224,12 +224,13 @@ export class SnapManager implements Snaps {
    * Check size before materialising anything, so the user is told
    * "this is 40 million rows" instead of watching a tab die.
    */
-  async preflight(sourceSql: string, epoch: number): Promise<PreflightEstimate> {
+  async preflight(sourceSql: string, epoch: number, params: readonly string[] = []): Promise<PreflightEstimate> {
     // counted where the rows are: the remote live plane when there is one, by its own database's statement (a
-    // warehouse catalog that is Postgres, Postgres's: D5)
+    // warehouse catalog that is Postgres, Postgres's: D5) -- the live plan's values bound to its `?`s, which the count
+    // keeps in their order (a remote plane takes none: refused by name, WarehouseEngine)
     const engine = this.#remote ?? this.#localStore();
     const [count] = await this.#statements(engine.databaseType, [{ op: 'count', from: { query: sourceSql } }]);
-    const r = await engine.run(count!, epoch);
+    const r = await engine.run(count!, epoch, undefined, params);
     const raw = r.columns[0]?.values[0] ?? 0;
     const rowCount = typeof raw === 'number' ? raw : Number(raw);
 
@@ -259,9 +260,12 @@ export class SnapManager implements Snaps {
        * which owns the model.
        */
       readonly target: SnapTable;
+      /** The values `sourceSql` binds, in order (a plan's data: payloads: plan-params.ts, M3). */
+      readonly params?: readonly string[];
     },
   ): Promise<SnapInfo> {
-    const estimate = await this.preflight(sourceSql, epoch);
+    const params = options.params ?? [];
+    const estimate = await this.preflight(sourceSql, epoch, params);
     if (!estimate.withinLimit) {
       throw new SnapRefusal(estimate.refusal ?? 'snap refused');
     }
@@ -287,9 +291,14 @@ export class SnapManager implements Snaps {
       await loader.loadArrow({ ...(schema ? { schema } : {}), table: bare },
         this.#remote.arrowChunks(sourceSql, undefined, (r) => { pulledBy = r; }), prepare);
     } else {
-      for (const sql of await this.#statements(engine.databaseType, [
+      const made = await this.#statements(engine.databaseType, [
         { op: 'relation', kind: 'table', target: table, replace: true, from: { query: sourceSql } },
-      ])) await engine.run(sql, epoch);
+      ]);
+      // the values bind the one statement that reads the live plan; a copy made by several binds none of them
+      if (params.length > 0 && made.length !== 1) {
+        throw new SnapRefusal(`the copy is made by ${made.length} statements, and the live plan binds a data: payload one of them reads`);
+      }
+      for (const sql of made) await engine.run(sql, epoch, undefined, params);
     }
     // the copy made to hold what its model declares, and what reads it: the app's (SnapTable.landed); refused, it goes
     let source: ValueSpecification;

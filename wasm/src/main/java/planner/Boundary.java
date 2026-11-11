@@ -167,8 +167,10 @@ public final class Boundary {
 
     /**
      * A text plan as the tab and Python read it: {@code {"sql", "type"}}, and {@code "plan"} -- the execution plan the
-     * text renders from (B3, 2026-11-11), its target's loads and its slots -- where the text does not run alone. One a
-     * host cannot run yet ({@code QueryPlan.beyondItsText}) is refused by name here, before any host sends it.
+     * text renders from (B3, 2026-11-11), its target's loads and its slots, a {@code data:} payload's text its
+     * statement's content (which the host binds: plan-params.ts, compiler.plan_params; the tenets audit's M3) -- where
+     * the text does not run alone. One a host cannot run ({@code QueryPlan.beyondItsText}) is refused by name here,
+     * before any host sends it.
      */
     private static String planned(com.legend.plan.QueryPlan p) {
         String refused = p.beyondItsText();

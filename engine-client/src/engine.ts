@@ -50,6 +50,8 @@ export interface QueryEngine {
    * check the signal before starting, and say so in its own doc.
    */
   execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable>;
+  // (a plan's `params` -- the values its statement binds, M3 -- are bound by `execute` and `stream`, or refused by name by
+  // an engine that binds none: never dropped)
   /**
    * Run a PLANNED query and hand its rows over a chunk at a time, as the engine produces
    * them, each typed by the plan like `execute`'s; none is kept, so a whole table can pass
@@ -58,8 +60,12 @@ export interface QueryEngine {
    * as one chunk, and says so in its own doc. Same `signal` rules as `execute`.
    */
   stream(plan: Plan, epoch: number, onChunk: (chunk: ResultTable) => void, signal?: AbortSignal): Promise<void>;
-  /** Run raw SQL no planner wrote: names and values, no types. Same `signal` rules. */
-  run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable>;
+  /**
+   * Run raw SQL no planner wrote -- or a plan's statement as its text (a host's pure/v1 execute) -- answering names and
+   * values, no types. Same `signal` rules. `params`: the values its `?`s bind, in order (a plan's data: payloads,
+   * plan-params.ts, the tenets audit's M3); an engine that binds none refuses them by name, never runs the text alone.
+   */
+  run(sql: string, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable>;
   close(): Promise<void>;
 }
 

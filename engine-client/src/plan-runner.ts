@@ -30,6 +30,7 @@
 import type { HostOperationsSource } from './host-operations.ts';
 import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
 import { familyOf, isBoolean } from './types.ts';
+import { payloadValue } from './plan-params.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -49,8 +50,12 @@ export interface PlanSession {
   transaction(step: 'begin' | 'commit' | 'rollback'): Promise<void>;
 }
 
-interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly asText?: unknown } }
-interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown; readonly stamp?: string }
+interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly asText?: unknown; readonly digest?: string } }
+interface Sql {
+  readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown; readonly stamp?: string;
+  /** The payloads its slots bind, by digest (the JSON pass): the plan's own data. */
+  readonly content?: Readonly<Record<string, string>>;
+}
 
 /** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 18 since 2026-10-29
  *  (the result boundary program: a plan's answer is a `tdsResult` of typed columns, never a text result of a format;
@@ -399,6 +404,8 @@ export async function runPlan(plan: string, session: PlanSession,
     // session sends no trace comment, so a plan that reads one is not run here
     if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
     for (const slot of s.slots) {
+      // a data: payload is the plan's own value, bound from the statement's content (plan-params.ts, M3)
+      if (slot.binding._type === 'payload') continue;
       if (slot.binding._type !== 'one') {
         throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : slot.binding._type === 'payload' ? "a data: payload" : 'a list'}, which is not run here`);
       }
@@ -411,6 +418,8 @@ export async function runPlan(plan: string, session: PlanSession,
   if (o.established !== true) for (const statement of t.session ?? []) await session.run(statement, []);
   const values = new Map<string, PlanValue>();
   const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
+    // its payload's text from the statement's content, checked against its digest
+    if (slot.binding._type === 'payload') return payloadValue(s.content ?? {}, slot.binding.digest ?? '');
     if (!values.has(slot.parameter)) throw new PlanRefusal(`'${slot.parameter}' is bound before any step gives it`);
     return values.get(slot.parameter)!;
   });

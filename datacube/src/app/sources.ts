@@ -1216,7 +1216,7 @@ export function pageSources(d: SourcesOf): PageSources {
       const first = lambda([], from(source).limit(1).node);
       try {
         if (rows.runner) await rows.runner.host.planAndRun(first, 0);
-        else await rows.engine.run((await rows.planner.plan(first)).sql, 0);
+        else { const p = await rows.planner.plan(first); await rows.engine.run(p.sql, 0, undefined, p.params); }
       } catch (e) {
         throw new Error(`“${name}” cannot read its rows here (${e instanceof Error ? e.message : String(e)}): a class reads `
           + 'the tables the page that made it opened -- open that page, or its file, first');

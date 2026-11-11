@@ -396,7 +396,7 @@ public final class PureV1Api {
                 String runtime = runtimeOf(request, query);
                 QueryPlan plan = query.plan(runtime);
                 Map<String, Object> out = executionPlan(plan, connectionOf(model.records(), runtime, target.store()));
-                if (plan.beyondItsText() != null) {
+                if (plan.beyondItsText() != null || plan.bindsPayload()) {
                     // what runs the text where neither it nor its connection says it (a data: or file: source, a pivot
                     // whose keys are read first): lite's execution plan it renders from (B3, 2026-11-11), a field of
                     // lite's own beside upstream's plan -- a connection's declared test data its connection already
@@ -653,9 +653,13 @@ public final class PureV1Api {
                         + "is not one (" + plan.root().getClass().getSimpleName() + ": a pivot whose columns the data "
                         + "names, or a program that writes); legend-lite's server runs it");
             }
-            if (!result.sql().slots().isEmpty()) {
+            // a data: payload is the plan's own value, which the host binds from the plan carried below (the tenets
+            // audit's M3, 2026-11-11); any other value -- a parameter, a key's cell, a file's path -- a host does not bind
+            long others = result.sql().slots().stream().filter(sl -> !(sl.binding()
+                    instanceof com.legend.executionplan.ExecutionPlan.Binding.Payload)).count();
+            if (others > 0) {
                 throw new com.legend.error.NotImplementedException("a host runs a statement's text, and this one binds "
-                        + "values (" + result.sql().slots().size() + "); legend-lite's server runs it");
+                        + "values (" + others + "); legend-lite's server runs it");
             }
             if (!result.sql().target().loads().isEmpty()) {
                 // the statement reads what its target's loads make (a connection's test data, a project's Data), and a
@@ -671,6 +675,10 @@ public final class PureV1Api {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", statement);
             out.put("run", statement);
+            if (!result.sql().slots().isEmpty()) {
+                // what the host binds to `run`'s `?`s: the plan, its payloads its statement's content by digest
+                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan)));
+            }
             out.put("shape", result.shape().name());
             out.put("resultColumns", Json.parse(com.legend.executionplan.PlanJson.writeColumns(result.columns())));
             if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {

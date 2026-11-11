@@ -284,6 +284,11 @@ def _connection_settings(settings: Any, url: str, bearer: str | None) -> tuple[
     return tuple(out), tuple(held)
 
 
+# a warehouse runs SQL text alone (the tenets audit's M3): a plan whose statement binds a data: payload is not sent there
+_WAREHOUSE_BINDS_NONE = ("this query's statement binds a data: source's payload, which the warehouse does not take: it runs "
+                         "on this engine's own database or legend-lite's server")
+
+
 def _bearer(url: str) -> list[str]:
     """The values a remote URL holds that a message must not name: the URL itself where its query string carries a token
     (a presigned link: DataCube's remote.ts ``isBearer``), else none -- an address is said as it is."""
@@ -1418,6 +1423,9 @@ class Engine:
             plan = on(self.planner.read, planned)
         except LegendError as refused:
             return _said(422, f'the snap could not be planned: {refused}')
+        if plan.params:
+            # the warehouse runs SQL text alone: a statement binding a data: payload (M3) is refused by name, never sent
+            return _said(422, _WAREHOUSE_BINDS_NONE)
         try:
             # DataCube's own code: what says a count past the limit, and what models the copy
             headless = self._headless()
@@ -1475,17 +1483,24 @@ class Engine:
                 plan = self.planner.read(planned)
             except LegendError as refused:
                 return _said(422, f'the snap could not be planned: {refused}')
+            # the plan's values (its data: payloads, M3) bound to the `?`s the count and the copy keep in their order
+            params = list(plan.params)
             (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}}, database_type='DuckDB')
             try:
-                rows = int(self.frames.connection.execute(counting).fetchone()[0])
+                rows = int(self.frames.connection.execute(counting, params).fetchone()[0])
             except duckdb.Error as refused:
                 return _said(422, f'the snap could not be counted: {refused}')
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
 
             def land(connection: Any, target: dict[str, Any]) -> None:
-                _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
-                                       'from': {'query': plan.sql}})
+                made = _host.statements({'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
+                                         'from': {'query': plan.sql}})
+                if params and len(made) != 1:
+                    raise ValueError(f'the copy is made by {len(made)} statements, and the plan binds a data: payload '
+                                     'one of them reads')
+                for sql in made:
+                    connection.execute(sql, params)
 
             return self._landed(headless, land, rows, None)
 
@@ -1522,6 +1537,8 @@ class Engine:
             plan = on(self.planner.read, planned)
         except LegendError:
             return _planned({'plan': planned})
+        if plan.params:
+            return _planned({'plan': planned, 'error': _WAREHOUSE_BINDS_NONE}, 422)
         try:
             said: dict[str, Any] = {}
             rows = typed_by_plan(_arrow_of(table.warehouse.arrow_chunks(plan.sql, said.update)), plan)
@@ -1647,7 +1664,7 @@ class Engine:
             except LegendError:
                 return _planned({'plan': planned})
             try:
-                rows = typed_by_plan(project.cursor.execute(plan.sql).to_arrow_table(), plan)
+                rows = typed_by_plan(project.cursor.execute(plan.sql, list(plan.params)).to_arrow_table(), plan)
             except (duckdb.Error, UntypedColumn) as failure:
                 return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
@@ -1698,8 +1715,10 @@ class Engine:
                 if answer.status != 200:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
-                # a failure's words name no value this engine holds (a bearer URL: M2)
-                rows = execute_redacted(connection, planned['sql'], self.frames.held_values()).to_arrow_table()
+                # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
+                # value this engine holds (a bearer URL: M2)
+                rows = execute_redacted(connection, planned['sql'], self.frames.held_values(),
+                                        compiler.plan_params(planned.get('plan'))).to_arrow_table()
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -1715,7 +1734,9 @@ class Engine:
                 planned = self.planner.execute_json_plan(body, served)
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
-                cursor = execute_redacted(connection, json.loads(planned.body)['run'], self.frames.held_values())
+                said = json.loads(planned.body)
+                cursor = execute_redacted(connection, said['run'], self.frames.held_values(),
+                                          compiler.plan_params(said.get('plan')))
                 names = [d[0] for d in cursor.description]
                 rows = compiler.host_rows(names, cursor.fetchall())
         answer = self.planner.execute_json_answer(planned.body, rows)
