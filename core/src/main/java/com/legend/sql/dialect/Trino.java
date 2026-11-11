@@ -91,6 +91,14 @@ public final class Trino extends AnsiSqlRenderer {
         return 9;
     }
 
+    /** {@inheritDoc} Trino holds no session table: its tables are the catalog's, every connection's (measured
+     *  2026-11-11 on the memory connector: probes/TrinoDataTable.java.txt), so a payload is the statement's own
+     *  VALUES rows, each element parsed by {@code json_parse}. */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.INLINE;
+    }
+
     /** {@inheritDoc} 6: its date-time column is a {@code TIMESTAMP(6)} (S181, A7, 2026-11-10). */
     @Override
     public int timestampColumnDigits() {

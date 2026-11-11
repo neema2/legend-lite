@@ -900,6 +900,12 @@ public final class DuckDb extends AnsiSqlRenderer {
     /** {@inheritDoc} In DuckDB's {@code temp} catalog: {@code DROP TABLE IF EXISTS temp.t} drops the session's
      *  temporary table and leaves a user's {@code t} as it is, where an unqualified drop would drop the user's when the
      *  session has none (measured 2026-11-10 on 1.5.6, A4): dropped there first, then made TEMPORARY. */
+    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.SESSION_TABLE;
+    }
+
     @Override
     public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         String drop = render(new com.legend.sql.SqlDdl.DropTable("temp", base, com.legend.sql.NameQuoting.BARE));

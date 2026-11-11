@@ -2424,6 +2424,14 @@ public final class MongoDb extends AnsiSqlRenderer {
         return 3;
     }
 
+    /** {@inheritDoc} MongoDB holds no session collection: a collection is every client's, and a drop by name drops
+     *  a user's collection of the name (measured 2026-11-11 on 8.0: probes/MongoDbDataTable.java.txt), so a payload is
+     *  the pipeline's own {@code $documents} stage, each element the document it spells. */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.INLINE;
+    }
+
     /** {@inheritDoc} 3: a BSON date keeps milliseconds (S181, A7, 2026-11-10). */
     @Override
     public int timestampColumnDigits() {

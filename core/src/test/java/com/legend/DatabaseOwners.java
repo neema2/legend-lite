@@ -197,6 +197,9 @@ final class DatabaseOwners {
             // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A7 (S181, ruled): each database's kept digits of a second,
             // a literal's, a column's and a parameter's slot's, by design
             "core/src/test/java/com/legend/planner/DateTimeFractionTest.java",
+            // 2026-11-11 (the user: JSON on every database): a data: source on each embedded server, by the delivery
+            // each dialect declares, by design
+            "core/src/test/java/com/legend/exec/DataSourceServersTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

@@ -136,6 +136,12 @@ public final class SQLite extends AnsiSqlRenderer {
      *  temp.t} never reaches a user's {@code main.t} and is a no-op where the connection holds none; an unqualified read
      *  finds the temporary table first; another connection does not see it. The drop is spelled here: a schema-qualified
      *  name is otherwise one delimited name on SQLite ({@link #tableName}). */
+    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.SESSION_TABLE;
+    }
+
     @Override
     public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         String drop = "DROP TABLE IF EXISTS temp." + ddlIdentifier(base, false);

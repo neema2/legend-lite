@@ -227,7 +227,14 @@ class DataMechanismCensusTest {
                     "if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv))"),
                     "EmbeddedDataKindsTest")),
             new Row("M7-authored", "executeInDb: SQL the user wrote",
-                    new Staying("P9: an effect's statements are the author's text, folded")));
+                    new Staying("P9: an effect's statements are the author's text, folded")),
+            // BOUNDED (2026-11-11, the user's ruling: "we need to make json work everywhere"; the orchestrator's brief
+            // of that day, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): a data: payload is a session table the plan's
+            // load makes wherever the database holds one, and the statement's own rows (VALUES, $documents) only on the
+            // databases measured to hold none -- Trino, ClickHouse, MongoDB -- each a dialect's declaration
+            // (SqlDialect.dataDelivery), never a default and never a fallback
+            new Row("M18", "a data: payload as the statement's own rows", new Bounded("JSON on every database",
+                    List.of(), "DataDeliveryDeclaredTest")));
 
     /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets
      *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). */
@@ -272,7 +279,8 @@ class DataMechanismCensusTest {
         // the inventory's 17: M7 counted once, in its two halves (the seed forms a load, the author's statements not);
         // M15 likewise since B2c, 2026-11-11 (the fixtures' own writes bounded, the referee's replay B2b's)
         Set<String> want = new TreeSet<>(Arrays.asList("M1", "M2", "M3", "M4", "M5", "M6", "M7-seed", "M7-authored",
-                "M8", "M9", "M10", "M11", "M12", "M13-output", "M14", "M15-fixtures", "M15-referee", "M16", "M17"));
+                "M8", "M9", "M10", "M11", "M12", "M13-output", "M14", "M15-fixtures", "M15-referee", "M16", "M17",
+                "M18"));
         assertEquals(want, ids, "the census's rows are the inventory's mechanisms");
     }
 

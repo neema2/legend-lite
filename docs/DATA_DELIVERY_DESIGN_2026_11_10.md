@@ -293,9 +293,16 @@ Deleted from the plan:
   TEMPORARY TABLE`: another connection reads the user's table of the name, the drop never reaches it); ClickHouse 25.8
   holds one in an HTTP session only (without one the table is gone with its request, and the read names the user's
   table of the name); Trino (the memory connector) and MongoDB 8.0 hold none (a second connection reads the table; on
-  MongoDB the drop by name drops the user's collection), so both refuse a `data:` source by name (register S190,
-  pending the user's ruling). Snowflake, Databricks and BigQuery are their lane sessions' to measure at the B
-  checkpoint; refused until then. Spelling the three that hold one is the B checkpoint's work.
+  MongoDB the drop by name drops the user's collection). Snowflake, Databricks and BigQuery are their lane sessions'
+  to measure at the B checkpoint; refused by name until then (register S190).
+- **JSON on every database (the user, 2026-11-11: "we need to make json work everywhere"):** the delivery is the
+  dialect's DECLARATION (`SqlDialect.dataDelivery`), chosen at planning from the measurements above, never a fallback:
+  a SESSION TABLE on DuckDB, H2, SQLite, Postgres, MariaDB and MySQL (`DROP`/`CREATE TEMPORARY TABLE`, the session's
+  own); the STATEMENT'S OWN ROWS on Trino (VALUES, each element `json_parse`d), ClickHouse (its `values` table
+  function; a session id minted per run is exec's, so a plan cannot name its session's temporary table) and MongoDB
+  (a `$documents` stage, each element the document it spells) -- census M18, BOUNDED to these three
+  (`DataDeliveryDeclaredTest`); REFUSED by name on the three not yet measured. A payload of no element is refused by
+  name where it would be rows (VALUES holds at least one). Measured on each embedded server: `DataSourceServersTest`.
 - **The text plan (generatePlan, arrowPlan):** `TypedQuery.plan` is one statement's text, which carries neither a load
   nor a bound path: a `data:` or `file:` source is refused by name before render
   (`PlanMaker.refuseLiveSourcesInText`), and the execution plan carries both. **Not yet as §4 says:** the text is not

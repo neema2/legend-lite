@@ -84,7 +84,9 @@ JARS = {
     "mariadb_jdbc": struct(
         coordinate = "org.mariadb.jdbc:mariadb-java-client:3.5.10",
         sha256 = "919b8c1c771d9ee3465811462f242c9543ab401e140c64988ddbf1d8abcb18b2",
-        users = ["pct"],
+        # core: //core:data_source_servers_test, a data: source on each embedded server (2026-11-11, the user: JSON on
+        # every database); a test's runtime dependency, never shipped
+        users = ["core", "pct"],
     ),
     # Trino's JDBC driver (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): the PCT Trino lanes' sessions on the
     # embedded server (@embedded_trino). Test-only; one shaded jar with no dependencies. Apache-2.0. Checked against
@@ -92,7 +94,9 @@ JARS = {
     "trino_jdbc": struct(
         coordinate = "io.trino:trino-jdbc:483",
         sha256 = "518062369fdfa937b35f11aa45276daa31cccaaad3c8c05eb51e674e23a419e3",
-        users = ["pct"],
+        # core: //core:data_source_servers_test, a data: source on each embedded server (2026-11-11, the user: JSON on
+        # every database); a test's runtime dependency, never shipped
+        users = ["core", "pct"],
     ),
     # ClickHouse's JDBC driver (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19): the PCT ClickHouse lanes'
     # sessions on the embedded server (@embedded_clickhouse), over its HTTP port. Test-only;
@@ -101,7 +105,9 @@ JARS = {
     "clickhouse_jdbc": struct(
         coordinate = "com.clickhouse:clickhouse-jdbc:0.10.0:all-dependencies",
         sha256 = "ba4325c59a8ff5ec6cb7cf85b206e4317e6be5d056512aadc7a6e6a4abbd3e81",
-        users = ["pct"],
+        # core: //core:data_source_servers_test, a data: source on each embedded server (2026-11-11, the user: JSON on
+        # every database); a test's runtime dependency, never shipped
+        users = ["core", "pct"],
     ),
     "sqlite_jdbc": struct(
         coordinate = "org.xerial:sqlite-jdbc:3.47.1.0",

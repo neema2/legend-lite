@@ -187,14 +187,52 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
                     return s;
                 }
                 read = true;
-                SqlDdl.ColumnType type = dialect.dataSourceColumn(u.url());
                 boolean frame = u.form() == SqlSource.SourceUrl.Form.RECORDS;
+                // the delivery the database declares, measured (the user, 2026-11-11: JSON on every database): its
+                // session table, or its own inline rows where it holds none -- never one tried after the other
+                switch (dialect.dataDelivery()) {
+                    case SESSION_TABLE -> {
+                    }
+                    case INLINE -> {
+                        return inline(u, frame);
+                    }
+                    case REFUSED -> throw new com.legend.sql.DialectCapability("a data: source on "
+                            + dialect.getClass().getSimpleName() + ": no delivery of a data: payload is measured on"
+                            + " this database yet (a session table or its inline rows; register S190)");
+                }
+                SqlDdl.ColumnType type = dialect.dataSourceColumn(u.url());
                 SqlDialect.DataTable table = tables.computeIfAbsent(new Key(content(u.url()), frame),
                         k -> made(k, u.url(), type));
                 Map<String, SqlDdl.ColumnType> stored = frame ? Map.of(COLUMN, type, ORDINAL, ORDINAL_TYPE)
                         : Map.of(COLUMN, type);
                 return new SqlSource.Table(table.read(), u.alias(), u.outputs(), false, stored, NameQuoting.BARE);
             }
+        }
+
+        /**
+         * {@code u}'s payload as the statement's own rows, on a database that holds no session table of a load's
+         * ({@link SqlDialect.DataDelivery#INLINE}; census M18, BOUNDED to those databases): each element, or a frame's
+         * record and its place, a row -- the element's JSON text the database parses ({@code CAST(... AS JSON)}, as its
+         * dialect spells it: Trino's {@code json_parse}, MongoDB's document). The payload cut as the session table's is
+         * ({@link #elements}, {@link #records}), never re-printed. A payload of no element has no row to write, and is
+         * refused by name on these databases (VALUES holds at least one row).
+         */
+        private SqlSource inline(SqlSource.SourceUrl u, boolean frame) {
+            String content = content(u.url());
+            List<String> elements = frame ? records(content, u.url()) : elements(content, u.url());
+            if (elements.isEmpty()) {
+                throw new com.legend.sql.DialectCapability("a data: source of no element on "
+                        + dialect.getClass().getSimpleName() + ", which holds a payload as the statement's own rows:"
+                        + " there is no row to write");
+            }
+            List<List<SqlExpr>> rows = new ArrayList<>(elements.size());
+            for (int i = 0; i < elements.size(); i++) {
+                SqlExpr element = new SqlExpr.Cast(new SqlExpr.StringLit(elements.get(i)),
+                        com.legend.sql.SqlType.Scalar.JSON);
+                rows.add(frame ? List.of(element, new SqlExpr.IntLit(i)) : List.of(element));
+            }
+            return new SqlSource.Values(rows, frame ? List.of(COLUMN, ORDINAL) : List.of(COLUMN), u.alias(),
+                    u.outputs());
         }
 
         /** The table of {@code key}: made, filled and released as its database spells a session table. */

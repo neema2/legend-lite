@@ -47,6 +47,12 @@ public class H2 extends AnsiSqlRenderer {
      * still rolls back). A drop in a schema that was never made raises ("Schema not found", measured), so the release
      * makes it first: it runs after the run, in no transaction of the run's.
      */
+    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.SESSION_TABLE;
+    }
+
     @Override
     public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         String name = base.toUpperCase(java.util.Locale.ROOT);

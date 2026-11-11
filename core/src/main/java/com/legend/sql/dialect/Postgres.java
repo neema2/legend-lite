@@ -223,6 +223,12 @@ public final class Postgres extends AnsiSqlRenderer {
      *  pg_temp.t} never reaches a user's {@code public.t} and is a no-op where the session holds none; an unqualified
      *  read finds the session's temporary table first (pg_temp is searched first). Postgres's DDL is transactional, so
      *  nothing commits early. */
+    /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.SESSION_TABLE;
+    }
+
     @Override
     public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         String drop = "DROP TABLE IF EXISTS pg_temp." + ddlIdentifier(base, false);

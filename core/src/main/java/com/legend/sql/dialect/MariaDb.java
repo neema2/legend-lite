@@ -198,6 +198,31 @@ public class MariaDb extends AnsiSqlRenderer {
         return 6;
     }
 
+    /** {@inheritDoc} A session table of the load's: MariaDB's (and MySQL's) TEMPORARY table is the connection's own --
+     *  another connection reads a user's table of the name, the drop never reaches it, and neither statement commits
+     *  an open transaction (measured 2026-11-11 on MariaDB 11.4 and MySQL 8.4: probes/MariaDbDataTable.java.txt,
+     *  MySqlDataTable.java.txt). */
+    @Override
+    public SqlDialect.DataDelivery dataDelivery() {
+        return SqlDialect.DataDelivery.SESSION_TABLE;
+    }
+
+    /** {@inheritDoc} {@code DROP TEMPORARY TABLE} names the session's temporary table alone (a user's table of the name
+     *  untouched, measured), so the make starts there and the release is it; the table unqualified, the session's
+     *  own, read before a permanent table of its name. */
+    @Override
+    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        String drop = "DROP TEMPORARY TABLE IF EXISTS " + base;
+        return new SqlDialect.DataTable(null, base, java.util.List.of(), java.util.List.of(drop,
+                "CREATE TEMPORARY TABLE " + base + " (" + ddlColumns(columns) + ")"), java.util.List.of(drop));
+    }
+
+    /** {@inheritDoc} Each element's JSON text, which MariaDB's JSON functions read (its JSON column is text). */
+    @Override
+    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    }
+
     /** {@inheritDoc} 6: its date-time column is a {@code DATETIME(6)} (S181, A7, 2026-11-10). */
     @Override
     public int timestampColumnDigits() {

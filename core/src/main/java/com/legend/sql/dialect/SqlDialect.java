@@ -87,6 +87,29 @@ public interface SqlDialect {
                 + " session table of a load's: " + base);
     }
 
+    /**
+     * How a {@code data:} payload reaches this database, chosen at planning (B, 2026-11-11, the user: "we need to make
+     * json work everywhere"; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): each a DECLARATION of the dialect's, measured,
+     * never a fallback from one form to another.
+     */
+    enum DataDelivery {
+        /** A session table the plan's load makes, fills and drops ({@link #dataTable}): the database holds one. */
+        SESSION_TABLE,
+        /** The payload's elements as the statement's own rows (a relation of literals: VALUES, MongoDB's
+         *  {@code $documents}), where the database holds no session table of a load's (measured: Trino's tables are
+         *  every connection's; MongoDB's collections every client's; ClickHouse keeps a temporary table only in an HTTP
+         *  session the plan cannot name). The data in the statement's text: BOUNDED to these databases (census
+         *  M18). */
+        INLINE,
+        /** Neither measured on this database yet: a {@code data:} source refused by name. */
+        REFUSED
+    }
+
+    /** This database's {@link DataDelivery}: refused unless the dialect declares a measured one. */
+    default DataDelivery dataDelivery() {
+        return DataDelivery.REFUSED;
+    }
+
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
      *  none) and only read after (a server engine's system database, SystemDatabase). Default: the table, then
      *  one INSERT of its rows -- this interface's own DDL and DML renders. */

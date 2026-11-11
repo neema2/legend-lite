@@ -547,6 +547,8 @@ legend_java_library(
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
+            # a data: source on every server database is :data_source_servers_test's alone (2026-11-11)
+            "src/test/java/com/legend/exec/DataSourceServersTest.java",
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
@@ -1021,6 +1023,49 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@mongodb_driver_core//jar",
         "@mongodb_driver_sync//jar",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# A data: source on every server database this session runs (the user, 2026-11-11: JSON on every database;
+# docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): the payload read by the delivery each dialect declares -- MariaDB's and
+# MySQL's session table, Trino's, ClickHouse's and MongoDB's own rows -- on their embedded servers (Linux x86_64: every
+# server's builds), its own target as MongoDB's plan test is
+junit_test(
+    name = "data_source_servers_test",
+    memory_mb = 1536,
+    size = "large",
+    srcs = ["src/test/java/com/legend/exec/DataSourceServersTest.java"],
+    data = [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+        "@embedded_mariadb//:mariadb",
+        "@embedded_mariadb//:mariadb/MARIADB_ROOT",
+        "@embedded_mongodb//:mongodb",
+        "@embedded_mongodb//:mongodb/MONGODB_ROOT",
+        "@embedded_mysql//:mysql",
+        "@embedded_mysql//:mysql/MYSQL_ROOT",
+        "@embedded_trino//:trino",
+        "@embedded_trino//:trino/TRINO_ROOT",
+    ],
+    jvm_flags = [
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        "-Dembedded.mariadb.root=$(rlocationpath @embedded_mariadb//:mariadb/MARIADB_ROOT)",
+        "-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)",
+        "-Dembedded.mysql.root=$(rlocationpath @embedded_mysql//:mysql/MYSQL_ROOT)",
+        "-Dembedded.trino.root=$(rlocationpath @embedded_trino//:trino/TRINO_ROOT)",
+    ],
+    select = ["--select-class=com.legend.exec.DataSourceServersTest"],
+    tags = ["manual"],
+    # the product's driver set (MongoDB's connector among them) and the servers' test-only JDBC drivers
+    runtime_deps = [":drivers", "@clickhouse_jdbc//jar", "@mariadb_jdbc//jar", "@trino_jdbc//jar"],
+    target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        ":test_backends",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
 )
