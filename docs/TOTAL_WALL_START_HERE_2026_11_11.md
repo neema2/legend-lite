@@ -282,7 +282,8 @@ the plan, as its statement's content keyed by SHA-256 (§5.9).
 - **A number's spelling is the database's.** DuckDB's `json_each` prints `1.50` as `1.5`, inside objects too. SQLite
   does the same for a top-level real: getting the element's own text back needs a path lookup per element, which is
   quadratic (19 s at 100,000). MySQL's JSON already did this. The values are JSON-equal, and member reads (`get`, cast)
-  are unchanged. Reported, not a register row.
+  are unchanged. Register S194, ruled by the user (2026-11-11): "Is that the input JSON to the database? Then that
+  makes sense bc it's the dialects plan for the dialects json".
 - **Size limits:**
   - A limit that is the database's own property is refused at planning by name: Trino's 1,000,000 characters.
   - A limit that is a connection setting is left to the database, and its refusal reaches the caller: ClickHouse's
