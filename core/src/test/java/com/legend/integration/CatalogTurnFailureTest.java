@@ -38,6 +38,25 @@ class CatalogTurnFailureTest {
             + " assertSize(x::P.all(), 2);"
             + " assertEquals(1, meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'P')->size());}";
 
+    /** A STAGED catalog read (the B checkpoint's correctness audit, C9, 2026-11-11): its rows read the process's
+     *  catalog alone, in a body whose program runs on the user's database, and were staged there -- a
+     *  {@code CREATE TEMPORARY TABLE ... AS} reading catalog tables the user's database does not hold ("table not
+     *  found"). They are spliced into their readers, each routed to the catalog by its stores; the catalog's
+     *  registration is in place for each (C1). */
+    static final String STAGED = "{| let s = meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'P')"
+            + "->project(~[name: c|$c.name])->meta::legend::lite::stage(); $s->size();}";
+
+    /** {@link #STAGED}'s rows beside a fresh catalog read of the same class: each once. */
+    static final String STAGED_AND_READ = "{| let s = meta::pure::metamodel::type::Class.all()"
+            + "->filter(c|$c.name == 'P')->project(~[name: c|$c.name])->meta::legend::lite::stage();"
+            + " $s->concatenate(meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'P')"
+            + "->project(~[name: c|$c.name]));}";
+
+    /** {@link #STAGED} beside a read of the user's table, between the let and its reader. */
+    static final String STAGED_BESIDE_THE_USERS = "{| let s = meta::pure::metamodel::type::Class.all()"
+            + "->filter(c|$c.name == 'P')->project(~[name: c|$c.name])->meta::legend::lite::stage();"
+            + " x::P.all()->size(); $s->size();}";
+
     static List<DatabaseType> inProcess() {
         return TestBackends.inProcess().stream().map(b -> b.type()).distinct().toList();
     }
@@ -53,6 +72,18 @@ class CatalogTurnFailureTest {
     void aFailedGuardedCatalogReadBesideTheBodysOwnLeavesTheNextOneAnswered(DatabaseType db, @TempDir Path dir)
             throws Exception {
         assertPasses(mixed(db), db, dir);
+    }
+
+    @ParameterizedTest
+    @MethodSource("inProcess")
+    void aStagedCatalogReadIsReadOnTheCatalog(DatabaseType db, @TempDir Path dir) throws Exception {
+        String model = DataDeliveryMatrixTest.model(DataDeliveryMatrixTest.bareConnection(db), "");
+        assertPasses(new DataDeliveryMatrixTest.Data(model, STAGED, List.of(List.of("1")), "x::RT"), db, dir);
+        assertPasses(new DataDeliveryMatrixTest.Data(model, STAGED_AND_READ, List.of(List.of("P"), List.of("P")),
+                "x::RT"), db, dir);
+        String withRows = mixed(db).model();
+        assertPasses(new DataDeliveryMatrixTest.Data(withRows, STAGED_BESIDE_THE_USERS, List.of(List.of("1")),
+                "x::RT"), db, dir);
     }
 
     /** {@link #BODY} on {@code db}, reading the catalog alone (a system-routed body). */
