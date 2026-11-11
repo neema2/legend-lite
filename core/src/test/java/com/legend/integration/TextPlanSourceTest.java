@@ -48,6 +48,34 @@ class TextPlanSourceTest {
         assertFalse(fileText.sql().contains("no/such"), "the path is bound, never written: " + fileText.sql());
     }
 
+    /** A CATALOG READ does not run as its text (the B checkpoint's tenets audit, LOW 8, 2026-11-11): its statement runs
+     *  on the process's catalog, never the runtime's connection, so generatePlan carries the execution plan beside it
+     *  (its System target) and arrowPlan, whose host runs the text itself, refuses it by name -- on an H2 runtime (its
+     *  catalog H2's in process) and a Postgres one (its catalog DuckDB's, whose text was answered as Postgres's) alike:
+     *  until then the catalog's text was answered under the runtime's connection, no plan beside it. */
+    @Test
+    void aCatalogReadDoesNotRunAsItsText() {
+        for (DatabaseType db : java.util.List.of(DatabaseType.H2, DatabaseType.Postgres)) {
+            String model = DataDeliveryMatrixTest.model(DataDeliveryMatrixTest.connection(db,
+                    DataDeliveryMatrixTest.localH2("testDataSetupCSV: ''")), "");
+            var query = Compiler.query(Compiler.compileModel(model), "|" + DataDeliveryMatrixTest.CATALOG);
+            assertTrue(query.plan("x::RT").target().database()
+                    instanceof com.legend.executionplan.ExecutionPlan.Database.System, db.name());
+            String lambda = com.legend.server.PureV1Api.grammarToJsonLambda("|" + DataDeliveryMatrixTest.CATALOG,
+                    false).json();
+            String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda + ",\"model\":"
+                    + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", model))
+                    + ",\"runtime\":{\"runtime\":\"x::RT\"},\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+            var generated = com.legend.server.PureV1Api.generatePlan(request);
+            assertEquals(200, generated.status(), generated.json());
+            var carried = com.legend.json.Json.parseObject(generated.json()).getObjOr("legendLitePlan", null);
+            assertTrue(carried != null && com.legend.json.Json.toCompact(carried).contains("\"system\""),
+                    db + ": the execution plan beside the text, its catalog target: " + generated.json());
+            var arrow = com.legend.server.PureV1Api.arrowPlan(request, java.util.List.of(model));
+            assertTrue(arrow.json().contains("the system metamodel store"), db + ": " + arrow.json());
+        }
+    }
+
     /** generatePlan carries the execution plan its text renders from, where the text does not run alone (its loads and
      *  slots: lite's own field beside upstream's plan); arrowPlan, whose host runs the text itself, carries it too, and
      *  refuses by name what the host cannot run yet (a data: source's payload its statement binds: the JSON pass). */
