@@ -135,7 +135,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             return super.sourceUrl(writer, u);
         }
         writer.append("SELECT legend_elements[legend_index] AS ").append(aliasIdent(payloadColumn(u).name()));
-        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+        if (u.placed()) {
             com.legend.sql.OutputCol place = placeColumn(u);
             writer.append(", CAST(legend_index - 1 AS ").append(castTypeName(place.type())).append(") AS ")
                     .append(aliasIdent(place.name()));

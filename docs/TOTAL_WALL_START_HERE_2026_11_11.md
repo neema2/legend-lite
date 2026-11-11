@@ -279,6 +279,20 @@ the plan, as its statement's content keyed by SHA-256 (§5.9).
   and typed values. `JsonPayloadFormsTest` reads each element back by its JSON value through the product door: in
   process, on Postgres (its matrix target) and on the servers (`data_source_servers_test`), plus a frame's records with
   their places.
+- **The payload's order where a query asks none (2026-11-11, the Databricks lane's finding).** The bug: a JSON
+  connection's model-to-model query wrote its records' order nowhere. The road (the runtime's identity set,
+  `sourceUrl(url)->map(...)`) read the elements form with no place. It did the same at 560e99a, where the session table
+  was read with no ORDER BY, so this is not a regression of the pass.
+  - Upstream yields a JSON connection's instances in the array's order: `JsonDataReader` walks the array by index into
+    a FIFO queue.
+  - The planner now orders such a statement by the place (`DataSources.inPayloadOrder`). This applies to a select
+    reading a `data:` source directly with named columns (a star is named as the source's own), no sort, no grouping,
+    no aggregate or window and no DISTINCT.
+  - Every delivery numbers the elements from 0; the place is read where the source's outputs ask for it
+    (`SourceUrl.placed`).
+  - A query's own sort stays its own; a `take` keeps the first records in that order.
+  - `JsonPayloadFormsTest.assertModelOrder` runs on every database it runs on, with records out of key order;
+    `DataSourcesDeliveryTest` pins the ORDER BY on every dialect. No register row: lite now does what upstream does.
 - **A number's spelling is the database's.** DuckDB's `json_each` prints `1.50` as `1.5`, inside objects too. SQLite
   does the same for a top-level real: getting the element's own text back needs a path lookup per element, which is
   quadratic (19 s at 100,000). MySQL's JSON already did this. The values are JSON-equal, and member reads (`get`, cast)

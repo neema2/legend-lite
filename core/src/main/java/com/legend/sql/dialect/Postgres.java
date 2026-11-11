@@ -235,7 +235,7 @@ public final class Postgres extends AnsiSqlRenderer {
             return super.sourceUrl(writer, u);
         }
         writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
-        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+        if (u.placed()) {
             com.legend.sql.OutputCol place = placeColumn(u);
             writer.append(", CAST(legend_payload.ordinality - 1 AS ").append(castTypeName(place.type()))
                     .append(") AS ").append(aliasIdent(place.name()));

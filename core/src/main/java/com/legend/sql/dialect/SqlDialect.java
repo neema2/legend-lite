@@ -57,15 +57,11 @@ public interface SqlDialect {
             elements = java.util.List.copyOf(elements);
         }
 
-        /** The relation's columns: the element, and a frame's place. */
+        /** The relation's columns: the element, and its place where the source reads it
+         *  ({@link com.legend.sql.SqlSource.SourceUrl#placed}). */
         public java.util.List<String> columnNames() {
-            return frame() ? java.util.List.of(ELEMENT, com.legend.sql.SqlSource.SourceUrl.PLACE)
+            return source.placed() ? java.util.List.of(ELEMENT, com.legend.sql.SqlSource.SourceUrl.PLACE)
                     : java.util.List.of(ELEMENT);
-        }
-
-        /** Whether each row is a frame's record and its place (the source's RECORDS form). */
-        public boolean frame() {
-            return source.form() == com.legend.sql.SqlSource.SourceUrl.Form.RECORDS;
         }
 
         /** The elements as one JSON array, in their order: the text a database splits itself. */
@@ -93,7 +89,7 @@ public interface SqlDialect {
     com.legend.sql.SqlSource deliver(DataPayload payload);
 
     /** {@code payload}'s elements as the statement's own rows (a relation of literals; census M18, BOUNDED to the
-     *  databases whose dialect answers so): each element, or a frame's record and its place, a row -- the element's
+     *  databases whose dialect answers so): each element, and its place where the source reads it, a row -- the element's
      *  JSON text the database parses ({@code CAST(... AS JSON)}, as its dialect spells it). A payload of no element is
      *  the relation's columns and no row (JSON everywhere, the empty payload too): one row of typed NULLs, which VALUES
      *  needs, removed by {@code WHERE FALSE} -- the shape the lowering's empty TDS literal takes. */
@@ -104,7 +100,7 @@ public interface SqlDialect {
             java.util.List<com.legend.sql.SqlExpr> none = new java.util.ArrayList<>(java.util.List.of(
                     new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.NullLit(),
                             com.legend.sql.SqlType.Scalar.JSON)));
-            if (payload.frame()) {
+            if (u.placed()) {
                 none.add(new com.legend.sql.SqlExpr.IntLit(0));
             }
             return new com.legend.sql.SqlSource.Subselect(com.legend.sql.SqlSelect.starOf(
@@ -116,7 +112,7 @@ public interface SqlDialect {
         for (int i = 0; i < payload.elements().size(); i++) {
             com.legend.sql.SqlExpr element = new com.legend.sql.SqlExpr.Cast(
                     new com.legend.sql.SqlExpr.StringLit(payload.elements().get(i)), com.legend.sql.SqlType.Scalar.JSON);
-            rows.add(payload.frame() ? java.util.List.of(element, new com.legend.sql.SqlExpr.IntLit(i))
+            rows.add(u.placed() ? java.util.List.of(element, new com.legend.sql.SqlExpr.IntLit(i))
                     : java.util.List.of(element));
         }
         return new com.legend.sql.SqlSource.Values(rows, columns, u.alias(), u.outputs());

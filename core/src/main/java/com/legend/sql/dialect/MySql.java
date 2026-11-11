@@ -44,7 +44,7 @@ public final class MySql extends MariaDb {
         }
         writer.append("SELECT JSON_EXTRACT(legend_doc.legend_payload, CONCAT('$[', legend_rows.legend_ord - 1, ']'))"
                 + " AS ").append(aliasIdent(payloadColumn(u).name()));
-        if (u.form() == com.legend.sql.SqlSource.SourceUrl.Form.RECORDS) {
+        if (u.placed()) {
             com.legend.sql.OutputCol place = placeColumn(u);
             writer.append(", CAST(legend_rows.legend_ord - 1 AS ").append(castTypeName(place.type()))
                     .append(") AS ").append(aliasIdent(place.name()));

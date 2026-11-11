@@ -3,10 +3,12 @@
 
 package com.legend.planner;
 
+import com.legend.sql.OutputCol;
 import com.legend.sql.SqlDml;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
+import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.dialect.SqlDialect;
 
@@ -30,9 +32,60 @@ public final class DataSources {
     private DataSources() {
     }
 
-    /** {@code q} reading each {@code data:} source as {@code dialect}'s database takes it. */
+    /** {@code q} reading each {@code data:} source as {@code dialect}'s database takes it, in the payload's order where
+     *  {@code q} asks none ({@link #inPayloadOrder}). */
     public static SqlQuery read(SqlQuery q, SqlDialect dialect) {
-        return new Rewriter(dialect).rewrite(q);
+        return new Rewriter(dialect).rewrite(inPayloadOrder(q));
+    }
+
+    /**
+     * {@code q} in its payload's order where it asks none (the orchestrator's finding of 2026-11-11, the Databricks
+     * lane: a JSON connection's model-to-model query wrote its records' order nowhere): a select reading a {@code data:}
+     * source directly, its own rows one per record -- its columns (a star named as the source's own), no sort, no
+     * grouping, no aggregate or window, no DISTINCT -- reads each record's place ({@link SqlSource.SourceUrl#PLACE}: every delivery numbers the payload's
+     * elements from 0) and is ordered by it, as legend-engine yields a JSON connection's instances: in the array's
+     * order (its {@code JsonDataReader} queues the array's elements as it reads them, first in first out). Any other
+     * select is as its query wrote it: a sort is the query's own, and a grouping, a join or a star asks no order of
+     * the payload's.
+     */
+    static SqlQuery inPayloadOrder(SqlQuery q) {
+        if (!(q instanceof SqlSelect s) || !(s.from() instanceof SqlSource.SourceUrl u) || !u.url().startsWith("data:")
+                || SqlSource.SourceUrl.namesByDigest(u.url()) || s.distinct() || !s.groupBy().isEmpty()
+                || s.having() != null || s.qualify() != null || !s.orderBy().isEmpty()) {
+            return q;
+        }
+        if (s.projections().isEmpty()) {
+            // the star: the source's own columns, named, so its place is read and not answered
+            s = s.withProjections(u.outputs().stream().map(o -> new SqlSelect.Projection(SqlExpr.Column.of(u.alias(), o),
+                    o.name(), o)).toList());
+        }
+        for (SqlSelect.Projection p : s.projections()) {
+            if (p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.StarExcept || aggregates(p.expr())) {
+                return q;
+            }
+        }
+        OutputCol place = u.outputs().stream().filter(o -> o.name().equals(SqlSource.SourceUrl.PLACE)).findFirst()
+                .orElse(new OutputCol(SqlSource.SourceUrl.PLACE, com.legend.sql.SqlType.Scalar.BIGINT, false,
+                        OutputCol.Origin.PHYSICAL));
+        List<OutputCol> outputs = new ArrayList<>(u.outputs());
+        if (!u.placed()) {
+            outputs.add(place);
+        }
+        return s.withFrom(new SqlSource.SourceUrl(u.url(), u.alias(), outputs, u.form()))
+                .withOrderBy(List.of(SqlSelect.SortKey.asc(SqlExpr.Column.of(u.alias(), place))));
+    }
+
+    /** Whether {@code e} aggregates or windows its rows, at any depth. */
+    private static boolean aggregates(SqlExpr e) {
+        if (e instanceof com.legend.sql.SqlAgg || e instanceof SqlExpr.WindowCall || e instanceof SqlExpr.JsonArrayAgg) {
+            return true;
+        }
+        for (SqlExpr c : e.children()) {
+            if (aggregates(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** {@code dml}'s rows and conditions reading each {@code data:} source as {@code dialect}'s database takes it. */
@@ -69,9 +122,7 @@ public final class DataSources {
             @Override
             protected SqlSource source(SqlSource s) {
                 if (s instanceof SqlSource.Values v && v.payload() != null) {
-                    return new SqlSource.SourceUrl(SqlSource.SourceUrl.byDigest(v.payload()), v.alias(), v.outputs(),
-                            v.columns().contains(SqlSource.SourceUrl.PLACE) ? SqlSource.SourceUrl.Form.RECORDS
-                                    : SqlSource.SourceUrl.Form.ELEMENTS);
+                    return v.payload();
                 }
                 if (s instanceof SqlSource.SourceUrl u && u.url().startsWith("data:")
                         && !SqlSource.SourceUrl.namesByDigest(u.url())) {
@@ -111,7 +162,8 @@ public final class DataSources {
             // a payload written as the statement's own rows is named by its digest (as a bound one's text is), which
             // the typed tree its plan carries reads it by (byDigest): the rows once, the statement's text
             return delivered instanceof SqlSource.Values v ? new SqlSource.Values(v.rows(), v.columns(), v.alias(),
-                    v.outputs(), com.legend.cache.Hash.ofUtf8(payload.array()).hex()) : delivered;
+                    v.outputs(), new SqlSource.SourceUrl(SqlSource.SourceUrl.byDigest(com.legend.cache.Hash.ofUtf8(
+                            payload.array()).hex()), u.alias(), u.outputs(), u.form())) : delivered;
         }
     }
 

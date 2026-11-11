@@ -244,6 +244,10 @@ class HarnessDisciplineTest {
             Map.entry("MetamodelSeeds.java", 2),
             // PlanMaker: a select's distinct() accessor, read to decide whether a select can be extended
             Map.entry("PlanMaker.java", 1),
+            // DataSources (2026-11-11, the payload's order, the Databricks lane's finding): a select's distinct()
+            // accessor, read to decide whether an unsorted select of a payload is ordered by its place (no reordering
+            // of a result: the database orders it)
+            Map.entry("DataSources.java", 1),
             // SidePlanner (2026-10-31, the seam program's S4a): the canon's JSON key order (JsonKeyOrder.sort, the
             // plan's spelling, not a value's order), the body driver's until then
             Map.entry("SidePlanner.java", 1));
