@@ -46,7 +46,9 @@ public final class PeRatchets {
                     + " and ReservedNamesGenerationTest's)",
             "own_corpus.matched 3136 (2026-11-11, the JSON pass, 101b557, merged onto B2d.2): it measured 3117 -> 3126 on its"
                     + " own branch; the merged tree measures 3136, the two branches' moves not additive (as measured, not"
-                    + " attributed)");
+                    + " attributed)",
+            "own_corpus.matched 3136 -> 3137 (2026-11-11, B3 merged onto the total wall, f1a6eea2c): B3's tests' models (its"
+                    + " remote mount's and host file's tests)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
