@@ -10,6 +10,7 @@ import com.legend.compiler.spec.typed.TypedTestDataGen;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.protocol.spec.ValueSpecification;
+import com.legend.setup.CsvSeed;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.SqlDialect;
 import com.legend.testdatagen.TestDataGenerationNatives;
@@ -39,7 +40,34 @@ final class GeneratedTestData {
             return typed;
         }
         ModelContext ctx = typed.context();
-        return typed.withBody(GeneratorSplice.spliced(typed.body(), g -> generated(g, ctx, dialect)));
+        return typed.withBody(GeneratorSplice.spliced(typed.body(), ctx, new GeneratorSplice.Generator() {
+            @Override
+            public GeneratorSplice.Generated plan(TypedTestDataGen g) {
+                return generated(g, ctx, dialect);
+            }
+
+            @Override
+            public GeneratorSplice.Same same(GeneratorSplice.Generated generated, String expected, String dbFqn) {
+                return compared(((Generated) generated).planned(), expected, ctx, dbFqn);
+            }
+        }));
+    }
+
+    /** Whether {@code planned}'s data is the data of the test-data text {@code expected} on {@code dbFqn}'s tables: the
+     *  expected text read at planning by lite's test-data reader ({@link CsvSeed#blocks}, quote-aware), the comparison
+     *  {@link TestDataPlanner#same}'s. */
+    private static GeneratorSplice.Same compared(TestDataPlanner.Planned planned, String expected, ModelContext ctx,
+            String dbFqn) {
+        List<TestDataPlanner.Expected> blocks = new ArrayList<>();
+        for (CsvSeed.Block b : CsvSeed.blocks(expected)) {
+            blocks.add(new TestDataPlanner.Expected(b.schema(), b.table(), b.header(), b.rows()));
+        }
+        TestDataPlanner.Comparison c = TestDataPlanner.same(planned, blocks, ctx, dbFqn);
+        if (c.fails() != null) {
+            return new GeneratorSplice.Same.Fails(c.fails());
+        }
+        return c.statement() == null ? new GeneratorSplice.Same.Holds()
+                : new GeneratorSplice.Same.Compared(c.statement());
     }
 
     /** One generator planned: its fetches' texts and its text's statement. */

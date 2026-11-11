@@ -50,6 +50,14 @@ class GeneratedTestDataProgramTest {
                $database->meta::relational::metamodel::schema($schema)->toOne()
                    ->meta::relational::metamodel::table($table)->toOne()
             }
+            // upstream's own test helpers (core_relational/relational/testDataGeneration/tests/testDataGeneration.pure),
+            // the extensions argument dropped (lite's platform has no relationalExtensions program)
+            function t::assertTestData(s1 : String[1], s2 : String[1], db: Database[1]):Boolean[1]
+            {
+               let setUpSQLs1 = meta::alloy::service::execution::setUpDataSQLs($s1, $db);
+               let setUpSQLs2 = meta::alloy::service::execution::setUpDataSQLs($s2, $db);
+               assertSameElements($setUpSQLs1, $setUpSQLs2);
+            }
             ###Mapping
             Mapping t::M
             (
@@ -59,10 +67,22 @@ class GeneratedTestDataProgramTest {
             )
             """;
 
+    /** The harness's rows, read by lite's test-data reader: a quoted cell with a comma, one with a line break (the
+     *  reader quote-aware, B2d.2), a NULL. */
     private static final String CSV = "default\nPERSON\nID,NAME,MANAGERID\n1,boss,\n2,ann,1\n3,\"o'neil, jr\",1\n"
-            + "-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n";
+            + "4,\"two\nlines\",1\n5,---null---,1\n-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,5\n";
 
     private static final String QUERY = "|t::Person.all()->project([p|$p.name, p|$p.bicycles.id], ['n', 'b'])";
+
+    /** The generator over PERSON 4 and 5: a cell with a line break, a NULL. */
+    private static final String LETS_45 = "let query = {" + "|t::Person.all()->project([p|$p.name, p|$p.bicycles.id],"
+            + " ['n', 'b'])" + "};\n"
+            + "let ids = ^meta::relational::testDataGeneration::TableRowIdentifiers(table ="
+            + " meta::relational::testDataGeneration::getTable(t::DB, 'default', 'PERSON'), rowIdentifiers ="
+            + " [^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['ID'], [4])),"
+            + " ^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['ID'], [5]))]);\n"
+            + "let testData = meta::relational::testDataGeneration::generateTestData($query, t::M, t::RT.runtimeValue,"
+            + " $ids, [])->toOne();\n";
 
     /** The body's lets: the query, the mapping, the runtime, the row identifiers of PERSON 2 and 3, the generator. */
     private static final String LETS = "let query = {" + QUERY + "};\n"
@@ -125,6 +145,49 @@ class GeneratedTestDataProgramTest {
         assertEquals(List.of("NotImplementedException: the test-data generator's result's relationTree: not planned (B2d"
                 + " answers its sqls and its dataCsvString)"), run(backend, judge, ctx, "{|" + LETS
                 + "assertEquals(1, $testData.relationTree->size());}"), backend.name() + " " + judge);
+    }
+
+    /**
+     * assertTestData (B2d.2, the user's ruling: the database's SET comparison per table, "upstream's comparison by other
+     * means"): upstream's helper, inlined, compares the loads of two test-data texts -- one the generator's -- as the
+     * data they denote: the rows of each table, in any order, against the expected text read at planning (quote-aware:
+     * a cell's line break kept); a cell, a row or a table that differs fails; a header that differs fails at planning;
+     * two constant texts are compared as they always were (their load statements, planning constants).
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void theGeneratedTextIsComparedAsData(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String ok = "assert true";
+        // the slice, its rows and its tables in another order: the same data
+        String reordered = "default\nBICYCLE\nID,PERSONID\n12,3\n11,3\n10,2\n-----\n"
+                + "default\nPERSON\nID,NAME\n3,\"o'neil, jr\"\n2,ann\n-----\n";
+        for (String expected : List.of(SLICE, reordered)) {
+            assertEquals(List.of(ok), run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(expected)
+                    + "', $testData.dataCsvString, t::DB);}"), backend.name() + " " + judge + ": " + expected);
+        }
+        // a cell with a line break and a NULL, as the generated text writes them and the reader reads them back
+        assertEquals(List.of(ok), run(backend, judge, ctx, "{|" + LETS_45 + "t::assertTestData('" + pure(
+                "default\nPERSON\nID,NAME\n4,\"two\nlines\"\n5,---null---\n-----\ndefault\nBICYCLE\nID,PERSONID\n"
+                        + "13,5\n-----\n") + "', $testData.dataCsvString, t::DB);}"), backend.name() + " " + judge);
+        // a cell, a missing row, an extra row, a missing table: each fails
+        for (String differs : List.of(SLICE.replace("2,ann", "2,anne"), SLICE.replace("11,3\n", ""),
+                SLICE.replace("12,3\n", "12,3\n14,3\n"), SLICE.substring(0, SLICE.indexOf("default\nBICYCLE")))) {
+            List<String> verdicts = run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(differs)
+                    + "', $testData.dataCsvString, t::DB);}");
+            assertEquals(1, verdicts.size(), backend.name() + " " + judge + ": " + verdicts);
+            assertTrue(verdicts.get(0).startsWith("assert false"), backend.name() + " " + judge + ": " + differs
+                    + " -> " + verdicts);
+        }
+        // a header that differs, the expected text holding rows: decided at planning, the assert's failure
+        List<String> header = run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(SLICE.replace(
+                "ID,NAME\n2,ann\n3,\"o'neil, jr\"", "NAME,ID\nann,2\n\"o'neil, jr\",3")) + "', $testData.dataCsvString,"
+                + " t::DB);}");
+        assertEquals(List.of("assert false the test data's columns of default.PERSON are [ID, NAME], [NAME, ID]"
+                + " expected"), header, backend.name() + " " + judge);
+        // two constant texts: their load statements, compared as they always were
+        assertEquals(List.of("assertSameElements true"), run(backend, judge, ctx, "{|t::assertTestData('" + pure(SLICE)
+                + "', '" + pure(SLICE) + "', t::DB);}"), backend.name() + " " + judge);
     }
 
     /** The store, its data's tables as the harness makes them, and a runtime on {@code backend}'s in-process database. */

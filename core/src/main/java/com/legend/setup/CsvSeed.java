@@ -177,7 +177,7 @@ public final class CsvSeed {
         // block separators: a line of dashes — '-' (the Alloy '\n-\n'
         // form) or '-----' (the testDataGeneration CSV form)
         StringBuilder block = new StringBuilder();
-        for (String line : csvBlocks.split("\n", -1)) {
+        for (String line : records(csvBlocks, true)) {
             if (line.strip().matches("-+")) {
                 blockSqls(block.toString(), dbFqn, ctx, dialect, out);
                 block.setLength(0);
@@ -194,7 +194,7 @@ public final class CsvSeed {
 
     private static void blockSqls(String csv, @com.legend.base.Nullable String dbFqn, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect, List<Step> out) {
-        String[] lines = csv.split("\n");
+        String[] lines = records(csv, false).toArray(String[]::new);
         while (lines.length > 0 && lines[0].strip().isEmpty()) {
             lines = java.util.Arrays.copyOfRange(lines, 1, lines.length);
         }
@@ -251,6 +251,91 @@ public final class CsvSeed {
         if (load != null) {
             out.add(new Step.Rows(load));
         }
+    }
+
+    /**
+     * The RECORDS of a test-data text, quote-aware (the user's ruling 3, 2026-11-10, B_BRIEF §9: "faithful to the real
+     * data, line breaks included"; register S191; built by B2d.2, 2026-11-11): split on line breaks outside a quoted
+     * cell, so a quoted cell keeps its line breaks -- the generator writes such a cell (RFC 4180) and the text reads
+     * back. A quote opens or closes a quoted run wherever it stands, as {@link #cells} reads it (a doubled quote inside
+     * one closes and reopens it); a text with no quote splits on every line break, as it always did. {@code trailing}:
+     * whether a trailing empty record is kept ({@code split("\n", -1)}) or dropped ({@code split("\n")}).
+     */
+    static List<String> records(String text, boolean trailing) {
+        List<String> out = new ArrayList<>();
+        if (text.indexOf('"') < 0) {
+            out.addAll(java.util.Arrays.asList(trailing ? text.split("\n", -1) : text.split("\n")));
+            return out;
+        }
+        boolean quoted = false;
+        int start = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '"') {
+                quoted = !quoted;
+            } else if (c == '\n' && !quoted) {
+                out.add(text.substring(start, i));
+                start = i + 1;
+            }
+        }
+        out.add(text.substring(start));
+        if (!trailing) {
+            while (!out.isEmpty() && out.get(out.size() - 1).isEmpty()) {
+                out.remove(out.size() - 1);
+            }
+        }
+        return out;
+    }
+
+    /** One table's block of a test-data text, as lite's reader reads it: its schema, its table, its header's names
+     *  and its rows, each cell as written (its quotes read, RFC 4180), an empty or {@code ---null---} cell null --
+     *  the engine's absent cell ({@code Ddl}'s {@code NULL_CELLS}). */
+    public record Block(String schema, String table, List<String> header, List<List<String>> rows) {
+        public Block {
+            header = List.copyOf(header);
+            rows = List.copyOf(rows);
+        }
+    }
+
+    /** {@code csvBlocks}'s blocks, read as {@link #steps} reads them (quote-aware: {@link #records}): blocks separated
+     *  by a line of dashes, each its schema, table and header lines, then its non-blank rows; a block of fewer than
+     *  three lines is none. */
+    public static List<Block> blocks(String csvBlocks) {
+        List<Block> out = new ArrayList<>();
+        List<String> block = new ArrayList<>();
+        List<String> all = new ArrayList<>(records(csvBlocks, true));
+        all.add("-");
+        for (String line : all) {
+            if (!line.strip().matches("-+")) {
+                block.add(line);
+                continue;
+            }
+            int first = 0;
+            while (first < block.size() && block.get(first).strip().isEmpty()) {
+                first++;
+            }
+            List<String> lines = block.subList(first, block.size());
+            if (lines.size() >= 3) {
+                List<String> header = new ArrayList<>();
+                for (String h : cells(lines.get(2))) {
+                    header.add(h.strip());
+                }
+                List<List<String>> rows = new ArrayList<>();
+                for (String r : lines.subList(3, lines.size())) {
+                    if (r.strip().isEmpty()) {
+                        continue;
+                    }
+                    List<String> row = new ArrayList<>();
+                    for (String cell : cells(r)) {
+                        row.add(cell.isEmpty() || cell.equals("---null---") ? null : cell);
+                    }
+                    rows.add(java.util.Collections.unmodifiableList(row));
+                }
+                out.add(new Block(lines.get(0).strip(), lines.get(1).strip(), header, rows));
+            }
+            block = new ArrayList<>();
+        }
+        return out;
     }
 
     /** One CSV line's cells. A bare line splits on commas; a cell wrapped
