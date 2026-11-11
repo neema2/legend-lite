@@ -1,0 +1,222 @@
+// The data: delivery probe, round 2, for Snowflake (the user, 2026-11-11: "we need to look at [inline JSON] again
+// especially for databases that actually have temp tables like snowflake and bigquery and clickhouse ... how to
+// represent the data in the plan vs the database mechanism"). To be run by the Snowflake lane's session.
+// Usage: javac SnowflakeDelivery2Probe.java && java -cp <the Snowflake JDBC driver>:. SnowflakeDelivery2Probe '<jdbc url>' [user] [password]
+// (connect exactly as the lane's earlier SnowflakeDataTableProbe did; never print a credential or a URL that holds one).
+//
+// Round 1 (SnowflakeDataTable.java.txt) measured: CREATE TEMPORARY TABLE is private, but DROP TABLE IF EXISTS drops the
+// user's PERMANENT table of the name when no temporary one exists, DROP TEMPORARY TABLE is a syntax error, and a
+// temporary table left in a pooled session shadows the user's. So Snowflake is INLINE today. This round asks:
+//   A. what INFORMATION_SCHEMA.TABLES and SHOW TABLES say for a temporary table that shadows a permanent one;
+//   B. a GUARDED drop (a Snowflake Scripting block that drops the name only where a temporary table of it exists):
+//      with both tables -> the temporary one goes, the user's row stays; with only the user's -> nothing dropped;
+//      with neither -> no error;
+//   C. CREATE OR REPLACE TEMPORARY TABLE beside a user's permanent table: does the user's table survive (read from a
+//      second connection)? And CREATE TEMPORARY TABLE IF NOT EXISTS beside it: is a temporary table made, or is the
+//      user's table taken as "existing" (then a fill would write INTO THE USER'S TABLE)?
+//   D. a third form: the whole payload as ONE bound parameter, split into rows by the database itself
+//      (FLATTEN(PARSE_JSON(?))): the quote, the line break, the order, the empty array;
+//   E. the cost and the size limit of each form, for 2, 1,000, 10,000 and 100,000 records: inline VALUES (lite's form
+//      today), a session table (make, fill in INSERTs of 1,000 rows, read, guarded drop), the bound parameter. Each
+//      prints its milliseconds, its statement's characters, and a refusal's first line.
+// Change nothing in the repository; report the whole output.
+import java.sql.*;
+import java.util.*;
+
+public class SnowflakeDelivery2Probe {
+    static final String T = "legend_data_probe2";
+    static String tempType = null;
+
+    public static void main(String[] a) throws Exception {
+        try (Connection c = open(a); Statement s = c.createStatement()) {
+            time("0 SELECT 1", s, "SELECT 1");
+            step("0 clean", s, "DROP TABLE IF EXISTS " + T);
+            step("0 clean", s, "DROP TABLE IF EXISTS " + T);
+
+            // A
+            step("A1 the user's permanent table", s, "CREATE TABLE " + T + " (data STRING)");
+            step("A1 the user's row", s, "INSERT INTO " + T + " VALUES ('the user''s row')");
+            step("A2 a temporary table of the name", s, "CREATE TEMPORARY TABLE " + T + " (data VARIANT, u_frame_ord__ INTEGER)");
+            List<List<String>> rows = query("A3 INFORMATION_SCHEMA.TABLES", s, "SELECT TABLE_NAME, TABLE_TYPE, IS_TRANSIENT"
+                    + " FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = CURRENT_SCHEMA() AND TABLE_NAME = '" + T.toUpperCase() + "'");
+            for (List<String> r : rows) {
+                if (!"BASE TABLE".equals(r.get(1))) {
+                    tempType = r.get(1);
+                }
+            }
+            System.out.println("A3 the temporary table's TABLE_TYPE :: " + tempType);
+            query("A4 SHOW TABLES", s, "SHOW TABLES LIKE '" + T.toUpperCase() + "'");
+
+            // B
+            if (tempType == null) {
+                System.out.println("B :: SKIPPED: INFORMATION_SCHEMA.TABLES shows no temporary table, so no guard can read it");
+            } else {
+                step("B1 guarded drop (both tables)", s, guardedDrop(T));
+                query("B1 the user's table", s, "SELECT data FROM " + T);
+                query("B1 SHOW TABLES", s, "SHOW TABLES LIKE '" + T.toUpperCase() + "'");
+                step("B2 guarded drop again (only the user's)", s, guardedDrop(T));
+                query("B2 the user's table", s, "SELECT data FROM " + T);
+                step("B3 guarded drop of a name nothing holds", s, guardedDrop(T + "_none"));
+            }
+
+            // C
+            step("C1 CREATE OR REPLACE TEMPORARY beside the user's", s, "CREATE OR REPLACE TEMPORARY TABLE " + T + " (data VARIANT, u_frame_ord__ INTEGER)");
+            query("C1 SHOW TABLES", s, "SHOW TABLES LIKE '" + T.toUpperCase() + "'");
+            try (Connection o = open(a); Statement os = o.createStatement()) {
+                query("C1 a second connection reads the user's table (must be the user's row)", os, "SELECT data FROM " + T);
+            }
+            if (tempType != null) {
+                step("C1 guarded drop", s, guardedDrop(T));
+            }
+            query("C1 the user's table after", s, "SELECT data FROM " + T);
+            step("C2 CREATE TEMPORARY IF NOT EXISTS beside the user's", s, "CREATE TEMPORARY TABLE IF NOT EXISTS " + T + " (data VARIANT, u_frame_ord__ INTEGER)");
+            query("C2 SHOW TABLES (is there a temporary one?)", s, "SHOW TABLES LIKE '" + T.toUpperCase() + "'");
+            query("C2 its columns as the session reads them", s, "SELECT * FROM " + T + " LIMIT 1");
+            if (tempType != null) {
+                step("C2 guarded drop", s, guardedDrop(T));
+            }
+            query("C2 the user's table after", s, "SELECT data FROM " + T);
+            step("C9 clean: the probe's own user table", s, "DROP TABLE IF EXISTS " + T);
+
+            // D
+            param("D1 the parameter form", c, "SELECT f.value, f.index, f.value:t::STRING FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) f ORDER BY f.index",
+                    "[{\"t\":\"it's\"},{\"t\":\"a\\nb\"}]");
+            param("D2 the parameter form, empty", c, "SELECT f.value, f.index FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) f ORDER BY f.index", "[]");
+            param("D3 the parameter form, nested and typed", c, "SELECT f.value:n, TYPEOF(f.value:n), f.value:o:k::STRING, f.index FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) f ORDER BY f.index",
+                    "[{\"n\":1.50,\"o\":{\"k\":\"v\"}},{\"n\":null,\"o\":{}}]");
+
+            // E
+            for (int n : new int[] {2, 1000, 10000, 100000}) {
+                List<String> el = elements(n);
+                String array = "[" + String.join(",", el) + "]";
+                StringBuilder v = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    v.append(i > 0 ? ", " : "").append("('").append(lit(el.get(i))).append("', ").append(i).append(')');
+                }
+                String inline = "SELECT COUNT(*), SUM(data:id::INT), MAX(ord) FROM (SELECT PARSE_JSON(column1) AS data, column2 AS ord FROM VALUES " + v + ") t";
+                time("E n=" + n + " inline (" + inline.length() + " chars)", s, inline);
+
+                long t0 = System.nanoTime();
+                boolean ok = step("E n=" + n + " table make", s, "CREATE TEMPORARY TABLE " + T + " (data VARIANT, ord INTEGER)");
+                for (int from = 0; ok && from < n; from += 1000) {
+                    StringBuilder ins = new StringBuilder("INSERT INTO " + T + " SELECT PARSE_JSON(column1), column2 FROM VALUES ");
+                    for (int i = from; i < Math.min(n, from + 1000); i++) {
+                        ins.append(i > from ? ", " : "").append("('").append(lit(el.get(i))).append("', ").append(i).append(')');
+                    }
+                    ok = quiet("E n=" + n + " table fill at " + from, s, ins.toString());
+                }
+                query("E n=" + n + " table read", s, "SELECT COUNT(*), SUM(data:id::INT), MAX(ord) FROM " + T);
+                if (tempType != null) {
+                    step("E n=" + n + " table guarded drop", s, guardedDrop(T));
+                } else {
+                    step("E n=" + n + " table drop (no guard measured; the probe's own table)", s, "DROP TABLE IF EXISTS " + T);
+                }
+                System.out.println("E n=" + n + " table total :: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+
+                param("E n=" + n + " parameter (" + array.length() + " chars bound)", c,
+                        "SELECT COUNT(*), SUM(f.value:id::INT), MAX(f.index) FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) f", array);
+            }
+        }
+    }
+
+    static String guardedDrop(String name) {
+        return "EXECUTE IMMEDIATE $$\nBEGIN\n  IF (EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = CURRENT_SCHEMA()"
+                + " AND TABLE_NAME = '" + name.toUpperCase() + "' AND TABLE_TYPE = '" + tempType + "')) THEN\n    DROP TABLE " + name
+                + ";\n  END IF;\nEND;\n$$";
+    }
+
+    /** n records: a quote, an escaped line break, a number and a decimal in each. */
+    static List<String> elements(int n) {
+        List<String> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add("{\"id\":" + i + ",\"name\":\"n'" + i + "\",\"note\":\"a\\nb\",\"x\":" + i + ".5}");
+        }
+        return out;
+    }
+
+    /** A Snowflake string literal's body: a backslash is an escape there, a quote doubled. */
+    static String lit(String s) {
+        return s.replace("\\", "\\\\").replace("'", "''");
+    }
+
+    static Connection open(String[] a) throws SQLException {
+        return a.length > 1 ? DriverManager.getConnection(a[0], a[1], a.length > 2 ? a[2] : null) : DriverManager.getConnection(a[0]);
+    }
+
+    static boolean step(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + shortSql(sql));
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + first(e) + " :: " + shortSql(sql));
+            return false;
+        }
+    }
+
+    static boolean quiet(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + first(e) + " :: " + sql.length() + " chars");
+            return false;
+        }
+    }
+
+    static void time(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try (ResultSet r = s.executeQuery(sql)) {
+            String rows = rows(r).toString();
+            System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows);
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static List<List<String>> query(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try (ResultSet r = s.executeQuery(sql)) {
+            List<List<String>> rows = rows(r);
+            System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows);
+            return rows;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + first(e));
+            return List.of();
+        }
+    }
+
+    static void param(String what, Connection c, String sql, String payload) {
+        long t0 = System.nanoTime();
+        try (PreparedStatement p = c.prepareStatement(sql)) {
+            p.setString(1, payload);
+            try (ResultSet r = p.executeQuery()) {
+                System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+            }
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static List<List<String>> rows(ResultSet r) throws SQLException {
+        List<List<String>> out = new ArrayList<>();
+        int n = r.getMetaData().getColumnCount();
+        while (r.next() && out.size() < 20) {
+            List<String> row = new ArrayList<>();
+            for (int i = 1; i <= n; i++) {
+                row.add(r.getString(i));
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    static String first(SQLException e) {
+        return String.valueOf(e.getMessage()).split("\n")[0];
+    }
+
+    static String shortSql(String sql) {
+        return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
+    }
+}
