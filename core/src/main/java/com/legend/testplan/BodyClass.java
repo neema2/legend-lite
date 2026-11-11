@@ -645,8 +645,13 @@ public enum BodyClass {
             // 2026-11-02): run where it stands, its rows dropped, as the walk runs it (the user, 2026-11-06)
             return (statementFrame || !frames.isEmpty()) && answered(query, Lets.bare(last));
         }
+        // a query as the last statement, the query program's answer rule (answersAsTheLastStatement), as the assert
+        // program admits it since 2026-11-05 (B2d.2, 2026-11-11: upstream's loadAndTestExecution ends the test-data
+        // generator's bodies with its frame's non-empty check, `$result.values->isNotEmpty() && ...`, after the
+        // asserts)
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
-                || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
+                || plansNoStep(last, body.subList(0, body.size() - 1), ctx)
+                || answersAsTheLastStatement(query, scan, body.size() - 1, systemClasses, ctx);
     }
 
     /** Whether {@code statement} is an {@code execute(...)} at its root (no let): a frame answered whole. */

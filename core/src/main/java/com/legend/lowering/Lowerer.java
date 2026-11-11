@@ -1028,6 +1028,8 @@ public final class Lowerer {
 
             // leg 3.4 step 2: a planned frame, referenced by name (FrameRefs)
             case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this, fr);
+            // a relation read over a reloaded slice's rows (B2d.2): each table it reads swapped by its physical name
+            case com.legend.compiler.spec.typed.TypedTableSwap ts -> TableSwaps.swapped(relation(ts.source()), ts.tables());
 
             case TypedFilter f -> filter(f);
 

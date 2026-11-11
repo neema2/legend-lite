@@ -64,6 +64,10 @@ public final class GeneratorSplice {
         /** Whether {@code generated}'s data is the data of the test-data text {@code expected}, on the tables of the
          *  database {@code dbFqn}: each table compared as a set of rows, the database's work. */
         Same same(Generated generated, String expected, String dbFqn);
+
+        /** Every table of the database {@code dbFqn} as {@code generated}'s slice reloaded holds it, by physical name:
+         *  the slice's rows, or none. */
+        Map<String, SqlQuery> slice(Generated generated, String dbFqn);
     }
 
     /** Whether a generated slice holds an expected text's data: decided at planning ({@link Holds}, {@link Fails}),
@@ -163,9 +167,40 @@ public final class GeneratorSplice {
         }
         List<TypedSpec> out = new ArrayList<>(body.size());
         java.util.Set<String> consumed = new java.util.HashSet<>();
+        // the slice a reload made the database's tables (a read of them after it reads it), until a write
+        Map<String, SqlQuery> reloaded = null;
+        boolean ran = false;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
-            List<TypedSpec> before = body.subList(0, i);
+            List<TypedSpec> before = out;
+            Loads reload = reload(statement, before, texts);
+            if (reload != null) {
+                // the slice reloaded (B2d.2, the user's ruling of 2026-11-11: "Read only reload is fine"): nothing is
+                // written; the query run after it is planned again over the slice's rows
+                reloaded = generator.slice(java.util.Objects.requireNonNull(reload.generated()), reload.db());
+                ran = false;
+                TypedSpec source = ((com.legend.compiler.spec.typed.TypedMap) statement).source();
+                if (source instanceof TypedVariable v) {
+                    consumed.add(v.name());
+                }
+                continue;
+            }
+            if (reloaded != null) {
+                TypedSpec swapped = !ran && statement instanceof TypedLet let ? overSlice(let, before, reloaded,
+                        consumed) : null;
+                if (swapped != null) {
+                    ran = true;
+                    out.add(swapped);
+                    continue;
+                }
+                if (writes(statement)) {
+                    reloaded = null;
+                } else if (!planBuild(statement) && readsTheDatabase(statement)) {
+                    throw new NotImplementedException("a read of the database after the test-data generator's slice"
+                            + " was reloaded, other than the query run over it (" + (ran ? "after" : "before")
+                            + " that query): not planned (B2d's read-only reload swaps the tables of that query alone)");
+                }
+            }
             if (statement instanceof TypedNativeCall call && com.legend.builtin.NativeFn.Verdict.of(call.callee().id())
                     .orElse(null) == com.legend.builtin.NativeFn.Verdict.ASSERT_SAME_ELEMENTS
                     && (call.args().size() == 2 || call.args().size() == 3)) {
@@ -191,7 +226,6 @@ public final class GeneratorSplice {
         for (int i = 0; i < out.size(); i++) {
             TypedSpec statement = out.get(i);
             if (statement instanceof TypedLet let && consumed.contains(let.name())
-                    && loads(let.value(), out.subList(0, i), texts) != null
                     && !com.legend.compiler.spec.typed.FreeVars.ofBodyReadingTrees(out.subList(i + 1, out.size()))
                             .contains(let.name())) {
                 continue;
@@ -202,6 +236,121 @@ public final class GeneratorSplice {
             refuseGeneratedLoads(kept.get(i), kept.subList(0, i), texts);
         }
         return List.copyOf(kept);
+    }
+
+    // ===== the slice reloaded, read only (B2d.2: loadAndTestExecution) =====
+
+    /** {@code statement}'s generated loads if it RELOADS them -- each of the generator's load statements executed on the
+     *  database ({@code loads->map(sql | executeInDb($sql, connection))}, upstream's {@code loadAndTestExecution}) --
+     *  or null. */
+    private static @Nullable Loads reload(TypedSpec statement, List<TypedSpec> before,
+            Map<TypedPlannedValue, Generated> texts) {
+        if (!(statement instanceof com.legend.compiler.spec.typed.TypedMap map)
+                || map.mapper().parameters().size() != 1 || map.mapper().body().size() != 1
+                || !(map.mapper().body().get(0) instanceof TypedNativeCall exec)
+                || com.legend.builtin.NativeFn.Effect.of(exec.callee().id()).orElse(null)
+                        != com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB
+                || exec.args().isEmpty() || !(exec.args().get(0) instanceof TypedVariable sql)
+                || !sql.name().equals(map.mapper().parameters().get(0))) {
+            return null;
+        }
+        Loads l = loads(map.source(), before, texts);
+        return l != null && l.generated() != null ? l : null;
+    }
+
+    /**
+     * {@code let} -- a frame, {@code execute(query, mapping, runtime, ...)} or an execution plan's
+     * {@code execute(executionPlan(query, ...), ...)} -- with its query read over {@code slice}: the query lambda's
+     * last statement wrapped in a {@link com.legend.compiler.spec.typed.TypedTableSwap} (the query planned again over
+     * the slice's rows, read only). The plan's build, where a let binds it, read in place (its let consumed). Null
+     * where {@code let} is no frame.
+     */
+    private static @Nullable TypedSpec overSlice(TypedLet let, List<TypedSpec> before, Map<String, SqlQuery> slice,
+            java.util.Set<String> consumed) {
+        TypedSpec rhs = let.value();
+        if (!(rhs instanceof TypedNativeCall frame
+                && com.legend.builtin.NativeFn.Handle.runsAFrame(frame.callee().id()))) {
+            return null;
+        }
+        com.legend.builtin.NativeFn.Handle h = com.legend.builtin.NativeFn.Handle.of(frame.callee().id())
+                .orElseThrow();
+        List<TypedSpec> args = new ArrayList<>(frame.args());
+        switch (h) {
+            case EXECUTE -> args.set(0, swappedQuery(args.get(0), before, slice));
+            case EXECUTION_PLAN_EXECUTE -> {
+                TypedSpec build = com.legend.compiler.spec.typed.Lets.bound(args.get(0), before);
+                if (!(build instanceof TypedNativeCall b && com.legend.builtin.NativeFn.Handle.of(b.callee().id())
+                        .orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN)) {
+                    throw new NotImplementedException("the query run over the test-data generator's reloaded slice: an"
+                            + " execution plan that does not trace to its executionPlan(...) build: not planned (B2d)");
+                }
+                List<TypedSpec> bargs = new ArrayList<>(b.args());
+                bargs.set(0, swappedQuery(bargs.get(0), before, slice));
+                if (args.get(0) instanceof TypedVariable v) {
+                    consumed.add(v.name());
+                }
+                args.set(0, b.withChildren(bargs));
+            }
+            default -> throw new NotImplementedException("the query run over the test-data generator's reloaded slice"
+                    + " by " + frame.callee().qualifiedName() + ": not planned (B2d plans execute and an execution"
+                    + " plan's execute)");
+        }
+        return new TypedLet(let.name(), frame.withChildren(args), let.info());
+    }
+
+    /** The query {@code q} (a lambda, or a let's) with its last statement read over {@code slice}. */
+    private static TypedSpec swappedQuery(TypedSpec q, List<TypedSpec> before, Map<String, SqlQuery> slice) {
+        if (!(com.legend.compiler.spec.typed.Lets.bound(q, before) instanceof TypedLambda lam)
+                || !lam.parameters().isEmpty() || lam.body().isEmpty()) {
+            throw new NotImplementedException("the query run over the test-data generator's reloaded slice: no"
+                    + " parameterless query lambda: not planned (B2d)");
+        }
+        TypedSpec last = lam.body().get(lam.body().size() - 1);
+        if (!Type.isRelation(last.info().type())
+                && !com.legend.compiler.element.type.PlatformTypes.isTdsType(last.info().type())) {
+            throw new NotImplementedException("the query run over the test-data generator's reloaded slice answers "
+                    + last.info().type().typeName() + ", not a relation: not planned (B2d swaps a relation's tables)");
+        }
+        List<TypedSpec> body = new ArrayList<>(lam.body());
+        body.set(body.size() - 1, new com.legend.compiler.spec.typed.TypedTableSwap(last, slice, last.info()));
+        return lam.withChildren(body);
+    }
+
+    /** Whether {@code statement} writes the database (a database effect at its root, or a user call, whose effects
+     *  the splice does not see): after it the reloaded slice is no longer what its tables hold. */
+    private static boolean writes(TypedSpec statement) {
+        TypedSpec v = statement instanceof TypedLet let ? let.value() : statement;
+        return v instanceof com.legend.compiler.spec.typed.TypedUserCall
+                || v instanceof TypedNativeCall call && com.legend.builtin.NativeFn.Effect.isDbEffect(call.callee().id())
+                || v instanceof com.legend.compiler.spec.typed.TypedMap m && m.mapper().body().size() == 1
+                        && m.mapper().body().get(0) instanceof TypedNativeCall c
+                        && com.legend.builtin.NativeFn.Effect.isDbEffect(c.callee().id());
+    }
+
+    /** Whether {@code statement} binds an execution plan's build ({@code let p = executionPlan(query, ...)}): it reads
+     *  nothing at its turn (the frame that executes it does). */
+    private static boolean planBuild(TypedSpec statement) {
+        return statement instanceof TypedLet let && let.value() instanceof TypedNativeCall b
+                && com.legend.builtin.NativeFn.Handle.of(b.callee().id()).orElse(null)
+                        == com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN;
+    }
+
+    /** Whether {@code n} reads the database: a class's extent, a table, a from(), a frame, a raw read, a generator. */
+    private static boolean readsTheDatabase(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedGetAll
+                || n instanceof com.legend.compiler.spec.typed.TypedTableReference
+                || n instanceof com.legend.compiler.spec.typed.TypedFrom
+                || n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
+                || n instanceof TypedTestDataGen || n instanceof TypedPlannedValue
+                || n instanceof TypedNativeCall call && com.legend.builtin.NativeFn.Handle.runsAFrame(call.callee().id())) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsTheDatabase(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** {@code e}'s loads ({@code setUpDataSQLs(text, db)}, in place or a let's) of the generator's text or a constant

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -57,6 +58,19 @@ class GeneratedTestDataProgramTest {
                let setUpSQLs1 = meta::alloy::service::execution::setUpDataSQLs($s1, $db);
                let setUpSQLs2 = meta::alloy::service::execution::setUpDataSQLs($s2, $db);
                assertSameElements($setUpSQLs1, $setUpSQLs2);
+            }
+            function t::loadAndTestExecution(query: FunctionDefinition<Any>[1], parametersValues:Any[*],
+                mapping: meta::pure::mapping::Mapping[1], runtime: meta::core::runtime::Runtime[1], data:String[1],
+                db: Database[1]):Boolean[1]
+            {
+               let testConnection = $runtime.connectionStores.connection->toOne()
+                   ->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);
+               let setUpSQLs = meta::alloy::service::execution::setUpDataSQLs($data, $db);
+               $setUpSQLs->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $testConnection));
+               let plan = meta::pure::executionPlan::executionPlan($query, $mapping, $runtime, []);
+               let result = $plan->meta::pure::executionPlan::execute($parametersValues, []);
+               $result.values->isNotEmpty() && (!$result.values->at(0)->instanceOf(meta::pure::tds::TabularDataSet)
+                   || $result.values->at(0)->cast(@meta::pure::tds::TabularDataSet).rows->isNotEmpty());
             }
             ###Mapping
             Mapping t::M
@@ -190,6 +204,58 @@ class GeneratedTestDataProgramTest {
                 + "', '" + pure(SLICE) + "', t::DB);}"), backend.name() + " " + judge);
     }
 
+    /**
+     * loadAndTestExecution (B2d.2, the user's ruling of 2026-11-11, "Read only reload is fine"): upstream reloads the
+     * generated text into every table of the database and runs the query again; here the reload sends nothing and the
+     * query after it is planned again with each table of the database read from the slice -- the slice's rows, or none --
+     * the real tables untouched. Upstream's helper runs whole; a query after the reload sees the slice's rows alone (2
+     * persons of 5), a table the slice does not hold empty (4 bicycles in the database); nothing is written (the
+     * statements the run sends hold no write); a direct read of the database after the reload is refused by name.
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void theQueryRunsOverTheSlice(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String what = backend.name() + " " + judge;
+        // upstream's whole shape: the generator, its text compared, the slice reloaded and the query run over it --
+        // every statement sent a read
+        List<String> sent = new ArrayList<>();
+        assertEquals(List.of("assert true"), run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(SLICE)
+                + "', $testData.dataCsvString, t::DB);\n"
+                + "t::loadAndTestExecution($query, [], $mapping, $runtime, $testData.dataCsvString, t::DB);}", sent),
+                what);
+        assertFalse(sent.isEmpty(), what);
+        for (String statement : sent) {
+            String bare = statement.replaceAll("(?s)^(--[^\n]*\n)*\s*", "").toUpperCase(java.util.Locale.ROOT);
+            assertTrue(bare.startsWith("SELECT") || bare.startsWith("WITH") || bare.startsWith("SET")
+                    || bare.startsWith("PRAGMA") || bare.startsWith("SAVEPOINT") || bare.startsWith("RELEASE")
+                    || bare.startsWith("ROLLBACK"), what + ": a statement that is no read: " + statement);
+        }
+        String reload = "let conn = $runtime.connectionStores.connection->toOne()"
+                + "->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);\n"
+                + "let loads = meta::alloy::service::execution::setUpDataSQLs($testData.dataCsvString, t::DB);\n"
+                + "$loads->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $conn));\n";
+        // the query over the slice: its 2 persons, not the database's 5 (an execute, and an execution plan's execute)
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + LETS + reload
+                + "let r = meta::pure::router::execute(|t::Person.all()->project([p|$p.name], ['n']), t::M, $runtime,"
+                + " []);\nassertSize($r.values.rows, 2);}"), what);
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + LETS + reload
+                + "let plan = meta::pure::executionPlan::executionPlan(|t::Person.all()->project([p|$p.name], ['n']),"
+                + " t::M, $runtime, []);\nlet r = $plan->meta::pure::executionPlan::execute([], []);\n"
+                + "assertSize($r.values->at(0)->cast(@meta::pure::tds::TabularDataSet).rows, 2);}"), what);
+        // a table of the database the slice does not hold: no row (upstream re-creates it empty)
+        String personsOnly = LETS.replace("p|$p.name, p|$p.bicycles.id], ['n', 'b']", "p|$p.name], ['n']");
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + personsOnly + reload
+                + "let r = meta::pure::router::execute(|t::Bicycle.all()->project([b|$b.id], ['id']), t::M, $runtime,"
+                + " []);\nassertSize($r.values.rows, 0);}"), what);
+        // a read of the database itself after the reload: refused by name
+        List<String> refused = run(backend, judge, ctx, "{|" + LETS + reload
+                + "assertSize(t::Person.all()->project([p|$p.name], ['n'])->from(t::M, $runtime), 5);}");
+        assertEquals(1, refused.size(), what + ": " + refused);
+        assertTrue(refused.get(0).startsWith("NotImplementedException: a read of the database after the test-data"
+                + " generator's slice was reloaded"), what + ": " + refused);
+    }
+
     /** The store, its data's tables as the harness makes them, and a runtime on {@code backend}'s in-process database. */
     private static String model(TestBackend backend) {
         return STORE + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; " + backend.connectionBody()
@@ -200,6 +266,13 @@ class GeneratedTestDataProgramTest {
      *  as {@code "<assert> <pass> <detail>"}, or the run's refusal as {@code "<exception>: <message>"}. */
     private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
             String body) throws Exception {
+        return run(backend, judge, ctx, body, new ArrayList<>());
+    }
+
+    /** {@link #run(TestBackend, PlanningOptions.JudgeMode, ModelContext, String)}, each statement the run sent on the
+     *  body's session recorded in {@code sent}. */
+    private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
+            String body, List<String> sent) throws Exception {
         List<String> verdicts = new ArrayList<>();
         try (Connection c = backend.open()) {
             try (Statement s = c.createStatement()) {
@@ -220,7 +293,8 @@ class GeneratedTestDataProgramTest {
             try {
                 TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
                         new com.legend.model.ImportScope(List.of()), ctx)), "t::RT",
-                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(
+                                com.legend.testbackend.RecordingConnection.wrap(c, sent))), listener, null,
                         ExecuteOptions.NONE.withJudgeMode(judge));
             } catch (com.legend.error.NotImplementedException e) {
                 verdicts.add("NotImplementedException: " + e.getMessage());

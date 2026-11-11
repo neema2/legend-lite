@@ -50,6 +50,11 @@ final class GeneratedTestData {
             public GeneratorSplice.Same same(GeneratorSplice.Generated generated, String expected, String dbFqn) {
                 return compared(((Generated) generated).planned(), expected, ctx, dbFqn);
             }
+
+            @Override
+            public java.util.Map<String, SqlQuery> slice(GeneratorSplice.Generated generated, String dbFqn) {
+                return TestDataPlanner.slice(((Generated) generated).planned(), ctx, dbFqn);
+            }
         }));
     }
 

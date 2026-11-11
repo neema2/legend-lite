@@ -177,6 +177,8 @@ final class CollectionLanes {
             case TypedRawSqlRelation ignored -> false;
             case com.legend.compiler.spec.typed.TypedCatalogGrid ignored -> false;
             case com.legend.compiler.spec.typed.TypedFrameRef ignored -> false;
+            // a relation read over a reloaded slice's rows (B2d.2): its source's lane
+            case com.legend.compiler.spec.typed.TypedTableSwap t -> valueLane(t.source());
             case TypedCollectionRelation ignored -> false;
             case TypedTds ignored -> false;
             case TypedProject ignored -> false;

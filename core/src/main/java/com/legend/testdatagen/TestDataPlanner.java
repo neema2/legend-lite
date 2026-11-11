@@ -540,6 +540,122 @@ public final class TestDataPlanner {
     /** The marker column the anti-joins read: a row's presence. */
     private static final String MARKER = "_m";
 
+    // ===== the slice, reloaded read-only (B2d.2: loadAndTestExecution) =====
+
+    /**
+     * Every table of the database {@code dbFqn} (its includes' too) as the generated slice reloaded holds it, by the
+     * table's physical name ({@code TABLE} in the default schema, else {@code SCHEMA.TABLE}): the user's ruling of
+     * 2026-11-11, "Read only reload is fine". Upstream's {@code loadAndTestExecution} drops and re-creates EVERY table of
+     * the database ({@code setUpDataSQLs} -> {@code schemaAndTableSetup(dbConfig, [])}, {@code toDDL.pure:155-196}) and
+     * loads the generated text into it; here each table is a statement the query reads instead: a table the slice
+     * holds, its distinct rows -- each fetched column as the text holds it (a text cell hashed where the text hashes
+     * it), every other column NULL of its declared type; any other table, no row. Each statement is self-contained:
+     * the generator's clauses read inline as derived tables, so it stands wherever the table stood.
+     */
+    public static Map<String, SqlQuery> slice(Planned planned, ModelContext ctx, String dbFqn) {
+        Map<String, SqlQuery> inlined = new LinkedHashMap<>();
+        for (SqlWith.Cte c : planned.clauses()) {
+            inlined.put(c.name(), inline(c.query(), inlined));
+        }
+        Map<String, Table> generated = new LinkedHashMap<>();
+        for (Table t : planned.tables()) {
+            generated.put(physical(t.schema(), t.table()), t);
+        }
+        Map<String, SqlQuery> out = new LinkedHashMap<>();
+        for (Map.Entry<String, DatabaseDefinition.TableDefinition> e : tablesOf(ctx, dbFqn, new java.util.HashSet<>())
+                .entrySet()) {
+            DatabaseDefinition.TableDefinition def = e.getValue();
+            Table g = generated.get(e.getKey());
+            List<SqlSelect.Projection> ps = new ArrayList<>(def.columns().size());
+            for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
+                SqlExpr cell = g != null && g.columns().contains(c.name())
+                        ? sliceCell(def, c.name(), "_u", planned.hashStrings())
+                        : new SqlExpr.Cast(new SqlExpr.NullLit(), sqlType(c, def));
+                ps.add(new SqlSelect.Projection(cell, tempColumn(def, c.name()), null));
+            }
+            SqlSelect rows = g == null
+                    ? new SqlSelect(ps, false, new SqlSource.Dual(), new SqlExpr.BoolLit(false), List.of(), null,
+                            null, List.of(), null, null, List.of())
+                    : new SqlSelect(ps, true, new SqlSource.Subselect(inline(fetchedRows(g.clauses()), inlined), "_u",
+                            null), null, List.of(), null, null, List.of(), null, null, List.of());
+            out.put(e.getKey(), rows);
+        }
+        return out;
+    }
+
+    /** A table's physical name: {@code TABLE} in the default schema, else {@code SCHEMA.TABLE}. */
+    private static String physical(String schema, String table) {
+        return "default".equals(schema) ? table : schema + "." + table;
+    }
+
+    /** Every table of {@code dbFqn} and of the databases it includes, by physical name (the first a name meets). */
+    private static Map<String, DatabaseDefinition.TableDefinition> tablesOf(ModelContext ctx, String dbFqn,
+            java.util.Set<String> seen) {
+        Map<String, DatabaseDefinition.TableDefinition> out = new LinkedHashMap<>();
+        if (!seen.add(dbFqn)) {
+            return out;
+        }
+        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElseThrow(() -> new IllegalStateException(
+                "testDataGen: no database '" + dbFqn + "' to reload the slice into"));
+        for (DatabaseDefinition.TableDefinition t : db.tables()) {
+            out.putIfAbsent(t.name(), t);
+        }
+        for (DatabaseDefinition.SchemaDefinition sc : db.schemas()) {
+            for (DatabaseDefinition.TableDefinition t : sc.tables()) {
+                out.putIfAbsent(physical(sc.name(), t.name()), t);
+            }
+        }
+        for (String include : db.includes()) {
+            tablesOf(ctx, include, seen).forEach(out::putIfAbsent);
+        }
+        return out;
+    }
+
+    /** {@code q} with each clause it reads ({@code clauses}, already inlined) read in place as a derived table. */
+    private static SqlQuery inline(SqlQuery q, Map<String, SqlQuery> clauses) {
+        return new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Cte c && clauses.containsKey(c.name())) {
+                    return new SqlSource.Subselect(clauses.get(c.name()), c.alias(), null);
+                }
+                return s;
+            }
+        }.rewriteRoot(q);
+    }
+
+    /** The SQL type a NULL of column {@code c} is cast to: its declared type's. A binary column has none in the SQL
+     *  layer: refused by name. */
+    private static SqlType sqlType(DatabaseDefinition.ColumnDefinition c, DatabaseDefinition.TableDefinition def) {
+        return switch (c.dataType()) {
+            case RelationalDataType.Varchar x -> SqlType.Scalar.VARCHAR;
+            case RelationalDataType.Char_ x -> SqlType.Scalar.VARCHAR;
+            case RelationalDataType.Distinct x -> SqlType.Scalar.VARCHAR;
+            case RelationalDataType.Other x -> SqlType.Scalar.VARCHAR;
+            case RelationalDataType.BigInt x -> SqlType.Scalar.BIGINT;
+            case RelationalDataType.SmallInt x -> SqlType.Scalar.INTEGER;
+            case RelationalDataType.TinyInt x -> SqlType.Scalar.INTEGER;
+            case RelationalDataType.Integer_ x -> SqlType.Scalar.INTEGER;
+            case RelationalDataType.Float_ x -> SqlType.Scalar.DOUBLE;
+            case RelationalDataType.Double_ x -> SqlType.Scalar.DOUBLE;
+            case RelationalDataType.Real x -> SqlType.Scalar.DOUBLE;
+            case RelationalDataType.Bit x -> SqlType.Scalar.BOOLEAN;
+            case RelationalDataType.Decimal d -> new SqlType.Decimal(d.precision(), d.scale());
+            case RelationalDataType.Numeric n -> new SqlType.Decimal(n.precision(), n.scale());
+            case RelationalDataType.Date_ x -> SqlType.Scalar.DATE;
+            case RelationalDataType.Timestamp x -> SqlType.Scalar.TIMESTAMP;
+            case RelationalDataType.TimestampNs x -> SqlType.Scalar.TIMESTAMP;
+            case RelationalDataType.Time x -> SqlType.Scalar.TIME;
+            case RelationalDataType.SemiStructured x -> SqlType.Scalar.JSON;
+            case RelationalDataType.Array x -> SqlType.Scalar.JSON;
+            case RelationalDataType.Object_ x -> SqlType.Scalar.JSON;
+            case RelationalDataType.Binary x -> throw new NotImplementedException("testDataGen: the binary column "
+                    + def.name() + "." + c.name() + " reloaded empty: the SQL layer has no binary type (not planned)");
+            case RelationalDataType.Varbinary x -> throw new NotImplementedException("testDataGen: the binary column "
+                    + def.name() + "." + c.name() + " reloaded empty: the SQL layer has no binary type (not planned)");
+        };
+    }
+
     /** Whether a column of {@code t} holds text, which the CSV hashes or quotes: its declared type, at planning. */
     static boolean isText(RelationalDataType t) {
         return switch (t) {
