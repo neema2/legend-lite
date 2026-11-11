@@ -353,6 +353,19 @@ public abstract class AbstractDatabaseTest {
     }
 
     /**
+     * A pivot whose columns the data names, as its execution plan runs it (B3, 2026-11-11: the text plan renders from
+     * the execution plan, which runs such a pivot on every database as a KEYED result): its keys statement, read first,
+     * and its body, each per-key region written once in the plan.
+     */
+    protected com.legend.executionplan.ExecutionPlan.Keyed generateKeyed(String pureQuery) {
+        if (!(com.legend.Compiler.query(com.legend.Compiler.compileModel(getCompletePureModelWithRuntime()), pureQuery)
+                .plan("test::TestRuntime").plan().root() instanceof com.legend.executionplan.ExecutionPlan.Keyed keyed)) {
+            throw new AssertionError("not a keyed plan: " + pureQuery);
+        }
+        return keyed;
+    }
+
+    /**
      * Executes a Pure query and returns results.
      * Uses Execution.run for the full compile → plan → execute flow.
      * 

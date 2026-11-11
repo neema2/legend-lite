@@ -41,8 +41,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     }
 
     /** None: this text is the engine's goldens', which no database executes, so no {@code data:} payload is delivered
-     *  through it (a live source in a text plan is refused before render, {@code PlanMaker.refuseLiveSourcesInText}):
-     *  refused by name, never a delivery borrowed from H2's. */
+     *  through it: refused by name, never a delivery borrowed from H2's. */
     @Override
     public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
         throw new DialectCapability("a data: source reached the engine's H2 text, which no database executes");

@@ -3,14 +3,12 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.sql.DialectCapability;
 
 import com.legend.Compiler;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -234,8 +232,13 @@ class PostgresDialectTest {
         assertTrue(plan("->extend(~[r: r|$r.f8->toOne()->round(2)])->select(~[id, r])").contains(
                 "(round(CAST(\"t0\".f8 AS DOUBLE PRECISION) * power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"
                         + " / power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"));
-        // a dynamic pivot needs a key-discovery round trip a planner cannot make
-        assertThrows(DialectCapability.class, () -> plan("->pivot(~[ok], ~[t: r|$r.qty : y|$y->sum()])"));
+        // a dynamic pivot's key-discovery round trip is its plan's keys statement, read before its body (B3,
+        // 2026-11-11: the text plan is the execution plan's keyed result; until then the one-statement text refused it
+        // here as a capability Postgres lacks): a plan whose text does not run alone
+        com.legend.plan.QueryPlan pivot = Compiler.query(Compiler.compileModel(MODEL),
+                "#>{pg::DB.trades}#->pivot(~[ok], ~[t: r|$r.qty : y|$y->sum()])").plan("pg::RT");
+        assertTrue(pivot.plan().root() instanceof com.legend.executionplan.ExecutionPlan.Keyed, pivot.sql());
+        assertFalse(pivot.textAlone(), pivot.sql());
         // a DateTime's text (the one owner, 2026-10-18): the fraction read at nine digits -- to_char's US, six, and
         // three written zeros -- and trimmed of its trailing zeros by the database
         String toString = plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])");

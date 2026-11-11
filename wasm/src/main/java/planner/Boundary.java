@@ -165,10 +165,23 @@ public final class Boundary {
                 com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime));
     }
 
+    /**
+     * A text plan as the tab and Python read it: {@code {"sql", "type"}}, and {@code "plan"} -- the execution plan the
+     * text renders from (B3, 2026-11-11), its target's loads and its slots -- where the text does not run alone. One a
+     * host cannot run yet ({@code QueryPlan.beyondItsText}) is refused by name here, before any host sends it.
+     */
     private static String planned(com.legend.plan.QueryPlan p) {
+        String refused = p.beyondItsText();
+        if (refused != null) {
+            throw new com.legend.error.NotImplementedException("this host runs a plan's statement itself, and this"
+                    + " query's plan does not run as its text: " + refused);
+        }
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("sql", p.sql());
         out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
+        if (!p.textAlone()) {
+            out.put("plan", com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(p.plan())));
+        }
         return com.legend.json.Json.toCompact(out);
     }
 

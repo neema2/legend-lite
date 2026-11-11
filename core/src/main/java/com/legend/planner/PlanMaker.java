@@ -949,36 +949,6 @@ public final class PlanMaker {
         return named.isEmpty() ? null : named.iterator().next();
     }
 
-    /**
-     * The text plan's refusal of a live source (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §4, A5: "a door that cannot
-     * carry a source refuses it by name before render"): generatePlan's and arrowPlan's plan is ONE statement's text,
-     * and a {@code data:} source is a load of the query's execution plan (its session table, made when a session is
-     * acquired), a {@code file:} source a path the execution plan binds when it runs -- neither of which a text carries.
-     * Until the hosts run a plan's loads (the design's B3), the text refuses them by name; the execution plan carries
-     * both ({@code TypedQuery.executionPlan}).
-     */
-    public static void refuseLiveSourcesInText(SqlQuery q) {
-        new SqlRewriter() {
-            @Override
-            protected SqlSource source(SqlSource s) {
-                if (s instanceof SqlSource.SourceUrl u) {
-                    String shown = u.url().length() > 120 ? u.url().substring(0, 120) + "..." : u.url();
-                    if (u.url().startsWith("data:")) {
-                        throw new NotImplementedException("a text plan (generatePlan, arrowPlan) is one statement, and"
-                                + " the data: source '" + shown + "' is a load of the query's execution plan, which the"
-                                + " text carries not: run the execution plan");
-                    }
-                    if (u.url().startsWith("file:")) {
-                        throw new NotImplementedException("a text plan (generatePlan, arrowPlan) is one statement, and"
-                                + " the file: source '" + shown + "' is a path the query's execution plan binds when it"
-                                + " runs, which the text binds not: run the execution plan");
-                    }
-                }
-                return s;
-            }
-        }.rewrite(q);
-    }
-
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
      *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6). */
     public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
