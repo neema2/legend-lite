@@ -146,15 +146,16 @@ class PlanJsonTest {
         // day: a column's store type an object (the A checkpoint's tenets audit, 3); 43 since 2026-11-11: a list's array
         // binding of dates carries the digits its database keeps of an element (the A delta audit's 2, S181); 44 the
         // same day: a sourceUrl's form and the SOURCE load (B2a and its audit); 45 the same day: a plan's release (the
-        // second audit's S12); 46 the same day: a slot's bound data: payload (the dialect's delivery)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":46,"), json);
+        // second audit's S12); 46 the same day: a slot's bound data: payload (the dialect's delivery); 47 the same day
+        // (B3): a host's own file (HOST, its upload formats) and the HOST_SESSION load
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":47,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v46 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v47 plan"), refused.getMessage());
     }
 
     @Test

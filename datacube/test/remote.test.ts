@@ -191,7 +191,7 @@ describe('credentials', () => {
   it('writes no credential into a statement, a quote in one included: each is bound as it is', async () => {
     const creds = { secretAccessKey: "a'b" };
     const [stmt] = await credentialStatements(creds, source);
-    assert.ok(!(stmt ?? '').includes("a'b") && !(stmt ?? '').includes("a''b"), stmt);
+    assert.ok(!(stmt ?? '').includes("a'b") && !(stmt ?? '').includes("a''b"), stmt ?? '');
     assert.deepEqual(secretStore({ sources: [source], s3: creds }).bound(credentialSecret(creds, source)!.operation),
       ["a'b", 's3://bucket/trades/2024.parquet']);
   });

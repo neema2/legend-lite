@@ -1,10 +1,11 @@
-// A model's own test data, in the tab's DuckDB (plan A2, the first source of rows): every relational Data element's
-// tables (`relationalCSVData`: schema, table, CSV text), made and filled by the statements the server seeds a database
-// with -- legend-lite's own (setup.CsvSeed, on the plan side), asked of the planner in the tab (a SeedSource) -- so a
-// table here holds what the same table on the server holds, its column types the server's. This file says which tables
-// a model's test data fills and which Database declares each, and runs the statements it is given.
+// A model's tables in the tab's DuckDB (plan A2): which tables a model's Databases declare and which of them its Data
+// elements fill (their rows are the project's database's: project-data.ts, the plan's ONCE load), and a person's own
+// file put into a declared table -- a planned load (B3, 2026-11-11: LoadPlanner.hostFile, the file a pointer the tab's
+// store binds), run by the hosts' runner (runLoad) in one transaction. Until then the server's seed statements were
+// handed over as text (testDataSql) and the file named by a host's operation, run outside any plan (census M14).
 
 import type { HostOperationsSource } from './host-operations.ts';
+import { runLoad, sha256Hex, type PlanValue } from './plan-runner.ts';
 
 /** The model JSON parts read here (grammarToJson/model). */
 interface ModelElement {
@@ -36,40 +37,21 @@ export interface DataTable {
   readonly element: string;
 }
 
-/** A table asked for: where it is, and its CSV (header first; a header alone makes it empty). */
-export interface SeedTable {
-  readonly schema: string;
-  readonly table: string;
-  readonly csv: string;
-}
-
 /**
- * What the planner gives for one table: the server's statements that make and fill it, and the names that reach it
- * again as those statements spell them -- so this file spells no table or column name of the model's itself.
+ * A host's own file read into its database, as the planner is asked for its plan (Boundary.fileLoad): the file by the
+ * name the host keeps it under, its bytes' SHA-256 and size and its format; a table of its own, or a table the model's
+ * Database declares.
  */
-export interface TableSeed {
-  /** The schema, the table with the server's column types, its rows as one INSERT (none for a header alone). */
-  readonly sql: readonly string[];
-  /** The table's name in SQL (no schema for the `default` one, as the seed makes it). */
-  readonly table: string;
-  /** The statement that drops it. */
-  readonly drop: string;
-  /** Each declared column: its name as written (what a file's header says) and its name in SQL. */
-  readonly columns: readonly { readonly name: string; readonly sql: string }[];
+export interface FileLoadRequest {
+  readonly databaseType: string;
+  readonly file: { readonly name: string; readonly digest: string; readonly size: number; readonly format: 'csv' | 'parquet' | 'json' };
+  readonly into: { readonly table: string } | { readonly model: string; readonly database: string; readonly schema: string; readonly table: string };
 }
 
-/** A table of test data with what the planner gave for it. */
-export interface SeededTable extends DataTable {
-  readonly seed: TableSeed;
-}
-
-/**
- * Where a model's test-data statements come from: legend-lite's planner in the tab (engine-client's
- * WasmGrammar.testDataSql, DataCube's LitePlanner.testDataSql): for each table `database` declares, its TableSeed, in
- * order. A table the Database does not declare is refused.
- */
-export interface SeedSource {
-  testDataSql(model: string, database: string, tables: readonly SeedTable[]): Promise<TableSeed[]>;
+/** Where a host's file's plan comes from: legend-lite's planner (WasmGrammar.fileLoad, DataCube's LitePlanner). */
+export interface FileLoadSource {
+  /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad). */
+  fileLoad(request: FileLoadRequest): Promise<string>;
 }
 
 /** Every table the model's Databases declare (its JSON's elements), in the order declared. */
@@ -112,92 +94,69 @@ export function dataTables(elements: readonly ModelElement[]): DataTable[] {
   return out;
 }
 
-/** What the planner gives for each table: one ask per Database (the model compiled once for each). */
-export async function seeded(source: SeedSource, model: string, tables: readonly DataTable[]): Promise<SeededTable[]> {
-  const byDatabase = new Map<string, DataTable[]>();
-  for (const t of tables) byDatabase.set(t.database, [...(byDatabase.get(t.database) ?? []), t]);
-  const seeds = new Map<DataTable, TableSeed>();
-  for (const [database, ts] of byDatabase) {
-    const answers = await source.testDataSql(model, database, ts.map((t) => ({ schema: t.schema, table: t.table, csv: t.csv })));
-    if (answers.length !== ts.length) throw new Error(`the planner answered ${answers.length} tables of test data for ${database}'s ${ts.length}`);
-    ts.forEach((t, i) => seeds.set(t, answers[i]!));
-  }
-  return tables.map((t) => ({ ...t, seed: seeds.get(t)! }));
-}
-
-/** What loading needs of the tab's DuckDB: SQL. */
-export interface DataSink {
-  run(sql: string): Promise<unknown>;
-}
-
 /**
- * A sink that also takes a file's bytes: a person's own file (Parquet is binary). DuckDB-WASM takes the buffer it is
- * given (it hands it to its worker: the view is empty after), so the caller's bytes are copied before they go in; a
- * file registered for one read is let go of after it (`dropFile`, where the sink can).
+ * Where a person's own file goes in (the tab's DuckDB): its bytes registered under a name (DuckDB-WASM takes the buffer
+ * it is given -- it hands it to its worker: the view is empty after -- so the caller's bytes are copied before they go
+ * in), let go of after (`dropFile`, where it can), and the connection held for the put's statements, one transaction.
  */
-export interface FileSink extends DataSink {
+export interface FileSink {
   registerFileBuffer(name: string, bytes: Uint8Array): Promise<void>;
   dropFile?(name: string): Promise<void>;
+  /** The connection held for `work`: each statement run with its bound values, no other query between them. */
+  hold<T>(work: (run: (sql: string, params: readonly PlanValue[]) => Promise<unknown>) => Promise<T>): Promise<T>;
 }
 
 /**
- * A table made from a person's own file (plan A2's second source), in one transaction: the table made empty by the
- * server's statements (a header alone: its column types the server's), then the file's rows put in -- each declared
- * column from the file's column of that name, a CSV's as text and a Parquet's as typed, DuckDB converting each value to
- * its column's type -- so a refused file (a column missing, a value its type cannot take) leaves the table as it was.
- * The file's name says which kind it is. It is registered as `<as>.csv` or `<as>.parquet`, never by the person's own
- * name: read_csv and read_parquet read a name as a glob (`sales[2024].csv` matches nothing). The table's names are the
- * planner's (`seed`); returned, to drop it by later.
+ * A table made from a person's own file (plan A2's second source), as a PLANNED LOAD (B3, 2026-11-11): the planner's
+ * plan (fileLoad) makes the table as the model declares it, empty, then puts the file's rows in -- each declared column
+ * from the file's column of that name, a CSV's read as text and a Parquet's as typed, DuckDB converting each value to its
+ * column's type -- and the hosts' runner runs it in one transaction, so a refused file (a column missing, a value its type
+ * cannot take) leaves the table as it was. The file's name says which kind it is. Its bytes are registered as `<as>.csv`
+ * or `<as>.parquet`, never by the person's own name (read_csv and read_parquet read a name as a glob: `sales[2024].csv`
+ * matches nothing), and the plan names them by that name, their SHA-256 and size: the statement's ? is bound to them.
  */
-export async function loadFileTable(sink: FileSink, source: SeedSource & HostOperationsSource, databaseType: string, model: string,
-  target: { readonly database: string; readonly schema: string; readonly table: string; readonly columns: readonly { readonly name: string }[] },
-  file: { readonly name: string; readonly bytes: Uint8Array }, as: string): Promise<TableSeed> {
+export async function loadFileTable(sink: FileSink, source: FileLoadSource & HostOperationsSource, databaseType: string, model: string,
+  target: { readonly database: string; readonly schema: string; readonly table: string },
+  file: { readonly name: string; readonly bytes: Uint8Array }, as: string): Promise<void> {
   const format = /\.csv$/i.test(file.name) ? 'csv' : /\.parquet$/i.test(file.name) ? 'parquet' : undefined;
   if (!format) throw new Error(`${file.name}: a table is filled from a .csv or a .parquet file`);
-  const [made] = await seeded(source, model, [{
-    database: target.database, schema: target.schema, table: target.table, element: file.name,
-    csv: target.columns.map((c) => c.name).join(','),
-  }]);
-  const seed = made!.seed;
   const registered = `${as}.${format}`;
-  // the transaction's steps and the rows put in: the planner's statements (D5), each declared column from the file's
-  // column of its name -- a CSV's read as text, a Parquet's as typed, DuckDB converting each value to its column's type
-  const [begin, insert, commit, rollback] = await source.hostOperations(databaseType, [
-    { op: 'transaction', step: 'begin' },
-    {
-      op: 'insert', target: { schema: target.schema, name: target.table, declared: true },
-      // the planner's own columns: each as declared, the name a file's header says (no store quotes)
-      columns: seed.columns.map((c) => ({ target: c.name, from: c.name })),
-      from: { file: { at: registered, format: format === 'csv' ? 'csvText' : 'parquet' } },
-    },
-    { op: 'transaction', step: 'commit' },
-    { op: 'transaction', step: 'rollback' },
-  ]);
+  const digest = await sha256Hex(file.bytes);
+  const plan = await source.fileLoad({
+    databaseType, file: { name: registered, digest, size: file.bytes.length, format },
+    into: { model, database: target.database, schema: target.schema, table: target.table },
+  });
+  const [begin, commit, rollback] = await source.hostOperations(databaseType,
+    (['begin', 'commit', 'rollback'] as const).map((step) => ({ op: 'transaction' as const, step })));
   // a copy: the database takes the buffer it is given, and the caller keeps its bytes (Studio puts them in again)
   await sink.registerFileBuffer(registered, file.bytes.slice());
-  try {
-    for (const sql of begin!) await sink.run(sql);
-    try {
-      for (const sql of [...seed.sql, ...insert!, ...commit!]) await sink.run(sql);
-    } catch (e) {
-      try {
-        for (const sql of rollback!) await sink.run(sql);
-      } catch (r) {
-        throw new Error(`${e instanceof Error ? e.message : String(e)} -- and putting the table back failed: ${r instanceof Error ? r.message : String(r)}`);
+  // the tab's store of its own files: the one registered for this put, by its name, its bytes the plan's
+  const files = {
+    located: async (ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string> => {
+      if (ref.name !== registered || ref.digest !== digest || ref.size !== file.bytes.length) {
+        throw new Error(`the file '${ref.name}' is not the one this put registered (${registered}, ${file.bytes.length} bytes of digest ${digest})`);
       }
-      throw e;
-    }
+      return registered;
+    },
+  };
+  try {
+    await sink.hold(async (run) => {
+      for (const sql of begin!) await run(sql, []);
+      try {
+        await runLoad(plan, run, files);
+        for (const sql of commit!) await run(sql, []);
+      } catch (e) {
+        try {
+          for (const sql of rollback!) await run(sql, []);
+        } catch (r) {
+          throw new Error(`${e instanceof Error ? e.message : String(e)} -- and putting the table back failed: ${r instanceof Error ? r.message : String(r)}`);
+        }
+        throw e;
+      }
+    });
   } finally {
     // the rows are the table's now (or the table is as it was): the file is not read again -- and a drop that fails
     // neither fails a put that worked nor hides why a read did not (at worst the file stays registered)
     await sink.dropFile?.(registered).catch(() => undefined);
-  }
-  return seed;
-}
-
-/** Each table made and filled: the planner's statements for it, run in order. */
-export async function loadDataTables(sink: DataSink, tables: readonly SeededTable[]): Promise<void> {
-  for (const t of tables) {
-    for (const sql of t.seed.sql) await sink.run(sql);
   }
 }

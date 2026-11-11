@@ -43,13 +43,44 @@ public record DataRef(Namespace namespace, String name, String digest, long size
         /** The model's own text above the inline threshold (L6c, 2026-11-10, decision 1): bytes the plan's BUNDLE
          *  carries, named by their digest, beside the plan and never in it -- a serialized plan travels as its JSON plus
          *  one blob per digest, each verified on read ({@code PlanJson.Bundle}). */
-        CONTENT
+        CONTENT,
+        /** A HOST'S OWN FILES (B3, 2026-11-11, the orchestrator's go for the design's "a dropped file is a pointer
+         *  DuckDB reads"): a person's file picked in the browser tab, DataCube or Python, by the name the host keeps it
+         *  under -- its store maps the name to what its database reads it by (a registered buffer, a path) and verifies
+         *  the bytes against the digest. A host's alone: exec is given no store for it, so a plan naming it is refused by
+         *  name there. */
+        HOST
     }
 
     /** How the referenced bytes are read: a closed set of declared formats, one meaning on every database
      *  (docs/DATA_IN_THE_PLAN_2026_11_09.md decision 6, ruled 2026-11-09: a file's cells mean what the platform's
      *  format says, never what a database's reader makes of them). */
-    public sealed interface Format permits Csv, Statements {
+    public sealed interface Format permits Csv, Statements, DetectedCsv, Parquet, Json {
+    }
+
+    /** A person's CSV file read into a table of its own (B3, 2026-11-11: a host's upload, the design's "the CSV/Parquet/
+     *  JSON upload unchanged"): its first record a header, its delimiter, quoting and column types the database's own
+     *  reader detects -- there is no declared table to cast into. */
+    public record DetectedCsv() implements Format {
+
+        /** The one detected-CSV format. */
+        public static final DetectedCsv DETECTED = new DetectedCsv();
+    }
+
+    /** A Parquet file: its columns and their types its own (a host's upload, or a person's file into a declared
+     *  table, each value converted to its column's type). */
+    public record Parquet() implements Format {
+
+        /** The one Parquet format. */
+        public static final Parquet PARQUET = new Parquet();
+    }
+
+    /** A JSON file of records -- an array of objects, or one object per line -- each record's top-level keys its
+     *  columns, anything nested below them kept as it is (a host's upload). */
+    public record Json() implements Format {
+
+        /** The one JSON-records format. */
+        public static final Json RECORDS = new Json();
     }
 
     /**

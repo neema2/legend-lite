@@ -15,9 +15,8 @@ export interface HostName {
 /** Where a relation's rows come from. */
 export type HostSource =
   | { readonly relation: HostName }
-  /** A file the database reads by a registered name or a path: sniffed CSV with a header, CSV as text (a declared
-   *  table's file), Parquet, or JSON (each record's keys its columns). */
-  | { readonly file: { readonly at: string; readonly format: 'csv' | 'csvText' | 'parquet' | 'json' } }
+  // a person's own file is read by a planned load (B3: the planner's fileLoad, run by plan-runner.ts runLoad), never by
+  // an operation naming it
   | { readonly remote: { readonly url: string; readonly format: 'csv' | 'parquet' | 'iceberg' } }
   /** A query a planner wrote, for this database. */
   | { readonly query: string };
@@ -30,8 +29,6 @@ export type HostOperation =
     readonly selectList?: string; readonly replacing?: readonly { readonly column: string; readonly sql: string }[];
     readonly from: HostSource;
   }
-  /** Rows put into a declared table, each declared column from the source's column of its name. */
-  | { readonly op: 'insert'; readonly target: HostName; readonly columns: readonly { readonly target: string; readonly from: string }[]; readonly from: HostSource }
   | { readonly op: 'drop'; readonly kind: 'table' | 'view'; readonly target: HostName }
   | { readonly op: 'schema'; readonly database?: string; readonly name: string }
   | { readonly op: 'dropSchema'; readonly database?: string; readonly name: string }

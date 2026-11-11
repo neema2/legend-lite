@@ -9,7 +9,7 @@ import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { accessRemote, inferFormat, scanUrl, type S3Credentials } from '../remote.ts';
 import { lastSegment } from '../cube-document.ts';
-import { dropFileTable, modelLanded, mountRemoteView, readFileInto, tableNameOf } from '../upload.ts';
+import { dropFileTable, modelLanded, mountRemoteView, readFileInto, tableNameOf, uploadFileName } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
 import type { HostLeaf } from './host-tables.ts';
 
@@ -39,7 +39,11 @@ async function using<T>(use: (o: { engine: DuckDbEngine; writer: LitePlanner }) 
 export async function ingest(spec: string): Promise<string> {
   const s = JSON.parse(spec) as IngestSpec;
   return using(async ({ engine, writer }) => {
-    const read = await readFileInto(engine, { at: s.path, fileName: s.name, table: s.table }, writer);
+    // the plan names the file by the table's upload name, Python's SHA-256 and size of the bytes it wrote; Python's path
+    // is bound to the statement's ?, never written (B3: a planned load, the file a pointer)
+    const read = await readFileInto(engine, {
+      at: s.path, name: uploadFileName(s.table, s.name), digest: s.sha256, size: s.size, fileName: s.name, table: s.table,
+    }, writer);
     // the file as a page's cube names it (host-tables.ts HostLeaf): what the host serves the table by
     const leaf: HostLeaf = { _type: 'file', name: s.name, size: s.size, sha256: s.sha256 };
     return JSON.stringify({ ...read, leaf });

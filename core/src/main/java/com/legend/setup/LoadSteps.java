@@ -51,6 +51,19 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
         return new LoadSteps(List.of(new ExecutionPlan.LoadStep.Statements(ref, of)), Map.of(digest, json));
     }
 
+    /**
+     * A host's own file (B3, 2026-11-11: an upload, Studio's file put), read by its database's {@code reads} -- each
+     * statement's one {@code ?} the file as the host locates it, never written -- with no platform limit on its size:
+     * the host holds its bytes already, and the reference names its digest.
+     */
+    public static LoadSteps hostFile(DataRef file, List<String> reads) {
+        if (file.namespace() != DataRef.Namespace.HOST) {
+            throw new IllegalArgumentException("a host's file is named in the host's namespace, not " + file.namespace());
+        }
+        return of(List.of(new ExecutionPlan.LoadStep.File(file, new ExecutionPlan.LoadStep.Delivery.Reads(reads,
+                List.of()), Integer.MAX_VALUE)));
+    }
+
     /** {@code load}'s rows as {@code dialect} writes them, in one blob ({@link #blob}) named as the table's data: none
      *  for a load of no row. */
     public static LoadSteps rows(RowLoad load, com.legend.sql.dialect.SqlDialect dialect) {

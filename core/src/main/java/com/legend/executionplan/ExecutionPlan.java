@@ -323,6 +323,9 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                         switch (f.ref().format()) {
                             case DataRef.Csv csv -> sb.append("csv").append(csv.delimiter()).append(csv.quote());
                             case DataRef.Statements statements -> sb.append("statements");
+                            case DataRef.DetectedCsv detected -> sb.append("detectedCsv");
+                            case DataRef.Parquet parquet -> sb.append("parquet");
+                            case DataRef.Json json -> sb.append("json");
                         }
                         switch (f.delivery()) {
                             case LoadStep.Delivery.Reads r -> {
@@ -423,7 +426,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  acquisition's load made (a {@code data:} payload's), dropped, so a kept session holds none of them after
              *  the request. Run by the source that ran the target's acquisition loads ({@code PlanSessions.acquired});
              *  never on a database the platform keeps made with them, nor as a program's node. */
-            AT_RELEASE
+            AT_RELEASE,
+            /** A HOST'S OWN LOAD, KEPT FOR ITS SESSION (B3, 2026-11-11, the orchestrator's go; the design's §3 rule 4:
+             *  "the browser's uploaded tables live until the person resets them: a load whose lifetime is the host
+             *  session"): a person's file read into the host's database -- a table of its own, or a model's declared
+             *  table in Studio's workspace -- run once when the person puts it in and kept until they reset it. A plan of
+             *  it is the host's alone (a root load its runner runs); exec refuses it by name. */
+            HOST_SESSION
         }
     }
 

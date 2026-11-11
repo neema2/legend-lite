@@ -170,9 +170,10 @@ class HostOperationsTest {
     @Test
     void duckDbsNamedOperations() {
         var file = HostOperation.Name.of("pivot");
-        assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT * FROM read_csv('upload-1.csv', AUTO_DETECT=TRUE, HEADER=TRUE)",
+        // a host's own file: its ? bound by the host's runner, never its name or path written (B3, 2026-11-11)
+        assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT * FROM read_csv(?, AUTO_DETECT=TRUE, HEADER=TRUE)",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true, null, List.of(),
-                        new HostOperation.Source.File("upload-1.csv", HostOperation.FileFormat.CSV))));
+                        new HostOperation.Source.HostFile(HostOperation.FileFormat.CSV))));
         assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT \"a\", CAST(\"b\" AS VARCHAR) AS \"b\" FROM \"pivot\"",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true,
                         "\"a\", CAST(\"b\" AS VARCHAR) AS \"b\"", List.of(), new HostOperation.Source.Relation(file))));
@@ -185,11 +186,11 @@ class HostOperationsTest {
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, new HostOperation.Name("db", "s", "t", false), true,
                         null, List.of(new HostOperation.Conversion("x", "CAST(x AS VARCHAR)")),
                         new HostOperation.Source.Query("SELECT 1 AS x"))));
-        assertEquals("INSERT INTO PARTY.PARTY (ID, NAME, \"order\") SELECT \"ID\", \"first name\", \"order\" FROM read_csv('f.csv', header = true, all_varchar = true)",
+        assertEquals("INSERT INTO PARTY.PARTY (ID, NAME, \"order\") SELECT \"ID\", \"first name\", \"order\" FROM read_csv(?, header = true, all_varchar = true)",
                 one(new HostOperation.Insert(HostOperation.Name.declared("PARTY", "PARTY"),
                         List.of(new HostOperation.Column("ID", "ID"), new HostOperation.Column("NAME", "first name"),
                                 new HostOperation.Column("order", "order")),
-                        new HostOperation.Source.File("f.csv", HostOperation.FileFormat.CSV_TEXT))));
+                        new HostOperation.Source.HostFile(HostOperation.FileFormat.CSV_TEXT))));
         assertEquals("SELECT count(*) AS n FROM T", one(new HostOperation.Count(
                 new HostOperation.Source.Relation(HostOperation.Name.declared("default", "T")))));
         assertEquals("DROP VIEW IF EXISTS \"main\".\"x\"", one(new HostOperation.Drop(HostOperation.Kind.VIEW,
@@ -217,9 +218,14 @@ class HostOperationsTest {
         java.nio.file.Files.writeString(csv, "ID,first name\n1,Ada\n2,Grace\n");
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
             var t = HostOperation.Name.of("people");
+            // the file read as a host's planned load reads it: the statement's ? bound to its path
+            try (java.sql.PreparedStatement read = c.prepareStatement(one(new HostOperation.MakeRelation(
+                    HostOperation.Kind.TABLE, t, true, null, List.of(), new HostOperation.Source.HostFile(
+                            HostOperation.FileFormat.CSV))))) {
+                read.setString(1, csv.toString());
+                read.execute();
+            }
             for (HostOperation op : List.of(
-                    new HostOperation.MakeRelation(HostOperation.Kind.TABLE, t, true, null, List.of(),
-                            new HostOperation.Source.File(csv.toString(), HostOperation.FileFormat.CSV)),
                     new HostOperation.MakeRelation(HostOperation.Kind.TABLE, t, true, null,
                             List.of(new HostOperation.Conversion("first name", "upper(\"first name\")")),
                             new HostOperation.Source.Relation(t)),

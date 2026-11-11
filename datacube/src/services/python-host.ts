@@ -195,7 +195,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   catalogColumnsSql: "a catalog's reading is the tab's own database's",
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
   executeAnswer: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
-  testData: "a model's test data is the tab's own database's",
+  fileLoad: "a host's own file is read into the tab's own database",
   sessionSetup: "a session's setup is the tab's own database's",
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",

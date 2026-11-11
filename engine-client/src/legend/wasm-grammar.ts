@@ -10,7 +10,7 @@ import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
-import type { SeedTable, TableSeed } from '../model-data.ts';
+import type { FileLoadRequest } from '../model-data.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
 
@@ -240,11 +240,10 @@ export class WasmGrammar implements Grammar {
   }
 
   /**
-   * A model's test data as the statements the server seeds DuckDB with (setup.CsvSeed, on the plan side), and each
-   * table's names as those statements spell them: for each table `database` declares, its SeedSource answer
-   * (model-data.ts), in order.
+   * A host's own file read into its database, as a plan (Boundary.fileLoad, B3): one HOST_SESSION load the hosts'
+   * runner runs (plan-runner.ts runLoad), the file a reference the host's store binds -- PlanJson's text.
    */
-  async testDataSql(model: string, database: string, tables: readonly SeedTable[]): Promise<TableSeed[]> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'testData', model, database, tables: JSON.stringify(tables) }))) as TableSeed[];
+  async fileLoad(request: FileLoadRequest): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'fileLoad', request: JSON.stringify(request) }));
   }
 }

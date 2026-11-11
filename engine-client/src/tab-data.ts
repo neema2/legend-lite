@@ -4,8 +4,8 @@
 // it is reset -- or from nowhere yet.
 
 import type { QueryEngine } from './engine.ts';
-import { databaseOf, databaseTables, dataTables, loadFileTable, type FileSink, type SeedSource } from './model-data.ts';
-import type { ProjectDatabases, ProjectEngine, ProjectRunner } from './project-data.ts';
+import { databaseOf, databaseTables, dataTables, loadFileTable, type FileLoadSource, type FileSink } from './model-data.ts';
+import type { HeldEngine, ProjectDatabases, ProjectEngine, ProjectRunner } from './project-data.ts';
 import type { HostOperationsSource } from './host-operations.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
@@ -60,7 +60,7 @@ export class TabTables {
   readonly #runner: ProjectRunner;
   readonly #host: QueryEngine & { readonly databaseType: string };
   readonly #sink: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>;
-  readonly #source: SeedSource & HostOperationsSource;
+  readonly #source: FileLoadSource & HostOperationsSource;
   /** The tables a person's file fills, by `schema.table`: the person's own state. */
   readonly #files = new Map<string, PutFile>();
   /** How many times the person's files changed; the database there now was made at `#current.files`. */
@@ -76,11 +76,11 @@ export class TabTables {
 
   /**
    * `host`: the tab's own connection (no model's database is ever it here); `files`: where a file's bytes are
-   * registered for a read, and let go of after (the tab's database); `source`: the planner's statements for a table a
-   * file fills.
+   * registered for a read, and let go of after (the tab's database); `source`: the planner's plan for a table a file
+   * fills (fileLoad: a planned load, B3).
    */
   constructor(projects: ProjectDatabases, runner: ProjectRunner, host: QueryEngine & { readonly databaseType: string },
-    files: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>, source: SeedSource & HostOperationsSource) {
+    files: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>, source: FileLoadSource & HostOperationsSource) {
     this.#projects = projects;
     this.#runner = runner;
     this.#host = host;
@@ -98,8 +98,10 @@ export class TabTables {
    * declares it makes (databaseOf: none, or two, is refused). A refused file leaves the table as it was.
    */
   async put(model: Model, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
-    const { engine } = await this.#open(model);
-    await this.#putFile(model, engine, schema, table, file);
+    const { held } = await this.#open(model);
+    // the workspace's own database (own: true), always made: its connection takes the put's bound statements
+    if (held === undefined) throw new Error("the workspace's database was not made");
+    await this.#putFile(model, held, schema, table, file);
     this.#files.set(key(schema, table), { schema, table, name: file.name, bytes: file.bytes });
     this.#refused.delete(key(schema, table));
     // the database there holds it already: it is as the files are now
@@ -148,7 +150,7 @@ export class TabTables {
    * the files did (a reset), the same name is dropped first and made again, so a run on it then fails once.
    */
   async #open(model: Model): Promise<ProjectEngine> {
-    const made = async (engine: QueryEngine): Promise<void> => {
+    const made = async (engine: HeldEngine): Promise<void> => {
       this.#refused.clear();
       for (const [k, file] of this.#files) {
         try {
@@ -175,14 +177,14 @@ export class TabTables {
   }
 
   /** A file put into `schema.table` on `engine`. */
-  async #putFile(model: Model, engine: QueryEngine, schema: string, table: string,
+  async #putFile(model: Model, engine: HeldEngine, schema: string, table: string,
     file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
     const database = databaseOf(model.elements, schema, table, 'a file fills');
     const target = databaseTables(model.elements).find((t) => t.database === database && t.schema === schema && t.table === table)!;
     const sink: FileSink = {
       registerFileBuffer: (name, bytes) => this.#sink.registerFileBuffer(name, bytes),
       ...(this.#sink.dropFile ? { dropFile: (name: string) => this.#sink.dropFile!(name) } : {}),
-      run: (sql) => engine.run(sql, 0),
+      hold: (work) => engine.exclusive((held) => work((sql, params) => held.rows(sql, params))),
     };
     await loadFileTable(sink, this.#source, this.#host.databaseType, model.text, target, file, `upload-${++this.#uploads}`);
   }

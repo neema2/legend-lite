@@ -121,8 +121,11 @@ public final class PlanJson {
      *  live source's session table at its place, which writes no store of the body's. 45 since 2026-11-11 (the second
      *  audit's S12): a plan may carry its {@code release} (its target {@code on} and its {@code statements}), sent once
      *  its run is over whatever the outcome. 46 the same day: a slot may bind a {@code data:} payload's one JSON array, the plan's own value
-     *  ({@code payload}, its {@code json}: the dialect's delivery, Snowflake's and BigQuery's). */
-    public static final int VERSION = 46;
+     *  ({@code payload}, its {@code json}: the dialect's delivery, Snowflake's and BigQuery's). 47 the same day (B3): a
+     *  data reference may name a HOST's own file (a person's upload) in the formats {@code detectedCsv},
+     *  {@code parquet} and {@code json}, and a load may be HOST_SESSION (kept until the person resets it), a host's
+     *  alone. */
+    public static final int VERSION = 47;
 
     private PlanJson() {
     }
@@ -739,6 +742,9 @@ public final class PlanJson {
                 format.put("quote", String.valueOf(csv.quote()));
             }
             case DataRef.Statements statements -> format.put("_type", "statements");
+            case DataRef.DetectedCsv detected -> format.put("_type", "detectedCsv");
+            case DataRef.Parquet parquet -> format.put("_type", "parquet");
+            case DataRef.Json json -> format.put("_type", "json");
         }
         ref.put("format", format);
         return ref;
@@ -886,6 +892,9 @@ public final class PlanJson {
         return switch (o.getString("_type")) {
             case "csv" -> new DataRef.Csv(oneChar(o.getString("delimiter")), oneChar(o.getString("quote")));
             case "statements" -> DataRef.Statements.JSON;
+            case "detectedCsv" -> DataRef.DetectedCsv.DETECTED;
+            case "parquet" -> DataRef.Parquet.PARQUET;
+            case "json" -> DataRef.Json.RECORDS;
             default -> throw new IllegalArgumentException("a data reference's format is csv or rows: "
                     + o.getString("_type"));
         };

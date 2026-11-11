@@ -145,14 +145,15 @@ final class DuckDbHostOperations implements HostOperations {
     private static String source(HostOperation.Source source) {
         return switch (source) {
             case HostOperation.Source.Relation r -> name(r.name());
-            case HostOperation.Source.File f -> switch (f.format()) {
+            // a host's own file, its ? bound by the host's runner to what DuckDB reads it by (B3: never written here)
+            case HostOperation.Source.HostFile f -> switch (f.format()) {
                 // the sniffer takes delimiter, quoting and types; upstream's DataCube asks for a header, as this does
-                case CSV -> "read_csv(" + literal(f.at()) + ", AUTO_DETECT=TRUE, HEADER=TRUE)";
+                case CSV -> "read_csv(?, AUTO_DETECT=TRUE, HEADER=TRUE)";
                 // a declared table's file: every column as text, each converted to its column's type as it goes in
-                case CSV_TEXT -> "read_csv(" + literal(f.at()) + ", header = true, all_varchar = true)";
-                case PARQUET -> "read_parquet(" + literal(f.at()) + ")";
+                case CSV_TEXT -> "read_csv(?, header = true, all_varchar = true)";
+                case PARQUET -> "read_parquet(?)";
                 // each record's top-level keys its columns; what is nested below them a STRUCT or a LIST, kept
-                case JSON -> "read_json(" + literal(f.at()) + ", auto_detect=true)";
+                case JSON -> "read_json(?, auto_detect=true)";
             };
             case HostOperation.Source.Remote r -> switch (r.format()) {
                 case CSV -> "read_csv_auto(" + literal(r.url()) + ")";

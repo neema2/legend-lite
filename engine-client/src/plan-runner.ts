@@ -18,8 +18,9 @@
 // tables) and `establish`es it there once, its ONCE and PER_ACQUISITION loads run in one transaction, each content
 // blob's bytes checked against the digest its load names; runPlan then runs the plan on that session (`established`),
 // and `release` runs the target's AT_RELEASE loads and the plan's release once the host lets the session go, whatever
-// the run's outcome. A file's load (bytes by reference, read by the database) is refused by name here until a host's
-// files are a store a plan names.
+// the run's outcome. A file's load names a HOST's own file (a person's upload, Studio's put): the host's store
+// (HostFiles) says what its database reads it by and that its bytes are the reference's, and the statement's ? is
+// bound to it -- never a path in a statement's text (B3: uploads and file puts as planned loads).
 //
 // PURE: no DOM, no planner; a host gives its session.
 
@@ -97,7 +98,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 46 the same day: a slot may bind a data: payload's JSON array (payload: Snowflake's and BigQuery's delivery) -- not a
 // host database's plan. B3 (2026-11-11, no new version): a target's loads and a plan's release run here where the host
 // established a session for the target (establish, release); a load node of a program and a file's load stay refused
-const PLAN_VERSION = 46;
+// 47 the same day (B3): a data reference may name a HOST's own file (detectedCsv, parquet, json) and a load may be
+// HOST_SESSION -- a person's file read into the host's database, kept until reset (runLoad, with the host's files)
+const PLAN_VERSION = 47;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -195,10 +198,26 @@ async function digestOf(text: string): Promise<{ readonly digest: string; readon
   return { digest: [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join(''), size: bytes.length };
 }
 
+/**
+ * A HOST'S OWN FILES (the plan's HOST namespace, B3): what its database reads a file by -- a registered buffer's name,
+ * a path -- once the host has checked the bytes it keeps under the reference's name are the reference's (its digest and
+ * size), refused by name otherwise.
+ */
+export interface HostFiles {
+  located(ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string>;
+}
+
+/** `bytes`' SHA-256, lowercase hex: a host's file's digest, as its plan names it (WebCrypto in every host). */
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const hash = await globalThis.crypto.subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>);
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 /** One load's steps sent in order on `session`: a statement as it is; a content blob of statements, its bytes checked
  *  against the digest and size its reference names first, each statement as written, a refusal naming the data; a
- *  file's rows refused by name (no store a host's plan names yet). */
-async function deliver(load: Load, session: Pick<PlanSession, 'run'>): Promise<void> {
+ *  host's own file through `files`, each delivery statement's ? bound to what its database reads it by, the statements
+ *  that undo the delivery run whatever its outcome. */
+async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: HostFiles): Promise<void> {
   for (const step of load.steps) {
     if (step._type === 'statement') {
       await session.run((step as { readonly sql: string }).sql, []);
@@ -223,8 +242,23 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>): Promise<v
         }
       }
     } else if (step._type === 'file') {
-      const { ref } = step as Extract<LoadStep, { _type: 'file' }>;
-      throw new PlanRefusal(`the file '${ref.name}' (${ref.namespace}) is a load this host does not run: a host's files are no store a plan names yet`);
+      const { ref, delivery } = step as Extract<LoadStep, { _type: 'file' }> & { readonly delivery: { readonly _type: string; readonly statements: readonly string[]; readonly after: readonly string[] } };
+      if (ref.namespace !== 'HOST') throw new PlanRefusal(`the file '${ref.name}' (${ref.namespace}) is not a host's own: this host reads its own files alone`);
+      if (files === undefined) throw new PlanRefusal(`the file '${ref.name}' is a host's own, and this run was given no host's files`);
+      if (delivery._type !== 'reads') throw new PlanRefusal(`a file's delivery is its database's reading of it, not ${delivery._type}`);
+      const at = await files.located(ref);
+      try {
+        for (const statement of delivery.statements) {
+          try {
+            await session.run(statement, [at]);
+          } catch (e) {
+            // the database's own words, the file named (its reader names the bound path)
+            throw new Error(`the file '${ref.name}': ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+          }
+        }
+      } finally {
+        for (const statement of delivery.after) await session.run(statement, []);
+      }
     } else {
       throw new PlanRefusal(`a load's step is a statement, a statements blob or a file, not a ${step._type}`);
     }
@@ -232,17 +266,21 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>): Promise<v
 }
 
 /**
- * A PLAN THAT IS ONE LOAD -- a project's Data rows as the ONCE load its own database is made with (the planner's
- * LoadPlanner.projectData: the load a server's project plan carries) -- run by `run` on the database the host made for
- * it: its steps in order, each content blob checked against its digest, a refusal naming its data (B3, 2026-11-11:
- * until then the host was handed the fill's statements as text and ran them outside any plan, census M14). The host
- * drops the database whole on a failure; a load of any other cadence is refused by name.
+ * A PLAN THAT IS ONE LOAD, run by `run` (each statement with its bound values): a project's Data rows as the ONCE load
+ * its own database is made with (the planner's LoadPlanner.projectData: the load a server's project plan carries), or a
+ * person's own file read into the host's database, kept until reset (HOST_SESSION: LoadPlanner.hostFile, the file a
+ * reference `files` resolves) -- its steps in order, each content blob checked against its digest, a refusal naming its
+ * data (B3, 2026-11-11: until then the host was handed the fill's statements and the file's path as text and ran them
+ * outside any plan, census M14). A load of any other cadence is refused by name; the host undoes a failure its own way
+ * (a project's database dropped whole, a file put in one transaction).
  */
-export async function runLoad(plan: string, run: (sql: string) => Promise<unknown>): Promise<void> {
+export async function runLoad(plan: string, run: (sql: string, params: readonly PlanValue[]) => Promise<unknown>,
+  files?: HostFiles): Promise<void> {
   const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
   if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
-  if (root.cadence !== 'ONCE') throw new PlanRefusal(`a load's plan made with a database is ONCE, not ${root.cadence}`);
-  await deliver(root, { run: (sql) => run(sql) });
+  // a project's Data, made with its database (ONCE); a person's file, kept until reset (HOST_SESSION)
+  if (root.cadence !== 'ONCE' && root.cadence !== 'HOST_SESSION') throw new PlanRefusal(`a load's plan is ONCE or HOST_SESSION, not ${root.cadence}`);
+  await deliver(root, { run: (sql, params) => run(sql, params).then(() => []) }, files);
 }
 
 /**

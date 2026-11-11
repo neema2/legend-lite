@@ -36,7 +36,9 @@ final class HostOperationsJson {
         return switch (op) {
             case "relation" -> new HostOperation.MakeRelation(kind(string(o, "kind")), name(object(o, "target")),
                     bool(o, "replace"), stringOrNull(o, "selectList"), conversions(o), source(object(o, "from")));
-            case "insert" -> new HostOperation.Insert(name(object(o, "target")), columns(o), source(object(o, "from")));
+            // rows put into a declared table come from a person's file: a planned load's (B3: Boundary.fileLoad)
+            case "insert" -> throw new IllegalArgumentException("rows put into a declared table are a planned load's"
+                    + " (fileLoad), not an operation");
             case "drop" -> new HostOperation.Drop(kind(string(o, "kind")), name(object(o, "target")));
             case "schema" -> new HostOperation.MakeSchema(stringOrNull(o, "database"), string(o, "name"));
             case "dropSchema" -> new HostOperation.DropSchema(stringOrNull(o, "database"), string(o, "name"));
@@ -93,15 +95,9 @@ final class HostOperationsJson {
             return new HostOperation.Source.Relation(name(object(o, "relation")));
         }
         if (o.has("file")) {
-            Json.Obj f = object(o, "file");
-            String format = string(f, "format");
-            return new HostOperation.Source.File(string(f, "at"), switch (format) {
-                case "csv" -> HostOperation.FileFormat.CSV;
-                case "csvText" -> HostOperation.FileFormat.CSV_TEXT;
-                case "parquet" -> HostOperation.FileFormat.PARQUET;
-                case "json" -> HostOperation.FileFormat.JSON;
-                default -> throw new IllegalArgumentException("a file is read as csv, csvText, parquet or json, not " + format);
-            });
+            // a host's own file is read by a planned load (B3, 2026-11-11: Boundary.fileLoad, run by the hosts'
+            // runner), never by an operation naming its path
+            throw new IllegalArgumentException("a host's file is read by a planned load (fileLoad), not an operation");
         }
         if (o.has("remote")) {
             Json.Obj r = object(o, "remote");
@@ -116,7 +112,7 @@ final class HostOperationsJson {
         if (o.has("query")) {
             return new HostOperation.Source.Query(string(o, "query"));
         }
-        throw new IllegalArgumentException("a source is a relation, a file, a remote file or a query");
+        throw new IllegalArgumentException("a source is a relation, a remote file or a query");
     }
 
     private static List<HostOperation.Conversion> conversions(Json.Obj o) {
@@ -130,18 +126,6 @@ final class HostOperationsJson {
         for (Json.Node n : arr.items()) {
             Json.Obj c = object(n, "a conversion");
             out.add(new HostOperation.Conversion(string(c, "column"), string(c, "sql")));
-        }
-        return out;
-    }
-
-    private static List<HostOperation.Column> columns(Json.Obj o) {
-        if (!(o.has("columns") && o.get("columns") instanceof Json.Arr arr)) {
-            throw new IllegalArgumentException("rows put in name their columns, an array");
-        }
-        List<HostOperation.Column> out = new ArrayList<>();
-        for (Json.Node n : arr.items()) {
-            Json.Obj c = object(n, "a column");
-            out.add(new HostOperation.Column(string(c, "target"), string(c, "from")));
         }
         return out;
     }

@@ -499,8 +499,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  page is read by as it opens; no startup file added). Measured 413,496.
  *  425,000 / 414,000 -> 430,500 (2026-10-28, main merged into the flow mode's PR #79: the two chains above, each grown
  *  from 408,500 apart -- the flow mode's roadmap and main's timeseries work -- in one bundle; no startup file added by
- *  the merge). Measured 430,054. */
-const BUDGET = 430_500;
+ *  the merge). Measured 430,054.
+ *  430,500 -> 431,000 (2026-11-11, the total wall's B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: a remote file's
+ *  credentials by name -- the secret's operation names its fields, their values held in the host's store and bound
+ *  (remote.ts credentialSecret, host-operations.ts SecretStore) -- and a picked file read by a planned load, named by its
+ *  SHA-256 and size (upload.ts readFileInto); the hosts' plan runner that runs it is a chunk fetched with the first file
+ *  read (upload.ts planRunner): at startup it measured 434,801). Measured 430,886. */
+const BUDGET = 431_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -1086,8 +1091,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  429,200 -> 429,900 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date -- and the drawing
  *  box's style, app.css .dc-ts-draw). Measured 429,265.
  *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 446,209. */
-const WIDGET_BUDGET = 446_500;
+ *  same date). Measured 446,209.
+ *  446,500 -> 447,000 (2026-11-11, the total wall's B3 -- the grid-only page's note of the same date; with the hosts'
+ *  plan runner at startup it measured 449,333). Measured 446,567. */
+const WIDGET_BUDGET = 447_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

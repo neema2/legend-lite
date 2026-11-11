@@ -20,7 +20,7 @@ export const REQUEST_KINDS = [
   'pureV1',
   'executePlan',
   'executeAnswer',
-  'testData',
+  'fileLoad',
   'sessionSetup',
   'projectData',
   'hostOperations',
@@ -51,8 +51,8 @@ export type RequestBody =
   // plan's answer from the rows the host's database answered running it, a JSON array of objects (HostRows)
   | { readonly kind: 'executePlan'; readonly body: string; readonly models: string }
   | { readonly kind: 'executeAnswer'; readonly plan: string; readonly rows: string }
-  // a model's test data as the statements the server seeds DuckDB with, and each table's names as they spell it
-  | { readonly kind: 'testData'; readonly model: string; readonly database: string; readonly tables: string }
+  // a host's own file read into its database, as a plan (B3): the request's JSON (Boundary.fileLoad)
+  | { readonly kind: 'fileLoad'; readonly request: string }
   // what a session of a database runs before it is queried, so that it answers as the planner's SQL expects
   | { readonly kind: 'sessionSetup'; readonly databaseType: string }
   // a project's own database on a host's database of that type (C5), named by what it holds

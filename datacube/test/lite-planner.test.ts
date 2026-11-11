@@ -56,7 +56,7 @@ function fakeExports(
     tableModelOrError: () => 'ERR\nfake\nnot in this fake',
     catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',
     pureV1OrError: () => 'ERR\nfake\nnot in this fake',
-    testDataSqlOrError: () => 'ERR\nfake\nnot in this fake',
+    fileLoadOrError: () => 'ERR\nfake\nnot in this fake',
     sessionSetupOrError: () => 'ERR\nfake\nnot in this fake',
     projectDataOrError: () => 'ERR\nfake\nnot in this fake',
     hostOperationsOrError: () => 'ERR\nfake\nnot in this fake',

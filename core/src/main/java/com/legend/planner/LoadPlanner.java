@@ -77,6 +77,91 @@ public final class LoadPlanner {
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.ONCE, fill, database));
     }
 
+    /** Where a host's own file goes: a table of its own (a person's upload), or a model's declared table (a person's
+     *  file put into Studio's workspace, over the model's own rows). */
+    public sealed interface HostFileInto permits NewTable, DeclaredTable {
+    }
+
+    /** A table of the file's own, {@code table} (a person's name, quoted), made or replaced from the file's columns. */
+    public record NewTable(String table) implements HostFileInto {
+        public NewTable {
+            java.util.Objects.requireNonNull(table, "table");
+        }
+    }
+
+    /** The table {@code schema.table} the Database {@code database} of {@code ctx} declares, made as declared and filled
+     *  from the file, each declared column from the file's column of its name. */
+    public record DeclaredTable(com.legend.compiler.element.ModelContext ctx, String database, String schema,
+            String table) implements HostFileInto {
+    }
+
+    /**
+     * A HOST'S OWN FILE READ INTO ITS DATABASE, as a plan (B3, 2026-11-11, the orchestrator's go: "uploads and Studio's
+     * file puts as planned loads, the file a pointer"; the design's B3 row: "a dropped file is a pointer DuckDB reads"):
+     * one {@link ExecutionPlan.Load.Cadence#HOST_SESSION} load -- kept until the person resets it -- whose file step names
+     * the host's file by reference ({@link com.legend.executionplan.DataRef.Namespace#HOST}: its name, digest, size and
+     * format) and is delivered as its database reads it, the statement's {@code ?} the file as the host's store binds it.
+     * A table of its own is made or replaced from the file (its types the reader's: a CSV detected, Parquet's, JSON's
+     * records); a declared table is made as the model declares it (its DDL the seed's, a header alone) and filled from
+     * the file (a CSV's cells as text, a Parquet's as typed, the database converting each to its column's type). The
+     * host runs the plan (engine-client's runLoad); exec has no store of a host's files, so it refuses one by name.
+     */
+    public static ExecutionPlan hostFile(com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.executionplan.DatabaseType type, com.legend.executionplan.DataRef file, HostFileInto into) {
+        if (file.namespace() != com.legend.executionplan.DataRef.Namespace.HOST) {
+            throw new IllegalArgumentException("a host's file load names a HOST file: " + file);
+        }
+        com.legend.sql.dialect.HostOperations host = com.legend.sql.dialect.HostOperations.of(dialect);
+        List<ExecutionPlan.LoadStep> steps = new java.util.ArrayList<>();
+        java.util.Map<String, String> content = java.util.Map.of();
+        com.legend.sql.dialect.HostOperation read = switch (into) {
+            case NewTable n -> new com.legend.sql.dialect.HostOperation.MakeRelation(
+                    com.legend.sql.dialect.HostOperation.Kind.TABLE, com.legend.sql.dialect.HostOperation.Name.of(n.table()),
+                    true, null, List.of(), new com.legend.sql.dialect.HostOperation.Source.HostFile(switch (file.format()) {
+                        case com.legend.executionplan.DataRef.DetectedCsv d -> com.legend.sql.dialect.HostOperation.FileFormat.CSV;
+                        case com.legend.executionplan.DataRef.Parquet p -> com.legend.sql.dialect.HostOperation.FileFormat.PARQUET;
+                        case com.legend.executionplan.DataRef.Json j -> com.legend.sql.dialect.HostOperation.FileFormat.JSON;
+                        case com.legend.executionplan.DataRef.Csv c -> throw new IllegalArgumentException("a table of a"
+                                + " file's own detects a CSV's columns: its format is detectedCsv, not a declared CSV");
+                        case com.legend.executionplan.DataRef.Statements st -> throw new IllegalArgumentException(
+                                "a host's file is no statements blob");
+                    }));
+            case DeclaredTable d -> {
+                com.legend.model.DatabaseDefinition.TableDefinition def = d.ctx().findTableDefinition(d.database(),
+                        "default".equals(d.schema()) ? d.table() : d.schema() + "." + d.table()).orElseThrow(() ->
+                        new IllegalArgumentException("a file fills " + d.schema() + "." + d.table() + ", which the"
+                                + " Database " + d.database() + " declares not"));
+                // the table as the model declares it, empty: the seed's statements for its header alone
+                com.legend.setup.LoadSteps made = com.legend.setup.CsvSeed.planned(com.legend.setup.CsvSeed.steps(
+                        d.schema() + "\n" + d.table() + "\n" + String.join(",", def.columns().stream()
+                                .map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toList()),
+                        d.database(), d.ctx(), dialect), dialect);
+                steps.addAll(made.steps());
+                content = made.content();
+                yield new com.legend.sql.dialect.HostOperation.Insert(
+                        com.legend.sql.dialect.HostOperation.Name.declared(d.schema(), d.table()),
+                        def.columns().stream().map(c -> new com.legend.sql.dialect.HostOperation.Column(c.name(), c.name()))
+                                .toList(),
+                        new com.legend.sql.dialect.HostOperation.Source.HostFile(switch (file.format()) {
+                            case com.legend.executionplan.DataRef.Csv c -> com.legend.sql.dialect.HostOperation.FileFormat.CSV_TEXT;
+                            case com.legend.executionplan.DataRef.Parquet p -> com.legend.sql.dialect.HostOperation.FileFormat.PARQUET;
+                            case com.legend.executionplan.DataRef.DetectedCsv dc -> throw new IllegalArgumentException(
+                                    "a declared table's CSV is read as text, cast into its declared columns: its format"
+                                            + " is csv, not detectedCsv");
+                            case com.legend.executionplan.DataRef.Json j -> throw new IllegalArgumentException(
+                                    "a declared table is filled from a .csv or a .parquet file, not JSON");
+                            case com.legend.executionplan.DataRef.Statements st -> throw new IllegalArgumentException(
+                                    "a host's file is no statements blob");
+                        }));
+            }
+        };
+        // the host's own file, read by its database's statements (setup.LoadSteps: the planner's makers make a step)
+        steps.addAll(com.legend.setup.LoadSteps.hostFile(file, host.statements(read)).steps());
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null),
+                dialect.sessionSetup(), List.of());
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps, target, content));
+    }
+
     /** {@code steps} as the loads a target establishes on acquisition: none for no step, else one load into
      *  {@code target}'s own database and session. */
     public static List<ExecutionPlan.Load> targetLoads(com.legend.setup.LoadSteps steps,

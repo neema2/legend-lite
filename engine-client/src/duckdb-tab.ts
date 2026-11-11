@@ -12,8 +12,9 @@ import { runHostOperations, type HostOperationsSource } from './host-operations.
 
 export interface DuckDbInTab {
   readonly engine: DuckDbEngine;
-  /** Where a model's test data and a person's files go: a file by name (text or bytes), and SQL on the engine's connection. */
-  readonly data: FileSink;
+  /** Where a person's files go: a file's bytes registered by name, and let go of (a put's statements are its planned
+   *  load's, on the connection that holds them: model-data.ts loadFileTable). */
+  readonly data: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>;
   /** The database itself: what a host registers a person's file on, and lets go of it (DataCube's upload.ts). */
   readonly db: duckdb.AsyncDuckDB;
   /**
@@ -68,7 +69,6 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
     data: {
       registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
       dropFile: async (name) => { await db.dropFile(name); },
-      run: (sql) => engine.run(sql, 0),
     },
     db,
     connect,

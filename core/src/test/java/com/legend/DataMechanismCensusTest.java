@@ -253,7 +253,12 @@ class DataMechanismCensusTest {
             "M6", List.of("setup.addAll(Ddl.metamodelSteps", "metamodel.setup()", "!projectDatabase && dialect.inProcess()"),
             // B3, 2026-11-11: a host's project database is filled by the plan's ONCE load (LoadPlanner.projectData, run
             // by the hosts' runners: engine-client's runLoad, Python's projects.run_load), never by the fill's text
-            "M14", List.of("out.put(\"fill\"", "p.fill()", "List<String> fill"));
+            "M14", List.of("out.put(\"fill\"", "p.fill()", "List<String> fill",
+                    // B3.5, 2026-11-11 (the orchestrator's Q2 go): a host's own file -- an upload, Studio's file put of a
+                    // model's test data -- is one HOST_SESSION load the planner plans (LoadPlanner.hostFile), the file a
+                    // pointer bound to its reader's ?, never a model's rows handed over as seed text nor a file named
+                    // in a host's operation
+                    "testDataSql(", "lite_test_data_sql", "record File(String at", "Source.File("));
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */

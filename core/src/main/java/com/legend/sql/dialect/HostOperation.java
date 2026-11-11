@@ -49,8 +49,13 @@ public sealed interface HostOperation {
         record Relation(Name name) implements Source {
         }
 
-        /** A file the database reads, by a registered name or a path ({@code at}), in a format. */
-        record File(String at, FileFormat format) implements Source {
+        /**
+         * A HOST'S OWN FILE, in a format, read through the statement's one {@code ?} -- which the host binds to what its
+         * database reads the file by (a registered buffer's name, a path) -- in a planned load (B3, 2026-11-11:
+         * {@code LoadPlanner.hostFile}; until then the file's name or path written into the statement, run outside any
+         * plan, census M14).
+         */
+        record HostFile(FileFormat format) implements Source {
         }
 
         /** A file the database reads from a remote address, in a format. */

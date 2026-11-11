@@ -189,11 +189,12 @@ public final class EffectPlanner {
                         + table.dbFqn())).columns().stream().map(c -> c.name()).toList();
         java.util.Set<String> quoted = com.legend.setup.CsvSeed.quotedColumns(def);
         com.legend.sql.NameQuoting quoting = Ddl.quoting(def, schema);
-        com.legend.executionplan.DataRef.Csv csv = switch (ref.format()) {
-            case com.legend.executionplan.DataRef.Csv c -> c;
-            case com.legend.executionplan.DataRef.Statements st -> throw new IllegalStateException("loadCsvToDbTable"
-                    + " reads a CSV file; a statements reference is the content store's: " + ref.name());
-        };
+        // a test's resource is CSV by upstream's rule: a statements blob is the content store's, and a host's upload
+        // formats (B3) are a host's
+        if (!(ref.format() instanceof com.legend.executionplan.DataRef.Csv csv)) {
+            throw new IllegalStateException("loadCsvToDbTable reads a CSV file, not a "
+                    + ref.format().getClass().getSimpleName() + " reference: " + ref.name());
+        }
         // READ by the program's database itself (SqlDialect.csvLoad; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.2-§1.3,
         // A3): DuckDB's read_csv, H2's CSVREAD, their record checks refusing a malformed record in the database; a
         // database that reads no file refuses the load by name, here, naming the file. Each column's declared type is the
