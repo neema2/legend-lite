@@ -234,6 +234,90 @@ class DataSourcesDeliveryTest {
         }
     }
 
+    /**
+     * A LIMIT BELOW THE ROOT picks the payload's FIRST records, pinned on every database (the B checkpoint's tenets
+     * audit, M1, 2026-11-11: only the root select was ordered, so {@code ->take(2)->filter(...)} -- an inner
+     * {@code LIMIT 2} under a filter -- kept whichever two records the database read first): the limited select, under
+     * a filter, a union's arm, a grouping or a common table expression, reads the place and is ordered by it; a filter
+     * above it keeps the payload's order, reading the place its subquery exposes, which no star above it sees; a
+     * DISTINCT whose LIMIT picks rows keeps the first distinct rows, grouped and ordered by each one's first place.
+     */
+    @Test
+    void aLimitBelowTheRootPicksThePayloadsFirstRecordsOnEveryDatabase() {
+        List<OutputCol> element = List.of(new OutputCol("data", SqlType.Scalar.JSON, true, OutputCol.Origin.PHYSICAL));
+        com.legend.sql.SqlExpr data = com.legend.sql.SqlExpr.Column.of("t0", element.get(0));
+        java.util.function.Function<String, SqlSelect> limited = alias -> SqlSelect.starOf(new SqlSource.SourceUrl(
+                PAYLOAD, "t0", element, SqlSource.SourceUrl.Form.ELEMENTS)).withProjections(List.of(
+                        new SqlSelect.Projection(data, "d", new OutputCol("d", SqlType.Scalar.JSON, true))))
+                .withLimit(2L);
+        SqlSelect filtered = SqlSelect.starOf(new SqlSource.Subselect(limited.apply("t0"), "t1", null))
+                .withWhere(new com.legend.sql.SqlExpr.BoolLit(true));
+        SqlQuery union = new com.legend.sql.SqlUnion(List.of(
+                SqlSelect.starOf(new SqlSource.Subselect(limited.apply("t0"), "t1", null)),
+                SqlSelect.starOf(new SqlSource.Subselect(limited.apply("t0").withOffset(1L), "t2", null))), true,
+                limited.apply("t0").outputs());
+        com.legend.sql.SqlExpr d1 = com.legend.sql.SqlExpr.Column.of("t1", limited.apply("t0").outputs().get(0));
+        SqlSelect grouped = SqlSelect.starOf(new SqlSource.Subselect(limited.apply("t0"), "t1", null))
+                .withProjections(List.of(new SqlSelect.Projection(d1, "d", limited.apply("t0").outputs().get(0))))
+                .withGroupBy(List.of(d1));
+        SqlQuery cte = new com.legend.sql.SqlWith(List.of(new com.legend.sql.SqlWith.Cte("c", limited.apply("t0"))),
+                SqlSelect.starOf(new SqlSource.Cte("c", "c", limited.apply("t0").outputs())));
+        SqlSelect distinctFirst = SqlSelect.starOf(new SqlSource.SourceUrl(PAYLOAD, "t0", element,
+                SqlSource.SourceUrl.Form.ELEMENTS)).withProjections(List.of(new SqlSelect.Projection(data, "d",
+                        new OutputCol("d", SqlType.Scalar.JSON, true)))).withDistinct().withLimit(2L);
+        // the planner's MIR: every limited select ordered by its records' place
+        SqlSelect inner = (SqlSelect) ((SqlSource.Subselect) ((SqlSelect) DataSources.inPayloadOrder(filtered))
+                .from()).inner();
+        assertTrue(placeOrdered(inner, false), "the limited select under a filter: " + inner);
+        SqlSelect outer = (SqlSelect) DataSources.inPayloadOrder(filtered);
+        assertTrue(placeOrdered(outer, false), "the filter above it, in the payload's order: " + outer);
+        assertEquals(List.of("d"), outer.outputs().stream().map(OutputCol::name).toList(), "no place in its rows");
+        for (SqlQuery arm : ((com.legend.sql.SqlUnion) DataSources.inPayloadOrder(union)).branches()) {
+            assertTrue(placeOrdered((SqlSelect) ((SqlSource.Subselect) ((SqlSelect) arm).from()).inner(), false),
+                    "a union's arm: " + arm);
+            assertEquals(List.of("d"), arm.outputs().stream().map(OutputCol::name).toList(), "no place in its rows");
+        }
+        assertTrue(placeOrdered((SqlSelect) ((SqlSource.Subselect) ((SqlSelect) DataSources.inPayloadOrder(grouped))
+                .from()).inner(), false), "the limited select under a grouping");
+        assertTrue(((SqlSelect) DataSources.inPayloadOrder(grouped)).orderBy().isEmpty(),
+                "a grouping without a LIMIT asks no order");
+        assertTrue(placeOrdered((SqlSelect) ((com.legend.sql.SqlWith) DataSources.inPayloadOrder(cte)).ctes().get(0)
+                .query(), false), "a common table expression's limited select");
+        SqlSelect firstDistinct = (SqlSelect) DataSources.inPayloadOrder(distinctFirst);
+        assertTrue(placeOrdered(firstDistinct, true) && !firstDistinct.distinct()
+                && firstDistinct.groupBy().size() == 1, "the first distinct rows: " + firstDistinct);
+        // each database's statement: the limited select ordered by the place its dialect reads
+        for (DatabaseType type : java.util.stream.Stream.concat(BOUND.keySet().stream(), INLINE.stream()).toList()) {
+            SqlDialect dialect = dialect(type);
+            // MongoDB has no shape for a WITH (refused by name, DialectCapability)
+            for (SqlQuery q : type == DatabaseType.MongoDB ? List.of(filtered, union, grouped, distinctFirst)
+                    : List.of(filtered, union, grouped, cte, distinctFirst)) {
+                SqlQuery read = DataSources.read(q, dialect);
+                String sql = type == DatabaseType.MongoDB ? dialect.render(read) : dialect.renderStatement(read).sql();
+                String lower = sql.toLowerCase(java.util.Locale.ROOT);
+                assertTrue(lower.contains(SqlSource.SourceUrl.PLACE), type + ": the place read: " + sql);
+                assertTrue(type == DatabaseType.MongoDB ? sql.contains("$sort") && sql.contains("$limit")
+                        : lower.contains("order by") && (lower.contains("limit") || lower.contains("top")
+                                || lower.contains("fetch")), type + ": ordered by it: " + sql);
+            }
+        }
+    }
+
+    /** Whether {@code s} is ordered by its records' place alone (a group's first, {@code MIN}, where {@code grouped}). */
+    private static boolean placeOrdered(SqlSelect s, boolean grouped) {
+        if (s.orderBy().size() != 1 || !s.orderBy().get(0).ascending()) {
+            return false;
+        }
+        com.legend.sql.SqlExpr e = s.orderBy().get(0).expr();
+        if (grouped) {
+            if (!(e instanceof com.legend.sql.SqlAgg.Reducer r) || r.fn() != com.legend.sql.SqlAgg.Fn.MIN) {
+                return false;
+            }
+            e = r.args().get(0);
+        }
+        return e instanceof com.legend.sql.SqlExpr.Column c && c.name().equals(SqlSource.SourceUrl.PLACE);
+    }
+
     /** Trino's driver writes a parameter into the statement's text, which Trino bounds at 1,000,000 characters: a
      *  payload whose literal alone is longer can never run, refused at planning by name. */
     @Test

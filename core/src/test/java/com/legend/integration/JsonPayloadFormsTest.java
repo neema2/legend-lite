@@ -145,7 +145,8 @@ public class JsonPayloadFormsTest {
      * The PAYLOAD'S ORDER where a query asks none (the orchestrator's finding of 2026-11-11, the Databricks lane): a
      * JSON connection's model-to-model query, unsorted, answers its records in the payload's order, as legend-engine's
      * JSON reader yields them (the array's order) -- its statement orders by each record's place, so no database's
-     * own order decides it; a {@code take} the first records in that order; a bare {@code sourceUrl} relation too.
+     * own order decides it; a {@code take} the first records in that order, below the root too (a filter, a union's
+     * arm, a grouping above it); a bare {@code sourceUrl} relation too.
      */
     static void assertModelOrder(DatabaseType db, Connection c) throws Exception {
         String model = jsonModel(db);
@@ -157,6 +158,28 @@ public class JsonPayloadFormsTest {
                 List.of("4", "d")), strings(runOn(c, model, "|m::P.all()->project(~[id, t])")), db + ": in order");
         assertEquals(List.of(List.of("3", "c"), List.of("1", "a")),
                 strings(runOn(c, model, "|m::P.all()->project(~[id, t])->take(2)")), db + ": the first two");
+        // a take, a slice, a drop or a first BELOW the root (the B checkpoint's tenets audit, M1, 2026-11-11): the
+        // payload's first records, and the rows above in its order
+        assertEquals(List.of(List.of("3", "c"), List.of("1", "a")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->take(2)->filter(r|$r.id < 5)")), db + ": take, then filter");
+        assertEquals(List.of(List.of("3", "c"), List.of("1", "a")), strings(runOn(c, model,
+                "|m::P.all()->take(2)->project(~[id, t])")), db + ": a class's take");
+        assertEquals(List.of(List.of("1", "a"), List.of("5", "e")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->slice(1, 3)->filter(r|$r.id > 0)")), db + ": slice, then filter");
+        assertEquals(List.of(List.of("2", "b"), List.of("4", "d")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->drop(3)->filter(r|$r.id > 0)")), db + ": drop, then filter");
+        assertEquals(List.of(List.of("3")), strings(runOn(c, model, "|m::P.all()->first()->toOne().id")),
+                db + ": the first");
+        List<List<String>> arms = new ArrayList<>(strings(runOn(c, model, "|m::P.all()->project(~[id, t])->take(2)"
+                + "->concatenate(m::P.all()->project(~[id, t])->drop(3))")));
+        arms.sort(java.util.Comparator.comparing(row -> row.get(0)));
+        assertEquals(List.of(List.of("1", "a"), List.of("2", "b"), List.of("3", "c"), List.of("4", "d")), arms,
+                db + ": a take in a union's arm");
+        assertEquals(List.of(List.of("a", "1"), List.of("c", "3"), List.of("e", "5")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->take(3)->groupBy(~[t], ~[c: x|$x.id : y|$y->sum()])"
+                        + "->sort(~t->ascending())")), db + ": a take under a grouping");
+        assertEquals(List.of(List.of("c"), List.of("a")), strings(runOn(c, model,
+                "|m::P.all()->project(~[t])->distinct()->take(2)")), db + ": the first distinct rows");
         String relation = "[{\"a\":2},{\"a\":9},{\"a\":1}]";
         List<Object> bare = new ArrayList<>();
         for (List<Object> row : runOn(c, model, source(relation) + "->from(m::RT)")) {
