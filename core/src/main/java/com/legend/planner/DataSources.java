@@ -98,9 +98,10 @@ public final class DataSources {
     private static @com.legend.base.Nullable Carried carried(SqlSelect s, boolean groups) {
         boolean windows = s.qualify() != null || s.projections().stream().anyMatch(p -> windows(p.expr()));
         boolean aggregates = s.projections().stream().anyMatch(p -> com.legend.sql.SqlAgg.aggregatesSelect(p.expr()));
-        boolean grouped = s.distinct() || !s.groupBy().isEmpty() || s.having() != null || aggregates;
+        boolean distinct = s.distinct();
+        boolean grouped = distinct || !s.groupBy().isEmpty() || s.having() != null || aggregates;
         if (grouped && !groups || windows && !groups
-                || s.distinct() && (!s.groupBy().isEmpty() || s.having() != null || aggregates || windows)) {
+                || distinct && (!s.groupBy().isEmpty() || s.having() != null || aggregates || windows)) {
             return null;
         }
         SqlSource from = s.from();
@@ -148,7 +149,7 @@ public final class DataSources {
             return null;
         }
         SqlSelect out = s.withFrom(placedFrom).withProjections(named);
-        if (s.distinct()) {
+        if (distinct) {
             // a DISTINCT, a grouping by its columns: ordered by each group's first record
             out = new SqlSelect(out.projections(), false, out.from(), out.where(), named.stream()
                     .map(SqlSelect.Projection::expr).toList(), null, null, out.orderBy(), out.limit(), out.offset(),

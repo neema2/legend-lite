@@ -71,18 +71,15 @@ class CatalogTurnFailureTest {
     void aWriteInsideTheTurnLeavesTheRegistrationInPlace(DatabaseType type) throws Exception {
         try (Connection c = TestBackends.of(type).open()) {
             Sessions.Session session = TestSessions.over(c);
-            try (java.sql.Statement plain = c.createStatement()) {
-                plain.execute("CREATE TABLE REG_T (A INTEGER PRIMARY KEY)");
-            }
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
                     com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of());
-            List<ExecutionPlan.LoadStep> steps = List.of(new ExecutionPlan.LoadStep.Statement(
-                    "INSERT INTO REG_T VALUES (1)"));
-            ExecutionPlan.Load registration = new ExecutionPlan.Load(ExecutionPlan.Load.IDENTITY_PREFIX
-                    + com.legend.cache.Hash.ofUtf8(ExecutionPlan.Load.canonical(
-                            ExecutionPlan.Load.Cadence.PER_TRANSACTION, steps)).hex(),
-                    ExecutionPlan.Load.Cadence.PER_TRANSACTION, steps, target, java.util.Map.of());
+            // the catalog's keyed table, made by a load of its own before the turn; the registration's row into it
+            ExecutionPlan.Load table = load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, target,
+                    "CREATE TABLE REG_T (A INTEGER PRIMARY KEY)");
+            ExecutionPlan.Load registration = load(ExecutionPlan.Load.Cadence.PER_TRANSACTION, target,
+                    "INSERT INTO REG_T VALUES (1)");
             try (var run = com.legend.base.RunScope.enter()) {
+                PlanRunner.establishOn(table, session);
                 Sessions.beginTurn(session);
                 try {
                     Statements st = statements(session, type);
@@ -91,8 +88,10 @@ class CatalogTurnFailureTest {
                     session.state().markWriting();
                     PlanRunner.seed(registration, session, st, com.legend.executionplan.DataStores.none(), ran -> { });
                     assertEquals(1, count(c), type + ": registered once");
+                    // the turn's transaction rolled back, as after a statement that aborted it (JdbcStatements)
+                    c.rollback();
                     session.state().rolledBack();
-                    st.execute("DELETE FROM REG_T");
+                    assertEquals(0, count(c), type + ": the rollback took the row back");
                     PlanRunner.seed(registration, session, st, com.legend.executionplan.DataStores.none(), ran -> { });
                     assertEquals(1, count(c), type + ": registered again after a rollback");
                 } finally {
@@ -100,6 +99,14 @@ class CatalogTurnFailureTest {
                 }
             }
         }
+    }
+
+    /** A load of {@code cadence} on {@code target} sending {@code statement}, its identity its content's. */
+    private static ExecutionPlan.Load load(ExecutionPlan.Load.Cadence cadence, ExecutionPlan.Target target,
+            String statement) {
+        List<ExecutionPlan.LoadStep> steps = List.of(new ExecutionPlan.LoadStep.Statement(statement));
+        return new ExecutionPlan.Load(ExecutionPlan.Load.IDENTITY_PREFIX + com.legend.cache.Hash.ofUtf8(
+                ExecutionPlan.Load.canonical(cadence, steps)).hex(), cadence, steps, target, java.util.Map.of());
     }
 
     private static int count(Connection c) throws java.sql.SQLException {
