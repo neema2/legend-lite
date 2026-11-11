@@ -219,8 +219,18 @@ class DataMechanismCensusTest {
                     "SELECT unnest(CAST(\" + stringLit(content)",
                     // B2a: a runtime value's JSON connection, its payload cut into the query's VALUES rows
                     "objectTexts(", "sourceUrlFrame("))),
+            // the text made true 2026-11-11 (the B checkpoint's tenets audit, LOW 7): lowering is not the only maker of
+            // a statement's literal rows -- three others build them, each from a value the plan already holds, and the
+            // passes and the plan's reader rebuild rows that exist (SqlRewriter, AliasPrefix, CarrierStrategies,
+            // MirJson), adding none
             new Row("M11", "a query's literal relations and instances, and their writes",
-                    new Staying("P9: a statement's literal rows come from lowering alone")),
+                    new Staying("P9: a statement's literal rows come from lowering, and from three makers beside it,"
+                            + " each over a value the plan holds: a data: payload's elements written as the statement's"
+                            + " rows by its dialect (SqlDialect.inlineRows on H2, MongoDB and Databricks past its"
+                            + " parameter limit, census M18; DataSources tags them with the payload's digest), an"
+                            + " enum's code and name table (EnumValueTables: the compiled model's constants, M12), and"
+                            + " a generated test-data text's expected rows compared in the database"
+                            + " (TestDataPlanner.expectedCells: the assert's own literal, S195)")),
             new Row("M12", "model-derived constants in statements",
                     new Staying("P9: constants come from the compiled model alone")),
             // DELETED (B2d.2, 2026-11-11, the generator design the user approved 2026-11-10 and the read-only reload

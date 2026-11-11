@@ -113,7 +113,8 @@ C, D and E pile on; the user has not ruled. Ask once at B's checkpoint; without 
 - **Session table:** a database's private temporary table for a `data:` payload, made, filled and released by the plan.
 - **`file:` source:** a file a query reads directly. `loadCsvToDbTable` loads a file into a table.
 - **The fence:** which folders the server lets a `file:` source read. Set with `--sources DIR` or
-  `LEGEND_LITE_SOURCE_DIRS`; with none named, no folder. On DuckDB the database itself enforces it.
+  `LEGEND_LITE_SOURCE_DIRS`; with none named, no folder. ~~On DuckDB the database itself enforces it.~~ (Struck
+  2026-11-11, the B checkpoint's tenets audit, LOW 7: the DuckDB fence was dropped by the user's B3 ruling, §5.10.)
 
 **The edge and its machinery**
 
@@ -267,9 +268,9 @@ the plan, as its statement's content keyed by SHA-256 (§5.9).
 | | MariaDB 11.4 | `JSON_TABLE(?, '$[*]' COLUMNS (legend_ord FOR ORDINALITY, legend_element JSON PATH '$'))`. 121 ms, keeps `1.50` as written |
 | | DuckDB 1.5 | `json_each(CAST(? AS JSON))`, place = key. 83 ms |
 | | SQLite 3.47 | `json_each(?)`, each atom put back as its JSON text (`CASE type WHEN 'text' THEN json_quote(value) WHEN 'null' THEN 'null' ...`), place = key. 45 ms |
-| | Trino 483 | `UNNEST(CAST(json_parse(?) AS ARRAY(JSON))) WITH ORDINALITY`. The driver writes `?` into the text, so a payload whose literal passes 1,000,000 characters (`query.max-length`) is refused at planning by name |
+| | Trino 483 | `UNNEST(CAST(json_parse(?) AS ARRAY(JSON))) WITH ORDINALITY`. The driver writes `?` into the text, which the server bounds by `query.max-length` (1,000,000 characters by default): a SERVER setting, so Trino enforces it and its refusal names the payload (2026-11-11, the B checkpoint's correctness audit, C5: until then a payload whose literal passed 1,000,000 characters was refused at planning) |
 | | ClickHouse 25.8 | `(SELECT JSONExtractArrayRaw(?) AS legend_elements) ARRAY JOIN arrayEnumerate(legend_elements) AS legend_index`. The driver writes `?` into the text: `max_query_size` (256 KiB by default; the lanes' URL sets 16 MiB) is a connection setting the database enforces. 390 ms at 16 MiB |
-| | Databricks | `variant_explode(parse_json(?))`, place = pos. 557 ms at 10,000. Above the driver's 1 MiB parameter limit, INLINE: `SELECT parse_json(col1) AS data, col2 AS ord FROM VALUES ('...', 0), ...` (4.2 s at 100,000) |
+| | Databricks | `variant_explode(parse_json(?))`, place = pos. 557 ms at 10,000. Above the driver's 1 MiB parameter limit, INLINE: `SELECT parse_json(col1) AS data, col2 AS ord FROM VALUES ('...', 0), ...` (4.2 s at 100,000). The limit is the statement's parameters TOGETHER, so a payload is bound only while it fits with those bound before it, and a statement binding a value only its run knows (a declared parameter) binds none (2026-11-11, the B checkpoint's correctness audit, C3) |
 | | Snowflake | `TABLE(FLATTEN(INPUT => PARSE_JSON(?)))`. 0.48 s |
 | | BigQuery | `UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) WITH OFFSET`. 7.6 s |
 | INLINE | H2 2.5 | `VALUES (JSON '...', 0), ...`. 460 ms. H2 refuses an array parameter over 65,536 elements |
@@ -291,18 +292,30 @@ the plan, as its statement's content keyed by SHA-256 (§5.9).
   - Every delivery numbers the elements from 0; the place is read where the source's outputs ask for it
     (`SourceUrl.placed`).
   - A query's own sort stays its own; a `take` keeps the first records in that order.
-  - `JsonPayloadFormsTest.assertModelOrder` runs on every database it runs on, with records out of key order;
-    `DataSourcesDeliveryTest` pins the ORDER BY on every dialect. No register row: lite now does what upstream does.
+  - **At any depth (2026-11-11, the B checkpoint's tenets audit, M1):** only the root was ordered, so
+    `->take(2)->filter(...)` (an inner `LIMIT 2` with no ORDER BY) kept whichever two records the database read first.
+    Now every select whose LIMIT or OFFSET picks a payload's records without its own sort -- under a filter, a union's
+    arm, a grouping, a subquery or a CTE -- reads the place and orders by it, through the selects between it and the
+    payload that keep their records (each exposing the place as a column no star above sees); a DISTINCT or grouping
+    whose LIMIT picks rows orders them by each group's first place. The root rule reads through those subqueries too,
+    so the rows above a nested `take` keep the payload's order. A union's own rows keep no order (as a relational
+    union's do upstream).
+  - `JsonPayloadFormsTest.assertModelOrder` runs on every database it runs on, with records out of key order (and the
+    nested shapes: take then filter, slice, drop, first, a take in a union's arm and under a grouping, distinct then
+    take); `DataSourcesDeliveryTest` pins the ORDER BY on every dialect, nested too. No register row: lite now does what
+    upstream does.
 - **A number's spelling is the database's.** DuckDB's `json_each` prints `1.50` as `1.5`, inside objects too. SQLite
   does the same for a top-level real: getting the element's own text back needs a path lookup per element, which is
   quadratic (19 s at 100,000). MySQL's JSON already did this. The values are JSON-equal, and member reads (`get`, cast)
   are unchanged. Register S194, ruled by the user (2026-11-11): "Is that the input JSON to the database? Then that
   makes sense bc it's the dialects plan for the dialects json".
 - **Size limits:**
-  - A limit that is the database's own property is refused at planning by name: Trino's 1,000,000 characters.
-  - A limit that is a connection setting is left to the database, and its refusal reaches the caller: ClickHouse's
-    `max_query_size`, MySQL's and MariaDB's `max_allowed_packet`.
-  - Databricks goes INLINE above 1 MiB.
+  - ~~A limit that is the database's own property is refused at planning by name: Trino's 1,000,000 characters.~~
+    Struck 2026-11-11 (the B checkpoint's correctness audit, C5): Trino's `query.max-length` is a server setting.
+  - A limit that is a server's or a connection's setting is left to the database, and its refusal reaches the caller
+    under the payload's planned label (its digest's head and size; LOW 4, 2026-11-11): Trino's `query.max-length`,
+    ClickHouse's `max_query_size`, MySQL's and MariaDB's `max_allowed_packet`.
+  - Databricks goes INLINE where a statement's parameters would pass 1 MiB together (C3, 2026-11-11).
   - The INLINE statement is as large as the payload: H2 has no measured limit; MongoDB's command is 16 MB.
 - **H2's string member read, FIXED (2026-11-11, the orchestrator's ask):** it kept a JSON string's escapes
   (`TRIM(BOTH '"' FROM CAST(x."t" AS VARCHAR))`: a backslash doubled, a line break as `\n`, a string's own edge quotes
@@ -505,8 +518,10 @@ and the briefs' "RULED" items.
     any secret value out of the plan.
 - **The server's fence:**
   - `--sources DIR` or `LEGEND_LITE_SOURCE_DIRS`; none named means no folder. The library stays open.
-  - **DuckDB enforces it** ("Okay", "Option 2"): `allowed_directories`, `enable_external_access=false` and
-    `lock_configuration=true` as planned session steps, with the staging folder inside the fence.
+  - ~~**DuckDB enforces it** ("Okay", "Option 2"): `allowed_directories`, `enable_external_access=false` and
+    `lock_configuration=true` as planned session steps, with the staging folder inside the fence.~~ Struck 2026-11-11
+    (the B checkpoint's tenets audit, LOW 7): DROPPED by the user's B3 ruling ("If warehouse is locked that is good
+    enough -- every other usecase of duckdb now is local", §5.10).
   - H2 is left as a known gap.
 - **B4:** every catalog statement runs on the process's in-process catalog ("B4 sounds good for now"). The server forms
   are deleted. A statement mixing catalog and user tables stays refused by name.
@@ -702,7 +717,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 |---|---|---|---|
 | B (rest) | §4.4 items 1-4 | each test exists and passes; S190 closed; the CI lane guard passes | §4.4 |
 | B2d | the generator as one plan (§4.4 item 5) | census M13-output DELETED; S143's tests run; the plan round-trips as JSON; the matrix has the generator's door | `TEST_DATA_GENERATOR_DESIGN`, `B_BRIEF` §7, §9 |
-| B3 | the hosts run the plan's loads; the text plan from the execution plan; credentials by name; DuckDB's fence | census M14 DELETED; no secret in any plan (a sentinel guard); generatePlan/arrowPlan carry loads and bound paths, each changed text reviewed | `B_BRIEF` §8, `REMOTE_FILE_CREDENTIALS_HOMEWORK` |
+| B3 | the hosts run the plan's loads; the text plan from the execution plan; credentials by name; ~~DuckDB's fence~~ (dropped, §5.10; struck 2026-11-11, LOW 7) | census M14 DELETED; no secret in any plan (a sentinel guard); generatePlan/arrowPlan carry loads and bound paths, each changed text reviewed | `B_BRIEF` §8, `REMOTE_FILE_CREDENTIALS_HOMEWORK` |
 | B4 | the catalog in process | census M5, M6 DELETED; Postgres's 3 red cells green | `B_BRIEF` §6 |
 | S5, S13 | the date-time arms (§4.4 item 3) | tests; newly refused PCT tests ledgered under S181 | §4.4 |
 | ✔ B | **checkpoint** (§7.4) | census pending 0; two audits with findings fixed; a lane round on every database; the timing; the PR question | |
