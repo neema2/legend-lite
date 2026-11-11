@@ -12,12 +12,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import type { HostOperation } from '../../engine-client/src/host-operations.ts';
+import { SecretStore, secretBinds, type HostOperation } from '../../engine-client/src/host-operations.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { plannerFor } from './catalog-builder.ts';
 import {
   credentialOperations,
   credentialScope,
+  credentialSecret,
+  secretStore,
   inferFormat,
   mountOperations,
   mountRemote,
@@ -52,11 +54,23 @@ const empty = (epoch: number): ResultTable => ({
 class RecordingEngine extends FakeEngine {
   readonly name = 'recording';
   readonly sql: string[] = [];
+  /** What each statement bound, by its place in `sql`. */
+  readonly params: (readonly unknown[])[] = [];
   failOn?: RegExp;
   async answer(sql: string, epoch: number): Promise<ResultTable> {
     this.sql.push(sql);
     if (this.failOn?.test(sql)) throw new Error(`boom running ${sql}`);
     return empty(epoch);
+  }
+  /** The connection held for a mount (DuckDbEngine.exclusive): each statement recorded with what it binds. */
+  exclusive<T>(work: (held: { rows(sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]> }) => Promise<T>): Promise<T> {
+    return work({
+      rows: async (sql, params) => {
+        this.params[this.sql.length] = params;
+        await this.answer(sql, 0);
+        return [];
+      },
+    });
   }
 }
 
@@ -154,33 +168,40 @@ describe('credentials', () => {
     assert.deepEqual(await credentialStatements({}, source), []);
   });
 
-  it('writes one secret per source, scoped to its own path, rather than global settings', async () => {
-    const [stmt] = await credentialStatements({
-      accessKeyId: 'AKIA',
-      secretAccessKey: 'shh',
-      region: 'eu-west-2',
-    }, source);
-    assert.match(stmt ?? '', /^CREATE OR REPLACE SECRET "datacube_s3_trades" \(/);
-    assert.match(stmt ?? '', /SCOPE 's3:\/\/bucket\/trades\/2024\.parquet'/);
-    assert.match(stmt ?? '', /TYPE S3/);
-    assert.match(stmt ?? '', /KEY_ID 'AKIA'/);
-    assert.match(stmt ?? '', /REGION 'eu-west-2'/);
+  it('writes one secret per source, scoped to its own path, rather than global settings: by name, every value bound', async () => {
+    const creds = { accessKeyId: 'AKIA', secretAccessKey: 'shh', region: 'eu-west-2' };
+    const [stmt] = await credentialStatements(creds, source);
+    // credentials by name (B3, 2026-11-11): the statement holds no value; each field's, then the scope, is bound
+    assert.equal(stmt, 'CREATE OR REPLACE TEMPORARY SECRET "datacube_s3_trades" (TYPE S3, KEY_ID ?, SECRET ?, REGION ?, SCOPE ?)');
+    const secret = credentialSecret(creds, source)!;
+    assert.deepEqual(secret.operation, { op: 'secret', name: 'datacube_s3_trades', scope: 's3://bucket/trades/2024.parquet', fields: ['KEY_ID', 'SECRET', 'REGION'] });
+    assert.deepEqual(secretBinds(secret.operation), ['KEY_ID', 'SECRET', 'REGION', 'SCOPE']);
+    assert.deepEqual(secretStore({ sources: [source], s3: creds }).bound(secret.operation),
+      ['AKIA', 'shh', 'eu-west-2', 's3://bucket/trades/2024.parquet']);
   });
 
-  it('carries the settings an S3-compatible endpoint needs', async () => {
-    const [stmt] = await credentialStatements({
-      endpoint: 'minio:9000',
-      urlStyle: 'path',
-      useSsl: false,
-    }, source);
-    assert.match(stmt ?? '', /ENDPOINT 'minio:9000'/);
-    assert.match(stmt ?? '', /URL_STYLE 'path'/);
-    assert.match(stmt ?? '', /USE_SSL false/);
+  it('carries the settings an S3-compatible endpoint needs, bound', async () => {
+    const creds = { endpoint: 'minio:9000', urlStyle: 'path' as const, useSsl: false };
+    const [stmt] = await credentialStatements(creds, source);
+    assert.match(stmt ?? '', /ENDPOINT \?, URL_STYLE \?, USE_SSL \?, SCOPE \?\)$/);
+    assert.deepEqual(secretStore({ sources: [source], s3: creds }).bound(credentialSecret(creds, source)!.operation),
+      ['minio:9000', 'path', false, 's3://bucket/trades/2024.parquet']);
   });
 
-  it('escapes a credential containing a quote', async () => {
-    const [stmt] = await credentialStatements({ secretAccessKey: "a'b" }, source);
-    assert.match(stmt ?? '', /SECRET 'a''b'/);
+  it('writes no credential into a statement, a quote in one included: each is bound as it is', async () => {
+    const creds = { secretAccessKey: "a'b" };
+    const [stmt] = await credentialStatements(creds, source);
+    assert.ok(!(stmt ?? '').includes("a'b") && !(stmt ?? '').includes("a''b"), stmt);
+    assert.deepEqual(secretStore({ sources: [source], s3: creds }).bound(credentialSecret(creds, source)!.operation),
+      ["a'b", 's3://bucket/trades/2024.parquet']);
+  });
+
+  it('refuses a secret the host does not hold, or a field it holds no value for, by name', () => {
+    const op = { op: 'secret', name: 'datacube_s3_x', scope: 's3://b/', fields: ['KEY_ID'] } as const;
+    assert.throws(() => new SecretStore().bound(op), /the secret 'datacube_s3_x' is not one this host holds/);
+    const store = new SecretStore();
+    store.hold('datacube_s3_x', new Map([['SECRET', 'v']]));
+    assert.throws(() => store.bound(op), /the secret 'datacube_s3_x' holds no KEY_ID/);
   });
 
   it('scopes an Iceberg table to its table, and a glob to the path before it', () => {
@@ -193,10 +214,14 @@ describe('credentials', () => {
     const secrets = (await mountStatements({
       sources: [{ name: 'a', url: 's3://one/a.parquet' }, { name: 'b', url: 's3://two/b.parquet' }],
       s3: { accessKeyId: 'AKIA', secretAccessKey: 'shh' },
-    })).filter((s) => s.startsWith('CREATE OR REPLACE SECRET'));
+    })).filter((s) => s.startsWith('CREATE OR REPLACE TEMPORARY SECRET'));
     assert.equal(secrets.length, 2);
-    assert.match(secrets[0]!, /"datacube_s3_a".*SCOPE 's3:\/\/one\/a\.parquet'/);
-    assert.match(secrets[1]!, /"datacube_s3_b".*SCOPE 's3:\/\/two\/b\.parquet'/);
+    assert.match(secrets[0]!, /"datacube_s3_a"/);
+    assert.match(secrets[1]!, /"datacube_s3_b"/);
+    assert.deepEqual(credentialOperations({ accessKeyId: 'AKIA' }, { name: 'a', url: 's3://one/a.parquet' })
+      .map((o) => (o as { readonly scope: string }).scope), ['s3://one/a.parquet']);
+    assert.deepEqual(credentialOperations({ accessKeyId: 'AKIA' }, { name: 'b', url: 's3://two/b.parquet' })
+      .map((o) => (o as { readonly scope: string }).scope), ['s3://two/b.parquet']);
   });
 });
 
@@ -239,6 +264,24 @@ describe('keeping secrets out of messages', () => {
     assert.ok(!message.includes('super-secret-value'), message);
     assert.ok(!message.includes('AKIAEXAMPLE'), message);
   });
+
+  it('sends no credential in any statement\'s text: a sentinel is bound, never written (the B3 guard)', async () => {
+    const sentinel = `SENTINEL-${'x'.repeat(8)}`;
+    const engine = new RecordingEngine();
+    await mountRemote(engine, planner, {
+      sources: [{ name: 'A', url: 's3://one/a.parquet' }, { name: 'B', url: 'https://two/b.csv' }],
+      s3: { accessKeyId: `${sentinel}-key`, secretAccessKey: `${sentinel}-secret`, sessionToken: `${sentinel}-token`,
+        region: 'eu-west-1', endpoint: 'minio:9000', urlStyle: 'path', useSsl: true },
+    });
+    assert.ok(engine.sql.length > 0);
+    for (const sql of engine.sql) assert.ok(!sql.includes('SENTINEL'), `a credential in a statement's text: ${sql}`);
+    // each secret's values arrive as its bound parameters, in its fields' order then its scope
+    const secrets = engine.sql.flatMap((sql, i) => (sql.startsWith('CREATE OR REPLACE TEMPORARY SECRET') ? [engine.params[i]] : []));
+    assert.deepEqual(secrets, [
+      [`${sentinel}-key`, `${sentinel}-secret`, `${sentinel}-token`, 'eu-west-1', 'minio:9000', 'path', true, 's3://one/a.parquet'],
+      [`${sentinel}-key`, `${sentinel}-secret`, `${sentinel}-token`, 'eu-west-1', 'minio:9000', 'path', true, 'https://two/b.csv'],
+    ]);
+  });
 });
 
 describe('the mount sequence', () => {
@@ -268,7 +311,7 @@ describe('the mount sequence', () => {
       sources: [{ name: 'T', url: 's3://b/y.parquet' }],
       s3: { accessKeyId: 'a', secretAccessKey: 'b' },
     });
-    const secret = stmts.findIndex((s) => s.startsWith('CREATE OR REPLACE SECRET'));
+    const secret = stmts.findIndex((s) => s.startsWith('CREATE OR REPLACE TEMPORARY SECRET'));
     const view = stmts.findIndex((s) => s.includes('VIEW'));
     assert.ok(secret >= 0 && view > secret, stmts.join('; '));
   });

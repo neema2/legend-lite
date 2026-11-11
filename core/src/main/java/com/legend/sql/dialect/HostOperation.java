@@ -114,10 +114,40 @@ public sealed interface HostOperation {
     record Count(Source from) implements HostOperation {
     }
 
-    /** A secret a remote source's reads use, named, scoped to a path: its credentials by their kind's names. */
-    record Secret(String name, String scope, Map<String, String> credentials) implements HostOperation {
+    /**
+     * A secret a remote source's reads use, named, scoped to a path: its credentials BY NAME (B3, 2026-11-11,
+     * docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "credentials by name ... a guard keeps any secret value out of the
+     * plan"; until then the values themselves, which the statement spelled as literals). {@code fields} names which of
+     * the secret's credentials the host holds (their kind's names: {@code KEY_ID}, {@code SECRET}, ...), never a value:
+     * the statement binds, in order, each field's value and then {@code scope} -- {@link #binds()} -- and the host binds
+     * them from its own store under {@code name}. Measured on DuckDB 1.5.6: every field and the scope bind as parameters
+     * (docs/data-delivery-homework/probes/DuckDbBoundSecret.java.txt).
+     */
+    record Secret(String name, String scope, List<String> fields) implements HostOperation {
         public Secret {
-            credentials = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(credentials));
+            java.util.Objects.requireNonNull(name, "name");
+            java.util.Objects.requireNonNull(scope, "scope");
+            fields = List.copyOf(fields);
+            if (new java.util.HashSet<>(fields).size() != fields.size()) {
+                throw new IllegalArgumentException("a secret names each of its fields once: " + fields);
+            }
+        }
+
+        /** What the statement's {@code ?}s bind, in order: each field's value, then the scope ({@link #SCOPE}). */
+        public List<String> binds() {
+            List<String> out = new java.util.ArrayList<>(fields);
+            out.add(SCOPE);
+            return List.copyOf(out);
+        }
+
+        /** The last bound value's name: the secret's scope, the operation's own (no credential). */
+        public static final String SCOPE = "SCOPE";
+    }
+
+    /** A secret dropped, when it is there (a remote source let go of: its keys go with it). */
+    record DropSecret(String name) implements HostOperation {
+        public DropSecret {
+            java.util.Objects.requireNonNull(name, "name");
         }
     }
 

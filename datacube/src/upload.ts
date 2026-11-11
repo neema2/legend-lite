@@ -8,7 +8,7 @@ import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
-import { mountRemote, type S3Credentials } from './remote.ts';
+import { mountRemote, secretName, type S3Credentials } from './remote.ts';
 import { runHostOperations } from '../../engine-client/src/host-operations.ts';
 import { isIdentifier } from '../../pure-protocol/src/index.ts';
 
@@ -377,8 +377,9 @@ export async function mountRemoteView(engine: DuckDbEngine, models: TableModels,
 /** A file's table dropped: its name is free again (the caller lets go of the file itself, where it keeps one). */
 export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
   table: string, view = false): Promise<void> {
-  // a remote file's is a view (mountRemoteView)
-  await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } }]);
+  // a remote file's is a view (mountRemoteView), and its keys go with it: its secret, by its name, when it has one
+  await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } },
+    ...(view ? [{ op: 'dropSecret', name: secretName(table) } as const] : [])]);
 }
 
 /**

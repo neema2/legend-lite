@@ -22,8 +22,10 @@
 // autoload and fails. Offering it would be offering an action that
 // cannot work -- the same rule the menu follows elsewhere.
 
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import type { HostOperation, HostOperationsSource } from '../../engine-client/src/host-operations.ts';
+import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
+import {
+  SecretStore, type HostOperation, type HostOperationsSource, type SecretField, type SecretValue,
+} from '../../engine-client/src/host-operations.ts';
 
 export type RemoteFormat = 'parquet' | 'csv' | 'iceberg';
 
@@ -93,38 +95,71 @@ export function credentialScope(url: string): string {
   return scope.replace(/\/metadata\/?$/i, '');
 }
 
+/** The secret a source's credentials are read with: named by the source (`datacube_s3_<name>`). */
+export function secretName(source: string): string {
+  return `datacube_s3_${source}`;
+}
+
+/** A source's secret: its operation, which names its fields alone, and their values, which only the host's store holds. */
+export interface SourceSecret {
+  readonly operation: Extract<HostOperation, { op: 'secret' }>;
+  readonly values: ReadonlyMap<SecretField, SecretValue>;
+}
+
 /**
- * The secret one source's credentials are read with.
+ * The secret one source's credentials are read with, BY NAME (B3, 2026-11-11: credentials by name): the operation names
+ * the secret and the fields it holds, never a value; the values go to the host's store (`SecretStore`), from which the
+ * statement binds them.
  *
  * A scoped, replaceable secret rather than process-wide settings, which leak between sources when a cube reads two
  * buckets. One secret per source, named by it and scoped to its own path: where one database serves several pages
  * (Python's), one page's keys never replace another's, nor reach another's files. None without credentials.
  */
+export function credentialSecret(
+  creds: S3Credentials | undefined,
+  source: { readonly name: string; readonly url: string },
+): SourceSecret | undefined {
+  if (!creds) return undefined;
+  const values = new Map<SecretField, SecretValue>();
+  if (creds.accessKeyId) values.set('KEY_ID', creds.accessKeyId);
+  if (creds.secretAccessKey) values.set('SECRET', creds.secretAccessKey);
+  if (creds.sessionToken) values.set('SESSION_TOKEN', creds.sessionToken);
+  if (creds.region) values.set('REGION', creds.region);
+  if (creds.endpoint) values.set('ENDPOINT', creds.endpoint);
+  if (creds.urlStyle) values.set('URL_STYLE', creds.urlStyle);
+  if (creds.useSsl !== undefined) values.set('USE_SSL', creds.useSsl);
+  if (values.size === 0) return undefined;
+  return {
+    operation: { op: 'secret', name: secretName(source.name), scope: credentialScope(source.url), fields: [...values.keys()] },
+    values,
+  };
+}
+
+/** The operations one source's credentials take: its secret's, by name (none without credentials). */
 export function credentialOperations(
   creds: S3Credentials | undefined,
   source: { readonly name: string; readonly url: string },
 ): HostOperation[] {
-  if (!creds) return [];
-  const credentials: Record<string, string> = {};
-  if (creds.accessKeyId) credentials.KEY_ID = creds.accessKeyId;
-  if (creds.secretAccessKey) credentials.SECRET = creds.secretAccessKey;
-  if (creds.sessionToken) credentials.SESSION_TOKEN = creds.sessionToken;
-  if (creds.region) credentials.REGION = creds.region;
-  if (creds.endpoint) credentials.ENDPOINT = creds.endpoint;
-  if (creds.urlStyle) credentials.URL_STYLE = creds.urlStyle;
-  if (creds.useSsl !== undefined) credentials.USE_SSL = creds.useSsl ? 'true' : 'false';
-  if (Object.keys(credentials).length === 0) return [];
-  return [{ op: 'secret', name: `datacube_s3_${source.name}`, scope: credentialScope(source.url), credentials }];
+  const secret = credentialSecret(creds, source);
+  return secret === undefined ? [] : [secret.operation];
+}
+
+/** The host's store for `options`' sources: each one's secret's values, under its name. */
+export function secretStore(options: RemoteOptions): SecretStore {
+  const store = new SecretStore();
+  for (const source of options.sources) {
+    const secret = credentialSecret(options.s3, source);
+    if (secret !== undefined) store.hold(secret.operation.name, secret.values);
+  }
+  return store;
 }
 
 /**
  * Remove credentials from text before it can be shown or logged.
  *
- * QueryError carries the SQL that failed, and a failing CREATE SECRET
- * would otherwise put a live access key into an error banner, a
- * console line and whatever collects them. The values are redacted
- * by VALUE rather than by parsing the statement, so a secret survives
- * no matter which statement it turns up in.
+ * No statement holds a credential any more (each is bound: B3, 2026-11-11), but a database may still echo a bound
+ * value in its own error. The values are redacted by VALUE rather than by parsing the message, so a secret is caught
+ * whatever words carry it.
  */
 export function redactSecrets(
   text: string,
@@ -163,9 +198,16 @@ export function mountOperations(options: RemoteOptions): HostOperation[] {
   return [...accessOperations(options), ...options.sources.map(viewOperation)];
 }
 
+/** The engine a remote source is mounted on: its database's type, and its connection held for a mount's statements,
+ *  which binds a secret's values (DuckDbEngine.exclusive). */
+export interface RemoteEngine {
+  readonly databaseType: string;
+  exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
+}
+
 /**
  * Point the engine's connection at remote data: the operations' statements as the planner writes them for the
- * engine's database (`host`), run in order.
+ * engine's database (`host`), run in order, a secret's with its values bound from the host's store (`secretStore`).
  *
  * Runs before the first query. Failures are rethrown with the
  * credentials stripped, and name the source rather than the
@@ -173,34 +215,41 @@ export function mountOperations(options: RemoteOptions): HostOperation[] {
  * redacted CREATE SECRET is not.
  */
 export async function mountRemote(
-  engine: QueryEngine & { readonly databaseType: string },
+  engine: RemoteEngine,
   host: HostOperationsSource,
   options: RemoteOptions,
 ): Promise<void> {
-  await runRedacted(engine, host, mountOperations(options), options.s3);
+  await runRedacted(engine, host, mountOperations(options), options);
 }
 
 /** The engine's connection given the sources' extensions and credentials, no view yet (`accessOperations`). */
-export async function accessRemote(engine: QueryEngine & { readonly databaseType: string }, host: HostOperationsSource,
+export async function accessRemote(engine: RemoteEngine, host: HostOperationsSource,
   options: RemoteOptions): Promise<void> {
-  await runRedacted(engine, host, accessOperations(options), options.s3);
+  await runRedacted(engine, host, accessOperations(options), options);
 }
 
-async function runRedacted(engine: QueryEngine & { readonly databaseType: string }, host: HostOperationsSource,
-  operations: readonly HostOperation[], s3: S3Credentials | undefined): Promise<void> {
+async function runRedacted(engine: RemoteEngine, host: HostOperationsSource,
+  operations: readonly HostOperation[], options: RemoteOptions): Promise<void> {
   const redacted = (cause: unknown): Error =>
-    new Error(`could not mount remote data: ${redactSecrets(cause instanceof Error ? cause.message : String(cause), s3)}`);
+    new Error(`could not mount remote data: ${redactSecrets(cause instanceof Error ? cause.message : String(cause), options.s3)}`);
   let statements: string[][];
   try {
     statements = await host.hostOperations(engine.databaseType, operations);
   } catch (cause) {
     throw redacted(cause);
   }
-  for (const statement of statements.flat()) {
-    try {
-      await engine.run(statement, 0);
-    } catch (cause) {
-      throw redacted(cause);
+  const store = secretStore(options);
+  await engine.exclusive(async (held) => {
+    for (const [i, operation] of operations.entries()) {
+      // a secret's one statement binds its values from the store, in secretBinds' order; every other binds none
+      const params = operation.op === 'secret' ? store.bound(operation) : [];
+      for (const statement of statements[i] ?? []) {
+        try {
+          await held.rows(statement, params);
+        } catch (cause) {
+          throw redacted(cause);
+        }
+      }
     }
-  }
+  });
 }

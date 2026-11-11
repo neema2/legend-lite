@@ -10,6 +10,7 @@ import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 
 interface Connection {
   query(sql: string): { toArray(): Array<Record<string, unknown>> };
+  prepare(sql: string): { query(...params: unknown[]): { toArray(): Array<Record<string, unknown>> }; close(): void };
 }
 
 let conn: Connection;
@@ -42,6 +43,25 @@ describe('DuckDB in a Node test', () => {
     unpinned.open('GET', 'https://extensions.duckdb.org/v1.5.4/wasm_eh/spatial.duckdb_extension.wasm');
     unpinned.send();
     assert.equal(unpinned.status, 404);
+  });
+
+  it('makes an S3 secret from bound values, its statement holding none (B3: credentials by name, measured on DuckDB-WASM)', () => {
+    // the platform's statement (DuckDbHostOperations' secret: every field, then the scope, a ?), the values a sentinel
+    conn.query('LOAD httpfs');
+    const made = conn.prepare('CREATE OR REPLACE TEMPORARY SECRET "datacube_s3_t" (TYPE S3, KEY_ID ?, SECRET ?, SESSION_TOKEN ?,'
+      + ' REGION ?, ENDPOINT ?, URL_STYLE ?, USE_SSL ?, SCOPE ?)');
+    try {
+      made.query('SENTINEL-key', 'SENTINEL-secret', 'SENTINEL-token', 'eu-west-1', 'minio:9000', 'path', false, 's3://bucket/sales/');
+    } finally {
+      made.close();
+    }
+    // DuckDB's own listing redacts the secret and the session token (an access key's id it shows, as AWS does)
+    const [row] = conn.query("SELECT name, type, persistent, CAST(scope AS VARCHAR) AS scope,"
+      + " secret_string LIKE '%SENTINEL-secret%' OR secret_string LIKE '%SENTINEL-token%' AS written FROM duckdb_secrets()").toArray();
+    assert.deepEqual({ ...row }, { name: 'datacube_s3_t', type: 's3', persistent: false, scope: "['s3://bucket/sales/']", written: false });
+    conn.query('DROP TEMPORARY SECRET IF EXISTS "datacube_s3_t"');
+    conn.query('DROP TEMPORARY SECRET IF EXISTS "datacube_s3_t"');
+    assert.equal(Number(conn.query('SELECT count(*) AS n FROM duckdb_secrets()').toArray()[0]!['n']), 0);
   });
 
   it('is given the pinned files, each laid out as DuckDB asks for it', async () => {

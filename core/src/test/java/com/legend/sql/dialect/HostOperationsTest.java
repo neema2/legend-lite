@@ -180,11 +180,16 @@ class HostOperationsTest {
         assertEquals(List.of("SET custom_extension_repository = 'https://site/vendor/duckdb-extensions'",
                 "SET autoinstall_extension_repository = 'https://site/vendor/duckdb-extensions'"),
                 DUCK.statements(new HostOperation.ExtensionRepository("https://site/vendor/duckdb-extensions")));
-        assertEquals("CREATE OR REPLACE SECRET \"datacube_s3_t\" (TYPE S3, KEY_ID 'k''1', USE_SSL false, SCOPE 's3://b/')",
-                one(new HostOperation.Secret("datacube_s3_t", "s3://b/", credentials())));
-        assertEquals(List.of(), DUCK.statements(new HostOperation.Secret("s", "s3://b/", java.util.Map.of())));
+        // credentials by name (B3, 2026-11-11): every value bound, the statement holding none
+        assertEquals("CREATE OR REPLACE TEMPORARY SECRET \"datacube_s3_t\" (TYPE S3, KEY_ID ?, USE_SSL ?, SCOPE ?)",
+                one(new HostOperation.Secret("datacube_s3_t", "s3://b/", List.of("KEY_ID", "USE_SSL"))));
+        assertEquals(List.of("KEY_ID", "USE_SSL", "SCOPE"),
+                new HostOperation.Secret("datacube_s3_t", "s3://b/", List.of("KEY_ID", "USE_SSL")).binds());
+        assertEquals(List.of(), DUCK.statements(new HostOperation.Secret("s", "s3://b/", List.of())));
+        assertEquals("DROP TEMPORARY SECRET IF EXISTS \"datacube_s3_t\"", one(new HostOperation.DropSecret("datacube_s3_t")));
+        assertThrows(IllegalArgumentException.class, () -> new HostOperation.Secret("s", "x", List.of("KEY_ID", "KEY_ID")));
         assertThrows(IllegalArgumentException.class, () -> DUCK.statements(new HostOperation.Extensions(List.of("httpfs; DROP"))));
-        assertThrows(IllegalArgumentException.class, () -> DUCK.statements(new HostOperation.Secret("s", "x", java.util.Map.of("PASSWORD", "p"))));
+        assertThrows(IllegalArgumentException.class, () -> DUCK.statements(new HostOperation.Secret("s", "x", List.of("PASSWORD"))));
     }
 
     @Test
@@ -224,6 +229,26 @@ class HostOperationsTest {
         }
     }
 
+    /**
+     * CREDENTIALS BY NAME (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2): a secret's operation names its
+     * fields, never their values, so no statement the operations answer can hold one -- each field's value and the scope
+     * a bound {@code ?} in {@link HostOperation.Secret#binds()}'s order. DuckDB makes the secret from the bound values
+     * (measured on DuckDB 1.5.6 JDBC, every field and the scope; docs/data-delivery-homework/probes/DuckDbBoundSecret.java.txt);
+     * the run itself is DuckDB-WASM's test (datacube's remote.test.ts: an S3 secret needs httpfs, which this sandbox's
+     * JDBC driver cannot load offline).
+     */
+    @Test
+    void aSecretsStatementBindsEveryValue() {
+        HostOperation.Secret secret = new HostOperation.Secret("datacube_s3_t", "s3://bucket/sales/",
+                List.of("KEY_ID", "SECRET", "SESSION_TOKEN", "REGION", "ENDPOINT", "URL_STYLE", "USE_SSL"));
+        String made = one(secret);
+        assertEquals("CREATE OR REPLACE TEMPORARY SECRET \"datacube_s3_t\" (TYPE S3, KEY_ID ?, SECRET ?, SESSION_TOKEN ?,"
+                + " REGION ?, ENDPOINT ?, URL_STYLE ?, USE_SSL ?, SCOPE ?)", made);
+        assertEquals(secret.binds().size(), made.chars().filter(ch -> ch == '?').count(),
+                "one bound value per ? (each field's, then the scope)");
+        assertFalse(made.contains("s3://bucket"), "the scope is bound too: the statement holds no value");
+    }
+
     @Test
     void postgresCountsWithTheAliasItAsksFor() {
         HostOperations pg = HostOperations.of(new Postgres());
@@ -236,13 +261,6 @@ class HostOperationsTest {
     }
 
     /** Credentials in their order: a key with a quote in it, and SSL off. */
-    private static java.util.Map<String, String> credentials() {
-        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
-        out.put("KEY_ID", "k'1");
-        out.put("USE_SSL", "false");
-        return out;
-    }
-
     private static List<String> rows(Statement st, String sql) throws SQLException {
         List<String> out = new ArrayList<>();
         try (ResultSet rs = st.executeQuery(sql)) {

@@ -7,9 +7,7 @@ import com.legend.json.Json;
 import com.legend.sql.dialect.HostOperation;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A host's named operations as its JSON writes them (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5; engine-client's
@@ -43,7 +41,16 @@ final class HostOperationsJson {
             case "schema" -> new HostOperation.MakeSchema(stringOrNull(o, "database"), string(o, "name"));
             case "dropSchema" -> new HostOperation.DropSchema(stringOrNull(o, "database"), string(o, "name"));
             case "count" -> new HostOperation.Count(source(object(o, "from")));
-            case "secret" -> new HostOperation.Secret(string(o, "name"), string(o, "scope"), strings(object(o, "credentials")));
+            case "secret" -> {
+                // credentials by name (B3, 2026-11-11): an operation names the secret's fields, never their values,
+                // which the host binds from its own store
+                if (o.has("credentials")) {
+                    throw new IllegalArgumentException("a secret's operation names its fields, never their values: "
+                            + "send {name, scope, fields}, the values bound from the host's own store");
+                }
+                yield new HostOperation.Secret(string(o, "name"), string(o, "scope"), stringList(o, "fields"));
+            }
+            case "dropSecret" -> new HostOperation.DropSecret(string(o, "name"));
             case "extensions" -> new HostOperation.Extensions(stringList(o, "names"));
             case "extensionRepository" -> new HostOperation.ExtensionRepository(string(o, "url"));
             case "extensionDirectory" -> new HostOperation.ExtensionDirectory(string(o, "folder"));
@@ -135,17 +142,6 @@ final class HostOperationsJson {
         for (Json.Node n : arr.items()) {
             Json.Obj c = object(n, "a column");
             out.add(new HostOperation.Column(string(c, "target"), string(c, "from")));
-        }
-        return out;
-    }
-
-    private static Map<String, String> strings(Json.Obj o) {
-        Map<String, String> out = new LinkedHashMap<>();
-        for (Map.Entry<String, Json.Node> e : o.fields().entrySet()) {
-            if (!(e.getValue() instanceof Json.Str s)) {
-                throw new IllegalArgumentException("a credential is a string: " + e.getKey());
-            }
-            out.put(e.getKey(), s.value());
         }
         return out;
     }

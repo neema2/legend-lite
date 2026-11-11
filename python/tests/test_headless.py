@@ -633,6 +633,23 @@ class Remote(unittest.TestCase):
         carried = os.path.normcase(os.path.abspath(os.environ['LEGEND_LITE_DUCKDB_EXTENSIONS']))
         self.assertTrue(os.path.normcase(os.path.abspath(httpfs[1])).startswith(carried + os.sep), httpfs[1])
 
+    def test_a_remote_files_keys_are_bound_into_its_secret_never_written(self):
+        # credentials by name (B3, 2026-11-11): DataCube's mount names the secret's fields and binds their values on
+        # Python's DuckDB (duckdb-python measured here); the secret is temporary, scoped to the file, and the database's
+        # own listing redacts its values
+        sentinel = 'SENTINEL-' + os.urandom(4).hex()
+        url = f'{self.base}/desks.csv'
+        answer = self.engine.answer('POST', '/remote.json', '', json.dumps({'url': url, 'name': 'remote_keyed', 's3': {
+            'accessKeyId': sentinel + '-key', 'secretAccessKey': sentinel + '-secret', 'region': 'eu-west-1'}}))
+        self.assertEqual(answer.status, 200, answer.body[:300])
+        self.assertNotIn(sentinel.encode('utf-8'), answer.body)
+        self.assertEqual(self.frames.connection.execute('SELECT count(*) FROM remote_keyed').fetchone()[0], 2)
+        # the database's own listing redacts the secret (an access key's id it shows, as AWS does)
+        name, persistent, scope, written = self.frames.connection.execute(
+            "SELECT name, persistent, scope, secret_string LIKE ? FROM duckdb_secrets() WHERE name = 'datacube_s3_remote_keyed'",
+            ['%' + sentinel + '-secret%']).fetchone()
+        self.assertEqual((name, persistent, scope, written), ('datacube_s3_remote_keyed', False, [url], False))
+
     def test_a_remote_iceberg_table_is_read_through_a_view_with_the_extensions_carried(self):
         answer = self.mount(self.iceberg, 'remote_iceberg')
         self.assertEqual(answer.status, 200, answer.body[-600:])
