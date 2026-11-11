@@ -145,7 +145,7 @@ public enum BodyClass {
      *  keeps every assert body on the walk until M8), or null when the walk runs it. */
     public static @Nullable BodyClass of(TypedQuery body, String runtime, boolean oneJudge) {
         // a runtime that declares test data: the test door seeds it as the walk does, a keyed setup step before the
-        // first statement that names it, once per session (TestKinds.seed, Seeds.planned: "the program's runtime";
+        // first statement that names it, once per session (TestKinds.seed, LoadPlanner.seeds: "the program's runtime";
         // M3e) -- the M5 audit's B1 refusal predated that seed (2026-11-04, the core program: JudgesOnPlansTest,
         // ServiceTestProvisionKeyTest, CreateClassTest measured on the program road)
         QueryDoor.Scan scan = new QueryDoor.Scan(body, runtime);

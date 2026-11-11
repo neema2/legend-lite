@@ -81,45 +81,6 @@ public final class Seeds {
         return new Sources(fromSources, runtime, runtime == null ? null : declaredSeed(runtime, ctx));
     }
 
-    /** {@code statement}'s seeds as the plan's setup steps, final for {@code dialect}'s database, with the referee's
-     *  own copy of them, written in its dialect (A2). */
-    public static CsvSeed.Planned planned(TypedSpec statement,
-            @Nullable String runtime, ModelContext ctx, SqlDialect dialect) {
-        List<TypedFrom> froms =
-                ExecutionContext.froms(statement);
-        List<CsvSeed.Step> setups = new ArrayList<>();
-        // each runtime's declared test data planned once (the correctness audit's C3, 2026-11-10: a from()'s runtime
-        // that is the program's too was planned twice -- its setup SQL failing "already exists", its rows doubled)
-        java.util.Set<String> declared = new java.util.HashSet<>();
-        // each from()'s inline test data likewise once: two from()s of one instance runtime (or of two that declare the
-        // same data) share it (the A delta audit's note 10, 2026-11-11: C3 deduplicated the named runtimes alone)
-        java.util.Set<List<Object>> inline = new java.util.HashSet<>();
-        for (TypedFrom fr : froms) {
-            // (the setup SQL's language asked only where there is setup SQL: a connection with none may declare none)
-            if (inline.add(List.of(fr.sqlSetups(), fr.csvSetups(),
-                    fr.sqlSetups().isEmpty() ? "" : String.valueOf(fr.context().rawLanguage())))) {
-                for (String sql : fr.sqlSetups()) {
-                    // written in the database the from()'s connection declares (decision D2)
-                    setups.add(new CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
-                }
-                setups.addAll(CsvSeed.setupSteps(fr, ctx, dialect));
-            }
-            // an ELEMENT runtime named by the from(): its declared connections' test data (the instance form above
-            // carries the same facts on the instance)
-            fr.context().runtime().ifPresent(ref -> {
-                if (declared.add(ref.fullPath())) {
-                    setups.addAll(CsvSeed.declaredSteps(ref.fullPath(), ctx, dialect));
-                }
-            });
-        }
-        // the program's runtime: its declared connections' test data seeds the session the same way
-        if (runtime != null && declared.add(runtime)) {
-            setups.addAll(CsvSeed.declaredSteps(runtime, ctx, dialect));
-        }
-        return CsvSeed.planned(setups, dialect, com.legend.database.Databases.dialect(
-                com.legend.database.Databases.REPLAY_REFEREE));
-    }
-
     /**
      * A SEED FORM mapped over an effect (the test-is-the-product plan's M10c item 7c; M9's T9 kind): the source of
      * {@code map} is {@code setUpDataSQLs(...)} or {@code setUpDataSQLsV2(...)}, its data argument folds to a String

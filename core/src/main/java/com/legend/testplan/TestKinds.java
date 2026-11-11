@@ -382,7 +382,8 @@ final class TestKinds implements ProgramKinds {
             return;
         }
         CsvSeed.Planned planned = generated.computeIfAbsent(sources,
-                s -> Seeds.planned(statement, program.runtime(), ctx, program.dialect()));
+                s -> com.legend.planner.LoadPlanner.seeds(statement, program.runtime(), ctx, program.dialect(),
+                        com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE)));
         if (planned.steps().isEmpty()) {
             return;
         }

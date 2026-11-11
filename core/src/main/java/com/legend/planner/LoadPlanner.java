@@ -79,4 +79,54 @@ public final class LoadPlanner {
     public static String identity(ExecutionPlan.Load.Cadence cadence, List<ExecutionPlan.LoadStep> steps) {
         return ExecutionPlan.Load.IDENTITY_PREFIX + Hash.ofUtf8(ExecutionPlan.Load.canonical(cadence, steps)).hex();
     }
+
+    /** The test data {@code runtime}'s connections declare, as load steps final for {@code dialect}'s database: the one
+     *  maker of a runtime's declared data, for a plan's target (its acquisition load) and for a program's seeds
+     *  ({@link #seeds}; B2a, 2026-11-11: until then the target's in {@code PlanMaker}, the seeds' in the test planner's
+     *  {@code Seeds.planned}). */
+    public static com.legend.setup.LoadSteps declared(String runtime,
+            com.legend.compiler.element.ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
+        return com.legend.setup.CsvSeed.planned(com.legend.setup.CsvSeed.declaredSteps(runtime, ctx, dialect), dialect);
+    }
+
+    /**
+     * {@code statement}'s SEEDS as a program's load steps, final for {@code dialect}'s database (B2a, 2026-11-11: the
+     * load planner's, moved from the test planner's {@code Seeds.planned}), with the referee's own copy of them, written
+     * in {@code referee}'s dialect (A2; the edge's, until B2b replays the plan's loads): each {@code from()}'s inline test
+     * data and named runtime's declared data, then the program's {@code runtime}'s -- each runtime's once, and each
+     * from()'s inline data once (the correctness audit's C3, 2026-11-10: a from()'s runtime that is the program's too was
+     * planned twice, its setup SQL failing "already exists", its rows doubled; the A delta audit's note 10, 2026-11-11:
+     * two from()s of one instance runtime too).
+     */
+    public static com.legend.setup.CsvSeed.Planned seeds(com.legend.compiler.spec.typed.TypedSpec statement,
+            @com.legend.base.Nullable String runtime, com.legend.compiler.element.ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect, com.legend.sql.dialect.SqlDialect referee) {
+        List<com.legend.setup.CsvSeed.Step> setups = new java.util.ArrayList<>();
+        java.util.Set<String> declared = new java.util.HashSet<>();
+        java.util.Set<List<Object>> inline = new java.util.HashSet<>();
+        for (com.legend.compiler.spec.typed.TypedFrom fr : com.legend.compiler.spec.typed.ExecutionContext.froms(
+                statement)) {
+            // (the setup SQL's language asked only where there is setup SQL: a connection with none may declare none)
+            if (inline.add(List.of(fr.sqlSetups(), fr.csvSetups(),
+                    fr.sqlSetups().isEmpty() ? "" : String.valueOf(fr.context().rawLanguage())))) {
+                for (String sql : fr.sqlSetups()) {
+                    // written in the database the from()'s connection declares (decision D2)
+                    setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
+                }
+                setups.addAll(com.legend.setup.CsvSeed.setupSteps(fr, ctx, dialect));
+            }
+            // an ELEMENT runtime named by the from(): its declared connections' test data (the instance form above
+            // carries the same facts on the instance)
+            fr.context().runtime().ifPresent(ref -> {
+                if (declared.add(ref.fullPath())) {
+                    setups.addAll(com.legend.setup.CsvSeed.declaredSteps(ref.fullPath(), ctx, dialect));
+                }
+            });
+        }
+        // the program's runtime: its declared connections' test data seeds the session the same way
+        if (runtime != null && declared.add(runtime)) {
+            setups.addAll(com.legend.setup.CsvSeed.declaredSteps(runtime, ctx, dialect));
+        }
+        return com.legend.setup.CsvSeed.planned(setups, dialect, referee);
+    }
 }

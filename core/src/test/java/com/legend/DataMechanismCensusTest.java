@@ -108,12 +108,13 @@ class DataMechanismCensusTest {
                             ".loadsRows(",
                             "Statements.load("))),
             // L2, 2026-11-09: the test road's seeds are loads made by the one load planner (LoadPlanner, one identity
-            // scheme), and the plan's connection description no longer carries the raw test data. PENDING still (the
-            // M1 tenets audit's finding 2): Seeds.planned remains the seeds' own path to their steps, and the referee's
-            // copy of a seed's rows (the edge's SeedTexts) is replayed from the plan's loads only at L8. Its deleted
-            // symbols so far read zero (theRemovedSymbolsReadZero)
+            // scheme), and the plan's connection description no longer carries the raw test data. B2a, 2026-11-11: the
+            // seeds' steps are the load planner's (LoadPlanner.seeds, sharing the product's declared-data maker,
+            // LoadPlanner.declared), Seeds.planned gone. PENDING still: the referee's copy of a seed's rows (the edge's
+            // SeedTexts) is replayed from the plan's loads only at B2b. Its deleted symbols so far read zero
+            // (theRemovedSymbolsReadZero)
             new Row("M3", "test data on the test road (the seed Load, SeedTexts, the raw text in a target)",
-                    new Pending("L8 (SeedTexts; Seeds.planned's own path)")),
+                    new Pending("B2b (SeedTexts, the referee's copy of a seed)")),
             // L2, 2026-11-09 (the orchestrator's decision: option 1, upstream's own harness shape): BOUNDED, not deleted (the M1 tenets audit's finding 2): the
             // harness keeps the upstream-faithful overlay (a synthetic connection carrying the suite's CSV, as
             // legend-engine's service test runner builds one, and RuntimeKey, a cache of overlay contexts by value); its
@@ -220,7 +221,7 @@ class DataMechanismCensusTest {
                     "SELECT unnest(CAST(\" + stringLit(content)"),
             // L2: the seeds' own identity scheme (folded into LoadPlanner.identity), the plan's copy of a connection's
             // raw test data written and read, and the node a seed was until L1
-            "M3", List.of("Seeds.key(", "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
+            "M3", List.of("Seeds.key(", "Seeds.planned(", "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
                     "o.optionalString(\"testDataSetupCsv\")", "o.put(\"testDataSetupSqls\"",
                     "o.strings(\"testDataSetupSqls\")", "ExecutionPlan.Setup"),
             // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store

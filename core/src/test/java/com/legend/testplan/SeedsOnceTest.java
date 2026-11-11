@@ -32,8 +32,8 @@ class SeedsOnceTest {
         var ctx = Compiler.compileModel(model);
         var statement = Compiler.query(ctx, "|#>{x::DB.T}#->select(~[ID, NAME])->from(x::RT)").body().get(0);
         var dialect = Databases.dialect(Databases.PLATFORM);
-        int fromAlone = Seeds.planned(statement, null, ctx, dialect).steps().steps().size();
-        int withTheProgram = Seeds.planned(statement, "x::RT", ctx, dialect).steps().steps().size();
+        int fromAlone = com.legend.planner.LoadPlanner.seeds(statement, null, ctx, dialect, dialect).steps().steps().size();
+        int withTheProgram = com.legend.planner.LoadPlanner.seeds(statement, "x::RT", ctx, dialect, dialect).steps().steps().size();
         assertEquals(fromAlone, withTheProgram, "the runtime's declared steps planned twice");
     }
 }

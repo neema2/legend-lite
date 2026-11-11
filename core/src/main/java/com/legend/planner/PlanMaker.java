@@ -980,7 +980,7 @@ public final class PlanMaker {
         ExecutionPlan.Project named = project == null ? null : filled ? project.project()
                 : new ExecutionPlan.Project(project.project().key(), null);
         // the one owner of the steps' form (the doors, 2026-10-29): the body driver's seeds take the same
-        com.legend.setup.LoadSteps declared = CsvSeed.planned(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect);
+        com.legend.setup.LoadSteps declared = LoadPlanner.declared(runtime, ctx, dialect);
         if (named != null && !declared.isEmpty()) {
             // the project's database is named by what it holds: its stores and Data rows, and the declared test data
             // each acquisition establishes on it -- so two editions whose test data differ are two databases, and a
