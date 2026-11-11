@@ -2279,3 +2279,80 @@ describe('a text tile on a cube alone: its own board made for it, saved with the
     assert.ok(tile('text-1'), 'its tile on the board');
   });
 });
+
+// the user's ruling, 2026-11-11: a remote file's link is saved without its query string (a presigned link's token is
+// never saved), marked as needing a fresh link; reopened, the tab asks for one before it reads anything, then reads it
+describe("a remote file saved without its link's token: reopened, the tab asks for a fresh link, then reads from it", () => {
+  beforeEach(setUpPage);
+  afterEach(tearDownPage);
+
+  it('asks first -- the address filled in, why said, nothing mounted -- then mounts the fresh link given', async () => {
+    const mounted: string[] = [];
+    const address = 'https://bucket.example/desks.csv';
+    const fresh = `${address}?X-Amz-Signature=SENTINEL-fresh-token`;
+    const columns = SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type }));
+    const saved = writeCube({
+      name: 'Desks', source: { _type: 'remoteFile', name: 'desks.csv', url: address, freshLink: true, columns },
+      snapshot: SNAPSHOT, configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty(),
+    });
+    const services = {
+      engine: {
+        rows: () => ({ planner: new StubPlanner(), engine }),
+        database: {
+          mountRemote: async (url: string) => {
+            mounted.push(url);
+            return { model: 'm', runtime: 'r', source: SNAPSHOT.source.query, conversions: [], bitColumns: [] };
+          },
+        },
+      },
+      browser: { address: 'http://localhost/' },
+    } as never;
+    newPage();
+    const sources = pageSources({ services, page: pg(), gridMaker: (() => () => undefined) as never, taken: [], ask: () => {} });
+    const opening = sources.reopened(saved, undefined, false);
+    await settle();
+    const doc = dom.window.document;
+    assert.deepEqual(mounted, [], 'nothing read before a fresh link is given');
+    assert.match(doc.querySelector('.dc-picker-subtitle')?.textContent ?? '',
+      /“Desks” reads desks\.csv, whose link was saved without its query string .*give a fresh link to it/);
+    const url = doc.querySelector<HTMLInputElement>('.dc-picker-url')!;
+    assert.equal(url.value, address, 'the address it was saved with, filled in');
+    url.value = fresh;
+    doc.querySelector<HTMLFormElement>('.dc-picker-form')!.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+    const opened = await opening;
+    assert.deepEqual(mounted, [fresh], 'read from the fresh link given');
+    assert.ok(opened, 'opened');
+    assert.equal(opened.label, 'desks.csv');
+  });
+
+  it('a plain link, and one whose keys are held by name, reopen as today: read at once, nothing asked', async () => {
+    for (const address of ['https://bucket.example/desks.csv', 's3://bucket/desks.csv']) {
+      const mounted: string[] = [];
+      const columns = SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type }));
+      const saved = writeCube({
+        name: 'Desks', source: { _type: 'remoteFile', name: 'desks.csv', url: address, columns },
+        snapshot: SNAPSHOT, configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty(),
+      });
+      const services = {
+        engine: {
+          rows: () => ({ planner: new StubPlanner(), engine }),
+          database: {
+            mountRemote: async (url: string) => {
+              mounted.push(url);
+              return { model: 'm', runtime: 'r', source: SNAPSHOT.source.query, conversions: [], bitColumns: [] };
+            },
+          },
+        },
+        browser: { address: 'http://localhost/' },
+      } as never;
+      newPage();
+      const sources = pageSources({ services, page: pg(), gridMaker: (() => () => undefined) as never, taken: [], ask: () => {} });
+      const opened = await sources.reopened(saved, undefined, false);
+      assert.deepEqual(mounted, [address], `${address}: read from its saved link`);
+      assert.equal(opened?.label, 'desks.csv');
+      assert.equal(dom.window.document.querySelector('.dc-picker-url'), null, `${address}: nothing asked`);
+      pg().dispose();
+      page = undefined;
+    }
+  });
+});

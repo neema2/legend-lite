@@ -6,7 +6,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { cubeToJson, frameSource, rawRows, writeCube, type FileSource } from '../src/cube-document.ts';
+import {
+  cubeToJson, frameSource, rawRows, writeCube, type CubeDocument, type CubeSource, type FileSource, type RemoteSource,
+} from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import {
   FIRST_SHEET,
@@ -16,6 +18,9 @@ import {
   pageContent,
   pageFile,
   pageSaving,
+  pageAsSaved,
+  pageWithLinks,
+  freshLinksOfPage,
   savedRecord,
   type SavedRecord,
   PAGE_KIND,
@@ -37,7 +42,9 @@ import {
   type PageViews,
 } from '../src/page-document.ts';
 import { givenName } from '../src/page-names.ts';
-import { pageApply, pageFile as pageFileJson, pageNew, pageRead, pageRecord as pageRecordJson, pageSaved } from '../src/headless/page.ts';
+import {
+  pageApply, pageFile as pageFileJson, pageLinks, pageNew, pageRead, pageRecord as pageRecordJson, pageSaved,
+} from '../src/headless/page.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
@@ -491,7 +498,7 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     const added = (JSON.parse(pageApply(started, '["sheet-1"]',
       `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
     const page = readPage(added);
-    assert.deepEqual(pageFile(page), { file: pageToJson(page), name: 'Q3 review' });
+    assert.deepEqual(pageFile(page), { file: pageToJson(page), name: 'Q3 review', freshLinks: [] });
     assert.deepEqual(JSON.parse(pageFileJson(added)), { file: pageToJson(page) });
     // an unnamed page: named as Save names it (its first sheet's), the file and its name alike (the S7 audit's Y-4: the
     // tab named it in its own code, Python's file said '')
@@ -524,5 +531,91 @@ describe("a name a person gives, by DataCube's one rule (givenName: the screen's
   it("a sheet: trimmed, a blank none of its own (it is named after its first grid)", () => {
     assert.deepEqual(givenName('sheet', ' Summary '), { name: 'Summary' });
     assert.deepEqual(givenName('sheet', '  '), { name: undefined });
+  });
+});
+
+describe("a remote file's presigned link: saved as its address alone, said, and reopened given a fresh link (the user's ruling, 2026-11-11)", () => {
+  // "can we strip the presigned and save the rest of report with warning?" -- agreed: the whole query string left out
+  // (which of its parameters are secret no one can tell), the address saved as needing a fresh link
+  const SENTINEL = 'SENTINEL-presigned-token';
+  const COLUMNS = [{ name: 'region', type: 'String' }];
+  const remote = (url: string, name = 'trades.parquet'): RemoteSource => ({ _type: 'remoteFile', name, url, columns: COLUMNS });
+  const cubeOver = (source: CubeSource): CubeDocument => writeCube({
+    name: 'draft', source, snapshot: rawRows(accessor('local::DB', 'trades'), COLUMNS),
+    configuration: DEFAULT_CONFIGURATION, tree: TreeState.fromPaths([], false),
+  });
+  const SIGNED = `https://b.s3.amazonaws.com/trades.parquet?X-Amz-Expires=300&X-Amz-Signature=${SENTINEL}`;
+  const ADDRESS = 'https://b.s3.amazonaws.com/trades.parquet';
+  const signedPage = (source: CubeSource = remote(SIGNED)): PageDocument => writePage({ name: 'Signed', cube: cubeOver(source), views: VIEWS });
+  const sourceOf = (content: Record<string, unknown>): Record<string, unknown> =>
+    (content['cubes'] as { cube: { source: Record<string, unknown> } }[])[0]!.cube.source;
+
+  it('saves a signed link as its address alone, marked as needing a fresh link, and says so naming the file', () => {
+    const made = pageSaving('Signed', signedPage(), 'r-1', false);
+    assert.ok(!('refused' in made));
+    const text = toJson(made.record.content);
+    assert.ok(!text.includes(SENTINEL) && !text.includes('X-Amz'), `a saved page holds no token: ${text}`);
+    assert.deepEqual(sourceOf(made.record.content), { _type: 'remoteFile', name: 'trades.parquet', url: ADDRESS, freshLink: true, columns: COLUMNS });
+    assert.deepEqual(made.freshLinks, ['trades.parquet']);
+    // the headless record Python's save() keeps, and its warning, the tab's words
+    const said = JSON.parse(pageRecordJson('r-1', 'Signed', pageToJson(signedPage()), false)) as { record: string; warning?: string };
+    assert.ok(!said.record.includes(SENTINEL));
+    assert.match(said.warning ?? '', /“trades\.parquet” is saved without its link's query string \(a presigned link's token is never saved\): opening the page asks for a fresh link/);
+  });
+
+  it('writes no token into a page file either, and says so (Export, Python\'s save(path))', () => {
+    const made = pageFile(signedPage());
+    assert.ok(!('refused' in made));
+    assert.ok(!made.file.includes(SENTINEL));
+    assert.deepEqual(made.freshLinks, ['trades.parquet']);
+    const said = JSON.parse(pageFileJson(pageToJson(signedPage()))) as { file: string; warning?: string };
+    assert.ok(!said.file.includes(SENTINEL) && /trades\.parquet/.test(said.warning ?? ''));
+  });
+
+  it("strips a link wherever a page holds one: a join's input, an Iceberg table's mark kept", () => {
+    const signedCube = cubeOver(remote(SIGNED));
+    const join: CubeSource = {
+      _type: 'join', name: 'trades ⋈ desks', how: { form: 'append' }, columns: COLUMNS,
+      left: { name: 'trades', source: remote(SIGNED), query: signedCube.query },
+      right: { name: 'desks', source: remote(`https://h/desks.csv?sig=${SENTINEL}`, 'desks.csv'), query: signedCube.query },
+    };
+    const saved = pageAsSaved(signedPage(join));
+    assert.ok(!pageToJson(saved.page).includes(SENTINEL));
+    assert.deepEqual(saved.freshLinks, ['trades.parquet', 'desks.csv']);
+    assert.deepEqual(freshLinksOfPage(saved.page), [{ name: 'trades.parquet', address: ADDRESS }, { name: 'desks.csv', address: 'https://h/desks.csv' }]);
+    const iceberg = pageAsSaved(signedPage(remote(`s3://b/t?versionId=7#iceberg`, 't'))).page;
+    assert.equal((iceberg.cubes[0]!.cube.source as RemoteSource).url, 's3://b/t#iceberg');
+  });
+
+  it('saves a plain link as it is, with nothing to say', () => {
+    const made = pageSaving('Plain', signedPage(remote('s3://bucket/trades.parquet')), 'r-2', false);
+    assert.ok(!('refused' in made));
+    assert.deepEqual(made.freshLinks, []);
+    assert.deepEqual(sourceOf(made.record.content), { _type: 'remoteFile', name: 'trades.parquet', url: 's3://bucket/trades.parquet', columns: COLUMNS });
+    assert.equal((JSON.parse(pageRecordJson('r-2', 'Plain', pageToJson(signedPage(remote('s3://bucket/trades.parquet'))), false)) as { warning?: string }).warning, undefined);
+  });
+
+  it('reads a saved page needing a fresh link, and reads the file from the link given it', () => {
+    const made = pageSaving('Signed', signedPage(), 'r-1', false);
+    assert.ok(!('refused' in made));
+    const reopened = readPage(toJson(made.record.content));
+    assert.equal((reopened.cubes[0]!.cube.source as RemoteSource).freshLink, true);
+    // a fresh link given by the file's address: read from it from now on, needing none
+    const fresh = `${ADDRESS}?X-Amz-Signature=fresh`;
+    const given = pageWithLinks(reopened, new Map([[ADDRESS, fresh]]));
+    assert.deepEqual(given.cubes[0]!.cube.source, remote(fresh));
+    assert.deepEqual(freshLinksOfPage(given), []);
+    // headless (Python's load(links=)): the page given its links, and what still needs one
+    const none = JSON.parse(pageLinks(pageToJson(reopened), '{}')) as { needed: unknown[] };
+    assert.deepEqual(none.needed, [{ name: 'trades.parquet', address: ADDRESS }]);
+    const linked = JSON.parse(pageLinks(pageToJson(reopened), JSON.stringify({ [ADDRESS]: fresh }))) as { page: string; needed: unknown[] };
+    assert.deepEqual(linked.needed, []);
+    assert.equal((readPage(linked.page).cubes[0]!.cube.source as RemoteSource).url, fresh);
+  });
+
+  it('refuses a source marked as needing a fresh link that holds a query string all the same', () => {
+    const marked = JSON.parse(pageToJson(signedPage())) as { cubes: { cube: { source: Record<string, unknown> } }[] };
+    marked.cubes[0]!.cube.source['freshLink'] = true;
+    assert.throws(() => readPage(JSON.stringify(marked)), /needs a fresh link is its address alone/);
   });
 });

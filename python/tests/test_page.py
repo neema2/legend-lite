@@ -4891,6 +4891,31 @@ class OverFiles(Paged):
         self.assertNotIn(gone, datacube._session.frames.hosted()['remotes'])
         self.assertEqual(len(page.grids), 2)
 
+    def test_a_presigned_link_is_saved_without_its_token_said_and_loaded_again_given_a_fresh_one(self):
+        # the user's ruling of 2026-11-11 ("can we strip the presigned and save the rest of report with warning?" --
+        # agreed): a remote file's link with a query string saved as its address alone, marked as needing a fresh link,
+        # said at the save; loaded again, its fresh link given by that address (links=), as a file is given (files=)
+        sentinel = 'SENTINEL-' + os.urandom(4).hex()
+        address = f'{self.base}/desks.csv'
+        page = ll.Page('Signed')
+        page.grid(remote=f'{address}?X-Amz-Signature={sentinel}', rows=['desk'], measures={'qty': 'sum'})
+        path = Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))) / 'signed.page.json'
+        with self.assertWarnsRegex(UserWarning, "“desks.csv” is saved without its link's query string"):
+            page.save(path)
+        text = path.read_text('utf-8')
+        self.assertNotIn(sentinel, text)
+        source = json.loads(text)['cubes'][0]['cube']['source']
+        self.assertEqual((source['url'], source['freshLink']), (address, True))
+        # no fresh link given: refused in words, naming the file and its address
+        with self.assertRaisesRegex(ValueError, f'desks.csv \\({re.escape(address)}\\).*give fresh links, links='):
+            ll.Page.load(path)
+        # a link for an address the page saved none needing one at: refused, never ignored
+        with self.assertRaisesRegex(ValueError, 'the page saved no remote file needing a fresh link at https://elsewhere/x.csv'):
+            ll.Page.load(path, links={'https://elsewhere/x.csv': f'{address}?fresh=1'})
+        # given one: read from it (this machine's server ignores the query string, as a presigned link's host reads it)
+        loaded = ll.Page.load(path, links={address: f'{address}?X-Amz-Signature=fresh'})
+        self.assertEqual(groups_of(loaded.grids[0].view(), 'qty'), {'FX': 4, 'EQ': 2})
+
     def test_a_page_refused_as_it_loads_lets_go_of_the_files_it_read_for_it(self):
         path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
         page = ll.Page('Files')

@@ -17,7 +17,7 @@ import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  chartDrill, chartPick, cubeOpensAgain, flowRun, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, cubeOpensAgain, flowRun, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageLinks, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
@@ -105,7 +105,7 @@ export { layoutBands, layoutTiles };
  *  record), or as a page file (pageFile: Export ▸ Page File's rule). And a new page as
  *  DataCube starts one: what Python's ll.Page() asks. And a
  *  page edited by commands (page-commands.ts): what Python's page edits send. */
-export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
+export { pageApply, pageFile, pageLinks, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
 
 /** The commands between two pages, and between two states of a grid (page-between.ts, grid-between.ts;
  *  docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): what a page open on Python's undoes by -- the tab's history's own

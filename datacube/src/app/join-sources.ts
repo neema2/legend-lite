@@ -107,6 +107,12 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource | CopyTable, name:
   };
   if (leaf._type === 'remoteFile') {
     if (!h.database.mountRemote) throw new Error('this page reads no remote file');
+    // saved needing a fresh link (its link's token never saved): the join is left out and said, as one whose file asks
+    // for keys is -- its file opened on its own takes the fresh link
+    if (leaf.freshLink) {
+      throw new Error(`${leaf.name}'s link was saved without its query string (a presigned link's token is never saved):`
+        + ' open it with a fresh link');
+    }
     const view = asked('remote');
     await h.database.mountRemote(leaf.url, undefined, view);
     return { table: view };

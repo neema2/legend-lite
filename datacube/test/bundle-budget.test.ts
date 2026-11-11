@@ -509,8 +509,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  mount a planned load, its keys and a bearer URL held by name and bound: remote.ts mountRequest, sourceStore, the
  *  bearer URL's address shown without its token and redacted by value, and the tab's connection settings, kept and
  *  replayed on every connection it opens (engine-client's connection-settings.ts, a module of its own so the tab carries
- *  them without the plan runner, which stays a chunk fetched with the first mount or file read). Measured 431,646. */
-const BUDGET = 432_000;
+ *  them without the plan runner, which stays a chunk fetched with the first mount or file read). Measured 431,646.
+ *  432,000 -> 433,000 (2026-11-11, the user's ruling on a saved page's presigned link: "can we strip the presigned and
+ *  save the rest of report with warning?" -- agreed): every way a page leaves the screen -- Save, a page file, a share
+ *  link -- writes a remote file's link without its query string (cube-document.ts savedSource, page-document.ts
+ *  pageAsSaved) and says so (freshLinksWarning); a saved page reopened asks for a fresh link (sources.ts reopenRemote).
+ *  Measured 432,386. */
+const BUDGET = 433_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -716,8 +721,10 @@ const BUDGET = 432_000;
  *  date). Measured 400,965.
  *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506.
  *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 417,953. */
-const ENGINE_BUDGET = 418_500;
+ *  same date). Measured 417,953.
+ *  418,500 -> 419,500 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
+ *  same date). Measured 419,122. */
+const ENGINE_BUDGET = 419_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1098,8 +1105,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
  *  same date). Measured 446,209.
  *  446,500 -> 447,000 (2026-11-11, the total wall's B3 -- the grid-only page's note of the same date; with the hosts'
- *  plan runner at startup it measured 449,333). Measured 446,567. */
-const WIDGET_BUDGET = 447_000;
+ *  plan runner at startup it measured 449,333). Measured 446,567.
+ *  447,000 -> 448,000 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
+ *  same date). Measured 447,348. */
+const WIDGET_BUDGET = 448_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
