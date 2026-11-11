@@ -606,9 +606,13 @@ why the planner branched on the database. Ruled, on round 2's probes ("Yes diale
   (`DataDeliveryOwnerTest`).
 - **Snowflake and BigQuery take the payload as ONE bound parameter** the database splits (`FLATTEN(PARSE_JSON(?))`,
   `UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?)))`): a plan value (`Binding.Payload`, plan version 46), never the statement's
-  text, no temp table, no drop.
+  text, no temp table, no drop. **Verified on the lanes at fba0a0f1:** a payload, an empty one and one holding a quote,
+  a backslash and a line break through the product's own path on real Snowflake and BigQuery, the session sent the
+  query alone; PCT channel A all green on both (Snowflake 1,249 tests in 584 s against 654 s at its round 22).
 - **Databricks:** probe sent ("Check if we want to do same for Databricks ... so at least the cloud ones are
-  consistent"); decided on its numbers.
+  consistent"); measured (probes/DatabricksDelivery2.java.txt): the bound parameter is the fastest form up to the
+  driver's 1 MiB parameter limit (0.56 s at 10,000 records), inline rows take 100,000 in 4.2 s, today's session table
+  is the slowest at every size (134 s at 100,000). Recommendation asked: the bound parameter, inline rows above 1 MiB.
 - **Pasted CSV as one bound JSON parameter:** an option to investigate in the data-loading program
   (`DATA_LOADING_TARGET_MODEL` §5 item 6).
 
