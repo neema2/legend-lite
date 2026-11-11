@@ -660,6 +660,39 @@ include the digest reference in the JSON pass"):**
   - The census's M18 pins these symbols at zero.
 
 
+### 5.10 The afternoon's rulings (2026-11-11), and the merge
+
+**Merged onto `claude/total-wall` at bd6325362** (the orchestrator, after `//gates:local` -- the Postgres targets and
+`datacube:verify_app_test` as the unprivileged user -- and both corpus lanes green): B4 (the catalog in process, census
+M5 and M6 DELETED), the JSON pass (above), B2d.2 and its audit round (census M13-output DELETED), B3 (census M14
+DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B checkpoint's lane round was sent at that head.
+
+- **No name keying** ("Why are we keying anything system metamodel by table name? That seems bad?"): the catalog's
+  routing is decided by typed identity -- resolved stores, class and store FQNs, function ids -- never by a table's
+  name (B4's audit round, 2169ba2 and 560e99a; `CatalogOnEveryDatabaseTest.aUsersTableNamedAsAnyMetamodelTableIsTheUsers`).
+  The generator's table swap likewise keys by store and table identity (B2d.2's audit round, M1).
+- **B3's rulings:** uploads in Parquet, JSON and detected CSV ("Agreed on 1a"); kept until the person resets them, as
+  today (1b); "If warehouse is locked that is good enough -- every other usecase of duckdb now is local -- remote engine
+  with duckdb embedded can be follow up for later" (the fence dropped); presigned links: "Yes do option 2, add
+  short-lived credentials to roadmap" -- the host binds a bearer URL by name, once per connection, through a session
+  variable the view reads; never in the plan or a view's text (`docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md`;
+  roadmap: `DATA_LOADING_TARGET_MODEL` §5 item 7). The user's framing: "the auth is a property of the connection".
+- **JSON numbers** (S194): "Is that the input JSON to the database? Then that makes sense bc it's the dialects plan for
+  the dialects json"; confirmed on the output-only reading: "That's fine for json output".
+- **The generator (B2d.2):** `assertTestData` passes or fails exactly as upstream decides ("Agreed"), its failure
+  message lite's own (S195); the generator's statement runs where its result is read ("Yes accept that with a register
+  row", S196), a database effect between its let and a read refused by name; the runtime argument must be the body's
+  (refused by name otherwise); "How much do we care about exact error message" -- answered: little, no test reads it.
+- **CSV block ends** (S197): "keep ours" -- a block ends only at a line of dashes, not at any one-cell record that is
+  empty or starts with `-` (upstream's rule cuts a one-column table of negative numbers short).
+- **Open with the user:** the B2d.3 design's R1-R5 (`docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md`
+  §5 on `claude/total-wall-b2d3`; the orchestrator recommended R1 upstream's error in `generateTestData` and the default
+  only as the server route, R2 the seed's 10 by key, R3 the message without the example keys, R4 a note, R5 faithful
+  cells in the routes' table order); a saved DataCube page holding a presigned link (the user proposed stripping the
+  token and saving the rest with a warning; recommended, with the address saved as needing a fresh link); the
+  BusinessDate corpus test refused after its reload (recommended: track each table's state at planning -- a full
+  replacement ends the swap, a partial write is refused -- designed now, built with B2d.3).
+
 ## 6. What remains, in order
 
 | step | what | done means | read |
