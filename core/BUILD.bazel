@@ -243,8 +243,8 @@ legend_java_library(
 legend_java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
-    # planning alone since slice 5 (2026-11-09): the generator's own run, which planned and ran interleaved, is the tests'
-    # (core/src/test/.../testdatagen/TestDataGeneratorRun.java); the product keeps its planning (planText)
+    # planning alone since slice 5 (2026-11-09); since B2d.2 (2026-11-11) the generator is one planned read-only
+    # statement (TestDataPlanner) on the test road, and its interleaved run (the tests' TestDataGeneratorRun) is deleted
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":plan", ":protocol", ":test_plan", ":sql", ":sql_dialect", ":values"],
 )
 

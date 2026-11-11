@@ -45,9 +45,9 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
         /** The rows leg: our rows against the golden's, replayed by the referee. */
         ROWS,
         /** No referee for the text: the text is the contract, a failed text the assert's failure. */
-        CONTRACT,
-        /** The test-data generator's rows leg, not offered (S143): refused by name. */
-        TDG
+        CONTRACT
+        // (TDG, the test-data generator's rows leg, went 2026-11-11 with B2d.2: the generator's fetch texts are
+        // planning constants, compared as texts; the user's ruling of 2026-11-10, a register row)
     }
 
     /** The same appeal numbered {@code n} in its body. */

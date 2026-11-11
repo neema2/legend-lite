@@ -721,6 +721,9 @@ public class MinimalCorpusTest {
     // accepted roster's not-offered:test-data-generator rows; 19 of them were passes a referee row verdict witnessed.
     // Measured after: DIFFERENTIAL+literal 821, DIFFERENTIAL-only 169, SPELLING 22, CARDINALITY 27, LITERAL 1373. The
     // H2 lane's floor holds as it is (its differential 964 >= 944).
+    // DuckDB holds 990 / 22 / 27 (2026-11-11, B2d.2: the generator's eight corpus tests that pass again -- the text
+    // compared as data, the slice reloaded read only -- are literal-decided, LITERAL 1405; the H2 lane's differential
+    // 964 >= 944, unchanged).
     private static final int[] PLATFORM_STRENGTH = {990, 22, 27};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
@@ -1102,7 +1105,7 @@ public class MinimalCorpusTest {
     /** THE ARTIFACT RULE (block-compiler program, 2026-09-21): a test body is ONE
      * artifact — one fused statement for a pure body, one script for an effect
      * body. This names what is not there yet: a body that sends a PRODUCT-OWNED
-     * statement outside its artifact (raw, side, statement, tdg, probe, fallback,
+     * statement outside its artifact (raw, side, statement, probe, fallback,
      * let, value, other — never the referee's, the seeding's or the session's), or
      * a PURE body cut into several sends (flushes). Null when the body is one
      * artifact. */
@@ -1128,7 +1131,7 @@ public class MinimalCorpusTest {
 
     private static final java.util.Set<com.legend.exec.StatementOrigin> PRODUCT_OWNED = java.util.EnumSet.of(
             com.legend.exec.StatementOrigin.RAW, com.legend.exec.StatementOrigin.SIDE,
-            com.legend.exec.StatementOrigin.STATEMENT, com.legend.exec.StatementOrigin.TDG,
+            com.legend.exec.StatementOrigin.STATEMENT,
             com.legend.exec.StatementOrigin.PROBE,
             com.legend.exec.StatementOrigin.LET, com.legend.exec.StatementOrigin.VALUE,
             com.legend.exec.StatementOrigin.OTHER);

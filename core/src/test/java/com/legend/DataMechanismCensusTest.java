@@ -205,7 +205,13 @@ class DataMechanismCensusTest {
                     new Staying("P9: a statement's literal rows come from lowering alone")),
             new Row("M12", "model-derived constants in statements",
                     new Staying("P9: constants come from the compiled model alone")),
-            new Row("M13-output", "the test-data generator's rows handed on as seed text", new Pending("L8")),
+            // DELETED (B2d.2, 2026-11-11, the generator design the user approved 2026-11-10 and the read-only reload
+            // ruled 2026-11-11): the generator is one planned read-only statement (TestDataPlanner) on the test road;
+            // its text is compared as data in the database and its slice read by the query again (GeneratorSplice,
+            // TypedTableSwap), nothing written; the tests' interleaved run that read rows into temporary tables, the
+            // TDG appeal that replayed its fetches, and the generator's statement origin deleted
+            new Row("M13-output", "the test-data generator's rows handed on as seed text", new Deleted("B2d.2",
+                    List.of("class TestDataGeneratorRun", "Appeal.Kind.TDG", "StatementOrigin.TDG"))),
             new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Pending("L7")),
             // M15 in its two halves, as M7 is (B2c, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2c, the
             // user's yes): the Java test fixtures' own JDBC writes BOUNDED by their guard, not converted -- each file's
@@ -319,7 +325,9 @@ class DataMechanismCensusTest {
         // -- not a deletion undone, a count corrected: the JSON source frame's literal rows were never deleted, and the
         // design's §5 asks the census kept honest; its row says why and when it moves); 3 -> 4 (2026-11-11, B2a: M10
         // deleted, the JSON connection's frame its payload's data: load on every road); 4 -> 6 (2026-11-11, B2b: M3 and
-        // M15-referee deleted, the referee's copy of a seed a load and its files gone, 57e2c445 and 00e67e38)
-        assertEquals(6, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // M15-referee deleted, the referee's copy of a seed a load and its files gone, 57e2c445 and 00e67e38); 6 -> 7
+        // (2026-11-11, B2d.2: M13-output deleted, the generator one planned read-only statement, its interleaved run
+        // and the TDG appeal gone)
+        assertEquals(7, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

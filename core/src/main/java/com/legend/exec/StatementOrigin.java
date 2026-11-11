@@ -47,8 +47,8 @@ public enum StatementOrigin {
     MIRROR_SEED,
     /** A metadata probe: reported columns, pivot keys. */
     PROBE,
-    /** Test-data generation. */
-    TDG,
+    // (TDG, the test-data generator's interleaved run, went 2026-11-11 with B2d.2: the generator is one planned
+    // statement, sent as any statement of its body)
     /** No site claimed the statement — the census's own residual. */
     OTHER;
 

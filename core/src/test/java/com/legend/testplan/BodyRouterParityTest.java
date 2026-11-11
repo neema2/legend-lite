@@ -1274,7 +1274,8 @@ class BodyRouterParityTest {
         assertFalse(BodyClass.systemRouted(typed(ctx, censusBody), "x::RT"), "a binding consumed: " + censusBody);
         assertNull(BodyClass.of(typed(ctx, censusBody), "x::RT", true), "the census carrier: no class admits it");
         // the test-data generator's census carrier was folded in Java by the walk; with the walk deleted (2026-11-06)
-        // the body is refused by name (lite offers no test-data generator yet: S143)
+        // the body is refused by name (the census carrier is not planned yet: S143, narrowed by B2d.2 on 2026-11-11, which
+        // plans generateTestData on the test road)
         assertTrue(run(backend, ctx, "x::RT", censusBody, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST).outcome.startsWith(
                         "NotImplementedException: the program road does not plan this body"), "the census body refused");

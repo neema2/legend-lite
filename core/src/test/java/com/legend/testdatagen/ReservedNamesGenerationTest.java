@@ -7,7 +7,6 @@ import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
 import com.legend.error.NotImplementedException;
-import com.legend.exec.Sessions;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.setup.CsvSeed;
@@ -30,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * generation over a default-schema table named {@code order}, and over a table in a schema named {@code select}, runs
  * on every database with an in-memory instance. The generator's statements are IR its session's dialect writes, so
  * each names a table as the session's queries do; until then it spelled the names raw, which DuckDB and H2 refuse.
+ * Since B2d.2 (2026-11-11) the generator is one planned read-only statement ({@link TestDataPlanner}), run here.
  */
 class ReservedNamesGenerationTest {
 
@@ -47,7 +47,7 @@ class ReservedNamesGenerationTest {
             )
             """;
 
-    /** Each database type an in-memory session opens on: {@link Sessions#openPrivate} refuses the rest by name, and a
+    /** Each database type an in-memory session opens on: {@code Sessions.openPrivate} refuses the rest by name, and a
      *  type whose opener fails fails here, rather than leaving the test (the PR audit of 2026-10-16). */
     static List<DatabaseType> inMemory() throws SQLException {
         List<DatabaseType> out = new ArrayList<>();
@@ -72,35 +72,34 @@ class ReservedNamesGenerationTest {
                     s.execute(sql);
                 }
             }
-            TestDataGeneratorRun.Result order = TestDataGeneratorRun.generate(ctx,
-                    query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M",
-                    List.of(new TestDataGenerator.TableRowIds("default", "order",
-                            List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))),
-                    null, false, com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), target(type), dialect, NO_VIEWS);
-            assertFalse(order.sqls().isEmpty(), type.name());
-            assertEquals("default\norder\nID,NAME\n1,a\n-----\n", order.dataCsvString(), type.name());
-            TestDataGeneratorRun.Result item = TestDataGeneratorRun.generate(ctx,
-                    query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M",
-                    List.of(new TestDataGenerator.TableRowIds("select", "T",
-                            List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L))))),
-                    null, false, com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), target(type), dialect, NO_VIEWS);
-            assertEquals("select\nT\nID\n7\n-----\n", item.dataCsvString(), type.name());
+            List<TestDataGenerator.TableRowIds> one = List.of(new TestDataGenerator.TableRowIds("default", "order",
+                    List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L)))));
+            assertEquals("default\norder\nID,NAME\n1,a\n-----\n", text(c, dialect, TestDataPlanner.plan(ctx,
+                    query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M", one, null, false)), type.name());
+            List<TestDataGenerator.TableRowIds> seven = List.of(new TestDataGenerator.TableRowIds("select", "T",
+                    List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L)))));
+            assertEquals("select\nT\nID\n7\n-----\n", text(c, dialect, TestDataPlanner.plan(ctx,
+                    query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M", seven, null, false)), type.name());
         }
     }
 
-    /** The private session's target: its database type, the one fact the runner checks a session against. */
-    private static com.legend.executionplan.ExecutionPlan.Target target(DatabaseType type) {
-        return new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
-                List.of(), List.of());
+    /** {@code planned}'s text, its one statement run on {@code c}, and each fetch text run there too. */
+    private static String text(Connection c, SqlDialect dialect, TestDataPlanner.Planned planned) throws SQLException {
+        assertFalse(planned.fetches().isEmpty());
+        for (com.legend.sql.SqlQuery fetch : planned.fetches()) {
+            try (Statement s = c.createStatement(); java.sql.ResultSet r = s.executeQuery(dialect.render(fetch))) {
+                while (r.next()) {
+                    r.getObject(1);
+                }
+            }
+        }
+        try (Statement s = c.createStatement(); java.sql.ResultSet r = s.executeQuery(dialect.render(planned.csv()))) {
+            r.next();
+            return r.getString(1);
+        }
     }
 
     private static LambdaFunction query(String text) {
         return (LambdaFunction) com.legend.compiler.NameResolver.resolveQuery(Compiler.parseQuery(text));
     }
-
-    /** No view is fetched here. */
-    private static final TestDataGeneratorRun.ViewSql NO_VIEWS = (db, view, temps) -> {
-        throw new AssertionError("no view in this model: " + view);
-    };
 }

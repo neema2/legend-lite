@@ -21214,3 +21214,45 @@ with no assert's verdict where the split rung used to record each assert): four 
   user's, as built.
 
   Marker branch `claude/plan-as-data-slice-5`.
+
+## 2026-11-11 — B2d.2: the test-data generator on the test road; S143 narrowed, S192 and S193
+
+The generator design the user approved on 2026-11-10 (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`)
+and the read-only reload the user ruled on 2026-11-11 ("Read only reload is fine"), on the test road
+(`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §4.4 item 5, §5.2):
+
+- A body's `generateTestData` is planned before the body is classed (`testplan/GeneratedTestData`,
+  `compiler/spec/GeneratorSplice`): its `sqls` the fetch texts as constants, its `dataCsvString` the one read-only
+  statement's cell (`TypedPlannedValue`); `assertTestData`'s inlined `assertSameElements` over two texts' loads is the
+  database's comparison of their data, each table a set of rows; `loadAndTestExecution`'s reload sends nothing and the
+  query after it reads every table of the database from the slice (`TypedTableSwap`), read only (register S192).
+- Deleted: the tests' interleaved run (`TestDataGeneratorRun`), the TDG appeal (`Appeal.Kind.TDG`, `tryArmTdgSql`,
+  `tryArmTdgRoot`, `hasTdgProducer`, the generator's `assertSqlEquals` root and its FQN), the generator's statement
+  origin; census M13-output DELETED.
+
+The corpus lanes, measured (host and database judges, both lanes alike):
+
+- **Pass now (8):** the six milestoning tests (`testDataGenerationWith{BiTemporal,BusinessDate,Snapshot}Milestoning` and
+  their `_WithMilestoningDates`) and `testUnionToUnionMultipleLevels` (and `WithStringHashing`): their data checks --
+  the text compared as data, the slice reloaded and the query run over it -- hold. Their accepted rows are deleted.
+- **Accepted under S193 (19):** each fails at its first fetch-text check (`assertSqlEquals`, or `assertEquals` of
+  `sqls->at(0)`), whose golden names upstream's temporary tables: bucket
+  `by-design:test-data-generator-fetch-text(S193)`, witness `expected: 'select top 20`. Every count check before
+  them holds.
+- **Accepted under S143, narrowed (17):** the six whose relation tree holds a view (witness `in the query's relation
+  tree`, the planner's refusal by name); the seven default-starting-rows tests (B2d.3), `generateSeedDataString`'s one
+  and the census carrier's three keep "no class admits the body".
+- **The database judge (5):** `testConstant`, `testQualifier`, `testSimpleSingleTable`,
+  `testSimpleSingleTableWithNoDataToInsert` and `testSimpleTwoTable` are refused by the database judge's planner (the
+  static gate refuses `createTableRowIdentifiers`' quantified guard, a `map` of asserts): the known parity gap the
+  seven alloy rows already carry, `judge-parity-gap:database-planner-refuses(P5)`, added to both
+  `*-database-accepted-register.txt`.
+- **Outside the body (database judge):** the six of the eight that end with `loadAndTestExecution` answer its tail (the
+  frame's non-empty check) as a statement of its own, as they did before 2026-11-06 (their rows then were
+  `statement=1 tdg=N`; the generator's own statements are inside the body's artifact now): both
+  `*-database-outside-body-register.txt` gain them, `statement=1` each, `statement=2` for the test reloading twice.
+- **Engine order:** the DuckDB host register gains 27 of the generator's tests and the DuckDB database register 22 (the
+  scan-order emulation changes their statements, as it did before 2026-11-06); H2's are unchanged.
+- **Unchanged:** both fail rosters (DuckDB 108, H2 273: `testAlloyTestDatGenWithQuotedColumnsForViews` stays, its own
+  view refusal), the skipped and unordered registers, and the strength floors (DuckDB differential 990, spelling 22,
+  cardinality 27, the eight passes literal-decided, LITERAL 1405; H2 differential 964 >= 944).
