@@ -168,17 +168,40 @@ final class TestRunTest {
         public void end() {
             events.add("end");
         }
+
+        @Override
+        public void writing(int step) {
+            events.add("writing " + step);
+        }
     }
 
     /** {@code steps} as a test plan judged by {@code judge}, read back from its JSON as written. */
     private static TestPlan plan(TestPlan.Judge judge, TestPlan.TestStep... steps) {
-        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target, List.of());
+        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target, null);
         assertEquals(plan, TestPlanJson.read(TestPlanJson.write(plan)), "the plan reads back as written");
         return plan;
     }
 
     private static void run(TestPlan plan, PlanSessions.Source sessions, Recording sink) throws IOException {
         TestRun.run(plan, Map.of(), sessions, com.legend.executionplan.DataStores.none(), step -> null, sink, sink);
+    }
+
+    @Test
+    @DisplayName("a live source's session table (SOURCE) is no write of the body's; a program's own load (AT_STEP) is")
+    void aSourceLoadIsNoWrite() throws IOException {
+        // the plan says which: the runner tells the sink of a write at an AT_STEP load alone (the B2a audit's S1: a
+        // data: table's load told as a write refused an appeal held before it)
+        ExecutionPlan.Load source = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.SOURCE, List.of(
+                new ExecutionPlan.LoadStep.Statement("DROP TABLE IF EXISTS temp.legend_source_load"),
+                new ExecutionPlan.LoadStep.Statement("CREATE TEMPORARY TABLE legend_source_load (x INTEGER)")), target);
+        ExecutionPlan.Load own = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, List.of(
+                new ExecutionPlan.LoadStep.Statement("DROP TABLE IF EXISTS temp.legend_own_load"),
+                new ExecutionPlan.LoadStep.Statement("CREATE TEMPORARY TABLE legend_own_load (x INTEGER)")), target);
+        Recording sink = new Recording();
+        run(plan(TestPlan.Judge.HOST, new TestPlan.Run(source), new TestPlan.Run(own),
+                new TestPlan.Run(relation("SELECT 1 AS value", List.of(col("value", "Integer", "INTEGER"))))),
+                sessions(), sink);
+        assertTrue(sink.events.contains("writing 1") && !sink.events.contains("writing 0"), sink.events.toString());
     }
 
     @Test
@@ -340,7 +363,7 @@ final class TestRunTest {
                 new TestPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused(),
                         TestPlan.JudgingRules.LITE),
                 new TestPlan.Run(relation("SELECT 7 AS value", List.of(col("value", "Integer", "INTEGER"))))),
-                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, List.of());
+                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, null);
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"verdicts\"") && json.contains("\"_type\":\"keyedRows\"")
@@ -414,7 +437,7 @@ final class TestRunTest {
         TestPlan plan = new TestPlan(List.of(), List.of(
                 new TestPlan.Branch(condition, List.of(oneVerdict("then@1", "SELECT 1 AS value"), inner),
                         List.of(oneVerdict("else@1", "SELECT 2 AS value")))), TestPlan.Judge.HOST, Map.of(), Map.of(),
-                false, target, List.of());
+                false, target, null);
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"branch\""), json);

@@ -141,7 +141,8 @@ public final class SQLite extends AnsiSqlRenderer {
         String drop = "DROP TABLE IF EXISTS temp." + ddlIdentifier(base, false);
         String create = render(new com.legend.sql.SqlDdl.CreateTable(null, base, com.legend.sql.NameQuoting.BARE,
                 columns, true));
-        return new SqlDialect.DataTable(null, base, java.util.List.of(drop, create), java.util.List.of(drop));
+        return new SqlDialect.DataTable(null, base, java.util.List.of(), java.util.List.of(drop, create),
+                java.util.List.of(drop));
     }
 
     /** {@inheritDoc} SQLite holds each element's JSON text in a column it navigates with its JSON functions. */

@@ -367,6 +367,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             /** A program's own load at its place ({@code loadCsvToDbTable}): run every time it is reached, a write as
              *  an effect is, never skipped. */
             AT_STEP,
+            /** A LIVE SOURCE'S SESSION TABLE at its place (a {@code data:} payload's, a JSON connection's frame: B2a,
+             *  2026-11-11): run every time it is reached, never skipped, and NO WRITE of the body's -- the table is the
+             *  session's own, dropped at the plan's release -- so a seed established before it stays established and an
+             *  appeal held before it is still decided (the B2a audit's S1: as AT_STEP it was a write). */
+            SOURCE,
             /** A target's load (a connection's declared test data, L2): established when a session is acquired for the
              *  target, a write, as legend-engine establishes a test connection on each acquisition. Per source (the
              *  contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09): a caller's session

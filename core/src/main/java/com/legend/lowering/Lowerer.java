@@ -1000,7 +1000,8 @@ public final class Lowerer {
         }
         return switch (spec) {
             case TypedSourceUrl su -> SqlSelect.starOf(
-                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL)));
+                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL),
+                            su.records() ? SqlSource.SourceUrl.Form.RECORDS : SqlSource.SourceUrl.Form.ELEMENTS));
             case TypedTableReference t -> t.frame() != null
                     // rung 12: the class extent's rows are a planned frame's CTE
                     // (its body reads the table, so the CTE's columns keep the table's

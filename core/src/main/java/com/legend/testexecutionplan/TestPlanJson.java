@@ -34,8 +34,9 @@ public final class TestPlanJson {
      *  load by its data reference; 12 (L2): the product's version 32, and the test plan's own {@code loads} section,
      *  each load once, every target naming it by identity; 13 (2026-11-10, L5): an appeal's rows name no stores for the
      *  harness to provide, the on-demand fixtures deleted (census M9); 14 (2026-11-11, B2a): the statements the runner
-     *  sends after the run and its appeals, {@code release}. */
-    public static final int VERSION = 14;
+     *  sends after the run and its appeals, {@code release}; 15 the same day (the B2a audit's S2): the release names its
+     *  target ({@code on}), the program's, where its tables were made. */
+    public static final int VERSION = 15;
 
     private TestPlanJson() {
     }
@@ -86,7 +87,12 @@ public final class TestPlanJson {
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("session", PlanJson.targetJson(plan.session()));
-        out.put("release", plan.release());
+        if (plan.release() != null) {
+            Map<String, Object> release = new LinkedHashMap<>();
+            release.put("on", PlanJson.targetJson(plan.release().on()));
+            release.put("statements", plan.release().statements());
+            out.put("release", release);
+        }
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
         if (!plan.extensionsByStep().isEmpty() || !plan.extensionsByVerdict().isEmpty()) {
@@ -229,7 +235,11 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), o.getStringArray("release"));
+                PlanJson.targetOf(o.getObj("session")), release(o.getObjOr("release", null)));
+    }
+
+    private static TestPlan.@com.legend.base.Nullable Release release(Json.@com.legend.base.Nullable Obj o) {
+        return o == null ? null : new TestPlan.Release(o.getStringArray("statements"), PlanJson.targetOf(o.getObj("on")));
     }
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------

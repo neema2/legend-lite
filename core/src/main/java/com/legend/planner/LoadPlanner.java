@@ -80,10 +80,10 @@ public final class LoadPlanner {
         return ExecutionPlan.Load.IDENTITY_PREFIX + Hash.ofUtf8(ExecutionPlan.Load.canonical(cadence, steps)).hex();
     }
 
-    /** The test data {@code runtime}'s connections declare, as load steps final for {@code dialect}'s database: the one
-     *  maker of a runtime's declared data, for a plan's target (its acquisition load) and for a program's seeds
-     *  ({@link #seeds}; B2a, 2026-11-11: until then the target's in {@code PlanMaker}, the seeds' in the test planner's
-     *  {@code Seeds.planned}). */
+    /** The test data {@code runtime}'s connections declare, as load steps final for {@code dialect}'s database: a plan's
+     *  target's acquisition load. Its steps are {@code CsvSeed.declaredSteps}', which {@link #seeds} plans too, beside a
+     *  statement's other seeds, in one load (B2a, 2026-11-11: until then the target's in {@code PlanMaker}, the seeds'
+     *  in the test planner's {@code Seeds.planned}; the B2a audit's note: the javadoc said seeds called this). */
     public static com.legend.setup.LoadSteps declared(String runtime,
             com.legend.compiler.element.ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
         return com.legend.setup.CsvSeed.planned(com.legend.setup.CsvSeed.declaredSteps(runtime, ctx, dialect), dialect);

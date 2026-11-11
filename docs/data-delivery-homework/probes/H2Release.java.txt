@@ -1,0 +1,30 @@
+// Measured 2026-11-11 on H2 2.5.252 (the B2a audit's notes: H2's release and its schema). Output:
+// H2 2.5.252 (2026-09-23)
+// 1 drop on a missing schema: Schema "LEGEND_SESSION" not found; SQL statement:
+// 2 schema first, then a write rolled back: U rows 0
+// 3 the data table after the rollback: rows 0
+// 4 after the release: tables in LEGEND_SESSION 0
+import java.sql.*;
+public class H2Rel {
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:r" + System.nanoTime()); Statement s = c.createStatement()) {
+            System.out.println("H2 " + c.getMetaData().getDatabaseProductVersion());
+            try { s.execute("DROP TABLE IF EXISTS LEGEND_SESSION.LEGEND_DATA_X"); System.out.println("1 drop on a missing schema: no error"); }
+            catch (SQLException e) { System.out.println("1 drop on a missing schema: " + e.getMessage().split("\n")[0]); }
+            // the schema made at a program's first step, inside its transaction: what does the commit take?
+            c.setAutoCommit(false);
+            s.execute("CREATE TABLE U (X INT)");
+            c.commit();
+            s.execute("CREATE SCHEMA IF NOT EXISTS LEGEND_SESSION");
+            s.execute("INSERT INTO U VALUES (1)");
+            s.execute("CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS LEGEND_SESSION.LEGEND_DATA_X (DATA JSON) TRANSACTIONAL");
+            s.execute("INSERT INTO LEGEND_SESSION.LEGEND_DATA_X VALUES (JSON '{\"a\":1}')");
+            c.rollback();
+            try (ResultSet r = s.executeQuery("SELECT count(*) FROM U")) { r.next(); System.out.println("2 schema first, then a write rolled back: U rows " + r.getInt(1)); }
+            try (ResultSet r = s.executeQuery("SELECT count(*) FROM LEGEND_SESSION.LEGEND_DATA_X")) { r.next(); System.out.println("3 the data table after the rollback: rows " + r.getInt(1)); }
+            c.setAutoCommit(true);
+            s.execute("DROP TABLE IF EXISTS LEGEND_SESSION.LEGEND_DATA_X");
+            try (ResultSet r = s.executeQuery("SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'LEGEND_SESSION'")) { r.next(); System.out.println("4 after the release: tables in LEGEND_SESSION " + r.getInt(1)); }
+        }
+    }
+}

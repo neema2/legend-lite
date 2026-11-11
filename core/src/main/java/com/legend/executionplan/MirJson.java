@@ -224,6 +224,7 @@ public final class MirJson {
                 o.put("url", u.url());
                 o.put("alias", u.alias());
                 o.put("outputs", outputCols(u.outputs()));
+                o.put("form", u.form().name());
             }
             case SqlSource.RawSql r -> {
                 o.put("_type", SourceTag.rawSql.name());
@@ -891,7 +892,8 @@ public final class MirJson {
             }
             case dual -> new SqlSource.Dual();
             case sourceUrl -> new SqlSource.SourceUrl(o.getString("url"), o.getString("alias"),
-                    readOutputCols(o.getArr("outputs")));
+                    readOutputCols(o.getArr("outputs")), named(SqlSource.SourceUrl.Form.class, o.getString("form"),
+                            "form"));
             case rawSql -> new SqlSource.RawSql(o.getString("sql"), o.getString("alias"),
                     readOutputCols(o.getArr("outputs")), o.getString("writtenFor"));
             case gridReport -> new SqlSource.GridReport(readQuery(o.getObj("grid")),

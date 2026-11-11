@@ -59,15 +59,18 @@ public interface SqlDialect {
 
     /**
      * A {@code data:} source's SESSION TABLE as this database makes, reads and drops it (B2a, 2026-11-11; the drop-safety
-     * rule of docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2, measured per database): {@code make}, the statements that
-     * leave the session holding an empty {@code name} of {@code columns} (a TEMPORARY table, the session's own), which
-     * the content's inserts then fill; {@code release}, those that drop it, never a user's table of the name; the
-     * inserts' and the reads' {@code schema} ({@code null}: unqualified) and {@code name}. Refused by name where this
-     * database holds no session table of a load's.
+     * rule of docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2, measured per database): {@code prepare}, what a program
+     * sends before its first statement where it makes any such table (H2's schema, whose statement commits an open
+     * transaction: the B2a audit's note), none elsewhere; {@code make}, the statements that leave the session holding an
+     * empty {@code name} of {@code columns} (a TEMPORARY table, the session's own), which the content's inserts then
+     * fill; {@code release}, those that drop it, never a user's table of the name and never raising where it was never
+     * made; the inserts' and the reads' {@code schema} ({@code null}: unqualified) and {@code name}. Refused by name
+     * where this database holds no session table of a load's.
      */
-    record DataTable(@com.legend.base.Nullable String schema, String name, java.util.List<String> make,
-            java.util.List<String> release) {
+    record DataTable(@com.legend.base.Nullable String schema, String name, java.util.List<String> prepare,
+            java.util.List<String> make, java.util.List<String> release) {
         public DataTable {
+            prepare = java.util.List.copyOf(prepare);
             make = java.util.List.copyOf(make);
             release = java.util.List.copyOf(release);
         }

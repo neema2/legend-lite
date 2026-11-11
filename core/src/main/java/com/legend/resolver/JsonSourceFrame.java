@@ -103,7 +103,7 @@ final class JsonSourceFrame {
                 new Type.Column(FRAME_ORDINAL, Type.Primitive.INTEGER, one)));
         ExprType rowInfo = new ExprType(rowType, one);
         TypedSpec pipeline = new TypedSourceUrl(url,
-                new ExprType(Type.relation(rowType), one));
+                new ExprType(Type.relation(rowType), one), true);
         String rowVar = "src_json";
         TypedSpec data = new TypedPropertyAccess(
                 new TypedVariable(rowVar, rowInfo), "data",

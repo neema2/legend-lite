@@ -3,7 +3,6 @@
 
 package com.legend.planner;
 
-import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.NameQuoting;
 import com.legend.sql.SqlDdl;
@@ -30,7 +29,7 @@ import java.util.Set;
  * docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rules 2 and 4, A4), dropped when the request lets its session go (the
  * target's AT_RELEASE load); a run reads exactly the plan's rows. The payload is split into its elements verbatim,
  * never re-printed: the database reads each element's JSON text. A JSON connection's FRAME (B2a, 2026-11-11: the
- * source reads {@link TypedSourceUrl#ORDINAL}) takes its connection's forms -- an array of records, one record, or a
+ * source's form is {@code RECORDS}) takes its connection's forms -- an array of records, one record, or a
  * stream of them; an empty payload no record -- and its table holds each record's place beside its text.
  *
  * @param query   the query reading each source's table
@@ -44,8 +43,8 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
     /** The column of each element's text, as the source's output names it. */
     static final String COLUMN = "data";
 
-    /** A frame's column of each record's place (a JSON connection's: {@link TypedSourceUrl#ORDINAL}). */
-    static final String ORDINAL = TypedSourceUrl.ORDINAL;
+    /** A frame's column of each record's place (a JSON connection's: {@link SqlSource.SourceUrl#PLACE}). */
+    static final String ORDINAL = SqlSource.SourceUrl.PLACE;
 
     /** {@code q}'s {@code data:} sources read from their tables, and the load that makes them, on {@code dialect}'s
      *  database (a dialect with no JSON source refuses by name, as it refused the source until then). */
@@ -53,7 +52,13 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
         Tables tables = new Tables(dialect);
         SqlQuery read = tables.read(q);
         Tables.Made made = tables.take();
-        return new DataSources(read, made.steps(), made.release(), made.content());
+        // a query's tables are its acquisition's load, its own transaction: the database's prepare first in it
+        List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
+        for (String statement : made.prepare()) {
+            steps.add(new ExecutionPlan.LoadStep.Statement(statement));
+        }
+        steps.addAll(made.steps());
+        return new DataSources(read, steps, made.release(), made.content());
     }
 
     /**
@@ -73,6 +78,10 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
         private final List<ExecutionPlan.LoadStep> release = new ArrayList<>();
         private final List<String> drops = new ArrayList<>();
         private final Map<String, String> bundle = new LinkedHashMap<>();
+        private final java.util.Set<String> prepare = new java.util.LinkedHashSet<>();
+        /** Where the tables are made, as the reads that made or read one named it: the graph's system database
+         *  (true, a system-routed body's) or the body's own (false) -- one of the two, or the reads are refused. */
+        private final java.util.Set<Boolean> onSystem = new java.util.HashSet<>(2);
 
         /** The tables of one plan written in {@code dialect}. */
         public Tables(SqlDialect dialect) {
@@ -89,19 +98,21 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
         }
 
         /** The steps made since the last take: the new tables' drops, creates and fills, their drops at release (as
-         *  a release's steps, and as their statements), and the bundle the fills read. */
+         *  a release's steps, and as their statements), the bundle the fills read, and what their database sends before
+         *  a program's first statement ({@link SqlDialect.DataTable#prepare}). */
         record Made(List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release, List<String> drops,
-                Map<String, String> content) {
+                Map<String, String> content, List<String> prepare) {
         }
 
         /** What the reads since the last take made, handed on once. */
         Made take() {
             Made made = new Made(List.copyOf(steps), List.copyOf(release), List.copyOf(drops),
-                    java.util.Collections.unmodifiableMap(new LinkedHashMap<>(bundle)));
+                    java.util.Collections.unmodifiableMap(new LinkedHashMap<>(bundle)), List.copyOf(prepare));
             steps.clear();
             release.clear();
             drops.clear();
             bundle.clear();
+            prepare.clear();
             return made;
         }
 
@@ -109,6 +120,28 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
          *  take hands on. */
         public SqlQuery read(SqlQuery q) {
             return rewriter().rewrite(q);
+        }
+
+        /**
+         * {@link #read(SqlQuery)} for a statement that runs on {@code on}'s session: one body's tables are made on one
+         * database, so a statement that reads one on another -- a judge's side on the graph's system database beside a
+         * program on the user's, or the reverse -- is refused by name here, at planning (the B2a audit's note: it
+         * failed at run, "table not found").
+         */
+        public SqlQuery read(SqlQuery q, ExecutionPlan.Target on) {
+            Rewriter r = rewriter();
+            SqlQuery read = r.rewrite(q);
+            if (r.read) {
+                boolean system = on.database() instanceof ExecutionPlan.Database.System;
+                onSystem.add(system);
+                if (onSystem.size() > 1) {
+                    throw new com.legend.error.NotImplementedException("a statement reads a data: source on the "
+                            + (system ? "graph's system database" : "body's own database") + ", where the body's data:"
+                            + " tables are made on the " + (system ? "body's own database" : "graph's system database")
+                            + ": a statement reading the system metamodel store and a data: source is not planned");
+                }
+            }
+            return read;
         }
 
         /** {@code dml}'s rows and conditions reading each {@code data:} source's table. */
@@ -141,6 +174,9 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
 
         /** The rewriter: a {@code data:} source becomes its content's table, made the first time it is read. */
         private final class Rewriter extends SqlRewriter {
+            /** Whether a statement it rewrote read a {@code data:} source. */
+            private boolean read;
+
             SqlExpr expression(SqlExpr e) {
                 return rewriteExpr(e);
             }
@@ -150,8 +186,9 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
                 if (!(s instanceof SqlSource.SourceUrl u) || !u.url().startsWith("data:")) {
                     return s;
                 }
+                read = true;
                 SqlDdl.ColumnType type = dialect.dataSourceColumn(u.url());
-                boolean frame = u.outputs().stream().anyMatch(o -> o.name().equals(ORDINAL));
+                boolean frame = u.form() == SqlSource.SourceUrl.Form.RECORDS;
                 SqlDialect.DataTable table = tables.computeIfAbsent(new Key(content(u.url()), frame),
                         k -> made(k, u.url(), type));
                 Map<String, SqlDdl.ColumnType> stored = frame ? Map.of(COLUMN, type, ORDINAL, ORDINAL_TYPE)
@@ -170,7 +207,21 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
                 columns.add(new SqlDdl.Column(ORDINAL, false, ORDINAL_TYPE, false, false));
                 types.add(ORDINAL_TYPE);
             }
+            // the payload cut, and its rows written, FIRST: a payload refused leaves nothing recorded (the B2a audit's
+            // note: a make with no fill, and its drop twice at the next take)
+            List<String> elements = key.frame() ? records(key.content(), url) : elements(key.content(), url);
+            List<List<String>> rows = new ArrayList<>();
+            for (int i = 0; i < elements.size(); i++) {
+                rows.add(key.frame() ? List.of(elements.get(i), String.valueOf(i)) : List.of(elements.get(i)));
+            }
             SqlDialect.DataTable table = dialect.dataTable(base, columns);
+            // the elements as a content blob of inserts, each element its column's typed literal (A2)
+            com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(
+                    table.schema(), table.name(), NameQuoting.BARE, columns.stream().map(SqlDdl.Column::name).toList(),
+                    Set.of(), columns.size(), rows, types), dialect,
+                    "the data: source's payload (" + rows.size() + " element(s), its session table " + table.read()
+                            + ")");
+            prepare.addAll(table.prepare());
             for (String statement : table.make()) {
                 steps.add(new ExecutionPlan.LoadStep.Statement(statement));
             }
@@ -178,17 +229,6 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
                 release.add(new ExecutionPlan.LoadStep.Statement(statement));
                 drops.add(statement);
             }
-            List<String> elements = key.frame() ? records(key.content(), url) : elements(key.content(), url);
-            List<List<String>> rows = new ArrayList<>();
-            for (int i = 0; i < elements.size(); i++) {
-                rows.add(key.frame() ? List.of(elements.get(i), String.valueOf(i)) : List.of(elements.get(i)));
-            }
-            // the elements as a content blob of inserts, each element its column's typed literal (A2)
-            com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(
-                    table.schema(), table.name(), NameQuoting.BARE, columns.stream().map(SqlDdl.Column::name).toList(),
-                    Set.of(), columns.size(), rows, types), dialect,
-                    "the data: source's payload (" + rows.size() + " element(s), its session table " + table.read()
-                            + ")");
             steps.addAll(planned.steps());
             bundle.putAll(planned.content());
             return table;

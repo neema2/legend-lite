@@ -50,7 +50,10 @@ public final class ProgramState {
     /** The program's {@code data:} tables (A5): each content's made by the program's own load before its first
      *  reader, and its drops, run after the answer. */
     private final DataSources.Tables data;
-    private final List<String> dataReleases = new ArrayList<>();
+    /** Each distinct drop once, in the order the tables were made (H2's release makes its schema first, once). */
+    private final java.util.Set<String> dataReleases = new java.util.LinkedHashSet<>();
+    /** What the tables' database sends before the program's first statement (H2's schema: the B2a audit's note). */
+    private final java.util.Set<String> dataPrepare = new java.util.LinkedHashSet<>();
     /** The loads that make the program's {@code data:} tables, as placed (B2a: the test door marks each for the edge,
      *  which records none of them). */
     private final List<ExecutionPlan.Load> dataLoads = new ArrayList<>();
@@ -132,7 +135,7 @@ public final class ProgramState {
     public SqlQuery read(SqlQuery q) {
         reads(PlanMaker.tableReads(q, query.context(),
                 java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(staged))));
-        SqlQuery read = data.read(q);
+        SqlQuery read = data.read(q, target);
         placeMade();
         return read;
     }
@@ -169,13 +172,28 @@ public final class ProgramState {
      *  now, as the program's own load ({@code AT_STEP}) after the steps planned so far. */
     void placeMade() {
         DataSources.Tables.Made made = data.take();
+        if (!made.prepare().isEmpty() && target.database() instanceof ExecutionPlan.Database.System) {
+            // a database whose session table needs a prepare (H2's schema statement, and its drop) commits an open
+            // transaction there, and on the graph's system catalog the run's transaction holds the model's
+            // registration, which the run rolls back (measured 2026-11-11: committed, the next run's registration
+            // collided): refused by name, never committed (the B2a audit's S2)
+            throw new com.legend.error.NotImplementedException("a data: source read by a body routed to the graph's"
+                    + " system catalog on " + dialect.getClass().getSimpleName() + ": its session table's statements"
+                    + " commit the catalog's run transaction, which the run rolls back");
+        }
         if (!made.steps().isEmpty()) {
-            ExecutionPlan.Load load = LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, made.steps(), target,
+            ExecutionPlan.Load load = LoadPlanner.load(ExecutionPlan.Load.Cadence.SOURCE, made.steps(), target,
                     made.content());
             add(load);
             dataLoads.add(load);
             dataReleases.addAll(made.drops());
+            dataPrepare.addAll(made.prepare());
         }
+    }
+
+    /** What the program's tables' database sends before its first statement, where it made any (H2's schema). */
+    List<String> dataPrepare() {
+        return List.copyOf(dataPrepare);
     }
 
     /** The drops of the program's {@code data:} tables, run after its answer. */
@@ -186,6 +204,11 @@ public final class ProgramState {
     /** The loads that make the program's {@code data:} tables, as placed. */
     List<ExecutionPlan.Load> dataLoads() {
         return List.copyOf(dataLoads);
+    }
+
+    /** Records {@code load}, the tables' prepare the planner places first, among the program's data: loads. */
+    void dataLoad(ExecutionPlan.Load load) {
+        dataLoads.add(load);
     }
 
     /** {@code q} written in the program's dialect for its target. */

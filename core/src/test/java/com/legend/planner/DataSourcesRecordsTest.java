@@ -24,6 +24,12 @@ class DataSourcesRecordsTest {
     private static final String URL = "data:application/json,...";
 
     @Test
+    @DisplayName("the frame's place has one name in the typed tree and in the MIR")
+    void thePlaceHasOneName() {
+        assertEquals(com.legend.compiler.spec.typed.TypedSourceUrl.ORDINAL, com.legend.sql.SqlSource.SourceUrl.PLACE);
+    }
+
+    @Test
     @DisplayName("an array yields its objects; an empty payload is no record")
     void arrayAndEmpty() {
         assertEquals(List.of("{\"a\":1}", "{\"a\":2}"), DataSources.records("[{\"a\":1},{\"a\":2}]", URL));

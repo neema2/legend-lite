@@ -143,8 +143,11 @@ public final class PlanRunner {
      *  statements and rows, never a file nor a program's own load -- the database holds the metamodel and nothing else;
      *  refused by name otherwise. Its identity is its content's, as every load's (L4a, 2026-11-09). */
     static void systemStore(ExecutionPlan.Load seeds) {
+        // (a system-routed body's live source's session table, SOURCE, is the session's own, dropped at its release:
+        // no write of the store's; the B2a audit's S2)
         if ((seeds.cadence() != ExecutionPlan.Load.Cadence.BEFORE_STEP
-                && seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION)
+                && seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION
+                && seeds.cadence() != ExecutionPlan.Load.Cadence.SOURCE)
                 || seeds.steps().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.File)) {
             throw new IllegalStateException("a load on the graph's system database that is not the system store's"
                     + " seeds (" + seeds.cadence() + "): the database holds the graph's metamodel and nothing else");
@@ -384,7 +387,7 @@ public final class PlanRunner {
             if (step instanceof ExecutionPlan.Load u) {
                 // a program's own load (a data: payload's table, A5): it writes the session, on the sequence's one
                 // target; a seed or a target's load is the program runner's or the source's, refused by name
-                if (u.cadence() != ExecutionPlan.Load.Cadence.AT_STEP) {
+                if (u.cadence() != ExecutionPlan.Load.Cadence.AT_STEP && u.cadence() != ExecutionPlan.Load.Cadence.SOURCE) {
                     throw new NotImplementedException("a " + u.cadence() + " load in a plan the query door runs:"
                             + " seeds are the test door's (the program runner's, ProgramRunner.run), a target's loads"
                             + " its sessions'");
@@ -578,7 +581,8 @@ public final class PlanRunner {
     static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
             com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
         // a seed (BEFORE_STEP) and a registration (PER_TRANSACTION) are memoed; a program's own load and a target's
-        // (AT_STEP, PER_ACQUISITION, ONCE) write
+        // (AT_STEP, PER_ACQUISITION, ONCE) write; a live source's session table (SOURCE) runs every time and writes no
+        // store of the body's
         boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP
                 || seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION;
         if (seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION && session.ownsTransaction()) {
@@ -592,7 +596,7 @@ public final class PlanRunner {
             return;
         }
         verifyIdentity(seeds);
-        if (!memo) {
+        if (!memo && seeds.cadence() != ExecutionPlan.Load.Cadence.SOURCE) {
             // a program's own load writes, as an effect does: a seed established before it is established no more
             session.state().markWriting();
         }

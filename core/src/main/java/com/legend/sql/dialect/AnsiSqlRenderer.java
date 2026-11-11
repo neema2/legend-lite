@@ -316,6 +316,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 + " an external-source encoding: " + url);
     }
 
+    /** A {@code data:} source is the plan's load into a session table, which the query reads (planner.DataSources):
+     *  every road reads it so -- a query's, a program's, a test body's judges (B2a, 2026-11-11) -- so one that reaches a
+     *  render is a planner defect, refused by name the same on every database (the B2a audit's note: DuckDB raised one
+     *  type, H2 and SQLite another). */
+    static void refuseUnread(String url) {
+        if (url.startsWith("data:")) {
+            String shown = url.length() > 120 ? url.substring(0, 120) + "..." : url;
+            throw new IllegalStateException("the data: source '" + shown + "' reached a render unread: a planned"
+                    + " statement reads it from its plan's load (planner.DataSources)");
+        }
+    }
+
     /** Whether this dialect has a native QUALIFY clause. ANSI does not. */
     protected boolean supportsQualify() {
         return false;
@@ -492,6 +504,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.GridReport g -> gridReport(writer.append("("), g).append(") AS ").append(aliasIdent(g.alias()));
             case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
+                refuseUnread(u.url());
                 writer.append("(");
                 sourceUrl(nl(writer, depth + 1), u.url());
                 yield nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));

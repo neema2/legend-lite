@@ -124,8 +124,9 @@ Deleted from the plan:
     assert's sides and the verdict batch (`JudgePlans`, `VerdictBatch`, the probes that render one): a body's judges
     and its program read each `data:` source through ONE set of tables (`DataSources.Tables`, carried by the body's
     asserts, `TestDoor.Asserts.dataTables`), and the program places what the judges made, as its own `AT_STEP` load,
-    ahead of the step that first reads it (its next statement, or the verdict step at its place); a table no step
-    placed (an appeal's rows, read after the run) is placed last. The drops are the test plan's `release`, which the
+    ahead of the step that first reads it: the judges plan before the program, so each table a judge made is placed
+    at the program's first read or verdict step after it was made -- in practice its first step -- and whatever no
+    step placed is placed last. The drops are the test plan's `release`, which the
     runner sends once the run and its appeals are over, whatever their outcome, counted as a target's `AT_RELEASE`
     load is (SEED): an appeal reads lite's rows after the run, and H2's drop commits an open transaction (the H2
     table's homework, 5). **Under the compatibility edge** a `data:` table's load is planned as the edge's own record,
@@ -272,11 +273,29 @@ Deleted from the plan:
 - **`data:` on every planning path:** `planner.DataSources.Tables` is the one maker of a payload's session table, and
   every statement a program plans reads through it (`ProgramState.read`: a program's statements and the test door's,
   its staged lets' rows, a store write's rows and conditions). A product query's tables are its target's acquisition
-  load and its release (A4); a program's are its own load (`AT_STEP`), placed before the first statement that reads the
-  payload, and dropped after the program's answer, each drop qualified to the session's temporary schema. A program's
-  statements run in one transaction, so a failed program's tables go with its writes where the database's DDL is
-  transactional (DuckDB, Postgres, SQLite; H2 and SQLite refuse a `data:` source by name). The product's sequence
-  runner takes a program's own load (`PlanRunner.sequence`); a seed or a target's load among its steps is refused.
+  load and its release (A4); a program's are its own load (`SOURCE` since the B2a audit, 2026-11-11: a live source's
+  session table, no write of the body's), placed before the first statement that reads the payload, and dropped after
+  the program's answer -- a test body's after its appeals (`TestPlan.release`) -- each drop its database's own
+  (`SqlDialect.dataTable`: DuckDB's `temp`, H2's `LEGEND_SESSION`, SQLite's `temp`, Postgres's `pg_temp`; every other
+  database refuses a `data:` source by name). A program's statements run in one transaction, so a failed program's
+  tables go with its writes where the database's DDL is transactional (DuckDB, Postgres, SQLite; H2's temporary table
+  stays until its release, its rows rolled back). H2's schema statement commits an open transaction, so it is the
+  program's first step (`DataTable.prepare`). The product's sequence runner takes a program's own load
+  (`PlanRunner.sequence`); a seed or a target's load among its steps is refused. A body routed to the graph's system
+  catalog reads its `data:` tables there, its program's target (the B2a audit's S2, 2026-11-11), except on a database
+  whose session table needs a prepare (H2): the schema statement would commit the catalog's run transaction, which the
+  run rolls back (measured: committed, the next run's model registration collided), so that body is refused by name
+  (`ProgramState.placeMade`). A statement reading a body's tables on another database than the one they are made on
+  is refused by name at planning (`DataSources.Tables.read`). Neither refusal newly refuses a test on any lane run
+  (2026-11-11: core with its H2 and SQLite lanes, both corpora, PCT on DuckDB and H2, the stress suites, the Postgres
+  lane). **The other databases' session tables, measured 2026-11-11 on the embedded lanes' servers**
+  (`docs/data-delivery-homework/probes/*DataTable.java.txt`): MariaDB 11.4 and MySQL 8.4 hold one (`CREATE`/`DROP
+  TEMPORARY TABLE`: another connection reads the user's table of the name, the drop never reaches it); ClickHouse 25.8
+  holds one in an HTTP session only (without one the table is gone with its request, and the read names the user's
+  table of the name); Trino (the memory connector) and MongoDB 8.0 hold none (a second connection reads the table; on
+  MongoDB the drop by name drops the user's collection), so both refuse a `data:` source by name (register S190,
+  pending the user's ruling). Snowflake, Databricks and BigQuery are their lane sessions' to measure at the B
+  checkpoint; refused until then. Spelling the three that hold one is the B checkpoint's work.
 - **The text plan (generatePlan, arrowPlan):** `TypedQuery.plan` is one statement's text, which carries neither a load
   nor a bound path: a `data:` or `file:` source is refused by name before render
   (`PlanMaker.refuseLiveSourcesInText`), and the execution plan carries both. **Not yet as §4 says:** the text is not
@@ -416,7 +435,7 @@ target keeps fewer).
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes). **Built 2026-11-11**: `FixtureWriteCensusTest` pins each file's literal write sends (906 in 116 files, measured: an `execute`, `executeUpdate`, `addBatch`, `executeQuery` or `prepareStatement` whose literal opens with a write) and a total ceiling that only falls; census M15 split into its halves, M15-fixtures BOUNDED, M15-referee B2b's | census M15, the fixtures |
 | B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. **Design APPROVED by the user, 2026-11-10** (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`): ONE read-only query per table whose `WITH` clauses carry the chain (the starting rows `ORDER BY` key `LIMIT 20`, one level per navigation step, no recursion), all in one read transaction, NO temporary tables; the default starting rows (no row identifiers given) ARE built, by upstream's rule read from the pinned sources; upstream's 46 SQL-text comparisons become a register row (its data checks all run); the TDG appeal and `TestDataGeneratorRun` deleted. S143's skip is lifted when it passes | census M13 |
 | B2e | Data parsed but used by no feature yet (ExternalFormat data, ModelStore data, ServiceStore stubs, mapping-test data): recorded as NOT IMPLEMENTED YET, with the rule that when built its data takes the model-data path; listed as feature gaps. **Built 2026-11-11**: §9's list; census M17 BOUNDED | census M17 |
-| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **The text plan renders from the execution plan** (§4; A5 refuses a `data:` or `file:` source there by name until then, the orchestrator's acceptance of the sequencing, 2026-11-10): generatePlan's and arrowPlan's text is the execution plan's, its loads and bound paths carried, the 28 test classes' texts regenerated and EACH change reviewed, never accepted in bulk. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first). **Measured
+| B3 | The browser, Python and DataCube hosts run the plan's loads: model data is statements they send; a dropped file is a pointer DuckDB reads (the CSV/Parquet/JSON upload unchanged); a remote file names its credential; a local path a browser cannot read is refused by name. The browser's regression on `data:` sources is closed. **The text plan renders from the execution plan** (§4; A5 refuses a `data:` or `file:` source there by name until then, the orchestrator's acceptance of the sequencing, 2026-11-10): generatePlan's and arrowPlan's text is the execution plan's, its loads and bound paths carried, the 28 test classes' texts regenerated and EACH change reviewed, never accepted in bulk. Since B2a (2026-11-11) a JSON connection's frame is a `data:` source too, so generatePlan and arrowPlan over a JSON connection are refused by name there today (`TypedQuery.plan`, `PlanMaker.refuseLiveSourcesInText`; the B2a audit's S4): B3's rendering from the execution plan lifts it. **Found by the homework (§7):** today DataCube and the Python app write S3 keys into the SQL text of a DuckDB `CREATE SECRET`, so the planned SQL holds a secret; B3 ends that: the plan names the credential, exec's secret store holds the value, the connector opens a session-scoped secret and drops it at close, and a guard keeps every credential value out of the plan (whether DuckDB takes the key as a bound parameter decides the connector's mechanism; measured first). **Measured
 (lane round 33, 1b, relayed by the orchestrator 2026-11-10): DuckDB 1.5.6 over JDBC PREPARES `CREATE TEMPORARY SECRET s
 (TYPE S3, KEY_ID ?, SECRET ?, REGION ?)` (three parameters) and executes it with bound strings; `duckdb_secrets()` shows
 the bound key id and region. So the credential path is a planned `CREATE TEMPORARY SECRET` whose values exec binds from

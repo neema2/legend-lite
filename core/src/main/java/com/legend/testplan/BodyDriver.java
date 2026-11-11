@@ -96,7 +96,7 @@ public final class BodyDriver {
         /** {@code q} reading each {@code data:} source from the body's table of its content (B2a, 2026-11-11): what a
          *  judge's statement is planned from -- and what a probe renders, so it renders what will be planned. */
         com.legend.sql.SqlQuery read(com.legend.sql.SqlQuery q) {
-            return data.read(q);
+            return data.read(q, target);
         }
         @com.legend.base.Nullable String runtimeFqn() {
             return plan.runtimeFqn();

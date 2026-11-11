@@ -115,8 +115,11 @@ public final class PlanJson {
      *  ({@code plain}/{@code sized}/{@code scaled}), no longer the grammar's spelling exec matched by its text; a file
      *  load's {@code reads} delivery carries its {@code after} statements, run on every exit (14). 43 since
      *  2026-11-11 (the A delta audit's 2, S181): a list's {@code array} binding of dates or date-times carries the
-     *  digits of a second its database keeps of an element ({@code fraction}), which the runner holds an element to. */
-    public static final int VERSION = 43;
+     *  digits of a second its database keeps of an element ({@code fraction}), which the runner holds an element to.
+     *  44 since 2026-11-11 (B2a and its audit): a {@code sourceUrl} source names its form ({@code ELEMENTS}, an array's
+     *  elements; {@code RECORDS}, a JSON connection's records and their places), and a load may be {@code SOURCE}, a
+     *  live source's session table at its place, which writes no store of the body's. */
+    public static final int VERSION = 44;
 
     private PlanJson() {
     }

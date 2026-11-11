@@ -69,12 +69,28 @@ public sealed interface SqlSource {
     }
 
     /**
-     * An external semi-structured source ({@code sourceUrl('data:...')}) —
-     * ONE {@code data} column of JSON rows; the DIALECT renders the URL
-     * into a complete subquery (scheme-dispatched: {@code data:} inlines,
-     * {@code file:} reads).
+     * An external semi-structured source: a {@code data:} payload, which the planner reads from its plan's session
+     * table, or a {@code file:} the dialect reads. {@code form}: what one row is -- an array's ELEMENT (a
+     * {@code sourceUrl}, its one {@code data} column), or a JSON connection's RECORD and its place (the frame: its
+     * {@code data} column and its place's, {@link #PLACE}; B2a, 2026-11-11 -- marked by its form, never by a column's
+     * name, the B2a audit's note).
      */
-    record SourceUrl(String url, String alias, List<OutputCol> outputs) implements SqlSource {
+    record SourceUrl(String url, String alias, List<OutputCol> outputs, Form form) implements SqlSource {
+        public SourceUrl {
+            java.util.Objects.requireNonNull(form, "form");
+        }
+
+        /** What one row of the source is. */
+        public enum Form {
+            /** One element of the payload's array: its JSON text. */
+            ELEMENTS,
+            /** One record of a JSON connection's payload (an array's object, one object, or a stream's): its JSON text
+             *  and its place in the payload, from 0 ({@link #PLACE}). */
+            RECORDS
+        }
+
+        /** A RECORDS source's column of each record's place. */
+        public static final String PLACE = "u_frame_ord__";
     }
 
     /** A base table &mdash; or, {@code call}, a TABULAR FUNCTION: a named

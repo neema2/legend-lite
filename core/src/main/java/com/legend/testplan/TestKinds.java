@@ -253,8 +253,9 @@ final class TestKinds implements ProgramKinds {
         String stamp = minted != null ? frames.adoptStamp(minted) : frames.newStamp();
         PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
         if (!lazy) {
-            // planned first: its statement's data: tables are placed ahead of it, so its place is known once it is
-            // planned (B2a, 2026-11-11)
+            // planned before its place is taken: the data: tables its statement reads are placed ahead of it, so its
+            // place is the program's size once it is planned (B2a, 2026-11-11; the steps the planner places ahead of
+            // the program's first, the tables' prepare, shift every place alike: TestProgram.ahead)
             ExecutionPlan.Check run = eagerRun(program, index, fc, stamp);
             frameRuns.add(program.size());
             program.add(run);

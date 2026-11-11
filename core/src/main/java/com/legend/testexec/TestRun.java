@@ -74,7 +74,8 @@ final class TestRun {
      *  run and its appeals are over, whatever their outcome -- a body's failure stands, a failed release suppressed in
      *  it (B2a, 2026-11-11). */
     static Released releasing(TestPlan plan, PlanSessions.Source sessions) {
-        return () -> ProgramRunner.release(plan.release(), sessions, plan.session());
+        TestPlan.Release release = plan.release();
+        return release == null ? () -> { } : () -> ProgramRunner.release(release.statements(), sessions, release.on());
     }
 
     /** A plan's release, sent when closed. */

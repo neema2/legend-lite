@@ -325,16 +325,18 @@ public final class PlanMaker {
         Programmed programmed = programmed(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
                 systemRouted, false);
         return new TestProgram(declarations(declared, query.context()), programmed.steps(), programmed.dataLoads(),
-                programmed.release());
+                programmed.release(), programmed.target(), programmed.ahead());
     }
 
     /** A program the test door planned (the plan-as-data design's step 3, 2026-11-08): its declared parameters and its
      *  steps, each a product node or the extension's own step by its handle, which the test door turns into its own
      *  plan's; the loads among them that make its {@code data:} tables, and their drops, which the test door's runner
      *  sends once the body's run and its appeals are over (B2a, 2026-11-11: an appeal reads lite's rows after the run,
-     *  and H2's drop commits an open transaction). */
+     *  and H2's drop commits an open transaction) on {@code target}, the program's own, where they were made (the B2a
+     *  audit's S2); {@code ahead}, the steps the planner placed ahead of the program's first (the tables' prepare), by
+     *  which every place a test kind recorded is shifted. */
     public record TestProgram(List<ExecutionPlan.Parameter> parameters, List<PlannedStep> steps,
-            List<ExecutionPlan.Load> dataLoads, List<String> release) {
+            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target, int ahead) {
         public TestProgram {
             parameters = List.copyOf(parameters);
             steps = List.copyOf(steps);
@@ -357,7 +359,7 @@ public final class PlanMaker {
      *  product's door re-plans a program reading the store alone on the process's catalog); the test door's, the loads
      *  that make its {@code data:} tables and their drops, sent after its run (B2a). */
     private record Programmed(List<PlannedStep> steps, boolean readsSystem, boolean readsOther,
-            List<ExecutionPlan.Load> dataLoads, List<String> release) {
+            List<ExecutionPlan.Load> dataLoads, List<String> release, ExecutionPlan.Target target, int ahead) {
     }
 
     /**
@@ -448,7 +450,7 @@ public final class PlanMaker {
                     + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
         return new Programmed(steps, state.readsSystem(), state.readsOther(), state.dataLoads(),
-                releasedAfter ? state.dataReleases() : List.of());
+                releasedAfter ? state.dataReleases() : List.of(), target, state.dataPrepare().isEmpty() ? 0 : 1);
     }
 
     /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
@@ -648,6 +650,15 @@ public final class PlanMaker {
         List<PlannedStep> steps = withoutUnreadStamps(state.steps());
         everyReadStampBound(steps);
         SqlDialect dialect = state.dialect();
+        // what the data: tables' database sends before the program's first statement (H2's schema, whose statement
+        // commits an open transaction: the B2a audit's note), the program's first step where it made any
+        if (!state.dataPrepare().isEmpty()) {
+            List<ExecutionPlan.LoadStep> prepare = state.dataPrepare().stream()
+                    .<ExecutionPlan.LoadStep>map(ExecutionPlan.LoadStep.Statement::new).toList();
+            ExecutionPlan.Load first = LoadPlanner.load(ExecutionPlan.Load.Cadence.SOURCE, prepare, state.target());
+            state.dataLoad(first);
+            steps.add(0, new PlannedStep.Product(first));
+        }
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
             steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(
                     new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()),

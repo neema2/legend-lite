@@ -47,8 +47,11 @@ class FixtureWriteCensusTest {
     private static final Set<String> WRITES = Set.of("CREATE", "INSERT", "DROP", "UPDATE", "DELETE", "ALTER", "COPY",
             "MERGE", "GRANT", "TRUNCATE");
 
-    /** The total's ceiling: it only falls. */
-    private static final int CEILING = 906;
+    /** The total's ceiling: it only falls. 906 -> 910 (2026-11-11, the B2a audit's S3 and S4): the session table's
+     *  drop-safety tests make the USER'S table of its name -- the one row no plan may hold, since the plan's own must
+     *  never reach it -- on every in-process database that spells one (DataTableSessionTest, 2) and on Postgres
+     *  (DataDeliveryMatrixPostgresTest, 2). */
+    private static final int CEILING = 910;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -62,6 +65,10 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java", 6),
             Map.entry("core/src/test/java/com/legend/exec/ContainsOverloadTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/DataLoadsTest.java", 6),
+            // 2026-11-11, the B2a audit's S3: a user's table of a session table's name (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/exec/DataTableSessionTest.java", 2),
+            // 2026-11-11, the B2a audit's S4: a user's table of a session table's name on Postgres (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/ExecuteFrameTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", 4),
             Map.entry("core/src/test/java/com/legend/exec/ExecutorTest.java", 4),

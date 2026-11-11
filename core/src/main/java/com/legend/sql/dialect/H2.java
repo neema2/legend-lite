@@ -39,18 +39,22 @@ public class H2 extends AnsiSqlRenderer {
      * (docs/data-delivery-homework/H2_DATA_TABLE_MEASURED_2026_11_11.md): H2 holds a session's temporary table in the
      * schema it names, where a drop by name -- unqualified, {@code PUBLIC.} or {@code SESSION.} -- reaches a user's table
      * of the name, and {@code IF NOT EXISTS} in {@code PUBLIC} captures one; and a drop inside a transaction commits it.
-     * So the table is made {@code IF NOT EXISTS ... TRANSACTIONAL} in {@code LEGEND_SESSION} (made first if it is not
-     * there: H2's DDL commits, as §3 rule 1 says) and emptied, filled, and dropped only at release; the name upper case,
-     * so the read's delimited spelling and the make's bare one name one table.
+     * So the table is made {@code IF NOT EXISTS ... TRANSACTIONAL} in {@code LEGEND_SESSION} and emptied, filled, and
+     * dropped only at release; the name upper case, so the read's delimited spelling and the make's bare one name one
+     * table. The schema's statement commits an open transaction, even where the schema exists (homework 6), so it is
+     * the program's PREPARE, sent before its first statement (the B2a audit's note: a program that wrote, then read a
+     * payload, was committed there; measured 2026-11-11, probes/H2Release.java.txt: a schema made first, a later write
+     * still rolls back). A drop in a schema that was never made raises ("Schema not found", measured), so the release
+     * makes it first: it runs after the run, in no transaction of the run's.
      */
     @Override
     public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
         String name = base.toUpperCase(java.util.Locale.ROOT);
         String qualified = DATA_SCHEMA + "." + name;
-        return new SqlDialect.DataTable(DATA_SCHEMA, name, java.util.List.of(
-                "CREATE SCHEMA IF NOT EXISTS " + DATA_SCHEMA,
+        String schema = "CREATE SCHEMA IF NOT EXISTS " + DATA_SCHEMA;
+        return new SqlDialect.DataTable(DATA_SCHEMA, name, java.util.List.of(schema), java.util.List.of(
                 "CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS " + qualified + " (" + ddlColumns(columns) + ") TRANSACTIONAL",
-                "DELETE FROM " + qualified), java.util.List.of("DROP TABLE IF EXISTS " + qualified));
+                "DELETE FROM " + qualified), java.util.List.of(schema, "DROP TABLE IF EXISTS " + qualified));
     }
 
     /** {@inheritDoc} H2 holds each element in a {@code JSON} column, navigated as the frame's VALUES are (measured on

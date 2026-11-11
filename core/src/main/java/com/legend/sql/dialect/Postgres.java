@@ -218,6 +218,26 @@ public final class Postgres extends AnsiSqlRenderer {
         return PostgresHostOperations.INSTANCE;
     }
 
+    /** {@inheritDoc} In the session's own {@code pg_temp} schema (B2a, the B2a audit's S4, 2026-11-11; measured on the
+     *  unprivileged lane, DataDeliveryMatrixPostgresTest.aDataTableIsTheSessionsOwn): {@code DROP TABLE IF EXISTS
+     *  pg_temp.t} never reaches a user's {@code public.t} and is a no-op where the session holds none; an unqualified
+     *  read finds the session's temporary table first (pg_temp is searched first). Postgres's DDL is transactional, so
+     *  nothing commits early. */
+    @Override
+    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        String drop = "DROP TABLE IF EXISTS pg_temp." + ddlIdentifier(base, false);
+        String create = render(new com.legend.sql.SqlDdl.CreateTable(null, base, com.legend.sql.NameQuoting.BARE,
+                columns, true));
+        return new SqlDialect.DataTable(null, base, java.util.List.of(), java.util.List.of(drop, create),
+                java.util.List.of(drop));
+    }
+
+    /** {@inheritDoc} Postgres holds each element in a {@code JSONB} column, navigated as its Variant reads are. */
+    @Override
+    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    }
+
     /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
      *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the smallest
      *  integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name and spells a

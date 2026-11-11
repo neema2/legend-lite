@@ -557,7 +557,8 @@ public final class ProgramRunner {
                 boolean beside = rt.systemSession() != null
                         && u.target().database() instanceof ExecutionPlan.Database.System;
                 if (u.cadence() == ExecutionPlan.Load.Cadence.AT_STEP) {
-                    // a program's own load writes, as an effect does
+                    // a program's own load writes, as an effect does; a live source's session table (SOURCE) is no
+                    // write of the body's, as the plan says (the B2a audit's S1)
                     sink.writing(i);
                 }
                 PlanRunner.seed(u, beside ? Objects.requireNonNull(rt.systemSession()) : session,
