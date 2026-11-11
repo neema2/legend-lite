@@ -253,7 +253,11 @@ Data demo::party::PartyData
         self.assertEqual(p['open'], [f"ATTACH ':memory:' AS \"{p['name']}\""])
         self.assertEqual(p['use'], [f'USE "{p["name"]}"'])
         self.assertEqual(p['close'], [f'DETACH DATABASE IF EXISTS "{p["name"]}"'])
-        self.assertTrue(any('Meridian Capital' in s for s in p['fill']), p['fill'])
+        # its rows: the plan's ONCE load, its statements a blob the host checks against its digest (B3, 2026-11-11)
+        load = p['load']['root']
+        self.assertEqual((load['_type'], load['cadence']), ('load', 'ONCE'))
+        self.assertTrue(any('Meridian Capital' in text for text in load['content'].values()), load)
+        self.assertNotIn('fill', p)
         # named by what it holds: the same rows the same name, an edited row another
         self.assertEqual(project_data(self.PARTY + '\n', 'DuckDB')['name'], p['name'])
         self.assertNotEqual(project_data(self.PARTY.replace('Meridian', 'Kestrel'), 'DuckDB')['name'], p['name'])

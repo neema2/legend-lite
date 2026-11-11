@@ -1,9 +1,13 @@
 // A PROJECT'S OWN DATABASE in this tab (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5): where a project version's Data
 // rows live -- a database of their own inside the tab's DuckDB, its schemas as the model declares them, never beside a
-// person's own tables. What it is, and every statement that makes, points at, fills and drops it, is the planner's
-// (Boundary.projectData, the platform's ProjectData in Java, by the tab's database type); this tab spells none.
+// person's own tables. What it is, and every statement that makes, points at and drops it, is the planner's
+// (Boundary.projectData, the platform's ProjectData in Java, by the tab's database type); this tab spells none. Its rows
+// are the plan's: the ONCE load a server's project plan carries, run here by the hosts' plan runner (runLoad), its
+// statements a blob checked against its digest (B3, 2026-11-11: until then the fill's statements as text, run outside
+// any plan, census M14).
 
 import type { QueryEngine } from './engine.ts';
+import { runLoad } from './plan-runner.ts';
 
 /** The planner's answer for one project's database: its name, and the statements of each step, in order. */
 export interface ProjectDataStatements {
@@ -13,8 +17,9 @@ export interface ProjectDataStatements {
   readonly open: readonly string[];
   /** Point a connection of its own at it. */
   readonly use: readonly string[];
-  /** Make and fill every table a relational Data element fills (on that connection). */
-  readonly fill: readonly string[];
+  /** The plan whose root is the ONCE load that makes and fills every table a relational Data element fills (on that
+   *  connection), PlanJson's text; absent for a model with no Data rows. */
+  readonly load?: unknown;
   /** Drop it, with everything in it (on any connection). */
   readonly close: readonly string[];
 }
@@ -78,7 +83,7 @@ export class ProjectDatabases {
   async engineFor(model: string, hostEngine: QueryEngine,
     made?: (engine: QueryEngine, name: string) => Promise<void>, options: { readonly own?: boolean } = {}): Promise<ProjectEngine> {
     const statements = await this.#source.projectData(model, this.#host.databaseType);
-    if (statements.fill.length === 0 && !options.own) return { engine: hostEngine, name: undefined };
+    if (statements.load === undefined && !options.own) return { engine: hostEngine, name: undefined };
     let opening = this.#open.get(statements.name);
     if (!opening) {
       opening = this.#make(statements, made);
@@ -124,7 +129,10 @@ export class ProjectDatabases {
     let users: QueryEngine | undefined;
     try {
       engine = await this.#host.connect();
-      for (const sql of [...statements.use, ...statements.fill]) await engine.run(sql, 0);
+      for (const sql of statements.use) await engine.run(sql, 0);
+      // its rows: the plan's load, run on its own connection
+      const on = engine;
+      if (statements.load !== undefined) await runLoad(JSON.stringify(statements.load), (sql) => on.run(sql, 0));
       users = kept(engine);
       if (made) await made(users, statements.name);
     } catch (e) {

@@ -67,7 +67,14 @@ class HostOperationsTest {
 
     @Test
     void aProjectsRowsInADatabaseOfTheirOwn() throws SQLException {
-        ProjectData project = ProjectData.of(com.legend.Compiler.compileModel(MODEL), new DuckDb());
+        var ctx = com.legend.Compiler.compileModel(MODEL);
+        ProjectData project = ProjectData.of(ctx, new DuckDb());
+        // its rows: the plan's ONCE load (B3, 2026-11-11: the load a server's project plan carries, which a host runs:
+        // its statements, its rows a content blob of inserts)
+        var load = (com.legend.executionplan.ExecutionPlan.Load) java.util.Objects.requireNonNull(
+                com.legend.planner.LoadPlanner.projectData(ctx, new DuckDb(),
+                        com.legend.executionplan.DatabaseType.DuckDB)).root();
+        assertEquals(com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE, load.cadence());
         assertTrue(project.name().matches("__project_[0-9a-f]{16}"), project.name());
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
             // a person's own table, of the very name the project declares, in the host's own database
@@ -80,8 +87,18 @@ class HostOperationsTest {
             for (String sql : project.use()) {
                 st.execute(sql);
             }
-            for (String sql : project.fill()) {
-                st.execute(sql);
+            for (com.legend.executionplan.ExecutionPlan.LoadStep step : load.steps()) {
+                switch (step) {
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Statement one -> st.execute(one.sql());
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Statements blob -> {
+                        for (String sql : com.legend.executionplan.DataRef.Statements.decode(
+                                load.content().get(blob.ref().digest()))) {
+                            st.execute(sql);
+                        }
+                    }
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.File file ->
+                            throw new AssertionError("a project's Data is statements: " + file);
+                }
             }
             assertEquals(List.of("1 Ada", "2 Grace"), rows(st, "SELECT id || ' ' || name FROM firm.Person ORDER BY id"));
             assertEquals(List.of("X1"), rows(st, "SELECT code FROM Code"));
@@ -132,8 +149,10 @@ class HostOperationsTest {
     @Test
     void aDataElementFillingNoDeclaredTableIsRefused() {
         String model = MODEL.replace("default.Code:", "default.Missing:");
+        // refused where its rows are planned: the plan's load (B3, 2026-11-11: until then where the fill's text was)
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-                () -> ProjectData.of(com.legend.Compiler.compileModel(model), new DuckDb()));
+                () -> com.legend.planner.LoadPlanner.projectData(com.legend.Compiler.compileModel(model), new DuckDb(),
+                        com.legend.executionplan.DatabaseType.DuckDB));
         assertEquals("the Data element demo::Rows fills default.Missing, which no Database of the model declares",
                 refused.getMessage());
     }

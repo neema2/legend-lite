@@ -198,7 +198,7 @@ async function digestOf(text: string): Promise<{ readonly digest: string; readon
 /** One load's steps sent in order on `session`: a statement as it is; a content blob of statements, its bytes checked
  *  against the digest and size its reference names first, each statement as written, a refusal naming the data; a
  *  file's rows refused by name (no store a host's plan names yet). */
-async function deliver(load: Load, session: PlanSession): Promise<void> {
+async function deliver(load: Load, session: Pick<PlanSession, 'run'>): Promise<void> {
   for (const step of load.steps) {
     if (step._type === 'statement') {
       await session.run((step as { readonly sql: string }).sql, []);
@@ -229,6 +229,20 @@ async function deliver(load: Load, session: PlanSession): Promise<void> {
       throw new PlanRefusal(`a load's step is a statement, a statements blob or a file, not a ${step._type}`);
     }
   }
+}
+
+/**
+ * A PLAN THAT IS ONE LOAD -- a project's Data rows as the ONCE load its own database is made with (the planner's
+ * LoadPlanner.projectData: the load a server's project plan carries) -- run by `run` on the database the host made for
+ * it: its steps in order, each content blob checked against its digest, a refusal naming its data (B3, 2026-11-11:
+ * until then the host was handed the fill's statements as text and ran them outside any plan, census M14). The host
+ * drops the database whole on a failure; a load of any other cadence is refused by name.
+ */
+export async function runLoad(plan: string, run: (sql: string) => Promise<unknown>): Promise<void> {
+  const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
+  if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
+  if (root.cadence !== 'ONCE') throw new PlanRefusal(`a load's plan made with a database is ONCE, not ${root.cadence}`);
+  await deliver(root, { run: (sql) => run(sql) });
 }
 
 /**

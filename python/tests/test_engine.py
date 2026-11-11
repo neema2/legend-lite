@@ -231,6 +231,24 @@ class ProjectQueries(Served):
                            'model': {'_type': 'text', 'code': model},
                            'context': {'_type': 'BaseExecutionContext', 'queryTimeOutInSeconds': 60}})
 
+    def test_a_projects_load_is_the_plans_and_its_data_is_checked_by_digest(self):
+        # B3 (2026-11-11): a project's rows are the plan's ONCE load, run by Python as the tab runs it; a blob that is not
+        # the data planned is refused by name before a statement of it runs
+        import duckdb
+        from legend_lite import compiler, projects
+        p = compiler.project_data(PARTY, 'DuckDB')
+        load = p['load']
+        con = duckdb.connect()
+        for sql in [*p['open'], *p['use']]:
+            con.execute(sql)
+        projects.run_load(load, con.execute)
+        self.assertEqual(con.execute('SELECT count(*) FROM PARTY.PARTY').fetchone()[0], 2)
+        tampered = json.loads(json.dumps(load))
+        digest = next(iter(tampered['root']['content']))
+        tampered['root']['content'][digest] = tampered['root']['content'][digest].replace('Meridian', 'Kestrel')
+        with self.assertRaisesRegex(projects.LoadRefused, 'is not the data it was planned against'):
+            projects.run_load(tampered, duckdb.connect().execute)
+
     def test_a_projects_query_answers_its_own_rows(self):
         status, _, body = self.post('/api/pure/v1/execution/execute', self.project_input())
         self.assertEqual(status, 200, body)

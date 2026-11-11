@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { runLoad } from '../src/plan-runner.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { loadPlanner } from './planner.ts';
 import { dataTables, loadDataTables, seeded, type FileSink } from '../src/model-data.ts';
@@ -463,7 +464,10 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
     await engine.run("INSERT INTO \"PARTY\".\"PARTY\" VALUES (9, 'the tab''s own', 'XX')", 0);
     for (const sql of project.open) await engine.run(sql, 0);
     const own = new DuckDbEngine(db.connect() as ArrowishConnection);
-    for (const sql of [...project.use, ...project.fill]) await own.run(sql, 0);
+    for (const sql of project.use) await own.run(sql, 0);
+    // its rows: the plan's ONCE load, run by the hosts' runner (B3: the load a server's project plan carries)
+    assert.ok(project.load !== undefined, 'a project with Data rows carries their load');
+    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
     assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
     assert.deepEqual(await rowsOf('PARTY'), [[9, "the tab's own", 'XX']]);
     await own.close();

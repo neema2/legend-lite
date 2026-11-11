@@ -458,22 +458,31 @@ public final class Boundary {
     /**
      * A project's own database on a database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5,
      * {@code com.legend.setup.ProjectData}): where {@code model}'s Data rows live on a host, named by what it holds
-     * (the model's Databases and Data rows). {@code {"name", "open", "use", "fill", "close"}}, each but the name the
-     * statements in order: make it, point a connection of its own at it, make and fill every table a relational Data
-     * element fills (on that connection), drop it. A database without the operations is refused by name. A model this
+     * (the model's Databases and Data rows). {@code {"name", "open", "use", "close", "load"?}}: the statements, in
+     * order, that make it, point a connection of its own at it and drop it; and {@code load}, the plan whose root is the
+     * ONCE load that makes and fills every table a relational Data element fills -- the load a server's project plan
+     * carries, its statements a blob the host checks against its digest and runs on that connection (B3, 2026-11-11:
+     * until then the fill's statements as text, census M14) -- absent for a model with no Data rows. A database without
+     * the operations is refused by name. A model this
      * host holds is read as held, compiled no more (HeldModels.withText: a project's model, typed and planned by the
      * page's planner, is 4 MB of the trading model and its Data, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11).
      */
     public static String projectData(String model, String databaseType) {
-        com.legend.setup.ProjectData p = MODELS.withText(model,
-                ctx -> com.legend.setup.ProjectData.of(ctx, dialectOf(databaseType)));
-        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("name", p.name());
-        out.put("open", p.open());
-        out.put("use", p.use());
-        out.put("fill", p.fill());
-        out.put("close", p.close());
-        return com.legend.json.Json.toCompact(out);
+        return MODELS.withText(model, ctx -> {
+            com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+            com.legend.setup.ProjectData p = com.legend.setup.ProjectData.of(ctx, dialect);
+            com.legend.executionplan.ExecutionPlan load = com.legend.planner.LoadPlanner.projectData(ctx, dialect,
+                    com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)));
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("name", p.name());
+            out.put("open", p.open());
+            out.put("use", p.use());
+            out.put("close", p.close());
+            if (load != null) {
+                out.put("load", com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(load)));
+            }
+            return com.legend.json.Json.toCompact(out);
+        });
     }
 
     /** A JSON number field as an Integer, or null when absent or null. */

@@ -55,6 +55,28 @@ public final class LoadPlanner {
         return load(cadence, steps.steps(), target, steps.content());
     }
 
+    /**
+     * A PROJECT'S DATA ROWS as the ONCE load its own database is made with, alone as a plan, or null for a model with
+     * none (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "the hosts run the plan's loads"; census
+     * M14): the load a server's project plan names its database with (the same steps, content and identity:
+     * {@code PlanMaker}'s project fill), for a host that makes a project's database itself -- the tab's DuckDB,
+     * Python's -- and runs it there, its statements blob checked against its digest. Until then the host was handed the
+     * fill's statements as text ({@code ProjectData.fill}) and ran them outside any plan. A model whose Data rows cannot
+     * make the database is refused by name ({@code ProjectData.refusal}).
+     */
+    public static @com.legend.base.Nullable ExecutionPlan projectData(com.legend.compiler.element.ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect, com.legend.executionplan.DatabaseType type) {
+        com.legend.setup.LoadSteps fill = com.legend.setup.CsvSeed.planned(
+                com.legend.setup.ProjectData.fillSteps(ctx, dialect), dialect);
+        if (fill.isEmpty()) {
+            return null;
+        }
+        ExecutionPlan.Target database = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type,
+                new ExecutionPlan.Project(Hash.ofUtf8(com.legend.setup.ProjectData.contentKey(ctx)).hex(), null)),
+                dialect.sessionSetup(), List.of());
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.ONCE, fill, database));
+    }
+
     /** {@code steps} as the loads a target establishes on acquisition: none for no step, else one load into
      *  {@code target}'s own database and session. */
     public static List<ExecutionPlan.Load> targetLoads(com.legend.setup.LoadSteps steps,
