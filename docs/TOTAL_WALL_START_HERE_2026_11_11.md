@@ -36,6 +36,9 @@
    - `docs/LEAN_PRODUCT_P3_2026_11_10.md`: E's rulings, its §12.
    - `docs/NATIVE_PROTOCOL_DESIGN_2026_11_11.md`: the NEXT program, built after this PR. Read it so nothing in D
      contradicts it.
+   - `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md`: the RULED target for every data load (CSV, JSON, any format;
+     pasted or a file). Its program runs after this PR, but B3 and anything else here that touches loading follows
+     it.
 7. Background, read as needed:
    - `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`: §3 the glossary at length, §7 the learnings, §8 how to run
      every check, §9 how lane sessions are run.
@@ -359,11 +362,11 @@ All runs at 5fe98b92.
      the test-data text a user pastes into a test. A typed form, `getRelationalCSVDataFromQuery`, returns
      `RelationalCSVData`. Option A does not change that contract.
 2. **The PR's timing** (§1).
-3. **Native file loaders:** Postgres `COPY … FROM STDIN`, MariaDB/MySQL `LOAD DATA LOCAL INFILE`, ClickHouse
-   `INSERT … FORMAT CSV`.
-   - The recommendation: after this PR. Not ruled.
-   - Until then, a file load on a database that cannot read files is refused by name (the user's "option 1",
-     2026-11-10).
+3. **Native file loaders: SETTLED by the data-loading target model** (the user, 2026-11-11, "Yes write it";
+   `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md`).
+   - Native bulk loaders are part of the data-loading program after this PR.
+   - Until then, a file load on a database that cannot read files is refused by name: the user's "option 1",
+     2026-11-10.
 
 ## 5. Every ruling of this program (dated; each is final)
 
@@ -505,6 +508,19 @@ and the briefs' "RULED" items.
   - red found later is fixed forward.
 - **Lane sessions:** use them in parallel at every significant push, not only at checkpoints.
 - **Audits:** they run beside the work and never block it. Their fixes fold into the next commits.
+
+### 5.8 Data loading, the target model (2026-11-11)
+
+The user asked how CSV, JSON and every other load should feel the same whatever the format, and whether pasted or a
+file. The answer, ruled as the target ("Yes write it"), is `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md`:
+- schema, format, location and delivery are kept apart;
+- pasting is a file whose bytes live in the model;
+- one typed format spec configures every reader;
+- types come from the model;
+- delivery is chosen per database: its own reader, then a bulk loader, then SQL values, then a refusal by name;
+- a conformance matrix proves it.
+
+Its program runs after this PR. Here, B3 and any loading work follow it, so they add no new path.
 
 ## 6. What remains, in order
 
@@ -779,7 +795,8 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
 
 - **Protocol and data:**
   - the native protocol, the next program;
-  - native file loaders (§4.6);
+  - the data-loading program: the format spec, the conformance corpus, native bulk loaders, one reader per database
+    (`docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md` §5);
   - the nanosecond type;
   - safe versions of the raising functions (`safeDivide` first);
   - cross-runtime queries (S187);
@@ -806,3 +823,4 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
 | PCT and its expected failures | `pct/BUILD.bazel`; `pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_*_PCT.java`; `pct/.../channelb/ledger.tsv` |
 | earlier program documents | `docs/PLAN_AS_DATA_2026_11_07.md`, `docs/DATA_IN_THE_PLAN_2026_11_09.md`, `docs/TENET_CHARTER.md`, `docs/JAVA_EVICTION_PLAN.md`, `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` |
 | the next program | `docs/NATIVE_PROTOCOL_DESIGN_2026_11_11.md` |
+| the data-loading target | `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md` |
