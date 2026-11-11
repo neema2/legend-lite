@@ -95,8 +95,8 @@ public final class Trino extends AnsiSqlRenderer {
      *  2026-11-11 on the memory connector: probes/TrinoDataTable.java.txt), so a payload is the statement's own
      *  VALUES rows, each element parsed by {@code json_parse}. */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.INLINE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return new SqlDialect.Delivered.Read(inlineRows(payload));
     }
 
     /** {@inheritDoc} 6: its date-time column is a {@code TIMESTAMP(6)} (S181, A7, 2026-11-10). */

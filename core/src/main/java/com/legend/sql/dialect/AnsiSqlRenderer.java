@@ -316,6 +316,38 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 + " an external-source encoding: " + url);
     }
 
+    /** {@code u} as a complete SELECT: a {@code data:} payload only where this dialect reads it itself (its
+     *  {@code deliver} answered {@link SqlDialect.DataPayload#bound}: an override), refused as unread everywhere else;
+     *  any other location by its scheme ({@link #sourceUrl(SqlWriter, String)}). */
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        refuseUnread(u.url());
+        return sourceUrl(writer, u.url());
+    }
+
+    /** {@code u}'s element column (each element's JSON). */
+    protected static com.legend.sql.OutputCol payloadColumn(SqlSource.SourceUrl u) {
+        return u.outputs().stream().filter(o -> !o.name().equals(SqlSource.SourceUrl.PLACE)).findFirst()
+                .orElseThrow(() -> new IllegalStateException("a data: source with no element column: " + u.outputs()));
+    }
+
+    /** {@code u}'s place column (a frame's record's place, RECORDS form). */
+    protected static com.legend.sql.OutputCol placeColumn(SqlSource.SourceUrl u) {
+        return u.outputs().stream().filter(o -> o.name().equals(SqlSource.SourceUrl.PLACE)).findFirst()
+                .orElseThrow(() -> new IllegalStateException("a frame's data: source with no place column: "
+                        + u.outputs()));
+    }
+
+    /** {@code u}'s payload -- one JSON array, {@link SqlDialect.DataPayload#array} -- as the placeholder's bound value: a
+     *  plan value the runner binds as its text, never written into the statement. */
+    protected static SqlWriter bindPayload(SqlWriter writer, SqlSource.SourceUrl u) {
+        int comma = u.url().indexOf(',');
+        if (!u.url().startsWith("data:") || comma < 0) {
+            throw new IllegalStateException("a bound payload is a data: source's: " + u.url());
+        }
+        return writer.bind(new RenderedStatement.Bind("", new RenderedStatement.Binding.Payload(
+                u.url().substring(comma + 1))));
+    }
+
     /** A {@code data:} source is the plan's load into a session table, which the query reads (planner.DataSources):
      *  every road reads it so -- a query's, a program's, a test body's judges (B2a, 2026-11-11) -- so one that reaches a
      *  render is a planner defect, refused by name the same on every database (the B2a audit's note: DuckDB raised one
@@ -504,9 +536,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.GridReport g -> gridReport(writer.append("("), g).append(") AS ").append(aliasIdent(g.alias()));
             case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
-                refuseUnread(u.url());
                 writer.append("(");
-                sourceUrl(nl(writer, depth + 1), u.url());
+                sourceUrl(nl(writer, depth + 1), u);
                 yield nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));
             }
             case SqlSource.Pivot p -> pivotSource(writer, p, depth);

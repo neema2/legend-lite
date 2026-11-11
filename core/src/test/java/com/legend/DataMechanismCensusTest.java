@@ -233,11 +233,13 @@ class DataMechanismCensusTest {
                     new Staying("P9: an effect's statements are the author's text, folded")),
             // BOUNDED (2026-11-11, the user's ruling: "we need to make json work everywhere"; the orchestrator's brief
             // of that day, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): a data: payload is a session table the plan's
-            // load makes wherever the database holds one, and the statement's own rows (VALUES, $documents) only on the
-            // databases measured to hold none a plan can make and drop safely -- Trino, ClickHouse, MongoDB, Snowflake,
-            // BigQuery (the last two the lanes' probes, 2026-11-11) -- each a dialect's declaration
-            // (SqlDialect.dataDelivery), never a default and never a fallback
-            new Row("M18", "a data: payload as the statement's own rows", new Bounded("JSON on every database",
+            // load makes wherever the database holds one, and the payload in the statement only where measured: its own
+            // rows (VALUES, $documents) on Trino, ClickHouse and MongoDB, which hold none a plan can make and drop
+            // safely; ONE bound parameter the database splits on Snowflake and BigQuery (round 2's probes, the user's
+            // ruling of 2026-11-11: 0.48 s at 100,000 records on Snowflake, against 17 s as rows and 73 s as a table) --
+            // each the dialect's answer (SqlDialect.deliver), never a default and never a fallback
+            new Row("M18", "a data: payload in the statement (its own rows, or one bound parameter)",
+                    new Bounded("JSON on every database",
                     List.of(), "DataDeliveryDeclaredTest")));
 
     /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets

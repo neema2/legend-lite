@@ -225,8 +225,8 @@ public final class Postgres extends AnsiSqlRenderer {
      *  nothing commits early. */
     /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.SESSION_TABLE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return sessionTable(payload);
     }
 
     /** The session's own schema, where a temporary table lives (a temporary table may be named in no other). */

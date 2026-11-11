@@ -124,14 +124,14 @@ public final class BigQuery extends AnsiSqlRenderer {
         return 6;
     }
 
-    /** {@inheritDoc} The statement's own rows (measured by the BigQuery lane, 2026-11-11): a {@code TEMP} table needs a
-     *  script or a session, which lite's connection does not open ("requires a script or session"), and even in one an
-     *  unqualified name falls through to the connection's default dataset once the temporary table is gone, so only a
-     *  {@code _SESSION}-qualified drop is safe; its array of rows ({@link #valuesSource}) keeps the payload's quote and
-     *  line break, and its order. */
+    /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
+     *  2026-11-11, on round 2's measurement, probes/BigQueryDelivery2.java.txt): it reads 100,000 records (7.6 s) where
+     *  the statement's own rows are refused, past BigQuery's 1 MB of query text; a {@code TEMP} table needs a session,
+     *  which doubles each query's latency, and took 105 s; the quote, the line break, the order and the empty array
+     *  kept. */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.INLINE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return new SqlDialect.Delivered.Read(payload.bound());
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
@@ -643,6 +643,23 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** No VALUES clause: the rows as a typed array of structs, unnested ({@code STRUCT(...)} rows coerce to the
      *  array's declared field types, so a NULL cell is typed; a single-column row needs STRUCT, a bare tuple of one is
      *  a parenthesized value -- measured). */
+    /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a JSON
+     *  value, a frame's record its place as the array's offset (from 0, the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload AS ").append(ident(payloadColumn(u).name()));
+        boolean frame = u.form() == SqlSource.SourceUrl.Form.RECORDS;
+        if (frame) {
+            writer.append(", legend_place AS ").append(ident(placeColumn(u).name()));
+        }
+        writer.append(" FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(");
+        bindPayload(writer, u).append("))) AS legend_payload");
+        return frame ? writer.append(" WITH OFFSET AS legend_place") : writer;
+    }
+
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
         if (v.outputs().size() != v.columns().size()) {

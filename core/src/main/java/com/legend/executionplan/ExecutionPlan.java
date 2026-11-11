@@ -770,7 +770,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     }
 
     /** How a placeholder is bound. */
-    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key, Binding.Source {
+    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key, Binding.Source, Binding.Payload {
 
         /** One value, as the caller's checked value is; an absent one a null of {@code nullType} (a
          *  {@code java.sql.JDBCType}'s name). {@code asText}: set where the placeholder is a date or date-time cast to
@@ -810,6 +810,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         record Source(String location) implements Binding {
             public Source {
                 Objects.requireNonNull(location, "location");
+            }
+        }
+
+        /** A {@code data:} payload's one JSON array, the plan's own value, bound as its text to a statement that splits
+         *  it itself (its dialect's delivery, 2026-11-11: Snowflake's and BigQuery's); the slot names no declared
+         *  parameter. Census M18: the payload in the plan, BOUNDED to those databases. */
+        record Payload(String json) implements Binding {
+            public Payload {
+                Objects.requireNonNull(json, "json");
             }
         }
     }

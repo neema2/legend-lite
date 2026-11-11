@@ -1127,6 +1127,10 @@ public final class PlanRunner {
 
     private static PlanParameters.Checked value(Map<String, PlanParameters.Checked> checked, ExecutionPlan.Slot slot,
             int index) {
+        if (slot.binding() instanceof ExecutionPlan.Binding.Payload payload) {
+            // the plan's own value: no declared parameter, nothing the run supplies
+            return new PlanParameters.One(payload.json());
+        }
         if (slot.binding() instanceof ExecutionPlan.Binding.Source src) {
             PlanParameters.Checked admitted = checked.get(sourceKey(src));
             if (admitted == null) {

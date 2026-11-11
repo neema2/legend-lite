@@ -203,8 +203,8 @@ public class MariaDb extends AnsiSqlRenderer {
      *  an open transaction (measured 2026-11-11 on MariaDB 11.4 and MySQL 8.4: probes/MariaDbDataTable.java.txt,
      *  MySqlDataTable.java.txt). */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.SESSION_TABLE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return sessionTable(payload);
     }
 
     /** {@inheritDoc} {@code DROP TEMPORARY TABLE} names the session's temporary table alone (a user's table of the name

@@ -994,6 +994,7 @@ public final class PlanMaker {
                     array.fraction());
             case RenderedStatement.Binding.Key key -> new ExecutionPlan.Binding.Key(key.cell());
             case RenderedStatement.Binding.Source src -> new ExecutionPlan.Binding.Source(src.location());
+            case RenderedStatement.Binding.Payload payload -> new ExecutionPlan.Binding.Payload(payload.json());
         };
     }
 

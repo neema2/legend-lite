@@ -120,8 +120,9 @@ public final class PlanJson {
      *  elements; {@code RECORDS}, a JSON connection's records and their places), and a load may be {@code SOURCE}, a
      *  live source's session table at its place, which writes no store of the body's. 45 since 2026-11-11 (the second
      *  audit's S12): a plan may carry its {@code release} (its target {@code on} and its {@code statements}), sent once
-     *  its run is over whatever the outcome. */
-    public static final int VERSION = 45;
+     *  its run is over whatever the outcome. 46 the same day: a slot may bind a {@code data:} payload's one JSON array, the plan's own value
+     *  ({@code payload}, its {@code json}: the dialect's delivery, Snowflake's and BigQuery's). */
+    public static final int VERSION = 46;
 
     private PlanJson() {
     }
@@ -134,7 +135,7 @@ public final class PlanJson {
 
     enum SetupTag { statement, statements, file }
 
-    enum BindingTag { one, array, key, source }
+    enum BindingTag { one, array, key, source, payload }
 
     enum DatabaseTag { declared, platform, system }
 
@@ -665,6 +666,10 @@ public final class PlanJson {
                 o.put("_type", BindingTag.source.name());
                 o.put("location", src.location());
             }
+            case ExecutionPlan.Binding.Payload payload -> {
+                o.put("_type", BindingTag.payload.name());
+                o.put("json", payload.json());
+            }
         }
         return o;
     }
@@ -1053,6 +1058,7 @@ public final class PlanJson {
                     o.has("fraction") ? o.getInt("fraction") : null);
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
             case source -> new ExecutionPlan.Binding.Source(o.getString("location"));
+            case payload -> new ExecutionPlan.Binding.Payload(o.getString("json"));
         };
     }
 

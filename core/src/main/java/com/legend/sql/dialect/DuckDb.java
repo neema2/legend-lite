@@ -902,8 +902,8 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  session has none (measured 2026-11-10 on 1.5.6, A4): dropped there first, then made TEMPORARY. */
     /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.SESSION_TABLE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return sessionTable(payload);
     }
 
     @Override

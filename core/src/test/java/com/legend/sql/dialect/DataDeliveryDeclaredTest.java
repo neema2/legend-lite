@@ -14,23 +14,44 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * THE INLINE FORM'S BOUND (census M18, the user's ruling of 2026-11-11: "we need to make json work everywhere";
- * docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): how each database takes a {@code data:} payload is its dialect's
- * declaration ({@link SqlDialect#dataDelivery}), measured, and the payload written into the statement's own rows is
- * BOUNDED to the databases that hold no session table of a load's -- never a default, never a fallback from a session
- * table that failed. A database moves between the lists only with its measurement (a probe in
- * docs/data-delivery-homework/probes, or a lane's probe the orchestrator relays): a new INLINE one must show it holds no
- * session table a plan can make and drop safely (Snowflake, BigQuery: their lanes' probes of 2026-11-11). Every database
- * has a delivery: none refuses a {@code data:} payload (register S190 withdrawn, 2026-11-11).
+ * THE PAYLOAD-IN-THE-STATEMENT FORMS' BOUND (census M18, the user's rulings of 2026-11-11: "we need to make json
+ * work everywhere", and the delivery "delegated to dialect to decide"): how each database takes a {@code data:} payload
+ * is its dialect's answer ({@link SqlDialect#deliver}), measured -- a session table, the statement's own rows, or the
+ * payload as one bound parameter the database splits -- and the payload in the statement is BOUNDED to the databases
+ * measured for it: never a default, never a fallback from a form that failed. A database moves between the lists only
+ * with its measurement (a probe in docs/data-delivery-homework/probes, or a lane's probe the orchestrator relays).
+ * Every database has a delivery: none refuses a {@code data:} payload (register S190 withdrawn, 2026-11-11).
  */
-class DataDeliveryDeclaredTest {
+public class DataDeliveryDeclaredTest {
 
     private static final List<SqlDdl.Column> COLUMNS = List.of(new SqlDdl.Column("data", false,
             new SqlDdl.ColumnType.Plain(SqlDdl.ColumnType.Kind.JSON), false, false));
 
+    /** How a database takes a payload, as its dialect's {@code deliver} answers a sample: a session TABLE, the
+     *  statement's own ROWS, or the payload as one BOUND parameter (the source the dialect renders itself). */
+    public enum Kind { SESSION_TABLE, INLINE, BOUND_PARAMETER }
+
+    static final List<com.legend.sql.OutputCol> FRAME_OUTPUTS = List.of(new com.legend.sql.OutputCol("data",
+            com.legend.sql.SqlType.Scalar.JSON, true, com.legend.sql.OutputCol.Origin.DERIVED),
+            new com.legend.sql.OutputCol(com.legend.sql.SqlSource.SourceUrl.PLACE, com.legend.sql.SqlType.Scalar.BIGINT,
+                    false, com.legend.sql.OutputCol.Origin.DERIVED));
+
+    /** {@code dialect}'s answer for a two-record frame. */
+    public static Kind kindOf(SqlDialect dialect) {
+        com.legend.sql.SqlSource.SourceUrl u = new com.legend.sql.SqlSource.SourceUrl(
+                "data:application/json,[{\"a\":1},{\"a\":2}]", "t0", FRAME_OUTPUTS,
+                com.legend.sql.SqlSource.SourceUrl.Form.RECORDS);
+        return switch (dialect.deliver(new SqlDialect.DataPayload(u, "legend_data_0123456789abcdef_o",
+                List.of("{\"a\":1}", "{\"a\":2}")))) {
+            case SqlDialect.Delivered.Table t -> Kind.SESSION_TABLE;
+            case SqlDialect.Delivered.Read r -> r.source() instanceof com.legend.sql.SqlSource.SourceUrl
+                    ? Kind.BOUND_PARAMETER : Kind.INLINE;
+        };
+    }
+
     @Test
     void eachDatabasesDeliveryIsItsMeasuredOne() {
-        Map<String, SqlDialect.DataDelivery> declared = new TreeMap<>();
+        Map<String, Kind> declared = new TreeMap<>();
         for (com.legend.model.ConnectionDefinition.DatabaseType type
                 : com.legend.model.ConnectionDefinition.DatabaseType.values()) {
             SqlDialect dialect;
@@ -39,27 +60,29 @@ class DataDeliveryDeclaredTest {
             } catch (com.legend.error.NotImplementedException none) {
                 continue;   // no dialect at all: no query reaches the database
             }
-            declared.put(type.name(), dialect.dataDelivery());
+            declared.put(type.name(), kindOf(dialect));
         }
         assertEquals(Map.ofEntries(
-                Map.entry("DuckDB", SqlDialect.DataDelivery.SESSION_TABLE),
-                Map.entry("H2", SqlDialect.DataDelivery.SESSION_TABLE),
-                Map.entry("SQLite", SqlDialect.DataDelivery.SESSION_TABLE),
-                Map.entry("Postgres", SqlDialect.DataDelivery.SESSION_TABLE),
-                Map.entry("MariaDB", SqlDialect.DataDelivery.SESSION_TABLE),
-                Map.entry("MySQL", SqlDialect.DataDelivery.SESSION_TABLE),
-                Map.entry("Trino", SqlDialect.DataDelivery.INLINE),
-                Map.entry("ClickHouse", SqlDialect.DataDelivery.INLINE),
-                Map.entry("MongoDB", SqlDialect.DataDelivery.INLINE),
-                Map.entry("Snowflake", SqlDialect.DataDelivery.INLINE),
-                Map.entry("Databricks", SqlDialect.DataDelivery.SESSION_TABLE),
-                Map.entry("BigQuery", SqlDialect.DataDelivery.INLINE)), new java.util.HashMap<>(declared),
+                Map.entry("DuckDB", Kind.SESSION_TABLE),
+                Map.entry("H2", Kind.SESSION_TABLE),
+                Map.entry("SQLite", Kind.SESSION_TABLE),
+                Map.entry("Postgres", Kind.SESSION_TABLE),
+                Map.entry("MariaDB", Kind.SESSION_TABLE),
+                Map.entry("MySQL", Kind.SESSION_TABLE),
+                Map.entry("Trino", Kind.INLINE),
+                Map.entry("ClickHouse", Kind.INLINE),
+                Map.entry("MongoDB", Kind.INLINE),
+                // round 2's measurement, the user's ruling of 2026-11-11: the payload as one bound parameter
+                Map.entry("Snowflake", Kind.BOUND_PARAMETER),
+                Map.entry("Databricks", Kind.SESSION_TABLE),
+                Map.entry("BigQuery", Kind.BOUND_PARAMETER)), new java.util.HashMap<>(declared),
                 "each database's data: delivery, as measured (a change is a measurement and this list's edit)");
     }
 
     /** An unread {@code data:} source -- one the planner did not turn into its delivery -- reaching any renderer is the
      *  planner's defect, refused by one type and message on every database (the second audit's S8, 2026-11-11:
-     *  MongoDB's pipeline raised a capability refusal where the SQL dialects raise the defect). */
+     *  MongoDB's pipeline raised a capability refusal where the SQL dialects raise the defect); a database whose
+     *  delivery is the bound parameter renders it itself, the payload a bound value, never text. */
     @Test
     void anUnreadDataSourceIsOneRefusalOnEveryDatabase() {
         List<com.legend.sql.OutputCol> outputs = List.of(new com.legend.sql.OutputCol("data",
@@ -75,9 +98,17 @@ class DataDeliveryDeclaredTest {
             } catch (com.legend.error.NotImplementedException none) {
                 continue;
             }
-            IllegalStateException refused = assertThrows(IllegalStateException.class, () -> dialect.render(unread),
-                    type + ": an unread data: source is the planner's defect");
-            assertEquals(true, refused.getMessage().contains("reached a render unread"), type + ": " + refused);
+            if (kindOf(dialect) == Kind.BOUND_PARAMETER) {
+                // a database that reads the payload itself: one placeholder, the payload its bound value
+                RenderedStatement written = dialect.renderStatement(unread);
+                assertEquals(List.of(new RenderedStatement.Binding.Payload("[1]")),
+                        written.binds().stream().map(RenderedStatement.Bind::binding).toList(), type + ": " + written);
+                assertEquals(false, written.sql().contains("[1]"), type + ": the payload is no text: " + written);
+            } else {
+                IllegalStateException refused = assertThrows(IllegalStateException.class,
+                        () -> dialect.render(unread), type + ": an unread data: source is the planner's defect");
+                assertEquals(true, refused.getMessage().contains("reached a render unread"), type + ": " + refused);
+            }
             rendered++;
         }
         assertEquals(true, rendered >= 12, "every database's renderer asked: " + rendered);
@@ -93,7 +124,7 @@ class DataDeliveryDeclaredTest {
             } catch (com.legend.error.NotImplementedException none) {
                 continue;
             }
-            if (dialect.dataDelivery() == SqlDialect.DataDelivery.SESSION_TABLE) {
+            if (kindOf(dialect) == Kind.SESSION_TABLE) {
                 SqlDialect.DataTable table = dialect.dataTable("legend_data_0123456789abcdef", COLUMNS);
                 assertEquals(false, table.make().isEmpty() || table.release().isEmpty(), type + ": " + table);
             } else {

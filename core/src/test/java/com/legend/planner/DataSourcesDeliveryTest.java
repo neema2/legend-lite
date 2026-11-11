@@ -85,29 +85,36 @@ class DataSourcesDeliveryTest {
         tables.read(write, home);
     }
 
-    /** Snowflake: VALUES of the texts (PARSE_JSON is refused inside VALUES), the select over it parsing them -- the
-     *  lane's form (a), a quote doubled and a backslash escaped (measured: {@code 'back\\slash'}). */
+    /** Snowflake and BigQuery: the payload as ONE bound parameter the database splits (round 2's measurement, the
+     *  user's ruling of 2026-11-11) -- no load, the payload never the statement's text, its one JSON array the bound
+     *  value, a frame's place the split's index or offset. */
     @Test
-    void snowflakeParsesTheTextsOfAValues() {
-        SqlDialect snowflake = dialect(DatabaseType.Snowflake);
-        DataSources d = DataSources.of(frame(PAYLOAD), snowflake);
-        String sql = snowflake.render(d.query());
-        assertTrue(d.steps().isEmpty() && d.content().isEmpty(), "no load: " + d);
-        assertTrue(sql.contains("(SELECT PARSE_JSON(column1) AS \"data\", CAST(column2 AS BIGINT) AS \"u_frame_ord__\" FROM VALUES"
-                + " ('{\"t\":\"it''s a\\\\\\\\b\"}', 0), ('{\"t\":\"x\\\\ny\"}', 1)) AS \"t0\""), sql);
-    }
-
-    /** BigQuery: the rows as an array of typed structs, each text parsed; a quote is {@code \'} there ({@code ''} a
-     *  syntax error), a backslash {@code \\}, a line break {@code \n}. */
-    @Test
-    void bigQueryUnnestsItsTypedRows() {
-        SqlDialect bigQuery = dialect(DatabaseType.BigQuery);
-        DataSources d = DataSources.of(frame(PAYLOAD), bigQuery);
-        String sql = bigQuery.render(d.query());
-        assertTrue(d.steps().isEmpty() && d.content().isEmpty(), "no load: " + d);
-        assertTrue(sql.contains("UNNEST(ARRAY<STRUCT<"), sql);
-        assertTrue(sql.contains("PARSE_JSON('{\"t\":\"it\\'s a\\\\\\\\b\"}')"), sql);
-        assertTrue(sql.contains("PARSE_JSON('{\"t\":\"x\\\\ny\"}')"), sql);
+    void snowflakeAndBigQueryBindThePayloadAsOneParameter() {
+        String array = PAYLOAD.substring(PAYLOAD.indexOf(',') + 1);
+        for (var expected : java.util.Map.of(
+                DatabaseType.Snowflake, "SELECT legend_payload.value AS \"data\", CAST(legend_payload.index AS BIGINT)"
+                        + " AS \"u_frame_ord__\" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) legend_payload",
+                DatabaseType.BigQuery, "SELECT legend_payload AS `data`, legend_place AS `u_frame_ord__` FROM"
+                        + " UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS legend_payload WITH OFFSET AS legend_place")
+                .entrySet()) {
+            SqlDialect dialect = dialect(expected.getKey());
+            DataSources d = DataSources.of(frame(PAYLOAD), dialect);
+            assertTrue(d.steps().isEmpty() && d.content().isEmpty() && d.release().isEmpty(), "no load: " + d);
+            com.legend.sql.dialect.RenderedStatement written = dialect.renderStatement(d.query());
+            assertTrue(written.sql().contains(expected.getValue()), expected.getKey() + ": " + written.sql());
+            assertEquals(List.of(new com.legend.sql.dialect.RenderedStatement.Binding.Payload(array)),
+                    written.binds().stream().map(com.legend.sql.dialect.RenderedStatement.Bind::binding).toList(),
+                    expected.getKey() + ": the payload is the bound value");
+            assertTrue(!written.sql().contains("it's"), expected.getKey() + ": never the text: " + written.sql());
+            // an empty payload: the empty array bound, no row (measured)
+            for (String url : List.of("data:application/json,[]", "data:application/json,")) {
+                com.legend.sql.dialect.RenderedStatement empty = dialect.renderStatement(
+                        DataSources.of(frame(url), dialect).query());
+                assertEquals(List.of(new com.legend.sql.dialect.RenderedStatement.Binding.Payload("[]")),
+                        empty.binds().stream().map(com.legend.sql.dialect.RenderedStatement.Bind::binding).toList(),
+                        expected.getKey() + " " + url);
+            }
+        }
     }
 
     /** Databricks: the session table made, filled and dropped by name -- single-part, TEMPORARY on every statement,
@@ -146,10 +153,10 @@ class DataSourcesDeliveryTest {
      *  NULL row removed by WHERE FALSE (the lowering's empty TDS literal's shape); never refused, never a load. */
     @Test
     void anEmptyPayloadIsNoRowOnEveryInlineDatabase() {
-        for (DatabaseType type : List.of(DatabaseType.Trino, DatabaseType.ClickHouse, DatabaseType.MongoDB,
-                DatabaseType.Snowflake, DatabaseType.BigQuery)) {
+        for (DatabaseType type : List.of(DatabaseType.Trino, DatabaseType.ClickHouse, DatabaseType.MongoDB)) {
             SqlDialect dialect = dialect(type);
-            assertEquals(SqlDialect.DataDelivery.INLINE, dialect.dataDelivery(), type.name());
+            assertEquals(com.legend.sql.dialect.DataDeliveryDeclaredTest.Kind.INLINE,
+                    com.legend.sql.dialect.DataDeliveryDeclaredTest.kindOf(dialect), type.name());
             for (String url : List.of("data:application/json,[]", "data:application/json,")) {
                 DataSources d = DataSources.of(frame(url), dialect);
                 assertTrue(d.steps().isEmpty() && d.content().isEmpty(), type + ": no load: " + d);

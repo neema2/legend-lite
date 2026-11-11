@@ -122,6 +122,26 @@ reference and the database.
 4. **One reader per database for both locations:** pasted CSV and JSON go through the database's own reader where it
    reads the format, so a pasted block and a file cannot differ on that database.
 5. **The upstream forms routed onto the one reference** (§3). The syntax stays; the paths underneath become one.
+6. **An option to investigate: pasted rows as ONE bound parameter** (the user, 2026-11-11: "add the CSV JSON
+   trick/idea to our data program as an option to investigate").
+   - **The trick, measured for JSON** (`docs/data-delivery-homework/probes/*Delivery2.java.txt`, 2026-11-11): the
+     whole payload bound as one parameter, which the database splits into rows itself
+     (`FLATTEN(PARSE_JSON(?))`, `UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?)))`). At 100,000 records Snowflake took 0.48 s
+     against 17 s inline and 73 s as INSERTs into a temp table; BigQuery took 7.6 s where inline was refused (over its
+     1 MB query text). The SQL text stays small and constant; no temp table, no drop.
+   - **Why CSV cannot take it directly:** as far as measured or documented, almost no database parses CSV from a
+     string in SQL (DuckDB's and H2's readers take a file; Postgres, Snowflake, BigQuery and SQLite have none;
+     ClickHouse's `format(CSV, ...)` does, but its driver writes a parameter into the statement's text). Splitting CSV
+     with string functions breaks on quoting. Unmeasured: confirm per database before relying on it.
+   - **The idea:** the planner already decodes pasted CSV once (`CsvSeed`) into typed rows. Bind those rows as one
+     JSON parameter (an array of rows), which the database splits and casts to the declared column types: pasted CSV
+     and a JSON payload then share ONE delivery per database, and model test data loads stop being thousands of
+     INSERT statements (the Snowflake lane's setup cost).
+   - **To investigate:** each type's round trip through JSON text (decimals and timestamps as strings the database
+     casts, never a float); NULL against empty; which databases' drivers bind a parameter beside the statement (ClickHouse's
+     does not); the bound size each driver and database takes; and whether a database's own CSV reader (where it has
+     one, item 4) or this form is the one road for pasted CSV on it. A file's bytes arrive only at run: a file stays
+     with the database's reader or a bulk loader (item 3).
 
 **What a database with no file reader and no bulk loader keeps** (SQLite, Trino's memory connector, MongoDB for CSV):
 - pasted data, as SQL values or inline rows;

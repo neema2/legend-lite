@@ -49,8 +49,8 @@ public class H2 extends AnsiSqlRenderer {
      */
     /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.SESSION_TABLE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return sessionTable(payload);
     }
 
     @Override

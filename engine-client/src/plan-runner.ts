@@ -85,7 +85,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // a load is refused by name here, as at 42
 // 45 since 2026-11-11: a plan may carry its release (on, statements: its data: tables' drops, sent once the run is
 // over whatever its outcome) -- refused by name here, as a load is
-const PLAN_VERSION = 45;
+// 46 the same day: a slot may bind a data: payload's JSON array (payload: Snowflake's and BigQuery's delivery) -- not a
+// host database's plan
+const PLAN_VERSION = 46;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -167,7 +169,7 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
     if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
     for (const slot of s.slots) {
       if (slot.binding._type !== 'one') {
-        throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : 'a list'}, which is not run here`);
+        throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : slot.binding._type === 'payload' ? "a data: payload" : 'a list'}, which is not run here`);
       }
       // a date or date-time bound as its text into its declared type's cast (P4): a host binds none
       if (slot.binding.asText !== undefined && slot.binding.asText !== null) throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text, which is not run here`);

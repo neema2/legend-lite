@@ -40,11 +40,6 @@ import java.util.Set;
 public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release,
         Map<String, String> content) {
 
-    /** The column of each element's text, as the source's output names it. */
-    static final String COLUMN = "data";
-
-    /** A frame's column of each record's place (a JSON connection's: {@link SqlSource.SourceUrl#PLACE}). */
-    static final String ORDINAL = SqlSource.SourceUrl.PLACE;
 
     /** {@code q}'s {@code data:} sources read from their tables, and the load that makes them, on {@code dialect}'s
      *  database (a dialect with no JSON source refuses by name, as it refused the source until then). */
@@ -210,75 +205,42 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
                 }
                 read = true;
                 boolean frame = u.form() == SqlSource.SourceUrl.Form.RECORDS;
-                // the delivery the database declares, measured (the user, 2026-11-11: JSON on every database): its
-                // session table, or its own inline rows where it holds none -- never one tried after the other
-                switch (dialect.dataDelivery()) {
-                    case SESSION_TABLE -> {
+                // the payload cut FIRST, once, whatever the database (a payload refused leaves nothing recorded: the B2a
+                // audit's note), then handed to the dialect, whose answer is placed here -- the planner decides nothing
+                // about how it reaches the database (the user, 2026-11-11: "Shouldn't that all be delegated to dialect
+                // to decide?")
+                Key key = new Key(content(u.url()), frame);
+                List<String> elements = frame ? records(key.content(), u.url()) : elements(key.content(), u.url());
+                return switch (dialect.deliver(new SqlDialect.DataPayload(u, base(key), elements))) {
+                    case SqlDialect.Delivered.Read r -> r.source();
+                    case SqlDialect.Delivered.Table t -> {
+                        SqlDialect.DataTable table = tables.computeIfAbsent(key, k -> made(t.table(), elements,
+                                t.columns()));
+                        Map<String, SqlDdl.ColumnType> stored = new java.util.LinkedHashMap<>();
+                        t.columns().forEach(c -> stored.put(c.name(), c.type()));
+                        yield new SqlSource.Table(table.read(), u.alias(), u.outputs(), false, stored,
+                                NameQuoting.BARE);
                     }
-                    case INLINE -> {
-                        return inline(u, frame);
-                    }
-                }
-                SqlDdl.ColumnType type = dialect.dataSourceColumn(u.url());
-                SqlDialect.DataTable table = tables.computeIfAbsent(new Key(content(u.url()), frame),
-                        k -> made(k, u.url(), type));
-                Map<String, SqlDdl.ColumnType> stored = frame ? Map.of(COLUMN, type, ORDINAL, ORDINAL_TYPE)
-                        : Map.of(COLUMN, type);
-                return new SqlSource.Table(table.read(), u.alias(), u.outputs(), false, stored, NameQuoting.BARE);
+                };
             }
         }
 
-        /**
-         * {@code u}'s payload as the statement's own rows, on a database that holds no session table of a load's
-         * ({@link SqlDialect.DataDelivery#INLINE}; census M18, BOUNDED to those databases): each element, or a frame's
-         * record and its place, a row -- the element's JSON text the database parses ({@code CAST(... AS JSON)}, as its
-         * dialect spells it: Trino's {@code json_parse}, MongoDB's document). The payload cut as the session table's is
-         * ({@link #elements}, {@link #records}), never re-printed. A payload of no element is the relation's columns
-         * and no row (the orchestrator's ruling, 2026-11-11: JSON everywhere, the empty payload too): one row of typed
-         * NULLs, which VALUES needs, removed by {@code WHERE FALSE} -- the shape the lowering's empty TDS literal and the
-         * planner's empty system table already take, which every dialect writes.
-         */
-        private SqlSource inline(SqlSource.SourceUrl u, boolean frame) {
-            String content = content(u.url());
-            List<String> elements = frame ? records(content, u.url()) : elements(content, u.url());
-            List<String> columns = frame ? List.of(COLUMN, ORDINAL) : List.of(COLUMN);
-            if (elements.isEmpty()) {
-                List<SqlExpr> none = new ArrayList<>(List.of(new SqlExpr.Cast(new SqlExpr.NullLit(),
-                        com.legend.sql.SqlType.Scalar.JSON)));
-                if (frame) {
-                    none.add(new SqlExpr.IntLit(0));
-                }
-                return new SqlSource.Subselect(com.legend.sql.SqlSelect.starOf(new SqlSource.Values(List.of(none),
-                        columns, u.alias() + "_none", u.outputs())).withWhere(new SqlExpr.BoolLit(false)), u.alias(),
-                        null);
-            }
-            List<List<SqlExpr>> rows = new ArrayList<>(elements.size());
-            for (int i = 0; i < elements.size(); i++) {
-                SqlExpr element = new SqlExpr.Cast(new SqlExpr.StringLit(elements.get(i)),
-                        com.legend.sql.SqlType.Scalar.JSON);
-                rows.add(frame ? List.of(element, new SqlExpr.IntLit(i)) : List.of(element));
-            }
-            return new SqlSource.Values(rows, columns, u.alias(), u.outputs());
-        }
-
-        /** The table of {@code key}: made, filled and released as its database spells a session table. */
-        private SqlDialect.DataTable made(Key key, String url, SqlDdl.ColumnType type) {
-            String base = "legend_data_" + com.legend.cache.Hash.ofUtf8(key.content()).hex().substring(0, 16)
+        /** The session table's base name for {@code key}: its content's digest, a frame's marked. */
+        private static String base(Key key) {
+            return "legend_data_" + com.legend.cache.Hash.ofUtf8(key.content()).hex().substring(0, 16)
                     + (key.frame() ? "_o" : "");
-            List<SqlDdl.Column> columns = new ArrayList<>(List.of(new SqlDdl.Column(COLUMN, false, type, false, false)));
-            List<SqlDdl.ColumnType> types = new ArrayList<>(List.of(type));
-            if (key.frame()) {
-                columns.add(new SqlDdl.Column(ORDINAL, false, ORDINAL_TYPE, false, false));
-                types.add(ORDINAL_TYPE);
-            }
-            // the payload cut, and its rows written, FIRST: a payload refused leaves nothing recorded (the B2a audit's
-            // note: a make with no fill, and its drop twice at the next take)
-            List<String> elements = key.frame() ? records(key.content(), url) : elements(key.content(), url);
+        }
+
+        /** {@code table}, the dialect's session table of a payload's {@code elements}: made, filled and released as its
+         *  database spells it, its fill the elements as a content blob of inserts. */
+        private SqlDialect.DataTable made(SqlDialect.DataTable table, List<String> elements,
+                List<SqlDdl.Column> columns) {
+            boolean frame = columns.size() > 1;
+            List<SqlDdl.ColumnType> types = columns.stream().map(SqlDdl.Column::type).toList();
             List<List<String>> rows = new ArrayList<>();
             for (int i = 0; i < elements.size(); i++) {
-                rows.add(key.frame() ? List.of(elements.get(i), String.valueOf(i)) : List.of(elements.get(i)));
+                rows.add(frame ? List.of(elements.get(i), String.valueOf(i)) : List.of(elements.get(i)));
             }
-            SqlDialect.DataTable table = dialect.dataTable(base, columns);
             // the elements as a content blob of inserts, each element its column's typed literal (A2)
             com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(
                     table.schema(), table.name(), NameQuoting.BARE, columns.stream().map(SqlDdl.Column::name).toList(),
@@ -299,8 +261,6 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
         }
     }
 
-    /** A frame's place column's type. */
-    private static final SqlDdl.ColumnType ORDINAL_TYPE = new SqlDdl.ColumnType.Plain(SqlDdl.ColumnType.Kind.INTEGER);
 
     /** {@code target} with the load that makes the tables, established on acquisition; {@code target} as it is where
      *  the query reads no {@code data:} source. */

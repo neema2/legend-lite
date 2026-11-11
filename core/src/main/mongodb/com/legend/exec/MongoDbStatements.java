@@ -286,6 +286,8 @@ final class MongoDbStatements implements Statements {
                     + " cell: the runner binds each copy's key before the statement reaches the session");
             case ExecutionPlan.Binding.Source src -> throw new com.legend.error.NotImplementedException("a MongoDB"
                     + " statement reads no file source ('" + src.location() + "'): its databases are the connector's own");
+            case ExecutionPlan.Binding.Payload payload -> throw new IllegalStateException("slot " + index + " binds a"
+                    + " data: payload: MongoDB's delivery is the pipeline's own $documents, never a bound payload");
         };
     }
 

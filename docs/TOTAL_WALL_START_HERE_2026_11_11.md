@@ -269,8 +269,8 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
 | INLINE | Trino | `VALUES` + `json_parse` |
 | | ClickHouse | `values()` |
 | | MongoDB | `$documents` of `{"$literal": doc}` |
-| | **Snowflake** | `SELECT PARSE_JSON(column1), column2 FROM VALUES (...)`; empty: `FROM VALUES (NULL::STRING, 0) WHERE FALSE`. Its temp table is private, but no drop is safe: `DROP TABLE IF EXISTS` drops the user's PERMANENT table when no temp table exists (measured), and `DROP TEMPORARY TABLE` is a syntax error |
-| | **BigQuery** | `SELECT data, ord FROM UNNEST([JSON '…', …]) AS data WITH OFFSET AS ord`; empty: `UNNEST(CAST([] AS ARRAY<JSON>))`. A TEMP table needs `EnableSession=1`, which lite's ordinary connection lacks ("requires a script or session"), and an unqualified temp name falls through to the default dataset. BigQuery quotes `'` as `\'` |
+| BOUND PARAMETER (§5.9) | **Snowflake** | `SELECT legend_payload.value AS "data", CAST(legend_payload.index AS BIGINT) AS "u_frame_ord__" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(?))) legend_payload`, the payload's one JSON array bound. Round 2: 0.48 s at 100,000 records (inline 17 s, temp table 73 s) |
+| | **BigQuery** | `SELECT legend_payload AS \`data\`, legend_place AS \`u_frame_ord__\` FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS legend_payload WITH OFFSET AS legend_place`. Round 2: 7.6 s at 100,000 records, where inline is refused (over 1 MB of text) |
 
 - **The empty payload** gives zero rows on every INLINE database, never a refusal. It is one typed NULL row filtered out
   by `WHERE FALSE`, the shape of the empty TDS literal. All three cloud forms are measured: BigQuery, Snowflake and
@@ -395,9 +395,8 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
     mechanism"; probes `docs/data-delivery-homework/probes/*Delivery2.java.txt`, answers recorded there).** At 100,000
     records: Snowflake inline 17.0 s, temp table 73 s, the payload as ONE bound parameter 0.48 s; BigQuery inline
     refused (over 1 MB), temp table 105 s, parameter 7.6 s; ClickHouse's driver writes a parameter into the text (no
-    gain), its session temp table 2.6 s and unbounded. The orchestrator's recommendation, ASKED, NOT RULED: Snowflake
-    and BigQuery take the payload as one bound parameter the database splits; ClickHouse a session temp table; the
-    rest unchanged; the parameter form elsewhere measured later.
+    gain), its session temp table 2.6 s and unbounded. **RULED and BUILT (§5.9):** the dialect decides; Snowflake and
+    BigQuery bind the payload. ClickHouse's session temp table was recommended and not yet asked again.
 6. **B3's measurement, done:** DuckDB 1.5.6 binds credentials as parameters, so the credential mechanism is clean:
    - `CREATE TEMPORARY SECRET s (TYPE S3, KEY_ID ?, SECRET ?, REGION ...)` and `CREATE OR REPLACE TEMPORARY SECRET ...
      SCOPE ?` both prepare and bind;
@@ -596,6 +595,22 @@ file. The answer, ruled as the target ("Yes write it"), is `docs/DATA_LOADING_TA
 - a conformance matrix proves it.
 
 Its program runs after this PR. Here, B3 and any loading work follow it, so they add no new path.
+
+### 5.9 JSON delivery: the dialect decides (2026-11-11)
+
+The user asked whether the payload's representation in the plan and the database's mechanism had to be coupled, and
+why the planner branched on the database. Ruled, on round 2's probes ("Yes dialect and snow/bigquery params"):
+- **The dialect decides.** The planner hands ONE payload (`SqlDialect.DataPayload`: the source, its elements cut once,
+  the table name by digest) to `SqlDialect.deliver`, and places the answer: a session table (`Delivered.Table`) or a
+  source the statement reads itself (`Delivered.Read`). No planner code holds a delivery decision
+  (`DataDeliveryOwnerTest`).
+- **Snowflake and BigQuery take the payload as ONE bound parameter** the database splits (`FLATTEN(PARSE_JSON(?))`,
+  `UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?)))`): a plan value (`Binding.Payload`, plan version 46), never the statement's
+  text, no temp table, no drop.
+- **Databricks:** probe sent ("Check if we want to do same for Databricks ... so at least the cloud ones are
+  consistent"); decided on its numbers.
+- **Pasted CSV as one bound JSON parameter:** an option to investigate in the data-loading program
+  (`DATA_LOADING_TARGET_MODEL` §5 item 6).
 
 ## 6. What remains, in order
 

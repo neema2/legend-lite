@@ -80,8 +80,8 @@ public final class Databricks extends AnsiSqlRenderer {
      *  table is the session's own -- another connection reads the user's table of the name, which it leaves untouched
      *  -- and {@code DROP TEMPORARY TABLE IF EXISTS} drops it alone, a silent no-op once it is gone. */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.SESSION_TABLE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return sessionTable(payload);
     }
 
     /** {@inheritDoc} Its name single-part and the {@code TEMPORARY} keyword on every statement (a qualified name is

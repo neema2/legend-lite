@@ -138,8 +138,8 @@ public final class SQLite extends AnsiSqlRenderer {
      *  name is otherwise one delimited name on SQLite ({@link #tableName}). */
     /** {@inheritDoc} A session table of the load's ({@link #dataTable}). */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.SESSION_TABLE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return sessionTable(payload);
     }
 
     @Override

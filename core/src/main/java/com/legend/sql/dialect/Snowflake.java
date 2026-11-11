@@ -84,13 +84,15 @@ public final class Snowflake extends AnsiSqlRenderer {
         return 9;
     }
 
-    /** {@inheritDoc} The statement's own rows (measured by the Snowflake lane, 2026-11-11): a {@code TEMPORARY} table
-     *  is private, but no drop of it is safe -- {@code DROP TABLE IF EXISTS} drops a user's PERMANENT table of the name
-     *  once the temporary one is gone (it dropped one), {@code DROP TEMPORARY TABLE} is a syntax error -- and a
-     *  temporary table shadows the user's for the rest of a pooled session. */
+    /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
+     *  2026-11-11, on round 2's measurement, probes/SnowflakeDelivery2.java.txt): at 100,000 records 0.48 s, against
+     *  17.0 s as the statement's own rows and 73 s as a temporary table (whose one safe drop, a Snowflake Scripting block
+     *  that drops a LOCAL TEMPORARY table alone, costs 1-2 s: round 1 measured {@code DROP TABLE IF EXISTS} dropping a
+     *  user's permanent table of the name); no size limit met; the quote, the line break, the order and the empty
+     *  array kept. */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.INLINE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return new SqlDialect.Delivered.Read(payload.bound());
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
@@ -3136,6 +3138,23 @@ public final class Snowflake extends AnsiSqlRenderer {
             }
             w.append(")");
         };
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a
+     *  VARIANT, a frame's record its place as FLATTEN's index (from 0, the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.index AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(");
+        return bindPayload(writer, u).append("))) legend_payload");
     }
 
     /** VALUES takes constants only (ARRAY_CONSTRUCT and PARSE_JSON are refused there, measured): a column of JSON

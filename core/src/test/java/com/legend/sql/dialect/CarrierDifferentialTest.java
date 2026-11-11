@@ -657,8 +657,8 @@ class CarrierDifferentialTest {
         }
 
         @Override
-        public SqlDialect.DataDelivery dataDelivery() {
-            return duck.dataDelivery();
+        public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+            return duck.deliver(payload);
         }
 
         @Override

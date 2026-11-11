@@ -13,6 +13,7 @@ import com.legend.testcases.PlanCases;
 import org.junit.jupiter.api.Test;
 
 import java.io.StringWriter;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A {@code data:} SOURCE ON EVERY SERVER DATABASE THIS SESSION RUNS (the user, 2026-11-11: "we need to make json work
  * everywhere"; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): the payload's elements read as a relation on each embedded
- * server, by the delivery its dialect declares ({@link SqlDialect#dataDelivery}) -- a session table the plan's load
+ * server, by the delivery its dialect answers ({@link SqlDialect#deliver}) -- a session table the plan's load
  * makes on MariaDB and MySQL (their {@code TEMPORARY} table, measured), the statement's own rows on Trino (VALUES),
  * ClickHouse ({@code values}) and MongoDB ({@code $documents}), which hold no session table a plan can name.
  */
@@ -36,27 +37,27 @@ class DataSourceServersTest {
 
     @Test
     void mariaDbReadsItsSessionTable() throws Exception {
-        assertReads(DatabaseType.MariaDB, SqlDialect.DataDelivery.SESSION_TABLE);
+        assertReads(DatabaseType.MariaDB, true);
     }
 
     @Test
     void mySqlReadsItsSessionTable() throws Exception {
-        assertReads(DatabaseType.MySQL, SqlDialect.DataDelivery.SESSION_TABLE);
+        assertReads(DatabaseType.MySQL, true);
     }
 
     @Test
     void trinoReadsItsOwnRows() throws Exception {
-        assertReads(DatabaseType.Trino, SqlDialect.DataDelivery.INLINE);
+        assertReads(DatabaseType.Trino, false);
     }
 
     @Test
     void clickHouseReadsItsOwnRows() throws Exception {
-        assertReads(DatabaseType.ClickHouse, SqlDialect.DataDelivery.INLINE);
+        assertReads(DatabaseType.ClickHouse, false);
     }
 
     @Test
     void mongoDbReadsItsOwnDocuments() throws Exception {
-        assertReads(DatabaseType.MongoDB, SqlDialect.DataDelivery.INLINE);
+        assertReads(DatabaseType.MongoDB, false);
     }
 
     /** An EMPTY payload on each database that writes the rows into the statement (the orchestrator's ruling,
@@ -88,21 +89,30 @@ class DataSourceServersTest {
         return out.toString();
     }
 
-    /** {@code type}'s plan of the query: delivered as {@code delivery} says -- a load making the session table, or no
+    /** Whether {@code dialect} answers a payload with a session table (else its statement reads it itself). */
+    private static boolean sessionTable(SqlDialect dialect) {
+        return dialect.deliver(new SqlDialect.DataPayload(new com.legend.sql.SqlSource.SourceUrl(
+                "data:application/json,[1]", "t0", List.of(new com.legend.sql.OutputCol("data",
+                        com.legend.sql.SqlType.Scalar.JSON, true, com.legend.sql.OutputCol.Origin.DERIVED)),
+                com.legend.sql.SqlSource.SourceUrl.Form.ELEMENTS), "legend_data_0123456789abcdef", List.of("1")))
+                instanceof SqlDialect.Delivered.Table;
+    }
+
+    /** {@code type}'s plan of the query: delivered as {@code sessionTable} says -- a load making the session table, or no
      *  load and the payload in the statement -- and answering the payload's rows, in order. */
-    private static void assertReads(DatabaseType type, SqlDialect.DataDelivery delivery) throws Exception {
+    private static void assertReads(DatabaseType type, boolean sessionTable) throws Exception {
         var backend = TestBackends.of(type);
-        assertEquals(delivery, backend.dialect().dataDelivery(), type + "'s declared delivery");
+        assertEquals(sessionTable, sessionTable(backend.dialect()), type + "'s delivery, as its dialect answers");
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")), QUERY)
                 .executionPlan(StorelessRuntime.RUNTIME);
         String json = com.legend.executionplan.PlanJson.write(plan);
-        if (delivery == SqlDialect.DataDelivery.SESSION_TABLE) {
+        if (sessionTable) {
             assertTrue(json.contains("legend_data_"), type + ": the payload's session table is the plan's load: "
                     + json);
         } else {
             assertTrue(!json.contains("legend_data_"), type + ": no session table: " + json);
         }
-        if (delivery == SqlDialect.DataDelivery.INLINE) {
+        if (!sessionTable) {
             // no load: the plan streams on the session its target names (MongoDB's connector), or on the test's own
             assertEquals(ROWS, inline(type, QUERY), type + ": the payload's rows, sorted");
         } else {

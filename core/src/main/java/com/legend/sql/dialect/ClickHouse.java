@@ -119,8 +119,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  (measured 2026-11-11 on 25.8: probes/ClickHouseDataTable.java.txt; a session id minted per run is exec's, not
      *  the plan's), so a payload is the statement's own rows, its {@code values} table function. */
     @Override
-    public SqlDialect.DataDelivery dataDelivery() {
-        return SqlDialect.DataDelivery.INLINE;
+    public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
+        return new SqlDialect.Delivered.Read(inlineRows(payload));
     }
 
     /** {@inheritDoc} 0: its {@code TIMESTAMP} column is a {@code DateTime}, of whole seconds (S181, A7, 2026-11-10). */
