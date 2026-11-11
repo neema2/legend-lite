@@ -392,18 +392,22 @@ public final class PureV1Api {
             // compiled and typed once: the target it names and its plan come off the one typed query
             return model.with(models, ctx -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
-                com.legend.Compiler.Target target = query.target();
                 String runtime = runtimeOf(request, query);
-                QueryPlan plan = query.plan(runtime);
-                Map<String, Object> out = executionPlan(plan, connectionOf(model.records(), runtime, target.store()));
-                if (plan.beyondItsText() != null || plan.bindsPayload()) {
-                    // what runs the text where neither it nor its connection says it (a data: or file: source, a pivot
-                    // whose keys are read first): lite's execution plan it renders from (B3, 2026-11-11), a field of
-                    // lite's own beside upstream's plan -- a connection's declared test data its connection already
-                    // carries, as upstream's plan does (e9: exactly upstream's)
-                    out.put("legendLitePlan", Json.parse(com.legend.executionplan.PlanJson.write(plan.plan())));
+                // a value the program wrote and folds (a String or Boolean literal, a model's DDL text): upstream's own
+                // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
+                // it (S128); a value the database computes (|1+1) is a statement, below
+                if (query.executionPlan(runtime).root() instanceof com.legend.executionplan.ExecutionPlan.Constant constant
+                        && !query.answersADiagnostic()) {
+                    return Json.toCompact(constantPlan(constant));
                 }
-                return Json.toCompact(out);
+                com.legend.Compiler.Target target = query.target();
+                QueryPlan plan = query.plan(runtime);
+                // upstream's plan and nothing beside it (M5, the user's ruling of 2026-11-11: "yes, take out of
+                // compatibility plan"): legend-engine's SingleExecutionPlan reader fails on an unknown field, and
+                // lite's own plan -- what runs a data: payload, a file: path, a pivot's keys -- reaches a lite host by
+                // lite's own routes (the planner's text plan's `plan`, arrowPlan's and jsonPlan's `plan`, the planner
+                // protocol's executionPlan)
+                return Json.toCompact(executionPlan(plan, connectionOf(model.records(), runtime, target.store())));
             });
         });
     }
@@ -914,6 +918,13 @@ public final class PureV1Api {
         sql.put("connection", connection);
         sql.put("executionNodes", List.of());
         sql.put("isMutationSQL", false);
+        if (plan.plan().root() instanceof com.legend.executionplan.ExecutionPlan.Keyed) {
+            // a pivot whose columns the data names: its result columns known only once it runs, as legend-engine marks
+            // its own dynamic pivot's node (relationalMappingExecution.pure:236-249, written only when true:
+            // SQLExecutionNode.java:34-35); the statement shown is the keyed plan's body lite runs (M5, the user: "yes
+            // we should show lite"; register S110)
+            sql.put("isResultColumnsDynamic", true);
+        }
         sql.put("resultColumns", resultColumns);
         sql.put("resultType", anyType);
         sql.put("sqlComment", "-- \"executionTraceID\" : \"${execID}\"");
@@ -936,6 +947,90 @@ public final class PureV1Api {
         out.put("serializer", serializer);
         out.put("templateFunctions", PlanSupportFunctions.relationalPlanSupportFunctions(null));
         return out;
+    }
+
+    /**
+     * A VALUE THE PROGRAM WROTE as generatePlan answers it (M5, the user's ruling of 2026-11-11: "Shouldn't that route to
+     * database unless boolean or string constant fold?"): a String or Boolean literal, or a model's DDL text -- folded,
+     * nothing sent -- as legend-engine's own {@code ConstantExecutionNode}, written as its protocol writes one (4.145.0):
+     * <ul>
+     *   <li>the node: {@code _type} {@code constant}, its result type, and its {@code values} by {@code transformAny}
+     *       with {@code PureOne} (protocol vX_X_X {@code transfers/executionPlan.pure:70-75});</li>
+     *   <li>a value: one value its primitive, any other number a collection of the transfer's multiplicity
+     *       ({@code transfers/valueSpecification.pure:276-662});</li>
+     *   <li>{@code authDependent} and {@code executionNodes} as {@code ExecutionNode}'s Java writes them, the server
+     *       writing every object's fields in alphabetical order with nulls dropped ({@code ObjectMapperFactory});</li>
+     *   <li>no template function: a plan's are its nodes' support functions
+     *       ({@code executionPlan_generation.pure:217}).</li>
+     * </ul>
+     * legend-engine's {@code PlanExecutor} runs such a plan ({@code ExecutionNodeExecutor.visit(ConstantExecutionNode)}: a
+     * {@code ConstantResult}); legend-engine itself plans such a lambda as a {@code pureExp} node whose Java it generates
+     * (register S199).
+     */
+    static Map<String, Object> constantPlan(com.legend.executionplan.ExecutionPlan.Constant constant) {
+        com.legend.executionplan.ExecutionPlan.Column column = constant.columns().get(0);
+        List<Object> values = new ArrayList<>();
+        for (List<String> row : constant.cells()) {
+            values.add(constantValue(column.type(), row.get(0)));
+        }
+        Object value;
+        if (values.size() == 1) {
+            value = values.get(0);
+        } else {
+            Map<String, Object> pureOne = new LinkedHashMap<>();
+            pureOne.put("lowerBound", 1);
+            pureOne.put("upperBound", 1);
+            Map<String, Object> collection = new LinkedHashMap<>();
+            collection.put("_type", "collection");
+            collection.put("multiplicity", pureOne);
+            collection.put("values", values);
+            value = collection;
+        }
+        Map<String, Object> resultType = new LinkedHashMap<>();
+        resultType.put("_type", "dataType");
+        resultType.put("dataType", column.type());
+        Map<String, Object> node = new LinkedHashMap<>();
+        node.put("_type", "constant");
+        node.put("authDependent", false);
+        node.put("executionNodes", List.of());
+        node.put("resultType", resultType);
+        node.put("values", value);
+        Map<String, Object> serializer = new LinkedHashMap<>();
+        serializer.put("name", "pure");
+        serializer.put("version", "vX_X_X");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("_type", "simple");
+        out.put("authDependent", false);
+        out.put("rootExecutionNode", node);
+        out.put("serializer", serializer);
+        out.put("templateFunctions", List.of());
+        return out;
+    }
+
+    /** One folded value as legend-engine's protocol writes it: a String's {@code CString}, a Boolean's {@code CBoolean}
+     *  ({@code transformAny}'s arms); lite folds no other kind, so any other is refused by name, never guessed. */
+    private static Map<String, Object> constantValue(String type, @com.legend.base.Nullable String text) {
+        if (text == null) {
+            throw new IllegalStateException("a folded constant of no value: lite folds a literal or a model's text");
+        }
+        Map<String, Object> v = new LinkedHashMap<>();
+        switch (type) {
+            case "String" -> {
+                v.put("_type", "string");
+                v.put("value", text);
+            }
+            case "Boolean" -> {
+                v.put("_type", "boolean");
+                v.put("value", switch (text) {
+                    case "true" -> true;
+                    case "false" -> false;
+                    default -> throw new IllegalStateException("a Boolean constant's text is true or false: " + text);
+                });
+            }
+            default -> throw new IllegalStateException("a folded constant of type " + type
+                    + ": lite folds String and Boolean values alone");
+        }
+        return v;
     }
 
     /**

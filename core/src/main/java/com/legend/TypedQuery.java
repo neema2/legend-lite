@@ -106,6 +106,23 @@ public final class TypedQuery {
         return List.copyOf(out);
     }
 
+    /**
+     * Whether the query answers a diagnostic's call ({@code print}, {@code println}): a value the program wrote that
+     * legend-engine refuses when the lambda is built (register S128), where a String or Boolean literal or a model's DDL
+     * text is a value it folds (generatePlan answers upstream's ConstantExecutionNode for those: M5, the user's ruling of
+     * 2026-11-11). Read off the last statement's typed root, as the planner's statement road reads it
+     * ({@code BodyPlanner}'s effect dispatch).
+     */
+    public boolean answersADiagnostic() {
+        List<TypedSpec> b = body();
+        TypedSpec root = b.get(b.size() - 1);
+        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            root = fr.source();
+        }
+        return root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(nc.callee().id());
+    }
+
     /** The query typed as ONE expression (Phase G): its typed HIR, the front half only. */
     public TypedSpec expression() {
         return specs.typeExpression(resolved);

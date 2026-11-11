@@ -587,6 +587,15 @@ and the briefs' "RULED" items.
 - **S125:** pure/v1 matches upstream's Arrow typing; the native protocol stays exact.
 - **The native protocol** is built in the next program (`docs/NATIVE_PROTOCOL_DESIGN_2026_11_11.md`, six questions for
   the user's later review).
+- **generatePlan answers legend-engine's plan and nothing beside it** (M5, the user, 2026-11-11: "yes, take out of
+  compatibility plan"): its top-level fields are `SingleExecutionPlan`'s, which legend-engine's reader requires
+  (`TextPlanSourceTest.SINGLE_EXECUTION_PLAN`). Lite's own plan reaches a lite host by lite's own routes:
+  - the planner's text plan (`Boundary.planned`: the tab's and Python's `{"sql", "type", "plan"}`);
+  - arrowPlan's and jsonPlan's `plan` (Python's and the tab's execute halves, `PureV1Api.arrowPlan`/`jsonPlan`);
+  - the planner protocol's `executionPlan` kinds (`Boundary.executionPlanJsonHeld`).
+- **Constants and the pivot** (M5, 2026-11-11): a folded constant answers legend-engine's own `ConstantExecutionNode`,
+  a computed one lite's statement, `print` refused (S199); a dynamic pivot shows the keyed plan lite runs, marked
+  `isResultColumnsDynamic` (S110).
 
 ### 5.7 Process (2026-11-11)
 
@@ -990,6 +999,10 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
   by name -- so a body that resets the database after the reload (the corpus's
   `testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates`) runs as upstream's does. Today it is refused by
   name (S192).
+- **The native dynamic pivot in backwards compatibility mode** (the user, 2026-11-11, M5: "that can be later"): in
+  backwards compatibility mode the lowerer may render the native dynamic pivot where the dialect can (DuckDB's `PIVOT`,
+  as legend-engine's plan shows it). Lite's planning needs a result's columns known before it runs, which a native
+  dynamic pivot leaves to the database; today generatePlan shows the keyed plan lite runs (S110).
 - **Programs:** P5 (judge parity on H2); P6 (no fallbacks, honest appeals); the corpus and stress burn-down.
 - **PR #81** (timeseries), in its own session.
 

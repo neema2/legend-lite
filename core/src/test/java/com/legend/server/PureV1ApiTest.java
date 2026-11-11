@@ -149,6 +149,40 @@ class PureV1ApiTest {
         assertEquals(Json.toCompact(comparable(engine)), Json.toCompact(comparable(lite)));
     }
 
+    /**
+     * M5, constants (the user's ruling of 2026-11-11: "Shouldn't that route to database unless boolean or string constant
+     * fold?"): a folded value -- a String or a Boolean literal -- answers legend-engine's own ConstantExecutionNode,
+     * written as its protocol writes one (4.145.0: transfers/executionPlan.pure:70-75, transformAny, ObjectMapperFactory's
+     * alphabetical fields, no template function); a value the database computes answers a statement; print stays refused,
+     * as legend-engine refuses it (S128). Register S199.
+     */
+    @Test
+    void m5_aFoldedConstantIsTheEnginesConstantNode_aComputedOneASqlPlan_printRefused() {
+        java.util.function.Function<String, PureV1Api.Answer> generate = text -> PureV1Api.generatePlan(
+                "{\"clientVersion\":\"vX_X_X\",\"function\":" + PureV1Api.grammarToJsonLambda(text, false).json()
+                + ",\"model\":" + textModel() + ",\"runtime\":{\"runtime\":\"trades::h2::RT\"},"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+        PureV1Api.Answer hello = generate.apply("|'hello'");
+        assertEquals(200, hello.status(), hello.json());
+        assertEquals("{\"_type\":\"simple\",\"authDependent\":false,\"rootExecutionNode\":{\"_type\":\"constant\","
+                + "\"authDependent\":false,\"executionNodes\":[],\"resultType\":{\"_type\":\"dataType\",\"dataType\":"
+                + "\"String\"},\"values\":{\"_type\":\"string\",\"value\":\"hello\"}},\"serializer\":{\"name\":\"pure\","
+                + "\"version\":\"vX_X_X\"},\"templateFunctions\":[]}", hello.json());
+        PureV1Api.Answer yes = generate.apply("|true");
+        assertEquals(200, yes.status(), yes.json());
+        Json.Obj root = Json.parseObject(yes.json()).getObj("rootExecutionNode");
+        assertEquals("constant", root.getString("_type"));
+        assertEquals("{\"_type\":\"boolean\",\"value\":true}", Json.toCompact(root.getObj("values")));
+        assertEquals("Boolean", root.getObj("resultType").getString("dataType"));
+        // a value the database computes: lite's statement, the engine's own plan shape around it
+        PureV1Api.Answer sum = generate.apply("|1+1");
+        assertEquals(200, sum.status(), sum.json());
+        assertEquals("sql", sqlNode(Json.parseObject(sum.json())).getString("_type"), sum.json());
+        // print: refused, as the engine refuses it
+        PureV1Api.Answer printed = generate.apply("|print('x', 1)");
+        assertEquals(500, printed.status(), printed.json());
+    }
+
     @Test
     void e8_execute_isTheEnginesResult_rowForRow() throws Exception {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
