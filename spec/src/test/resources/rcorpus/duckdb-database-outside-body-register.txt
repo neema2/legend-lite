@@ -1,7 +1,6 @@
 meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject ||| statement=1
 meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| statement=1
 meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates ||| statement=1
-meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates ||| statement=2
 meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates ||| statement=1
 meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| statement=1
 meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| statement=1

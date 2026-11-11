@@ -51,7 +51,6 @@ engine-order meta::relational::testDataGeneration::tests::testConstant
 engine-order meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning
 engine-order meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates
 engine-order meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning
-engine-order meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates
 engine-order meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning
 engine-order meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates
 engine-order meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel

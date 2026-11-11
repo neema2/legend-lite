@@ -21224,7 +21224,8 @@ and the read-only reload the user ruled on 2026-11-11 ("Read only reload is fine
 - A body's `generateTestData` is planned before the body is classed (`testplan/GeneratedTestData`,
   `compiler/spec/GeneratorSplice`): its `sqls` the fetch texts as constants, its `dataCsvString` the one read-only
   statement's cell (`TypedPlannedValue`); `assertTestData`'s inlined `assertSameElements` over two texts' loads is the
-  database's comparison of their data, each table a set of rows; `loadAndTestExecution`'s reload sends nothing and the
+  database's comparison of their rows (CORRECTED by the audit round below: not a set per table but each table's rows
+  counted, as upstream decides it, S195); `loadAndTestExecution`'s reload sends nothing and the
   query after it reads every table of the database from the slice (`TypedTableSwap`), read only (register S192).
 - Deleted: the tests' interleaved run (`TestDataGeneratorRun`), the TDG appeal (`Appeal.Kind.TDG`, `tryArmTdgSql`,
   `tryArmTdgRoot`, `hasTdgProducer`, the generator's `assertSqlEquals` root and its FQN), the generator's statement
@@ -21256,3 +21257,55 @@ The corpus lanes, measured (host and database judges, both lanes alike):
 - **Unchanged:** both fail rosters (DuckDB 108, H2 273: `testAlloyTestDatGenWithQuotedColumnsForViews` stays, its own
   view refusal), the skipped and unordered registers, and the strength floors (DuckDB differential 990, spelling 22,
   cardinality 27, the eight passes literal-decided, LITERAL 1405; H2 differential 964 >= 944).
+
+## 2026-11-11 — B2d.2's audit round: upstream's comparison, the reload's window, the reader's rules (S191, S192, S195, S196)
+
+The orchestrator's audit of B2d.2 (8e5f43c4a) and the user's two rulings of the day -- M3, "Agreed" (`assertTestData`
+passes or fails exactly as upstream decides, the failure message lite's own) and "read where read", "Yes accept that
+with a register row" -- each fixed and pinned:
+
+- **M3 (S195, new):** `TestDataPlanner.same` decides as upstream: per table and header, each row's cells by
+  `convertValuesToCsvH2` (an empty or `---null---` cell NULL, BIT by `bitValueFromString`, any other its text),
+  COUNTED on both sides by the database (two null-safe anti-joins on the cells and the count), so a row twice is not a
+  row once; upstream's own words for a missing schema, table or column; a row narrower than its header refused by
+  name; a header-only block compares nothing; a header the generator does not write, or rows of a table it did not
+  fetch, fail at planning. The failure's words name the differing rows (a planned statement, the assert's message):
+  register S195. The earlier text that called the comparison a set per table is corrected (S143's row, the B2d.2 entry
+  above).
+- **H1 (S192, amended):** after a reload, any statement but the query run over the slice that REACHES the database
+  (`StatementEffects.reaches`, through the user functions it calls) is refused by name -- a write no longer ends the
+  swap, a user function is no longer taken for one.
+- **H2 (S191, amended):** `CsvSeed.records` and `cells` follow the deleted `base.CsvCells`' rules (a cell quoted only
+  where it starts with a quote; an unterminated quote, or text after a closing quote, refused by name,
+  `CsvSeed.Malformed`); S191's "strict extension" claim is corrected: the two readers agree on a text with no double
+  quote (every upstream golden is one) and may differ on one that has.
+- **M1 (S192):** the swap is by typed identity in the Lowerer's table arm (`TableSwaps.rows`, the scan recorded by
+  alias and replaced once the source is lowered): a reference whose one declaration lies in the reloaded database's
+  include closure, whatever database names it; a different table of a reloaded physical name, a raw, URL, catalog or
+  frame source, a tabular function, a reloaded table left read by name and a duplicate physical name across the
+  includes are refused by name; the query must run on the runtime whose connection the slice was reloaded on.
+- **M2 (S196, new):** a database effect between the generator's let and any read of its result is refused by name.
+- **M4 (S192):** the slice's empty or `---null---` text cells reload as NULL, as upstream's reload reads them.
+- **M5:** the generator's runtime argument must be the body's runtime where it names an element; a runtime the body
+  constructs (`testRuntime($db)`, a new instance, a copy) is the harness's, as `execute`'s runtime argument is.
+- **L2, L3, L5:** tests for each (`GeneratedTestDataProgramTest`, its every case collected and named on a miss;
+  `GeneratorSpliceTest`, `TableSwapsTest`, `CsvSeedRecordsTest`), one fetch text pinned as a literal, the
+  `Holds`/`Comparison(null, null)` case deleted, the generator's plan round-tripped as JSON, and the frame program's
+  last statement shown to run after the asserts (the body is planned whole first, so a last statement the road cannot
+  plan refuses the body by name and is never a pass).
+- **Guards moved, each with its note:** `FixtureWriteCensusTest` 912 -> 911 (TestDataPlannerTest's two writes are its
+  CSV now, the reader quote-aware; GeneratedTestDataProgramTest seeds one empty text, which no CSV can);
+  parser-equivalence `own_corpus.matched` 3117 -> 3136 (the generator's tests' models).
+
+The corpus lanes, measured (both judges, both lanes alike):
+
+- **Refused now (1):** `testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates` calls `initDatabase()` after
+  its first reload (then generates and reloads again): a user function that writes, after the reload, refused by name
+  (H1) -- upstream's `initDatabase()` re-creates the tables, which no rule here reads from a function's body. Accepted
+  on both lanes, bucket `by-design:read-only-reload(S192)`, witness `after the test-data generator's slice was
+  reloaded`; the DuckDB engine-order registers (host and database) lose its row, and both
+  `*-database-outside-body-register.txt` its `statement=2` row (stale: the body is refused before it runs).
+- **Kept:** the seven other passes pass under upstream's comparison; `testTableToTdsWithJoinAndUnion` reaches its S193
+  text check again (it reloads `dbInc` and reads its tables through `db`, which includes it: the swap's typed identity);
+  `testUnionToUnionMultipleLevelsWithStringHashing` keeps passing (its runtime a constructed `^Runtime`).
+- **Unchanged:** both fail rosters (DuckDB 108, H2 273), H2's registers, the skipped and unordered registers.

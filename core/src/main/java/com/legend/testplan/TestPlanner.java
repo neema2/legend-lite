@@ -39,7 +39,8 @@ public final class TestPlanner {
                 runtimeFqn).type());
         // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
         // body is classed and planned as any other
-        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect)), runtimeFqn, dialect, options);
+        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn)), runtimeFqn, dialect,
+                options);
     }
 
     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */

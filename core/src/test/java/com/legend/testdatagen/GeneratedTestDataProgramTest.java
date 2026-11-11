@@ -18,7 +18,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,12 +41,17 @@ class GeneratedTestDataProgramTest {
             (
               Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(40), MANAGERID INTEGER)
               Table BICYCLE (ID INTEGER PRIMARY KEY, PERSONID INTEGER)
+              Table FLAG (ID INTEGER PRIMARY KEY, ACTIVE BIT)
               Join Person_Bicycle(PERSON.ID = BICYCLE.PERSONID)
             )
             ###Pure
             import meta::relational::metamodel::*;
             Class t::Person { name: String[0..1]; bicycles: t::Bicycle[*]; }
             Class t::Bicycle { id: Integer[1]; }
+            Class t::Flag { id: Integer[1]; active: Boolean[0..1]; }
+            // a user function that reads the database, and one that reaches nothing
+            function t::names():String[*] { t::Person.all().name }
+            function t::two():Integer[1] { 1 + 1 }
             function meta::relational::testDataGeneration::getTable(database: Database[1], schema: String[1],
                 table: String[1]):meta::relational::metamodel::relation::Table[1]
             {
@@ -78,13 +85,16 @@ class GeneratedTestDataProgramTest {
               t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,
                 bicycles: [t::DB]@Person_Bicycle }
               t::Bicycle: Relational { ~mainTable [t::DB]BICYCLE id: [t::DB]BICYCLE.ID }
+              t::Flag: Relational { ~mainTable [t::DB]FLAG id: [t::DB]FLAG.ID, active: [t::DB]FLAG.ACTIVE }
             )
             """;
 
     /** The harness's rows, read by lite's test-data reader: a quoted cell with a comma, one with a line break (the
-     *  reader quote-aware, B2d.2), a NULL. */
+     *  reader quote-aware, B2d.2), a NULL, two flags. A sixth person, whose name is an empty text, is inserted by
+     *  {@link #run} (the reader reads an empty cell as NULL). */
     private static final String CSV = "default\nPERSON\nID,NAME,MANAGERID\n1,boss,\n2,ann,1\n3,\"o'neil, jr\",1\n"
-            + "4,\"two\nlines\",1\n5,---null---,1\n-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,5\n";
+            + "4,\"two\nlines\",1\n5,---null---,1\n-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,5\n"
+            + "-----\ndefault\nFLAG\nID,ACTIVE\n1,true\n2,false\n";
 
     private static final String QUERY = "|t::Person.all()->project([p|$p.name, p|$p.bicycles.id], ['n', 'b'])";
 
@@ -99,7 +109,7 @@ class GeneratedTestDataProgramTest {
             + " $ids, [])->toOne();\n";
 
     /** The body's lets: the query, the mapping, the runtime, the row identifiers of PERSON 2 and 3, the generator. */
-    private static final String LETS = "let query = {" + QUERY + "};\n"
+    static final String LETS = "let query = {" + QUERY + "};\n"
             + "let mapping = t::M;\n"
             + "let runtime = t::RT.runtimeValue;\n"
             + "let ids = ^meta::relational::testDataGeneration::TableRowIdentifiers(table ="
@@ -110,7 +120,7 @@ class GeneratedTestDataProgramTest {
             + " [])->toOne();\n";
 
     /** The slice of PERSON 2 and 3: the person rows, then their bicycles, each table's lines in order. */
-    private static final String SLICE = "default\nPERSON\nID,NAME\n2,ann\n3,\"o'neil, jr\"\n-----\n"
+    static final String SLICE = "default\nPERSON\nID,NAME\n2,ann\n3,\"o'neil, jr\"\n-----\n"
             + "default\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n-----\n";
 
     /** Every in-process backend under every judge: the host's, the database's, both. */
@@ -136,6 +146,12 @@ class GeneratedTestDataProgramTest {
             texts.add(backend.dialect().render(f));
         }
         assertEquals(2, texts.size(), "one text per fetch");
+        // one text as a literal, not computed by the code under test (the audit's L2): DuckDB's first fetch
+        if ("duckdb".equals(backend.name())) {
+            assertEquals("WITH tdg_0 AS (SELECT root.ID AS ID, root.NAME AS NAME\n  FROM PERSON AS root\n"
+                    + "  WHERE (root.ID = 2) OR (root.ID = 3)\n  ORDER BY root.ID NULLS LAST\n  LIMIT 20)\n"
+                    + "SELECT *\nFROM tdg_0 AS tdg_0", texts.get(0));
+        }
         // the fetch texts: constants of the plan, judged as constants; the text: the one statement's cell
         assertEquals(List.of("assertSize true", "assertEquals true", "assertEquals true", "assertEquals true"),
                 run(backend, judge, ctx, "{|" + LETS
@@ -162,46 +178,125 @@ class GeneratedTestDataProgramTest {
     }
 
     /**
-     * assertTestData (B2d.2, the user's ruling: the database's SET comparison per table, "upstream's comparison by other
-     * means"): upstream's helper, inlined, compares the loads of two test-data texts -- one the generator's -- as the
-     * data they denote: the rows of each table, in any order, against the expected text read at planning (quote-aware:
-     * a cell's line break kept); a cell, a row or a table that differs fails; a header that differs fails at planning;
-     * two constant texts are compared as they always were (their load statements, planning constants).
+     * assertTestData (B2d.2; the user's ruling of 2026-11-11, "Agreed": it passes or fails EXACTLY as upstream decides,
+     * the failure's words lite's own): upstream's helper, inlined, compares the load statements of two test-data texts
+     * -- one insert per row, each cell as {@code convertValuesToCsvH2} writes it, the two lists sorted -- so here each
+     * table's rows, each cell by that rule, are counted on both sides by the database: rows and tables in any order the
+     * same; a cell, a row, a table, or one row as many times, that differs fails; an empty and a {@code ---null---} cell
+     * are one NULL; a header's case and a wider row's extra cells do not count; a header-only block compares nothing;
+     * the texts' own faults fail at planning, upstream's lookups with upstream's own words.
      */
     @ParameterizedTest
     @MethodSource("backendsAndJudges")
-    void theGeneratedTextIsComparedAsData(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
+    void theGeneratedTextIsComparedAsUpstreamDecides(TestBackend backend, PlanningOptions.JudgeMode judge)
+            throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
+        String what = backend.name() + " " + judge;
         String ok = "assert true";
-        // the slice, its rows and its tables in another order: the same data
+        // every case checked, each that does not hold named (so each is seen on its own)
+        List<String> wrong = new ArrayList<>();
+        // the same inserts: the slice, its rows and tables in another order, its header in another case, a row wider
+        // than its header (upstream reads the header's cells alone), a header-only block (no insert)
         String reordered = "default\nBICYCLE\nID,PERSONID\n12,3\n11,3\n10,2\n-----\n"
                 + "default\nPERSON\nID,NAME\n3,\"o'neil, jr\"\n2,ann\n-----\n";
-        for (String expected : List.of(SLICE, reordered)) {
-            assertEquals(List.of(ok), run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(expected)
-                    + "', $testData.dataCsvString, t::DB);}"), backend.name() + " " + judge + ": " + expected);
+        for (String expected : List.of(SLICE, reordered, SLICE.replace("ID,NAME", "id,Name"),
+                SLICE.replace("2,ann", "2,ann,extra"), SLICE + "default\nPERSON\nNAME,MANAGERID\n-----\n")) {
+            expect(wrong, expected, List.of(ok), compare(backend, judge, ctx, LETS, expected));
         }
-        // a cell with a line break and a NULL, as the generated text writes them and the reader reads them back
-        assertEquals(List.of(ok), run(backend, judge, ctx, "{|" + LETS_45 + "t::assertTestData('" + pure(
-                "default\nPERSON\nID,NAME\n4,\"two\nlines\"\n5,---null---\n-----\ndefault\nBICYCLE\nID,PERSONID\n"
-                        + "13,5\n-----\n") + "', $testData.dataCsvString, t::DB);}"), backend.name() + " " + judge);
-        // a cell, a missing row, an extra row, a missing table: each fails
+        // a cell with a line break and a NULL, as the generated text writes them and the reader reads them back; an
+        // empty cell is the NULL too
+        String fourFive = "default\nPERSON\nID,NAME\n4,\"two\nlines\"\n5,---null---\n-----\ndefault\nBICYCLE\n"
+                + "ID,PERSONID\n13,5\n-----\n";
+        for (String expected : List.of(fourFive, fourFive.replace("5,---null---", "5,"))) {
+            expect(wrong, expected, List.of(ok), compare(backend, judge, ctx, LETS_45, expected));
+        }
+        // a cell, a missing row, an extra row, a missing table, a row twice: each fails, the database's verdict
         for (String differs : List.of(SLICE.replace("2,ann", "2,anne"), SLICE.replace("11,3\n", ""),
-                SLICE.replace("12,3\n", "12,3\n14,3\n"), SLICE.substring(0, SLICE.indexOf("default\nBICYCLE")))) {
-            List<String> verdicts = run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(differs)
-                    + "', $testData.dataCsvString, t::DB);}");
-            assertEquals(1, verdicts.size(), backend.name() + " " + judge + ": " + verdicts);
-            assertTrue(verdicts.get(0).startsWith("assert false"), backend.name() + " " + judge + ": " + differs
-                    + " -> " + verdicts);
+                SLICE.replace("12,3\n", "12,3\n14,3\n"), SLICE.substring(0, SLICE.indexOf("default\nBICYCLE")),
+                SLICE.replace("10,2\n", "10,2\n10,2\n"))) {
+            expectDiffers(wrong, differs, compare(backend, judge, ctx, LETS, differs));
         }
-        // a header that differs, the expected text holding rows: decided at planning, the assert's failure
-        List<String> header = run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(SLICE.replace(
-                "ID,NAME\n2,ann\n3,\"o'neil, jr\"", "NAME,ID\nann,2\n\"o'neil, jr\",3")) + "', $testData.dataCsvString,"
-                + " t::DB);}");
-        assertEquals(List.of("assert false the test data's columns of default.PERSON are [ID, NAME], [NAME, ID]"
-                + " expected"), header, backend.name() + " " + judge);
+        // the failure's words: the rows of one side the other does not hold as often, each with its count
+        expect(wrong, "the words", List.of("assert false the generated test data's rows are not the expected's (each"
+                + " table's rows counted, upstream's comparison); the rows of one side the other does not hold as"
+                + " often:\ndefault.BICYCLE (ID,PERSONID) expected x2: 10,2\n"
+                + "default.BICYCLE (ID,PERSONID) generated x1: 10,2\n"),
+                compare(backend, judge, ctx, LETS, SLICE.replace("10,2\n", "10,2\n10,2\n")));
+        // decided at planning: a header the generator does not write, a table it did not fetch, a row narrower than
+        // its header, and upstream's lookups -- a schema, a table, a column -- with upstream's own words
+        Map<String, String> planned = new LinkedHashMap<>();
+        planned.put(SLICE.replace("ID,NAME\n2,ann\n3,\"o'neil, jr\"", "NAME,ID\nann,2\n\"o'neil, jr\",3"),
+                "the generated test data writes no rows of default.PERSON (NAME,ID): 2 expected");
+        planned.put(SLICE + "default\nFLAG\nACTIVE,ID\ntrue,1\n",
+                "the generated test data writes no rows of default.FLAG (ACTIVE,ID): 1 expected");
+        planned.put(SLICE.replace("2,ann", "2"), "refused: the expected test data's row 1 of default.PERSON has 1"
+                + " cell(s) for 2 column(s) (upstream's load fails reading the missing cell)");
+        planned.put("other\nPERSON\nID\n2\n", "There should be exactly 1 schema with name other found in the provided"
+                + " runtime database(s) [t::DB] at the given connection.");
+        planned.put("default\nNOPE\nID\n2\n", "Table \"NOPE\" not found in Schema \"default\" in Database(s) t::DB");
+        planned.put("default\nPERSON\nID,NOPE\n2,x\n",
+                "Column \"NOPE\" not found in Table \"PERSON\" in Database(s) t::DB");
+        planned.put("default\nPERSON\nID,NAME\n2,\"ann\n", "the expected test data: the test data ends inside the"
+                + " quoted cell that starts on line 4");
+        for (Map.Entry<String, String> e : planned.entrySet()) {
+            expect(wrong, e.getKey(), List.of("assert false " + e.getValue()),
+                    compare(backend, judge, ctx, LETS, e.getKey()));
+        }
         // two constant texts: their load statements, compared as they always were
-        assertEquals(List.of("assertSameElements true"), run(backend, judge, ctx, "{|t::assertTestData('" + pure(SLICE)
-                + "', '" + pure(SLICE) + "', t::DB);}"), backend.name() + " " + judge);
+        expect(wrong, "two constants", List.of("assertSameElements true"), run(backend, judge, ctx,
+                "{|t::assertTestData('" + pure(SLICE) + "', '" + pure(SLICE) + "', t::DB);}"));
+        assertEquals(List.of(), wrong, what);
+    }
+
+    /**
+     * A BIT cell compared as upstream's insert writes it ({@code bitValueFromString}, h2Extension2_1_214.pure:131-145):
+     * trimmed and lower-cased, {@code y}, {@code 1} and {@code true} are {@code true}, {@code n}, {@code 0} and
+     * {@code false} are {@code false}, any other text itself; the generated flags, as each database spells them, the
+     * same.
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void aBitCellIsComparedAsUpstreamWritesIt(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String what = backend.name() + " " + judge;
+        String lets = "let ids = ^meta::relational::testDataGeneration::TableRowIdentifiers(table ="
+                + " meta::relational::testDataGeneration::getTable(t::DB, 'default', 'FLAG'), rowIdentifiers ="
+                + " [^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['ID'], [1])),"
+                + " ^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['ID'], [2]))]);\n"
+                + "let testData = meta::relational::testDataGeneration::generateTestData({|t::Flag.all()->project("
+                + "[f|$f.id, f|$f.active], ['i', 'a'])}, t::M, t::RT.runtimeValue, $ids, [])->toOne();\n";
+        List<String> wrong = new ArrayList<>();
+        for (String flags : List.of("true,1\nfalse,2", "y,1\nn,2", "1,1\n0,2", " TRUE ,1\nFalse,2", "Y,1\nN,2")) {
+            expect(wrong, flags, List.of("assert true"), compare(backend, judge, ctx, lets,
+                    "default\nFLAG\nACTIVE,ID\n" + flags + "\n"));
+        }
+        for (String flags : List.of("false,1\nfalse,2", "yes,1\nfalse,2", "true,1\ntrue,1\nfalse,2")) {
+            expectDiffers(wrong, flags, compare(backend, judge, ctx, lets, "default\nFLAG\nACTIVE,ID\n" + flags
+                    + "\n"));
+        }
+        assertEquals(List.of(), wrong, what);
+    }
+
+    /** {@code actual} is {@code expected}, else the case {@code label} is named in {@code wrong}. */
+    private static void expect(List<String> wrong, String label, Object expected, Object actual) {
+        if (!expected.equals(actual)) {
+            wrong.add(label + " -> " + actual);
+        }
+    }
+
+    /** {@code verdicts} are the comparison's one failure, the database's, else the case is named in {@code wrong}. */
+    private static void expectDiffers(List<String> wrong, String label, List<String> verdicts) {
+        if (verdicts.size() != 1 || !verdicts.get(0).startsWith("assert false the generated test data's rows are not"
+                + " the expected's")) {
+            wrong.add(label + " -> " + verdicts);
+        }
+    }
+
+    /** {@code t::assertTestData(expected, $testData.dataCsvString, t::DB)} after {@code lets}, run. */
+    private static List<String> compare(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
+            String lets, String expected) throws Exception {
+        return run(backend, judge, ctx, "{|" + lets + "t::assertTestData('" + pure(expected)
+                + "', $testData.dataCsvString, t::DB);}");
     }
 
     /**
@@ -248,18 +343,121 @@ class GeneratedTestDataProgramTest {
         assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + personsOnly + reload
                 + "let r = meta::pure::router::execute(|t::Bicycle.all()->project([b|$b.id], ['id']), t::M, $runtime,"
                 + " []);\nassertSize($r.values.rows, 0);}"), what);
-        // a read of the database itself after the reload: refused by name
-        List<String> refused = run(backend, judge, ctx, "{|" + LETS + reload
-                + "assertSize(t::Person.all()->project([p|$p.name], ['n'])->from(t::M, $runtime), 5);}");
-        assertEquals(1, refused.size(), what + ": " + refused);
-        assertTrue(refused.get(0).startsWith("NotImplementedException: a read of the database after the test-data"
-                + " generator's slice was reloaded"), what + ": " + refused);
+        // a text cell the slice holds empty reloads as NULL, as upstream's reload reads it (convertValuesToCsvH2; the
+        // audit's M4): person 6's name is an empty text in the database, none in the slice
+        String six = LETS.replace("p|$p.name, p|$p.bicycles.id], ['n', 'b']", "p|$p.name], ['n']").replace(
+                "zip(['ID'], [2])), ^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs ="
+                        + " zip(['ID'], [3]))", "zip(['ID'], [6]))");
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + six + reload
+                + "let r = meta::pure::router::execute(|t::Person.all()->filter(p|$p.name->isEmpty())->project("
+                + "[p|$p.name], ['n']), t::M, $runtime, []);\nassertSize($r.values.rows, 1);}"), what);
     }
 
-    /** The store, its data's tables as the harness makes them, and a runtime on {@code backend}'s in-process database. */
-    private static String model(TestBackend backend) {
+    /**
+     * What the read-only reload cannot answer, refused by name (B2d.2's audit, 2026-11-11): after the reload upstream's
+     * database holds the slice to the body's end, so any statement but the query run over it that reaches the database
+     * -- a read, a write, an {@code executeInDb}, a user function whose body does, before or after that query -- is
+     * refused (H1), never assumed to restore it; a user function that reaches nothing runs. The query must run on the
+     * runtime whose connection the slice was reloaded on (M1). A database effect between the generator's let and a
+     * read of its result is refused (M2: here the generator's statement runs where its result is read). The
+     * generator's runtime argument must be the body's runtime (M5).
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void whatTheReloadCannotAnswerIsRefusedByName(TestBackend backend, PlanningOptions.JudgeMode judge)
+            throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String what = backend.name() + " " + judge;
+        String conn = "let conn = $runtime.connectionStores.connection->toOne()"
+                + "->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);\n";
+        String reload = conn + "let loads = meta::alloy::service::execution::setUpDataSQLs($testData.dataCsvString,"
+                + " t::DB);\n$loads->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $conn));\n";
+        String query = "let r = meta::pure::router::execute(|t::Person.all()->project([p|$p.name], ['n']), t::M,"
+                + " $runtime, []);\nassertSize($r.values.rows, 2);\n";
+        String read = "assertSize(t::Person.all()->project([p|$p.name], ['n'])->from(t::M, $runtime), 6);\n";
+        String after = "NotImplementedException: a statement that reads or writes the database after the test-data"
+                + " generator's slice was reloaded, other than the query run over it (";
+        Map<String, String> refusals = new LinkedHashMap<>();
+        refusals.put(reload + read, after + "before that query)");
+        refusals.put(reload + query + read, after + "after that query)");
+        refusals.put(reload + query + "meta::relational::metamodel::execute::executeInDb('DELETE FROM BICYCLE',"
+                + " $conn);\n", after + "after that query)");
+        refusals.put(reload + query + "assertEquals(6, t::names()->size());\n", after + "after that query)");
+        refusals.put(reload + "meta::relational::metamodel::execute::executeInDb('SELECT 1', $conn);\n" + query,
+                after + "before that query)");
+        refusals.put(reload.replace("$runtime.connectionStores", "t::RT2.runtimeValue.connectionStores") + query,
+                "NotImplementedException: the query run over the test-data generator's reloaded slice on a runtime"
+                        + " other than the one whose connection the slice was reloaded on: not planned (B2d)");
+        String effect = "NotImplementedException: a database effect between the test-data generator's let and a read"
+                + " of its result: not planned (B2d: the generator's statement runs where its result is read,"
+                + " upstream's at its let, and across the effect the two read different data)";
+        refusals.put(conn + "meta::relational::metamodel::execute::executeInDb('DELETE FROM BICYCLE', $conn);\n"
+                + "assertEquals('" + pure(SLICE) + "', $testData.dataCsvString);\n", effect);
+        refusals.put(conn + "let csv = $testData.dataCsvString;\n"
+                + "meta::relational::metamodel::execute::executeInDb('DELETE FROM BICYCLE', $conn);\n"
+                + "assertEquals('" + pure(SLICE) + "', $csv);\n", effect);
+        refusals.put(conn + "meta::relational::metamodel::execute::executeInDb('DELETE FROM BICYCLE', $conn);\n"
+                + "assertSize($testData.sqls, 2);\n", effect);
+        List<String> wrong = new ArrayList<>();
+        for (Map.Entry<String, String> e : refusals.entrySet()) {
+            List<String> verdicts = run(backend, judge, ctx, "{|" + LETS + e.getKey() + "}");
+            if (verdicts.size() != 1 || !verdicts.get(0).startsWith(e.getValue())) {
+                wrong.add(e.getKey() + " -> " + verdicts);
+            }
+        }
+        // a user function that reaches nothing, after the query: it runs
+        expect(wrong, "t::two()", List.of("assertSize true", "assertEquals true"), run(backend, judge, ctx, "{|" + LETS
+                + reload + query + "assertEquals(2, t::two());}"));
+        // the generator's runtime argument: another runtime element, named or a let's, refused by name
+        String other = "NotImplementedException: the test-data generator's runtime argument is t::RT2, not the body's"
+                + " runtime t::RT: not planned (B2d sends the generator's statement on the body's session, so its"
+                + " runtime must be the body's)";
+        expect(wrong, "a let of t::RT2", List.of(other), run(backend, judge, ctx, "{|" + LETS.replace(
+                "let runtime = t::RT.runtimeValue", "let runtime = t::RT2.runtimeValue")
+                + "assertSize($testData.sqls, 2);}"));
+        expect(wrong, "t::RT2", List.of(other), run(backend, judge, ctx, "{|" + LETS_45.replace("t::RT.runtimeValue",
+                "t::RT2.runtimeValue") + "assertSize($testData.sqls, 2);}"));
+        assertEquals(List.of(), wrong, what);
+    }
+
+    /**
+     * The frame program's last statement after its asserts (B2d.2, BodyClass: upstream's loadAndTestExecution ends with
+     * its frame's non-empty check): the body is planned whole before anything runs, so a last statement the program
+     * road cannot plan refuses the body by name (never a pass); one it plans runs after the asserts, in statement
+     * order -- a failing assert before it is the body's outcome, as upstream's.
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void theLastStatementRunsAfterTheAsserts(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String what = backend.name() + " " + judge;
+        List<String> verdicts = run(backend, judge, ctx, "{|" + LETS + "t::assertTestData('" + pure(SLICE.replace(
+                "2,ann", "2,anne")) + "', $testData.dataCsvString, t::DB);\n"
+                + "t::loadAndTestExecution($query, [], $mapping, $runtime, $testData.dataCsvString, t::DB);}");
+        assertEquals(1, verdicts.size(), what + ": " + verdicts);
+        assertTrue(verdicts.get(0).startsWith("assert false"), what + ": " + verdicts);
+    }
+
+    /** A test-data generator's body planned whole (its comparison, its reload, the query over the slice) round-trips as
+     *  JSON: the plan is data (B2d.2's audit, L5). */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void theGeneratorsPlanRoundTripsAsJson(TestBackend backend, PlanningOptions.JudgeMode judge) {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        com.legend.testexecutionplan.TestPlan plan = TestExecution.planBody(typed(ctx, "{|" + LETS
+                + "t::assertTestData('" + pure(SLICE) + "', $testData.dataCsvString, t::DB);\n"
+                + "t::loadAndTestExecution($query, [], $mapping, $runtime, $testData.dataCsvString, t::DB);}"), "t::RT",
+                ExecuteOptions.NONE.withJudgeMode(judge));
+        org.junit.jupiter.api.Assertions.assertNull(com.legend.testexecutionplan.TestPlanJson.roundTripDifference(plan),
+                backend.name() + " " + judge);
+    }
+
+    /** The store, its data's tables as the harness makes them, and two runtimes on {@code backend}'s in-process
+     *  database: the body's ({@code t::RT}) and another ({@code t::RT2}). */
+    static String model(TestBackend backend) {
         return STORE + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; " + backend.connectionBody()
-                + " }\n###Runtime\nRuntime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+                + " }\n###Runtime\nRuntime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n"
+                + "Runtime t::RT2 { mappings: [t::M]; connections: [ t::DB: [ c1: t::C ] ]; }\n";
     }
 
     /** {@code body} run through the program entry on a fresh {@code backend} session holding {@link #CSV}: each verdict
@@ -274,25 +472,24 @@ class GeneratedTestDataProgramTest {
     private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
             String body, List<String> sent) throws Exception {
         List<String> verdicts = new ArrayList<>();
+        boolean[] failed = new boolean[1];
         try (Connection c = backend.open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect())) {
                     s.execute(sql);
                 }
+                s.execute("INSERT INTO PERSON (ID, NAME, MANAGERID) VALUES (6, '', 1)");
             }
             com.legend.testexecutionplan.AssertListener listener = new com.legend.testexecutionplan.AssertListener() {
                 @Override
                 public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
                     verdicts.add(assertName.substring(assertName.lastIndexOf(':') + 1) + " " + pass
                             + (pass ? "" : " " + detail));
+                    failed[0] = !pass;
                 }
             };
-            com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
-            List<com.legend.protocol.spec.ValueSpecification> statements =
-                    parsed instanceof LambdaFunction lf && lf.parameters().isEmpty() ? lf.body() : List.of(parsed);
             try {
-                TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
-                        new com.legend.model.ImportScope(List.of()), ctx)), "t::RT",
+                TestExecution.runProgram(typed(ctx, body), "t::RT",
                         com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(
                                 com.legend.testbackend.RecordingConnection.wrap(c, sent))), listener, null,
                         ExecuteOptions.NONE.withJudgeMode(judge));
@@ -300,12 +497,21 @@ class GeneratedTestDataProgramTest {
                 verdicts.add("NotImplementedException: " + e.getMessage());
             } catch (AssertionError | RuntimeException e) {
                 // a failed verdict ends the body (the listener told it); anything else is the test's failure
-                if (verdicts.isEmpty() || verdicts.get(verdicts.size() - 1).contains(" true")) {
+                if (!failed[0]) {
                     throw e;
                 }
             }
         }
         return verdicts;
+    }
+
+    /** {@code body}, a lambda's text, typed as a test body. */
+    static com.legend.TypedQuery typed(ModelContext ctx, String body) {
+        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(body);
+        List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof LambdaFunction lf && lf.parameters().isEmpty() ? lf.body() : List.of(parsed);
+        return Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
+                new com.legend.model.ImportScope(List.of()), ctx));
     }
 
     /** {@code text} as a Pure string literal's body. */

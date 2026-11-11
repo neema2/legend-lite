@@ -56,8 +56,12 @@ class TestDataPlannerTest {
             )
             """;
 
+    /** The rows: person 5's name holds a comma, a double quote and a line break, one quoted cell the test-data reader
+     *  reads whole (B2d.2's audit, H2: the two literal writes this case seeded before the reader was quote-aware are
+     *  its rows now); person 6's name a NULL. */
     private static final String CSV = "default\nPERSON\nID,NAME,MANAGERID\n1,boss,\n2,ann,1\n3,\"o'neil, jr\",1\n"
-            + "4,dan,2\n-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,4\n";
+            + "4,dan,2\n5,\"o'neil, \"\"jr\"\"\nthe 2nd\",1\n6,---null---,1\n-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n"
+            + "11,3\n12,3\n13,4\n14,5\n";
 
     static List<DatabaseType> inMemory() throws java.sql.SQLException {
         return ReservedNamesGenerationTest.inMemory();
@@ -91,11 +95,6 @@ class TestDataPlannerTest {
                     false, 3, "default\nPERSON\nID,MANAGERID,NAME\n1,---null---,boss\n2,1,ann\n4,2,dan\n-----\n");
             // ruling 3 whole: a comma, a double quote and a line break in one cell, quoted, its quotes doubled; a
             // single quote kept; a NULL ---null---
-            try (Statement s = c.createStatement()) {
-                s.execute("INSERT INTO PERSON (ID, NAME, MANAGERID) VALUES (5, 'o''neil, \"jr\"\nthe 2nd', 1),"
-                        + " (6, NULL, 1)");
-                s.execute("INSERT INTO BICYCLE (ID, PERSONID) VALUES (14, 5)");
-            }
             List<TestDataGenerator.TableRowIds> fiveAndSix = List.of(new TestDataGenerator.TableRowIds("default",
                     "PERSON", List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(5L)),
                             new TestDataGenerator.RowId(List.of("ID"), List.of(6L)))));

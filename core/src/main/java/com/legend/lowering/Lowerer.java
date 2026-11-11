@@ -525,6 +525,60 @@ public final class Lowerer {
                 + ", not the table");
     }
 
+    /** The read-only reload's swap being lowered (B2d.2), at most one: its source's tables read from the slice. */
+    private final ArrayDeque<com.legend.compiler.spec.typed.TypedTableSwap> swaps = new ArrayDeque<>();
+
+    /** The swap's scans, by alias: the rows each is read from. */
+    private final Map<String, SqlQuery> swappedScans = new HashMap<>();
+
+    /** {@code ts}'s source lowered with each table it reads by its typed reference swapped ({@link TableSwaps}). */
+    private SqlSelect overSlice(com.legend.compiler.spec.typed.TypedTableSwap ts) {
+        if (!swaps.isEmpty()) {
+            throw TableSwaps.refused("another reloaded slice");
+        }
+        swaps.push(ts);
+        try {
+            return TableSwaps.swapped(relation(ts.source()), ts, swappedScans);
+        } finally {
+            swaps.pop();
+            swappedScans.clear();
+        }
+    }
+
+    /** {@code source}, a read the reloaded slice cannot answer ({@code what}): itself, or refused by name under a
+     *  swap. */
+    private <T> T unswapped(T source, String what) {
+        if (!swaps.isEmpty()) {
+            throw TableSwaps.refused(what + (source instanceof String url ? url : ""));
+        }
+        return source;
+    }
+
+    /** The scan of the typed table {@code t}: a planned frame's CTE where its rows are a frame's (rung 12: the CTE's
+     *  columns keep the table's declared spelling, a quoted one quoted at every reader), else the table; under a
+     *  reloaded slice's swap, the slice's rows for it ({@link TableSwaps#read}). */
+    private SqlSelect tableRead(TypedTableReference t) {
+        if (t.frame() != null) {
+            unswapped(t, "a planned frame");
+            return SqlSelect.starOf(new SqlSource.Cte(t.frame(),
+                    com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
+                    OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())));
+        }
+        if (t.call()) {
+            unswapped(t, "the tabular function " + t.table());
+        }
+        SqlSource.Table table = new SqlSource.Table(t.table(), nextAlias(),
+                OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
+                t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable()));
+        if (!swaps.isEmpty()) {
+            SqlQuery rows = TableSwaps.rows(t, swaps.peek());
+            if (rows != null) {
+                swappedScans.put(table.alias(), rows);
+            }
+        }
+        return SqlSelect.starOf(table);
+    }
+
     private static @com.legend.base.Nullable String schemaOf(TypedTableReference t) {
         int dot = t.table().indexOf('.');
         return dot < 0 ? null : t.table().substring(0, dot);
@@ -1000,19 +1054,10 @@ public final class Lowerer {
         }
         return switch (spec) {
             case TypedSourceUrl su -> SqlSelect.starOf(
-                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL),
+                    new SqlSource.SourceUrl(unswapped(su.url(), "the source URL "), nextAlias(),
+                            outputsOf(su.info(), OutputCol.Origin.PHYSICAL),
                             su.records() ? SqlSource.SourceUrl.Form.RECORDS : SqlSource.SourceUrl.Form.ELEMENTS));
-            case TypedTableReference t -> t.frame() != null
-                    // rung 12: the class extent's rows are a planned frame's CTE
-                    // (its body reads the table, so the CTE's columns keep the table's
-                    // declared spelling: a quoted one stays quoted at every reader)
-                    ? SqlSelect.starOf(new SqlSource.Cte(t.frame(),
-                            com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
-                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())))
-                    : SqlSelect.starOf(
-                    new SqlSource.Table(t.table(), nextAlias(),
-                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
-                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable())));
+            case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position: the engine plans it as an inline
@@ -1023,13 +1068,14 @@ public final class Lowerer {
                     ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
                     : relation(v.body());
 
-            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(raw);   // Phase 1c
-            case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(g);
+            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
+            case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
 
             // leg 3.4 step 2: a planned frame, referenced by name (FrameRefs)
-            case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this, fr);
-            // a relation read over a reloaded slice's rows (B2d.2): each table it reads swapped by its physical name
-            case com.legend.compiler.spec.typed.TypedTableSwap ts -> TableSwaps.swapped(relation(ts.source()), ts.tables());
+            case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this,
+                    unswapped(fr, "a planned frame"));
+            // a relation read over a reloaded slice's rows (B2d.2): each table it reads by its typed reference swapped
+            case com.legend.compiler.spec.typed.TypedTableSwap ts -> overSlice(ts);
 
             case TypedFilter f -> filter(f);
 

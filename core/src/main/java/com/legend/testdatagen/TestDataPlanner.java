@@ -349,10 +349,10 @@ public final class TestDataPlanner {
         return hashStrings && isText(column(def, c).dataType()) ? hashString(cell) : cell;
     }
 
-    // ===== the comparison with an expected text (B2d.2: assertTestData) =====
+    // ===== the comparison with an expected text (B2d.2: assertTestData, as upstream decides it) =====
 
-    /** One block of an expected test-data text, as lite's reader reads it: its schema, table, header's names and rows,
-     *  a null cell an absent one. */
+    /** One block of an expected test-data text, as lite's reader reads it: its schema, table, header cells and rows,
+     *  each cell as written. */
     public record Expected(String schema, String table, List<String> header, List<List<String>> rows) {
         public Expected {
             header = List.copyOf(header);
@@ -360,39 +360,56 @@ public final class TestDataPlanner {
         }
     }
 
-    /** Whether {@code planned}'s data is {@code expected}'s: {@code fails} where planning decides it does not (why),
-     *  else {@code statement} the database answers in one Boolean cell, or neither where nothing is left to compare
-     *  (it is). */
-    public record Comparison(@com.legend.base.Nullable String fails, @com.legend.base.Nullable SqlQuery statement) {
+    /** The comparison planned: {@code fails}, the failure's words, where planning decides it (upstream's load of the
+     *  expected text fails, or the texts' rows differ whatever the database holds); else {@code holds}, a statement
+     *  whose one Boolean cell says whether the rows are the same, and {@code differences}, a statement whose one cell
+     *  names the rows that differ (lite's failure message). */
+    public record Comparison(@com.legend.base.Nullable String fails, @com.legend.base.Nullable SqlQuery holds,
+            @com.legend.base.Nullable SqlQuery differences) {
+        public Comparison {
+            if ((fails == null) == (holds == null) || (holds == null) != (differences == null)) {
+                throw new IllegalArgumentException("a comparison is decided at planning or by two statements");
+            }
+        }
     }
 
     /**
-     * Whether {@code planned}'s slice holds {@code expected}'s data on {@code dbFqn}'s tables (B2d.2 of the total-wall
-     * program, 2026-11-11: assertTestData as the database's SET comparison per table, the user's ruling -- "upstream's
-     * comparison by other means"). Upstream reads each text into its load statements ({@code setUpDataSQLs}: one insert
-     * per table block, each cell by its column's type, an empty or {@code ---null---} cell null) and compares the two
-     * lists' elements; here, per table, the expected header's columns (resolved in the table as upstream resolves them,
-     * case ignored and matching quotes stripped) must be the generated header's where the expected text holds rows, and
-     * the two row sets must be equal -- each cell as its text (the generated cell as the text writes it, the expected
-     * as the text reads; an empty cell null on both sides), each row of each set found in the other: two anti-joins
-     * with null-safe equality, the database's work. A table the expected text names that the database does not hold,
-     * or a column its table does not, fails as upstream's load fails; rows expected of a table the generator did not
-     * fetch, or under another header, fail at planning.
+     * Whether {@code planned}'s slice holds {@code expected}'s data on {@code dbFqn}'s tables, decided EXACTLY as
+     * upstream decides it (the user's ruling of 2026-11-11, "Agreed"; the failure's words are lite's own, a register
+     * row). Upstream's {@code assertTestData} reads each text into its load statements ({@code setUpDataSQLs},
+     * {@code toDDL.pure:94-130}): per block, the schema ({@code toOne}), the table and each header column (case ignored,
+     * matching quotes stripped, the name trimmed) looked up -- a miss fails with upstream's own words -- then one insert
+     * per row whose cells are written by the column's type ({@code convertValuesToCsvH2},
+     * {@code h2Extension2_1_214.pure:118-145}: an empty or {@code ---null---} cell null, a BIT cell by
+     * {@code bitValueFromString}, any other cell its text) -- a row narrower than its header fails reading the missing
+     * cell, a wider one's extra cells are not read -- and compares the two statement lists sorted
+     * ({@code assertSameElements}): the same inserts, each as many times. So here: per table and header, each row's
+     * cells under that rule, COUNTED on both sides in the database -- the generated rows the text's lines (its fetches'
+     * distinct rows, each cell as the text writes it before quoting) -- every (row, count) of each side found in the
+     * other; two anti-joins, null-safe. A header-only block writes no insert and compares nothing. Expected rows under a
+     * header the generator does not write, or of a table it did not fetch, differ whatever the database holds: decided
+     * at planning. Every failure's words begin with {@code lead}.
      */
-    public static Comparison same(Planned planned, List<Expected> expected, ModelContext ctx, String dbFqn) {
+    public static Comparison same(Planned planned, List<Expected> expected, ModelContext ctx, String dbFqn,
+            String lead) {
         Map<String, Table> generated = new LinkedHashMap<>();
         for (Table t : planned.tables()) {
-            generated.put(t.schema() + "\n" + t.table(), t);
+            generated.put(groupKey(t.schema(), t.table(), t.columns()), t);
         }
-        Map<String, List<String>> headers = new LinkedHashMap<>();
+        // the expected rows by table and header, in text order (upstream's lookups fail in that order)
         Map<String, List<List<String>>> rows = new LinkedHashMap<>();
+        Map<String, String> names = new LinkedHashMap<>();
         for (Expected e : expected) {
             boolean defaultSchema = "default".equals(e.schema());
+            if (!defaultSchema && !hasSchema(ctx, dbFqn, e.schema(), new java.util.HashSet<>())) {
+                return fails(lead + "There should be exactly 1 schema with name " + e.schema() + " found in the"
+                        + " provided runtime database(s) [" + dbFqn + "] at the given connection.");
+            }
             DatabaseDefinition.TableDefinition def = ctx.findTableDefinition(dbFqn,
                     defaultSchema ? e.table() : e.schema() + "." + e.table()).orElse(null);
             if (def == null) {
-                return new Comparison("Table \"" + e.table() + "\" not found in Schema \"" + e.schema()
-                        + "\" in Database(s) " + dbFqn, null);
+                return fails(lead + "Table \"" + e.table() + "\" not found in Schema \"" + e.schema()
+                        + "\" in Database(s) " + dbFqn);
             }
             List<String> header = new ArrayList<>(e.header().size());
             for (String h : e.header()) {
@@ -404,71 +421,131 @@ public final class TestDataPlanner {
                     }
                 }
                 if (col == null) {
-                    return new Comparison("Column \"" + h + "\" not found in Table \"" + e.table()
-                            + "\" in Database(s) " + dbFqn, null);
+                    return fails(lead + "Column \"" + h + "\" not found in Table \"" + e.table()
+                            + "\" in Database(s) " + dbFqn);
                 }
                 header.add(col.name());
             }
-            String key = e.schema() + "\n" + e.table();
-            List<String> before = headers.putIfAbsent(key, header);
-            if (before != null && !before.equals(header)) {
-                throw new NotImplementedException("testDataGen: the expected text's table '" + e.table() + "' in two"
-                        + " blocks under two headers " + before + " and " + header + ": not compared");
-            }
+            String key = groupKey(e.schema(), e.table(), header);
+            names.putIfAbsent(key, e.schema() + "." + e.table() + " (" + String.join(",", header) + ")");
             List<List<String>> rs = rows.computeIfAbsent(key, k -> new ArrayList<>());
-            for (List<String> r : e.rows()) {
-                List<String> cells = new ArrayList<>(header.size());
-                for (int i = 0; i < header.size(); i++) {
-                    cells.add(i < r.size() ? r.get(i) : null);
+            for (int r = 0; r < e.rows().size(); r++) {
+                List<String> row = e.rows().get(r);
+                if (row.size() < header.size()) {
+                    return fails(lead + "refused: the expected test data's row " + (r + 1) + " of " + e.schema()
+                            + "." + e.table() + " has " + row.size() + " cell(s) for " + header.size() + " column(s)"
+                            + " (upstream's load fails reading the missing cell)");
                 }
-                rs.add(cells);
+                rs.add(row.subList(0, header.size()));
             }
         }
-        java.util.Set<String> keys = new java.util.LinkedHashSet<>(generated.keySet());
-        keys.addAll(headers.keySet());
-        List<SqlSource> counts = new ArrayList<>();
-        for (String key : keys) {
-            Table g = generated.get(key);
-            List<List<String>> want = rows.getOrDefault(key, List.of());
-            String name = key.replace('\n', '.');
-            if (!want.isEmpty() && g == null) {
-                return new Comparison("the test data holds no rows of " + name + ", " + want.size() + " expected",
-                        null);
+        for (Map.Entry<String, List<List<String>>> e : rows.entrySet()) {
+            if (!e.getValue().isEmpty() && !generated.containsKey(e.getKey())) {
+                return fails(lead + "the generated test data writes no rows of " + names.get(e.getKey()) + ": "
+                        + e.getValue().size() + " expected");
             }
-            if (g == null) {
+        }
+        List<SqlQuery> unmatched = new ArrayList<>();
+        List<String> labels = new ArrayList<>();
+        List<Integer> widths = new ArrayList<>();
+        for (Map.Entry<String, Table> e : generated.entrySet()) {
+            Table g = e.getValue();
+            SqlQuery got = counted(generatedCells(g, planned.hashStrings()), g, "_g");
+            List<List<String>> want = rows.getOrDefault(e.getKey(), List.of());
+            String label = g.schema() + "." + g.table() + " (" + String.join(",", g.columns()) + ")";
+            if (want.isEmpty()) {
+                unmatched.add(got);
+                labels.add(label + " generated");
+                widths.add(g.columns().size());
                 continue;
             }
-            if (!want.isEmpty() && !g.columns().equals(headers.get(key))) {
-                return new Comparison("the test data's columns of " + name + " are " + g.columns() + ", "
-                        + headers.get(key) + " expected", null);
-            }
-            SqlQuery got = comparedRows(g, planned.hashStrings());
-            if (want.isEmpty()) {
-                counts.add(count(got, null, 0, counts.size()));
-            } else {
-                SqlQuery wanted = expectedRows(want, g.columns().size());
-                counts.add(count(got, wanted, g.columns().size(), counts.size()));
-                counts.add(count(wanted, got, g.columns().size(), counts.size()));
-            }
-        }
-        if (counts.isEmpty()) {
-            return new Comparison(null, null);
+            SqlQuery wanted = counted(expectedCells(want, g), g, "_x");
+            unmatched.add(antiJoin(wanted, got, g.columns().size()));
+            labels.add(label + " expected");
+            widths.add(g.columns().size());
+            unmatched.add(antiJoin(got, wanted, g.columns().size()));
+            labels.add(label + " generated");
+            widths.add(g.columns().size());
         }
         SqlExpr all = null;
-        SqlSource from = null;
-        for (SqlSource c : counts) {
-            String alias = ((SqlSource.Subselect) c).alias();
-            all = and(all, SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.derived(alias, "n"), new SqlExpr.IntLit(0)));
-            from = from == null ? c : new SqlSource.Join(from, c, SqlSource.Join.Kind.CROSS, null);
+        SqlSource counts = null;
+        SqlSource texts = null;
+        List<SqlExpr> message = new ArrayList<>();
+        message.add(new SqlExpr.StringLit(lead + "the generated test data's rows are not the expected's (each table's rows"
+                + " counted, upstream's comparison); the rows of one side the other does not hold as often:\n"));
+        for (int k = 0; k < unmatched.size(); k++) {
+            int width = widths.get(k);
+            SqlSelect n = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
+                    false, List.of()), "n", null)), false, new SqlSource.Subselect(unmatched.get(k), "_u", null), null,
+                    List.of(), null, null, List.of(), null, null, List.of());
+            SqlSource dk = new SqlSource.Subselect(n, "_d" + k, null);
+            counts = counts == null ? dk : new SqlSource.Join(counts, dk, SqlSource.Join.Kind.CROSS, null);
+            all = and(all, SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.derived("_d" + k, "n"), new SqlExpr.IntLit(0)));
+            List<SqlExpr> parts = new ArrayList<>();
+            parts.add(new SqlExpr.StringLit(labels.get(k) + " x"));
+            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived("_u", COUNT), SqlType.Scalar.VARCHAR));
+            parts.add(new SqlExpr.StringLit(": "));
+            for (int i = 0; i < width; i++) {
+                if (i > 0) {
+                    parts.add(new SqlExpr.StringLit(","));
+                }
+                parts.add(SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Column.derived("_u", "v" + i),
+                        new SqlExpr.StringLit("---null---")));
+            }
+            parts.add(new SqlExpr.StringLit("\n"));
+            SqlExpr line = new SqlExpr.Call(SqlFn.CONCAT, parts, SqlTyping.UNKNOWN);
+            SqlSelect lines = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                    List.of(line, new SqlExpr.StringLit("")), false, List.of(SqlSelect.SortKey.asc(line))), "t", null)),
+                    false, new SqlSource.Subselect(unmatched.get(k), "_u", null), null, List.of(), null, null,
+                    List.of(), null, null, List.of());
+            SqlSource tk = new SqlSource.Subselect(lines, "_t" + k, null);
+            texts = texts == null ? tk : new SqlSource.Join(texts, tk, SqlSource.Join.Kind.CROSS, null);
+            message.add(SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Column.derived("_t" + k, "t"),
+                    new SqlExpr.StringLit("")));
         }
-        SqlExpr verdict = new SqlExpr.Case(List.of(new SqlExpr.Case.When(java.util.Objects.requireNonNull(all),
-                new SqlExpr.BoolLit(true))), new SqlExpr.BoolLit(false));
-        SqlSelect cell = new SqlSelect(List.of(new SqlSelect.Projection(verdict, "same", null)), false,
-                java.util.Objects.requireNonNull(from), null, List.of(), null, null, List.of(), null, null,
+        SqlExpr verdict = new SqlExpr.Case(List.of(new SqlExpr.Case.When(java.util.Objects.requireNonNull(all,
+                "a comparison of no table"), new SqlExpr.BoolLit(true))), new SqlExpr.BoolLit(false));
+        SqlSelect holds = new SqlSelect(List.of(new SqlSelect.Projection(verdict, "same", null)), false,
+                java.util.Objects.requireNonNull(counts), null, List.of(), null, null, List.of(), null, null,
                 List.of(new com.legend.sql.OutputCol("same", SqlType.Scalar.BOOLEAN, false)));
+        SqlSelect differences = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Call(SqlFn.CONCAT,
+                message, SqlTyping.UNKNOWN), "differences", null)), false, java.util.Objects.requireNonNull(texts),
+                null, List.of(), null, null, List.of(), null, null, List.of());
         // each table's rows read from a derived table in the FROM, never a subquery in an expression: H2's nested WITH
         // (csv's javadoc)
-        return new Comparison(null, SqlWith.prepend(planned.clauses(), cell));
+        return new Comparison(null, SqlWith.prepend(planned.clauses(), holds),
+                SqlWith.prepend(planned.clauses(), differences));
+    }
+
+    private static Comparison fails(String why) {
+        return new Comparison(why, null, null);
+    }
+
+    /** A group of rows: a table and the columns its rows are written under, in order. */
+    private static String groupKey(String schema, String table, List<String> columns) {
+        return schema + "\n" + table + "\n" + String.join("\n", columns);
+    }
+
+    /** Whether {@code dbFqn} (or a database it includes) declares the schema {@code name}. */
+    private static boolean hasSchema(ModelContext ctx, String dbFqn, String name, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return false;
+        }
+        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return false;
+        }
+        for (DatabaseDefinition.SchemaDefinition sc : db.schemas()) {
+            if (sc.name().equals(name)) {
+                return true;
+            }
+        }
+        for (String include : db.includes()) {
+            if (hasSchema(ctx, include, name, seen)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** {@code name} with a pair of matching double quotes around it stripped (upstream's stripMatchingQuotes). */
@@ -477,68 +554,120 @@ public final class TestDataPlanner {
                 ? name.substring(1, name.length() - 1) : name;
     }
 
-    /** {@code g}'s rows as the comparison reads them: distinct, each cell its text (a text cell hashed where the text
-     *  hashes it), an empty text null, beside a marker column the anti-join reads. */
-    private static SqlQuery comparedRows(Table g, boolean hashStrings) {
-        List<SqlSelect.Projection> ps = new ArrayList<>(g.columns().size() + 1);
+    /** {@code g}'s rows as its text writes them -- its fetches' distinct rows, each cell's text before quoting (a text
+     *  cell hashed where the text hashes it, NULL where the text writes {@code ---null---}) -- each cell by upstream's
+     *  rule ({@link #upstreamCell}). */
+    private static SqlQuery generatedCells(Table g, boolean hashStrings) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(g.columns().size());
         for (int i = 0; i < g.columns().size(); i++) {
-            SqlExpr text = new SqlExpr.Cast(sliceCell(g.def(), g.columns().get(i), "_u", hashStrings),
-                    SqlType.Scalar.VARCHAR);
-            ps.add(new SqlSelect.Projection(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.EQUAL, text, new SqlExpr.StringLit("")), new SqlExpr.NullLit())), text),
-                    "v" + i, null));
+            String c = g.columns().get(i);
+            ps.add(new SqlSelect.Projection(upstreamCell(new SqlExpr.Cast(sliceCell(g.def(), c, "_u", hashStrings),
+                    SqlType.Scalar.VARCHAR), column(g.def(), c).dataType()), "v" + i, null));
         }
-        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(1), MARKER, null));
-        return new SqlSelect(ps, true, new SqlSource.Subselect(fetchedRows(g.clauses()), "_u", null), null,
+        return new SqlSelect(ps, false, new SqlSource.Subselect(fetchedRows(g.clauses()), "_u", null), null,
                 List.of(), null, null, List.of(), null, null, List.of());
     }
 
-    /** The expected rows {@code rows} of {@code width} text cells each (a null cell NULL), beside the marker column. */
-    private static SqlQuery expectedRows(List<List<String>> rows, int width) {
-        List<String> columns = new ArrayList<>(width + 1);
-        List<com.legend.sql.OutputCol> outputs = new ArrayList<>(width + 1);
+    /** The expected rows {@code rows}, each cell's text as written, by upstream's rule ({@link #upstreamCell}). */
+    private static SqlQuery expectedCells(List<List<String>> rows, Table g) {
+        int width = g.columns().size();
+        List<String> columns = new ArrayList<>(width);
+        List<com.legend.sql.OutputCol> outputs = new ArrayList<>(width);
         for (int i = 0; i < width; i++) {
-            columns.add("v" + i);
-            outputs.add(new com.legend.sql.OutputCol("v" + i, SqlType.Scalar.VARCHAR, true));
+            columns.add("c" + i);
+            outputs.add(new com.legend.sql.OutputCol("c" + i, SqlType.Scalar.VARCHAR, true));
         }
-        columns.add(MARKER);
-        outputs.add(new com.legend.sql.OutputCol(MARKER, SqlType.Scalar.INTEGER, false));
         List<List<SqlExpr>> values = new ArrayList<>(rows.size());
         for (List<String> r : rows) {
-            List<SqlExpr> cells = new ArrayList<>(width + 1);
+            List<SqlExpr> cells = new ArrayList<>(width);
             for (String cell : r) {
-                cells.add(cell == null ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR)
-                        : new SqlExpr.StringLit(cell));
+                cells.add(new SqlExpr.StringLit(cell));
             }
-            cells.add(new SqlExpr.IntLit(1));
             values.add(cells);
         }
-        return SqlSelect.starOf(new SqlSource.Values(values, columns, "_e", outputs));
+        List<SqlSelect.Projection> ps = new ArrayList<>(width);
+        for (int i = 0; i < width; i++) {
+            ps.add(new SqlSelect.Projection(upstreamCell(SqlExpr.Column.derived("_e", "c" + i),
+                    column(g.def(), g.columns().get(i)).dataType()), "v" + i, null));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Values(values, columns, "_e", outputs), null, List.of(), null,
+                null, List.of(), null, null, List.of());
     }
 
-    /** {@code (SELECT COUNT(*) AS n FROM (left) l [LEFT JOIN (right) r ON l.v0 <=> r.v0 ... WHERE r.marker IS NULL])
-     *  AS _d<k>}: the rows of {@code left} not in {@code right} (all of them where {@code right} is null), counted. */
-    private static SqlSource count(SqlQuery left, @com.legend.base.Nullable SqlQuery right, int width, int k) {
-        SqlSource from = new SqlSource.Subselect(left, "_l", null);
-        SqlExpr where = null;
-        if (right != null) {
-            SqlExpr on = null;
-            for (int i = 0; i < width; i++) {
-                on = and(on, SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.derived("_l", "v" + i),
-                        SqlExpr.Column.derived("_r", "v" + i)));
-            }
-            from = new SqlSource.Join(from, new SqlSource.Subselect(right, "_r", null), SqlSource.Join.Kind.LEFT,
-                    java.util.Objects.requireNonNull(on, "a table compared on no column"));
-            where = SqlExpr.Call.of(SqlFn.IS_NULL, SqlExpr.Column.derived("_r", MARKER));
+    /**
+     * A cell's text {@code x} as upstream's insert writes it ({@code convertValuesToCsvH2},
+     * {@code h2Extension2_1_214.pure:118-145}), by its column's type {@code t}: an empty or {@code ---null---} cell (or a
+     * NULL) null; a BIT cell by {@code bitValueFromString} -- its text trimmed and lower-cased {@code y}, {@code 1} or
+     * {@code true} is {@code true}, {@code n}, {@code 0} or {@code false} is {@code false}, any other its text as
+     * written; any other cell its text (the quoting of a text, date or timestamp cell writes one insert per text, so
+     * the text decides). The database computes it.
+     */
+    private static SqlExpr upstreamCell(SqlExpr x, RelationalDataType t) {
+        SqlExpr absent = SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.IS_NULL, x),
+                SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.StringLit(""))),
+                SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.StringLit("---null---")));
+        List<SqlExpr.Case.When> whens = new ArrayList<>();
+        whens.add(new SqlExpr.Case.When(new SqlExpr.Group(absent), new SqlExpr.Cast(new SqlExpr.NullLit(),
+                SqlType.Scalar.VARCHAR)));
+        if (t instanceof RelationalDataType.Bit) {
+            SqlExpr bit = SqlExpr.Call.of(SqlFn.LOWER, SqlExpr.Call.of(SqlFn.TRIM, x));
+            whens.add(new SqlExpr.Case.When(oneOf(bit, "y", "1", "true"), new SqlExpr.StringLit("true")));
+            whens.add(new SqlExpr.Case.When(oneOf(bit, "n", "0", "false"), new SqlExpr.StringLit("false")));
         }
-        SqlSelect n = new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "n", null)), false, from, where,
-                List.of(), null, null, List.of(), null, null, List.of());
-        return new SqlSource.Subselect(n, "_d" + k, null);
+        return new SqlExpr.Case(whens, x);
+    }
+
+    /** Whether {@code x} is one of {@code texts}. */
+    private static SqlExpr oneOf(SqlExpr x, String... texts) {
+        SqlExpr out = null;
+        for (String t : texts) {
+            SqlExpr eq = SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.StringLit(t));
+            out = out == null ? eq : SqlExpr.Call.of(SqlFn.OR, out, eq);
+        }
+        return new SqlExpr.Group(java.util.Objects.requireNonNull(out));
+    }
+
+    /** {@code cells}' rows (columns {@code v0..}) counted: each distinct row, how many times ({@link #COUNT}), beside
+     *  the marker column the anti-joins read. */
+    private static SqlQuery counted(SqlQuery cells, Table g, String alias) {
+        int width = g.columns().size();
+        List<SqlSelect.Projection> ps = new ArrayList<>(width + 2);
+        List<SqlExpr> by = new ArrayList<>(width);
+        for (int i = 0; i < width; i++) {
+            SqlExpr v = SqlExpr.Column.derived(alias, "v" + i);
+            ps.add(new SqlSelect.Projection(v, "v" + i, null));
+            by.add(v);
+        }
+        ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), COUNT, null));
+        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(1), MARKER, null));
+        return new SqlSelect(ps, false, new SqlSource.Subselect(cells, alias, null), null, by, null, null, List.of(),
+                null, null, List.of());
+    }
+
+    /** {@code (SELECT l.v0.., l.n, l.m FROM (left) l LEFT JOIN (right) r ON l.v0 <=> r.v0 .. AND l.n = r.n WHERE
+     *  r.m IS NULL)}: the counted rows of {@code left} that {@code right} does not hold as often. */
+    private static SqlQuery antiJoin(SqlQuery left, SqlQuery right, int width) {
+        SqlExpr on = SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.derived("_l", COUNT),
+                SqlExpr.Column.derived("_r", COUNT));
+        List<SqlSelect.Projection> ps = new ArrayList<>(width + 2);
+        for (int i = 0; i < width; i++) {
+            on = SqlExpr.Call.of(SqlFn.AND, on, SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
+                    SqlExpr.Column.derived("_l", "v" + i), SqlExpr.Column.derived("_r", "v" + i)));
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.derived("_l", "v" + i), "v" + i, null));
+        }
+        ps.add(new SqlSelect.Projection(SqlExpr.Column.derived("_l", COUNT), COUNT, null));
+        ps.add(new SqlSelect.Projection(SqlExpr.Column.derived("_l", MARKER), MARKER, null));
+        return new SqlSelect(ps, false, new SqlSource.Join(new SqlSource.Subselect(left, "_l", null),
+                new SqlSource.Subselect(right, "_r", null), SqlSource.Join.Kind.LEFT, on),
+                SqlExpr.Call.of(SqlFn.IS_NULL, SqlExpr.Column.derived("_r", MARKER)), List.of(), null, null,
+                List.of(), null, null, List.of());
     }
 
     /** The marker column the anti-joins read: a row's presence. */
     private static final String MARKER = "_m";
+
+    /** A counted row's count column. */
+    private static final String COUNT = "_n";
 
     // ===== the slice, reloaded read-only (B2d.2: loadAndTestExecution) =====
 
@@ -569,7 +698,7 @@ public final class TestDataPlanner {
             List<SqlSelect.Projection> ps = new ArrayList<>(def.columns().size());
             for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
                 SqlExpr cell = g != null && g.columns().contains(c.name())
-                        ? sliceCell(def, c.name(), "_u", planned.hashStrings())
+                        ? reloaded(sliceCell(def, c.name(), "_u", planned.hashStrings()), c, sqlType(c, def))
                         : new SqlExpr.Cast(new SqlExpr.NullLit(), sqlType(c, def));
                 ps.add(new SqlSelect.Projection(cell, tempColumn(def, c.name()), null));
             }
@@ -583,32 +712,110 @@ public final class TestDataPlanner {
         return out;
     }
 
+    /** A text cell {@code cell} of column {@code c} as upstream's reload writes it: an empty or {@code ---null---}
+     *  text NULL ({@code convertValuesToCsvH2}, {@code h2Extension2_1_214.pure:118-127}: the reload reads the text,
+     *  and those cells load as null; B2d.2's audit, M4); any other cell as it is. */
+    private static SqlExpr reloaded(SqlExpr cell, DatabaseDefinition.ColumnDefinition c, SqlType type) {
+        if (!isText(c.dataType())) {
+            return cell;
+        }
+        SqlExpr absent = SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("")),
+                SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("---null---")));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Group(absent), new SqlExpr.Cast(
+                new SqlExpr.NullLit(), type))), cell);
+    }
+
+    /**
+     * The table identities a reload of {@code dbFqn} replaces, each {@code store|physical name}: a database's reference
+     * to a table of the slice's physical name whose one declaration in that database's include closure is the reloaded
+     * closure's own declaration of it -- the reloaded database's tables, an included database's, and an including
+     * database's reference to either (upstream's reload drops and re-creates the table itself, whatever database
+     * names it; the audit's M1: by typed identity, never by a bare name). A reference of the slice's physical name
+     * that is none of these is refused by name where it is lowered ({@code lowering/TableSwaps}).
+     */
+    public static java.util.Set<String> reads(ModelContext ctx, String dbFqn) {
+        Map<String, String> owners = new LinkedHashMap<>();
+        tablesOf(ctx, dbFqn, new java.util.HashSet<>(), new LinkedHashMap<>(), owners);
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (DatabaseDefinition d : ctx.databases().toList()) {
+            Map<String, List<String>> declared = new java.util.HashMap<>();
+            declarations(ctx, d.qualifiedName(), new java.util.HashSet<>(), declared);
+            for (Map.Entry<String, String> e : owners.entrySet()) {
+                List<String> by = declared.get(e.getKey());
+                if (by != null && by.size() == 1 && by.get(0).equals(e.getValue())) {
+                    out.add(d.qualifiedName() + "|" + e.getKey());
+                }
+            }
+        }
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
+    /** Each physical name the include closure of {@code dbFqn} declares, with the database of each declaration. */
+    private static void declarations(ModelContext ctx, String dbFqn, java.util.Set<String> seen,
+            Map<String, List<String>> out) {
+        if (!seen.add(dbFqn)) {
+            return;
+        }
+        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElseThrow(() -> new IllegalStateException(
+                "testDataGen: no database '" + dbFqn + "', an include of the model's"));
+        for (DatabaseDefinition.TableDefinition t : db.tables()) {
+            out.computeIfAbsent(t.name(), k -> new ArrayList<>()).add(dbFqn);
+        }
+        for (DatabaseDefinition.SchemaDefinition sc : db.schemas()) {
+            for (DatabaseDefinition.TableDefinition t : sc.tables()) {
+                out.computeIfAbsent(physical(sc.name(), t.name()), k -> new ArrayList<>()).add(dbFqn);
+            }
+        }
+        for (String include : db.includes()) {
+            declarations(ctx, include, seen, out);
+        }
+    }
+
     /** A table's physical name: {@code TABLE} in the default schema, else {@code SCHEMA.TABLE}. */
     private static String physical(String schema, String table) {
         return "default".equals(schema) ? table : schema + "." + table;
     }
 
-    /** Every table of {@code dbFqn} and of the databases it includes, by physical name (the first a name meets). */
+    /** Every table of {@code dbFqn} and of the databases it includes, by physical name. Two tables of one physical
+     *  name in the closure are refused by name: the reload's rows of that name would be ambiguous (B2d.2's audit, M1;
+     *  upstream's {@code allSchemas} merges a schema's tables across includes by the table). */
     private static Map<String, DatabaseDefinition.TableDefinition> tablesOf(ModelContext ctx, String dbFqn,
             java.util.Set<String> seen) {
         Map<String, DatabaseDefinition.TableDefinition> out = new LinkedHashMap<>();
+        Map<String, String> owners = new LinkedHashMap<>();
+        tablesOf(ctx, dbFqn, seen, out, owners);
+        return out;
+    }
+
+    private static void tablesOf(ModelContext ctx, String dbFqn, java.util.Set<String> seen,
+            Map<String, DatabaseDefinition.TableDefinition> out, Map<String, String> owners) {
         if (!seen.add(dbFqn)) {
-            return out;
+            return;
         }
         DatabaseDefinition db = ctx.findDatabase(dbFqn).orElseThrow(() -> new IllegalStateException(
                 "testDataGen: no database '" + dbFqn + "' to reload the slice into"));
         for (DatabaseDefinition.TableDefinition t : db.tables()) {
-            out.putIfAbsent(t.name(), t);
+            add(out, owners, t.name(), t, dbFqn);
         }
         for (DatabaseDefinition.SchemaDefinition sc : db.schemas()) {
             for (DatabaseDefinition.TableDefinition t : sc.tables()) {
-                out.putIfAbsent(physical(sc.name(), t.name()), t);
+                add(out, owners, physical(sc.name(), t.name()), t, dbFqn);
             }
         }
         for (String include : db.includes()) {
-            tablesOf(ctx, include, seen).forEach(out::putIfAbsent);
+            tablesOf(ctx, include, seen, out, owners);
         }
-        return out;
+    }
+
+    private static void add(Map<String, DatabaseDefinition.TableDefinition> out, Map<String, String> owners,
+            String name, DatabaseDefinition.TableDefinition t, String dbFqn) {
+        String owner = owners.putIfAbsent(name, dbFqn);
+        if (owner != null) {
+            throw new NotImplementedException("the test-data generator's slice reloaded: the table "
+                    + name + " is declared by " + owner + " and by " + dbFqn + ", both in the reloaded database's"
+                    + " includes: not planned (B2d reloads a table by one declaration)");
+        }
+        out.put(name, t);
     }
 
     /** {@code q} with each clause it reads ({@code clauses}, already inlined) read in place as a derived table. */

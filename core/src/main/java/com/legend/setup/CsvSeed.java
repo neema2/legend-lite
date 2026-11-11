@@ -254,12 +254,16 @@ public final class CsvSeed {
     }
 
     /**
-     * The RECORDS of a test-data text, quote-aware (the user's ruling 3, 2026-11-10, B_BRIEF §9: "faithful to the real
-     * data, line breaks included"; register S191; built by B2d.2, 2026-11-11): split on line breaks outside a quoted
-     * cell, so a quoted cell keeps its line breaks -- the generator writes such a cell (RFC 4180) and the text reads
-     * back. A quote opens or closes a quoted run wherever it stands, as {@link #cells} reads it (a doubled quote inside
-     * one closes and reopens it); a text with no quote splits on every line break, as it always did. {@code trailing}:
-     * whether a trailing empty record is kept ({@code split("\n", -1)}) or dropped ({@code split("\n")}).
+     * The RECORDS of a test-data text (the user's ruling 3, 2026-11-10, B_BRIEF §9: "faithful to the real data, line
+     * breaks included", read "with the same quote-aware record reader the file loads use"; register S191; built by
+     * B2d.2, 2026-11-11): the file loader's rules (the CSV format's default, legend-pure's {@code CSVFormat.EXCEL}; the
+     * reader {@code base.CsvCells} held them until 00e67e38) -- a cell is QUOTED only where it STARTS with a double
+     * quote: its text runs to the closing quote, a doubled quote one quote, its line breaks kept; after the closing
+     * quote only whitespace may come before the comma or the record's end; any other cell is its text exactly, a quote
+     * inside it a character. A record ends at a line break outside a quoted cell. A text that ends inside a quoted cell,
+     * or has text between a closing quote and the next comma, is refused by name ({@link Malformed}), never repaired.
+     * {@code trailing}: whether a trailing empty record is kept ({@code split("\n", -1)}) or dropped
+     * ({@code split("\n")}); a text with no quote splits on every line break, as it always did.
      */
     static List<String> records(String text, boolean trailing) {
         List<String> out = new ArrayList<>();
@@ -267,16 +271,36 @@ public final class CsvSeed {
             out.addAll(java.util.Arrays.asList(trailing ? text.split("\n", -1) : text.split("\n")));
             return out;
         }
-        boolean quoted = false;
         int start = 0;
-        for (int i = 0; i < text.length(); i++) {
+        int i = 0;
+        int line = 1;
+        boolean cellStart = true;
+        while (i < text.length()) {
             char c = text.charAt(i);
-            if (c == '"') {
-                quoted = !quoted;
-            } else if (c == '\n' && !quoted) {
+            if (cellStart && c == '"') {
+                int opened = line;
+                int close = closingQuote(text, i + 1);
+                if (close < 0) {
+                    throw new Malformed("the test data ends inside the quoted cell that starts on line " + opened);
+                }
+                for (int k = i + 1; k < close; k++) {
+                    if (text.charAt(k) == '\n') {
+                        line++;
+                    }
+                }
+                i = afterClosingQuote(text, close + 1, line);
+                cellStart = false;
+                continue;
+            }
+            if (c == '\n') {
                 out.add(text.substring(start, i));
                 start = i + 1;
+                line++;
+                cellStart = true;
+            } else {
+                cellStart = c == ',';
             }
+            i++;
         }
         out.add(text.substring(start));
         if (!trailing) {
@@ -287,9 +311,48 @@ public final class CsvSeed {
         return out;
     }
 
-    /** One table's block of a test-data text, as lite's reader reads it: its schema, its table, its header's names
-     *  and its rows, each cell as written (its quotes read, RFC 4180), an empty or {@code ---null---} cell null --
-     *  the engine's absent cell ({@code Ddl}'s {@code NULL_CELLS}). */
+    /** The index of the quote that closes a quoted cell whose text starts at {@code from} (a doubled quote is one
+     *  quote of the text), or -1 where the text ends inside the cell. */
+    private static int closingQuote(String text, int from) {
+        for (int k = from; k < text.length(); k++) {
+            if (text.charAt(k) == '"') {
+                if (k + 1 < text.length() && text.charAt(k + 1) == '"') {
+                    k++;
+                    continue;
+                }
+                return k;
+            }
+        }
+        return -1;
+    }
+
+    /** The index of the comma, line break or end that follows a closing quote at {@code from - 1}, whitespace between
+     *  them dropped; anything else between them refused by name. */
+    private static int afterClosingQuote(String text, int from, int line) {
+        int k = from;
+        while (k < text.length() && text.charAt(k) != ',' && text.charAt(k) != '\n') {
+            if (!Character.isWhitespace(text.charAt(k))) {
+                throw new Malformed("the test data's line " + line + " has '" + text.charAt(k) + "' between a quoted"
+                        + " cell's closing quote and the next comma");
+            }
+            k++;
+        }
+        return k;
+    }
+
+    /** A test-data text that is not a CSV text by the file loader's rules (a malformed quoted cell): refused by name,
+     *  never repaired. */
+    public static final class Malformed extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
+        Malformed(String message) {
+            super(message);
+        }
+    }
+
+    /** One table's block of a test-data text, as lite's reader reads it: its schema, its table, its header's cells
+     *  and its rows, each cell as written (its quotes read by {@link #records}' rules), nothing normalized: a reader that
+     *  compares or loads the cells applies its own rule to them. */
     public record Block(String schema, String table, List<String> header, List<List<String>> rows) {
         public Block {
             header = List.copyOf(header);
@@ -297,9 +360,9 @@ public final class CsvSeed {
         }
     }
 
-    /** {@code csvBlocks}'s blocks, read as {@link #steps} reads them (quote-aware: {@link #records}): blocks separated
-     *  by a line of dashes, each its schema, table and header lines, then its non-blank rows; a block of fewer than
-     *  three lines is none. */
+    /** {@code csvBlocks}'s blocks, read as {@link #steps} reads them ({@link #records}): blocks separated by a line of
+     *  dashes, each its schema, table and header lines, then its non-blank rows; a block of fewer than three lines is
+     *  none. */
     public static List<Block> blocks(String csvBlocks) {
         List<Block> out = new ArrayList<>();
         List<String> block = new ArrayList<>();
@@ -316,63 +379,47 @@ public final class CsvSeed {
             }
             List<String> lines = block.subList(first, block.size());
             if (lines.size() >= 3) {
-                List<String> header = new ArrayList<>();
-                for (String h : cells(lines.get(2))) {
-                    header.add(h.strip());
-                }
                 List<List<String>> rows = new ArrayList<>();
                 for (String r : lines.subList(3, lines.size())) {
-                    if (r.strip().isEmpty()) {
-                        continue;
+                    if (!r.strip().isEmpty()) {
+                        rows.add(List.of(cells(r)));
                     }
-                    List<String> row = new ArrayList<>();
-                    for (String cell : cells(r)) {
-                        row.add(cell.isEmpty() || cell.equals("---null---") ? null : cell);
-                    }
-                    rows.add(java.util.Collections.unmodifiableList(row));
                 }
-                out.add(new Block(lines.get(0).strip(), lines.get(1).strip(), header, rows));
+                out.add(new Block(lines.get(0).strip(), lines.get(1).strip(), List.of(cells(lines.get(2))), rows));
             }
             block = new ArrayList<>();
         }
         return out;
     }
 
-    /** One CSV line's cells. A bare line splits on commas; a cell wrapped
-     *  in double quotes keeps its commas and reads {@code ""} as one
-     *  quote (RFC 4180, the engine's relational CSV reader) — the two forms
-     *  agree on every line that carries no quote. */
+    /** One record's cells by the rules of {@link #records}: a cell that starts with a double quote is quoted (its
+     *  commas and line breaks kept, a doubled quote one quote, whitespace after its closing quote dropped), any other
+     *  cell its text exactly; a line with no quote splits on every comma, as it always did. */
     static String[] cells(String line) {
         if (line.indexOf('"') < 0) {
             return line.split(",", -1);
         }
         List<String> out = new ArrayList<>();
-        StringBuilder cell = new StringBuilder();
-        boolean quoted = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (quoted) {
-                if (c == '"') {
-                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                        cell.append('"');
-                        i++;
-                    } else {
-                        quoted = false;
-                    }
-                } else {
-                    cell.append(c);
+        int i = 0;
+        while (true) {
+            if (i < line.length() && line.charAt(i) == '"') {
+                int close = closingQuote(line, i + 1);
+                if (close < 0) {
+                    throw new Malformed("the test data ends inside a quoted cell of the record '" + line + "'");
                 }
-            } else if (c == '"') {
-                quoted = true;
-            } else if (c == ',') {
-                out.add(cell.toString());
-                cell.setLength(0);
+                out.add(line.substring(i + 1, close).replace("\"\"", "\""));
+                i = afterClosingQuote(line, close + 1, 1);
             } else {
-                cell.append(c);
+                int comma = line.indexOf(',', i);
+                int end = comma < 0 ? line.length() : comma;
+                out.add(line.substring(i, end));
+                i = end;
             }
+            if (i >= line.length()) {
+                return out.toArray(String[]::new);
+            }
+            i++;
         }
-        out.add(cell.toString());
-        return out.toArray(String[]::new);
     }
 
     /** The names of {@code def}'s columns its store declared quoted ({@code "Amt"}). */

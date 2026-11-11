@@ -52,8 +52,11 @@ class FixtureWriteCensusTest {
      *  never reach it -- on every in-process database that spells one (DataTableSessionTest, 2) and on Postgres
      *  (DataDeliveryMatrixPostgresTest, 2). 910 -> 912 (2026-11-11, B2d, the user's ruling 3, register S191): the
      *  generator's faithful-output case seeds a cell holding a line break (TestDataPlannerTest, 2), which the test-data
-     *  reader cannot read until B2d.2 makes it quote-aware -- then those two become its CSV and the ceiling falls back. */
-    private static final int CEILING = 912;
+     *  reader cannot read until B2d.2 makes it quote-aware -- then those two become its CSV and the ceiling falls back.
+     *  912 -> 911 (2026-11-11, B2d.2's audit, H2 and M4): those two are TestDataPlannerTest's CSV now (the reader
+     *  quote-aware), and GeneratedTestDataProgramTest seeds one text cell holding the empty text (1), which no CSV can
+     *  seed (the reader loads an empty cell as NULL), for the reload's empty-text-as-NULL case. */
+    private static final int CEILING = 911;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -173,10 +176,10 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/testcases/IqParity.java", 1),
             Map.entry("core/src/test/java/com/legend/testcases/PostgresSeed.java", 4),
             Map.entry("core/src/test/java/com/legend/testcases/SqlParity.java", 1),
-            // 2026-11-11, B2d (the user's ruling 3, register S191): the generator's faithful-output case seeds a cell
-            // holding a line break, which the test-data reader (CsvSeed) cannot read until B2d.2 makes it quote-aware;
-            // these two writes become that case's CSV then, and this pin goes
-            Map.entry("core/src/test/java/com/legend/testdatagen/TestDataPlannerTest.java", 2),
+            // 2026-11-11, B2d.2's audit (M4): the reload's empty-text-as-NULL case seeds a text cell holding the empty
+            // text, which no CSV can seed (the test-data reader loads an empty cell as NULL). TestDataPlannerTest's two
+            // (B2d, ruling 3) are its CSV now, the reader quote-aware (H2): their pin went
+            Map.entry("core/src/test/java/com/legend/testdatagen/GeneratedTestDataProgramTest.java", 1),
             Map.entry("core/src/test/java/com/legend/testplan/RenderedTextTest.java", 2),
             Map.entry("spec/src/test/java/com/legend/harness/ReplayReferee.java", 7),
             Map.entry("testing/src/main/java/com/legend/testing/EmbeddedPostgres.java", 1),

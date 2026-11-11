@@ -40,7 +40,10 @@ public final class PeRatchets {
                     + " RowLoadCellsTest, TextPlanSourceTest and the rest)",
             "own_corpus.matched 3106 -> 3116 (2026-11-11, B2e): EmbeddedDataKindsTest's ten elements (a Database and three"
                     + " Data elements; a service's model of six)",
-            "own_corpus.matched 3116 -> 3117 (2026-11-11, B2a): JsonSourceFrameArrayTextTest's class, the frame's model");
+            "own_corpus.matched 3116 -> 3117 (2026-11-11, B2a): JsonSourceFrameArrayTextTest's class, the frame's model",
+            "own_corpus.matched 3117 -> 3136 (2026-11-11, B2d.2 and its audit round): the test-data generator's tests'"
+                    + " models (GeneratedTestDataProgramTest's store, mapping, helpers and runtimes, TestDataPlannerTest's"
+                    + " and ReservedNamesGenerationTest's)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
