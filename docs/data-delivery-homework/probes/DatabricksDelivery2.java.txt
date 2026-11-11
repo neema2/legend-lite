@@ -155,3 +155,16 @@ public class DatabricksDelivery2Probe {
         return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
     }
 }
+
+// MEASURED 2026-11-11 by the Databricks lane from 8a959be45 (databricks-jdbc 3.4.3, dbsql_version 2026.44), connected
+// as the lane's harness does (CloudLane.openSystem); no SQL line changed. The answers:
+//   A. Both forms -- variant_explode(parse_json(?)) and posexplode(from_json(?, 'array<string>')) -- keep the quote, the
+//      line break, the order (pos 0, 1), the empty array (no row), nested values and types (1.50 a DECIMAL(2,1) 1.5,
+//      null a VOID). The driver binds the parameter BESIDE the statement (the refusal below is a parameter limit and
+//      the statement shows its ?): "Parameterized query's parameters are too large: the combined size of parameters is
+//      5566677, exceeding the limit of 1048576 characters" -- 1 MiB of parameter characters.
+//   B.   records    inline VALUES          session table (today's form)   variant_explode(?)   posexplode(?)
+//        2          537 ms                 9,666 ms                       344 ms               511 ms
+//        1,000      472 ms                 4,147 ms                       365 ms               374 ms
+//        10,000     1,173 ms               14,066 ms                      557 ms               626 ms
+//        100,000    4,205 ms (6.96M chars) 133,808 ms                     REFUSED (over 1 MiB) REFUSED (over 1 MiB)
