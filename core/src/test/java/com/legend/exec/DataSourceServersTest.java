@@ -86,6 +86,22 @@ class DataSourceServersTest {
         }
     }
 
+    /** A payload past Trino's statement limit ({@code query.max-length}, the server's setting, 1,000,000 characters
+     *  by default; the B checkpoint's correctness audit, C5, 2026-11-11: no longer refused at planning) is refused by
+     *  Trino itself, told under the payload's planned label (LOW 4): its digest's head and its size. */
+    @Test
+    void trinosOwnStatementLimitRefusesAPayloadNamingIt() throws Exception {
+        String element = "{\"t\":\"" + "x".repeat(1000) + "\"}";
+        String array = "[" + String.join(",", java.util.Collections.nCopies(1000, element)) + "]";
+        String digest = com.legend.cache.Hash.ofUtf8(array).hex();
+        var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.DataError.class, () -> rows(
+                DatabaseType.Trino, "|sourceUrl('data:application/json," + array + "')->from("
+                        + StorelessRuntime.RUNTIME + ")"));
+        assertTrue(refused.getMessage().startsWith("the statement reading the data: payload " + digest.substring(0, 16)
+                + " (" + array.length() + " characters) was refused: "), refused.getMessage().substring(0,
+                        Math.min(400, refused.getMessage().length())));
+    }
+
     /** {@code type}'s plan of {@code query}, run: no load, its JSON rows. */
     private static String rows(DatabaseType type, String query) throws Exception {
         var backend = TestBackends.of(type);
@@ -113,7 +129,7 @@ class DataSourceServersTest {
         String json = com.legend.executionplan.PlanJson.write(plan);
         assertTrue(!json.contains("legend_data_") && plan.answerSql().target().loads().isEmpty(),
                 type + ": no session table, no load: " + json);
-        boolean bound = backend.dialect().deliver(new SqlDialect.DataPayload(new com.legend.sql.SqlSource.SourceUrl(
+        boolean bound = backend.dialect().deliver(SqlDialect.DataPayload.alone(new com.legend.sql.SqlSource.SourceUrl(
                 "data:application/json,[1]", "t0", List.of(new com.legend.sql.OutputCol("data",
                         com.legend.sql.SqlType.Scalar.JSON, true, com.legend.sql.OutputCol.Origin.DERIVED)),
                 com.legend.sql.SqlSource.SourceUrl.Form.ELEMENTS), List.of("1")))

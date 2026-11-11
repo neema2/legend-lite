@@ -686,6 +686,7 @@ public final class PlanJson {
             case ExecutionPlan.Binding.Payload payload -> {
                 o.put("_type", BindingTag.payload.name());
                 o.put("digest", payload.digest());
+                o.put("label", payload.label());
             }
         }
         return o;
@@ -1125,7 +1126,7 @@ public final class PlanJson {
                     o.has("fraction") ? o.getInt("fraction") : null);
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
             case source -> new ExecutionPlan.Binding.Source(o.getString("location"));
-            case payload -> new ExecutionPlan.Binding.Payload(o.getString("digest"));
+            case payload -> new ExecutionPlan.Binding.Payload(o.getString("digest"), o.getString("label"));
         };
     }
 

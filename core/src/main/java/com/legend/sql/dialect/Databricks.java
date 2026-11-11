@@ -81,13 +81,17 @@ public final class Databricks extends AnsiSqlRenderer {
      *  docs/data-delivery-homework/probes/DatabricksDelivery2.java.txt). */
     static final int MAX_PARAMETER_CHARS = 1_048_576;
 
-    /** {@inheritDoc} The payload bound as one parameter, split by the database, up to its parameter limit
-     *  ({@link #MAX_PARAMETER_CHARS}); above it, the statement's own rows (the JSON pass, the user's "Yes on
-     *  Databricks", 2026-11-11; measured: 10,000 records bound in 557 ms, 100,000 inline in 4,205 ms, where the session
-     *  table took 133,808). */
+    /** {@inheritDoc} The payload bound as one parameter, split by the database, while the statement's parameters fit
+     *  its driver's limit TOGETHER ({@link #MAX_PARAMETER_CHARS}: the payloads bound before it in the statement, each
+     *  slot counted, and this one; a statement that binds a value only its run knows, whose size no plan counts, binds
+     *  none); else the statement's own rows (the JSON pass, the user's "Yes on Databricks", 2026-11-11; measured:
+     *  10,000 records bound in 557 ms, 100,000 inline in 4,205 ms, where the session table took 133,808. The B
+     *  checkpoint's correctness audit, C3, 2026-11-11: until then each payload was measured alone, so a payload of
+     *  600,000 characters read twice, or two that each fit, bound 1.2 million and were refused at run). */
     @Override
     public SqlSource deliver(SqlDialect.DataPayload payload) {
-        return payload.array().length() <= MAX_PARAMETER_CHARS ? payload.bound() : inlineRows(payload);
+        return !payload.runValues() && payload.boundBefore() + payload.array().length() <= MAX_PARAMETER_CHARS
+                ? payload.bound() : inlineRows(payload);
     }
 
     /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured): each element a

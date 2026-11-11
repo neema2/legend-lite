@@ -109,7 +109,7 @@ class DataSourcesDeliveryTest {
                 continue;   // no dialect at all: no query reaches the database
             }
             assertTrue(BOUND.containsKey(type) || INLINE.contains(type), type + " is bound or inline");
-            SqlSource read = dialect.deliver(new SqlDialect.DataPayload(source(PAYLOAD), List.of("{\"t\":1}")));
+            SqlSource read = dialect.deliver(SqlDialect.DataPayload.alone(source(PAYLOAD), List.of("{\"t\":1}")));
             assertEquals(BOUND.containsKey(type), read instanceof SqlSource.SourceUrl, type.name());
         }
     }
@@ -148,6 +148,46 @@ class DataSourcesDeliveryTest {
                 + " `u_frame_ord__` FROM VALUES ('{\"t\":\"xx"), inline.sql().substring(0, 200));
     }
 
+    /**
+     * Databricks bounds a statement's parameters TOGETHER (its driver: "the combined size of parameters"), so the
+     * statement's payloads are decided against what it binds already (the B checkpoint's correctness audit, C3,
+     * 2026-11-11: each was measured alone, so a payload read twice, or two that each fit, bound past the limit and were
+     * refused at run): a payload of 600,000 characters read by both arms of a union binds once and is written inline
+     * the second time, two different payloads likewise; a statement binding a value only its run knows (a declared
+     * parameter, whose size no plan counts) binds none.
+     */
+    @Test
+    void databricksDecidesAStatementsPayloadsTogether() {
+        SqlDialect databricks = dialect(DatabaseType.Databricks);
+        String element = "{\"t\":\"" + "x".repeat(1000) + "\"}";
+        java.util.function.Function<String, String> payload = mark -> "data:application/json,[" + String.join(",",
+                java.util.Collections.nCopies(590, element.replace("xx", mark))) + "]";
+        for (List<String> urls : List.of(List.of(payload.apply("xx"), payload.apply("xx")),
+                List.of(payload.apply("xx"), payload.apply("yy")))) {
+            assertTrue(urls.get(0).length() < 1_048_576 && urls.get(0).length() * 2L > 1_048_576, "each fits, two not");
+            SqlQuery union = new com.legend.sql.SqlUnion(List.of(frame(urls.get(0)), frame(urls.get(1))), true,
+                    frame(urls.get(0)).outputs());
+            RenderedStatement written = databricks.renderStatement(DataSources.read(union, databricks));
+            assertEquals(1, written.binds().size(), "one bound, the other inline");
+            assertTrue(written.sql().contains("FROM VALUES ('{\"t\":\""), "the second inline");
+        }
+        String small = "data:application/json,[{\"a\":1}]";
+        String model = """
+                ###Relational
+                Database s::DB ( Table T ( ID INTEGER PRIMARY KEY ) )
+                ###Connection
+                RelationalDatabaseConnection s::Conn { store: s::DB; type: Databricks; specification: LocalH2 { }; auth: DefaultH2; }
+                ###Runtime
+                Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                """;
+        com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
+                "{a: Integer[1]|sourceUrl('" + small + "')->filter(r|cast(get($r.data, 'a'), @Integer) == $a)"
+                        + "->from(s::RT)}").executionPlan("s::RT");
+        assertTrue(plan.answerSql().slots().stream().noneMatch(slot -> slot.binding()
+                instanceof com.legend.executionplan.ExecutionPlan.Binding.Payload), "a declared parameter beside it:"
+                + " the payload inline: " + plan.answerSql().statement());
+    }
+
     /** Databricks' inline rows, pinned exactly (the orchestrator's ask, 2026-11-11: the lane measured the elements'
      *  form, not a frame's): VALUES of the elements' texts, which the select over it parses, a frame's place the
      *  second column -- {@code col1}, {@code col2}, as Spark names a VALUES' columns, aliased in the select. */
@@ -155,13 +195,13 @@ class DataSourcesDeliveryTest {
     void databricksInlineRowsAreItsMeasuredShape() {
         SqlDialect databricks = dialect(DatabaseType.Databricks);
         List<String> cut = List.of("{\"t\":1}", "{\"t\":\"it's\"}");
-        String frame = databricks.render(SqlSelect.starOf(databricks.inlineRows(new SqlDialect.DataPayload(
+        String frame = databricks.render(SqlSelect.starOf(databricks.inlineRows(SqlDialect.DataPayload.alone(
                 source("data:application/json,[{\"t\":1},{\"t\":\"it's\"}]"), cut))));
         assertEquals("SELECT *\nFROM (SELECT parse_json(legend_rows.col1) AS `data`, legend_rows.col2 AS `u_frame_ord__`"
                 + " FROM VALUES ('{\"t\":1}', 0L), ('{\"t\":\"it\\'s\"}', 1L) AS legend_rows(col1, col2)) AS `t0`", frame);
         List<OutputCol> elementOutputs = List.of(new OutputCol("data", SqlType.Scalar.JSON, true,
                 OutputCol.Origin.DERIVED));
-        String elements = databricks.render(SqlSelect.starOf(databricks.inlineRows(new SqlDialect.DataPayload(
+        String elements = databricks.render(SqlSelect.starOf(databricks.inlineRows(SqlDialect.DataPayload.alone(
                 new SqlSource.SourceUrl("data:application/json,[{\"t\":1},{\"t\":\"it's\"}]", "t0", elementOutputs,
                         SqlSource.SourceUrl.Form.ELEMENTS), cut))));
         assertEquals("SELECT *\nFROM (SELECT parse_json(legend_rows.col1) AS `data` FROM VALUES ('{\"t\":1}'),"
@@ -318,16 +358,17 @@ class DataSourcesDeliveryTest {
         return e instanceof com.legend.sql.SqlExpr.Column c && c.name().equals(SqlSource.SourceUrl.PLACE);
     }
 
-    /** Trino's driver writes a parameter into the statement's text, which Trino bounds at 1,000,000 characters: a
-     *  payload whose literal alone is longer can never run, refused at planning by name. */
+    /** Trino's statement limit is its server's setting ({@code query.max-length}), the database's to enforce (the B
+     *  checkpoint's correctness audit, C5, 2026-11-11: until then a payload whose literal passed 1,000,000 characters
+     *  was refused at planning, wrongly on a server configured larger): such a payload is bound as any other, and
+     *  Trino's own refusal names it at the seam (DataSourceServersTest). */
     @Test
-    void trinoRefusesAPayloadLongerThanItsStatementLimitAtPlanning() {
+    void trinoBindsAPayloadPastItsDefaultStatementLimit() {
         SqlDialect trino = dialect(DatabaseType.Trino);
         String element = "{\"t\":\"" + "x".repeat(1000) + "\"}";
         String url = "data:application/json,[" + String.join(",", java.util.Collections.nCopies(1000, element)) + "]";
-        var refused = assertThrows(com.legend.sql.DialectCapability.class, () -> DataSources.read(frame(url), trino));
-        assertTrue(refused.getMessage().contains("1000 element(s)") && refused.getMessage().contains("1000000")
-                && refused.getMessage().contains("query.max-length"), refused.getMessage());
+        RenderedStatement bound = trino.renderStatement(DataSources.read(frame(url), trino));
+        assertEquals(1, bound.binds().size(), "bound: " + bound.sql());
     }
 
     /** A payload that is no array of records is refused by name before any dialect is asked, on every database. */

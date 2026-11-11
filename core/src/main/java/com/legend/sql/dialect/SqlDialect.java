@@ -48,13 +48,30 @@ public interface SqlDialect {
      * whatever the database -- the source it was read from and its elements cut once (an array's elements, or a frame's
      * records in their order). How it reaches the database is {@link #deliver}'s, the dialect's alone.
      */
-    record DataPayload(com.legend.sql.SqlSource.SourceUrl source, java.util.List<String> elements) {
+    record DataPayload(com.legend.sql.SqlSource.SourceUrl source, java.util.List<String> elements, long boundBefore,
+            boolean runValues) {
         /** The element's column: each element's JSON. */
         public static final String ELEMENT = "data";
 
+        /**
+         * {@code boundBefore}: the characters of the payloads its statement binds before this one, each slot counted
+         * (a payload bound twice twice), as a driver counts its parameters; {@code runValues}: whether the statement
+         * binds a value only its run knows (a declared parameter, a keyed region's key, a live source's admitted path),
+         * whose size no plan can count. A database whose driver bounds a statement's parameters together decides
+         * against them (Databricks: the B checkpoint's correctness audit, C3, 2026-11-11 -- until then each payload was
+         * measured alone, so two that fit refused at run together).
+         */
         public DataPayload {
             java.util.Objects.requireNonNull(source, "source");
             elements = java.util.List.copyOf(elements);
+            if (boundBefore < 0) {
+                throw new IllegalArgumentException("a payload's characters bound before it: " + boundBefore);
+            }
+        }
+
+        /** {@code source}'s payload, cut into {@code elements}, the one value its statement binds. */
+        public static DataPayload alone(com.legend.sql.SqlSource.SourceUrl source, java.util.List<String> elements) {
+            return new DataPayload(source, elements, 0, false);
         }
 
         /** The relation's columns: the element, and its place where the source reads it

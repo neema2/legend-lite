@@ -39,7 +39,7 @@ public class DataDeliveryDeclaredTest {
         com.legend.sql.SqlSource.SourceUrl u = new com.legend.sql.SqlSource.SourceUrl(
                 "data:application/json,[{\"a\":1},{\"a\":2}]", "t0", FRAME_OUTPUTS,
                 com.legend.sql.SqlSource.SourceUrl.Form.RECORDS);
-        return dialect.deliver(new SqlDialect.DataPayload(u, List.of("{\"a\":1}", "{\"a\":2}")))
+        return dialect.deliver(SqlDialect.DataPayload.alone(u, List.of("{\"a\":1}", "{\"a\":2}")))
                 instanceof com.legend.sql.SqlSource.SourceUrl ? Kind.BOUND_PARAMETER : Kind.INLINE;
     }
 

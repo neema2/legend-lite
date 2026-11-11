@@ -122,6 +122,38 @@ public class JsonPayloadFormsTest {
         assertModelOrder(db, c);
     }
 
+    /**
+     * A PAYLOAD THE DATABASE REFUSES is told under its planned label (the B checkpoint's tenets audit, LOW 4,
+     * 2026-11-11: the label is the plan's, the runner writing nothing from the value it binds): a payload's element
+     * that is no JSON, on each database that binds the payload, refused naming the payload's digest and size; a raise
+     * inside such a statement (pure's own error: a division by zero) is told by its type, its text pure's exactly.
+     */
+    @ParameterizedTest
+    @MethodSource("inProcess")
+    void aPayloadsRefusalIsToldUnderItsPlannedLabel(DatabaseType db) throws Exception {
+        String model = TestBackends.of(db).withStorelessRuntime("");
+        try (Connection c = TestBackends.of(db).open()) {
+            String bad = "[{\"t\":nope}]";
+            if (!TestBackends.of(db).dialect().deliver(SqlDialect.DataPayload.alone(new SqlSource.SourceUrl(
+                    "data:application/json," + bad, "t0", List.of(new OutputCol("data", SqlType.Scalar.JSON, true,
+                            OutputCol.Origin.PHYSICAL)), SqlSource.SourceUrl.Form.ELEMENTS), List.of("{\"t\":nope}")))
+                    .getClass().equals(SqlSource.SourceUrl.class)) {
+                return;   // the payload is the statement's own rows: no slot binds it, the database's text as it is
+            }
+            String digest = com.legend.cache.Hash.ofUtf8(bad).hex();
+            var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.DataError.class,
+                    () -> run(c, model, source(bad) + "->from(" + StorelessRuntime.RUNTIME + ")"));
+            assertTrue(refused.getMessage().startsWith("the statement reading the data: payload "
+                    + digest.substring(0, 16) + " (" + bad.length() + " characters) was refused: "),
+                    db + ": " + refused.getMessage());
+            var raised = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.DataError.class,
+                    () -> run(c, model, source("[{\"a\":1}]") + "->extend(~[d: r|1 / (cast(get($r.data, 'a'),"
+                            + " @Integer)->toOne() - 1)])->select(~[d])->from(" + StorelessRuntime.RUNTIME + ")"));
+            assertTrue(!raised.getMessage().contains("was refused"), db + ": a raise is pure's own text: "
+                    + raised.getMessage());
+        }
+    }
+
     /** A JSON connection's model on {@code db}'s runtime (the orchestrator's finding, 2026-11-11): its records out of
      *  key order, so an order the database chose on its own would show. */
     static String jsonModel(DatabaseType db) {
@@ -213,7 +245,7 @@ public class JsonPayloadFormsTest {
         SqlSource.SourceUrl url = new SqlSource.SourceUrl("data:application/json," + records, "t0", outputs,
                 SqlSource.SourceUrl.Form.RECORDS);
         List<String> cut = List.of("{\"t\":\"it's\"}", "{\"t\":\"a\\nb\"}", "{\"t\":\"c\"}");
-        SqlSource read = dialect.deliver(new SqlDialect.DataPayload(url, cut));
+        SqlSource read = dialect.deliver(SqlDialect.DataPayload.alone(url, cut));
         RenderedStatement statement = dialect.renderStatement(SqlSelect.starOf(read));
         Map<Long, Object> byPlace = new TreeMap<>();
         try (java.sql.PreparedStatement p = c.prepareStatement(statement.sql())) {

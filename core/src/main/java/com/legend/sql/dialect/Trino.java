@@ -91,24 +91,16 @@ public final class Trino extends AnsiSqlRenderer {
         return 9;
     }
 
-    /** The longest statement text Trino takes (its {@code query.max-length}, 1,000,000 characters by default; the
-     *  JSON pass, 2026-11-11). */
-    static final int MAX_QUERY_LENGTH = 1_000_000;
-
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11; until then
      *  the statement's own VALUES rows: Trino holds no session table, probes/TrinoDataTable.java.txt). Trino's driver
-     *  writes a parameter into the statement's text, a string literal with each quote doubled, and the text is bounded
-     *  ({@link #MAX_QUERY_LENGTH}): a payload whose literal alone is longer can never run, and is refused here, at
-     *  planning, by name. */
+     *  writes a parameter into the statement's text, which the server bounds by its {@code query.max-length} -- a SERVER
+     *  setting (1,000,000 characters by default), so the database enforces it and its refusal reaches the caller under
+     *  the payload's planned label, as ClickHouse's {@code max_query_size} and MySQL's {@code max_allowed_packet} do (the
+     *  B checkpoint's correctness audit, C5, 2026-11-11: until then a payload whose literal passed 1,000,000 characters
+     *  was refused here, at planning -- wrongly on a server configured larger, and blind to the rest of the statement
+     *  and to its other payloads). */
     @Override
     public SqlSource deliver(SqlDialect.DataPayload payload) {
-        String array = payload.array();
-        long literal = array.length() + 2L + array.chars().filter(c -> c == '\'').count();
-        if (literal > MAX_QUERY_LENGTH) {
-            throw new DialectCapability("a data: payload of " + payload.elements().size() + " element(s), its text "
-                    + literal + " characters as Trino's driver writes it into the statement, exceeds Trino's"
-                    + " statement limit of " + MAX_QUERY_LENGTH + " characters (query.max-length)");
-        }
         return payload.bound();
     }
 

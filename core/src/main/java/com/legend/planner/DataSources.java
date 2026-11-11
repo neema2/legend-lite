@@ -35,7 +35,8 @@ public final class DataSources {
     /** {@code q} reading each {@code data:} source as {@code dialect}'s database takes it, in the payload's order where
      *  {@code q} asks none ({@link #inPayloadOrder}). */
     public static SqlQuery read(SqlQuery q, SqlDialect dialect) {
-        return new Rewriter(dialect).rewrite(inPayloadOrder(q));
+        SqlQuery ordered = inPayloadOrder(q);
+        return new Rewriter(dialect, RunValues.in(ordered)).rewrite(ordered);
     }
 
     /**
@@ -219,7 +220,7 @@ public final class DataSources {
 
     /** {@code dml}'s rows and conditions reading each {@code data:} source as {@code dialect}'s database takes it. */
     public static SqlDml read(SqlDml dml, SqlDialect dialect) {
-        Rewriter r = new Rewriter(dialect);
+        Rewriter r = new Rewriter(dialect, RunValues.in(dml));
         return switch (dml) {
             case SqlDml.InsertSelect i -> new SqlDml.InsertSelect(i.schema(), i.table(), i.quoting(), i.columns(),
                     i.quotedColumns(), r.rewrite(i.query()));
@@ -266,12 +267,19 @@ public final class DataSources {
         }.rewrite(tree);
     }
 
-    /** The rewriter: a {@code data:} source becomes the source its dialect delivers it as. */
+    /** The rewriter: a {@code data:} source becomes the source its dialect delivers it as -- told what its statement
+     *  binds besides (the payloads delivered bound before it, each slot counted; whether a value only the run knows is
+     *  bound: the B checkpoint's correctness audit, C3, 2026-11-11), so a dialect whose driver bounds a statement's
+     *  parameters together decides per statement. One per statement. */
     private static final class Rewriter extends SqlRewriter {
         private final SqlDialect dialect;
+        private final boolean runValues;
+        /** The characters of the payloads delivered bound so far in the statement. */
+        private long bound;
 
-        Rewriter(SqlDialect dialect) {
+        Rewriter(SqlDialect dialect, boolean runValues) {
             this.dialect = dialect;
+            this.runValues = runValues;
         }
 
         SqlExpr expression(SqlExpr e) {
@@ -286,13 +294,71 @@ public final class DataSources {
             String content = content(u.url());
             List<String> elements = u.form() == SqlSource.SourceUrl.Form.RECORDS ? records(content, u.url())
                     : elements(content, u.url());
-            SqlDialect.DataPayload payload = new SqlDialect.DataPayload(u, elements);
+            SqlDialect.DataPayload payload = new SqlDialect.DataPayload(u, elements, bound, runValues);
             SqlSource delivered = dialect.deliver(payload);
+            if (delivered instanceof SqlSource.SourceUrl) {
+                // bound: one more parameter of the payload's characters
+                bound += payload.array().length();
+            }
             // a payload written as the statement's own rows is named by its digest (as a bound one's text is), which
             // the typed tree its plan carries reads it by (byDigest): the rows once, the statement's text
             return delivered instanceof SqlSource.Values v ? new SqlSource.Values(v.rows(), v.columns(), v.alias(),
                     v.outputs(), new SqlSource.SourceUrl(SqlSource.SourceUrl.byDigest(com.legend.cache.Hash.ofUtf8(
                             payload.array()).hex()), u.alias(), u.outputs(), u.form())) : delivered;
+        }
+    }
+
+    /** Whether a statement binds a value only its run knows -- a declared parameter, a keyed region's key, a live
+     *  source's admitted path -- whose size no plan can count. */
+    private static final class RunValues extends SqlRewriter {
+        private boolean found;
+
+        static boolean in(SqlQuery q) {
+            RunValues scan = new RunValues();
+            scan.rewrite(q);
+            return scan.found;
+        }
+
+        static boolean in(SqlDml dml) {
+            RunValues scan = new RunValues();
+            switch (dml) {
+                case SqlDml.InsertSelect i -> scan.rewrite(i.query());
+                case SqlDml.Merge m -> scan.rewrite(m.query());
+                case SqlDml.Update u -> {
+                    u.assignments().forEach(a -> scan.rewriteExpr(a.value()));
+                    if (u.where() != null) {
+                        scan.rewriteExpr(u.where());
+                    }
+                }
+                case SqlDml.DeleteWhere d -> {
+                    if (d.where() != null) {
+                        scan.rewriteExpr(d.where());
+                    }
+                }
+                case SqlDml.CreateTempTableAs c -> scan.rewrite(c.query());
+                // rows written as literals, a staged table's name, a file's path: no query source in them
+                case SqlDml.InsertValues v -> {
+                }
+                case SqlDml.InsertFromTable t -> {
+                }
+                case SqlDml.DeleteAll d -> {
+                }
+                case SqlDml.LoadCsv l -> {
+                }
+            }
+            return scan.found;
+        }
+
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            found |= e instanceof SqlExpr.PlanParam || e instanceof SqlExpr.KeyCell;
+            return e;
+        }
+
+        @Override
+        protected SqlSource source(SqlSource s) {
+            found |= s instanceof SqlSource.SourceUrl u && !u.url().startsWith("data:");
+            return s;
         }
     }
 

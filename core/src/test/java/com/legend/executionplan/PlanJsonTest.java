@@ -100,7 +100,8 @@ class PlanJsonTest {
                 "[" + "\"x\",".repeat(PlanJson.INLINE_LIMIT_BYTES / 4) + "\"y\"]")) {
             String digest = com.legend.cache.Hash.ofUtf8(json).hex();
             Sql sql = new Sql("select * from json_each(?)", List.of(new Slot("",
-                    new ExecutionPlan.Binding.Payload(digest))), t, null, List.of(), null, java.util.Map.of(digest, json));
+                    new ExecutionPlan.Binding.Payload(digest, "the payload " + digest.substring(0, 16)))), t, null,
+                    List.of(), null, java.util.Map.of(digest, json));
             ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), sql));
             assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
             PlanJson.Bundle bundle = PlanJson.writeBundle(plan);
@@ -118,7 +119,8 @@ class PlanJsonTest {
             }
         }
         var lacks = assertThrows(IllegalArgumentException.class, () -> new Sql("select ?", List.of(new Slot("",
-                new ExecutionPlan.Binding.Payload("0".repeat(64)))), t, null, List.of(), null, java.util.Map.of()));
+                new ExecutionPlan.Binding.Payload("0".repeat(64), "the payload"))), t, null, List.of(), null,
+                java.util.Map.of()));
         assertTrue(lacks.getMessage().contains("which its content lacks"), lacks.getMessage());
         var unread = assertThrows(IllegalArgumentException.class, () -> new Sql("select 1", List.of(), t, null,
                 List.of(), null, java.util.Map.of("0".repeat(64), "[]")));

@@ -796,7 +796,8 @@ public final class PlanMaker {
             if (b.binding() instanceof RenderedStatement.Binding.Payload payload) {
                 String digest = com.legend.cache.Hash.ofUtf8(payload.json()).hex();
                 content.put(digest, payload.json());
-                slots.add(new ExecutionPlan.Slot(b.parameter(), new ExecutionPlan.Binding.Payload(digest)));
+                slots.add(new ExecutionPlan.Slot(b.parameter(), new ExecutionPlan.Binding.Payload(digest,
+                        payloadLabel(digest, payload.json()))));
             } else {
                 slots.add(new ExecutionPlan.Slot(b.parameter(), binding(b.binding())));
             }
@@ -808,6 +809,16 @@ public final class PlanMaker {
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
         return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content);
+    }
+
+    /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database
+     *  refuses it ({@link ExecutionPlan.Binding.Payload#label}: the database splits the payload itself, so its refusal --
+     *  a malformed element, a statement or packet limit -- names which payload it was, as a load's names what it loads;
+     *  planned, the runner writing nothing from the value it binds: the B checkpoint's tenets audit, LOW 4,
+     *  2026-11-11). */
+    static String payloadLabel(String digest, String json) {
+        return "the statement reading the data: payload " + digest.substring(0, 16) + " (" + json.length()
+                + " characters)";
     }
 
     /**
