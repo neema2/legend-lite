@@ -40,7 +40,10 @@ public final class PeRatchets {
                     + " RowLoadCellsTest, TextPlanSourceTest and the rest)",
             "own_corpus.matched 3106 -> 3116 (2026-11-11, B2e): EmbeddedDataKindsTest's ten elements (a Database and three"
                     + " Data elements; a service's model of six)",
-            "own_corpus.matched 3116 -> 3117 (2026-11-11, B2a): JsonSourceFrameArrayTextTest's class, the frame's model");
+            "own_corpus.matched 3116 -> 3117 (2026-11-11, B2a): JsonSourceFrameArrayTextTest's class, the frame's model",
+            "own_corpus.matched 3117 -> 3126 (2026-11-11, the JSON pass, 101b557): the Pure texts its rewritten and new"
+                    + " tests hold (JsonPayloadFormsTest, DataSourcesDeliveryTest, DataReleaseTest, SourceUrlUserCallableTest,"
+                    + " BodyRouterParityTest.dataSourcePrograms)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
