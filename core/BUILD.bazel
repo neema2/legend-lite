@@ -331,7 +331,8 @@ legend_java_library(
 )
 # legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
-# with the same code as the server. execute's run is its host's: the server hands in its driver (ConnectionResolver.RUNNER).
+# with the same code as the server. execute's run is its host's: the server hands in its product door under its file
+# fence (ConnectionResolver.runner(sources); ConnectionResolver.RUNNER is the library's, any file).
 legend_java_library(
     name = "pure_v1",
     srcs = [

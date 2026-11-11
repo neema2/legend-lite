@@ -1138,7 +1138,7 @@ class JsonM2MChainIntegrationTest {
             admitted = com.legend.exec.SourceAdmission.none();
             var e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> exec(model,
                     "test::FileRT", "model::StaffMember.all()->project(~[fullName:x|$x.fullName])"));
-            assertTrue(String.valueOf(e.getMessage()).contains("is not under a directory this run admits"),
+            assertTrue(String.valueOf(e.getMessage()).contains("is not a file this run admits"),
                     e.getMessage());
         }
 

@@ -21,12 +21,20 @@ import java.util.Objects;
  * one reader).
  *
  * @param fence each admitted directory, absolute and normalized, or null for no fence: any file
+ * @param host  what a refusal under the fence says of the host that drew it, after the source: empty for a library's
+ *              own (no host to name), the server's words for the server's ({@link #onTheServer}); never the folders
  */
-public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
+public record SourceAdmission(@com.legend.base.Nullable List<Path> fence, String host) {
 
     public SourceAdmission {
         fence = fence == null ? null : fence.stream().map(d -> Objects.requireNonNull(d, "directory").toAbsolutePath()
                 .normalize()).toList();
+        Objects.requireNonNull(host, "host");
+    }
+
+    /** {@code fence} with no host's words. */
+    public SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
+        this(fence, "");
     }
 
     /** No fence: any file a {@code file:} source names (the default, upstream's). */
@@ -47,8 +55,9 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
     /**
      * The admission a host's configuration names (the A checkpoint's tenets audit, 11, 2026-11-10: until then no host
      * could build a fence): absent, blank or {@code any}, any file (the library's default, unchanged: the user's ruling
-     * of A5); {@code none}, none; else the directories it lists, separated by the platform's path separator ({@code :}, {@code ;} on
-     * Windows), each a fence's. A listed directory that is not one is refused by name, never dropped.
+     * of A5); {@code none}, none; else the directories it lists, separated by the platform's path separator ({@code :},
+     * {@code ;} on Windows), each a fence's. A listed directory that is not one is refused by name, never dropped: a
+     * host validates its configuration with this once, where it starts (the server: the A delta audit's 5, 2026-11-11).
      */
     public static SourceAdmission configured(@com.legend.base.Nullable String value) {
         if (value == null || value.strip().isEmpty() || value.strip().equals("any")) {
@@ -72,10 +81,23 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
         return new SourceAdmission(dirs);
     }
 
+    /** This admission as the server's (the user's ruling of 2026-11-10): a refusal under its fence says how the server
+     *  names its folders, never which they are (the A delta audit's 4 and 13, 2026-11-11). */
+    public SourceAdmission onTheServer() {
+        return fence == null ? this : new SourceAdmission(fence, fence.isEmpty()
+                ? " (the server reads no file: source outside its fenced folders; none are configured: start it with"
+                        + " --sources DIR)"
+                : " (the server reads a file: source only inside the folders its --sources DIR or"
+                        + " LEGEND_LITE_SOURCE_DIRS name)");
+    }
+
     /**
      * The path the database reads for {@code location}, a source's location as its model declares it: refused by name
      * ({@link DataError}) unless it is a {@code file:} URL this machine reads and, under a fence, names a file under an
-     * admitted directory (its real path, links followed, so no link leads out).
+     * admitted directory -- as written (the path normalized, before anything on the machine is asked of it) and as it
+     * resolves (its real path, links followed, so no link leads out). Under a fence every refusal is ONE message, naming
+     * the source alone (the A delta audit's 4, 2026-11-11: until then a caller learned whether a path outside the fence
+     * existed, and the refusal echoed the fence's folders).
      */
     public String admit(String location) {
         if (!location.startsWith("file:")) {
@@ -88,24 +110,58 @@ public record SourceAdmission(@com.legend.base.Nullable List<Path> fence) {
         } catch (IllegalArgumentException | java.nio.file.FileSystemNotFoundException e) {
             throw new DataError("the source '" + location + "' is not a file: URL this machine reads", e);
         }
-        Path real = real(file);
         if (fence == null) {
             // no fence: any file, as upstream reads any (forward slashes: a database reads them on every system)
-            return real.toString().replace(java.io.File.separatorChar, '/');
+            return slashed(real(file));
         }
+        DataError refused = new DataError("the source '" + location + "' is not a file this run admits" + host);
+        // as written first: a path outside the fence is refused before the machine is asked whether it exists (an
+        // admitted folder as written or as it resolves: asking the host's own folders tells the caller nothing)
+        boolean written = false;
         for (Path d : fence) {
-            if (real.startsWith(real(d))) {
-                // forward slashes: a database reads them on every system (Windows CI, 2026-09-09)
-                return real.toString().replace(java.io.File.separatorChar, '/');
+            if (file.startsWith(d)) {
+                written = true;
+                break;
+            }
+            try {
+                if (file.startsWith(d.toRealPath())) {
+                    written = true;
+                    break;
+                }
+            } catch (java.io.IOException gone) {
+                continue;   // an admitted folder gone since the host started: as written alone
             }
         }
-        throw new DataError("the source '" + location + "' is not under a directory this run admits"
-                + (fence.isEmpty() ? " (it admits none: the server reads no file: source outside its fenced folders,"
-                        + " and none are configured -- start it with --sources DIR)" : ": " + fence));
+        if (!written) {
+            throw refused;
+        }
+        Path real;
+        try {
+            real = file.toRealPath();
+        } catch (java.io.IOException e) {
+            throw refused;
+        }
+        for (Path d : fence) {
+            Path admitted;
+            try {
+                admitted = d.toRealPath();
+            } catch (java.io.IOException e) {
+                continue;   // an admitted folder gone since the host started admits nothing
+            }
+            if (real.startsWith(admitted)) {
+                return slashed(real);
+            }
+        }
+        throw refused;
     }
 
-    /** {@code p}'s real path, links followed; a path that does not resolve (no such file, or a directory admitted
-     *  that does not exist) is refused by name, never compared as written. */
+    /** {@code p} with forward slashes: a database reads them on every system (Windows CI, 2026-09-09). */
+    private static String slashed(Path p) {
+        return p.toString().replace(java.io.File.separatorChar, '/');
+    }
+
+    /** {@code p}'s real path, links followed; a path that does not resolve is refused by name, never compared as
+     *  written (no fence: any file, so naming the path tells the caller nothing it could not read). */
     private static Path real(Path p) {
         try {
             return p.toRealPath();

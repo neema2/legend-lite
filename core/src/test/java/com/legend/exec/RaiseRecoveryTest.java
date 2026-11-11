@@ -47,19 +47,22 @@ class RaiseRecoveryTest {
             st.execute("SET @legend_raise = 'Cannot cast a collection of size 0 to multiplicity [1]'");
             assertEquals("Cannot cast a collection of size 0 to multiplicity [1]", JdbcStatements.held(c, MARIADB));
             assertNull(JdbcStatements.held(c, MARIADB), "the reset: a later failure reads no stale text");
-            assertNull(JdbcStatements.held(c, null), "a database that declares none");
+            assertNull(JdbcStatements.held(c, (DatabaseConnector.RaiseRecovery) null), "a database that declares none");
         }
     }
 
     @Test
     void aReadTheSessionRefusesIsNoText_theStatementsOwnErrorStands() throws SQLException {
         Connection c = DriverManager.getConnection("jdbc:h2:mem:raise_" + System.nanoTime());
-        // held(Connection) finds the connector by the session's product: H2 declares none
-        assertNull(JdbcStatements.held(c));
+        // held(Connection, SQLException) finds the connector by the session's product: H2 declares none
+        assertNull(JdbcStatements.held(c, new SQLException("the statement's")));
         c.close();
         // a session that cannot be asked (closed: its metadata read and any statement refused) holds no text, and
-        // the refusal is swallowed -- a failure of the read is never the statement's error
-        assertNull(JdbcStatements.held(c));
+        // the refusal is kept beside the statement's error, never dropped -- a failure of the read is never the
+        // statement's error (the A delta audit's 6, 2026-11-11)
+        SQLException statements = new SQLException("the statement's");
+        assertNull(JdbcStatements.held(c, statements));
+        assertEquals(1, statements.getSuppressed().length, "the read's failure kept beside the statement's");
         SQLException refused = assertThrows(SQLException.class, () -> JdbcStatements.held(c, MARIADB),
                 "the statements themselves, on a closed session, refuse");
         assertEquals("90007", refused.getSQLState(), "H2: the object is already closed");

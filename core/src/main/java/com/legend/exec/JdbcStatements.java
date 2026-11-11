@@ -70,7 +70,7 @@ final class JdbcStatements implements Statements {
      *  looked at, every failure paid the session's metadata read), else the database's own text
      *  ({@link RaisedErrors#dataError(SQLException, java.util.function.Supplier)}). */
     private com.legend.error.DataError failed(SQLException e) {
-        com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> held(c));
+        com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> heldBy(e));
         if (state.inTurn() && aborts()) {
             // a statement failed inside a run's turn on the catalog (§3 rule 3, A4) on a database that has aborted the
             // turn's whole transaction (DuckDB), refusing every statement until a rollback: the turn rolls back now and
@@ -101,17 +101,33 @@ final class JdbcStatements implements Statements {
     /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two
      *  declared statements ({@link DatabaseConnector#raiseRecovery}: MariaDB's and MySQL's, whose errors cannot carry
      *  a raise's text), by the seam (D65, 2026-10-29: until then the connector ran them itself). Null for a session
-     *  whose database declares none, holds none, or cannot be read (a failure of the read is not the statement's). */
-    static @com.legend.base.Nullable String held(Connection c) {
+     *  whose database declares none or holds none; a read that fails is kept beside the statement's {@code failure},
+     *  never dropped (the A delta audit's 6, 2026-11-11). On a session no plan target checked (a bracket's commit): the
+     *  driver's connector; a run's statements read the target's ({@link #heldBy}). */
+    static @com.legend.base.Nullable String held(Connection c, SQLException failure) {
         try {
             DatabaseConnector connector = Connectors.of(c);
             return connector == null ? null : held(c, connector.raiseRecovery());
         } catch (SQLException unreadable) {
+            failure.addSuppressed(unreadable);
             return null;
         }
     }
 
-    /** {@link #held(Connection)} by {@code recovery}'s statements: the read's one text (its first row's first column;
+    /** The raise this session holds after {@code e}, read by the connector the plan's target declared (the A delta
+     *  audit's 6, 2026-11-11: until then the driver's product name chose it and an unreadable read answered none), else,
+     *  on a session no target checked yet, by the driver's; a read that fails is kept beside {@code e}, never dropped. */
+    private @com.legend.base.Nullable String heldBy(SQLException e) {
+        try {
+            DatabaseConnector connector = declared != null ? declared : Connectors.of(c);
+            return connector == null ? null : held(c, connector.raiseRecovery());
+        } catch (SQLException unreadable) {
+            e.addSuppressed(unreadable);
+            return null;
+        }
+    }
+
+    /** {@link #held(Connection, SQLException)} by {@code recovery}'s statements: the read's one text (its first row's first column;
      *  null for no row), then the reset. One {@code getString}: the database's own text passed on unread. */
     static @com.legend.base.Nullable String held(Connection c,
             DatabaseConnector.@com.legend.base.Nullable RaiseRecovery recovery) throws SQLException {
@@ -451,6 +467,18 @@ final class JdbcStatements implements Statements {
                     case PlanParameters.None none -> List.of();
                     case PlanParameters.One one -> List.of(one.value());
                 };
+                Integer kept = array.fraction();
+                if (kept != null) {
+                    // an element finer than its database keeps is refused, never cut or rounded by the driver (S181:
+                    // the plan says the digits kept; the A delta audit's 2, 2026-11-11)
+                    for (Object item : items) {
+                        if (item instanceof LocalDateTime t && t.getNano() % divisor(9 - kept) != 0) {
+                            throw new com.legend.error.DataError("the list parameter '" + slot.parameter() + "' holds "
+                                    + t + ", which has more fraction digits than its database keeps (" + kept
+                                    + "): refused, never cut (S181)");
+                        }
+                    }
+                }
                 st.setArray(index, c.createArrayOf(array.elementSqlType(),
                         items.stream().map(JdbcStatements::arrayElement).toArray()));
             }
@@ -491,6 +519,15 @@ final class JdbcStatements implements Statements {
                 st.setString(index, path);
             }
         }
+    }
+
+    /** Ten to the power {@code digits}: a nanosecond count's divisor for its digits past the kept ones. */
+    private static int divisor(int digits) {
+        int d = 1;
+        for (int i = 0; i < digits; i++) {
+            d *= 10;
+        }
+        return d;
     }
 
     /** An array element as the drivers take it: a timestamp as {@code java.sql.Timestamp} (measured,

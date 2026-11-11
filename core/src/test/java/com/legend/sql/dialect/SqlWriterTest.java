@@ -42,7 +42,7 @@ class SqlWriterTest {
     void parametersAreListedInTheOrderTheirPlaceholdersAreWritten() {
         SqlWriter w = textOnly();
         RenderedStatement.Bind x = new RenderedStatement.Bind("x", new RenderedStatement.Binding.One("BIGINT", null));
-        RenderedStatement.Bind ids = new RenderedStatement.Bind("ids", new RenderedStatement.Binding.Array("INTEGER"));
+        RenderedStatement.Bind ids = new RenderedStatement.Bind("ids", new RenderedStatement.Binding.Array("INTEGER", null));
         w.append("a = ").bind(x).append(" AND b = ANY(").bind(ids).append(") AND c = ").bind(x);
         assertEquals(new RenderedStatement("a = ? AND b = ANY(?) AND c = ?", List.of(x, ids, x)), w.statement());
     }

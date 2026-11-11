@@ -67,6 +67,9 @@ public class LegendHttpServer {
      *  platform's path separator). */
     public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
             java.nio.file.@com.legend.base.Nullable Path queryStore, String sources) throws IOException {
+        // the folders validated once, where the server starts: a folder that is none refuses the start, never every
+        // query after it (the A delta audit's 5, 2026-11-11)
+        validateSources(sources);
         this.runner = ConnectionResolver.runner(sources);
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
         this.lspServer = new PureLspServer();
@@ -378,6 +381,20 @@ public class LegendHttpServer {
         return env == null || env.strip().isEmpty() ? NO_SOURCES : env.strip();
     }
 
+    /** {@code sources} ({@link #sources}) refused by name where a folder it names is no directory: the server does not
+     *  start (the A delta audit's 5, 2026-11-11). */
+    static void validateSources(String sources) {
+        if (sources.equals("any") || sources.equals(NO_SOURCES)) {
+            return;
+        }
+        for (String d : sources.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+            if (!d.strip().isEmpty() && !java.nio.file.Files.isDirectory(java.nio.file.Path.of(d.strip()))) {
+                throw new IllegalArgumentException("the server's sources folder '" + d.strip() + "' (--sources DIR or"
+                        + " LEGEND_LITE_SOURCE_DIRS) is no directory: the server does not start");
+            }
+        }
+    }
+
     public void start() {
         server.setExecutor(null);
         server.start();
@@ -436,8 +453,16 @@ public class LegendHttpServer {
             System.err.println("NOTE: no --sources DIR given: a model's file: sources are refused (any widens to every"
                     + " file).");
         }
-        LegendHttpServer server = new LegendHttpServer(port, address,
-                Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore, sources);
+        LegendHttpServer server;
+        try {
+            server = new LegendHttpServer(port, address,
+                    Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore, sources);
+        } catch (IllegalArgumentException refused) {
+            // a startup setting that names no folder: refused by name, the server not started
+            System.err.println("ERROR: " + refused.getMessage());
+            System.exit(2);
+            return;
+        }
         server.start();
 
         System.out.println();

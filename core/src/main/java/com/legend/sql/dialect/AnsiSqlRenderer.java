@@ -1630,26 +1630,38 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         RenderedStatement.AsText asText = type.asText();
         Integer kept = asText == null ? null : asText.fraction();
-        if (asText == null || kept == null) {
+        if (asText == null || kept == null || kept >= 9) {
             return writer.append("CAST(").bind(asText == null ? scalarBind(p) : textBind(p, asText))
                     .append(" AS ").append(type.name()).append(")");
         }
         // S181 (the user's ruling of 2026-11-10): a value with more digits of a second than the slot keeps is refused
-        // by the database, by the statement's own raise -- never cut by the runner, never rounded by the database. The
-        // value's text is fixed-width (PlanRunner.dateTimeText: 'uuuu-MM-dd HH:mm:ss.SSSSSSSSS', a Date's
-        // 'uuuu-MM-dd'), so its digits past the kept ones are its text from the place past them, which is empty (a
-        // date) or zeros where it has none. The CASE is of the text, cast after, so every database types its branches
+        // by the database, by the statement's own raise -- never cut by the runner, never rounded by the database. A
+        // date-time's text ends in its nine digits of a second whatever its year's width (PlanRunner.dateTimeText:
+        // 'uuuu-MM-dd HH:mm:ss.SSSSSSSSS', the year -0001 or +10000 as it is: the A delta audit's note 8, 2026-11-11), a
+        // Date's ('uuuu-MM-dd') has no time and is read as it is: so the digits past the kept ones are the text's last
+        // 9 - kept, which must be zeros, and once they are the database reads the text WITHOUT them -- the kept digits
+        // alone, which every database's type of that precision parses (the A delta audit's MUST-FIX 1: BigQuery's
+        // DATETIME refuses a text of nine). The CASE is of the text, cast after, so every database types its branches
         // alike (a raise typed as text: BigQuery's DATETIME refuses a raise beside it, BigQuery.projectionValue)
         String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
-        String zeros = "0".repeat(9 - kept);
+        int past = 9 - kept;
         String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
         SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("the " + kind
                 + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
                 + " keeps (" + kept + "): refused, never cut (S181)"));
-        return writer.append("CAST(CASE WHEN SUBSTRING(CAST(").bind(textBind(p, asText)).append(" AS " + text + "), "
-                        + (21 + kept) + ") NOT IN ('', '" + zeros + "') THEN ").expr(raise, 0)
-                .append(" ELSE CAST(").bind(textBind(p, asText)).append(" AS " + text + ") END AS ")
-                .append(type.name()).append(")");
+        java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
+                .append(" AS " + text + ")");
+        java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");
+        // the text has a time where it is longer than a date's (at most 12: a sign and five digits of a year)
+        value.apply(length.apply(writer.append("CAST(CASE WHEN ")).append(" > 19 AND SUBSTRING("))
+                .append(", ");
+        length.apply(writer).append(" - " + (past - 1) + ") <> '" + "0".repeat(past) + "' THEN ").expr(raise, 0)
+                .append(" WHEN ");
+        length.apply(writer).append(" > 19 THEN SUBSTRING(");
+        value.apply(writer).append(", 1, ");
+        // the kept digits, and the point with them where none is kept
+        length.apply(writer).append(" - " + (kept == 0 ? past + 1 : past) + ") ELSE ");
+        return value.apply(writer).append(" END AS ").append(type.name()).append(")");
     }
 
     /** The SQL type a placeholder of a parameter declared {@code kind} is cast to, and whether its value is bound as its
@@ -1783,8 +1795,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (wrap) {
             writer.append("(");
         }
+        // a date's or a date-time's elements are the driver's timestamps, which no statement's raise reads: the digits of
+        // a second its database keeps of one, the plan's, which the runner holds each element to (S181; the A delta
+        // audit's 2, 2026-11-11: measured on DuckDB 1.5.5, an element of nine digits cut to six; H2 keeps nine)
+        Integer fraction = null;
+        if (element == com.legend.sql.SqlType.Scalar.TIMESTAMP || element == com.legend.sql.SqlType.Scalar.DATE) {
+            ParameterType type = parameterType(com.legend.sql.DeclaredKind.DATE_TIME);
+            Integer kept = type == null || type.asText() == null ? null : type.asText().fraction();
+            fraction = kept == null || kept >= 9 ? null : kept;
+        }
         writer.expr(needle, 5).append(" = ANY(").bind(new RenderedStatement.Bind(list.name(),
-                        new RenderedStatement.Binding.Array(element.name())))
+                        new RenderedStatement.Binding.Array(element.name(), fraction)))
                 .append(")");
         return wrap ? writer.append(")") : writer;
     }

@@ -45,10 +45,17 @@ class SourceAdmissionTest {
         Path outside = Files.writeString(dir.resolve("secret.json"), "{}");
         DataError none = assertThrows(DataError.class,
                 () -> SourceAdmission.none().admit(outside.toUri().toString()));
-        assertTrue(none.getMessage().contains("admits none"), none.getMessage());
+        String one = "the source '" + outside.toUri() + "' is not a file this run admits";
+        assertEquals(one, none.getMessage());
         DataError out = assertThrows(DataError.class,
                 () -> SourceAdmission.of(inside).admit(outside.toUri().toString()));
-        assertTrue(out.getMessage().contains("not under a directory this run admits"), out.getMessage());
+        // ONE message, naming the source alone: never the fence's folders, and the same whether the path exists (the A
+        // delta audit's 4, 2026-11-11)
+        assertEquals(one, out.getMessage());
+        DataError missing = assertThrows(DataError.class,
+                () -> SourceAdmission.of(inside).admit(dir.resolve("no-such.json").toUri().toString()));
+        assertEquals("the source '" + dir.resolve("no-such.json").toUri() + "' is not a file this run admits",
+                missing.getMessage());
         // a path that climbs out is the file it names, refused as that file
         String climbing = inside.toUri() + "../secret.json";
         assertThrows(DataError.class, () -> SourceAdmission.of(inside).admit(climbing));
@@ -79,9 +86,18 @@ class SourceAdmissionTest {
         assertEquals(SourceAdmission.any(), SourceAdmission.configured("  "));
         assertEquals(SourceAdmission.any(), SourceAdmission.configured("any"));
         assertEquals(SourceAdmission.none(), SourceAdmission.configured("none"));
-        var none = assertThrows(com.legend.error.DataError.class,
-                () -> SourceAdmission.none().admit(Files.writeString(dir.resolve("x.json"), "[]").toUri().toString()));
-        assertTrue(none.getMessage().contains("start it with --sources DIR"), none.getMessage());
+        // a refusal in the host's own words: the server's says how it names its folders, never which they are; a
+        // library's names no host (the A delta audit's 13, 2026-11-11)
+        String x = Files.writeString(dir.resolve("x.json"), "[]").toUri().toString();
+        var none = assertThrows(com.legend.error.DataError.class, () -> SourceAdmission.none().onTheServer().admit(x));
+        assertTrue(none.getMessage().contains("none are configured: start it with --sources DIR"), none.getMessage());
+        var library = assertThrows(com.legend.error.DataError.class, () -> SourceAdmission.none().admit(x));
+        assertEquals("the source '" + x + "' is not a file this run admits", library.getMessage());
+        Path sub = Files.createDirectory(dir.resolve("sub"));
+        var named = assertThrows(com.legend.error.DataError.class,
+                () -> SourceAdmission.of(sub).onTheServer().admit(x));
+        assertTrue(named.getMessage().contains("--sources DIR") && !named.getMessage().contains(sub.toString()),
+                named.getMessage());
         Path inside = Files.writeString(dir.resolve("rows.json"), "[]");
         SourceAdmission fenced = SourceAdmission.configured(dir.toString());
         assertEquals(inside.toRealPath().toString(), fenced.admit(inside.toUri().toString()));

@@ -668,10 +668,11 @@ public final class PlanRunner {
                                                     + "': " + e.getMessage(), e);
                                         }
                                     }
-                                } catch (com.legend.error.DataError failed) {
-                                    // what the reading set on the session undone on the failed load's way out too
-                                    // (§3 rule 2, the A checkpoint's tenets audit, 14): an undo that fails is kept
-                                    // beside the load's own failure, never in its place
+                                } catch (RuntimeException | Error failed) {
+                                    // what the reading set on the session undone on the failed load's way out too,
+                                    // whatever failed (§3 rule 2, the A checkpoint's tenets audit, 14; the A delta
+                                    // audit's note 11, 2026-11-11: until then on a DataError alone): an undo that fails
+                                    // is kept beside the load's own failure, never in its place, which is rethrown
                                     for (String statement : reads.after()) {
                                         StatementOrigin.sent(seeding.mark(), statement);
                                         try {

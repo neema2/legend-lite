@@ -703,10 +703,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
 
     /** {@inheritDoc} A Date or DateTime parameter's text read in range or raised by the dialect's error arm
      *  ({@link #error}, the literal's message): {@code CASE WHEN ? IS NULL THEN NULL WHEN toInt32(substring(?, 1, 4))
-     *  BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(<raise> AS ...) END}, the value bound at each of
-     *  its three places (the text's year is its first four digits: a parameter's year is 1 to 9999, PlanParameters).
-     *  Measured with {@code clickhouse local} 2026-11-10: 2024, 1900-01-01 and 2299-12-31 23:59:59.999999 read as the
-     *  literal reads them; 9999-12-31 and 1800-01-01 raise. */
+     *  NOT BETWEEN 1900 AND 2299 THEN CAST(<raise> AS ...) WHEN <a digit past the sixth> THEN CAST(<raise> AS ...)
+     *  ELSE toDateTime64(substring(?, 1, 26), 6, 'UTC') END}, the value bound at each of its places. The year first
+     *  (the A delta audit's note 8, 2026-11-11): a year outside the range is refused as one, and inside it the text is
+     *  fixed-width ('uuuu-MM-dd HH:mm:ss.SSSSSSSSS', a date's 'uuuu-MM-dd'), so its digits past the sixth are its text from
+     *  the 27th character and the kept ones its first 26 (the delta audit's MUST-FIX 1: read without the zeros past the
+     *  sixth). Measured with {@code clickhouse local} 2026-11-10: 2024, 1900-01-01 and 2299-12-31 23:59:59.999999 read
+     *  as the literal reads them; 9999-12-31 and 1800-01-01 raise. */
     @Override
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
         com.legend.sql.DeclaredKind declared = p.declared();
@@ -715,14 +718,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
         }
         ParameterType type = java.util.Objects.requireNonNull(parameterType(declared), "a date's placeholder type");
         RenderedStatement.AsText asText = java.util.Objects.requireNonNull(type.asText(), "a date bound as its text");
-        // a value of a digit past the six kept raises too (S181, A7: never cut): its text is fixed-width
-        // (PlanRunner.dateTimeText), its digits past the sixth its text from the 27th character, empty for a date
-        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN substring(")
+        // a value of a digit past the six kept raises too (S181, A7: never cut)
+        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN toInt32(substring(")
+                .bind(textBind(p, asText)).append(", 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(")
+                .piece(x -> error(x, raised(DATE_RANGE))).append(" AS " + type.name() + ") WHEN substring(")
                 .bind(textBind(p, asText)).append(", 27) NOT IN ('', '000') THEN CAST(")
-                .piece(x -> error(x, raised(FRACTION))).append(" AS " + type.name() + ") WHEN toInt32(substring(")
-                .bind(textBind(p, asText)).append(", 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(")
-                .bind(textBind(p, asText)).append(", 6, 'UTC') ELSE CAST(")
-                .piece(x -> error(x, raised(DATE_RANGE))).append(" AS " + type.name() + ") END");
+                .piece(x -> error(x, raised(FRACTION))).append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
+                .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
     }
 
     /** A naive UTC date-time of six digits (a literal of a finer one refused at planning, {@link #literalFractionDigits};

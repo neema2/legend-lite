@@ -108,7 +108,11 @@ Deleted from the plan:
    2026-11-10, the A checkpoint's tenets audit, 11): `--sources DIR`, repeatable, else `LEGEND_LITE_SOURCE_DIRS`
    (folders separated by the path separator), `any` widening it to every file. **With none named it fences to no
    folder**: every `file:` read is refused by name, saying how to name one ("... the server reads no file: source
-   outside its fenced folders, and none are configured -- start it with --sources DIR"). The library's door reads any
+   outside its fenced folders; none are configured: start it with --sources DIR"). Under a fence every refusal is ONE
+   message naming the requested source alone -- the path checked as written before the machine is asked of it, then as
+   it resolves (links followed) -- so a caller learns neither whether a path outside exists nor which folders are fenced;
+   the server validates its folders once where it starts and refuses to start on one that is no directory (the A delta
+   audit's 4, 5 and 13, 2026-11-11). The library's door reads any
    file, as upstream; an embedding host builds its own fence (`SourceAdmission.configured`). No register row: upstream
    has no server of ours to fence.
 

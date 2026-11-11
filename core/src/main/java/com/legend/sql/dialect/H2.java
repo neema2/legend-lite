@@ -649,8 +649,11 @@ public class H2 extends AnsiSqlRenderer {
             case TIMEZONE -> zonedInstant(a.get(1))
                     ? writer.append("CAST(FORMATDATETIME((").expr(a.get(1), 0).append(") AT TIME ZONE ")
                             .expr(a.get(0), 0).append(", 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS TIMESTAMP(9))")
-                    : writer.append("CAST(CONCAT(CAST(").expr(a.get(1), 0).append(" AS VARCHAR), ' ', ")
-                            .expr(a.get(0), 0).append(") AS TIMESTAMP(9) WITH TIME ZONE)");
+                    // the operand read as a timestamp first, so a date's text has its time (the A delta audit's note
+                    // 15, 2026-11-11, measured on 2.5.252: '2024-01-01 UTC' does not parse; '2024-01-01 00:00:00 UTC'
+                    // does)
+                    : writer.append("CAST(CONCAT(CAST(CAST(").expr(a.get(1), 0).append(" AS TIMESTAMP(9)) AS VARCHAR),"
+                            + " ' ', ").expr(a.get(0), 0).append(") AS TIMESTAMP(9) WITH TIME ZONE)");
             // H2 adds a date and a time to a timestamp (its datetime arithmetic; designed, not measured here)
             case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
                     .expr(a.get(1), 6));

@@ -45,7 +45,7 @@ class PlanMakerH2Test {
         ExecutionPlan.Sql sql = plan(H2, PlanCases.lists("T").get(0).withParameters(), com.legend.testcases.PlanCases.Written.JSON)
                 .answerSql();
         assertTrue(sql.statement().contains("= ANY(?)"), sql.statement());
-        assertEquals(List.of(new ExecutionPlan.Slot("ns", new ExecutionPlan.Binding.Array("BIGINT"))), sql.slots());
+        assertEquals(List.of(new ExecutionPlan.Slot("ns", new ExecutionPlan.Binding.Array("BIGINT", null))), sql.slots());
     }
 
     /** A Float parameter is cast to its declared type's fixed type, upstream's own FLOAT (D1, P4), bound bare. */

@@ -943,7 +943,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             throw new DialectCapability("plan parameter '" + p.name() + "' is not a list parameter (an array of a"
                     + " named element type): it is not bound as a whole list");
         }
-        return new RenderedStatement.Bind(p.name(), new RenderedStatement.Binding.Array(element.name()));
+        return new RenderedStatement.Bind(p.name(), new RenderedStatement.Binding.Array(element.name(), null));
     }
 
     // ==================================================================

@@ -49,6 +49,21 @@ class ServerSourceFenceTest {
         assertTrue(LegendHttpServer.USAGE.contains("--sources DIR"), LegendHttpServer.USAGE);
     }
 
+    /** A folder the settings name that is no directory refuses the start, by name, never every query after it (the A
+     *  delta audit's 5, 2026-11-11). */
+    @Test
+    void aFolderThatIsNoDirectoryRefusesTheStart(@TempDir Path dir) throws Exception {
+        Path file = Files.writeString(dir.resolve("not-a-folder.txt"), "x");
+        var refused = assertThrows(IllegalArgumentException.class, () -> new LegendHttpServer(0,
+                java.net.InetAddress.getLoopbackAddress(), LegendHttpServer.Origins.LOOPBACK, null,
+                dir + File.pathSeparator + file));
+        assertTrue(refused.getMessage().contains("'" + file + "'") && refused.getMessage().contains("does not start"),
+                refused.getMessage());
+        LegendHttpServer.validateSources(dir.toString());
+        LegendHttpServer.validateSources("any");
+        LegendHttpServer.validateSources(LegendHttpServer.NO_SOURCES);
+    }
+
     @Test
     void aFileSourceOutsideTheFenceIsRefusedByName_insideItIsRead(@TempDir Path dir) throws Exception {
         Path rows = Files.writeString(dir.resolve("rows.json"), "[{\"ID\":2},{\"ID\":1}]");
@@ -56,7 +71,7 @@ class ServerSourceFenceTest {
 
         var refused = assertThrows(Exception.class, () -> ConnectionResolver.runner(LegendHttpServer.NO_SOURCES)
                 .run(query, "x::RT", new Output.Rows(new Collector())));
-        assertTrue(refused.getMessage().contains("none are configured -- start it with --sources DIR"),
+        assertTrue(refused.getMessage().contains("none are configured: start it with --sources DIR"),
                 refused.getMessage());
 
         for (String fence : new String[] {dir.toString(), "any"}) {

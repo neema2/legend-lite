@@ -113,8 +113,10 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
             }
         }
 
-        /** The parameter's whole list, as one array of {@code elementSqlType} (the target's form of a list). */
-        record Array(String elementSqlType) implements Binding {
+        /** The parameter's whole list, as one array of {@code elementSqlType} (the target's form of a list);
+         *  {@code fraction} the digits of a second its database keeps of a date's or date-time's element, null where it
+         *  keeps every digit or the elements are no date (S181). */
+        record Array(String elementSqlType, @com.legend.base.Nullable Integer fraction) implements Binding {
             public Array {
                 Objects.requireNonNull(elementSqlType, "elementSqlType");
             }

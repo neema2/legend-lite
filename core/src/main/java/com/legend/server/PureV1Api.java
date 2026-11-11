@@ -104,7 +104,9 @@ public final class PureV1Api {
 
     /**
      * How a host runs an execute: the query this API compiled, planned and run by the host's door (legend-lite's
-     * server hands in its product door, {@code Execution.runOnProjectDatabases}: {@code ConnectionResolver.RUNNER}),
+     * server hands in its product door, {@code Execution.runOnProjectDatabases} under its file fence:
+     * {@code ConnectionResolver.runner(sources)}, its startup settings' folders; {@code ConnectionResolver.RUNNER} is the
+     * library's, any file),
      * its rows written in the output this API names ({@code Output.Engine} or {@code Output.Arrow}: the engine's
      * formats, their envelope's facts read from the query before the run; the writer is made by the result library from
      * the plan before any statement runs, so an answer the engine's API has no form for is refused before a program's

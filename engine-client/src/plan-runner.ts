@@ -79,7 +79,7 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 40 since 2026-11-10: a load's statements step names the data it loads (of) -- a load is refused by name here, as at 39
 // 41 since 2026-11-10: a date bound as its text carries no digit count (asText is {}) -- still refused by name here
 // 42 since 2026-11-10: a column's store type is an object (plain/sized/scaled), which this runner does not read
-const PLAN_VERSION = 42;
+const PLAN_VERSION = 43;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

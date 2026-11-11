@@ -91,12 +91,17 @@ public final class Seeds {
         // each runtime's declared test data planned once (the correctness audit's C3, 2026-11-10: a from()'s runtime
         // that is the program's too was planned twice -- its setup SQL failing "already exists", its rows doubled)
         java.util.Set<String> declared = new java.util.HashSet<>();
+        // each from()'s inline test data likewise once: two from()s of one instance runtime (or of two that declare the
+        // same data) share it (the A delta audit's note 10, 2026-11-11: C3 deduplicated the named runtimes alone)
+        java.util.Set<List<Object>> inline = new java.util.HashSet<>();
         for (TypedFrom fr : froms) {
-            for (String sql : fr.sqlSetups()) {
-                // written in the database the from()'s connection declares (decision D2)
-                setups.add(new CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
+            if (inline.add(List.of(fr.sqlSetups(), fr.csvSetups(), String.valueOf(fr.context().rawLanguage())))) {
+                for (String sql : fr.sqlSetups()) {
+                    // written in the database the from()'s connection declares (decision D2)
+                    setups.add(new CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
+                }
+                setups.addAll(CsvSeed.setupSteps(fr, ctx, dialect));
             }
-            setups.addAll(CsvSeed.setupSteps(fr, ctx, dialect));
             // an ELEMENT runtime named by the from(): its declared connections' test data (the instance form above
             // carries the same facts on the instance)
             fr.context().runtime().ifPresent(ref -> {

@@ -75,6 +75,24 @@ class RowLoadCellsTest {
         // planned, its digits kept: what a DOUBLE does with it is the database's (until then an unnamed failure)
         String huge = String.join("\n", load(List.of(List.of("1", "1e400", "true")))
                 .statements(Databases.dialect(DatabaseType.H2)));
-        assertTrue(huge.contains("1" + "0".repeat(400)), huge);
+        assertTrue(huge.contains("'1e400'"), huge);
+    }
+
+    /** A cell in exponent form is a float of its digits as written on every database, read by the database (the A delta
+     *  audit's 3, 2026-11-11: as an exact decimal, BigQuery refused 1e300's 301 digits, ClickHouse overflowed 1.5E10 as a
+     *  Decimal(2,0) and Trino wrote 1e-50 as 51 digits); a plain cell stays its exact digits. */
+    @Test
+    void anExponentCellIsAFloatOfItsDigitsOnEveryDatabase() {
+        for (DatabaseType db : List.of(DatabaseType.BigQuery, DatabaseType.ClickHouse, DatabaseType.Trino,
+                DatabaseType.DuckDB, DatabaseType.Postgres, DatabaseType.H2)) {
+            for (String cell : List.of("1e300", "1.5E10", "1e-50")) {
+                String sql = String.join("\n", load(List.of(List.of("1", cell, "true")))
+                        .statements(Databases.dialect(db)));
+                assertTrue(sql.contains("'" + cell + "'") && !sql.matches("(?s).*\\d{40,}.*"), db + ": " + sql);
+            }
+            String plain = String.join("\n", load(List.of(List.of("1", "2.5", "true"))).statements(Databases.dialect(db)));
+            assertTrue(plain.contains("2.5") && !plain.toUpperCase(java.util.Locale.ROOT).contains("DOUBLE"),
+                    db + ": " + plain);
+        }
     }
 }

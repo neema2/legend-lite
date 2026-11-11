@@ -169,7 +169,13 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
                     if (!NUMBER.matcher(t).matches()) {
                         throw refused(c, text, p.kind().name());
                     }
-                    yield new SqlExpr.DecimalLit(new BigDecimal(t));
+                    // a cell in exponent form is a float of its digits as written, read by the database (the A delta
+                    // audit's 3, 2026-11-11: as an exact decimal, 1e300 was a 301-digit literal BigQuery refuses, 1.5E10
+                    // a Decimal(2,0) ClickHouse overflowed, 1e-50 a 51-digit DECIMAL on Trino); a plain one its digits,
+                    // an exact decimal the database assigns to the column
+                    yield t.indexOf('e') >= 0 || t.indexOf('E') >= 0
+                            ? new SqlExpr.Cast(new SqlExpr.StringLit(t), com.legend.sql.SqlType.Scalar.DOUBLE)
+                            : new SqlExpr.DecimalLit(new BigDecimal(t));
                 }
                 // upstream's H2 rule (h2Extension2_1_214.pure's bitValueFromString, read from the pinned sources):
                 // y, 1 and true are true, n, 0 and false false, trimmed and in any case; any other number its digits,

@@ -148,7 +148,7 @@ Database types planned with it: H2.
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
 | `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` |  | 109 |
-| `TIMEZONE` | emulated | `by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(… AS VARCHAR), ' ', …) AS TIMESTAMP(9) WITH TIME ZONE)` |  | 6 |
+| `TIMEZONE` | emulated | `by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(CAST(… AS TIMESTAMP(9)) AS VARCHAR), ' ', …) AS TIMESTAMP(9)...` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -1285,14 +1285,14 @@ Database types planned with it: DuckDB.
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTruncArm` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalFunction, part: … + …(…)` |  | 93 |
+| `ADD_INTERVAL` | emulated | `microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)` |  | 93 |
 | `DATE_DIFF` | emulated | `stringLit, datePart, part: date_diff(…, …)` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | spelled | `epoch_ns` |  | 0 |
 | `FROM_EPOCH_NS` | spelled | `make_timestamp_ns` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalFunction, part: … + …(…)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)` |  | 0 |
 | `EPOCH_SECONDS` | spelled | `epoch` |  | 0 |
 | `EPOCH_MS` | spelled | `epoch_ms` |  | 24 |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` |  | 0 |

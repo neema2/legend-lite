@@ -242,7 +242,7 @@ class ConnectorsTest {
                 try (Connection c = Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
                     assertSame(Connectors.of(com.legend.planner.ConnectionPlans.type(type)), Connectors.of(c));
                     assertNull(Connectors.of(com.legend.planner.ConnectionPlans.type(type)).raiseRecovery());
-                    assertNull(JdbcStatements.held(c));
+                    assertNull(JdbcStatements.held(c, new java.sql.SQLException("the statement's")));
                 }
             } else {
                 NotImplementedException refused = assertThrows(NotImplementedException.class,

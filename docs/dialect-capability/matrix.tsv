@@ -123,7 +123,7 @@ H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
 H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
 H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
-H2	H2	call	TIMEZONE	emulated	by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(… AS VARCHAR), ' ', …) AS TIMESTAMP(9) WITH TIME ZONE)		6
+H2	H2	call	TIMEZONE	emulated	by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(CAST(… AS TIMESTAMP(9)) AS VARCHAR), ' ', …) AS TIMESTAMP(9)...		6
 H2	H2	call	DATE_AT_TIME	spelled	an operator (+)		0
 H2	H2	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 H2	H2	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
@@ -1458,14 +1458,14 @@ DuckDb	DuckDB	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 DuckDb	DuckDB	call	MAKE_DATE	spelled	make_date		2
 DuckDb	DuckDB	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 DuckDb	DuckDB	call	DATE_TRUNC	emulated	dateTruncArm		0
-DuckDb	DuckDB	call	ADD_INTERVAL	emulated	intervalFunction, part: … + …(…)		93
+DuckDb	DuckDB	call	ADD_INTERVAL	emulated	microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)		93
 DuckDb	DuckDB	call	DATE_DIFF	emulated	stringLit, datePart, part: date_diff(…, …)		53
 DuckDb	DuckDB	call	TIME_BUCKET	emulated	timeBucket		109
 DuckDb	DuckDB	call	TIMEZONE	spelled	timezone		6
 DuckDb	DuckDB	call	DATE_AT_TIME	spelled	an operator (+)		0
 DuckDb	DuckDB	call	EPOCH_NS	spelled	epoch_ns		0
 DuckDb	DuckDB	call	FROM_EPOCH_NS	spelled	make_timestamp_ns		0
-DuckDb	DuckDB	call	ADD_INTERVAL_TEMPORAL	emulated	intervalFunction, part: … + …(…)		0
+DuckDb	DuckDB	call	ADD_INTERVAL_TEMPORAL	emulated	microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)		0
 DuckDb	DuckDB	call	EPOCH_SECONDS	spelled	epoch		0
 DuckDb	DuckDB	call	EPOCH_MS	spelled	epoch_ms		24
 DuckDb	DuckDB	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		0

@@ -20,6 +20,6 @@ class PlanMakerPostgresTest {
      *  literal writer cut the literal's; D1, P4). */
     @Test
     void aDateTimeParameterIsCastToTimestamp() {
-        assertEquals("CAST(CASE WHEN SUBSTRING(CAST(? AS VARCHAR), 27) NOT IN ('', '000') THEN … ELSE CAST(? AS VARCHAR) END AS TIMESTAMP) text", PlanMakerTest.dateTimeCast(DatabaseType.Postgres));
+        assertEquals("CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS VARCHAR)) - 2) <> '000' THEN … WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP) text", PlanMakerTest.dateTimeCast(DatabaseType.Postgres));
     }
 }

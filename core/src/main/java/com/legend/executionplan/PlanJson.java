@@ -113,8 +113,10 @@ public final class PlanJson {
      *  digit and the statement's own raise refuses a value finer than its slot keeps. 42 since 2026-11-10 (the A
      *  checkpoint's tenets audit, 3): a column's {@code store} is its declared type as an object
      *  ({@code plain}/{@code sized}/{@code scaled}), no longer the grammar's spelling exec matched by its text; a file
-     *  load's {@code reads} delivery carries its {@code after} statements, run on every exit (14). */
-    public static final int VERSION = 42;
+     *  load's {@code reads} delivery carries its {@code after} statements, run on every exit (14). 43 since
+     *  2026-11-11 (the A delta audit's 2, S181): a list's {@code array} binding of dates or date-times carries the
+     *  digits of a second its database keeps of an element ({@code fraction}), which the runner holds an element to. */
+    public static final int VERSION = 43;
 
     private PlanJson() {
     }
@@ -643,6 +645,9 @@ public final class PlanJson {
             case ExecutionPlan.Binding.Array array -> {
                 o.put("_type", BindingTag.array.name());
                 o.put("elementSqlType", array.elementSqlType());
+                if (array.fraction() != null) {
+                    o.put("fraction", array.fraction());
+                }
             }
             case ExecutionPlan.Binding.Key key -> {
                 o.put("_type", BindingTag.key.name());
@@ -1006,7 +1011,8 @@ public final class PlanJson {
                         : new ExecutionPlan.AsText();
                 yield new ExecutionPlan.Binding.One(o.getString("nullType"), asText);
             }
-            case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"));
+            case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"),
+                    o.has("fraction") ? o.getInt("fraction") : null);
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
             case source -> new ExecutionPlan.Binding.Source(o.getString("location"));
         };

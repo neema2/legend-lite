@@ -57,12 +57,13 @@ public final class ProductRun {
                 com.legend.result.Batcher.DEFAULT_CAPACITY);
     }
 
-    /** {@link #onProjectDatabases(ExecutionPlan, Output)}, its live sources read under the fence the host's
-     *  configuration names ({@link SourceAdmission#configured}: null, any file). */
+    /** {@link #onProjectDatabases(ExecutionPlan, Output)}, its live sources read under the fence the server's
+     *  configuration names ({@link SourceAdmission#configured}: null, any file; validated where the server starts),
+     *  a refusal under it in the server's words ({@link SourceAdmission#onTheServer}). */
     public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, @com.legend.base.Nullable String admittedSources,
             Output output) throws IOException {
         return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.admitting(PlanSessions.shared(),
-                SourceAdmission.configured(admittedSources)), Establish.DECLARED_SETUP, output,
+                SourceAdmission.configured(admittedSources).onTheServer()), Establish.DECLARED_SETUP, output,
                 com.legend.result.Batcher.DEFAULT_CAPACITY);
     }
 

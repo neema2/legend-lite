@@ -28,6 +28,19 @@ public final class PeRatchets {
 
     private PeRatchets() {}
 
+    /** Each move of a value, dated and with its reason (AGENTS.md: a pin moves only with one; the A delta audit's note
+     *  16, 2026-11-11), written into the file as comments above the values. A move appends a line here in the change
+     *  that regenerates the file. */
+    static final java.util.List<String> HISTORY = java.util.List.of(
+            "own_corpus.matched 3090 -> 3091 (2026-11-09, 8ff49fc0): the follow-up audit's tests' models",
+            "own_corpus.matched 3091 -> 3093 (2026-11-10, 59758819): the A2-A5 tests' models",
+            "own_corpus.matched 3093 -> 3096 (2026-11-10, b8337475): A6's time-zone and number-text tests' models",
+            "own_corpus.matched 3096 -> 3100 (2026-11-10, 1e2c23b3): A7's date-time fraction tests' models",
+            "own_corpus.matched 3100 -> 3106 (2026-11-10, c755071b): the A checkpoint's tests' models (QueryRuntimeTest,"
+                    + " RowLoadCellsTest, TextPlanSourceTest and the rest)",
+            "own_corpus.matched 3106 -> 3116 (2026-11-11, B2e): EmbeddedDataKindsTest's ten elements (a Database and three"
+                    + " Data elements; a service's model of six)");
+
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
             throw new IllegalArgumentException("usage: PeRatchets <output>");
@@ -40,6 +53,7 @@ public final class PeRatchets {
         System.out.println("[pe-ratchets] own_corpus " + own.kinds());
         StringBuilder text = new StringBuilder("# parser-equivalence's measured ratchet values (PeRatchets) --"
                 + " regenerate: bazel run //parser-equivalence:update_ratchets\n");
+        HISTORY.forEach(h -> text.append("# ").append(h).append('\n'));
         out.forEach((k, v) -> text.append(k).append('\t').append(v).append('\n'));
         Files.writeString(Path.of(args[0]), text.toString(), StandardCharsets.UTF_8);
     }

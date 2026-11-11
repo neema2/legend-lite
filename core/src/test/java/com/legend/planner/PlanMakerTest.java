@@ -166,8 +166,8 @@ class PlanMakerTest {
     }
 
     /** Each database's placeholder of a Date and of a DateTime parameter, as its dialect writes it from upstream's
-     *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at nine
-     *  digits, ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), BigQuery's
+     *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at its six
+     *  digits, guarded (the A delta audit's 7, 2026-11-11), ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), BigQuery's
      *  Date upstream's own {@code PARSE_DATE} (A6, 2026-11-10: S182 withdrawn), Databricks' {@code to_date} and
      *  {@code to_timestamp}, Snowflake's {@code '…'::timestamp} at nine digits; a dialect that writes none refuses by
      *  name, never inheriting another's. */
@@ -176,11 +176,11 @@ class PlanMakerTest {
         // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
-                Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
-                Databricks	CAST(? AS DATE)	CAST(CASE WHEN SUBSTRING(CAST(? AS STRING), 27) NOT IN ('', '000') THEN
+                Trino	CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS VARCHAR)) - 2) <> '000' THEN	CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS VARCHAR)) - 2) <> '000' THEN
+                Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
-                BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN SUBSTRING(CAST(? AS STRING), 27) NOT IN ('', '000') THEN
-                ClickHouse	WHEN toInt32(substring(?, 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64(?, 6, 'UTC') ELSE CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
+                BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
             spelled.put(cells[0], new String[] {cells[1], cells[2]});
@@ -646,10 +646,11 @@ class PlanMakerTest {
     /** The platform database's placeholder of a DateTime parameter named {@code t}: its microsecond TIMESTAMP, a value
      *  of a finer digit raised by the statement (S181, A7, 2026-11-10). */
     static String platformDateTime() {
-        return "CAST(CASE WHEN SUBSTRING(CAST(? AS VARCHAR), 27) NOT IN ('', '000') THEN error(chr(31) || ('the"
-                + " DateTime parameter ''t'' has more fraction digits than "
-                + Databases.dialect(Databases.PLATFORM).getClass().getSimpleName() + " keeps (6): refused, never cut"
-                + " (S181)') || chr(31)) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
+        return "CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS"
+                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('the DateTime parameter ''t'' has more fraction digits"
+                + " than " + Databases.dialect(Databases.PLATFORM).getClass().getSimpleName() + " keeps (6): refused,"
+                + " never cut (S181)') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
+                + " VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
     }
 
     /** The statement of a DateTime parameter, written as a column's value, on {@code type}. */
@@ -663,7 +664,7 @@ class PlanMakerTest {
     static String dateTimeCast(DatabaseType type) {
         ExecutionPlan.Sql sql = dateTimeSql(type);
         String text = sql.statement();
-        int guard = text.indexOf("CAST(CASE WHEN SUBSTRING(");
+        int guard = text.indexOf("CAST(CASE WHEN LENGTH(");
         int at = guard >= 0 ? guard : text.indexOf("CAST(? AS ");
         int end = at + "CAST(".length();
         for (int depth = 1; depth > 0; end++) {
@@ -671,7 +672,9 @@ class PlanMakerTest {
         }
         String cast = text.substring(at, end);
         if (guard >= 0) {
-            cast = cast.substring(0, cast.indexOf(" THEN ")) + " THEN …" + cast.substring(cast.indexOf(" ELSE "));
+            // the raise elided: the guard's test and the kept digits' read are the spelling pinned
+            int then = cast.indexOf(" THEN ");
+            cast = cast.substring(0, then) + " THEN …" + cast.substring(cast.indexOf(" WHEN ", then));
         }
         ExecutionPlan.AsText asText = ((ExecutionPlan.Binding.One) sql.slots().get(0).binding()).asText();
         return cast + " " + (asText == null ? "bare" : "text");

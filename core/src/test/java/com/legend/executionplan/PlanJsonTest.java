@@ -47,7 +47,7 @@ class PlanJsonTest {
                         new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 100), null)),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
-                                                new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
+                                                new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER", null))), t, null)),
                         // a placeholder of a declared kind (H2): its fixed type in the text, bound bare (P4)
                         new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null, null)),
                                 new Sql("select ID * CAST(? AS FLOAT) as x from T", List.of(new Slot("f",

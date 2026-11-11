@@ -256,6 +256,18 @@ public final class DuckDb extends AnsiSqlRenderer {
         };
     }
 
+    /** {@code e}, refused by name where it is a literal with a nonzero digit past the microsecond, which {@code where}
+     *  keeps no more of (S181: never cut; the A delta audit's 7, 2026-11-11, measured on 1.5.6: {@code date_add} and
+     *  {@code + INTERVAL} over a {@code TIMESTAMP_NS} answer microseconds, and a cast to {@code TIMESTAMP} cuts;
+     *  {@code strftime} and {@code epoch_ns} keep all nine). */
+    private SqlExpr microsecondsOnly(SqlExpr e, String where) {
+        if (e instanceof SqlExpr.TimestampLit t && timestampLit(t.iso()).startsWith("TIMESTAMP_NS")) {
+            throw new DialectCapability("the date-time " + t.iso() + " has a digit past the microsecond, which "
+                    + where + " on DuckDB keeps no more of (6): refused, never cut (S181)");
+        }
+        return e;
+    }
+
     /** DuckDB's bare {@code TIMESTAMP} is MICROSECOND precision — a
      *  literal with NONZERO sub-microsecond digits silently truncates
      *  (proven with a standalone repro: comparisons against a
@@ -501,7 +513,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case INT_DIVIDE -> DuckDbSpellings.intDivide(writer, a);
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(
+                            microsecondsOnly(a.get(2), "a date's arithmetic"), 5)
                     .append(" + ").append(DuckDbSpellings.intervalFunction(part(a.get(0)))).append("(").expr(a.get(1), 0)
                     .append(")"));
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
@@ -1157,6 +1170,9 @@ public final class DuckDb extends AnsiSqlRenderer {
      */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP) {
+            microsecondsOnly(c.value(), "a cast to its TIMESTAMP");
+        }
         if (!(c.target() instanceof com.legend.sql.SqlType.Array)
                 && c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
             writer.append("CAST((");

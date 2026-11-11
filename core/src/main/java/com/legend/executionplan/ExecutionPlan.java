@@ -750,8 +750,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
 
         /** The parameter's whole list, as one array of {@code elementSqlType} (the target's form of a list, e.g.
-         *  {@code = ANY(?)}). */
-        record Array(String elementSqlType) implements Binding {
+         *  {@code = ANY(?)}); {@code fraction}, for a list of dates or date-times, the digits of a second its database
+         *  keeps of an element -- an element of a finer digit is refused by the runner by name, never cut or rounded by
+         *  the driver (S181; the A delta audit's 2, 2026-11-11: an array's elements are the driver's timestamps, which
+         *  no statement's raise reads) -- null where it keeps every digit or the elements are no date. */
+        record Array(String elementSqlType, @com.legend.base.Nullable Integer fraction) implements Binding {
             public Array {
                 Objects.requireNonNull(elementSqlType, "elementSqlType");
             }

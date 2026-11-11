@@ -77,11 +77,12 @@ class DateTimeFractionTest {
     /** The digits of a second each database's date-time LITERAL keeps (each dialect's {@code literalFractionDigits}). */
     static final Map<DatabaseType, Integer> LITERAL_KEEPS = new LinkedHashMap<>();
     static {
+        // Trino 6 since the A delta audit's 7 (2026-11-11): its date-time model is a TIMESTAMP(6) throughout
         for (DatabaseType t : List.of(DatabaseType.Postgres, DatabaseType.MariaDB, DatabaseType.ClickHouse,
-                DatabaseType.Databricks, DatabaseType.BigQuery)) {
+                DatabaseType.Databricks, DatabaseType.BigQuery, DatabaseType.Trino)) {
             LITERAL_KEEPS.put(t, 6);
         }
-        for (DatabaseType t : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite, DatabaseType.Trino,
+        for (DatabaseType t : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite,
                 DatabaseType.Snowflake)) {
             LITERAL_KEEPS.put(t, 9);
         }
@@ -217,5 +218,55 @@ class DateTimeFractionTest {
                 assertTrue(nanos.contains("23:59:59.999999999"), type + ": " + nanos);
             }
         }
+    }
+
+    /** A list of date-times is bound as the driver's timestamps, which no statement's raise reads (the A delta audit's 2,
+     *  2026-11-11: DuckDB's cut an element of nine digits to six in silence): the plan says the digits its database keeps
+     *  of an element, and the runner refuses a finer one by name; one of the kept digits answers. H2 keeps nine. */
+    @Test
+    void aListsElementFinerThanItsDatabaseKeepsIsRefusedByName() throws Exception {
+        String in = "{ts: DateTime[*]|#>{s::DB.T}#->filter(r|$r.TS->in($ts))->select(~[ID])}";
+        String cell = WHOLE + ".123456";
+        assertEquals(List.of(1), ids(DatabaseType.DuckDB, cell, in,
+                List.of(LocalDateTime.parse("2024-01-02T10:00:00.123456"))));
+        var refused = assertThrows(com.legend.error.DataError.class, () -> ids(DatabaseType.DuckDB, cell, in,
+                List.of(LocalDateTime.parse("2024-01-02T10:00:00.123456789"))));
+        assertTrue(messages(refused).contains("the list parameter 'ts' holds 2024-01-02T10:00:00.123456789, which has"
+                + " more fraction digits than its database keeps (6): refused, never cut (S181)"), messages(refused));
+        assertEquals(6, ((com.legend.executionplan.ExecutionPlan.Binding.Array) plan(DatabaseType.DuckDB, cell, in)
+                .answerSql().slots().get(0).binding()).fraction());
+        assertEquals(null, ((com.legend.executionplan.ExecutionPlan.Binding.Array) plan(DatabaseType.H2, cell, in)
+                .answerSql().slots().get(0).binding()).fraction(), "H2 keeps nine of an element");
+        assertEquals(List.of(1), ids(DatabaseType.H2, cell, in,
+                List.of(LocalDateTime.parse("2024-01-02T10:00:00.123456"))));
+    }
+
+    /** The IDs {@code query} answers on {@code type}, the table's one row's TS {@code cell}, its list parameter
+     *  {@code ts}. */
+    private static List<Object> ids(DatabaseType type, String cell, String query, List<LocalDateTime> ts)
+            throws Exception {
+        com.legend.executionplan.ExecutionPlan plan = plan(type, cell, query);
+        List<Object> out = new java.util.ArrayList<>();
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
+            com.legend.exec.PlanRunner.stream(plan, Map.of("ts", ts), com.legend.exec.PlanSessions.acquired(
+                    com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()),
+                    new com.legend.result.ResultSink() {
+                        @Override
+                        public void columns(List<com.legend.executionplan.ExecutionPlan.Column> columns) {
+                        }
+
+                        @Override
+                        public void batch(com.legend.result.Batch batch) {
+                            for (int r = 0; r < batch.size(); r++) {
+                                out.add(((Number) batch.get(r, 0)).intValue());
+                            }
+                        }
+
+                        @Override
+                        public void end() {
+                        }
+                    }, 16);
+        }
+        return out;
     }
 }
