@@ -148,6 +148,60 @@ class DataSourcesDeliveryTest {
                 + " `u_frame_ord__` FROM VALUES ('{\"t\":\"xx"), inline.sql().substring(0, 200));
     }
 
+    /** Databricks' inline rows, pinned exactly (the orchestrator's ask, 2026-11-11: the lane measured the elements'
+     *  form, not a frame's): VALUES of the elements' texts, which the select over it parses, a frame's place the
+     *  second column -- {@code col1}, {@code col2}, as Spark names a VALUES' columns, aliased in the select. */
+    @Test
+    void databricksInlineRowsAreItsMeasuredShape() {
+        SqlDialect databricks = dialect(DatabaseType.Databricks);
+        List<String> cut = List.of("{\"t\":1}", "{\"t\":\"it's\"}");
+        String frame = databricks.render(SqlSelect.starOf(databricks.inlineRows(new SqlDialect.DataPayload(
+                source("data:application/json,[{\"t\":1},{\"t\":\"it's\"}]"), cut))));
+        assertEquals("SELECT *\nFROM (SELECT parse_json(legend_rows.col1) AS `data`, legend_rows.col2 AS `u_frame_ord__`"
+                + " FROM VALUES ('{\"t\":1}', 0L), ('{\"t\":\"it\\'s\"}', 1L) AS legend_rows(col1, col2)) AS `t0`", frame);
+        List<OutputCol> elementOutputs = List.of(new OutputCol("data", SqlType.Scalar.JSON, true,
+                OutputCol.Origin.DERIVED));
+        String elements = databricks.render(SqlSelect.starOf(databricks.inlineRows(new SqlDialect.DataPayload(
+                new SqlSource.SourceUrl("data:application/json,[{\"t\":1},{\"t\":\"it's\"}]", "t0", elementOutputs,
+                        SqlSource.SourceUrl.Form.ELEMENTS), cut))));
+        assertEquals("SELECT *\nFROM (SELECT parse_json(legend_rows.col1) AS `data` FROM VALUES ('{\"t\":1}'),"
+                + " ('{\"t\":\"it\\'s\"}') AS legend_rows(col1)) AS `t0`", elements);
+    }
+
+    /** A large payload's PLAN is about the size of its data (the orchestrator's finding of 2026-11-11: Databricks'
+     *  inline plan was 8.7 MB for a 1.09 MB payload, its typed tree carrying every VALUES row again): the payload
+     *  once -- a bound one's text the statement's content, an inline one's rows the statement's text, the carried tree
+     *  naming it by its digest -- on H2 (inline), Databricks above its parameter limit (inline) and DuckDB (bound). */
+    @Test
+    void aLargePayloadsPlanIsAboutTheSizeOfItsData() {
+        StringBuilder payload = new StringBuilder("[");
+        for (int i = 0; i < 12_000; i++) {
+            payload.append(i == 0 ? "" : ",").append("{\"id\":").append(i).append(",\"name\":\"row number ")
+                    .append(i).append("\",\"note\":\"a b c d e f g h i j k l m n o p q r s t u v w x y z\"}");
+        }
+        payload.append(']');
+        for (DatabaseType type : List.of(DatabaseType.H2, DatabaseType.Databricks, DatabaseType.DuckDB)) {
+            String model = """
+                    Class s::Item { id: Integer[1]; }
+                    ###Relational
+                    Database s::DB ( Table T ( ID INTEGER PRIMARY KEY ) )
+                    ###Mapping
+                    Mapping s::M ( *s::Item: Relational { ~mainTable [s::DB] T id: [s::DB] T.ID } )
+                    ###Connection
+                    RelationalDatabaseConnection s::Conn { store: s::DB; type: %s; specification: LocalH2 { }; auth: DefaultH2; }
+                    ###Runtime
+                    Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                    """.formatted(type.name());
+            com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(
+                    model), "|sourceUrl('data:application/json," + payload + "')->from(s::RT)").executionPlan("s::RT");
+            String json = com.legend.executionplan.PlanJson.write(plan);
+            // measured 2026-11-11: H2 1.42 MB, Databricks 1.36 MB, DuckDB 1.30 MB for a 1.18 MB payload
+            assertEquals(1, json.split("row number 7777\\\\?\"", -1).length - 1, type + ": the payload once in the plan");
+            assertTrue(json.length() < 2L * payload.length(), type + ": a plan of " + json.length()
+                    + " characters for a payload of " + payload.length());
+        }
+    }
+
     /** Trino's driver writes a parameter into the statement's text, which Trino bounds at 1,000,000 characters: a
      *  payload whose literal alone is longer can never run, refused at planning by name. */
     @Test

@@ -59,13 +59,20 @@ public final class DataSources {
         };
     }
 
-    /** {@code tree}, a statement's typed tree as its plan carries it, each {@code data:} source whose payload is one of
-     *  {@code digests} (its statement's content, bound) named by its digest ({@link SqlSource.SourceUrl#byDigest}):
-     *  the payload's text once in the plan, the statement's content (the JSON pass, 2026-11-11). */
+    /** {@code tree}, a statement's typed tree as its plan carries it, each {@code data:} payload named by its digest
+     *  ({@link SqlSource.SourceUrl#byDigest}), the payload once in the plan (the JSON pass, 2026-11-11): a bound one's
+     *  -- one of {@code digests}, its statement's content -- and one written as the statement's own rows
+     *  ({@link SqlSource.Values#payload}: the rows the statement's text; until the orchestrator's finding of
+     *  2026-11-11 the tree carried every row again as typed nodes, a plan 8 times its payload on Databricks). */
     static SqlQuery byDigest(SqlQuery tree, java.util.Set<String> digests) {
         return new SqlRewriter() {
             @Override
             protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Values v && v.payload() != null) {
+                    return new SqlSource.SourceUrl(SqlSource.SourceUrl.byDigest(v.payload()), v.alias(), v.outputs(),
+                            v.columns().contains(SqlSource.SourceUrl.PLACE) ? SqlSource.SourceUrl.Form.RECORDS
+                                    : SqlSource.SourceUrl.Form.ELEMENTS);
+                }
                 if (s instanceof SqlSource.SourceUrl u && u.url().startsWith("data:")
                         && !SqlSource.SourceUrl.namesByDigest(u.url())) {
                     String digest = com.legend.cache.Hash.ofUtf8(content(u.url())).hex();
@@ -99,7 +106,12 @@ public final class DataSources {
             String content = content(u.url());
             List<String> elements = u.form() == SqlSource.SourceUrl.Form.RECORDS ? records(content, u.url())
                     : elements(content, u.url());
-            return dialect.deliver(new SqlDialect.DataPayload(u, elements));
+            SqlDialect.DataPayload payload = new SqlDialect.DataPayload(u, elements);
+            SqlSource delivered = dialect.deliver(payload);
+            // a payload written as the statement's own rows is named by its digest (as a bound one's text is), which
+            // the typed tree its plan carries reads it by (byDigest): the rows once, the statement's text
+            return delivered instanceof SqlSource.Values v ? new SqlSource.Values(v.rows(), v.columns(), v.alias(),
+                    v.outputs(), com.legend.cache.Hash.ofUtf8(payload.array()).hex()) : delivered;
         }
     }
 

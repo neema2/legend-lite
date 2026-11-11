@@ -774,9 +774,9 @@ public final class PlanMaker {
         List<ExecutionPlan.Region> regions = rendered.regions().stream()
                 .map(r -> new ExecutionPlan.Region(r.start(), r.end(), r.lead(), r.separator(), r.empty(),
                         r.firstBind(), r.bindCount(), r.counters())).toList();
-        // the typed tree carried beside the statement names each bound payload by its digest, never its text (the
-        // JSON pass: the bytes once in the plan, the statement's content)
-        SqlQuery carried = tree == null || content.isEmpty() ? tree : DataSources.byDigest(tree, content.keySet());
+        // the typed tree carried beside the statement names each payload by its digest, never its text or rows (the
+        // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
+        SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
         return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content);
     }
 

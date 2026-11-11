@@ -616,6 +616,11 @@ include the digest reference in the JSON pass"):**
     against its digest where the plan is read.
   - The statement's typed tree names the payload by its digest too (`SourceUrl.byDigest`), so the bytes appear once in
     the plan. A render of such a tree is refused by name.
+  - An inline payload too: the planner tags the rows a dialect writes (`SqlSource.Values.payload`), and the carried tree
+    names them by digest. Before, Databricks' inline plan was 8.7 MB for a 1.09 MB payload (the lane's finding). Now a
+    1.18 MB payload plans to 1.42 MB on H2, 1.36 MB on Databricks and 1.30 MB on DuckDB (bound).
+    `DataSourcesDeliveryTest.aLargePayloadsPlanIsAboutTheSizeOfItsData` pins it: the payload once, the plan under twice
+    its size.
   - The runner fetches the text by digest and binds it.
   - The TypeScript runner's `PLAN_VERSION` is 48. Test plans are version 17, with no release.
 - **Every dialect's `deliver`** returns the statement's source (§4.3): bound wherever the database splits one
