@@ -13,6 +13,19 @@
 > **No account-specific data:** this file names no session, environment, trigger or account. Where those matter, it
 > says what to create.
 
+## The program's design documents (start with these)
+
+| order | document | what it is |
+|---|---|---|
+| 1 | `docs/GOALS_OF_RECORD_2026_11_07.md` | the goals, ratified by the user: G1-G11, and P1-P4, which this program builds |
+| 2 | **`docs/DATA_DELIVERY_DESIGN_2026_11_10.md`** | **THE MAIN DESIGN AND PLAN of this program**: the approved design, phases A-F (§6), the D rulings (§6.1), "as built" for A and B, the later list (§9) |
+| 3 | `docs/data-delivery-homework/*_BRIEF_2026_11_10.md` | the build briefs for B, C plus E, and D, with file:line maps |
+| 4 | `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md` | the ruled target for every data load; its program runs after this PR, but B3 follows it now |
+| 5 | `docs/NATIVE_PROTOCOL_DESIGN_2026_11_11.md` | the next program, built after this PR |
+| earlier | `docs/PLAN_AS_DATA_2026_11_07.md`, `docs/DATA_IN_THE_PLAN_2026_11_09.md` | the plan-as-data design and data-in-the-plan (L1-L8) that came before; `DATA_DELIVERY_DESIGN` replaces the latter's delivery part |
+
+This file is the state, the rulings and the runbook on top of those documents. It is not a replacement for them.
+
 ## 0. Read in this order
 
 1. This file, all of it.
@@ -259,7 +272,42 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
 | | **Snowflake** | `SELECT PARSE_JSON(column1), column2 FROM VALUES (...)`; empty: `FROM VALUES (NULL::STRING, 0) WHERE FALSE`. Its temp table is private, but no drop is safe: `DROP TABLE IF EXISTS` drops the user's PERMANENT table when no temp table exists (measured), and `DROP TEMPORARY TABLE` is a syntax error |
 | | **BigQuery** | `SELECT data, ord FROM UNNEST([JSON '…', …]) AS data WITH OFFSET AS ord`; empty: `UNNEST(CAST([] AS ARRAY<JSON>))`. A TEMP table needs `EnableSession=1`, which lite's ordinary connection lacks ("requires a script or session"), and an unqualified temp name falls through to the default dataset. BigQuery quotes `'` as `\'` |
 
-- The empty payload gives zero rows on every INLINE database, never a refusal.
+- **The empty payload** gives zero rows on every INLINE database, never a refusal. It is one typed NULL row filtered out
+  by `WHERE FALSE`, the shape of the empty TDS literal. All three cloud forms are measured: BigQuery, Snowflake and
+  Databricks, round 36.
+- **JSON lands in each database's own JSON type** (`SqlDialect.dataSourceColumn` gives `Kind.JSON`, and each dialect
+  spells it):
+
+  | database | JSON type |
+  |---|---|
+  | DuckDB | `JSON`, an alias of VARCHAR |
+  | H2 | `JSON` |
+  | SQLite | text through `json()` |
+  | Postgres | `JSONB` |
+  | MariaDB | `JSON`, an alias of LONGTEXT with a validity check |
+  | MySQL | `JSON` |
+  | Databricks | `VARIANT` |
+  | Snowflake | `VARIANT`, through `PARSE_JSON` |
+  | BigQuery | `JSON`, through `PARSE_JSON` |
+  | Trino | `JSON`, through `json_parse` |
+  | ClickHouse | the values() form |
+  | MongoDB | native documents |
+
+  Two traps were measured:
+  - Databricks's `CAST(variant AS STRING)` re-serialises the JSON with its keys SORTED. If any arm turns a variant back
+    into text, check it.
+  - On Snowflake, the empty form's place column types as `NUMBER(1,0)` from the literal 0. Cast it to match the
+    non-empty arm.
+- **Why INLINE for five databases, not their "temporary-ish" tables:**
+  - Trino's memory connector tables are shared by every connection.
+  - A MongoDB TTL collection is shared too: TTL only deletes old documents later. `$documents` needs no collection at all.
+  - Snowflake's temporary table has no safe drop.
+  - BigQuery's needs a session that lite's connection does not hold.
+  - ClickHouse's needs a per-run HTTP session id, which would be exec's to mint.
+- **The limit of INLINE:** the statement is as large as the payload. Each INLINE database's statement-size limit must be
+  a named refusal at planning, or a planned session setting, and never a raw error at run. The limits: ClickHouse
+  `max_query_size` (256 KiB by default), Trino `query.max-length`, Snowflake's and BigQuery's query-text limits, and
+  MongoDB's 16 MB command. In flight: §4.4.
 - Any drop must be spelled so it can never touch a user's table.
 
 ### 4.4 In flight at the worker (verify each in the code: done only if its test exists and passes)
@@ -324,6 +372,14 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
      - (3) The fetch texts differ: already ruled 2026-11-10, a register row; `assertSize` still holds.
      - Also: S143's skip lifted; `TestDataGeneratorRun` and the TDG appeal deleted.
    - **B2d.3:** the default starting rows, by upstream's rule read from the pinned sources.
+5b. **B2d.2's read-only reload: RULED, land it** (§5.2), with its register row.
+5c. **The INLINE size limits** (§4.3): a named refusal or a planned setting per database, each with a test at its limit.
+5d. **A matrix cell for a CSV with an embedded JSON column.** The user asked whether a CSV can carry one. It can: types
+    come from the model, so a `SEMISTRUCTURED`/`JSON` column's cell text is taken by the database's own JSON type.
+    - **The cell:** CSV test data whose JSON column holds a comma, a doubled quote and a nested object, plus an empty
+      cell and a NULL.
+    - **Where:** every in-process database, and Postgres on its lane, then a field read by path.
+    - Not yet tested. If it fails, tell the user before ledgering it.
 6. **B3's measurement, done:** DuckDB 1.5.6 binds credentials as parameters, so the credential mechanism is clean:
    - `CREATE TEMPORARY SECRET s (TYPE S3, KEY_ID ?, SECRET ?, REGION ...)` and `CREATE OR REPLACE TEMPORARY SECRET ...
      SCOPE ?` both prepare and bind;
@@ -349,21 +405,7 @@ All runs at 5fe98b92.
 
 ### 4.6 Open questions for the user (ask once, at the natural moment)
 
-1. **The generator's reload check (B2d.2 item 2; posted 2026-11-11, awaiting the ruling).**
-   - **What upstream does:** `loadAndTestExecution` drops the test's tables, recreates them from the generated CSV, and
-     runs the query again to check it returns rows. Doing that literally means building SQL from a value known only at
-     run, which breaks the wall.
-   - **Option A (recommended):** run the query over the generator's rows directly, read-only, each table swapped for its
-     slice. The data and the verdict are the same. The difference: the test's tables are left untouched where upstream
-     overwrites them.
-   - **Option B:** copy upstream literally. It breaks the wall: not allowed.
-   - **Option C:** overwrite the tables by planned SQL, staging the slices in new tables first (each slice reads the
-     originals). It needs extra tables and writes, and checks no more than A.
-   - **The worker is checking** whether any statement after `loadAndTestExecution` in upstream's tests reads the replaced
-     tables. If one does, bring that case to the user.
-   - **The CSV is part of the user contract:** `generateTestData` returns a `TestDataGenResult` whose `dataCsvString` is
-     the test-data text a user pastes into a test. A typed form, `getRelationalCSVDataFromQuery`, returns
-     `RelationalCSVData`. Option A does not change that contract.
+1. **The generator's reload check: RULED** (the user, 2026-11-11: "Read only reload is fine"). The ruling is in §5.2.
 2. **The PR's timing** (§1).
 3. **Native file loaders: SETTLED by the data-loading target model** (the user, 2026-11-11, "Yes write it";
    `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md`).
@@ -410,6 +452,18 @@ and the briefs' "RULED" items.
   - Every level is ordered by its key; upstream is unordered, a register row.
   - FAITHFUL output: quoted cells, line breaks kept, and lite's test-data reader quote-aware ("Yes").
   - Reload checks planned as SQL ("4 yes").
+  - **The reload is read-only** (the user, 2026-11-11: "Read only reload is fine").
+    - **The question:** upstream's `loadAndTestExecution` rebuilds the WHOLE test database from the generated CSV, so
+      every table the CSV does not name ends up empty. Then it runs the query again. Doing that literally means
+      building SQL from a value known only at run, which breaks the wall.
+    - **What lite does:** it plans the query again with every table of that database swapped: the slice's tables for
+      their generated rows, every other table for no rows. The test's real tables are left untouched.
+    - **Why the outcome is identical:** the worker counted 30 upstream tests that call it. 28 end with it. In the other 2,
+      nothing afterwards reads a replaced table: one re-creates the database first, the other reloads the same tables
+      again. None asserts the Boolean it returns.
+    - **The register:** a row records the method difference.
+    - **The CSV stays part of the user contract.** `generateTestData` returns a `TestDataGenResult` whose `dataCsvString`
+      is the test-data text a user pastes into a test. `getRelationalCSVDataFromQuery` is the typed form.
   - Upstream's 46 SQL-text and 26 count checks: a register row.
   - `TestDataGeneratorRun` and the TDG appeal deleted.
 - **B3:**
