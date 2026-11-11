@@ -64,8 +64,9 @@ public interface TestBackend {
         return "SELECT CAST(EXTRACT(YEAR FROM CURRENT_TIMESTAMP) AS VARCHAR)";
     }
 
-    /** A NEW session for the platform's system database on this server (closing it closes it). An in-process backend
-     *  has none: the platform opens its own private instance. */
+    /** A NEW session on this server, owned (closing it closes it): a server lane's session per plan where it holds
+     *  none ({@code PctBackend}). An in-process backend has none: the platform opens its own private instance. (The
+     *  platform's system database on a server, which it opened until B4, 2026-11-11, is the in-process catalog.) */
     Connection openSystem() throws SQLException;
 
     /** The suite's one held session ({@link #open}'s: closing it is a no-op, the JVM's exit closes it), where a login is

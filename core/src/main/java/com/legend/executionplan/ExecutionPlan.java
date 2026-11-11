@@ -926,14 +926,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
         }
 
-        /** THE GRAPH'S SYSTEM DATABASE on {@code type} (the test-is-the-product plan's M10a, the narrow M4,
-         *  2026-11-01): the metamodel store's tables, written once per graph by the one who opens it -- the sessions
-         *  source a caller hands the runner; the runner knows no database (the user ruling of 2026-09-02: separate
-         *  from every user connection). A test body reading the metamodel store runs its program here; the product's
-         *  own metamodel carriage is unchanged (the user, 2026-11-01: a product follow-up). {@code graphKey} names WHICH
-         *  store (the plan-as-data design's step 7, 2026-11-08, 2.6): a hash of the store's content -- every table's
-         *  definition and the graph's rows -- so two plans of one graph name one store, and the plan, not the compiled
-         *  graph object beside it, says which. */
+        /** THE PROCESS'S CATALOG on {@code type} (the test-is-the-product plan's M10a, 2026-11-01; L4b, 2026-11-09;
+         *  B4, 2026-11-11): the system metamodel store's tables and the platform's rows, made once a process on an
+         *  engine the platform runs in process by the target's ONCE load, separate from every user connection (the
+         *  user's ruling of 2026-09-02); a model's own rows are registered in a run's turn. Every statement reading the
+         *  store runs here, whatever database holds the user's data. {@code graphKey} names the catalog: the platform's
+         *  content key ({@code SystemCatalog}'s), the same in every plan (a graph's own store, keyed by its content,
+         *  until L4b). */
         record System(DatabaseType type, String graphKey) implements Database {
             public System {
                 Objects.requireNonNull(type, "type");

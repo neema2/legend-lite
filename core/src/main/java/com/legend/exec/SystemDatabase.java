@@ -41,31 +41,27 @@ import java.util.Map;
  */
 public final class SystemDatabase {
 
-    /** The CURRENT system database of each engine (the plan-as-data design's hole 2, 2026-11-09): the key it holds, its
-     *  session and the runs using it. On a database the platform runs in process it is the process's CATALOG (L4b,
-     *  2026-11-09), keyed by the platform's content, so it is made once and never replaced; a target of no load (a
-     *  graph's own key) is replaced when a run names another -- a fresh session opened lazily, the old one closed when
-     *  the last run using it ends. Found by the plan's own target, never the compiled model. */
+    /** The CATALOG of each engine (L4b, 2026-11-09; the plan-as-data design's hole 2): the key it is made with -- the
+     *  platform's content and its ONCE loads' identities, the same for every plan on the engine -- and its session. Made
+     *  once a process, never replaced (B4, 2026-11-11: a target naming another key on the engine is refused by name,
+     *  where a graph's own system database was replaced until then). Found by the plan's own target, never the compiled
+     *  model. */
     private static final Map<com.legend.executionplan.DatabaseType, Held> CURRENT = new HashMap<>();
 
-    /** A system database's session and its leases; guarded by the class's lock. A catalog's (a target with loads) is
-     *  made with its target's ONCE loads -- the store's tables and the platform's rows -- and taken by one run at a time
-     *  ({@link #turn}), each run's registration inside a transaction rolled back when its leases close. */
+    /** A catalog's session, made with its target's ONCE loads -- the store's tables and the platform's rows -- and taken
+     *  by one run at a time ({@link #turn}), each run's registration inside a transaction rolled back when its leases
+     *  close. */
     private static final class Held {
         final String key;
         final Sessions.Session session;
-        final boolean catalog;
         final java.util.concurrent.locks.ReentrantLock turn = new java.util.concurrent.locks.ReentrantLock();
-        int leases;
-        boolean replaced;
         /** Guarded by {@link #turn}: the catalog's ONCE loads ran ({@code made}), or failed part-way ({@code broken}). */
         boolean made;
         boolean broken;
 
-        Held(String key, Sessions.Session session, boolean catalog) {
+        Held(String key, Sessions.Session session) {
             this.key = key;
             this.session = session;
-            this.catalog = catalog;
         }
     }
 
@@ -77,60 +73,56 @@ public final class SystemDatabase {
         return new Leases();
     }
 
-    /** One run's leases: each system database its steps reach, held until {@link #close}, and its turns on the catalogs
-     *  it reached, rolled back then. */
+    /** One run's leases: its turns on the catalogs its steps reach, held until {@link #close} and rolled back then. */
     public static final class Leases implements AutoCloseable {
-        private final List<Held> held = new ArrayList<>();
         private final List<Held> turns = new ArrayList<>();
 
         private Leases() {
         }
 
         /**
-         * The system database {@code target} names -- the engine and the key of what it holds -- OPENED ON FIRST USE
-         * ({@link Sessions#lazy}): an in-process engine's private database (any other engine refused by name: the
-         * catalog is the process's, B4). The same session for the same target. A target with loads names the process's CATALOG:
-         * made once with its ONCE loads, then this run's turn taken on it -- one run at a time, inside a transaction
-         * rolled back when the run ends ({@link #close}; docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.5). The holder
-         * writes nothing of its own: every row is a load of the plan's.
+         * The process's CATALOG {@code target} names -- its engine, which the platform runs in process, and its ONCE
+         * loads (any other target refused by name: B4, 2026-11-11) -- OPENED ON FIRST USE ({@link Sessions#lazy}) as the
+         * engine's private database and made with those loads once, then this run's turn taken on it: one run at a
+         * time, inside a transaction rolled back when the run ends ({@link #close};
+         * docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.5). The same session for the same target. The holder writes
+         * nothing of its own: every row is a load of the plan's.
          */
         public Sessions.Session sessionFor(com.legend.executionplan.ExecutionPlan.Target target) {
             if (!(target.database() instanceof com.legend.executionplan.ExecutionPlan.Database.System system)) {
                 throw new IllegalArgumentException("a system database's lease for " + target.database());
             }
-            boolean catalog = !target.loads().isEmpty();
-            StringBuilder key = new StringBuilder(system.graphKey());
+            com.legend.executionplan.DatabaseType engine = system.type();
+            if (!Sessions.inProcess(engine)) {
+                throw new IllegalStateException("a system database on " + engine + ": the process's catalog is made on"
+                        + " a database the platform runs in process");
+            }
             // the catalog is named by what it is made with (its ONCE loads): a product query's model registration
             // (PER_ACQUISITION, L4's product half) is the run's own, run in its turn, and names no other catalog
+            StringBuilder key = new StringBuilder(system.graphKey());
+            boolean made = false;
             for (var load : target.loads()) {
                 if (load.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE) {
                     key.append(' ').append(load.identity());
+                    made = true;
                 }
+            }
+            if (!made) {
+                throw new IllegalStateException("a system database's target with no load that makes the catalog ("
+                        + target.database() + "): the process's catalog is made by its target's ONCE load");
             }
             Held current;
             synchronized (SystemDatabase.class) {
-                com.legend.executionplan.DatabaseType engine = system.type();
                 current = CURRENT.get(engine);
-                if (current == null || !current.key.equals(key.toString())) {
-                    if (current != null) {
-                        current.replaced = true;
-                        if (current.leases == 0) {
-                            closeQuietly(current.session);
-                        }
-                    }
-                    if (!Sessions.inProcess(engine)) {
-                        throw new IllegalStateException("a system database on " + engine + ": the process's catalog is"
-                                + " made on a database the platform runs in process (B4)");
-                    }
-                    current = new Held(key.toString(), Sessions.lazy(() -> openPrivate(engine)), catalog);
+                if (current == null) {
+                    current = new Held(key.toString(), Sessions.lazy(() -> openPrivate(engine)));
                     CURRENT.put(engine, current);
-                }
-                if (!held.contains(current)) {
-                    current.leases++;
-                    held.add(current);
+                } else if (!current.key.equals(key.toString())) {
+                    throw new IllegalStateException("a second catalog on " + engine + ": the process's catalog is made"
+                            + " once, by " + current.key + ", and a target names " + key);
                 }
             }
-            if (current.catalog && !turns.contains(current)) {
+            if (!turns.contains(current)) {
                 take(current, target);
             }
             return current.session;
@@ -204,26 +196,9 @@ public final class SystemDatabase {
                 }
             }
             turns.clear();
-            synchronized (SystemDatabase.class) {
-                for (Held h : held) {
-                    h.leases--;
-                    if (h.replaced && h.leases == 0) {
-                        closeQuietly(h.session);
-                    }
-                }
-                held.clear();
-            }
             if (failed != null) {
                 throw failed;
             }
-        }
-    }
-
-    private static void closeQuietly(Sessions.Session c) {
-        try {
-            c.close();
-        } catch (com.legend.error.DataError ignore) {
-            // closing after a failure: the failure is the error to report
         }
     }
 
