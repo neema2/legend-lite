@@ -198,10 +198,12 @@ export function mountOperations(options: RemoteOptions): HostOperation[] {
   return [...accessOperations(options), ...options.sources.map(viewOperation)];
 }
 
-/** The engine a remote source is mounted on: its database's type, and its connection held for a mount's statements,
- *  which binds a secret's values (DuckDbEngine.exclusive). */
+/** The engine a remote source is mounted on: its database's type, its queue's run (a statement that binds nothing,
+ *  run as every query is: DuckDbEngine.run), and its connection held for a statement that binds a secret's values
+ *  (DuckDbEngine.exclusive). */
 export interface RemoteEngine {
   readonly databaseType: string;
+  run(sql: string, epoch: number): Promise<unknown>;
   exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
 }
 
@@ -239,17 +241,22 @@ async function runRedacted(engine: RemoteEngine, host: HostOperationsSource,
     throw redacted(cause);
   }
   const store = secretStore(options);
-  await engine.exclusive(async (held) => {
-    for (const [i, operation] of operations.entries()) {
-      // a secret's one statement binds its values from the store, in secretBinds' order; every other binds none
-      const params = operation.op === 'secret' ? store.bound(operation) : [];
-      for (const statement of statements[i] ?? []) {
-        try {
-          await held.rows(statement, params);
-        } catch (cause) {
-          throw redacted(cause);
+  for (const [i, operation] of operations.entries()) {
+    for (const statement of statements[i] ?? []) {
+      try {
+        if (operation.op === 'secret') {
+          // a secret's one statement binds its values from the store, in secretBinds' order, on the held connection
+          const params = store.bound(operation);
+          await engine.exclusive((held) => held.rows(statement, params));
+        } else {
+          // every other binds none, and runs as every query runs (DuckDbEngine.run). Measured 2026-11-11: a mount's
+          // statements run instead through the held connection's query left the demo's cube over a remote Parquet
+          // failing with DuckDB-WASM's "Overflow in timestamp subtraction" (//datacube:verify_remote_test)
+          await engine.run(statement, 0);
         }
+      } catch (cause) {
+        throw redacted(cause);
       }
     }
-  });
+  }
 }
