@@ -576,16 +576,18 @@ public final class PlanRunner {
      *  its holder sent it; every other under SEED. */
     static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
             com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
-        // a seed (BEFORE_STEP) and a registration (PER_TRANSACTION) are memoed; a program's own load and a target's
+        // a seed (BEFORE_STEP) and a registration (PER_TRANSACTION) are memoed -- a seed until a write, a registration
+        // until its transaction rolls back (the B checkpoint's correctness audit, C1, 2026-11-11: a write forgot it, and
+        // the model's rows were inserted twice into the catalog's keyed tables); a program's own load and a target's
         // (AT_STEP, PER_ACQUISITION, ONCE) write
-        boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP
-                || seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION;
-        if (seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION && session.ownsTransaction()) {
+        boolean registration = seeds.cadence() == ExecutionPlan.Load.Cadence.PER_TRANSACTION;
+        boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP || registration;
+        if (registration && session.ownsTransaction()) {
             throw new IllegalStateException("a registration (" + seeds.identity() + ") on a session that holds no"
                     + " transaction for the run: it would be committed, and seen by every other run");
         }
         SeedKey key = new SeedKey(seeds.identity());
-        if (memo && session.state().established(key)) {
+        if (registration ? session.state().registered(key) : memo && session.state().established(key)) {
             // the session holds this identity, verified when it ran: a load skipped runs nothing, so it is not digested
             // again for every step that names it (the re-audit's A-7, 2026-11-09)
             return;
@@ -609,7 +611,9 @@ public final class PlanRunner {
         } finally {
             ran.accept(List.copyOf(answered));
         }
-        if (memo) {
+        if (registration) {
+            session.state().register(key);
+        } else if (memo) {
             session.state().establish(key);
         }
     }

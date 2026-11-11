@@ -38,6 +38,20 @@ class SessionStateTest {
         assertFalse(s.established(new Key("a")), "a write may change a seeded table: its seeds establish again");
     }
 
+    /** A registration on the catalog stands until its transaction rolls back (the B checkpoint's correctness audit, C1,
+     *  2026-11-11: a write forgot it, and the next catalog step inserted the model's rows again); a seed's establishing
+     *  does not forget it either. */
+    @Test
+    void aRegistrationStandsUntilARollback() {
+        SessionState s = new SessionState();
+        s.register(new Key("r"));
+        s.markWriting();
+        s.establish(new Key("a"));
+        assertTrue(s.registered(new Key("r")), "a write or a seed leaves the catalog's rows in place");
+        s.rolledBack();
+        assertFalse(s.registered(new Key("r")), "the rollback took the registration's rows back");
+    }
+
     @Test
     void aRollbackForgetsEveryKeysSeeds() {
         SessionState s = new SessionState();
