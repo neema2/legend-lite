@@ -189,8 +189,14 @@ class DataMechanismCensusTest {
                     new Staying("P9: constants come from the compiled model alone")),
             new Row("M13-output", "the test-data generator's rows handed on as seed text", new Pending("L8")),
             new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Pending("L7")),
-            new Row("M15", "harnesses seed by JDBC; the referee's mirror replays seed texts (the edge's SeedTexts)",
-                    new Pending("L8")),
+            // M15 in its two halves, as M7 is (B2c, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2c, the
+            // user's yes): the Java test fixtures' own JDBC writes BOUNDED by their guard, not converted -- each file's
+            // literal write sends pinned, a total ceiling that only falls; the referee's replay of seed texts moves
+            // with B2b
+            new Row("M15-fixtures", "harnesses seed by JDBC (the Java test fixtures' own writes)",
+                    new Bounded("B2c", List.of(), "FixtureWriteCensusTest")),
+            new Row("M15-referee", "the referee's mirror replays seed texts (the edge's SeedTexts)",
+                    new Pending("B2b")),
             new Row("M16", "parameters, keyed keys, counts, host rows",
                     new Staying("P9: parameters come from the caller alone")),
             // BOUNDED (B2e, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2e and §9's gaps, the user's
@@ -245,9 +251,10 @@ class DataMechanismCensusTest {
     void everyMechanismHasItsRow() {
         Set<String> ids = ROWS.stream().map(Row::id).collect(Collectors.toCollection(TreeSet::new));
         assertEquals(ROWS.size(), ids.size(), "a mechanism has two rows: " + ROWS);
-        // the inventory's 17: M7 counted once, in its two halves (the seed forms a load, the author's statements not)
+        // the inventory's 17: M7 counted once, in its two halves (the seed forms a load, the author's statements not);
+        // M15 likewise since B2c, 2026-11-11 (the fixtures' own writes bounded, the referee's replay B2b's)
         Set<String> want = new TreeSet<>(Arrays.asList("M1", "M2", "M3", "M4", "M5", "M6", "M7-seed", "M7-authored",
-                "M8", "M9", "M10", "M11", "M12", "M13-output", "M14", "M15", "M16", "M17"));
+                "M8", "M9", "M10", "M11", "M12", "M13-output", "M14", "M15-fixtures", "M15-referee", "M16", "M17"));
         assertEquals(want, ids, "the census's rows are the inventory's mechanisms");
     }
 
