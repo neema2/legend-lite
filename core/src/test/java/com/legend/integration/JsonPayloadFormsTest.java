@@ -51,6 +51,18 @@ public class JsonPayloadFormsTest {
     static final String JSON = "[{\"i\":1,\"t\":\"it's a\\\\b\",\"n\":1.50,\"o\":{\"k\":[1,\"x\"]},\"b\":true},"
             + "{\"i\":2,\"t\":\"x\\ny\",\"n\":null,\"o\":{}},\"s\",null,7,2.50]";
 
+    /** String members' JSON text, each escape JSON has: a quote, a backslash, a line break, a tab, a backslash-u escape,
+     *  an escaped backslash before a u, an escaped solidus; and the string "null" and a string whose own edges are
+     *  quotes (the orchestrator's ask, 2026-11-11: H2 read a member's escapes back as written). */
+    static final String STRINGS = "[{\"i\":1,\"t\":\"it's \\\"q\\\"\"},{\"i\":2,\"t\":\"a\\\\b\"},"
+            + "{\"i\":3,\"t\":\"x\\ny\"},{\"i\":4,\"t\":\"tab\\there\"},"
+            + "{\"i\":5,\"t\":\"\\u00e9t\\u00E9\"},{\"i\":6,\"t\":\"\\\\u0041\"},{\"i\":7,\"t\":\"a\\/b\"},"
+            + "{\"i\":8,\"t\":\"null\"},{\"i\":9,\"t\":\"\\\"edge\\\"\"}]";
+
+    /** {@link #STRINGS}' members as their values. */
+    static final List<String> STRING_VALUES = List.of("it's \"q\"", "a\\b", "x\ny", "tab\there",
+            "\u00e9t\u00e9", "\\u0041", "a/b", "null", "\"edge\"");
+
     /** The query's text for {@code json} inside a Pure string: a quote and a backslash escaped. */
     static String pure(String json) {
         return json.replace("\\", "\\\\").replace("'", "\\'");
@@ -87,15 +99,22 @@ public class JsonPayloadFormsTest {
             expected.add(value(n));
         }
         assertEquals(expected, elements, db + ": the elements, in order: " + raw);
-        // the members, typed: an integer, a decimal, a boolean, a JSON null member (a string member's escapes are the
-        // elements' check above: one database's field read keeps a JSON string's escapes, as it did before the JSON
-        // pass -- its member read, reported, not this pass's)
+        // the members, typed: an integer, a decimal, a boolean, a JSON null member
         List<List<Object>> typed = run(c, model, source(JSON) + "->extend(~[i: r|cast(get($r.data, 'i'), @Integer),"
                 + " n: r|cast(get($r.data, 'n'), @Float), b: r|cast(get($r.data, 'b'), @Boolean)])"
                 + "->filter(r|$r.i->isNotEmpty())->select(~[i, n, b])->sort(~i->ascending())->from("
                 + StorelessRuntime.RUNTIME + ")");
         assertEquals(List.of(List.of("1", "1.5", "true"), List.of("2", "null", "null")), strings(typed),
                 db + ": the members");
+        // each string member read back exactly: unquoted and unescaped, as its value
+        List<List<Object>> strings = run(c, model, source(STRINGS) + "->extend(~[i: r|cast(get($r.data, 'i'),"
+                + " @Integer), t: r|cast(get($r.data, 't'), @String)])->select(~[i, t])->sort(~i->ascending())->from("
+                + StorelessRuntime.RUNTIME + ")");
+        List<Object> read = new ArrayList<>();
+        for (List<Object> row : strings) {
+            read.add(row.get(1));
+        }
+        assertEquals(STRING_VALUES, read, db + ": the string members");
         // an empty array: no row
         assertEquals(List.of(), run(c, model, source("[]") + "->from(" + StorelessRuntime.RUNTIME + ")"),
                 db + ": an empty array");

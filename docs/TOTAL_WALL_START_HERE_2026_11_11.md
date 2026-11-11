@@ -289,9 +289,14 @@ the plan, as its statement's content keyed by SHA-256 (§5.9).
     `max_query_size`, MySQL's and MariaDB's `max_allowed_packet`.
   - Databricks goes INLINE above 1 MiB.
   - The INLINE statement is as large as the payload: H2 has no measured limit; MongoDB's command is 16 MB.
-- **Known, unchanged by the pass:** H2's string member read keeps a JSON string's escapes (`TRIM(BOTH '"' FROM CAST(x."t" AS
-  VARCHAR))`: a backslash doubled, a line break as `\n`), as it did on the session table. Pinned in
-  `JsonPayloadFormsTest.text`.
+- **H2's string member read, FIXED (2026-11-11, the orchestrator's ask):** it kept a JSON string's escapes
+  (`TRIM(BOTH '"' FROM CAST(x."t" AS VARCHAR))`: a backslash doubled, a line break as `\n`, a string's own edge quotes
+  lost), on the session table as before. H2 2.5.252 has no `JSON_VALUE`. When it parses a string it normalises it: an
+  escaped solidus becomes `/`, and a `\u` escape of any non-control character becomes the character. Its text then
+  escapes only a quote, a backslash and the control characters, which `STRINGDECODE` reads back exactly (measured).
+  The read is now `STRINGDECODE` of the quoted text. `JsonPayloadFormsTest` reads a quote, a backslash, a line break,
+  a tab, `\u` escapes, an escaped backslash before `u`, an escaped solidus, the string `"null"` and edge quotes back
+  exactly on every database it runs on.
 - Two traps were measured earlier and still hold:
   - Databricks's `CAST(variant AS STRING)` sorts the keys.
   - Snowflake's empty form's place column types as `NUMBER(1,0)`.

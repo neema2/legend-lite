@@ -1193,17 +1193,26 @@ public class H2 extends AnsiSqlRenderer {
             return jsonParseCast(writer, c);
         }
         // a scalar cast over a navigation extracts TEXT first: H2 rejects JSON -> number/boolean casts outright and
-        // its VARCHAR cast keeps the JSON quoting (probed) -- TRIM strips it; numbers and booleans carry no quotes. A
-        // JSON null is SQL's NULL (its VARCHAR cast is the text null, where a JSON string "null" keeps its quotes), and
-        // a decimal target takes the text as a scalar one does (the lane round 33's stress finding, 2026-11-10: once
-        // A2 loaded a document as parsed JSON, a null read as 'null' and a JSON number cast to NUMERIC was refused)
+        // its VARCHAR cast is the value's JSON text (probed). A JSON STRING is that text unquoted and unescaped: H2
+        // normalizes a string when it parses it -- an escaped solidus is a solidus, a backslash-u escape of any but a
+        // control character the character itself -- so its text escapes only a quote, a backslash and a control
+        // character (backslash-b, -f, -n, -r, -t, or backslash-u and four hex digits), each of which STRINGDECODE (the
+        // Java string literal's decoding) reads back exactly, an escaped backslash before a u included (measured on
+        // 2.5.252, the JSON pass's H2 fix, 2026-11-11: until then
+        // TRIM stripped the quotes and kept every escape, so "a\\b" read a\\b, and a string's own edge quotes went
+        // with them). H2 has no JSON_VALUE. A number or a boolean is its text; a JSON null is SQL's NULL (its text the
+        // word null, where a JSON string "null" is quoted); a decimal target takes the text as a scalar one does (the
+        // lane round 33's stress finding, 2026-11-10)
         boolean navigation = c.value() instanceof SqlExpr.Call call
                 && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
                 || c.value() instanceof SqlExpr.StructGet;
         if (navigation && (c.target() instanceof com.legend.sql.SqlType.Scalar
                 || c.target() instanceof com.legend.sql.SqlType.Decimal)) {
-            return writer.append("CAST(TRIM(BOTH '\"' FROM NULLIF(CAST(").expr(c.value(), 0)
-                    .append(" AS VARCHAR), 'null')) AS ").append(castTypeName(c.target())).append(")");
+            writer.append("CAST(CASE WHEN CAST(").expr(c.value(), 0).append(" AS VARCHAR) LIKE '\"%' THEN STRINGDECODE(")
+                    .append("SUBSTRING(CAST(").expr(c.value(), 0).append(" AS VARCHAR), 2, LENGTH(CAST(")
+                    .expr(c.value(), 0).append(" AS VARCHAR)) - 2)) ELSE NULLIF(CAST(").expr(c.value(), 0)
+                    .append(" AS VARCHAR), 'null') END AS ");
+            return writer.append(castTypeName(c.target())).append(")");
         }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
         // two rows the since-deleted byte channel lost): a
