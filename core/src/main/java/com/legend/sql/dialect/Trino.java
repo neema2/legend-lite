@@ -78,13 +78,14 @@ public final class Trino extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
     }
 
-    /** {@inheritDoc} 6: its {@code TIMESTAMP '...'} literal is typed by the digits it is written with (measured), but
-     *  this dialect's date-time model is a {@code TIMESTAMP(6)} throughout -- its column, and the arms that cast to it
-     *  (the time zone's, a parse's, now's), which round a finer value -- so a literal of a digit past the sixth is
-     *  refused, never rounded where an arm reads it (S181; the A delta audit's 7, 2026-11-11: until then 9). */
+    /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal is typed by the digits it is written with (measured) (S181,
+     *  A7, 2026-11-10). Kept at nine by the user's rule, "refuse if the db cannot handle" (round 34, 2026-11-11): Trino's
+     *  {@code TIMESTAMP(9)} keeps them. The arms that compute through microseconds (the time zone's cast, a parse's, the
+     *  time bucket's and the date difference's epoch microseconds) keep six of them: the A delta audit's 7, on design
+     *  §9's later list with the nanosecond type. */
     @Override
     protected int literalFractionDigits() {
-        return 6;
+        return 9;
     }
 
     /** {@inheritDoc} 6: its date-time column is a {@code TIMESTAMP(6)} (S181, A7, 2026-11-10). */
@@ -334,16 +335,14 @@ public final class Trino extends AnsiSqlRenderer {
     }
 
     /** A Date and a DateTime parameter: upstream's literal processor writes both {@code Timestamp'%s'}
-     *  (trinoExtension.pure), a timestamp of the value's own digits; the placeholder is this dialect's
-     *  {@code TIMESTAMP(6)}, its date-time model throughout ({@link #literalFractionDigits}: the arms cast to it), bound as
-     *  its text with the guard that refuses a digit past the sixth (S181; the A delta audit's 7, 2026-11-11: until then a
-     *  {@code TIMESTAMP(9)}, whose nine digits an arm's cast rounded; a plain {@code TIMESTAMP} is three). A number is
-     *  bound bare. */
+     *  (trinoExtension.pure), a timestamp of the value's own digits; the placeholder is a {@code TIMESTAMP(9)}, so no
+     *  digit of a DateTime's nine is lost (a plain {@code TIMESTAMP} is three), bound as its text (D1, P4; the re-audit's
+     *  B-1, 2026-11-09; kept by round 34's rule, 2026-11-11). A number is bound bare. */
     @Override
     protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
             case FLOAT, DECIMAL, NUMBER -> null;
-            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP(6)", new RenderedStatement.AsText(6));
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP(9)", new RenderedStatement.AsText(null));
         };
     }
 

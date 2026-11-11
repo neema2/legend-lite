@@ -166,8 +166,8 @@ class PlanMakerTest {
     }
 
     /** Each database's placeholder of a Date and of a DateTime parameter, as its dialect writes it from upstream's
-     *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at its six
-     *  digits, guarded (the A delta audit's 7, 2026-11-11), ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), BigQuery's
+     *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at nine
+     *  digits, ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), BigQuery's
      *  Date upstream's own {@code PARSE_DATE} (A6, 2026-11-10: S182 withdrawn), Databricks' {@code to_date} and
      *  {@code to_timestamp}, Snowflake's {@code '…'::timestamp} at nine digits; a dialect that writes none refuses by
      *  name, never inheriting another's. */
@@ -176,7 +176,7 @@ class PlanMakerTest {
         // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
-                Trino	CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS VARCHAR)) - 2) <> '000' THEN	CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS VARCHAR)) - 2) <> '000' THEN
+                Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
                 Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
                 BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN

@@ -95,7 +95,9 @@ public final class Seeds {
         // same data) share it (the A delta audit's note 10, 2026-11-11: C3 deduplicated the named runtimes alone)
         java.util.Set<List<Object>> inline = new java.util.HashSet<>();
         for (TypedFrom fr : froms) {
-            if (inline.add(List.of(fr.sqlSetups(), fr.csvSetups(), String.valueOf(fr.context().rawLanguage())))) {
+            // (the setup SQL's language asked only where there is setup SQL: a connection with none may declare none)
+            if (inline.add(List.of(fr.sqlSetups(), fr.csvSetups(),
+                    fr.sqlSetups().isEmpty() ? "" : String.valueOf(fr.context().rawLanguage())))) {
                 for (String sql : fr.sqlSetups()) {
                     // written in the database the from()'s connection declares (decision D2)
                     setups.add(new CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));

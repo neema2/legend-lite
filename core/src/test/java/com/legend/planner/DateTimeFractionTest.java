@@ -77,13 +77,14 @@ class DateTimeFractionTest {
     /** The digits of a second each database's date-time LITERAL keeps (each dialect's {@code literalFractionDigits}). */
     static final Map<DatabaseType, Integer> LITERAL_KEEPS = new LinkedHashMap<>();
     static {
-        // Trino 6 since the A delta audit's 7 (2026-11-11): its date-time model is a TIMESTAMP(6) throughout
-        for (DatabaseType t : List.of(DatabaseType.Postgres, DatabaseType.MariaDB, DatabaseType.ClickHouse,
-                DatabaseType.Databricks, DatabaseType.BigQuery, DatabaseType.Trino)) {
+        // ClickHouse 9 since round 34 (2026-11-11, the user's rule "refuse if the db cannot handle": its DateTime64(9)
+        // keeps them)
+        for (DatabaseType t : List.of(DatabaseType.Postgres, DatabaseType.MariaDB,
+                DatabaseType.Databricks, DatabaseType.BigQuery)) {
             LITERAL_KEEPS.put(t, 6);
         }
-        for (DatabaseType t : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite,
-                DatabaseType.Snowflake)) {
+        for (DatabaseType t : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite, DatabaseType.Trino,
+                DatabaseType.Snowflake, DatabaseType.ClickHouse)) {
             LITERAL_KEEPS.put(t, 9);
         }
     }

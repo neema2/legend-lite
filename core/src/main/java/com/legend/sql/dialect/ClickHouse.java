@@ -106,10 +106,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
     }
 
-    /** {@inheritDoc} 6: its literal is a {@code DateTime64(6, 'UTC')} (S181, A7, 2026-11-10). */
+    /** {@inheritDoc} 9: a literal of a digit past the microsecond is a {@code DateTime64(9)} ({@link #timestampLit}),
+     *  which keeps all nine (round 34, 2026-11-11, the user's rule "refuse if the db cannot handle": ClickHouse can;
+     *  measured on 25.8: arithmetic, a time zone, a comparison and a mixed if keep nine; until then 6, and nine PCT tests
+     *  refused here). */
     @Override
     protected int literalFractionDigits() {
-        return 6;
+        return 9;
     }
 
     /** {@inheritDoc} 0: its {@code TIMESTAMP} column is a {@code DateTime}, of whole seconds (S181, A7, 2026-11-10). */
@@ -727,11 +730,26 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
     }
 
-    /** A naive UTC date-time of six digits (a literal of a finer one refused at planning, {@link #literalFractionDigits};
-     *  S181, A7); a {@code T} is a space. */
+    /** A naive UTC date-time of six digits, or of nine where it has a digit past the microsecond (round 34,
+     *  2026-11-11: a {@code DateTime64(9)} keeps them; measured on 25.8); a {@code T} is a space. A nine-digit one holds
+     *  only 1900-01-01 to 2262-04-11 23:47:16.854775807 (measured: past it, a DECIMAL_OVERFLOW), so one later is refused
+     *  by name. */
     @Override
     protected String timestampLit(String iso) {
-        return "toDateTime64('" + inRange(iso.replaceFirst("T", " ")) + "', 6, 'UTC')";
+        String text = iso.replaceFirst("T", " ");
+        int dot = text.lastIndexOf('.');
+        String fraction = dot < 0 ? "" : text.substring(dot + 1).replaceAll("\\D.*$", "");
+        boolean nanos = fraction.length() > 6 && !fraction.substring(6).matches("0*");
+        if (!nanos && fraction.length() > 6) {
+            // zeros past the microsecond are no digit of the value: a six-digit literal, written so
+            text = text.substring(0, dot + 7) + text.substring(dot + 1 + fraction.length());
+        }
+        String spelled = inRange(text);
+        if (nanos && spelled.compareTo("2262-04-11 23:47:16.854775807") > 0) {
+            throw new DialectCapability("the date-time " + iso + " has a digit past the microsecond, which ClickHouse's"
+                    + " DateTime64(9) keeps only until 2262-04-11 23:47:16.854775807: refused, never cut (S181)");
+        }
+        return "toDateTime64('" + spelled + "', " + (nanos ? 9 : 6) + ", 'UTC')";
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is an exact Decimal of its own digits ({@code 1.5} alone is a Float64
