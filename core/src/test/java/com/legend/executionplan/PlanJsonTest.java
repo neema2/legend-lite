@@ -88,6 +88,43 @@ class PlanJsonTest {
                 DataRef.Statements.decode(load.content().get(blob.ref().digest())));
     }
 
+    /** A statement's bound {@code data:} payload (the JSON pass, 2026-11-11): named by its digest, its text the
+     *  statement's content -- the same bundle a load's is: read back whole, and through the bundle inline below the
+     *  limit and beside the plan above it, a blob whose bytes are not its digest refused by name; a payload slot whose
+     *  digest the content lacks, or content no slot binds, refused at construction. */
+    @Test
+    void aBoundPayloadIsTheStatementsContentByDigest() {
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
+                List.of(), List.of());
+        for (String json : List.of("[{\"t\":\"it's a \\\\ b\\nc\"},1.50,null]",
+                "[" + "\"x\",".repeat(PlanJson.INLINE_LIMIT_BYTES / 4) + "\"y\"]")) {
+            String digest = com.legend.cache.Hash.ofUtf8(json).hex();
+            Sql sql = new Sql("select * from json_each(?)", List.of(new Slot("",
+                    new ExecutionPlan.Binding.Payload(digest))), t, null, List.of(), null, java.util.Map.of(digest, json));
+            ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), sql));
+            assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+            PlanJson.Bundle bundle = PlanJson.writeBundle(plan);
+            boolean large = json.length() > PlanJson.INLINE_LIMIT_BYTES;
+            assertEquals(large ? java.util.Map.of(digest, json) : java.util.Map.of(), bundle.blobs(), "the blobs");
+            assertEquals(!large, bundle.json().contains("\"content\""), "inline below the limit only");
+            assertEquals(plan, PlanJson.read(bundle.json(), bundle.blobs()));
+            if (large) {
+                var tampered = assertThrows(IllegalArgumentException.class,
+                        () -> PlanJson.read(bundle.json(), java.util.Map.of(digest, json + " ")));
+                assertTrue(tampered.getMessage().contains("not their digest"), tampered.getMessage());
+                var missing = assertThrows(IllegalArgumentException.class,
+                        () -> PlanJson.read(bundle.json(), java.util.Map.of()));
+                assertTrue(missing.getMessage().contains("which its content lacks"), missing.getMessage());
+            }
+        }
+        var lacks = assertThrows(IllegalArgumentException.class, () -> new Sql("select ?", List.of(new Slot("",
+                new ExecutionPlan.Binding.Payload("0".repeat(64)))), t, null, List.of(), null, java.util.Map.of()));
+        assertTrue(lacks.getMessage().contains("which its content lacks"), lacks.getMessage());
+        var unread = assertThrows(IllegalArgumentException.class, () -> new Sql("select 1", List.of(), t, null,
+                List.of(), null, java.util.Map.of("0".repeat(64), "[]")));
+        assertTrue(unread.getMessage().contains("no slot binds"), unread.getMessage());
+    }
+
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
         Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of("SET TimeZone='UTC'"), List.of());
@@ -146,15 +183,16 @@ class PlanJsonTest {
         // day: a column's store type an object (the A checkpoint's tenets audit, 3); 43 since 2026-11-11: a list's array
         // binding of dates carries the digits its database keeps of an element (the A delta audit's 2, S181); 44 the
         // same day: a sourceUrl's form and the SOURCE load (B2a and its audit); 45 the same day: a plan's release (the
-        // second audit's S12); 46 the same day: a slot's bound data: payload (the dialect's delivery)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":46,"), json);
+        // second audit's S12); 46 the same day: a slot's bound data: payload (the dialect's delivery); 48 the same day
+        // (the JSON pass; 47 is B3's): the payload named by its digest, its text the statement's content
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":48,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v46 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v48 plan"), refused.getMessage());
     }
 
     @Test

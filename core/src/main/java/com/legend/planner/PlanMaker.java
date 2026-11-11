@@ -221,8 +221,7 @@ public final class PlanMaker {
 
     /** {@code c} minting no stamp. */
     private static ExecutionPlan.Check unstamped(ExecutionPlan.Check c) {
-        return new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(), c.sql().slots(), c.sql().target(),
-                c.sql().tree(), c.sql().regions()));
+        return new ExecutionPlan.Check(c.sql().unstamped());
     }
 
     /** {@code steps}, every one a product node: a product program holds no extension's step. */
@@ -789,12 +788,23 @@ public final class PlanMaker {
     /** A rendered statement as the plan's, on {@code target}. */
     static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
             @Nullable SqlQuery tree) {
-        List<ExecutionPlan.Slot> slots = rendered.binds().stream()
-                .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();
+        // each payload a slot binds named by its digest, its text the statement's content (the JSON pass, 2026-11-11:
+        // the payload's bytes once in the plan's data, as a load's are), digested once
+        Map<String, String> content = new LinkedHashMap<>();
+        List<ExecutionPlan.Slot> slots = new ArrayList<>(rendered.binds().size());
+        for (RenderedStatement.Bind b : rendered.binds()) {
+            if (b.binding() instanceof RenderedStatement.Binding.Payload payload) {
+                String digest = com.legend.cache.Hash.ofUtf8(payload.json()).hex();
+                content.put(digest, payload.json());
+                slots.add(new ExecutionPlan.Slot(b.parameter(), new ExecutionPlan.Binding.Payload(digest)));
+            } else {
+                slots.add(new ExecutionPlan.Slot(b.parameter(), binding(b.binding())));
+            }
+        }
         List<ExecutionPlan.Region> regions = rendered.regions().stream()
                 .map(r -> new ExecutionPlan.Region(r.start(), r.end(), r.lead(), r.separator(), r.empty(),
                         r.firstBind(), r.bindCount(), r.counters())).toList();
-        return new ExecutionPlan.Sql(rendered.sql(), slots, target, tree, regions);
+        return new ExecutionPlan.Sql(rendered.sql(), slots, target, tree, regions, null, content);
     }
 
     /**
@@ -1019,7 +1029,8 @@ public final class PlanMaker {
                     array.fraction());
             case RenderedStatement.Binding.Key key -> new ExecutionPlan.Binding.Key(key.cell());
             case RenderedStatement.Binding.Source src -> new ExecutionPlan.Binding.Source(src.location());
-            case RenderedStatement.Binding.Payload payload -> new ExecutionPlan.Binding.Payload(payload.json());
+            case RenderedStatement.Binding.Payload payload -> throw new IllegalStateException("a payload's binding is"
+                    + " its statement's, with its content (PlanMaker.sql)");
         };
     }
 

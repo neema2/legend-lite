@@ -669,16 +669,42 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * test-is-the-product plan's M3f, R17 C4): the runner mints the comment the statement is sent under before it sends
      * it and binds it under that name, for the statement's own slots and the steps after (an activity row records the
      * comment of the statement that ran its frame, minted per execution as legend-engine mints it).
+     * {@code content}: the {@code data:} payloads its slots bind ({@link Binding.Payload}), each text by its SHA-256 --
+     * the SAME bundle a load's is (the JSON pass, 2026-11-11, the user's "include the digest reference": the payload's
+     * bytes once in the plan's data, inline in its JSON below {@code PlanJson.INLINE_LIMIT_BYTES}, beside it above,
+     * every text verified against its digest where a plan is read): exactly the digests its slots name, a payload slot
+     * whose digest it lacks or a text no slot binds refused by name here, as a load's bundle is.
      */
     public record Sql(String statement, List<Slot> slots, Target target,
             com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
-            @com.legend.base.Nullable String stamp) {
+            @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
         public Sql {
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
             regions = List.copyOf(regions);
             Region.check(statement.length(), slots, regions, s -> s.binding() instanceof Binding.Key);
+            content = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(content));
+            java.util.Set<String> named = new java.util.TreeSet<>();
+            for (Slot slot : slots) {
+                if (slot.binding() instanceof Binding.Payload payload) {
+                    named.add(payload.digest());
+                    if (!content.containsKey(payload.digest())) {
+                        throw new IllegalArgumentException("a statement binds the payload " + payload.digest()
+                                + ", which its content lacks");
+                    }
+                }
+            }
+            if (!named.equals(content.keySet())) {
+                throw new IllegalArgumentException("a statement's content holds a payload no slot binds");
+            }
+        }
+
+        /** A statement binding no payload. */
+        public Sql(String statement, List<Slot> slots, Target target,
+                com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
+                @com.legend.base.Nullable String stamp) {
+            this(statement, slots, target, tree, regions, stamp, java.util.Map.of());
         }
 
         /** A statement whose stamp nothing reads. */
@@ -695,7 +721,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This statement, its own execution-trace stamp bound under {@code name}. */
         public Sql stamped(String name) {
-            return new Sql(statement, slots, target, tree, regions, name);
+            return new Sql(statement, slots, target, tree, regions, name, content);
+        }
+
+        /** This statement minting no stamp. */
+        public Sql unstamped() {
+            return new Sql(statement, slots, target, tree, regions, null, content);
         }
 
         /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session
@@ -814,11 +845,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
 
         /** A {@code data:} payload's one JSON array, the plan's own value, bound as its text to a statement that splits
-         *  it itself (its dialect's delivery, 2026-11-11: Snowflake's and BigQuery's); the slot names no declared
-         *  parameter. Census M18: the payload in the plan, BOUNDED to those databases. */
-        record Payload(String json) implements Binding {
+         *  it itself (its dialect's delivery, 2026-11-11); named by its SHA-256 {@code digest}, its text the
+         *  statement's {@link Sql#content} (the JSON pass, 2026-11-11: the payload's bytes once in the plan's data, as a
+         *  load's are); the slot names no declared parameter. Census M18: the payload in the plan. */
+        record Payload(String digest) implements Binding {
             public Payload {
-                Objects.requireNonNull(json, "json");
+                Objects.requireNonNull(digest, "digest");
             }
         }
     }

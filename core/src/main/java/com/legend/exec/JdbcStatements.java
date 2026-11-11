@@ -510,8 +510,15 @@ final class JdbcStatements implements Statements {
             }
             case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
                     + " cell unexpanded: the runner writes a keyed body for its keys before it is sent");
-            // a data: payload's one JSON array, the plan's own value, as its text: the database splits it
-            case ExecutionPlan.Binding.Payload payload -> st.setString(index, payload.json());
+            // a data: payload's one JSON array, the plan's own value (its statement's content, PlanRunner.value), as its
+            // text: the database splits it
+            case ExecutionPlan.Binding.Payload payload -> {
+                if (!(value instanceof PlanParameters.One one && one.value() instanceof String text)) {
+                    throw new IllegalStateException("slot " + index + " binds the payload " + payload.digest()
+                            + " given no text");
+                }
+                st.setString(index, text);
+            }
             case ExecutionPlan.Binding.Source src -> {
                 // the path the run admitted for the source's location (PlanRunner.admitted), as its text
                 if (!(value instanceof PlanParameters.One one && one.value() instanceof String path)) {

@@ -121,8 +121,11 @@ public final class PlanJson {
      *  live source's session table at its place, which writes no store of the body's. 45 since 2026-11-11 (the second
      *  audit's S12): a plan may carry its {@code release} (its target {@code on} and its {@code statements}), sent once
      *  its run is over whatever the outcome. 46 the same day: a slot may bind a {@code data:} payload's one JSON array, the plan's own value
-     *  ({@code payload}, its {@code json}: the dialect's delivery, Snowflake's and BigQuery's). */
-    public static final int VERSION = 46;
+     *  ({@code payload}, its {@code json}: the dialect's delivery, Snowflake's and BigQuery's). 48 since 2026-11-11 (the
+     *  JSON pass; 47 is B3's, uploads): a payload slot names its text by its SHA-256 ({@code payload}'s {@code digest}),
+     *  the text in its statement's {@code content}, the bundle a load's is -- inline below {@link #INLINE_LIMIT_BYTES},
+     *  a blob beside the plan above, verified against its digest where the plan is read. */
+    public static final int VERSION = 48;
 
     private PlanJson() {
     }
@@ -227,8 +230,9 @@ public final class PlanJson {
     @SuppressWarnings("unchecked")
     public static Bundle writeBundle(ExecutionPlan plan) {
         Map<String, Object> out = tree(plan);
+        // every holder of a bundle: a load's, and a statement's payloads (the JSON pass, 2026-11-11: one mechanism)
         List<Map<String, Object>> loads = new ArrayList<>();
-        collectLoads(out, loads);
+        collectBundles(out, loads);
         Map<String, String> texts = new java.util.TreeMap<>();
         // each text counted once per load that carries it inline, as the JSON writes it (the correctness audit's note,
         // 2026-11-10: until then once however many loads carried it)
@@ -272,20 +276,23 @@ public final class PlanJson {
         return new Bundle(Json.toCompact(out), blobs);
     }
 
-    /** Every load written in {@code o}: an object holding {@code identity}, {@code cadence} and {@code steps}. */
+    /** Every holder of a bundle written in {@code o}: an object holding its {@code content} inline -- a load's, a
+     *  statement's payloads. */
     @SuppressWarnings("unchecked")
-    private static void collectLoads(Object o, List<Map<String, Object>> out) {
+    private static void collectBundles(Object o, List<Map<String, Object>> out) {
         if (o instanceof Map<?, ?> m) {
             Map<String, Object> map = (Map<String, Object>) m;
-            if (map.containsKey("identity") && map.containsKey("cadence") && map.containsKey("steps")) {
+            if (map.get(CONTENT) instanceof Map<?, ?>) {
                 out.add(map);
             }
-            for (Object v : map.values()) {
-                collectLoads(v, out);
+            for (Map.Entry<String, Object> e : map.entrySet()) {
+                if (!e.getKey().equals(CONTENT)) {
+                    collectBundles(e.getValue(), out);
+                }
             }
         } else if (o instanceof List<?> l) {
             for (Object v : l) {
-                collectLoads(v, out);
+                collectBundles(v, out);
             }
         }
     }
@@ -635,6 +642,10 @@ public final class PlanJson {
         if (s.stamp() != null) {
             o.put("stamp", s.stamp());
         }
+        if (!s.content().isEmpty()) {
+            // the payloads its slots bind, inline (a plan written whole); writeBundle moves each to a blob of its own
+            o.put(CONTENT, new LinkedHashMap<String, Object>(s.content()));
+        }
         // the typed SQL tree (MirJson; the plan path program's step 1b): a plan read back is as typed as the planner's
         o.put("tree", s.tree() == null ? null : MirJson.query(s.tree()));
         return o;
@@ -668,7 +679,7 @@ public final class PlanJson {
             }
             case ExecutionPlan.Binding.Payload payload -> {
                 o.put("_type", BindingTag.payload.name());
-                o.put("json", payload.json());
+                o.put("digest", payload.digest());
             }
         }
         return o;
@@ -845,33 +856,70 @@ public final class PlanJson {
         return o == null ? null : new ExecutionPlan.Release(o.getStringArray("statements"), readTarget(o.getObj("on")));
     }
 
-    /** Each load of {@code section} that holds no bundle inline given the blobs its CONTENT file steps name (L6c): a
-     *  digest {@code blobs} lacks is left out, and the load refuses itself by name when it is read. */
+    /** Each holder of a bundle in {@code tree} given back the blobs it names that it does not hold inline (L6c): a
+     *  load, those its CONTENT steps name; a statement, the payloads its slots bind (the JSON pass, 2026-11-11). A digest
+     *  {@code blobs} lacks is left out, and the holder refuses itself by name when it is read. */
     private static void attachBlobs(Json.Node tree, Map<String, String> blobs) {
         if (blobs.isEmpty()) {
             return;
         }
-        List<Json.Obj> loads = new ArrayList<>();
-        collectLoads(tree, loads);
-        for (Json.Obj load : loads) {
+        List<Json.Obj> holders = new ArrayList<>();
+        collectLoads(tree, holders);
+        collectStatements(tree, holders);
+        for (Json.Obj holder : holders) {
             LinkedHashMap<String, Json.Node> named = new LinkedHashMap<>();
-            Json.Obj inline = load.getObjOr(CONTENT, null);
+            Json.Obj inline = holder.getObjOr(CONTENT, null);
             if (inline != null) {
                 named.putAll(inline.fields());
             }
-            for (Json.Node s : load.getArr("steps").items()) {
-                Json.Obj step = (Json.Obj) s;
-                Json.Obj ref = step.getObjOr("ref", null);
-                if (ref != null && DataRef.Namespace.CONTENT.name().equals(ref.getString("namespace"))) {
-                    String digest = ref.getString("digest");
-                    String text = blobs.get(digest);
-                    if (text != null && !named.containsKey(digest)) {
-                        named.put(digest, new Json.Str(text));
-                    }
+            for (String digest : namedDigests(holder)) {
+                String text = blobs.get(digest);
+                if (text != null && !named.containsKey(digest)) {
+                    named.put(digest, new Json.Str(text));
                 }
             }
             if (!named.isEmpty()) {
-                load.fields().put(CONTENT, new Json.Obj(named));
+                holder.fields().put(CONTENT, new Json.Obj(named));
+            }
+        }
+    }
+
+    /** The digests {@code holder} names: a load's CONTENT steps', a statement's payload slots'. */
+    private static List<String> namedDigests(Json.Obj holder) {
+        List<String> out = new ArrayList<>();
+        Json.Node steps = holder.getOr("steps", null);
+        if (steps instanceof Json.Arr arr && holder.fields().containsKey("identity")) {
+            for (Json.Node s : arr.items()) {
+                Json.Obj ref = ((Json.Obj) s).getObjOr("ref", null);
+                if (ref != null && DataRef.Namespace.CONTENT.name().equals(ref.getString("namespace"))) {
+                    out.add(ref.getString("digest"));
+                }
+            }
+        }
+        Json.Node slots = holder.getOr("slots", null);
+        if (slots instanceof Json.Arr arr && holder.fields().containsKey("statement")) {
+            for (Json.Node s : arr.items()) {
+                Json.Obj binding = ((Json.Obj) s).getObj("binding");
+                if (BindingTag.payload.name().equals(binding.getString("_type"))) {
+                    out.add(binding.getString("digest"));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Every statement in a read plan's tree: an object holding {@code statement} and {@code slots}. */
+    private static void collectStatements(Json.Node o, List<Json.Obj> out) {
+        if (o instanceof Json.Obj m) {
+            if (m.fields().containsKey("statement") && m.fields().get("slots") instanceof Json.Arr) {
+                out.add(m);
+            }
+            for (Json.Node v : m.fields().values()) {
+                collectStatements(v, out);
+            }
+        } else if (o instanceof Json.Arr l) {
+            for (Json.Node v : l.items()) {
+                collectStatements(v, out);
             }
         }
     }
@@ -1058,7 +1106,7 @@ public final class PlanJson {
                     o.has("fraction") ? o.getInt("fraction") : null);
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
             case source -> new ExecutionPlan.Binding.Source(o.getString("location"));
-            case payload -> new ExecutionPlan.Binding.Payload(o.getString("json"));
+            case payload -> new ExecutionPlan.Binding.Payload(o.getString("digest"));
         };
     }
 
@@ -1084,7 +1132,8 @@ public final class PlanJson {
             }
         }
         return new Sql(o.getString("statement"), slots, readTarget(o.getObj("target")),
-                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null));
+                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null),
+                contentOf(o.getObjOr(CONTENT, null), "the statement"));
     }
 
     private static Target readTarget(Json.Obj t) {

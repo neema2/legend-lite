@@ -785,7 +785,7 @@ public final class PlanRunner {
             Map<String, PlanParameters.Checked> checked) {
         List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
         for (int i = 0; i < sql.slots().size(); i++) {
-            values.add(value(checked, sql.slots().get(i), i + 1));
+            values.add(value(checked, sql, sql.slots().get(i), i + 1));
         }
         return values;
     }
@@ -843,7 +843,7 @@ public final class PlanRunner {
         } else {
             List<PlanParameters.Checked> probeValues = new ArrayList<>(probe.slots().size());
             for (int i = 0; i < probe.slots().size(); i++) {
-                probeValues.add(value(checked, probe.slots().get(i), i + 1));
+                probeValues.add(value(checked, probe, probe.slots().get(i), i + 1));
             }
             st.rows(probe.statement(), probe.slots(), probeValues, keyColumns, keys::add);
         }
@@ -960,7 +960,7 @@ public final class PlanRunner {
                             values.add(new PlanParameters.One(cellText(keys.get(k), key.cell())));
                         } else {
                             slots.add(each);
-                            values.add(value(checked, each, s + 1));
+                            values.add(value(checked, sql, each, s + 1));
                         }
                     }
                 }
@@ -979,7 +979,7 @@ public final class PlanRunner {
             List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
         ExecutionPlan.Slot each = sql.slots().get(slot);
         slots.add(each);
-        values.add(value(checked, each, slot + 1));
+        values.add(value(checked, sql, each, slot + 1));
     }
 
     /** What a statement's session is asked, once the session is checked and its own statements have run: the
@@ -1011,7 +1011,7 @@ public final class PlanRunner {
             }
             List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
             for (int i = 0; i < sql.slots().size(); i++) {
-                values.add(value(bound, sql.slots().get(i), i + 1));
+                values.add(value(bound, sql, sql.slots().get(i), i + 1));
             }
             String statement = sql.statement();
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
@@ -1124,11 +1124,13 @@ public final class PlanRunner {
         return "source:" + src.location();
     }
 
-    private static PlanParameters.Checked value(Map<String, PlanParameters.Checked> checked, ExecutionPlan.Slot slot,
-            int index) {
+    private static PlanParameters.Checked value(Map<String, PlanParameters.Checked> checked, ExecutionPlan.Sql sql,
+            ExecutionPlan.Slot slot, int index) {
         if (slot.binding() instanceof ExecutionPlan.Binding.Payload payload) {
-            // the plan's own value: no declared parameter, nothing the run supplies
-            return new PlanParameters.One(payload.json());
+            // the plan's own value, its text in the statement's content by its digest (the JSON pass, 2026-11-11): no
+            // declared parameter, nothing the run supplies
+            return new PlanParameters.One(java.util.Objects.requireNonNull(sql.content().get(payload.digest()),
+                    "a statement's content holds every payload its slots bind"));
         }
         if (slot.binding() instanceof ExecutionPlan.Binding.Source src) {
             PlanParameters.Checked admitted = checked.get(sourceKey(src));

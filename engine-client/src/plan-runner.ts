@@ -87,7 +87,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // over whatever its outcome) -- refused by name here, as a load is
 // 46 the same day: a slot may bind a data: payload's JSON array (payload: Snowflake's and BigQuery's delivery) -- not a
 // host database's plan
-const PLAN_VERSION = 46;
+// 48 since 2026-11-11 (the JSON pass; 47 is B3's uploads): a payload slot names its text by its SHA-256 (payload's
+// digest), the text in its statement's content -- refused by name here, as at 46
+const PLAN_VERSION = 48;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
