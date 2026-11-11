@@ -1,0 +1,87 @@
+import java.sql.*;
+import java.util.*;
+
+public class H2Data {
+    static String q(Connection c, String sql) {
+        try (Statement s = c.createStatement()) {
+            if (s.execute(sql)) {
+                try (ResultSet r = s.getResultSet()) {
+                    List<String> rows = new ArrayList<>();
+                    int n = r.getMetaData().getColumnCount();
+                    while (r.next()) {
+                        List<String> row = new ArrayList<>();
+                        for (int i = 1; i <= n; i++) row.add(String.valueOf(r.getObject(i)));
+                        rows.add(String.join("|", row));
+                    }
+                    return rows.toString();
+                }
+            }
+            return "ok(" + s.getUpdateCount() + ")";
+        } catch (SQLException e) {
+            return "ERR " + e.getMessage().split("\n")[0];
+        }
+    }
+
+    static void p(String label, String v) { System.out.println("  " + label + ": " + v); }
+
+    public static void main(String[] a) throws Exception {
+        String url = "jdbc:h2:mem:probe" + System.nanoTime() + ";DB_CLOSE_DELAY=-1";
+        try (Connection setup = DriverManager.getConnection(url, "sa", "");
+             Connection A = DriverManager.getConnection(url, "sa", "");
+             Connection B = DriverManager.getConnection(url, "sa", "")) {
+            System.out.println("H2 " + setup.getMetaData().getDatabaseProductVersion());
+            q(setup, "CREATE TABLE U (ID INT)");
+            q(setup, "CREATE TABLE LEGEND_DATA_USER (ID INT)");
+            q(setup, "INSERT INTO LEGEND_DATA_USER VALUES (42)");
+
+            for (String suffix : List.of("", " TRANSACTIONAL", " ON COMMIT PRESERVE ROWS TRANSACTIONAL")) {
+                System.out.println("-- CREATE LOCAL TEMPORARY TABLE ... (data JSON)" + suffix);
+                A.setAutoCommit(false);
+                q(A, "INSERT INTO U VALUES (1)");
+                p("create", q(A, "CREATE LOCAL TEMPORARY TABLE legend_data_x (data JSON)" + suffix));
+                p("insert", q(A, "INSERT INTO legend_data_x VALUES (JSON '{\"ID\":1,\"NAME\":\"a\"}'), (JSON '{\"ID\":2,\"NAME\":null}')"));
+                q(A, "ROLLBACK");
+                p("U after rollback (1 = the create committed the caller's insert)", q(B, "SELECT COUNT(*) FROM U"));
+                p("temp table after rollback (A)", q(A, "SELECT COUNT(*) FROM legend_data_x"));
+                // commit behaviour
+                q(A, "INSERT INTO legend_data_x VALUES (JSON '{\"ID\":3}')");
+                q(A, "COMMIT");
+                p("temp rows after commit (A)", q(A, "SELECT COUNT(*) FROM legend_data_x"));
+                p("visible to B", q(B, "SELECT COUNT(*) FROM legend_data_x"));
+                p("INFORMATION_SCHEMA (A)", q(A, "SELECT TABLE_SCHEMA, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'LEGEND_DATA_X'"));
+                p("drop", q(A, "DROP TABLE IF EXISTS legend_data_x"));
+                q(A, "DELETE FROM U"); q(A, "COMMIT");
+                A.setAutoCommit(true);
+            }
+
+            System.out.println("-- name clash with a user's table");
+            p("local temp named as a user's table", q(A, "CREATE LOCAL TEMPORARY TABLE LEGEND_DATA_USER (data JSON)"));
+            p("user's table seen by A", q(A, "SELECT * FROM LEGEND_DATA_USER"));
+            q(A, "DROP TABLE IF EXISTS LEGEND_DATA_USER");
+            p("user's table after A's unqualified drop (B)", q(B, "SELECT * FROM LEGEND_DATA_USER"));
+            q(setup, "CREATE TABLE IF NOT EXISTS LEGEND_DATA_USER (ID INT)");
+            q(setup, "INSERT INTO LEGEND_DATA_USER VALUES (42)");
+            p("PUBLIC-qualified drop with no temp table (B sees after)", q(A, "DROP TABLE IF EXISTS PUBLIC.LEGEND_DATA_USER") + " -> " + q(B, "SELECT * FROM LEGEND_DATA_USER"));
+            q(setup, "CREATE TABLE IF NOT EXISTS LEGEND_DATA_USER (ID INT)");
+            for (String schema : List.of("SESSION", "TEMP", "INFORMATION_SCHEMA", "PG_TEMP")) {
+                p("drop qualified to " + schema, q(A, "DROP TABLE IF EXISTS " + schema + ".LEGEND_DATA_USER") + " -> user's " + q(B, "SELECT COUNT(*) FROM LEGEND_DATA_USER"));
+            }
+
+            System.out.println("-- navigation: a JSON column's rows vs the frame's VALUES");
+            q(A, "CREATE LOCAL TEMPORARY TABLE legend_data_n (data JSON) TRANSACTIONAL");
+            q(A, "INSERT INTO legend_data_n VALUES (JSON '{\"ID\":1,\"NAME\":\"a\",\"F\":1.5,\"B\":true}'), (JSON '{\"ID\":2,\"NAME\":null}'), (JSON '{\"ID\":3,\"NAME\":\"q\\\"x\"}')");
+            String nav = "CAST(TRIM(BOTH '\"' FROM NULLIF(CAST((t.data).\"ID\" AS VARCHAR), 'null')) AS INTEGER), "
+                    + "CAST(TRIM(BOTH '\"' FROM NULLIF(CAST((t.data).\"NAME\" AS VARCHAR), 'null')) AS VARCHAR), "
+                    + "CAST(TRIM(BOTH '\"' FROM NULLIF(CAST((t.data).\"F\" AS VARCHAR), 'null')) AS DOUBLE), "
+                    + "CAST(TRIM(BOTH '\"' FROM NULLIF(CAST((t.data).\"B\" AS VARCHAR), 'null')) AS BOOLEAN)";
+            p("table", q(A, "SELECT " + nav + " FROM legend_data_n AS t"));
+            p("values", q(A, "SELECT " + nav + " FROM (VALUES (JSON '{\"ID\":1,\"NAME\":\"a\",\"F\":1.5,\"B\":true}', 0), (JSON '{\"ID\":2,\"NAME\":null}', 1), (JSON '{\"ID\":3,\"NAME\":\"q\\\"x\"}', 2)) AS t(data, ord)"));
+            p("table, a param fill (? FORMAT JSON)", (q(A, "CREATE LOCAL TEMPORARY TABLE legend_data_p (data JSON) TRANSACTIONAL")));
+            try (PreparedStatement ps = A.prepareStatement("INSERT INTO legend_data_p VALUES (? FORMAT JSON)")) {
+                ps.setString(1, "{\"ID\":7}"); ps.executeUpdate();
+            }
+            p("param row", q(A, "SELECT CAST((t.data).\"ID\" AS VARCHAR) FROM legend_data_p AS t"));
+            p("ordinal column", q(A, "CREATE LOCAL TEMPORARY TABLE legend_data_o (data JSON, ord INTEGER) TRANSACTIONAL") + " " + q(A, "INSERT INTO legend_data_o VALUES (JSON '{}', 0)"));
+        }
+    }
+}
