@@ -111,6 +111,17 @@ class DuckDbRemoteMountTest {
         assertTrue(assertThrows(IllegalArgumentException.class, () -> new LoadPlanner.PlainLocation(
                 "https://b.s3.amazonaws.com/t.parquet?X-Amz-Signature=SENTINEL")).getMessage().contains("carries its token"));
         assertThrows(IllegalArgumentException.class, () -> new LoadPlanner.BearerLocation("n", "https://h/t?x=1"));
+        // a user in the address is a credential, refused by name and never repeated (the B checkpoint's tenets audit,
+        // LOW 5, 2026-11-11)
+        for (String withUser : List.of("https://u:SENTINEL@h/f.parquet", "s3://AKIA:SENTINEL@bucket/t.parquet",
+                "https://u@h/f.csv")) {
+            var refused = assertThrows(IllegalArgumentException.class, () -> new LoadPlanner.PlainLocation(withUser));
+            assertTrue(refused.getMessage().contains("names a user") && !refused.getMessage().contains("SENTINEL"),
+                    refused.getMessage());
+            assertThrows(IllegalArgumentException.class, () -> new LoadPlanner.BearerLocation("n", withUser));
+        }
+        // an @ in the path is no user
+        new LoadPlanner.PlainLocation("s3://bucket/a@b/t.parquet");
         assertTrue(assertThrows(IllegalArgumentException.class, () -> LoadPlanner.remoteMount(new DuckDb(),
                 DatabaseType.DuckDB, new LoadPlanner.RemoteMount("t", new LoadPlanner.BearerLocation("datacube_url_t",
                         "https://h/t"), HostOperation.RemoteFormat.ICEBERG, null))).getMessage().contains("a folder"));

@@ -86,7 +86,29 @@ public sealed interface HostOperation {
                     throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it,"
                             + " and the plan names it");
                 }
+                noUserinfo(url);
             }
+        }
+
+        /**
+         * {@code url}, its authority naming no user: an address's {@code user:password@} is a credential, which would
+         * land in the plan and in a view's text (the B checkpoint's tenets audit, LOW 5, 2026-11-11: an address such as
+         * {@code https://u:p@h/f.parquet} was accepted as it is); one that names a user is refused by name, its text
+         * never repeated in the refusal.
+         */
+        static String noUserinfo(String url) {
+            int scheme = url.indexOf("://");
+            if (scheme >= 0) {
+                int end = scheme + 3;
+                while (end < url.length() && "/?#".indexOf(url.charAt(end)) < 0) {
+                    end++;
+                }
+                if (url.substring(scheme + 3, end).indexOf('@') >= 0) {
+                    throw new IllegalArgumentException("an address that names a user (user:password@host) carries a"
+                            + " credential: the host holds its credentials by name, and the plan names none");
+                }
+            }
+            return url;
         }
 
         /** The session variable the host binds the address it holds under {@code held} to ({@link SetVariable}), read
