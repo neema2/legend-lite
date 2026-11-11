@@ -579,7 +579,7 @@ None: D is fully ruled (§6.1, 2026-11-10).
 - P5, judge parity on H2.
 - P6, no fallbacks and honest appeals.
 - The corpus and stress burn-down.
-- Native file loaders per database (§1.3), when someone needs one.
+- **Data loading, one model for every format and location** (RULED as the target by the user, 2026-11-11, "Yes write it"; `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md`): schema, format, location and delivery kept apart; pasting is a file whose bytes live in the model; one typed format spec every reader is configured from; types from the model; a conformance matrix (format x pasted or file x database); native bulk loaders so files work where pasted data does (this replaces "native file loaders ... when someone needs one"). The program runs after the total-wall PR; work in this PR that touches loading (B3) follows the model.
 - **The features M17 names** (B2e, 2026-11-11: census M17 BOUNDED, `EmbeddedDataKindsTest`). legend-lite loads one kind
   of a model's data, a relational store's CSV rows; every reader switches over the six kinds
   (`protocol/EmbeddedDataKinds`) and a feature that would read another refuses it by name as not implemented yet. The
