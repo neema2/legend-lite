@@ -141,6 +141,60 @@ class CatalogOnEveryDatabaseTest {
         }
     }
 
+    /**
+     * A user's table named as a metamodel table ({@code results}, {@code classes}) is the user's (the B4 audit's
+     * finding 1, 2026-11-11): a writing program reading it stays on the runtime's own database -- the decision is the
+     * statement's resolved stores', never a table's name. A database whose dialect stages no query's rows refuses the
+     * program by its own name.
+     */
+    @Test
+    void aUsersTableNamedAsAMetamodelTableIsTheUsers() {
+        for (String table : List.of("results", "classes")) {
+            for (DatabaseType type : Databases.relational()) {
+                var ctx = Compiler.compileModel(model(type).replace("Table T", "Table " + table)
+                        .replace("[s::DB] T", "[s::DB] " + table));
+                ExecutionPlan plan;
+                try {
+                    plan = Compiler.query(ctx, "{| let r = s::Item.all()->project(~[n:x|$x.name])"
+                            + "->meta::legend::lite::stage(); $r;}").executionPlan("s::RT");
+                } catch (com.legend.sql.DialectCapability refused) {
+                    assertTrue(refused.getMessage().contains("temporary table"), type + ": " + refused.getMessage());
+                    continue;
+                }
+                for (ExecutionPlan.Sql sql : sqls(plan.root())) {
+                    assertFalse(sql.target().database() instanceof ExecutionPlan.Database.System,
+                            type + " " + table + ": " + sql.statement());
+                }
+            }
+        }
+    }
+
+    /**
+     * A writing program reading the system store in one statement and the user's store in another is refused by name
+     * on every database, whichever comes first (the B4 audit's finding 3): as the second statement is prepared, before
+     * it is written -- the catalog's read first, on the catalog's pass; the user's first, on the runtime's (where the
+     * runtime's dialect stages no query's rows, its own refusal of the user's statement comes first).
+     */
+    @Test
+    void aProgramReadingTheStoreBesideTheUsersIsRefusedByName() {
+        String catalog = "let c = " + CATALOG + "->meta::legend::lite::stage();";
+        String user = "let u = s::Item.all()->project(~[n:x|$x.name])->meta::legend::lite::stage();";
+        for (DatabaseType type : Databases.relational()) {
+            var ctx = Compiler.compileModel(model(type));
+            for (String program : List.of("{| " + catalog + " " + user + " $u;}", "{| " + user + " " + catalog
+                    + " $c;}")) {
+                RuntimeException refused = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> Compiler.query(ctx, program).executionPlan("s::RT"), type + " " + program);
+                boolean named = refused instanceof com.legend.error.NotImplementedException
+                        && refused.getMessage().contains("system metamodel store beside another source");
+                boolean userFirstOnItsOwn = program.indexOf(user) < program.indexOf(catalog)
+                        && refused instanceof com.legend.sql.DialectCapability
+                        && refused.getMessage().contains("temporary table");
+                assertTrue(named || userFirstOnItsOwn, type + " " + program + ": " + refused);
+            }
+        }
+    }
+
     /** Every SQL statement {@code node} sends. */
     private static List<ExecutionPlan.Sql> sqls(ExecutionPlan.Node node) {
         return switch (node) {

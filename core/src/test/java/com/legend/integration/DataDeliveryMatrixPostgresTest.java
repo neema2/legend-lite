@@ -49,6 +49,16 @@ class DataDeliveryMatrixPostgresTest {
         DataDeliveryMatrixTest.roundTrip(POSTGRES, RED, false);
     }
 
+    /** A catalog read an assert expects to fail, then another, in a body on Postgres -- whose catalog is the platform's
+     *  own engine's (B4) -- alone and beside the body's own table (the B4 audit's finding 2). */
+    @Test
+    void aFailedGuardedCatalogReadLeavesTheNextOneAnswered(@TempDir Path dir) throws Exception {
+        CatalogTurnFailureTest.assertPasses(CatalogTurnFailureTest.alone(DatabaseType.Postgres), DatabaseType.Postgres,
+                dir);
+        CatalogTurnFailureTest.assertPasses(CatalogTurnFailureTest.mixed(DatabaseType.Postgres), DatabaseType.Postgres,
+                dir);
+    }
+
     /** A CSV with an embedded JSON column (item 5d), on Postgres: its JSONB takes the cells. */
     @Test
     void aCsvsJsonColumn() throws Exception {
