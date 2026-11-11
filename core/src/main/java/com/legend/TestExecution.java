@@ -40,7 +40,7 @@ public final class TestExecution {
             @Nullable AssertListener listener, @Nullable SqlReplayReferee referee, ExecuteOptions options,
             @Nullable Output answer) {
         TestRunner.runOpening(TestPlanner.plan(typed, runtimeFqn, options.planning()), sessions,
-                options.systemConnections(), options.stores(), options.edge(), listener, referee, answer);
+                options.stores(), options.edge(), listener, referee, answer);
     }
 
     /** {@link #runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee, ExecuteOptions, Output)}
@@ -62,14 +62,13 @@ public final class TestExecution {
      *  {@code referee}; the last statement's answer, where wanted, streamed to {@code answer} (a format and a stream, or the caller's receiver: data, 2026-11-09). */
     public static void runBody(TestPlan plan, Sessions.Session session, @Nullable AssertListener listener,
             @Nullable SqlReplayReferee referee, ExecuteOptions options, @Nullable Output answer) {
-        TestRunner.run(plan, session, options.systemConnections(), options.stores(), options.edge(), listener,
-                referee, answer, StatementOrigin.OTHER);
+        TestRunner.run(plan, session, options.stores(), options.edge(), listener, referee, answer,
+                StatementOrigin.OTHER);
     }
 
     /** A fixture's {@code plan} (a package's setup, planned by {@link #planBody}) run on {@code session}, its
      *  statements counted as seeding (the census's SEED). */
     public static void runFixture(TestPlan plan, Sessions.Session session, ExecuteOptions options) {
-        TestRunner.run(plan, session, options.systemConnections(), options.stores(), options.edge(), null, null,
-                null, StatementOrigin.SEED);
+        TestRunner.run(plan, session, options.stores(), options.edge(), null, null, null, StatementOrigin.SEED);
     }
 }

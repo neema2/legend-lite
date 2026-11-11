@@ -2946,21 +2946,6 @@ public final class ClickHouse extends AnsiSqlRenderer {
     // Session tables and DDL
     // ==================================================================
 
-    /** A session's own table is a TEMPORARY table, and ClickHouse keeps one only in an HTTP session: the connection
-     *  names it ({@code session_id}, which the driver passes as a {@code clickhouse_setting_} property). That is the
-     *  host's to open (SystemDatabase's system connection). Over a connection with no session the table is made
-     *  and gone with its request, so the read after it is refused (an unknown table, measured), never answered from
-     *  another session, which does not see it. The table and its INSERT are this interface's own renders;
-     *  ClickHouse's temporary table is a Memory one without saying so (measured). */
-    @Override
-    public List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        if (!table.temporary()) {
-            throw new IllegalArgumentException("a session table is temporary: " + table.table());
-        }
-        return rows == null ? List.of(render(table)) : List.of(render(table), render(rows));
-    }
-
     /** ClickHouse DDL: {@code BIT} is a UInt64 there (measured), so a Pure Boolean column is a {@code Bool}. */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {

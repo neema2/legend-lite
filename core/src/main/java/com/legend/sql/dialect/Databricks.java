@@ -78,7 +78,10 @@ public final class Databricks extends AnsiSqlRenderer {
 
     /** {@inheritDoc} A session table of the load's (measured by the Databricks lane, 2026-11-11): a {@code TEMPORARY}
      *  table is the session's own -- another connection reads the user's table of the name, which it leaves untouched
-     *  -- and {@code DROP TEMPORARY TABLE IF EXISTS} drops it alone, a silent no-op once it is gone. */
+     *  -- and {@code DROP TEMPORARY TABLE IF EXISTS} drops it alone, a silent no-op once it is gone. (Measured for the
+     *  system store's server form, deleted with B4, 2026-11-11: a temporary TABLE was not read inside an EXISTS,
+     *  UC_COMMAND_NOT_SUPPORTED "Data source v2", where a scalar or IN subquery read it; the lane round re-measures it
+     *  for this table.) */
     @Override
     public SqlDialect.Delivered deliver(SqlDialect.DataPayload payload) {
         return sessionTable(payload);
@@ -817,47 +820,6 @@ public final class Databricks extends AnsiSqlRenderer {
                 + s + " -> " + counted + ") END";
         return w -> w.append("element_at(transform(array(named_struct('p', ").expr(p, 0).append(", 't', ")
                 .expr(t, 0).append(")), " + o + " -> " + body + "), 1)");
-    }
-
-    /** A session's read-only table is a TEMPORARY VIEW over its rows: a temporary TABLE is not read inside an EXISTS
-     *  (UC_COMMAND_NOT_SUPPORTED, "Data source v2", measured; a scalar or IN subquery reads it), a view is, and it is
-     *  one statement (0.2 s, where a table and its INSERT took 3). Each column is cast to its declared type in the
-     *  view's projection, so a column whose cells are all NULL, or a view with no rows, is still typed (measured). */
-    @Override
-    public List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        if (!table.temporary()) {
-            throw new IllegalArgumentException("a session table is temporary: " + table.table());
-        }
-        List<com.legend.sql.SqlDdl.Column> cols = table.columns();
-        SqlWriter writer = newWriter().append("CREATE TEMPORARY VIEW ")
-                .append(storedName(table.table(), table.quoting().table()))
-                .append(" AS SELECT ");
-        for (int c = 0; c < cols.size(); c++) {
-            com.legend.sql.SqlDdl.Column col = cols.get(c);
-            writer.append(c > 0 ? ", " : "").append("CAST(").append(rows == null ? "NULL" : "`c" + c + "`")
-                    .append(" AS " + ddlType(col.type()) + ") AS ")
-                    .append(ddlIdentifier(col.name(), col.declaredQuoted()));
-        }
-        if (rows == null) {
-            writer.append(" WHERE FALSE");
-        } else {
-            writer.append(" FROM VALUES ");
-            for (int r = 0; r < rows.rows().size(); r++) {
-                writer.append(r == 0 ? "(" : ", (").list(rows.rows().get(r)).append(")");
-            }
-            writer.append(" AS `t`(");
-            for (int c = 0; c < cols.size(); c++) {
-                writer.append(c > 0 ? ", `c" : "`c").append(c + "`");
-            }
-            writer.append(")");
-        }
-        RenderedStatement view = writer.statement();
-        if (!view.binds().isEmpty()) {
-            throw new DialectCapability("plan parameters " + view.binds() + " in a session table's rows: a row holds"
-                    + " values, and a DDL statement is text");
-        }
-        return List.of(view.sql());
     }
 
     /** A pure collection holds no empties: {@code array_compact} drops the NULL elements -- not {@code filter}'s lambda,

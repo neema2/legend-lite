@@ -48,14 +48,13 @@ public final class TestRunner {
      * {@code runProgram}: no fixture is provided between the body's plan and its run.
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
-            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
             com.legend.executionplan.DataStores stores, @Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer) {
         lites(answer);
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
-            run(plan, session, systemConnections, stores, edge, callers, referee, answer, StatementOrigin.OTHER);
+            run(plan, session, stores, edge, callers, referee, answer, StatementOrigin.OTHER);
         }
     }
 
@@ -70,7 +69,6 @@ public final class TestRunner {
      * whoever made it (the slice 3 invariant audit, 2026-11-08; the door checked it until slice 5).
      */
     public static void run(TestPlan plan, Sessions.Session session,
-            Map<com.legend.executionplan.DatabaseType, Sessions.Opener> systemConnections,
             com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin) {
@@ -91,7 +89,7 @@ public final class TestRunner {
             // system-routed, else the second, read-only session a statement reading the system store alone runs on
             // (per-statement routing, 2026-11-03) -- found by the plan's target (SystemDatabase: the engine's current
             // one, leased for the run), opened when a step first asks
-            try (SystemDatabase.Leases leases = SystemDatabase.leases(systemConnections)) {
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 SystemDatabase.Leases systemSessions = leases;
                 Moved moved = new Moved(plan, edge, answer, early, listener, run);
                 // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run

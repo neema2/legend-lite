@@ -1430,7 +1430,9 @@ final class ArchitectureTest {
             "com.legend.TypedQuery#projectPlan",
             "com.legend.testplan.TestPlanner#plan",
             "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
-            "com.legend.ExecuteOptions#systemConnections", "com.legend.ExecuteOptions#stores");
+            // (com.legend.ExecuteOptions#systemConnections gone 2026-11-11, B4: every statement reading the system
+            // metamodel store runs on the process's in-process catalog; the host's system connections deleted)
+            "com.legend.ExecuteOptions#stores");
 
     private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
             "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",

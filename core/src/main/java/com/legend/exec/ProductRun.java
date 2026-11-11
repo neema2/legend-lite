@@ -96,7 +96,7 @@ public final class ProductRun {
             // a query reading the metamodel alone, answered on the process's catalog (L4's product half, 2026-11-10):
             // the run's turn on it, the model's registration inside it, rolled back when the run ends -- never the
             // caller's session, which holds no catalog
-            try (SystemDatabase.Leases leases = SystemDatabase.leases(Map.of())) {
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(PlanSessions.system(leases),
                         planSessions.admitted()), sink, batchRows);
             }

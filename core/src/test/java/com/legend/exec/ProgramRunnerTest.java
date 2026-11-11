@@ -67,7 +67,7 @@ final class ProgramRunnerTest {
                     new ExecutionPlan.Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
                     List.of(), List.of());
             // the run's leases of the system databases (2026-11-09: the leases themselves, where a function was handed)
-            try (SystemDatabase.Leases leases = SystemDatabase.leases(java.util.Map.of())) {
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 PlanSessions.Source source = PlanSessions.of(body, null, leases);
                 assertEquals(Sessions.identity(leases.sessionFor(systemTarget)),
                         Sessions.identity(source.open(systemTarget)), "the System target opens the leased session");

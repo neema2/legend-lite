@@ -36,13 +36,6 @@ public interface SqlDialect {
         return java.util.List.of();
     }
 
-    /** Whether this database has a table only one session sees (a TEMPORARY table, {@link #sessionTable}): where it
-     *  has none, the system metamodel store's tables a plan reads are the query's own rows, inline
-     *  ({@code PlanMaker.metamodel}). Default: it has. */
-    default boolean temporaryTables() {
-        return true;
-    }
-
     /** The column type a {@code data:} source's session table holds its JSON elements in (L6b, 2026-11-10: the source a
      *  load into a temporary table, {@code planner.DataSources}); refused by name where this database reads no JSON
      *  source, as the source itself was until then. */
@@ -208,14 +201,6 @@ public interface SqlDialect {
                     : java.util.List.of(element));
         }
         return new com.legend.sql.SqlSource.Values(rows, columns, u.alias(), u.outputs());
-    }
-
-    /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
-     *  none) and only read after (a server engine's system database, SystemDatabase). Default: the table, then
-     *  one INSERT of its rows -- this interface's own DDL and DML renders. */
-    default java.util.List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        return rows == null ? java.util.List.of(render(table)) : java.util.List.of(render(table), render(rows));
     }
 
     /** A STORED name — a table, schema or column as its database holds it, or a quote-bearing declaration

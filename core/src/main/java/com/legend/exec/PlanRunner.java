@@ -138,15 +138,14 @@ public final class PlanRunner {
         }
     }
 
-    /** A load on the graph's system database is the system store's own (the planner's {@code SystemRoutes.seeds}): the
-     *  catalog's registration ({@code PER_TRANSACTION}, L4b) or a server engine's whole store ({@code BEFORE_STEP}), of
-     *  statements and rows, never a file nor a program's own load -- the database holds the metamodel and nothing else;
+    /** A load on the graph's system database is the system store's own (the planner's {@code SystemCatalog.seeds}): the
+     *  catalog's registration ({@code PER_TRANSACTION}, L4b; a server engine's whole store, {@code BEFORE_STEP}, went
+     *  with B4, 2026-11-11), of statements and rows, never a file nor a program's own load -- the database holds the metamodel and nothing else;
      *  refused by name otherwise. Its identity is its content's, as every load's (L4a, 2026-11-09). */
     static void systemStore(ExecutionPlan.Load seeds) {
         // (a system-routed body's live source's session table, SOURCE, is the session's own, dropped at its release:
         // no write of the store's; the B2a audit's S2)
-        if ((seeds.cadence() != ExecutionPlan.Load.Cadence.BEFORE_STEP
-                && seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION
+        if ((seeds.cadence() != ExecutionPlan.Load.Cadence.PER_TRANSACTION
                 && seeds.cadence() != ExecutionPlan.Load.Cadence.SOURCE)
                 || seeds.steps().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.File)) {
             throw new IllegalStateException("a load on the graph's system database that is not the system store's"

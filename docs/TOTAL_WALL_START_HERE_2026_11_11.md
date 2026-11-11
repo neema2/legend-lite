@@ -228,8 +228,8 @@ fca77fec Trino's scalar TIMESTAMP keeps nine digits (the second audit's M1)
 | M2 | a connection's declared test data on the product path | DELETED (L2) |
 | M3 | test data on the test road (seed loads, `SeedTexts`) | DELETED (B2b) |
 | M4 | service-suite data through a synthetic connection | BOUNDED (`ServiceTestProvisionKeyTest`) |
-| **M5** | the system metamodel store on the test road | **PENDING: B4** |
-| **M6** | the system metamodel store on the product road | **PENDING: B4** |
+| M5 | the system metamodel store on the test road | DELETED (B4) |
+| M6 | the system metamodel store on the product road | DELETED (B4) |
 | M7-seed | the seed forms (`setUpDataSQLs`) | STAYING (the author's statements) |
 | M7-authored | `executeInDb`: SQL the user wrote | STAYING |
 | M8 | `loadCsvToDbTable`'s path in a statement | DELETED (L1) |
@@ -247,8 +247,8 @@ fca77fec Trino's scalar TIMESTAMP keeps nine digits (the second audit's M1)
 
 | measure | value | detail |
 |---|---|---|
-| census pending | **4** | M5, M6, M13-output, M14 |
-| matrix | green in process | 3 Postgres catalog cells red; B4 owns them |
+| census pending | **2** | M13-output, M14 (M5, M6 deleted by B4 on `claude/total-wall-b4`) |
+| matrix | green in process | Postgres green too: its 3 catalog cells off the red list (B4) |
 | exec's SQL edits | **2** | D3 goes in C1, D4 in C2 |
 | fast loop | about 10 min | |
 | wide local set | about 50 min | about 510 targets; no longer per push |

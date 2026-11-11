@@ -1986,21 +1986,6 @@ public final class Trino extends AnsiSqlRenderer {
     // Session tables and DDL
     // ==================================================================
 
-    /** Trino has no temporary table: a plan's metamodel tables are its query's own rows. */
-    @Override
-    public boolean temporaryTables() {
-        return false;
-    }
-
-    /** Trino has no temporary table, so no table only one session sees: the server engine's system database is
-     *  refused by name here. */
-    @Override
-    public List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        throw new DialectCapability("a session's own table reached Trino, which has no temporary tables: "
-                + table.table());
-    }
-
     /** Trino DDL: a nullable column says nothing (an explicit NULL is a syntax error). */
     @Override
     protected String ddlNullability(boolean notNull) {

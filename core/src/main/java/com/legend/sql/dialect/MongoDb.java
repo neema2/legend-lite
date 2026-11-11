@@ -2759,11 +2759,6 @@ public final class MongoDb extends AnsiSqlRenderer {
         return false;
     }
 
-    @Override
-    public boolean temporaryTables() {
-        return false;
-    }
-
     /** MongoDB: a dynamic pivot's probe plan reads the keys and then the body, two commands with no transaction
      *  across them on a server that is no replica set (a key written between the two is not the body's: register
      *  S110). */

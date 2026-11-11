@@ -125,14 +125,34 @@ class DataMechanismCensusTest {
             // data reaches a plan only as a load, which the guard proves
             new Row("M4", "service-suite data through a synthetic connection (the overlay kept; its data a load)",
                     new Bounded("L2", List.of(), "ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad")),
-            new Row("M5", "the system metamodel store on the test road (SystemRoutes.seeds)", new Pending("L4 (a server"
-                    + " engine's whole store per graph: the catalog design's check 3)")),
+            // L4a/L4b (2026-11-09): the system store's load named by its content, the walk's own seeding door gone, the
+            // whole store seeded per graph on an in-process engine replaced by the process's catalog (the platform's rows
+            // made once, a model's registered in the run's turn). DELETED by B4 (2026-11-11, the user's ruling "B4 sounds
+            // good for now", reconfirmed that day: every statement reading the store runs on the in-process catalog): a
+            // test body, a judge's side and a statement routed beside its body on a SERVER database read the catalog of
+            // the platform's own engine, written in its dialect -- the server's form (the host's system connection, the
+            // store as its session's temporary tables read through renames) deleted. Proof: CatalogOnEveryDatabaseTest,
+            // DataDeliveryMatrixPostgresTest's TEST_BODY and SERVICE catalog cells
+            new Row("M5", "the system metamodel store on the test road", new Deleted("B4", List.of(
+                    "Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()",
+                    // B4: the server's system connection, its options and the routes' renames
+                    "SystemRoutes.renames(", "SystemRoutes.routed(", "SystemRoutes.inProcess(", "openSystem(engine",
+                    "systemConnections.get(engine)", "options.systemConnections()",
+                    "public ExecuteOptions withSystemConnections",
+                    "Map.of(backend.planType(), backend::openSystem)"))),
             // L4's product half (2026-11-10): form 1 deleted -- every in-process product query reads the process's
-            // catalog, the server's project road too (the server holds no model: each request is the one-request
-            // case). Forms 2 and 3 (a server engine's TEMP tables, a server with none's inline rows) wait on a server
-            // engine's catalog, M5's check 3, not designed
-            new Row("M6", "the system metamodel store on the product road", new Pending("M5's server catalog (forms 2"
-                    + " and 3: a server engine's session TEMP tables, a server with none's inline rows)")),
+            // catalog. DELETED by B4 (2026-11-11, the same ruling): forms 2 and 3 -- a server engine's session TEMP
+            // tables, a server with none's inline rows -- deleted; a query or a writing program reading the store on any
+            // database runs on the catalog, written in its dialect, and one reading the store beside another source is
+            // refused by name. Proof: CatalogOnEveryDatabaseTest, PlanMakerTest
+            // .theMetamodelStoresTablesAreTheInProcessCatalogsOnEveryDatabase, DataDeliveryMatrixPostgresTest's READ and
+            // WRITE catalog cells
+            new Row("M6", "the system metamodel store on the product road", new Deleted("B4", List.of(
+                    "setup.addAll(Ddl.metamodelSteps", "metamodel.setup()", "!projectDatabase && dialect.inProcess()",
+                    // B4: the server's two forms -- the session's temporary tables and the query's inline rows
+                    "metamodel.session()", "metamodel.read(", "Metamodel.NONE", "Ddl.metamodelTemporary(",
+                    "metamodelTemporaryRows(", "Ddl.systemTable(", "temporaryTables()", "inlineRows(def",
+                    "dialect.sessionTable(new"))),
             // STAYING (B1, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B1, the user's yes): a seed form
             // mapped over executeInDb is the author's statements beside executeInDb, folded into the effect's script --
             // its bracket, abort, ledger and the B8 refusal the script's -- and never converted to a load (made one at L2
@@ -243,14 +263,9 @@ class DataMechanismCensusTest {
                     List.of(), "DataDeliveryDeclaredTest")));
 
     /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets
-     *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). */
-    static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of(
-            // L4a: the system store's load named by a constant, and the walk's own seeding door; L4b: the whole store
-            // seeded per graph on an in-process engine (the catalog's platform rows made once, a model's registered)
-            "M5", List.of("Load.SYSTEM_STORE", "seedSystemStore(", "seedSteps(", "route.graphKey()"),
-            // L4's product half (2026-11-10): form 1, the metamodel's tables made in an in-process query's own database
-            // as the target's setup -- every in-process product query reads the process's catalog
-            "M6", List.of("setup.addAll(Ddl.metamodelSteps", "metamodel.setup()", "!projectDatabase && dialect.inProcess()"));
+     *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). None pending with a partial list
+     *  since B4 (2026-11-11): M5's and M6's moved into their DELETED rows. */
+    static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of();
 
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */
@@ -319,7 +334,9 @@ class DataMechanismCensusTest {
         // -- not a deletion undone, a count corrected: the JSON source frame's literal rows were never deleted, and the
         // design's §5 asks the census kept honest; its row says why and when it moves); 3 -> 4 (2026-11-11, B2a: M10
         // deleted, the JSON connection's frame its payload's data: load on every road); 4 -> 6 (2026-11-11, B2b: M3 and
-        // M15-referee deleted, the referee's copy of a seed a load and its files gone, 57e2c445 and 00e67e38)
-        assertEquals(6, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // M15-referee deleted, the referee's copy of a seed a load and its files gone, 57e2c445 and 00e67e38); 6 -> 8
+        // (2026-11-11, B4: M5 and M6 deleted, every statement reading the system store on the in-process catalog, the
+        // server's forms gone)
+        assertEquals(8, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

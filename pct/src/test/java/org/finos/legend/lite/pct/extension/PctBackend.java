@@ -19,10 +19,9 @@ import java.sql.SQLException;
  * <p>Session settings are the dialect's, applied at the platform's connection seam ({@code SqlDialect.sessionSetup},
  * from {@code Compiler.dialectOf}); this only opens the connection.
  *
- * <p>A server lane is also the host of a SYSTEM CONNECTION ({@link #systemConnections}): where the platform's system
- * database for that engine lives (a query reading the metamodel store runs there, apart from the user's session;
- * SystemDatabase). This harness gives it the lane's own server and credentials, as its choice; a host
- * configures it apart. An in-process lane needs none (the platform opens its own private instance).
+ * <p>No lane hosts a system connection (B4, 2026-11-11): a query or body reading the metamodel store runs on the
+ * process's in-process catalog whatever database the lane is (SystemDatabase), the platform opening its own private
+ * instance.
  *
  * <p>Both channels run on it (2026-10-11, the user's ask): channel A's adapter ({@link PctExecuteNative}) and channel
  * B's runner (channelb.ChannelB), so a lane's two verdicts come from the same database.
@@ -171,12 +170,4 @@ public final class PctBackend {
 
     /** The one session over the lane's held connection ({@link #planSessions}). */
     private static volatile com.legend.exec.Sessions.@com.legend.base.Nullable Session heldSession;
-
-    /** The host's system connections: a server lane's own engine ({@link TestBackend#openSystem}); none for an
-     *  in-process lane. */
-    public static java.util.Map<com.legend.executionplan.DatabaseType, com.legend.exec.Sessions.Opener>
-            systemConnections() {
-        TestBackend backend = backend();
-        return backend.inProcess() ? java.util.Map.of() : java.util.Map.of(backend.planType(), backend::openSystem);
-    }
 }
