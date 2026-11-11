@@ -67,8 +67,19 @@ public final class ProgramState {
     /**
      * The product door's program reads the system metamodel store (B4, 2026-11-11): raised by its first pass, on the
      * runtime's own database, at the first statement whose reads hold the store -- before that statement is written in
-     * the runtime's dialect, which may refuse a shape the catalog's writes -- so the door plans the program whole on the
-     * process's catalog ({@code PlanMaker.plan}). A planning decision, no failure: it carries no message and no stack.
+     * the runtime's dialect, which may refuse a shape the catalog's writes (Snowflake's {@code CREATE TEMPORARY TABLE
+     * AS}) -- so the door plans the program whole on the process's catalog ({@code PlanMaker.plan}). A planning
+     * decision, no failure: it carries no message and no stack, and only {@code PlanMaker.plan} catches it.
+     *
+     * <p>Why a signal and not a decision made before planning (the orchestrator's question, 2026-11-11): whether a
+     * statement reads the store is known exactly only once it is resolved and lowered -- a system class's
+     * {@code all()}, the store's own tables, an element read as a value through its tracked row, each through the user
+     * functions and the lets it inlines -- which is this pass's own work, statement by statement with the program's
+     * lets ({@code ProgramState.read}, the one funnel every statement's reads pass). A scan of the typed program
+     * ahead of it would be the test road's {@code BodyClass.systemRouted} rebuilt in the planner, or a second
+     * resolution of every statement; a cheaper scan over-approximates (an element handed to {@code execute} reads no
+     * store), and would plan such a program on the catalog and refuse it. Raised from that funnel, it also holds for a
+     * read site added later, where an early return at each site would not.
      */
     static final class ReadsTheCatalog extends RuntimeException {
         ReadsTheCatalog() {
