@@ -154,6 +154,25 @@ public final class ProgramRunner {
         }
     }
 
+    /**
+     * A plan's RELEASE (B2a, 2026-11-11): {@code statements}, the plan's own, sent in order on {@code on}'s session once
+     * the run that made what they drop is over -- outside any transaction of the run's (H2's drop commits an open one,
+     * measured: docs/data-delivery-homework/H2_DATA_TABLE_MEASURED_2026_11_11.md 5) -- a test body's {@code data:}
+     * tables' drops, after its appeals have read lite's rows.
+     */
+    public static void release(List<String> statements, PlanSessions.Source sessions, ExecutionPlan.Target on) {
+        if (statements.isEmpty()) {
+            return;
+        }
+        try (var run = com.legend.base.RunScope.enter(); Sessions.Session session = sessions.open(on)) {
+            // the teardown of the loads that made what they drop, counted as a target's AT_RELEASE load is: SEED
+            Statements st = PlanRunner.opened(session, on, StatementOrigin.SEED);
+            for (String statement : statements) {
+                PlanRunner.sendStatement(statement, st);
+            }
+        }
+    }
+
     private static void programRun(Program program, Map<String, ?> values, PlanSessions.Source sessions,
             com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
         // every live source the program's statements read, admitted once at its entry (A5): each step's path finds it

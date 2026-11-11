@@ -3,6 +3,7 @@
 
 package com.legend.planner;
 
+import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.NameQuoting;
 import com.legend.sql.SqlDdl;
@@ -24,22 +25,27 @@ import java.util.Set;
  * model travels with the plan, and the database receives it through one load at every size -- never a SQL literal):
  * each distinct content a session table named by its digest ({@code legend_data_<16 hex>}), made and filled by a load
  * on the query's target, established on acquisition, and read by the query where the source stood (at any depth: a
- * subquery's, a union's). Two sources of equal content read one table. The table is TEMPORARY -- the session's own --
- * dropped before it is made and again when the request lets its session go (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3
- * rules 2 and 4, A4: the target's AT_RELEASE load), each drop qualified to the session's temporary schema so it never
- * drops a user's table of the same name; a run reads exactly the plan's rows. The payload is split into its elements
- * verbatim, never re-printed: the database reads each element's JSON text, as it read the whole array until then.
+ * subquery's, a union's). Two sources of equal content read one table. The table is the session's own, made, read and
+ * dropped as its database spells a session table ({@link SqlDialect#dataTable}: never a user's table of the name,
+ * docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rules 2 and 4, A4), dropped when the request lets its session go (the
+ * target's AT_RELEASE load); a run reads exactly the plan's rows. The payload is split into its elements verbatim,
+ * never re-printed: the database reads each element's JSON text. A JSON connection's FRAME (B2a, 2026-11-11: the
+ * source reads {@link TypedSourceUrl#ORDINAL}) takes its connection's forms -- an array of records, one record, or a
+ * stream of them; an empty payload no record -- and its table holds each record's place beside its text.
  *
  * @param query   the query reading each source's table
  * @param steps   the load's steps: per content, the table dropped, created and filled
  * @param release the release's steps: per content, the table dropped
  * @param content the bundle the steps read: each payload's elements, a content blob of inserts (A2)
  */
-record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release,
+public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<ExecutionPlan.LoadStep> release,
         Map<String, String> content) {
 
-    /** The one column a source's table holds, as the source's single output names it. */
+    /** The column of each element's text, as the source's output names it. */
     static final String COLUMN = "data";
+
+    /** A frame's column of each record's place (a JSON connection's: {@link TypedSourceUrl#ORDINAL}). */
+    static final String ORDINAL = TypedSourceUrl.ORDINAL;
 
     /** {@code q}'s {@code data:} sources read from their tables, and the load that makes them, on {@code dialect}'s
      *  database (a dialect with no JSON source refuses by name, as it refused the source until then). */
@@ -56,18 +62,30 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<Exec
      * rows, a test body's): each content one table, made by the steps {@link #take} hands on since the last take, read
      * by every statement after. A product query's are its target's acquisition load ({@link #onto}); a program's its
      * own load at the step before the first statement that reads it, dropped after the program's answer
-     * ({@code ProgramState.read}).
+     * ({@code ProgramState.read}). A test body's are one for the body (B2a, 2026-11-11): its judges' statements, planned
+     * before its program, read through the same tables as its program's, which places what they made ahead of the step
+     * that reads it ({@code ProgramKinds.dataTables}).
      */
-    static final class Tables {
+    public static final class Tables {
         private final SqlDialect dialect;
-        private final Map<String, String> tables = new LinkedHashMap<>();
+        private final Map<Key, SqlDialect.DataTable> tables = new LinkedHashMap<>();
         private final List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
         private final List<ExecutionPlan.LoadStep> release = new ArrayList<>();
         private final List<String> drops = new ArrayList<>();
         private final Map<String, String> bundle = new LinkedHashMap<>();
 
-        Tables(SqlDialect dialect) {
+        /** The tables of one plan written in {@code dialect}. */
+        public Tables(SqlDialect dialect) {
             this.dialect = dialect;
+        }
+
+        /** The dialect the tables' statements are written in. */
+        SqlDialect dialect() {
+            return dialect;
+        }
+
+        /** A table's identity: its content, and whether it is a frame's (which holds each record's place too). */
+        private record Key(String content, boolean frame) {
         }
 
         /** The steps made since the last take: the new tables' drops, creates and fills, their drops at release (as
@@ -87,8 +105,9 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<Exec
             return made;
         }
 
-        /** {@code q} reading each {@code data:} source's table. */
-        SqlQuery read(SqlQuery q) {
+        /** {@code q} reading each {@code data:} source's table, each table not made before made by the steps the next
+         *  take hands on. */
+        public SqlQuery read(SqlQuery q) {
             return rewriter().rewrite(q);
         }
 
@@ -132,37 +151,52 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<Exec
                     return s;
                 }
                 SqlDdl.ColumnType type = dialect.dataSourceColumn(u.url());
-                String content = content(u.url());
-                String table = tables.computeIfAbsent(content, c -> made(c, u.url(), type));
-                return new SqlSource.Table(table, u.alias(), u.outputs(), false, Map.of(COLUMN, type),
-                        NameQuoting.BARE);
+                boolean frame = u.outputs().stream().anyMatch(o -> o.name().equals(ORDINAL));
+                SqlDialect.DataTable table = tables.computeIfAbsent(new Key(content(u.url()), frame),
+                        k -> made(k, u.url(), type));
+                Map<String, SqlDdl.ColumnType> stored = frame ? Map.of(COLUMN, type, ORDINAL, ORDINAL_TYPE)
+                        : Map.of(COLUMN, type);
+                return new SqlSource.Table(table.read(), u.alias(), u.outputs(), false, stored, NameQuoting.BARE);
             }
         }
 
-        /** The table of the content {@code c}: its drop, create and fill planned, its drop at release. */
-        private String made(String c, String url, SqlDdl.ColumnType type) {
-            String name = "legend_data_" + com.legend.cache.Hash.ofUtf8(c).hex().substring(0, 16);
-            // the session's own table dropped first, and when the request lets the session go: qualified to the
-            // session's temporary schema, so never a user's table of the same name
-            String drop = dialect.render(new SqlDdl.DropTable(dialect.temporarySchema(), name, NameQuoting.BARE));
-            steps.add(new ExecutionPlan.LoadStep.Statement(drop));
-            release.add(new ExecutionPlan.LoadStep.Statement(drop));
-            drops.add(drop);
-            steps.add(new ExecutionPlan.LoadStep.Statement(dialect.render(new SqlDdl.CreateTable(null, name,
-                    NameQuoting.BARE, List.of(new SqlDdl.Column(COLUMN, false, type, false, false)), true))));
+        /** The table of {@code key}: made, filled and released as its database spells a session table. */
+        private SqlDialect.DataTable made(Key key, String url, SqlDdl.ColumnType type) {
+            String base = "legend_data_" + com.legend.cache.Hash.ofUtf8(key.content()).hex().substring(0, 16)
+                    + (key.frame() ? "_o" : "");
+            List<SqlDdl.Column> columns = new ArrayList<>(List.of(new SqlDdl.Column(COLUMN, false, type, false, false)));
+            List<SqlDdl.ColumnType> types = new ArrayList<>(List.of(type));
+            if (key.frame()) {
+                columns.add(new SqlDdl.Column(ORDINAL, false, ORDINAL_TYPE, false, false));
+                types.add(ORDINAL_TYPE);
+            }
+            SqlDialect.DataTable table = dialect.dataTable(base, columns);
+            for (String statement : table.make()) {
+                steps.add(new ExecutionPlan.LoadStep.Statement(statement));
+            }
+            for (String statement : table.release()) {
+                release.add(new ExecutionPlan.LoadStep.Statement(statement));
+                drops.add(statement);
+            }
+            List<String> elements = key.frame() ? records(key.content(), url) : elements(key.content(), url);
             List<List<String>> rows = new ArrayList<>();
-            for (String element : elements(c, url)) {
-                rows.add(List.of(element));
+            for (int i = 0; i < elements.size(); i++) {
+                rows.add(key.frame() ? List.of(elements.get(i), String.valueOf(i)) : List.of(elements.get(i)));
             }
             // the elements as a content blob of inserts, each element its column's typed literal (A2)
-            com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null,
-                    name, NameQuoting.BARE, List.of(COLUMN), Set.of(), 1, rows, List.of(type)), dialect,
-                    "the data: source's payload (" + rows.size() + " element(s), its session table " + name + ")");
+            com.legend.setup.LoadSteps planned = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(
+                    table.schema(), table.name(), NameQuoting.BARE, columns.stream().map(SqlDdl.Column::name).toList(),
+                    Set.of(), columns.size(), rows, types), dialect,
+                    "the data: source's payload (" + rows.size() + " element(s), its session table " + table.read()
+                            + ")");
             steps.addAll(planned.steps());
             bundle.putAll(planned.content());
-            return name;
+            return table;
         }
     }
+
+    /** A frame's place column's type. */
+    private static final SqlDdl.ColumnType ORDINAL_TYPE = new SqlDdl.ColumnType.Plain(SqlDdl.ColumnType.Kind.INTEGER);
 
     /** {@code target} with the load that makes the tables, established on acquisition; {@code target} as it is where
      *  the query reads no {@code data:} source. */
@@ -235,6 +269,79 @@ record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, List<Exec
             out.add(element(t, start, t.length() - 1, url));
         }
         return out;
+    }
+
+    /**
+     * A JSON connection's records, each an object's text as written: an array's objects, one object, or a stream of
+     * objects (the connection's concatenated-rows spelling, whitespace between them); an empty payload no record. Cut
+     * lexically, a string's escapes and the nesting followed, as {@link #elements} cuts an array; anything else is
+     * refused by name.
+     */
+    static List<String> records(String content, String url) {
+        String t = content.strip();
+        if (t.isEmpty()) {
+            return List.of();
+        }
+        if (t.charAt(0) == '[') {
+            List<String> out = elements(t, url);
+            for (String e : out) {
+                if (e.charAt(0) != '{' || objectEnd(e, 0, url) != e.length()) {
+                    throw notRecords(url);
+                }
+            }
+            return out;
+        }
+        List<String> out = new ArrayList<>();
+        int i = 0;
+        while (i < t.length()) {
+            if (Character.isWhitespace(t.charAt(i))) {
+                i++;
+                continue;
+            }
+            if (t.charAt(i) != '{') {
+                throw notRecords(url);
+            }
+            int end = objectEnd(t, i, url);
+            out.add(t.substring(i, end));
+            i = end;
+        }
+        return out;
+    }
+
+    /** The index just past the object that opens at {@code from}; an object left open refused by name. */
+    private static int objectEnd(String t, int from, String url) {
+        int depth = 0;
+        boolean inString = false;
+        for (int i = from; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            switch (c) {
+                case '"' -> inString = true;
+                case '[', '{' -> depth++;
+                case ']', '}' -> {
+                    depth--;
+                    if (depth == 0) {
+                        return i + 1;
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+        throw notRecords(url);
+    }
+
+    private static com.legend.error.NotImplementedException notRecords(String url) {
+        String shown = url.length() > 120 ? url.substring(0, 120) + "..." : url;
+        return new com.legend.error.NotImplementedException("a JSON connection's payload is an object, an array of"
+                + " objects or a stream of objects: " + shown);
     }
 
     private static String element(String t, int from, int to, String url) {

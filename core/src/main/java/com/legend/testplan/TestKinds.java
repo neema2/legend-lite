@@ -105,6 +105,12 @@ final class TestKinds implements ProgramKinds {
         this.stores = stores;
     }
 
+    /** The body's data: tables its asserts were read through (B2a, 2026-11-11). */
+    @Override
+    public com.legend.planner.DataSources.@com.legend.base.Nullable Tables dataTables() {
+        return asserts.dataTables();
+    }
+
     /** A statement reading the system metamodel store alone, in a program whose target is the user's: the graph's
      *  system database beside it (per-statement routing, the walker-deletion program, 2026-11-03). */
     @Override
@@ -247,8 +253,11 @@ final class TestKinds implements ProgramKinds {
         String stamp = minted != null ? frames.adoptStamp(minted) : frames.newStamp();
         PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
         if (!lazy) {
+            // planned first: its statement's data: tables are placed ahead of it, so its place is known once it is
+            // planned (B2a, 2026-11-11)
+            ExecutionPlan.Check run = eagerRun(program, index, fc, stamp);
             frameRuns.add(program.size());
-            program.add(eagerRun(program, index, fc, stamp));
+            program.add(run);
         }
         // a frame the database judge does not run at its let but a CHECK reads (a println: a statement that is no
         // assert, 2026-11-06): registered for its readers as the host road's frames are, LAZY -- the check's own

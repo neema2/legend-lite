@@ -69,7 +69,10 @@ public final class BodyDriver {
             com.legend.testplan.VerdictIds verdictIds,
             // the body's engine-text appeals by number, shared likewise (the plan-as-data design's step 4, 2026-11-08):
             // planning's registry, the plan carrying those its verdicts name (step 8b)
-            EngineTextAppeals appeals) {
+            EngineTextAppeals appeals,
+            // the body's data: tables, shared likewise (B2a, 2026-11-11): every statement a judge plans reads each data:
+            // source through them, and the body's program reads through the same ones and places what they made
+            com.legend.planner.DataSources.Tables data) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), a fresh trace, no batch. */
@@ -82,11 +85,18 @@ public final class BodyDriver {
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, new ActivityComments(), null, null, null, null,
-                    new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
+                    new com.legend.testplan.VerdictIds(), new EngineTextAppeals(),
+                    new com.legend.planner.DataSources.Tables(dialect));
         }
 
         ModelContext ctx() {
             return plan.ctx();
+        }
+
+        /** {@code q} reading each {@code data:} source from the body's table of its content (B2a, 2026-11-11): what a
+         *  judge's statement is planned from -- and what a probe renders, so it renders what will be planned. */
+        com.legend.sql.SqlQuery read(com.legend.sql.SqlQuery q) {
+            return data.read(q);
         }
         @com.legend.base.Nullable String runtimeFqn() {
             return plan.runtimeFqn();
@@ -121,17 +131,17 @@ public final class BodyDriver {
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
                     : new ExecEnv(p, target, options, activity, verdictBatch,
-                            engineText, failureMessage, appealOn, verdictIds, appeals);
+                            engineText, failureMessage, appealOn, verdictIds, appeals, data);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.testplan.VerdictBatch b) {
             return new ExecEnv(plan, target, options, activity, b, engineText,
-                    failureMessage, appealOn, verdictIds, appeals);
+                    failureMessage, appealOn, verdictIds, appeals, data);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(PlanningOptions o) {
             return new ExecEnv(plan.withFeatures(o.features()), target, o, activity,
-                    verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals);
+                    verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals, data);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
@@ -145,14 +155,14 @@ public final class BodyDriver {
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
             return new ExecEnv(plan, target, options, activity, verdictBatch, c,
-                    failureMessage, appealOn, verdictIds, appeals);
+                    failureMessage, appealOn, verdictIds, appeals, data);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
             return new ExecEnv(plan, target, options, activity, verdictBatch,
-                    engineText, m, appealOn, verdictIds, appeals);
+                    engineText, m, appealOn, verdictIds, appeals, data);
         }
         /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
          *  system-routed body's engine-text assert under the database judge: its rows read the user's tables on the
@@ -160,7 +170,7 @@ public final class BodyDriver {
          *  2026-11-06), or none: the appeal planned under this environment. */
         ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
             return new ExecEnv(plan, target, options, activity, verdictBatch,
-                    engineText, failureMessage, on, verdictIds, appeals);
+                    engineText, failureMessage, on, verdictIds, appeals, data);
         }
 
         /** The same environment over another target -- the graph's system database for a body that reads the
@@ -168,7 +178,7 @@ public final class BodyDriver {
         ExecEnv withTarget(com.legend.executionplan.ExecutionPlan.Target other) {
             return other.equals(target) ? this
                     : new ExecEnv(plan, other, options, activity, verdictBatch,
-                            engineText, failureMessage, appealOn, verdictIds, appeals);
+                            engineText, failureMessage, appealOn, verdictIds, appeals, data);
         }
 
         /** Whether this environment's statements run on the graph's system database. */

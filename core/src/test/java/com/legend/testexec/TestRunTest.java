@@ -172,7 +172,7 @@ final class TestRunTest {
 
     /** {@code steps} as a test plan judged by {@code judge}, read back from its JSON as written. */
     private static TestPlan plan(TestPlan.Judge judge, TestPlan.TestStep... steps) {
-        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target);
+        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target, List.of());
         assertEquals(plan, TestPlanJson.read(TestPlanJson.write(plan)), "the plan reads back as written");
         return plan;
     }
@@ -340,7 +340,7 @@ final class TestRunTest {
                 new TestPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused(),
                         TestPlan.JudgingRules.LITE),
                 new TestPlan.Run(relation("SELECT 7 AS value", List.of(col("value", "Integer", "INTEGER"))))),
-                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target);
+                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, List.of());
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"verdicts\"") && json.contains("\"_type\":\"keyedRows\"")
@@ -414,7 +414,7 @@ final class TestRunTest {
         TestPlan plan = new TestPlan(List.of(), List.of(
                 new TestPlan.Branch(condition, List.of(oneVerdict("then@1", "SELECT 1 AS value"), inner),
                         List.of(oneVerdict("else@1", "SELECT 2 AS value")))), TestPlan.Judge.HOST, Map.of(), Map.of(),
-                false, target);
+                false, target, List.of());
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"branch\""), json);

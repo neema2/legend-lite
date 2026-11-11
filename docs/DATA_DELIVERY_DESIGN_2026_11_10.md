@@ -120,17 +120,21 @@ Deleted from the plan:
 
 - **`data:` sources are rewritten wherever any statement is planned:**
   - read, write, program and staged lets;
-  - test bodies' program statements. **Not yet** the statements the test road's judges render for an assert's sides
-    and the verdict batch (`JudgePlans`, `VerdictBatch`): a `data:` source there is refused by name until B2a (the
-    correctness audit's note, 2026-11-10: until then it reached the dialect and failed with an internal error). **Nor
-    a test body under the compatibility edge**: the edge's ledger records a body's seeds by the texts the test planner
-    made for each, and a `data:` source's session table has none, so a body reading one there is refused by name at
-    planning until B2a (`TestDoor.refuseUnrecordedLoads`, `EdgeLiveSourceTest`; the orchestrator's late item of the A
-    checkpoint, 2026-11-10: until then the run crashed at `TestRunner.seeded`, "no ledger texts planned"); lite's own
-    test door runs it;
+  - test bodies' program statements, and (B2a, 2026-11-11) every statement the test road's judges plan for an
+    assert's sides and the verdict batch (`JudgePlans`, `VerdictBatch`, the probes that render one): a body's judges
+    and its program read each `data:` source through ONE set of tables (`DataSources.Tables`, carried by the body's
+    asserts, `TestDoor.Asserts.dataTables`), and the program places what the judges made, as its own `AT_STEP` load,
+    ahead of the step that first reads it (its next statement, or the verdict step at its place); a table no step
+    placed (an appeal's rows, read after the run) is placed last. The drops are the test plan's `release`, which the
+    runner sends once the run and its appeals are over, whatever their outcome, counted as a target's `AT_RELEASE`
+    load is (SEED): an appeal reads lite's rows after the run, and H2's drop commits an open transaction (the H2
+    table's homework, 5). **Under the compatibility edge** a `data:` table's load is planned as the edge's own record,
+    `LiveSourceLoad`, which the edge records as nothing: the referee replays legend-engine's text, which reads no table
+    of lite's (`EdgeLiveSourceTest`; until B2a refused by name at planning, before that a crash at `TestRunner.seeded`);
   - the plan that `generatePlan` and `arrowPlan` render. `TypedQuery.plan` renders from the execution plan (B3; until
     then the text plan refuses a live source by name, S188).
-- `resolver/JsonSourceFrame`'s literal path is deleted (B2a; census M10, pending).
+- `resolver/JsonSourceFrame`'s literal path is deleted (B2a, 2026-11-11; census M10 DELETED): the frame is its
+  payload's `data:` source relation, read below.
 - **A `file:` location is bound on every send path:** `send`, `valuesOf`, `expand`, `bindOnce`, `ProgramRunner`,
   `TestRunner`, under the run's one admission: the library's any file, the server's the folders its startup settings
   name (§3 rule 6).
@@ -301,15 +305,17 @@ Deleted from the plan:
 - **A database that takes no transaction** (ClickHouse): A4's bracket around a load, and a program's, is skipped there
   (`DatabaseConnector.takesTransactions`, every connector answering; §3 rule 1's exception). Measured on the lane round.
 - **The matrix:** in process 162 of 162 green (34 red before A5); on Postgres the three catalog cells B4 owns.
-- **The JSON source frame's literal rows are NOT deleted in A5** (measured 2026-11-10): a runtime value's
-  `JsonModelConnection` payload for a class no mapping binds still reaches the statement as literal rows
-  (`resolver.JsonSourceFrame`). Moving it onto the `data:` road (the frame as the payload's `sourceUrl` relation, its
-  row ordinal a column of the payload's table) was built and measured, and reverted: it costs 20 DuckDB and 10 H2
-  corpus tests (the XStore and result-sourcing graph fetches). The test road's judges render their statements by roads
-  of their own that take no `data:` rewrite (`JudgePlans`, the verdict batch), the referee replays on H2, and H2 holds
-  no `data:` table (its dialect has no JSON source column). It moves with B2a and B2b, when the test road's statements
-  and the referee's replay take the plan's loads, with H2's `data:` table measured first. Census M10 is REOPENED,
-  PENDING B2a (it was counted deleted at L6 with the frame's rows standing; L6's deletions stay guarded).
+- **The JSON source frame on the `data:` road (B2a, 2026-11-11):** a runtime value's `JsonModelConnection` payload for
+  a class no mapping binds (`resolver.JsonSourceFrame`) is its payload's `sourceUrl` relation, `(data:Variant,
+  u_frame_ord__:Integer)`; `DataSources` cuts the payload into its records -- an array of objects, one object, or a
+  stream of objects; an empty payload no record -- and loads each record's text and place into a session table of its
+  own (`legend_data_<16 hex>_o`). The session table is each database's (`SqlDialect.dataTable`): DuckDB's `temp`
+  (dropped there, made `TEMPORARY`), H2's `LEGEND_SESSION` schema of `LOCAL TEMPORARY ... TRANSACTIONAL` tables (made
+  `IF NOT EXISTS`, emptied, dropped only at release: docs/data-delivery-homework/H2_DATA_TABLE_MEASURED_2026_11_11.md),
+  SQLite's `temp` (measured: probes/SqliteTemp.java.txt); any other database refuses a `data:` source by name. A5
+  measured this move costing 20 DuckDB and 10 H2 corpus tests (the XStore and result-sourcing graph fetches): with the
+  judges' statements and the edge on the plan's loads (above) they pass; and on H2 and SQLite 42 integration tests
+  each that the lanes' floors held (a `sourceUrl` payload: no source there until now) pass.
 - **A `file:` source admitted at the run's entry:** every `file:` location the plan's statements read is admitted when
   the run starts, so a missing or fenced file fails the run before anything is sent, even where the statement that
   reads it would not have been sent (a branch the run does not take). Bound once, never per statement (the checkpoint
@@ -405,7 +411,7 @@ target keeps fewer).
 | ✔ | **Checkpoint:** tenets audit, then correctness, every finding fixed; one lane round on all eleven databases; the timing check | |
 | **B** | **The rest of P1: the census to zero** | |
 | B1 | The seed forms (`setUpDataSQLs`): the author's statements beside `executeInDb`, not converted (the user: yes). **Built 2026-11-11**: census M7-seed STAYING, its guard `BodyRouterParityTest.seedFormEffectMapPrograms` (the form's texts in an effect's script, in no load) | census M7 |
-| B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner; and every statement the test road's judges render (`JudgePlans`, the verdict batch) takes the `data:` rewrite, so the JSON source frame's literal rows go (H2's `data:` table measured first; A5 measured the move: 20 DuckDB and 10 H2 corpus tests depend on it); and the compatibility edge's ledger onto the plan's loads, so a test body under the edge reads a `data:` source (refused by name until then, `EdgeLiveSourceTest`) | census M3, M10 |
+| B2a | The leftover test-data text on the test road (`SeedTexts`, the planner's own seed path) onto the load planner; and every statement the test road's judges render (`JudgePlans`, the verdict batch) takes the `data:` rewrite, so the JSON source frame's literal rows go (H2's `data:` table measured first; A5 measured the move: 20 DuckDB and 10 H2 corpus tests depend on it); and the compatibility edge's ledger onto the plan's loads, so a test body under the edge reads a `data:` source (refused by name until then, `EdgeLiveSourceTest`). **Built 2026-11-11** (§4): the seeds planned by `LoadPlanner.seeds`; the frame on the `data:` road with a session table per database; one set of tables per body; `LiveSourceLoad`; the drops a test plan's `release`, sent after the appeals | census M10 DELETED; M3 waits on B2b |
 | B2b | The referee replays its own H2 copy of the plan's loads (from A2) | census M15, the referee |
 | B2c | The Java test fixtures' ~770 JDBC statements (103 files) bounded by their guard, not converted (the user: yes). **Built 2026-11-11**: `FixtureWriteCensusTest` pins each file's literal write sends (906 in 116 files, measured: an `execute`, `executeUpdate`, `addBatch`, `executeQuery` or `prepareStatement` whose literal opens with a write) and a total ceiling that only falls; census M15 split into its halves, M15-fixtures BOUNDED, M15-referee B2b's | census M15, the fixtures |
 | B2d | **The test-data generator, a product feature:** given a query and a database, it extracts the real rows the query needs, down its join tree, as test data. It becomes a planner function that plans every step upfront and returns one plan; exec runs it; a writer gives the CSV. **Design APPROVED by the user, 2026-11-10** (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`): ONE read-only query per table whose `WITH` clauses carry the chain (the starting rows `ORDER BY` key `LIMIT 20`, one level per navigation step, no recursion), all in one read transaction, NO temporary tables; the default starting rows (no row identifiers given) ARE built, by upstream's rule read from the pinned sources; upstream's 46 SQL-text comparisons become a register row (its data checks all run); the TDG appeal and `TestDataGeneratorRun` deleted. S143's skip is lifted when it passes | census M13 |

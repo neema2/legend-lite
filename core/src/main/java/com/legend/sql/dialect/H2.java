@@ -31,6 +31,35 @@ import java.util.Set;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    /** The schema of lite's own that H2's {@code data:} session tables live in ({@link #dataTable}). */
+    static final String DATA_SCHEMA = "LEGEND_SESSION";
+
+    /**
+     * {@inheritDoc} A {@code LOCAL TEMPORARY} table in a schema of lite's own, measured on 2.5.252 and 2.1.214
+     * (docs/data-delivery-homework/H2_DATA_TABLE_MEASURED_2026_11_11.md): H2 holds a session's temporary table in the
+     * schema it names, where a drop by name -- unqualified, {@code PUBLIC.} or {@code SESSION.} -- reaches a user's table
+     * of the name, and {@code IF NOT EXISTS} in {@code PUBLIC} captures one; and a drop inside a transaction commits it.
+     * So the table is made {@code IF NOT EXISTS ... TRANSACTIONAL} in {@code LEGEND_SESSION} (made first if it is not
+     * there: H2's DDL commits, as §3 rule 1 says) and emptied, filled, and dropped only at release; the name upper case,
+     * so the read's delimited spelling and the make's bare one name one table.
+     */
+    @Override
+    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        String name = base.toUpperCase(java.util.Locale.ROOT);
+        String qualified = DATA_SCHEMA + "." + name;
+        return new SqlDialect.DataTable(DATA_SCHEMA, name, java.util.List.of(
+                "CREATE SCHEMA IF NOT EXISTS " + DATA_SCHEMA,
+                "CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS " + qualified + " (" + ddlColumns(columns) + ") TRANSACTIONAL",
+                "DELETE FROM " + qualified), java.util.List.of("DROP TABLE IF EXISTS " + qualified));
+    }
+
+    /** {@inheritDoc} H2 holds each element in a {@code JSON} column, navigated as the frame's VALUES are (measured on
+     *  2.5.252, the H2 data table's homework 8). */
+    @Override
+    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    }
+
     /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal keeps the digits it is written with, nine at most (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {

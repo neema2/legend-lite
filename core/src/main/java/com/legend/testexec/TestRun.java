@@ -70,6 +70,19 @@ final class TestRun {
         }
     }
 
+    /** {@code plan}'s release, sent when closed ({@link ProgramRunner#release}): opened before the run, closed once the
+     *  run and its appeals are over, whatever their outcome -- a body's failure stands, a failed release suppressed in
+     *  it (B2a, 2026-11-11). */
+    static Released releasing(TestPlan plan, PlanSessions.Source sessions) {
+        return () -> ProgramRunner.release(plan.release(), sessions, plan.session());
+    }
+
+    /** A plan's release, sent when closed. */
+    interface Released extends AutoCloseable {
+        @Override
+        void close();
+    }
+
     /** {@code plan} as the runner's program: a product step a node, a frame let's eager run a node under LET (M9),
      *  a verdict group or a branch a callback at its place, declaring its statements, under BODY where the database
      *  judge alone judges (its fused statements, as the walk's flush sent them, M7) -- else a verdict step under the

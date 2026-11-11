@@ -5,5 +5,6 @@
 # own_corpus.matched 3096 -> 3100 (2026-11-10, 1e2c23b3): A7's date-time fraction tests' models
 # own_corpus.matched 3100 -> 3106 (2026-11-10, c755071b): the A checkpoint's tests' models (QueryRuntimeTest, RowLoadCellsTest, TextPlanSourceTest and the rest)
 # own_corpus.matched 3106 -> 3116 (2026-11-11, B2e): EmbeddedDataKindsTest's ten elements (a Database and three Data elements; a service's model of six)
+# own_corpus.matched 3116 -> 3117 (2026-11-11, B2a): JsonSourceFrameArrayTextTest's class, the frame's model
 mutation.deck	950
-own_corpus.matched	3116
+own_corpus.matched	3117

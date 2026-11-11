@@ -39,7 +39,8 @@ public final class PeRatchets {
             "own_corpus.matched 3100 -> 3106 (2026-11-10, c755071b): the A checkpoint's tests' models (QueryRuntimeTest,"
                     + " RowLoadCellsTest, TextPlanSourceTest and the rest)",
             "own_corpus.matched 3106 -> 3116 (2026-11-11, B2e): EmbeddedDataKindsTest's ten elements (a Database and three"
-                    + " Data elements; a service's model of six)");
+                    + " Data elements; a service's model of six)",
+            "own_corpus.matched 3116 -> 3117 (2026-11-11, B2a): JsonSourceFrameArrayTextTest's class, the frame's model");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

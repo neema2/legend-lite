@@ -1935,17 +1935,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 // a TEMPORARY table: the one ANSI spelling every target here accepts
                 // (H2: CREATE [LOCAL] TEMPORARY TABLE; DuckDB: CREATE TEMPORARY TABLE)
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "Create Temporary Table " : "Create Table ")
-                        .append(ddlQualified(ct.schema(), ct.table(), ct.quoting())).append("(");
-                boolean first = true;
-                for (com.legend.sql.SqlDdl.Column col : ct.columns()) {
-                    if (!first) {
-                        sb.append(ddlColumnSeparator());
-                    }
-                    first = false;
-                    sb.append(ddlIdentifier(col.name(), col.declaredQuoted()))
-                            .append(' ').append(ddlType(col.type()))
-                            .append(ddlNullability(col.primaryKey() || col.notNull()));
-                }
+                        .append(ddlQualified(ct.schema(), ct.table(), ct.quoting())).append("(")
+                        .append(ddlColumns(ct.columns()));
                 java.util.List<String> pks = ct.columns().stream()
                         .filter(com.legend.sql.SqlDdl.Column::primaryKey)
                         .map(col -> ddlKeyIdentifier(col.name(), col.declaredQuoted()))
@@ -2262,6 +2253,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A key-list identifier ({@code PRIMARY KEY(...)}): the column rule. */
     protected String ddlKeyIdentifier(String name, boolean declaredQuoted) {
         return ddlIdentifier(name, declaredQuoted);
+    }
+
+    /** {@code columns} as a table's column list, each its name, type and nullability as this dialect's DDL spells them
+     *  (a session table's: {@link SqlDialect#dataTable}). */
+    protected String ddlColumns(java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        StringBuilder sb = new StringBuilder();
+        for (com.legend.sql.SqlDdl.Column col : columns) {
+            if (sb.length() > 0) {
+                sb.append(ddlColumnSeparator());
+            }
+            sb.append(ddlIdentifier(col.name(), col.declaredQuoted())).append(' ').append(ddlType(col.type()))
+                    .append(ddlNullability(col.primaryKey() || col.notNull()));
+        }
+        return sb.toString();
     }
 
     protected String ddlColumnSeparator() {

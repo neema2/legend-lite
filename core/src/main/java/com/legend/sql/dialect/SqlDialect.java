@@ -57,12 +57,31 @@ public interface SqlDialect {
      *  states its own, measured. */
     int timestampColumnDigits();
 
-    /** The schema a session's own TEMPORARY tables live in, as a drop names it so it drops the session's table and never
-     *  a user's table of the same name (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2, A4): refused by name where
-     *  this dialect has no session tables a load makes (a {@code data:} source's: {@link #dataSourceColumn}). */
-    default String temporarySchema() {
-        throw new com.legend.sql.DialectCapability("a session's temporary schema reached a dialect that makes no"
-                + " session table of a load's");
+    /**
+     * A {@code data:} source's SESSION TABLE as this database makes, reads and drops it (B2a, 2026-11-11; the drop-safety
+     * rule of docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2, measured per database): {@code make}, the statements that
+     * leave the session holding an empty {@code name} of {@code columns} (a TEMPORARY table, the session's own), which
+     * the content's inserts then fill; {@code release}, those that drop it, never a user's table of the name; the
+     * inserts' and the reads' {@code schema} ({@code null}: unqualified) and {@code name}. Refused by name where this
+     * database holds no session table of a load's.
+     */
+    record DataTable(@com.legend.base.Nullable String schema, String name, java.util.List<String> make,
+            java.util.List<String> release) {
+        public DataTable {
+            make = java.util.List.copyOf(make);
+            release = java.util.List.copyOf(release);
+        }
+
+        /** The name a query reads: qualified where the table lives in a schema of its own. */
+        public String read() {
+            return schema == null ? name : schema + "." + name;
+        }
+    }
+
+    /** {@code base}'s {@link DataTable} of {@code columns} on this database. */
+    default DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        throw new com.legend.sql.DialectCapability("a data: source's session table reached a dialect that makes no"
+                + " session table of a load's: " + base);
     }
 
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:

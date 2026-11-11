@@ -3,6 +3,9 @@
 
 package com.legend.resolver;
 
+import com.legend.Compiler;
+import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.error.NotImplementedException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,58 +17,36 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * E3 pins: the JSON source frame's INGRESS is SCISSORS ONLY —
- * {@link JsonSourceFrame#objectTexts} cuts the payload into per-object
- * TEXT spans without ever materializing a JSON value in Java (the
- * DATABASE parses the cells). The scan is string-aware: braces inside
- * JSON strings are data, not structure.
+ * The JSON source frame is its payload's {@code data:} source relation (B2a, 2026-11-11,
+ * docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): the resolver writes no row of the payload into the query -- the plan's
+ * load makes a session table of its records ({@code planner.DataSources}, whose cut of the payload is pinned by
+ * {@code DataSourcesRecordsTest}); until then, the frame's E3 pins cut the payload here, into a VALUES relation.
  */
-@DisplayName("JsonSourceFrame payload split (E3)")
+@DisplayName("JsonSourceFrame: the payload's data: source (B2a)")
 class JsonSourceFrameArrayTextTest {
 
+    private static final String MODEL = "Class m::C { a: Integer[1]; b: String[0..1]; }";
+
     @Test
-    @DisplayName("an array yields its objects; an empty payload is a zero-row frame")
-    void arrayAndEmpty() {
-        assertEquals(List.of("{\"a\":1}", "{\"a\":2}"),
-                JsonSourceFrame.objectTexts("[{\"a\":1},{\"a\":2}]", "m::C"));
-        assertEquals(List.of(),
-                JsonSourceFrame.objectTexts("  \n ", "m::C"));
+    @DisplayName("the frame reads the payload's data: source, each record's text and its place; no row in the query")
+    void theFrameIsThePayloadsDataSource() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        String url = "data:application/json,[{\"a\":1},{\"a\":2}]";
+        ClassSource source = JsonSourceFrame.frame(ctx, "m::M", "m::C", url);
+        assertTrue(source.pipeline() instanceof TypedSourceUrl u && u.url().equals(url),
+                String.valueOf(source.pipeline()));
+        assertEquals(List.of("data", TypedSourceUrl.ORDINAL),
+                source.rowType().columns().stream().map(c -> c.name()).toList());
+        // the class's properties are its bindings; the place is never one
+        assertEquals(List.of("a", "b"), List.copyOf(source.bindings().keySet()));
     }
 
     @Test
-    @DisplayName("a single object yields itself; the engine's row-stream yields one span per object")
-    void objectAndStream() {
-        assertEquals(List.of("{\"a\":1}"),
-                JsonSourceFrame.objectTexts("{\"a\":1}", "m::C"));
-        assertEquals(List.of("{\"a\":1}", "{\"a\":2}", "{\"a\":3}"),
-                JsonSourceFrame.objectTexts(
-                        "\n{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n", "m::C"));
-    }
-
-    @Test
-    @DisplayName("braces and quotes inside JSON strings are data — the scan never miscounts them")
-    void stringAwareScan() {
-        assertEquals(List.of("{\"a\":\"}{\"}", "{\"b\":\"\\\"{\"}"),
-                JsonSourceFrame.objectTexts(
-                        "{\"a\":\"}{\"} {\"b\":\"\\\"{\"}", "m::C"));
-        // nested objects and arrays ride INSIDE one span
-        assertEquals(List.of("{\"emp\":[{\"n\":\"A\"},{\"n\":\"B\"}]}"),
-                JsonSourceFrame.objectTexts(
-                        "{\"emp\":[{\"n\":\"A\"},{\"n\":\"B\"}]}", "m::C"));
-    }
-
-    @Test
-    @DisplayName("non-object payloads, truncated streams, and unterminated arrays wall loudly")
-    void loudWalls() {
-        var e = assertThrows(NotImplementedException.class, () ->
-                JsonSourceFrame.objectTexts("42", "m::C"));
-        assertTrue(e.getMessage().contains(
-                "neither an object nor an array"), e.getMessage());
-        var t = assertThrows(NotImplementedException.class, () ->
-                JsonSourceFrame.objectTexts("{\"a\":1", "m::C"));
-        assertTrue(t.getMessage().contains("truncated"), t.getMessage());
-        var u = assertThrows(NotImplementedException.class, () ->
-                JsonSourceFrame.objectTexts("[{\"a\":1}", "m::C"));
-        assertTrue(u.getMessage().contains("unterminated"), u.getMessage());
+    @DisplayName("a connection that is not a data:application/json literal is refused by name")
+    void aRemoteUrlIsRefusedByName() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        var e = assertThrows(NotImplementedException.class,
+                () -> JsonSourceFrame.frame(ctx, "m::M", "m::C", "http://example.com/people.json"));
+        assertTrue(e.getMessage().contains("is not a data:application/json literal"), e.getMessage());
     }
 }

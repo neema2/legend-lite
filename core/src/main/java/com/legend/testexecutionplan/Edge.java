@@ -22,6 +22,10 @@ public interface Edge {
     /** A seed step's statements' ledger texts, in order: the records to plan at the step. */
     List<Extension> seed(List<String> texts);
 
+    /** A load step that makes a live source's session table (a {@code data:} payload's: B2a, 2026-11-11): the records to
+     *  plan at the step, which the run then tells {@link #seeded} as it tells a seed's. */
+    List<Extension> liveSource();
+
     /** A seed step's statements ran ({@code answeredRows}: whether each answered rows, those before a failure when it
      *  failed), {@code planned} the records planned at it. */
     void seeded(List<Extension> planned, List<Boolean> answeredRows);

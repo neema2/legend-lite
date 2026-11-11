@@ -51,6 +51,9 @@ public final class ProgramState {
      *  reader, and its drops, run after the answer. */
     private final DataSources.Tables data;
     private final List<String> dataReleases = new ArrayList<>();
+    /** The loads that make the program's {@code data:} tables, as placed (B2a: the test door marks each for the edge,
+     *  which records none of them). */
+    private final List<ExecutionPlan.Load> dataLoads = new ArrayList<>();
     /** What the program's statements read (A5): the system metamodel store's tables, another source -- the product's
      *  door runs a program reading the store alone on the process's catalog, as it runs such a query. */
     private final java.util.EnumSet<Reads> reads = java.util.EnumSet.noneOf(Reads.class);
@@ -59,14 +62,18 @@ public final class ProgramState {
     private enum Reads { SYSTEM, OTHER }
 
     ProgramState(TypedQuery query, String runtime, SqlDialect dialect, ExecutionPlan.Target target,
-            List<SqlExpr.PlanParam> slots, Set<Feature> features) {
+            List<SqlExpr.PlanParam> slots, Set<Feature> features, DataSources.Tables data) {
         this.query = query;
         this.runtime = runtime;
         this.dialect = dialect;
         this.target = target;
         this.slots = slots;
         this.features = features;
-        this.data = new DataSources.Tables(dialect);
+        if (data.dialect().getClass() != dialect.getClass()) {
+            throw new IllegalStateException("the data: tables planned ahead of the program are written in "
+                    + data.dialect().getClass().getSimpleName() + ", the program in " + dialect.getClass().getSimpleName());
+        }
+        this.data = data;
     }
 
     /** The program's query: its body, its model, its compiler. */
@@ -158,10 +165,15 @@ public final class ProgramState {
         return reads.contains(Reads.OTHER);
     }
 
-    private void placeMade() {
+    /** The tables made since the last placement -- a statement's, or the steps planned ahead of the program -- placed
+     *  now, as the program's own load ({@code AT_STEP}) after the steps planned so far. */
+    void placeMade() {
         DataSources.Tables.Made made = data.take();
         if (!made.steps().isEmpty()) {
-            add(LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, made.steps(), target, made.content()));
+            ExecutionPlan.Load load = LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, made.steps(), target,
+                    made.content());
+            add(load);
+            dataLoads.add(load);
             dataReleases.addAll(made.drops());
         }
     }
@@ -169,6 +181,11 @@ public final class ProgramState {
     /** The drops of the program's {@code data:} tables, run after its answer. */
     List<String> dataReleases() {
         return List.copyOf(dataReleases);
+    }
+
+    /** The loads that make the program's {@code data:} tables, as placed. */
+    List<ExecutionPlan.Load> dataLoads() {
+        return List.copyOf(dataLoads);
     }
 
     /** {@code q} written in the program's dialect for its target. */
@@ -185,6 +202,8 @@ public final class ProgramState {
      *  plan-as-data design's step 3, 2026-11-08: a test's verdict group or branch, which the product's plan never
      *  holds). */
     public void addExtension(int handle, List<ExecutionPlan.Node> declared) {
+        // the tables its statements made when they were planned ahead, made before it (B2a)
+        placeMade();
         steps.add(new PlannedStep.Extension(handle, declared));
     }
 

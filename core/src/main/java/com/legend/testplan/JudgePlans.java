@@ -94,7 +94,9 @@ final class JudgePlans {
                 }
             }
         }
-        return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(statement), env.dialect(), env.target());
+        // each data: source read from the body's table of its content (B2a, 2026-11-11), made by the program ahead
+        return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(env.read(statement)), env.dialect(),
+                env.target());
     }
 
     /** {@code plan} with the definitions of the frames it references at its head -- the verdict batch's, in
@@ -136,7 +138,7 @@ final class JudgePlans {
 
             @Override
             public int chars(SqlQuery statement) {
-                return env.dialect().render(statement).length();
+                return env.dialect().render(env.read(statement)).length();
             }
 
             @Override
@@ -331,7 +333,7 @@ final class JudgePlans {
      *  graph root), read as a typed value of one text column -- the plan asks the database for no output text
      *  (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
     private static ExecutionPlan.TdsResult objectsPlan(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
-        SqlQuery plan = withFrames(w.plan(), env);
+        SqlQuery plan = env.read(withFrames(w.plan(), env));
         List<OutputCol> outs = plan.outputs();
         if (outs.size() != 1) {
             throw new IllegalStateException("a graph fetch side's statement answers " + outs.size() + " columns "
@@ -354,7 +356,7 @@ final class JudgePlans {
             // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
             // until then WireProbe.staticized framed it by a describe at planning)
             ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
-                    List.of(), PlanMaker.sql(withFrames(plan, env), env.dialect(), env.target()));
+                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target()));
             return new PlannedSide(new TestPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
                     new Type.RelationType(List.of()));
         }
@@ -367,7 +369,7 @@ final class JudgePlans {
         if (TypedRows.dynamicPivotUnnamed(plan, schema)) {
             // a side over a DYNAMIC PIVOT nothing names: its keyed plan (PlanMaker.keyed, the probe plan the server
             // runs), its keys read first and its body written for them
-            SqlQuery framed = withFrames(plan, env);
+            SqlQuery framed = env.read(withFrames(plan, env));
             com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                     com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
             ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), env.target());

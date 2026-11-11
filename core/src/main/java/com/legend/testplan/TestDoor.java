@@ -87,6 +87,13 @@ public final class TestDoor {
         default @Nullable String frameStamp(int statement) {
             return null;
         }
+
+        /** The body's {@code data:} tables the asserts' statements were read through (B2a, 2026-11-11): the program
+         *  reads through the same ones and places what they made ahead of the step that reads it; null where the
+         *  asserts planned none. */
+        default com.legend.planner.DataSources.@Nullable Tables dataTables() {
+            return null;
+        }
     }
 
     /** {@link #plan}, no assert planned and nothing for the edge. */
@@ -142,7 +149,7 @@ public final class TestDoor {
         // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
         if (edge != null) {
-            refuseUnrecordedLoads(planned, seeds);
+            liveSources(planned, seeds, program.dataLoads()).forEach(i -> byStep.put(i, edge.liveSource()));
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
                     e.statements().stream().map(Recorded::query).toList())));
             seeds.forEach((i, texts) -> byStep.put(i, edge.seed(texts.get())));
@@ -153,28 +160,31 @@ public final class TestDoor {
         // the session the body runs on: its runtime's database, the test door's own target (slice 5, 2026-11-09: the
         // door planned it beside the plan until then)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.testSessionTarget(body.context(), runtime));
+                PlanMaker.testSessionTarget(body.context(), runtime), program.release());
     }
 
     /**
-     * Under the compatibility edge, a load step of the body's program the test planner did not seed is refused by name
-     * (the orchestrator's late item of the A checkpoint, 2026-11-10): the edge's ledger records a body's seeds by the
-     * texts the planner made for each ({@code TestKinds.seeds}), and a live source's session table (a {@code data:}
-     * payload's load, A5) has none, so the run failed at it with an internal error ({@code TestRunner.seeded}). B2a
-     * moves the edge's ledger onto the plan's loads; until then it is refused before anything runs. The graph's system
-     * store's load is no body's, and the ledger records none of it, as at the run.
+     * Under the compatibility edge, the load steps of the body's program that make its {@code data:} tables
+     * ({@code dataLoads}, B2a, 2026-11-11): each a live source's session table, which the edge records as nothing (the
+     * referee replays legend-engine's text, which reads no table of lite's). Any other load the test planner did not
+     * seed is refused by name: the edge's ledger records a body's seeds by the texts the planner made for each
+     * ({@code TestKinds.seeds}), and a load with none would fail the run at it. The graph's system store's load is no
+     * body's, and the ledger records none of it, as at the run.
      */
-    private static void refuseUnrecordedLoads(List<PlannedStep> steps,
-            Map<Integer, java.util.function.Supplier<List<String>>> seeds) {
+    private static List<Integer> liveSources(List<PlannedStep> steps,
+            Map<Integer, java.util.function.Supplier<List<String>>> seeds, List<ExecutionPlan.Load> dataLoads) {
+        List<Integer> live = new java.util.ArrayList<>();
         for (int i = 0; i < steps.size(); i++) {
             if (steps.get(i) instanceof PlannedStep.Product p && p.node() instanceof ExecutionPlan.Load u
                     && !(u.target().database() instanceof ExecutionPlan.Database.System) && !seeds.containsKey(i)) {
-                throw new com.legend.error.NotImplementedException("under the compatibility edge a test body's"
-                        + " statements read only the seeds its ledger records, and this body reads a load the test"
-                        + " planner made for a live source (" + u.identity() + ": a data: source's session table),"
-                        + " which the edge's ledger does not record until B2a; lite's own test door runs it");
+                if (!dataLoads.contains(u)) {
+                    throw new IllegalStateException("a load step of the test door's plan (" + u.identity() + ") is"
+                            + " neither a seed the edge's ledger records nor a data: source's session table");
+                }
+                live.add(i);
             }
         }
+        return live;
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library

@@ -46,8 +46,17 @@ public final class CompatEdge implements Edge {
         return List.of(new SeedTexts(texts));
     }
 
+    /** {@inheritDoc} Recorded as nothing: the referee replays legend-engine's text, which reads no table of lite's. */
+    @Override
+    public List<Extension> liveSource() {
+        return List.of(new LiveSourceLoad());
+    }
+
     @Override
     public void seeded(List<Extension> planned, List<Boolean> answeredRows) {
+        if (planned.equals(List.of(new LiveSourceLoad()))) {
+            return;   // a live source's session table: nothing of it is the referee's ledger
+        }
         SeedTexts texts = seedOf(planned);
         if (answeredRows.size() > texts.texts().size()) {
             throw new IllegalStateException("a seed step ran " + answeredRows.size() + " statement(s) with "

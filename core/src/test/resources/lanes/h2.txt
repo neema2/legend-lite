@@ -7,6 +7,9 @@
 # now navigated that meets the next gap: an external source, an unnest, a list read, a null where a value is).
 # A line whose reason opens 'not run <date>:' PINS its test as not run on the lane (the run says so): a failure that
 # would end the run; it moves only with a dated justification.
+# 2026-11-11 (B2a, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): 42 lines went -- a data: source (a sourceUrl payload,
+# a JSON connection's frame) is the plan's load into a session table H2 makes (SqlDialect.dataTable), so its tests
+# pass; a file: source's 16 stay (no JSON file reader here, refused by name).
 UserFunctionIntegrationTest$RelationGeneric#aChainOfCallsIsTypedOnceEach	not run 2026-10-29 (T-d2): twenty chained calls of a window-extending generic function lower to twenty nested derived tables; H2's planner re-plans every level per candidate plan (QueryExpressionIndex.getQuery) and exhausts the 512 MB heap in Select.getPlanSQL, which JUnit rethrows as unrecoverable, ending the run; passes on DuckDB and SQLite; the start page's track F
 CorrelatedRelationCheckerTest#aCorrelatedMapToOneIsAScalarSubquery	measured 2026-10-29: Column "_tds0.id" not found; SQL statement:  SELECT "_tds0"."id" AS "id", (SELECT "t1"."value" AS "value" FROM ( SELECT 
 CorrelatedRelationCheckerTest#aRootMapToOneOverAWindowFilter	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
@@ -80,13 +83,6 @@ GraphFetchCheckedIntegrationTest#nullPredicateReportsUnableToEvaluateDefects	mea
 GraphFetchCheckedIntegrationTest#reducersOverNavigationsInConstraints	measured 2026-10-29: LIST_FILTER reached a dialect without a list encoding
 GroupByCheckerTest$RowMapperAggregates#testMaxBy	measured 2026-10-29: Function "ARG_MAX" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MAX("_tds0"."name", "_tds0"."employeeNu
 GroupByCheckerTest$RowMapperAggregates#testMinBy	measured 2026-10-29: Function "ARG_MIN" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MIN("_tds0"."name", "_tds0"."employeeNu
-JsonM2MChainIntegrationTest$EdgeCases#testCompoundFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testFilterEliminatesAll	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testFilterKeepsOne	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testSingleElement	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Solo","lastName":"
-JsonM2MChainIntegrationTest$EdgeCases#testSingleElementGraphFetch	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Solo","lastName":"
-JsonM2MChainIntegrationTest$EdgeCases#testSortThroughChain	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testTwoHopSort	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
 JsonM2MChainIntegrationTest$FileSource#testArrayFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testArrayGraphFetch	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testArrayProject	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
@@ -103,39 +99,6 @@ JsonM2MChainIntegrationTest$FileSource#testUnstructuredGraphFetch	measured 2026-
 JsonM2MChainIntegrationTest$FileSource#testUnstructuredProject	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testUnstructuredTwoHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testUnstructuredTwoHopFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetch	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetchMappingFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetchMappingFilterPartial	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetchPartial	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectAllProps	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectFilterNumeric	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectFilterStringEq	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectMappingAndUserFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectMappingFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectNumericComputation	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectPassthrough	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectSingleComputed	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testGraphFetchTwoHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testGraphFetchTwoHopWithFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHopFilterOnComputed	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHopWithFilterAtL1	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHopWithUserFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testGraphFetchThreeHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testProjectThreeHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testProjectThreeHopFilterEmpty	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testProjectThreeHopWithFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L4FourHop#testGraphFetchFourHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L4FourHop#testProjectFourHop	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L4FourHop#testProjectFourHopWithFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$MultiSource#testBothSourcesIndependent	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$MultiSource#testDeptFilterNumeric	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"name":"Engineering","location"
-JsonM2MChainIntegrationTest$MultiSource#testDeptFromSecondSource	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"name":"Engineering","location"
-JsonM2MChainIntegrationTest$MultiSource#testDeptGraphFetch	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"name":"Engineering","location"
-JsonM2MChainIntegrationTest$MultiSource#testPersonFromFirstSource	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MIntegrationTest#testGraphFetchFromJson	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
-JsonM2MIntegrationTest#testProjectFromJson	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
-JsonM2MIntegrationTest#testProjectWithFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
 JsonMappingIntegrationTest$AssociationWithJsonTests#testFilterOnAssociationScalarProjectJson	measured 2026-11-05 (H2 2.5.252): All should be Alice ==> expected: <true> but was: <false>
 JsonMappingIntegrationTest$AssociationWithJsonTests#testMixedScalarFilterAssociationJsonProjection	measured 2026-11-05 (H2 2.5.252): All results should be Alice ==> expected: <true> but was: <false>
 JsonMappingIntegrationTest$AssociationWithJsonTests#testProjectThroughAssociation	measured 2026-11-05 (H2 2.5.252): Alice should appear twice (has 2 items) ==> expected: <2> but was: <0>
@@ -165,8 +128,6 @@ ScalarFunctionIntegrationTest#testPctJaroWinklerDiff	measured 2026-10-29: Functi
 ScalarFunctionIntegrationTest#testPctJaroWinklerSame	measured 2026-10-29: Function "JARO_WINKLER_SIMILARITY" not found; SQL statement:  SELECT jaro_winkler_similarity('John Smith', 'John Smith')
 ScalarFunctionIntegrationTest#testReverseString	measured 2026-10-29: Function "REVERSE" not found; SQL statement:  SELECT reverse('hello') AS "value" [90022-214]
 ScalarFunctionIntegrationTest#testSplitSimple	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
-SourceUrlUserCallableTest#equalSourcesShareOneTableAndAUnionReadsIt	measured 2026-11-10 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
-SourceUrlUserCallableTest#userCallable_dataUri_extendsAndProjects	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"a":1,"b":"x"},{"a":2,"b":"y"}]
 StructFilterIntegrationTest#testExistsInSelectFilterLegalName	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
 StructFilterIntegrationTest#testExistsInSelectFilterLegalNameP3	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
 StructFilterIntegrationTest#testExistsInSelectFilterNoMatch	measured 2026-10-29: UNNEST reached a dialect without an unnest placement

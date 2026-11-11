@@ -33,8 +33,9 @@ public final class TestPlanJson {
      *  data-in-the-plan design's L1): a program's steps in the product's format version 31 -- the load node, a file
      *  load by its data reference; 12 (L2): the product's version 32, and the test plan's own {@code loads} section,
      *  each load once, every target naming it by identity; 13 (2026-11-10, L5): an appeal's rows name no stores for the
-     *  harness to provide, the on-demand fixtures deleted (census M9). */
-    public static final int VERSION = 13;
+     *  harness to provide, the on-demand fixtures deleted (census M9); 14 (2026-11-11, B2a): the statements the runner
+     *  sends after the run and its appeals, {@code release}. */
+    public static final int VERSION = 14;
 
     private TestPlanJson() {
     }
@@ -85,6 +86,7 @@ public final class TestPlanJson {
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("session", PlanJson.targetJson(plan.session()));
+        out.put("release", plan.release());
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
         if (!plan.extensionsByStep().isEmpty() || !plan.extensionsByVerdict().isEmpty()) {
@@ -227,7 +229,7 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")));
+                PlanJson.targetOf(o.getObj("session")), o.getStringArray("release"));
     }
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------

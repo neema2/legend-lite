@@ -59,10 +59,19 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  assertErrors' steps by verdict -- deleted; the run reads each segment's root loop, a verdict's host facts and its
      *  statement from the plan: TestPlanner, RootLoops) */
     private DatabaseAsserts(Map<Integer, List<TestPlan.Verdicts>> byStatement, Map<Integer, String> frameStamps,
-            Map<Integer, TestPlan.Branch> branches) {
+            Map<Integer, TestPlan.Branch> branches, com.legend.planner.DataSources.Tables data) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
+        this.data = data;
+    }
+
+    /** The body's {@code data:} tables its statements were read through (B2a): the program reads through them too. */
+    private final com.legend.planner.DataSources.Tables data;
+
+    @Override
+    public com.legend.planner.DataSources.Tables dataTables() {
+        return data;
     }
 
     /**
@@ -307,7 +316,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             // the shape by name; kept as the guard behind it)
             return null;
         }
-        return new DatabaseAsserts(byStatement, frameStamps, branches);
+        return new DatabaseAsserts(byStatement, frameStamps, branches, env.data());
     }
 
     /**

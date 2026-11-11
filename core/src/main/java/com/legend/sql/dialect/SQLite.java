@@ -131,6 +131,25 @@ public final class SQLite extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
     }
 
+    /** {@inheritDoc} In SQLite's {@code temp} schema, which holds a connection's TEMPORARY tables alone (B2a, measured
+     *  2026-11-11 on 3.47.1, docs/data-delivery-homework/probes/SqliteTemp.java.txt): {@code DROP TABLE IF EXISTS
+     *  temp.t} never reaches a user's {@code main.t} and is a no-op where the connection holds none; an unqualified read
+     *  finds the temporary table first; another connection does not see it. The drop is spelled here: a schema-qualified
+     *  name is otherwise one delimited name on SQLite ({@link #tableName}). */
+    @Override
+    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        String drop = "DROP TABLE IF EXISTS temp." + ddlIdentifier(base, false);
+        String create = render(new com.legend.sql.SqlDdl.CreateTable(null, base, com.legend.sql.NameQuoting.BARE,
+                columns, true));
+        return new SqlDialect.DataTable(null, base, java.util.List.of(drop, create), java.util.List.of(drop));
+    }
+
+    /** {@inheritDoc} SQLite holds each element's JSON text in a column it navigates with its JSON functions. */
+    @Override
+    public com.legend.sql.SqlDdl.ColumnType dataSourceColumn(String url) {
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+    }
+
     /** {@inheritDoc} 9: a date-time is its text, every digit kept (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {

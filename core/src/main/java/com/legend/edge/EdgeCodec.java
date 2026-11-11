@@ -22,7 +22,7 @@ public final class EdgeCodec implements ExtensionCodec {
     private static final String TAG = "_type";
 
     /** The tags of the edge's records, one spelling for the writer and the reader. */
-    private enum Tag { effectTexts, seedTexts }
+    private enum Tag { effectTexts, seedTexts, liveSourceLoad }
 
     @Override
     public @Nullable Map<String, Object> write(Extension e) {
@@ -43,6 +43,7 @@ public final class EdgeCodec implements ExtensionCodec {
                 o.put(TAG, Tag.seedTexts.name());
                 o.put("texts", t.texts());
             }
+            case LiveSourceLoad l -> o.put(TAG, Tag.liveSourceLoad.name());
             default -> {
                 return null;   // another codec's record
             }
@@ -71,6 +72,7 @@ public final class EdgeCodec implements ExtensionCodec {
                 yield new EffectTexts(statements);
             }
             case seedTexts -> new SeedTexts(o.getStringArray("texts"));
+            case liveSourceLoad -> new LiveSourceLoad();
         };
     }
 }

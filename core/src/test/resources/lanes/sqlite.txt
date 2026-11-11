@@ -4,6 +4,9 @@
 # twin's T-d, re-measured at T-d2 with every integration test on the lane (the ledger, batches T-d and T-d2).
 # A line whose reason opens 'not run <date>:' PINS its test as not run on the lane (the run says so): a failure that
 # would end the run; it moves only with a dated justification.
+# 2026-11-11 (B2a, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): 42 lines went -- a data: source (a sourceUrl payload,
+# a JSON connection's frame) is the plan's load into a session table SQLite makes (SqlDialect.dataTable), so its tests
+# pass; a file: source's 16 stay (no JSON file reader here, refused by name).
 ClassWritesExecutionTest#anEmbeddedPropertysSubPropertiesAreItsColumns	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
 ClassWritesExecutionTest#whatIsNotDirectIsRefusedByName	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
 CypherDomainWritesTest#writesOnThePlatform	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
@@ -16,13 +19,6 @@ ExtendCheckerTest$BivariantExtend#testMinBy	measured 2026-10-29: a windowed ARG_
 GraphFetchCheckedIntegrationTest#falseAndTrueArmsKeepTheirSpellings	measured 2026-10-29: clean row must report zero defects: [{"defects":[null,null],"value":{"id":1,"sString":"plain","sInt":5}},{"defects":[{"i
 GraphFetchCheckedIntegrationTest#nestedObjectConstraintsHoistWithPath	measured 2026-10-29: nested checked defects reached a dialect without list lambdas
 GraphFetchCheckedIntegrationTest#reducersOverNavigationsInConstraints	measured 2026-10-29: Empty firm: no defects: ted in the Class Firm","enforcementLevel":"Error","ruleType":"ClassConstraint","ruleDefinerPath"
-JsonM2MChainIntegrationTest$EdgeCases#testCompoundFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testFilterEliminatesAll	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testFilterKeepsOne	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testSingleElement	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Solo","lastName":"
-JsonM2MChainIntegrationTest$EdgeCases#testSingleElementGraphFetch	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Solo","lastName":"
-JsonM2MChainIntegrationTest$EdgeCases#testSortThroughChain	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$EdgeCases#testTwoHopSort	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
 JsonM2MChainIntegrationTest$FileSource#testArrayFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: file:///root/.cache/bazel/_bazel_root/e8817d619d2dbe750
 JsonM2MChainIntegrationTest$FileSource#testArrayGraphFetch	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: file:///root/.cache/bazel/_bazel_root/e8817d619d2dbe750
 JsonM2MChainIntegrationTest$FileSource#testArrayProject	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: file:///root/.cache/bazel/_bazel_root/e8817d619d2dbe750
@@ -39,39 +35,6 @@ JsonM2MChainIntegrationTest$FileSource#testUnstructuredGraphFetch	measured 2026-
 JsonM2MChainIntegrationTest$FileSource#testUnstructuredProject	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: file:///root/.cache/bazel/_bazel_root/e8817d619d2dbe750
 JsonM2MChainIntegrationTest$FileSource#testUnstructuredTwoHop	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: file:///root/.cache/bazel/_bazel_root/e8817d619d2dbe750
 JsonM2MChainIntegrationTest$FileSource#testUnstructuredTwoHopFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: file:///root/.cache/bazel/_bazel_root/e8817d619d2dbe750
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetch	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetchMappingFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetchMappingFilterPartial	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testGraphFetchPartial	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectAllProps	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectFilterNumeric	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectFilterStringEq	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectMappingAndUserFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectMappingFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectNumericComputation	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectPassthrough	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L1SingleHop#testProjectSingleComputed	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testGraphFetchTwoHop	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testGraphFetchTwoHopWithFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHop	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHopFilterOnComputed	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHopWithFilterAtL1	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L2TwoHop#testProjectTwoHopWithUserFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testGraphFetchThreeHop	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testProjectThreeHop	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testProjectThreeHopFilterEmpty	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L3ThreeHop#testProjectThreeHopWithFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L4FourHop#testGraphFetchFourHop	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L4FourHop#testProjectFourHop	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$L4FourHop#testProjectFourHopWithFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$MultiSource#testBothSourcesIndependent	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MChainIntegrationTest$MultiSource#testDeptFilterNumeric	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"name":"Engineering","location"
-JsonM2MChainIntegrationTest$MultiSource#testDeptFromSecondSource	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"name":"Engineering","location"
-JsonM2MChainIntegrationTest$MultiSource#testDeptGraphFetch	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"name":"Engineering","location"
-JsonM2MChainIntegrationTest$MultiSource#testPersonFromFirstSource	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"Alice","lastName":
-JsonM2MIntegrationTest#testGraphFetchFromJson	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
-JsonM2MIntegrationTest#testProjectFromJson	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
-JsonM2MIntegrationTest#testProjectWithFilter	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"firstName":"John","lastName":"
 PivotCheckerTest$MultiColumnPivot#testTwoColumnPivot	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
 PivotCheckerTest$SingleColumnPivot#testComputedMultiplicationExpression	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
 PivotCheckerTest$SingleColumnPivot#testLiteralCountExpression	measured 2026-10-29: a pivot reached SQLite unemulated: it has no PIVOT
@@ -80,8 +43,6 @@ PivotCheckerTest$SqlGeneration#testSingleColumnPivotSql	measured 2026-10-29: a p
 RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayCrossProduct	measured 2026-10-29: Should use UNNEST for array access ==> expected: <true> but was: <false>
 RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayWithEmptyArray	measured 2026-10-29: Should use LEFT JOIN LATERAL for empty array support ==> expected: <true> but was: <false>
 RelationalMappingIntegrationTest$GapFeatures#testSchemaTable	measured 2026-10-29: [SQLITE_ERROR] SQL error or missing database (near "SCHEMA": syntax error)
-SourceUrlUserCallableTest#equalSourcesShareOneTableAndAUnionReadsIt	measured 2026-11-10 (SQLite): sourceUrl reached a dialect without an external-source encoding:
-SourceUrlUserCallableTest#userCallable_dataUri_extendsAndProjects	measured 2026-10-29: sourceUrl reached a dialect without an external-source encoding: data:application/json,[{"a":1,"b":"x"},{"a":2,"b":"y"}]
 StagedRowsTest#aDeleteOfTheRowsAnotherRelationNames	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
 StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
 StoreWritesExecutionTest#aLetTheWritesWouldChangeIsRefusedByName	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'

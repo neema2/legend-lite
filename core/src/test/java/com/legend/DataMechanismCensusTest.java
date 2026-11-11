@@ -183,7 +183,20 @@ class DataMechanismCensusTest {
             // measured at A5 and costs 20 DuckDB and 10 H2 corpus tests today: the test road's judges render statements
             // that take no data: rewrite, the referee replays on H2, and H2 holds no data: table. It moves with B2a/B2b.
             // L6's deletions stay guarded (REMOVED_SO_FAR)
-            new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Pending("B2a")),
+            // DELETED at B2a, 2026-11-11 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): the JSON connection's frame is its
+            // payload's data: source relation, its records and their places the plan's load into a session table each
+            // database spells (SqlDialect.dataTable: DuckDB's temp, H2's LEGEND_SESSION LOCAL TEMPORARY, SQLite's temp,
+            // each measured); a test body's judges read every data: source through the body's one set of tables, which
+            // its program places ahead of the step that reads one, and the edge records the load as nothing
+            // (LiveSourceLoad); the drops run after the body's appeals (TestPlan.release). The 20 DuckDB and 10 H2
+            // corpus tests A5 measured pass. Proof: JsonM2M*IntegrationTest on DuckDB, H2 and SQLite, EdgeLiveSourceTest,
+            // DataSourcesRecordsTest
+            new Row("M10", "JSON model data: data: inlined, file: as a path in SQL", new Deleted("B2a", List.of(
+                    // L6: the file: source's path pasted into the statement, and DuckDB's data: payload as a SQL literal
+                    "read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))",
+                    "SELECT unnest(CAST(\" + stringLit(content)",
+                    // B2a: a runtime value's JSON connection, its payload cut into the query's VALUES rows
+                    "objectTexts(", "sourceUrlFrame("))),
             new Row("M11", "a query's literal relations and instances, and their writes",
                     new Staying("P9: a statement's literal rows come from lowering alone")),
             new Row("M12", "model-derived constants in statements",
@@ -216,9 +229,6 @@ class DataMechanismCensusTest {
     /** What a PENDING row's slices deleted so far, each symbol reading zero as a deleted row's do (the M1 tenets
      *  audit's finding 2, 2026-11-09: a row is DELETED only when its whole list is). */
     static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of(
-            // L6: the file: source's path pasted into the statement, and DuckDB's data: payload as a SQL literal
-            "M10", List.of("read_json_objects(\" + stringLit", "java.nio.file.Path.of(java.net.URI.create(url))",
-                    "SELECT unnest(CAST(\" + stringLit(content)"),
             // L2: the seeds' own identity scheme (folded into LoadPlanner.identity), the plan's copy of a connection's
             // raw test data written and read, and the node a seed was until L1
             "M3", List.of("Seeds.key(", "Seeds.planned(", "x.testDataSetupCsv(), x.testDataSetupSqls()", "putIfSet(o, \"testDataSetupCsv\"",
@@ -295,7 +305,8 @@ class DataMechanismCensusTest {
         // 2 -> 3 (2026-11-10, L6: M10 deleted, its file: path in SQL and its data: literal); 3 -> 4 (2026-11-10,
         // L6c: M1 deleted, the fill's statement text, the fill only a ONCE load); 4 -> 3 (2026-11-10, A5: M10 REOPENED
         // -- not a deletion undone, a count corrected: the JSON source frame's literal rows were never deleted, and the
-        // design's §5 asks the census kept honest; its row says why and when it moves)
-        assertEquals(3, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // design's §5 asks the census kept honest; its row says why and when it moves); 3 -> 4 (2026-11-11, B2a: M10
+        // deleted, the JSON connection's frame its payload's data: load on every road)
+        assertEquals(4, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

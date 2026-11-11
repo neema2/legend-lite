@@ -322,18 +322,24 @@ public final class PlanMaker {
     public static TestProgram testProgram(TypedQuery query, String runtime, Set<Feature> features,
             ProgramKinds kinds, boolean systemRouted) {
         List<QueryParameters.Declared> declared = query.parameters();
-        return new TestProgram(declarations(declared, query.context()),
-                program(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
-                        systemRouted, false));
+        Programmed programmed = programmed(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
+                systemRouted, false);
+        return new TestProgram(declarations(declared, query.context()), programmed.steps(), programmed.dataLoads(),
+                programmed.release());
     }
 
     /** A program the test door planned (the plan-as-data design's step 3, 2026-11-08): its declared parameters and its
      *  steps, each a product node or the extension's own step by its handle, which the test door turns into its own
-     *  plan's. */
-    public record TestProgram(List<ExecutionPlan.Parameter> parameters, List<PlannedStep> steps) {
+     *  plan's; the loads among them that make its {@code data:} tables, and their drops, which the test door's runner
+     *  sends once the body's run and its appeals are over (B2a, 2026-11-11: an appeal reads lite's rows after the run,
+     *  and H2's drop commits an open transaction). */
+    public record TestProgram(List<ExecutionPlan.Parameter> parameters, List<PlannedStep> steps,
+            List<ExecutionPlan.Load> dataLoads, List<String> release) {
         public TestProgram {
             parameters = List.copyOf(parameters);
             steps = List.copyOf(steps);
+            dataLoads = List.copyOf(dataLoads);
+            release = List.copyOf(release);
         }
     }
 
@@ -347,6 +353,13 @@ public final class PlanMaker {
         return slots;
     }
 
+    /** A program's steps, and what its statements read: the system metamodel store's tables, another source (the
+     *  product's door re-plans a program reading the store alone on the process's catalog); the test door's, the loads
+     *  that make its {@code data:} tables and their drops, sent after its run (B2a). */
+    private record Programmed(List<PlannedStep> steps, boolean readsSystem, boolean readsOther,
+            List<ExecutionPlan.Load> dataLoads, List<String> release) {
+    }
+
     /**
      * A program that changes a store, planned as the steps of one {@link ExecutionPlan.Sequence}
      * (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): each statement at its turn with the lets before it, as the
@@ -358,17 +371,6 @@ public final class PlanMaker {
      * statement's value is the plan's answer: a query's typed rows, or a write's count, which the database answers as a
      * value bound in a query of its own.
      */
-    private static List<PlannedStep> program(TypedQuery query, @Nullable String runtime,
-            List<SqlExpr.PlanParam> slots, Set<Feature> features,
-            ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase) {
-        return programmed(query, runtime, slots, features, door, kinds, systemRouted, projectDatabase).steps();
-    }
-
-    /** A program's steps, and what its statements read: the system metamodel store's tables, another source (the
-     *  product's door re-plans a program reading the store alone on the process's catalog). */
-    private record Programmed(List<PlannedStep> steps, boolean readsSystem, boolean readsOther) {
-    }
-
     private static Programmed programmed(TypedQuery query, @Nullable String runtime,
             List<SqlExpr.PlanParam> slots, Set<Feature> features,
             ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase) {
@@ -393,8 +395,9 @@ public final class PlanMaker {
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
         // construction read by two statements is one object in both, and every statement names its sites by the one
         // counter
+        DataSources.Tables plannedAhead = kinds.dataTables();
         ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), decided.dialect(), target,
-                slots, features);
+                slots, features, plannedAhead != null ? plannedAhead : new DataSources.Tables(decided.dialect()));
         // the let kinds' effect scan, memoized over the program (LetPlanner.kind)
         Map<FunctionId, Boolean> effectMemo = new HashMap<>();
         // the graph's system store, seeded by the plan's own step ahead of the first statement that reads it (the
@@ -435,12 +438,17 @@ public final class PlanMaker {
                 planStatement(state, i, stmt, last, door, on);
             }
         }
-        List<PlannedStep> steps = finished(state);
+        // what the steps planned ahead made and no statement placed (an appeal's rows, read after the run), placed
+        // last (B2a)
+        state.placeMade();
+        boolean releasedAfter = door == ProgramState.Door.TEST;
+        List<PlannedStep> steps = finished(state, !releasedAfter);
         if (!systemSeeded && systemTargetOf(steps) != null) {
             throw new IllegalStateException("a step of the program reads the graph's system store and no seed step is"
                     + " ahead of it (the program's planning seeds the store before the first step that reads it)");
         }
-        return new Programmed(steps, state.readsSystem(), state.readsOther());
+        return new Programmed(steps, state.readsSystem(), state.readsOther(), state.dataLoads(),
+                releasedAfter ? state.dataReleases() : List.of());
     }
 
     /** The graph's system database's target, where a statement of {@code steps} names it; else null. */
@@ -636,7 +644,7 @@ public final class PlanMaker {
      *  audit's B7a: an unread stamp would still be minted, and refused on a session whose statements carry no
      *  comment), and the staged tables dropped after the answer (a failed program's transaction takes them back with
      *  its writes where the dialect drops them with it). */
-    private static List<PlannedStep> finished(ProgramState state) {
+    private static List<PlannedStep> finished(ProgramState state, boolean dropsData) {
         List<PlannedStep> steps = withoutUnreadStamps(state.steps());
         everyReadStampBound(steps);
         SqlDialect dialect = state.dialect();
@@ -646,8 +654,9 @@ public final class PlanMaker {
                     null)));
         }
         // the program's data: tables dropped after its answer (A5: a payload's table lives and dies with the request,
-        // §3 rule 4), each drop qualified to the session's temporary schema
-        for (String drop : state.dataReleases()) {
+        // §3 rule 4), each drop its database's ({@link SqlDialect#dataTable}); the test door's are its runner's, after
+        // the body's appeals (B2a)
+        for (String drop : dropsData ? state.dataReleases() : List.<String>of()) {
             steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(drop, List.of(),
                     state.target(), null, List.of()), null)));
         }

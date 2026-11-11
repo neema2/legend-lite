@@ -893,21 +893,23 @@ public final class DuckDb extends AnsiSqlRenderer {
             return writer.append("SELECT json AS data FROM read_json_objects(").bind(new RenderedStatement.Bind("",
                     new RenderedStatement.Binding.Source(url))).append(")");
         }
-        // a data: source is the plan's load into a session table, which the query reads (planner.DataSources); a
-        // statement no program plans -- an assert's side, a verdict batch -- takes no such load until B2a: refused by
-        // name (the correctness audit's note, 2026-11-10: until then an internal error)
+        // a data: source is the plan's load into a session table, which the query reads (planner.DataSources): every
+        // road reads it so -- a query's, a program's, a test body's judges since B2a (2026-11-11) -- so one that reaches
+        // the render is a planner defect, named
         String shown = url.length() > 120 ? url.substring(0, 120) + "..." : url;
-        throw new com.legend.sql.DialectCapability("the source '" + shown + "' is read by a statement whose plan takes"
-                + " no load of it (a data: source is its plan's load: an assert's side and a verdict batch take none"
-                + " until B2a)");
+        throw new IllegalStateException("the data: source '" + shown + "' reached DuckDB's render unread: a planned"
+                + " statement reads it from its plan's load (planner.DataSources)");
     }
 
-    /** {@inheritDoc} DuckDB's {@code temp} catalog: {@code DROP TABLE IF EXISTS temp.t} drops the session's temporary
-     *  table and leaves a user's {@code t} as it is, where an unqualified drop would drop the user's when the session
-     *  has none (measured 2026-11-10 on 1.5.6). */
+    /** {@inheritDoc} In DuckDB's {@code temp} catalog: {@code DROP TABLE IF EXISTS temp.t} drops the session's
+     *  temporary table and leaves a user's {@code t} as it is, where an unqualified drop would drop the user's when the
+     *  session has none (measured 2026-11-10 on 1.5.6, A4): dropped there first, then made TEMPORARY. */
     @Override
-    public String temporarySchema() {
-        return "temp";
+    public SqlDialect.DataTable dataTable(String base, java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        String drop = render(new com.legend.sql.SqlDdl.DropTable("temp", base, com.legend.sql.NameQuoting.BARE));
+        String create = render(new com.legend.sql.SqlDdl.CreateTable(null, base, com.legend.sql.NameQuoting.BARE,
+                columns, true));
+        return new SqlDialect.DataTable(null, base, java.util.List.of(drop, create), java.util.List.of(drop));
     }
 
     /** {@inheritDoc} DuckDB holds each element in a {@code JSON} column, read as the array's elements were. */
