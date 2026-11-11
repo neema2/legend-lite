@@ -10,7 +10,7 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { ConnectionSettings, establish, hostSession, PlanRefusal, release, requestsOwn, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { ConnectionSettings, establish, hostSession, PlanRefusal, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
@@ -149,9 +149,9 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
   });
 });
 
-// THE LOADS (B3, 2026-11-11): a plan whose target loads data -- a connection's declared test data, a data: source's
-// session table -- runs on a database the host made for it, established there once (its loads in one transaction, each
-// content blob checked against its digest), and released after (a session table dropped).
+// THE LOADS (B3, 2026-11-11): a plan whose target loads data -- a connection's declared test data -- runs on a database
+// the host made for it, established there once (its loads in one transaction, each content blob checked against its
+// digest). A data: source loads nothing since the JSON pass: its payload is bound.
 const LOADED = `###Relational
 Database x::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) )
 
@@ -196,7 +196,6 @@ describe("a plan's loads, established on a database the host made for its target
   it("a connection's declared test data: established once, the query run on it", async () => {
     const plan = executionPlanOf('|#>{x::DB.T}#->select(~[ID, NAME])->sort(~ID->ascending())', 'x::RT');
     assert.ok(targetKey(plan) !== null, 'a target that loads is kept by its key');
-    assert.equal(requestsOwn(plan), false);
     const db = await fresh();
     // on a session the host did not establish for it, refused by name: never run against tables no load made
     await assert.rejects(() => db.on((s) => runPlan(plan, s)), /runs on a database the host made for it and established/);
@@ -215,19 +214,19 @@ describe("a plan's loads, established on a database the host made for its target
     assert.equal(await tables(db.engine), 'null', 'the load rolled back: no table made');
   });
 
-  it("a data: source's session table: made and filled when established, dropped at the release", async () => {
+  it("a data: source's payload is bound, not loaded: no load and no release, and this runner refuses the payload by name", async () => {
+    // the JSON pass (2026-11-11): DuckDB binds a data: payload as one parameter its statement splits -- no session
+    // table, so no load makes one and no release drops it; the hosts' runner binds no payload yet (the orchestrator's
+    // ruling: refused by name until it binds one by its digest)
     const plan = executionPlanOfLambda("|sourceUrl('data:application/json,[{\"ID\":1,\"NAME\":\"a\"},{\"ID\":2,\"NAME\":\"b\"}]')"
       + "->extend(~[ID: r|cast(get($r.data, 'ID'), @meta::pure::metamodel::type::Integer), NAME: r|cast(get($r.data, 'NAME'), @meta::pure::metamodel::type::String)])"
       + "->select(~[ID, NAME])->sort(~ID->ascending())->from(x::BareRT)", 'x::BareRT');
-    assert.equal(requestsOwn(plan), true, "the request's own tables: never a database kept for another");
+    const read = JSON.parse(plan) as { release?: unknown; loads?: readonly unknown[] };
+    assert.equal(read.release, undefined, 'no plan carries a release');
+    assert.equal((read.loads ?? []).length, 0, 'no load makes a session table');
+    assert.equal(targetKey(plan), null, "it loads nothing: the host's own session serves it");
     const db = await fresh();
-    await db.on((s) => establish(plan, s));
-    assert.deepEqual(JSON.parse(await db.on((s) => runPlan(plan, s, { established: true }))), [{ ID: 1, NAME: 'a' }, { ID: 2, NAME: 'b' }]);
-    const temporary = (): Promise<number> => db.engine.exclusive(async (held) =>
-      Number((await held.rows('SELECT count(*) FROM duckdb_tables() WHERE temporary', []))[0]![0]));
-    assert.equal(await temporary(), 1, 'its session table');
-    await db.on((s) => release(plan, s));
-    assert.equal(await temporary(), 0, 'dropped at the release');
+    await assert.rejects(() => db.on((s) => runPlan(plan, s)), /binds a data: payload, which is not run here/);
   });
 
   it('a pivot whose columns the data names: its keys read first, its body written per key and run', async () => {

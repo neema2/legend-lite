@@ -13,12 +13,12 @@
 // up first.
 //
 // THE LOADS (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "the hosts run the plan's loads"): a plan's
-// target may name loads -- a connection's declared test data, a project's Data, a data: source's session table -- in
-// the plan's load section, by identity. The host makes a database for such a target (its session source: never its own
-// tables) and `establish`es it there once, its ONCE and PER_ACQUISITION loads run in one transaction, each content
-// blob's bytes checked against the digest its load names; runPlan then runs the plan on that session (`established`),
-// and `release` runs the target's AT_RELEASE loads and the plan's release once the host lets the session go, whatever
-// the run's outcome. A file's load names a HOST's own file (a person's upload, Studio's put): the host's store
+// target may name loads -- a connection's declared test data, a project's Data -- in the plan's load section, by
+// identity. The host makes a database for such a target (its session source: never its own tables) and `establish`es it
+// there once, its ONCE and PER_ACQUISITION loads run in one transaction, each content blob's bytes checked against the
+// digest its load names; runPlan then runs the plan on that session (`established`). (A plan's release and a target's
+// AT_RELEASE loads went with the data: session tables they dropped, the JSON pass, 2026-11-11; this runner's release
+// with them, B3's follow-up.) A file's load names a HOST's own file (a person's upload, Studio's put): the host's store
 // (HostFiles) says what its database reads it by and that its bytes are the reference's, and the statement's ? is
 // bound to it -- never a path in a statement's text (B3: uploads and file puts as planned loads). A remote file's mount
 // (B3's Q3) is a load whose `bound` steps bind what the host holds BY NAME (HostSecrets: a key's field, a bearer URL),
@@ -111,8 +111,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // and (B3's Q3) such a load's `bound` step, its binds the plan's own value or a value the host holds by name
 // 48 since 2026-11-11 (the JSON pass, over 47 when the two merged): a payload slot names its text by its SHA-256
 // (payload's digest), the text in its statement's content -- refused by name here, as at 46; and no plan carries a
-// release and no load is SOURCE or AT_RELEASE (every payload bound or inline: no session table), so the release this
-// runner can send is never written by the planner (left for B3's follow-up to delete)
+// release and no load is SOURCE or AT_RELEASE (every payload bound or inline: no session table): this runner's release,
+// which sent them, deleted with them (B3's follow-up, the same day)
 const PLAN_VERSION = 48;
 interface Column { readonly name: string; readonly type: string }
 type Step =
@@ -146,7 +146,6 @@ interface Target { readonly database?: unknown; readonly session?: readonly stri
 /** A plan read: its JSON, and its load section by identity. */
 interface ReadPlan {
   readonly format?: unknown; readonly version?: unknown; readonly parameters?: unknown; readonly root?: Step;
-  readonly release?: { readonly statements?: readonly string[]; readonly on?: Target };
   readonly loads?: readonly Load[];
 }
 
@@ -197,14 +196,6 @@ export function targetKey(plan: string): string | null {
   const target = targetOf(read(plan));
   if (target === undefined || (target.loads ?? []).length === 0) return null;
   return JSON.stringify({ database: target.database, session: target.session ?? [], loads: target.loads });
-}
-
-/** Whether `plan`'s target's loads are the request's own (a data: source's session table, dropped at its release):
- *  a database made for it is the request's alone, never kept for another. */
-export function requestsOwn(plan: string): boolean {
-  const p = read(plan);
-  const target = targetOf(p);
-  return target !== undefined && loadsOf(p, target).some((l) => l.cadence === 'AT_RELEASE');
 }
 
 /** `text`'s SHA-256, lowercase hex, and its length in UTF-8 bytes: WebCrypto's in every host (the tab, Node, and
@@ -312,8 +303,8 @@ export async function runLoad(plan: string, run: (sql: string, params: readonly 
 
 /**
  * THE TARGET ESTABLISHED on `session`, a session of a database the host made for it now (B3): its session statements,
- * then its ONCE loads (a project's Data) and its PER_ACQUISITION loads (a connection's declared test data, a data:
- * source's session table) in its order, in one transaction -- a failure rolls every load back and is thrown, naming
+ * then its ONCE loads (a project's Data) and its PER_ACQUISITION loads (a connection's declared test data) in its order,
+ * in one transaction -- a failure rolls every load back and is thrown, naming
  * its data. Run once per database the host makes (`targetKey`); runPlan then runs the plan there (`established`).
  */
 export async function establish(plan: string, session: PlanSession): Promise<void> {
@@ -321,9 +312,9 @@ export async function establish(plan: string, session: PlanSession): Promise<voi
   const target = targetOf(p);
   if (target === undefined) return;
   for (const statement of target.session ?? []) await session.run(statement, []);
-  const loads = loadsOf(p, target).filter((l) => l.cadence !== 'AT_RELEASE');
+  const loads = loadsOf(p, target);
   for (const l of loads) {
-    if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE, PER_ACQUISITION or AT_RELEASE, not ${l.cadence}`);
+    if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE or PER_ACQUISITION, not ${l.cadence}`);
   }
   if (loads.length === 0) return;
   await session.transaction('begin');
@@ -334,35 +325,6 @@ export async function establish(plan: string, session: PlanSession): Promise<voi
     await session.transaction('rollback').catch(() => {});
     throw e;
   }
-}
-
-/**
- * THE TARGET RELEASED on `session` (B3): its AT_RELEASE loads (a data: source's session table dropped) and the plan's
- * release (a writing query's data: tables' drops), sent once the host lets the session go, whatever the run's outcome
- * -- every statement tried, the first failure thrown after.
- */
-export async function release(plan: string, session: PlanSession): Promise<void> {
-  const p = read(plan);
-  const target = targetOf(p);
-  const statements: string[] = [];
-  if (target !== undefined) {
-    for (const l of loadsOf(p, target).filter((x) => x.cadence === 'AT_RELEASE')) {
-      for (const step of l.steps) {
-        if (step._type !== 'statement') throw new PlanRefusal(`a release's step is a statement, not a ${step._type}`);
-        statements.push((step as { readonly sql: string }).sql);
-      }
-    }
-  }
-  statements.push(...(p.release?.statements ?? []));
-  let failed: unknown;
-  for (const statement of statements) {
-    try {
-      await session.run(statement, []);
-    } catch (e) {
-      failed ??= e;
-    }
-  }
-  if (failed !== undefined) throw failed;
 }
 
 /**
@@ -399,8 +361,6 @@ export async function runPlan(plan: string, session: PlanSession,
   if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
     throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
   }
-  // a release (a writing query's data: tables' drops) is sent by `release` once the host lets an established session go
-  if (read.release !== undefined && o.established !== true) throw new PlanRefusal("a plan with a release (its data: tables' drops) runs on a session established for it (establish, then release)");
   if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');
