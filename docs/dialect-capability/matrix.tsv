@@ -793,9 +793,9 @@ Trino	Trino	call	ADD_INTERVAL	emulated	addInterval		93
 Trino	Trino	call	DATE_DIFF	emulated	dateDiff		53
 Trino	Trino	call	TIME_BUCKET	emulated	timeBucket		109
 Trino	Trino	call	TIMEZONE	emulated	timezone		6
-Trino	Trino	call	DATE_AT_TIME	emulated	CAST(CAST(… AS VARCHAR) || ' ' || CAST(… AS VARCHAR) AS TIMESTAMP(6))		0
-Trino	Trino	call	EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
-Trino	Trino	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Trino	Trino	call	DATE_AT_TIME	emulated	CAST(CAST(… AS VARCHAR) || ' ' || CAST(… AS VARCHAR) AS TIMESTAMP(9))		0
+Trino	Trino	call	EPOCH_NS	refused	a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)		0
+Trino	Trino	call	FROM_EPOCH_NS	refused	a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)		0
 Trino	Trino	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval		0
 Trino	Trino	call	EPOCH_SECONDS	emulated	to_unixtime(with_timezone(…, 'UTC'))		0
 Trino	Trino	call	EPOCH_MS	emulated	CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)		24
@@ -838,7 +838,7 @@ Trino	Trino	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
 Trino	Trino	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
 Trino	Trino	call	STRFTIME	emulated	strftime		193
 Trino	Trino	call	STRPTIME	emulated	strptime		0
-Trino	Trino	call	PARSE_DATE	emulated	CAST(… AS TIMESTAMP(6))		4
+Trino	Trino	call	PARSE_DATE	emulated	CAST(… AS TIMESTAMP(9))		4
 Trino	Trino	call	LIST_REVERSE	spelled	reverse		4
 Trino	Trino	call	TYPEOF	spelled	typeof	via Trino.listCall	0
 Trino	Trino	call	ROUND_HALF_UP	emulated	roundHalfUp		1

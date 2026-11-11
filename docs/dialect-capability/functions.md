@@ -719,9 +719,9 @@ Database types planned with it: Trino.
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
-| `DATE_AT_TIME` | emulated | `CAST(CAST(… AS VARCHAR) \|\| ' ' \|\| CAST(… AS VARCHAR) AS TIMESTAMP(6))` |  | 0 |
-| `EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `DATE_AT_TIME` | emulated | `CAST(CAST(… AS VARCHAR) \|\| ' ' \|\| CAST(… AS VARCHAR) AS TIMESTAMP(9))` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `to_unixtime(with_timezone(…, 'UTC'))` |  | 0 |
 | `EPOCH_MS` | emulated | `CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)` |  | 24 |
@@ -764,7 +764,7 @@ Database types planned with it: Trino.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
-| `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(6))` |  | 4 |
+| `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(9))` |  | 4 |
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
 | `TYPEOF` | spelled | `typeof` | `via Trino.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |

@@ -535,9 +535,11 @@ None: D is fully ruled (§6.1, 2026-11-10).
   microseconds or coarser, adding days); comparisons and ordering compare the microsecond parts, then the remainders;
   an operation that needs the digits otherwise is refused by name; first slice literals (lifts S181's 9 PCT refusals
   on Postgres, MySQL, MariaDB, BigQuery, Databricks), then columns (two physical columns), parameters and results
-  (reassembled in SQL). With it the arms that compute through microseconds on a database that keeps nine (Trino's
-  time zone, parse, time bucket and date difference; DuckDB's date arithmetic and its cast to `TIMESTAMP`, refused by
-  name for a nanosecond literal since the A delta audit's 7) keep the remainder too.
+  (reassembled in SQL). With it the arms that compute through microseconds on a database that keeps nine (DuckDB's
+  date arithmetic and its cast to `TIMESTAMP`, refused by name for a nanosecond literal since the A delta audit's 7)
+  keep the remainder too. Trino's no longer need it (B, 2026-11-11): each reads its operand as a `TIMESTAMP(9)`, a
+  microsecond's arithmetic through the value's epoch nanoseconds (`Trino.nanos`, measured exact from the year 1 to
+  9999); its `parse_datetime` keeps milliseconds, so a format reading a finer part is refused by name.
 - Safe versions of the raising functions (`safeDivide` first, then `safeLog`, the safe parse functions), when something
   needs one (the user, 2026-11-10): typed `[0..1]`, empty in and empty out, in a lite namespace (not
   `meta::pure::functions`) unless Pure's sources already name one.
