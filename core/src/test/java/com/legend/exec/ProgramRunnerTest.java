@@ -85,6 +85,24 @@ final class ProgramRunnerTest {
         }
     }
 
+    /** A system database is the process's in-process catalog (B4, 2026-11-11): a target naming one on a server engine
+     *  is refused by name when a run reaches it -- the host's system connection that served it is deleted, and nothing
+     *  routes it to a user's session. */
+    @Test
+    void aSystemDatabaseOnAServerEngineIsRefusedByName() {
+        for (var type : Databases.relational()) {
+            if (Databases.dialect(type).inProcess()) {
+                continue;
+            }
+            ExecutionPlan.Target server = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                    com.legend.planner.ConnectionPlans.type(type), "a-graph"), List.of(), List.of());
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
+                var refused = assertThrows(IllegalStateException.class, () -> leases.sessionFor(server), type.name());
+                assertTrue(refused.getMessage().contains("in process"), type + ": " + refused.getMessage());
+            }
+        }
+    }
+
     private static ExecutionPlan.Column col(String name, String type, String slot) {
         return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(1, 1), slot, null, null);
     }
