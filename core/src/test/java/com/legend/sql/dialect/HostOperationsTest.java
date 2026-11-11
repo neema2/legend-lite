@@ -67,7 +67,14 @@ class HostOperationsTest {
 
     @Test
     void aProjectsRowsInADatabaseOfTheirOwn() throws SQLException {
-        ProjectData project = ProjectData.of(com.legend.Compiler.compileModel(MODEL), new DuckDb());
+        var ctx = com.legend.Compiler.compileModel(MODEL);
+        ProjectData project = ProjectData.of(ctx, new DuckDb());
+        // its rows: the plan's ONCE load (B3, 2026-11-11: the load a server's project plan carries, which a host runs:
+        // its statements, its rows a content blob of inserts)
+        var load = (com.legend.executionplan.ExecutionPlan.Load) java.util.Objects.requireNonNull(
+                com.legend.planner.LoadPlanner.projectData(ctx, new DuckDb(),
+                        com.legend.executionplan.DatabaseType.DuckDB)).root();
+        assertEquals(com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE, load.cadence());
         assertTrue(project.name().matches("__project_[0-9a-f]{16}"), project.name());
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
             // a person's own table, of the very name the project declares, in the host's own database
@@ -80,8 +87,20 @@ class HostOperationsTest {
             for (String sql : project.use()) {
                 st.execute(sql);
             }
-            for (String sql : project.fill()) {
-                st.execute(sql);
+            for (com.legend.executionplan.ExecutionPlan.LoadStep step : load.steps()) {
+                switch (step) {
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Statement one -> st.execute(one.sql());
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Statements blob -> {
+                        for (String sql : com.legend.executionplan.DataRef.Statements.decode(
+                                load.content().get(blob.ref().digest()))) {
+                            st.execute(sql);
+                        }
+                    }
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.File file ->
+                            throw new AssertionError("a project's Data is statements: " + file);
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Bound bound ->
+                            throw new AssertionError("a project's Data binds nothing from a host: " + bound);
+                }
             }
             assertEquals(List.of("1 Ada", "2 Grace"), rows(st, "SELECT id || ' ' || name FROM firm.Person ORDER BY id"));
             assertEquals(List.of("X1"), rows(st, "SELECT code FROM Code"));
@@ -132,8 +151,10 @@ class HostOperationsTest {
     @Test
     void aDataElementFillingNoDeclaredTableIsRefused() {
         String model = MODEL.replace("default.Code:", "default.Missing:");
+        // refused where its rows are planned: the plan's load (B3, 2026-11-11: until then where the fill's text was)
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-                () -> ProjectData.of(com.legend.Compiler.compileModel(model), new DuckDb()));
+                () -> com.legend.planner.LoadPlanner.projectData(com.legend.Compiler.compileModel(model), new DuckDb(),
+                        com.legend.executionplan.DatabaseType.DuckDB));
         assertEquals("the Data element demo::Rows fills default.Missing, which no Database of the model declares",
                 refused.getMessage());
     }
@@ -151,9 +172,10 @@ class HostOperationsTest {
     @Test
     void duckDbsNamedOperations() {
         var file = HostOperation.Name.of("pivot");
-        assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT * FROM read_csv('upload-1.csv', AUTO_DETECT=TRUE, HEADER=TRUE)",
+        // a host's own file: its ? bound by the host's runner, never its name or path written (B3, 2026-11-11)
+        assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT * FROM read_csv(?, AUTO_DETECT=TRUE, HEADER=TRUE)",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true, null, List.of(),
-                        new HostOperation.Source.File("upload-1.csv", HostOperation.FileFormat.CSV))));
+                        new HostOperation.Source.HostFile(HostOperation.FileFormat.CSV))));
         assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT \"a\", CAST(\"b\" AS VARCHAR) AS \"b\" FROM \"pivot\"",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true,
                         "\"a\", CAST(\"b\" AS VARCHAR) AS \"b\"", List.of(), new HostOperation.Source.Relation(file))));
@@ -161,16 +183,28 @@ class HostOperationsTest {
                 HostOperation.Name.of("t"), false, null, List.of(), new HostOperation.Source.Relation(HostOperation.Name.of("__reg")))));
         assertEquals("CREATE OR REPLACE VIEW \"r\" AS SELECT * FROM iceberg_scan('s3://b/t')", one(new HostOperation.MakeRelation(
                 HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, null, List.of(),
-                new HostOperation.Source.Remote("s3://b/t", HostOperation.RemoteFormat.ICEBERG))));
+                new HostOperation.Source.Remote(new HostOperation.Location.Url("s3://b/t"), HostOperation.RemoteFormat.ICEBERG))));
+        // a bearer URL (B3's Q3): read through the session variable the host binds it to, the view's text holding none
+        // the variable the dialect names for the value the host holds under "datacube_url_r": the hex of the name's bytes
+        assertEquals("lite_url_6461746163756265" + "5f75726c5f72", HostOperation.variable("datacube_url_r"));
+        assertEquals("CREATE OR REPLACE VIEW \"r\" AS SELECT * FROM read_parquet(getvariable('" + HostOperation.variable("datacube_url_r") + "'))",
+                one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, null, List.of(),
+                        new HostOperation.Source.Remote(new HostOperation.Location.Variable("datacube_url_r"),
+                                HostOperation.RemoteFormat.PARQUET))));
+        assertEquals("SET VARIABLE " + HostOperation.variable("datacube_url_r") + " = ?", one(new HostOperation.SetVariable("datacube_url_r")));
+        assertEquals("RESET VARIABLE " + HostOperation.variable("datacube_url_r"), one(new HostOperation.ResetVariable("datacube_url_r")));
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> new HostOperation.Location.Url(
+                "https://b.s3.amazonaws.com/t.parquet?X-Amz-Signature=SENTINEL")).getMessage().contains("carries its token"));
+        assertThrows(IllegalArgumentException.class, () -> new HostOperation.SetVariable("x = 1; DROP TABLE t"));
         assertEquals("CREATE OR REPLACE TABLE \"db\".\"s\".\"t\" AS SELECT * REPLACE (CAST(x AS VARCHAR) AS \"x\") FROM (SELECT 1 AS x)",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, new HostOperation.Name("db", "s", "t", false), true,
                         null, List.of(new HostOperation.Conversion("x", "CAST(x AS VARCHAR)")),
                         new HostOperation.Source.Query("SELECT 1 AS x"))));
-        assertEquals("INSERT INTO PARTY.PARTY (ID, NAME, \"order\") SELECT \"ID\", \"first name\", \"order\" FROM read_csv('f.csv', header = true, all_varchar = true)",
+        assertEquals("INSERT INTO PARTY.PARTY (ID, NAME, \"order\") SELECT \"ID\", \"first name\", \"order\" FROM read_csv(?, header = true, all_varchar = true)",
                 one(new HostOperation.Insert(HostOperation.Name.declared("PARTY", "PARTY"),
                         List.of(new HostOperation.Column("ID", "ID"), new HostOperation.Column("NAME", "first name"),
                                 new HostOperation.Column("order", "order")),
-                        new HostOperation.Source.File("f.csv", HostOperation.FileFormat.CSV_TEXT))));
+                        new HostOperation.Source.HostFile(HostOperation.FileFormat.CSV_TEXT))));
         assertEquals("SELECT count(*) AS n FROM T", one(new HostOperation.Count(
                 new HostOperation.Source.Relation(HostOperation.Name.declared("default", "T")))));
         assertEquals("DROP VIEW IF EXISTS \"main\".\"x\"", one(new HostOperation.Drop(HostOperation.Kind.VIEW,
@@ -180,11 +214,16 @@ class HostOperationsTest {
         assertEquals(List.of("SET custom_extension_repository = 'https://site/vendor/duckdb-extensions'",
                 "SET autoinstall_extension_repository = 'https://site/vendor/duckdb-extensions'"),
                 DUCK.statements(new HostOperation.ExtensionRepository("https://site/vendor/duckdb-extensions")));
-        assertEquals("CREATE OR REPLACE SECRET \"datacube_s3_t\" (TYPE S3, KEY_ID 'k''1', USE_SSL false, SCOPE 's3://b/')",
-                one(new HostOperation.Secret("datacube_s3_t", "s3://b/", credentials())));
-        assertEquals(List.of(), DUCK.statements(new HostOperation.Secret("s", "s3://b/", java.util.Map.of())));
+        // credentials by name (B3, 2026-11-11): every value bound, the statement holding none
+        assertEquals("CREATE OR REPLACE TEMPORARY SECRET \"datacube_s3_t\" (TYPE S3, KEY_ID ?, USE_SSL ?, SCOPE ?)",
+                one(new HostOperation.Secret("datacube_s3_t", "s3://b/", List.of("KEY_ID", "USE_SSL"))));
+        assertEquals(List.of("KEY_ID", "USE_SSL", "SCOPE"),
+                new HostOperation.Secret("datacube_s3_t", "s3://b/", List.of("KEY_ID", "USE_SSL")).binds());
+        assertEquals(List.of(), DUCK.statements(new HostOperation.Secret("s", "s3://b/", List.of())));
+        assertEquals("DROP TEMPORARY SECRET IF EXISTS \"datacube_s3_t\"", one(new HostOperation.DropSecret("datacube_s3_t")));
+        assertThrows(IllegalArgumentException.class, () -> new HostOperation.Secret("s", "x", List.of("KEY_ID", "KEY_ID")));
         assertThrows(IllegalArgumentException.class, () -> DUCK.statements(new HostOperation.Extensions(List.of("httpfs; DROP"))));
-        assertThrows(IllegalArgumentException.class, () -> DUCK.statements(new HostOperation.Secret("s", "x", java.util.Map.of("PASSWORD", "p"))));
+        assertThrows(IllegalArgumentException.class, () -> DUCK.statements(new HostOperation.Secret("s", "x", List.of("PASSWORD"))));
     }
 
     @Test
@@ -193,9 +232,14 @@ class HostOperationsTest {
         java.nio.file.Files.writeString(csv, "ID,first name\n1,Ada\n2,Grace\n");
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
             var t = HostOperation.Name.of("people");
+            // the file read as a host's planned load reads it: the statement's ? bound to its path
+            try (java.sql.PreparedStatement read = c.prepareStatement(one(new HostOperation.MakeRelation(
+                    HostOperation.Kind.TABLE, t, true, null, List.of(), new HostOperation.Source.HostFile(
+                            HostOperation.FileFormat.CSV))))) {
+                read.setString(1, csv.toString());
+                read.execute();
+            }
             for (HostOperation op : List.of(
-                    new HostOperation.MakeRelation(HostOperation.Kind.TABLE, t, true, null, List.of(),
-                            new HostOperation.Source.File(csv.toString(), HostOperation.FileFormat.CSV)),
                     new HostOperation.MakeRelation(HostOperation.Kind.TABLE, t, true, null,
                             List.of(new HostOperation.Conversion("first name", "upper(\"first name\")")),
                             new HostOperation.Source.Relation(t)),
@@ -224,6 +268,73 @@ class HostOperationsTest {
         }
     }
 
+    /**
+     * CREDENTIALS BY NAME (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2): a secret's operation names its
+     * fields, never their values, so no statement the operations answer can hold one -- each field's value and the scope
+     * a bound {@code ?} in {@link HostOperation.Secret#binds()}'s order. DuckDB makes the secret from the bound values
+     * (measured on DuckDB 1.5.6 JDBC, every field and the scope; docs/data-delivery-homework/probes/DuckDbBoundSecret.java.txt);
+     * the run itself is DuckDB-WASM's test (datacube's remote.test.ts: an S3 secret needs httpfs, which this sandbox's
+     * JDBC driver cannot load offline).
+     */
+    @Test
+    void aSecretsStatementBindsEveryValue() {
+        HostOperation.Secret secret = new HostOperation.Secret("datacube_s3_t", "s3://bucket/sales/",
+                List.of("KEY_ID", "SECRET", "SESSION_TOKEN", "REGION", "ENDPOINT", "URL_STYLE", "USE_SSL"));
+        String made = one(secret);
+        assertEquals("CREATE OR REPLACE TEMPORARY SECRET \"datacube_s3_t\" (TYPE S3, KEY_ID ?, SECRET ?, SESSION_TOKEN ?,"
+                + " REGION ?, ENDPOINT ?, URL_STYLE ?, USE_SSL ?, SCOPE ?)", made);
+        assertEquals(secret.binds().size(), made.chars().filter(ch -> ch == '?').count(),
+                "one bound value per ? (each field's, then the scope)");
+        assertFalse(made.contains("s3://bucket"), "the scope is bound too: the statement holds no value");
+    }
+
+    /**
+     * A BEARER URL IS ONE CONNECTION'S (B3's Q3, 2026-11-11, measured first on duckdb-python 1.5.5 and DuckDB-WASM): the
+     * variable bound by the prepared {@code SET VARIABLE}, the view reading it through {@code getvariable} -- its text
+     * holding the variable's name, never the address; a second connection to the same database reads the view only once
+     * the setting is replayed on it (the host's replay), and a reset leaves the other connection's own.
+     */
+    @Test
+    void aBearerUrlIsOneConnectionsVariable(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        // the file written by Java, not by a JDBC write (the fixtures' writes are bounded: FixtureWriteCensusTest)
+        java.nio.file.Path file = dir.resolve("t.csv");
+        java.nio.file.Files.writeString(file, "id\n1\n2\n");
+        String variable = HostOperation.variable("datacube_url_t");
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement();
+                // another connection to the same database, opened before the variable is set (DuckDB JDBC's duplicate
+                // copies the variables it has then -- measured, 1.5.6 -- so a later one would start with it); reached
+                // without its type: no direct dependency here
+                Connection other = (Connection) c.getClass().getMethod("duplicate").invoke(c);
+                Statement os = other.createStatement()) {
+            try (java.sql.PreparedStatement set = c.prepareStatement(one(new HostOperation.SetVariable("datacube_url_t")))) {
+                set.setString(1, file.toString());
+                set.execute();
+            }
+            st.execute(one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("t"), true, null,
+                    List.of(), new HostOperation.Source.Remote(new HostOperation.Location.Variable("datacube_url_t"),
+                            HostOperation.RemoteFormat.CSV))));
+            assertEquals(List.of("2"), rows(st, "SELECT count(*) FROM \"t\""));
+            String text = rows(st, "SELECT sql FROM duckdb_views() WHERE view_name = 't'").get(0);
+            assertFalse(text.contains(dir.toString()), "the view's text holds the variable's name, never the address: " + text);
+            // the other connection holds no variable: the view reads nothing there until the setting is replayed on it
+            assertEquals(java.util.Collections.singletonList(null), rows(os, "SELECT getvariable('" + variable + "')"));
+            // (a failed query closes DuckDB JDBC's statement: each read after one on a statement of its own)
+            assertThrows(SQLException.class, () -> rows(os, "SELECT count(*) FROM \"t\""));
+            try (java.sql.PreparedStatement replay = other.prepareStatement(one(new HostOperation.SetVariable("datacube_url_t")))) {
+                replay.setString(1, file.toString());
+                replay.execute();
+            }
+            try (Statement again = other.createStatement()) {
+                assertEquals(List.of("2"), rows(again, "SELECT count(*) FROM \"t\""));
+            }
+            st.execute(one(new HostOperation.ResetVariable("datacube_url_t")));
+            assertThrows(SQLException.class, () -> rows(st, "SELECT count(*) FROM \"t\""));
+            try (Statement again = other.createStatement()) {
+                assertEquals(List.of("2"), rows(again, "SELECT count(*) FROM \"t\""), "a reset is its own connection's");
+            }
+        }
+    }
+
     @Test
     void postgresCountsWithTheAliasItAsksFor() {
         HostOperations pg = HostOperations.of(new Postgres());
@@ -236,13 +347,6 @@ class HostOperationsTest {
     }
 
     /** Credentials in their order: a key with a quote in it, and SSL off. */
-    private static java.util.Map<String, String> credentials() {
-        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
-        out.put("KEY_ID", "k'1");
-        out.put("USE_SSL", "false");
-        return out;
-    }
-
     private static List<String> rows(Statement st, String sql) throws SQLException {
         List<String> out = new ArrayList<>();
         try (ResultSet rs = st.executeQuery(sql)) {

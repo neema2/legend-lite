@@ -10,7 +10,10 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { hostSession, PlanRefusal, runPlan, type PlanSession } from '../src/plan-runner.ts';
+import { ConnectionSettings, establish, hostSession, PlanRefusal, release, requestsOwn, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { SecretStore } from '../src/host-operations.ts';
+import { readFileSync } from 'node:fs';
+import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { loadPlanner, loadPlannerModule } from './planner.ts';
 import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
@@ -145,3 +148,161 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await assert.rejects(() => runPlan(JSON.stringify(stamped), here), /its own execution-trace stamp/);
   });
 });
+
+// THE LOADS (B3, 2026-11-11): a plan whose target loads data -- a connection's declared test data, a data: source's
+// session table -- runs on a database the host made for it, established there once (its loads in one transaction, each
+// content blob checked against its digest), and released after (a session table dropped).
+const LOADED = `###Relational
+Database x::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) )
+
+###Connection
+RelationalDatabaseConnection x::Conn { store: x::DB; type: DuckDB; specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,NAME\\n1,a\\n2,b\\n'; }; auth: DefaultH2; }
+RelationalDatabaseConnection x::Bare { store: x::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime x::RT { mappings: []; connections: [ x::DB: [ c: x::Conn ] ]; }
+Runtime x::BareRT { mappings: []; connections: [ x::DB: [ c: x::Bare ] ]; }
+`;
+
+describe("a plan's loads, established on a database the host made for its target", () => {
+  let loaded: number;
+  /** A text query planned over the held model: the execution plan its text renders from (Boundary.planned's `plan`). */
+  const executionPlanOf = (query: string, runtime: string): string => {
+    const planned = JSON.parse(ok(answer(m, { kind: 'plan', handle: loaded, query, runtime }))) as { plan?: unknown };
+    assert.ok(planned.plan !== undefined, 'a text that does not run alone carries its execution plan');
+    return JSON.stringify(planned.plan);
+  };
+  /** A text query's execution plan, asked as the planner's executionPlan kind (its lambda read from the text). */
+  const executionPlanOfLambda = (query: string, runtime: string): string => {
+    // the http answer: its status, its media type, then the body
+    const [status, , ...body] = ok(answer(m, { kind: 'pureV1', path: '/api/pure/v1/grammar/grammarToJson/lambda', query: '', body: query })).split('\n');
+    assert.equal(status, '200', body.join('\n'));
+    const lambdaJson = body.join('\n');
+    return ok(answer(m, { kind: 'executionPlan', handle: loaded, lambda: lambdaJson, runtime }));
+  };
+  /** A database of its own, as a host makes one for a target: a fresh DuckDB-WASM. */
+  const fresh = async (): Promise<{ readonly engine: DuckDbEngine; readonly on: <T>(work: (s: PlanSession) => Promise<T>) => Promise<T> }> => {
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+    return { engine: own, on: (work) => own.exclusive(async (held) => work(await hostSession(own.databaseType, held.rows, grammar))) };
+  };
+  const tables = (e: DuckDbEngine): Promise<string> => e.exclusive(async (held) =>
+    (await held.rows("SELECT string_agg(table_name, ',' ORDER BY table_name) FROM duckdb_tables()", [])).map((r) => String(r[0])).join(''));
+
+  before(() => {
+    loaded = Number(ok(answer(m, { kind: 'hold', model: LOADED })));
+  });
+
+  it("a connection's declared test data: established once, the query run on it", async () => {
+    const plan = executionPlanOf('|#>{x::DB.T}#->select(~[ID, NAME])->sort(~ID->ascending())', 'x::RT');
+    assert.ok(targetKey(plan) !== null, 'a target that loads is kept by its key');
+    assert.equal(requestsOwn(plan), false);
+    const db = await fresh();
+    // on a session the host did not establish for it, refused by name: never run against tables no load made
+    await assert.rejects(() => db.on((s) => runPlan(plan, s)), /runs on a database the host made for it and established/);
+    await db.on((s) => establish(plan, s));
+    assert.deepEqual(JSON.parse(await db.on((s) => runPlan(plan, s, { established: true }))), [{ ID: 1, NAME: 'a' }, { ID: 2, NAME: 'b' }]);
+  });
+
+  it("a content blob that is not the data planned is refused, naming it, and its load rolled back", async () => {
+    const plan = JSON.parse(executionPlanOf('|#>{x::DB.T}#->select(~[ID, NAME])', 'x::RT')) as { loads: { content: Record<string, string> }[] };
+    const [load] = plan.loads;
+    const [digest] = Object.keys(load!.content);
+    load!.content[digest!] = load!.content[digest!]!.replace("'a'", "'z'");
+    const db = await fresh();
+    await assert.rejects(() => db.on((s) => establish(JSON.stringify(plan), s)),
+      (e: unknown) => e instanceof PlanRefusal && /the data of the table T is not the data it was planned against/.test(e.message));
+    assert.equal(await tables(db.engine), 'null', 'the load rolled back: no table made');
+  });
+
+  it("a data: source's session table: made and filled when established, dropped at the release", async () => {
+    const plan = executionPlanOfLambda("|sourceUrl('data:application/json,[{\"ID\":1,\"NAME\":\"a\"},{\"ID\":2,\"NAME\":\"b\"}]')"
+      + "->extend(~[ID: r|cast(get($r.data, 'ID'), @meta::pure::metamodel::type::Integer), NAME: r|cast(get($r.data, 'NAME'), @meta::pure::metamodel::type::String)])"
+      + "->select(~[ID, NAME])->sort(~ID->ascending())->from(x::BareRT)", 'x::BareRT');
+    assert.equal(requestsOwn(plan), true, "the request's own tables: never a database kept for another");
+    const db = await fresh();
+    await db.on((s) => establish(plan, s));
+    assert.deepEqual(JSON.parse(await db.on((s) => runPlan(plan, s, { established: true }))), [{ ID: 1, NAME: 'a' }, { ID: 2, NAME: 'b' }]);
+    const temporary = (): Promise<number> => db.engine.exclusive(async (held) =>
+      Number((await held.rows('SELECT count(*) FROM duckdb_tables() WHERE temporary', []))[0]![0]));
+    assert.equal(await temporary(), 1, 'its session table');
+    await db.on((s) => release(plan, s));
+    assert.equal(await temporary(), 0, 'dropped at the release');
+  });
+
+  it('a pivot whose columns the data names: its keys read first, its body written per key and run', async () => {
+    const plan = executionPlanOfLambda("{|#TDS{\ndept, city, name\nA, NYC, x\nA, SAN, y\nB, NYC, z\n}#"
+      + "->pivot(~[city], ~[names:r|$r.name:y|$y->joinStrings(',')])->sort(~dept->ascending())->from(x::BareRT)}", 'x::BareRT');
+    assert.match(plan, /"_type":"keyed"/);
+    assert.equal(targetKey(plan), null, "it loads nothing: the host's own session serves it");
+    // each key's column named as the plan's keys statement names it (Java's runner reads the same name)
+    assert.deepEqual(JSON.parse(await run(plan)), [
+      { dept: 'A', "'NYC__|__names'": 'x', "'SAN__|__names'": 'y' },
+      { dept: 'B', "'NYC__|__names'": 'z', "'SAN__|__names'": null },
+    ]);
+  });
+});
+
+// THE LOAD RUNNERS' CONFORMANCE (B3, 2026-11-11): runLoad and Python's projects.run_load run one fixture -- the same
+// plan's load, the same rows, the same tampered blob refused in the same words (python/tests/test_engine.py)
+describe("a remote file's mount, a planned load whose bearer URL the host binds on each connection (B3's Q3)", () => {
+  it('binds the held URL by name, keeps the setting, and a second connection reads the view once it is replayed', async () => {
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    db.registerFileText('held.csv', 'id,name\n1,a\n2,b\n');
+    const first = new DuckDbEngine(db.connect() as ArrowishConnection);
+    // the planner is asked names alone: the bearer URL by the name the host holds it under, its address shown
+    const plan = ok(answer(m, { kind: 'remoteMount', request: JSON.stringify({
+      databaseType: 'DuckDB', view: 'remote_t', location: { bearer: 'datacube_url_t', shown: 'https://h/t.csv' }, format: 'csv',
+    }) }));
+    assert.ok(!plan.includes('held.csv') && plan.includes('"_type":"held","name":"datacube_url_t","field":"URL"'), plan);
+    // the host's store: the URL it holds (a registered file here: a Node test makes no HTTP request)
+    const store = new SecretStore();
+    store.hold('datacube_url_t', new Map([['URL', 'held.csv']]));
+    const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown> =>
+      (params.length === 0 ? e.run(sql, 0) : e.exclusive((held) => held.rows(sql, params)));
+    const { settings } = await runLoad(plan, route(first), { secrets: store });
+    const count = (e: DuckDbEngine): Promise<string> => e.exclusive(async (held) => String((await held.rows('SELECT count(*) FROM remote_t', []))[0]![0]));
+    assert.equal(await count(first), '2');
+    const viewText = await first.exclusive(async (held) => String((await held.rows("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_t'", []))[0]![0]));
+    assert.ok(!viewText.includes('held.csv') && viewText.includes('getvariable'), viewText);
+    // a second connection to the same database: the variable is the first's, so it reads nothing until the setting is
+    // replayed on it, bound again from the store
+    const second = new DuckDbEngine(db.connect() as ArrowishConnection);
+    await assert.rejects(() => count(second), /NULL/);
+    const kept = new ConnectionSettings();
+    kept.keep('remote_t', settings, store);
+    await kept.replay(route(second));
+    assert.equal(await count(second), '2');
+    // a bound statement this run was given no store for is refused by name
+    await assert.rejects(() => runLoad(plan, route(first)), /binds what a host holds, and this run was given no host's store/);
+  });
+});
+
+describe("the load runners' shared conformance fixture", () => {
+  interface Fixture { model: string; databaseType: string; check: string; rows: unknown[][]; tamper: { from: string; to: string }; refused: string }
+  const fixture = JSON.parse(readFileSync(runfileFromEnv('RUN_LOAD_FIXTURE'), 'utf8')) as Fixture;
+  const planOf = (): { open: string[]; use: string[]; load: { root: { content: Record<string, string> } } } =>
+    JSON.parse(ok(answer(m, { kind: 'projectData', model: fixture.model, databaseType: fixture.databaseType })));
+
+  it('gives the rows the fixture names', async () => {
+    const project = planOf();
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+    for (const sql of [...project.open, ...project.use]) await own.run(sql, 0);
+    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+    const rows = await own.exclusive((held) => held.rows(fixture.check, []));
+    assert.deepEqual(rows.map((r) => r.map((v) => (typeof v === 'bigint' ? Number(v) : v))), fixture.rows);
+  });
+
+  it('refuses the tampered blob in the fixture\'s words, nothing run', async () => {
+    const project = planOf();
+    const content = project.load.root.content;
+    const [digest] = Object.keys(content);
+    content[digest!] = content[digest!]!.replace(fixture.tamper.from, fixture.tamper.to);
+    const sent: string[] = [];
+    await assert.rejects(() => runLoad(JSON.stringify(project.load), async (sql) => { sent.push(sql); }),
+      (e: unknown) => e instanceof PlanRefusal && e.message === fixture.refused || assert.fail(String(e instanceof Error ? e.message : e)));
+    assert.ok(!sent.some((s) => /INSERT/i.test(s)), sent.join('; '));
+  });
+});
+

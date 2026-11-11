@@ -9,11 +9,13 @@ import { DuckDbEngine, type ArrowishConnection } from './duckdb.ts';
 import { setUpSession } from './engine.ts';
 import type { FileSink } from './model-data.ts';
 import { runHostOperations, type HostOperationsSource } from './host-operations.ts';
+import { ConnectionSettings } from './connection-settings.ts';
 
 export interface DuckDbInTab {
   readonly engine: DuckDbEngine;
-  /** Where a model's test data and a person's files go: a file by name (text or bytes), and SQL on the engine's connection. */
-  readonly data: FileSink;
+  /** Where a person's files go: a file's bytes registered by name, and let go of (a put's statements are its planned
+   *  load's, on the connection that holds them: model-data.ts loadFileTable). */
+  readonly data: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>;
   /** The database itself: what a host registers a person's file on, and lets go of it (DataCube's upload.ts). */
   readonly db: duckdb.AsyncDuckDB;
   /**
@@ -21,6 +23,9 @@ export interface DuckDbInTab {
    * planner's): what a project's own database is queried on (project-data.ts), its names pointed there alone.
    */
   connect(): Promise<DuckDbEngine>;
+  /** The settings a remote file's mount made on a connection (a bearer URL's session variable: B3's Q3), kept for the
+   *  tab's database and replayed on every connection `connect` opens. */
+  readonly settings: ConnectionSettings;
 }
 
 /** What the tab's DuckDB is set up by: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
@@ -55,11 +60,14 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
   const bundle = { mainModule: asset('duckdb-eh.wasm'), mainWorker: asset('duckdb-browser-eh.worker.js'), pthreadWorker: null };
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), new Worker(bundle.mainWorker!));
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-  // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's
+  // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's -- a remote
+  // file's session variable included, replayed from the tab's settings (B3's Q3: a variable is one connection's)
+  const settings = new ConnectionSettings();
   const connect = async (): Promise<DuckDbEngine> => {
-    const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection);
+    const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection, { settings });
     await ownExtensions(connection, planner, asset('duckdb-extensions'));
     await setUpSession(connection, (databaseType) => planner.sessionSetup(databaseType));
+    await settings.replay((sql, params) => connection.exclusive((held) => held.rows(sql, params)));
     return connection;
   };
   const engine = await connect();
@@ -68,9 +76,9 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
     data: {
       registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
       dropFile: async (name) => { await db.dropFile(name); },
-      run: (sql) => engine.run(sql, 0),
     },
     db,
     connect,
+    settings,
   };
 }

@@ -236,8 +236,10 @@ def project_data(model: str, database_type: str) -> dict[str, Any]:
     """A project's own database on a database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5): where
     ``model``'s Data rows live on this host, named by what it holds (the model's Databases and Data rows: an edited row
     is a fresh database). ``name``, and the statements of each step in order: ``open`` makes it, ``use`` points a
-    connection of its own at it, ``fill`` makes and fills every table a relational Data element fills (on that
-    connection), ``close`` drops it. A database without the operations is refused by name."""
+    connection of its own at it, ``close`` drops it; and ``load``, the plan whose root is the ONCE load that makes and
+    fills every table a relational Data element fills (on that connection; ``projects.run_load``), absent for a model
+    with no Data rows (B3, 2026-11-11: until then ``fill``, its statements as text). A database without the operations
+    is refused by name."""
     return _json.loads(_answer(library().call('lite_project_data', model, database_type)))
 
 

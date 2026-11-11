@@ -8,9 +8,14 @@ import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
-import { mountRemote, type S3Credentials } from './remote.ts';
+import { bearerName, mountRemote, secretName, type S3Credentials } from './remote.ts';
+import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/plan-runner.ts';
 import { runHostOperations } from '../../engine-client/src/host-operations.ts';
 import { isIdentifier } from '../../pure-protocol/src/index.ts';
+
+/** The hosts' plan runner, fetched with the first file read (a chunk of its own: a grid-only page carries none of it). */
+const planRunner = (): Promise<typeof import('../../engine-client/src/plan-runner.ts')> =>
+  import('../../engine-client/src/plan-runner.ts');
 
 /**
  * The duckdb-wasm surface used here.
@@ -270,10 +275,14 @@ export async function ingestFile(
   // A fixed virtual filename per table: re-picking a file replaces
   // the registration rather than accumulating them.
   const virtualName = uploadFileName(table, file.name);
-  // its bytes as every host's DuckDB is given them (fileBytes): a text file decoded by its encoding (fileParts)
-  await db.registerFileBuffer(virtualName, await fileBytes(file));
+  // its bytes as every host's DuckDB is given them (fileBytes): a text file decoded by its encoding (fileParts), their
+  // SHA-256 and size what the plan names them by (B3: the file a pointer the tab's store binds)
+  const bytes = await fileBytes(file);
+  const digest = await (await planRunner()).sha256Hex(bytes);
+  const size = bytes.length;
+  await db.registerFileBuffer(virtualName, bytes);
   try {
-    return await readFileInto(engine, { at: virtualName, fileName: file.name, table }, models);
+    return await readFileInto(engine, { at: virtualName, name: virtualName, digest, size, fileName: file.name, table }, models);
   } catch (e) {
     // not read: its bytes let go of, as an upload overtaken is (forgetUpload)
     await db.dropFile?.(virtualName);
@@ -290,12 +299,20 @@ export function uploadFileName(table: string, fileName: string): string {
  * A FILE THE DATABASE CAN READ, READ INTO A TABLE OF ITS OWN -- the one implementation of what reading a picked file
  * is, on every host: the tab's DuckDB-WASM reads it by the name it was registered under, a host's DuckDB at its path
  * (headless/data-in.ts). Its format is its name's (`fileName`); the table is a copy, so the file is not needed after.
+ * It is a PLANNED LOAD (B3, 2026-11-11: the orchestrator's go, "uploads ... as planned loads, the file a pointer"): the
+ * planner's plan (fileLoad) names the file by `name`, its SHA-256 and size, kept until the person resets it; the
+ * hosts' runner (runLoad) binds the statement's ? to `at` once this host's store has checked the file is the one
+ * named -- the path never in a statement's text, the load never outside a plan.
  */
 export async function readFileInto(
   engine: DuckDbEngine,
   file: {
-    /** What the database reads it by: a registered name, or a path (named in the SQL as a string literal). */
+    /** What the database reads it by: a registered name, or a path (bound to the statement's ?, never written). */
     readonly at: string;
+    /** The name the plan names it by (a relative name: never a machine's path), and its bytes' SHA-256 and size. */
+    readonly name: string;
+    readonly digest: string;
+    readonly size: number;
     /** The file's own name, as the person picked it: its format, and what the answer says arrived. */
     readonly fileName: string;
     readonly table: string;
@@ -317,10 +334,22 @@ export async function readFileInto(
   // it; the file read by its format -- a CSV sniffed with a header, Parquet, JSON with each record's keys its columns
   // (anything nested below them a STRUCT or a LIST, kept: a Variant).
   const target = { name: table };
-  await runHostOperations(models, engine, [{
-    op: 'relation', kind: 'table', target, replace: true,
-    from: { file: { at: file.at, format: format === 'parquet' ? 'parquet' : format === 'json' ? 'json' : 'csv' } },
-  }]);
+  const plan = await models.fileLoad({
+    databaseType: engine.databaseType,
+    file: { name: file.name, digest: file.digest, size: file.size, format },
+    into: { table },
+  });
+  // this host's store of its own files: the one this read names, by what its database reads it by
+  const files = {
+    located: async (ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string> => {
+      if (ref.name !== file.name || ref.digest !== file.digest || ref.size !== file.size) {
+        throw new Error(`the file '${ref.name}' is not the one this read holds (${file.name}, ${file.size} bytes of digest ${file.digest})`);
+      }
+      return file.at;
+    },
+  };
+  const { runLoad } = await planRunner();
+  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params), { files }));
 
   const inferred = await modelLanded(engine, models, table);
 
@@ -368,17 +397,28 @@ export async function modelLanded(engine: QueryEngine & { readonly databaseType:
  */
 export async function mountRemoteView(engine: DuckDbEngine, models: TableModels,
   file: { readonly url: string; readonly s3?: S3Credentials; readonly name: string }): Promise<InferredModel> {
-  await mountRemote(engine, models, { sources: [{ name: file.name, url: file.url }], ...(file.s3 ? { s3: file.s3 } : {}) });
-  return models.tableModel(await catalogColumns(engine, models, file.name), {
+  return (await mountedView(engine, models, file)).model;
+}
+
+/** {@link mountRemoteView}, with the settings its mount made on the connection (a bearer URL's session variable: the
+ *  plan's held binds, no value) -- what a host that opens a connection per read replays on each (Python's). */
+export async function mountedView(engine: DuckDbEngine, models: TableModels,
+  file: { readonly url: string; readonly s3?: S3Credentials; readonly name: string }): Promise<{ readonly model: InferredModel; readonly settings: readonly KeptSetting[] }> {
+  const [mounted] = await mountRemote(engine, models, { sources: [{ name: file.name, url: file.url }], ...(file.s3 ? { s3: file.s3 } : {}) });
+  const model = await models.tableModel(await catalogColumns(engine, models, file.name), {
     table: file.name, convertible: false, databaseType: engine.databaseType,
   });
+  return { model, settings: mounted?.settings ?? [] };
 }
 
 /** A file's table dropped: its name is free again (the caller lets go of the file itself, where it keeps one). */
-export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
-  table: string, view = false): Promise<void> {
-  // a remote file's is a view (mountRemoteView)
-  await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } }]);
+export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string; readonly settings?: ConnectionSettings | undefined },
+  models: TableModels, table: string, view = false): Promise<void> {
+  // a remote file's is a view (mountRemoteView), and its keys go with it: its secret, by its name, when it has one, and
+  // its bearer URL's session variable (B3's Q3), the setting no longer replayed on a connection opened later
+  await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } },
+    ...(view ? [{ op: 'dropSecret', name: secretName(table) } as const, { op: 'resetVariable', held: bearerName(table) } as const] : [])]);
+  if (view) engine.settings?.forget(table);
 }
 
 /**

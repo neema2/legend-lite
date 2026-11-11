@@ -7,9 +7,10 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { runLoad } from '../src/plan-runner.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { loadPlanner } from './planner.ts';
-import { dataTables, loadDataTables, seeded, type FileSink } from '../src/model-data.ts';
+import { dataTables } from '../src/model-data.ts';
 import { ProjectDatabases, ProjectRunner } from '../src/project-data.ts';
 import { TabTables, type Model } from '../src/tab-data.ts';
 import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
@@ -20,10 +21,6 @@ type Elements = Parameters<typeof dataTables>[0];
 let engine: DuckDbEngine;
 let db: NodeDuckDb;
 let planner: WasmGrammar;
-const sink = (): FileSink => ({
-  registerFileBuffer: async (name, bytes) => db.registerFileBuffer(name, bytes),
-  run: (sql) => engine.run(sql, 0),
-});
 
 /** A table's rows, ordered by ID. */
 const rowsOf = async (table: string, on: { run(sql: string, epoch: number): ReturnType<DuckDbEngine['run']> } = engine): Promise<unknown[][]> => {
@@ -64,8 +61,22 @@ async function modelOf(text: string): Promise<Model> {
 }
 /** The party model as another version of it: its Data element's rows `csv`, and with `desk`, a second table it fills. */
 const version = (csv: string, desk?: string): Promise<Model> => modelOf(partyText(csv, desk));
-/** A version's test data with the server's statements. */
-const tablesOf = async (m: Model) => seeded(planner, m.text, dataTables(m.elements));
+/** A version's test data in its project's database, made and filled by the plan's ONCE load (B3: the load a server's
+ *  project plan carries, run by the hosts' runner): a connection of its own on it, and the drop. */
+const filled = async (m: Model): Promise<{ readonly own: DuckDbEngine; drop(): Promise<void> }> => {
+  const project = await planner.projectData(m.text, 'DuckDB');
+  for (const sql of project.open) await engine.run(sql, 0);
+  const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+  for (const sql of project.use) await own.run(sql, 0);
+  await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+  return {
+    own,
+    drop: async () => {
+      await own.close();
+      for (const sql of project.close) await engine.run(sql, 0);
+    },
+  };
+};
 
 const V1 = 'ID,NAME,COUNTRY\n1,Meridian Capital,US\n2,Halberd Securities,GB\n';
 const V2 = 'ID,NAME,COUNTRY\n3,Corvid Partners,FR\n';
@@ -88,12 +99,13 @@ describe("a model's test data, in DuckDB", () => {
     }]);
   });
 
-  it("makes and fills them with the server's statements, and they read back", async () => {
-    const v1 = await version(V1);
-    const tables = await tablesOf(v1);
-    assert.ok(tables[0]!.seed.sql.some((s) => /^CREATE TABLE/i.test(s)), tables[0]!.seed.sql.join('\n'));
-    await loadDataTables(sink(), tables);
-    assert.deepEqual(await rowsOf('PARTY'), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
+  it("makes and fills them with the plan's load (the server's statements), and they read back", async () => {
+    const project = await filled(await version(V1));
+    try {
+      assert.deepEqual(await rowsOf('PARTY', project.own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
+    } finally {
+      await project.drop();
+    }
   });
 
   it('refuses a table no Database declares, and one two Databases declare: which one would be a guess', async () => {
@@ -114,13 +126,17 @@ Database demo::party::OtherDB
 
   it("makes each column the server's type: a Float column DOUBLE, keeping its value exactly; a Bit column BOOLEAN", async () => {
     const typed = await modelOf(partyText('ID,SCORE,ACTIVE\n1,0.1,true\n2,2.675,false\n', undefined, 'ID INTEGER PRIMARY KEY, SCORE FLOAT, ACTIVE BIT'));
-    await loadDataTables(sink(), await tablesOf(typed));
-    const types = await engine.run("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'PARTY' AND table_name = 'PARTY' ORDER BY ordinal_position", 0);
-    assert.deepEqual(Array.from({ length: types.rowCount }, (_, i) => types.columns.map((c) => c.values[i])),
-      [['ID', 'INTEGER'], ['SCORE', 'DOUBLE'], ['ACTIVE', 'BOOLEAN']]);
-    const t = await engine.run('SELECT ID, SCORE, ACTIVE, SCORE = 0.1 AS EXACT FROM "PARTY"."PARTY" ORDER BY ID', 0);
-    assert.deepEqual(t.columns.map((c) => c.values[0]), [1, 0.1, true, true]);
-    assert.deepEqual(t.columns.map((c) => c.values[1]), [2, 2.675, false, false]);
+    const project = await filled(typed);
+    try {
+      const types = await project.own.run("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'PARTY' AND table_name = 'PARTY' ORDER BY ordinal_position", 0);
+      assert.deepEqual(Array.from({ length: types.rowCount }, (_, i) => types.columns.map((c) => c.values[i])),
+        [['ID', 'INTEGER'], ['SCORE', 'DOUBLE'], ['ACTIVE', 'BOOLEAN']]);
+      const t = await project.own.run('SELECT ID, SCORE, ACTIVE, SCORE = 0.1 AS EXACT FROM "PARTY"."PARTY" ORDER BY ID', 0);
+      assert.deepEqual(t.columns.map((c) => c.values[0]), [1, 0.1, true, true]);
+      assert.deepEqual(t.columns.map((c) => c.values[1]), [2, 2.675, false, false]);
+    } finally {
+      await project.drop();
+    }
   });
 });
 
@@ -463,7 +479,10 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
     await engine.run("INSERT INTO \"PARTY\".\"PARTY\" VALUES (9, 'the tab''s own', 'XX')", 0);
     for (const sql of project.open) await engine.run(sql, 0);
     const own = new DuckDbEngine(db.connect() as ArrowishConnection);
-    for (const sql of [...project.use, ...project.fill]) await own.run(sql, 0);
+    for (const sql of project.use) await own.run(sql, 0);
+    // its rows: the plan's ONCE load, run by the hosts' runner (B3: the load a server's project plan carries)
+    assert.ok(project.load !== undefined, 'a project with Data rows carries their load');
+    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
     assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
     assert.deepEqual(await rowsOf('PARTY'), [[9, "the tab's own", 'XX']]);
     await own.close();

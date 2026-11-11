@@ -30,6 +30,8 @@
 // makes it no harder.
 
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
+import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
+import type { RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 
 /** One column, as its database's catalog describes it (the catalog question's row). */
@@ -145,4 +147,8 @@ export interface TableModels {
   sessionSetup(databaseType: string): Promise<readonly string[]>;
   /** A host's named operations on its own database (D5, engine-client's host-operations.ts): each one's statements. */
   hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]>;
+  /** A host's own file read into its database, as a plan (Boundary.fileLoad, B3): PlanJson's text, run by runLoad. */
+  fileLoad(request: FileLoadRequest): Promise<string>;
+  /** A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): PlanJson's text, run by runLoad. */
+  remoteMount(request: RemoteMountRequest): Promise<string>;
 }

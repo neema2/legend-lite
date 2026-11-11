@@ -9,6 +9,7 @@ import { after, before, describe, it } from 'node:test';
 import { openDatabase, plannerOptions } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import { runLoad } from '../../engine-client/src/plan-runner.ts';
 import {
   contextOf, enumerationsOf, enumsAsStrings, projectOf, sourceOf, unusable, type ModelElement,
 } from '../src/saved-queries.ts';
@@ -39,7 +40,9 @@ before(async () => {
   // the project's rows, its Data element's, in a database of its own as the page makes it (C5, project-data.ts)
   const project = await parser.projectData(MODEL, engine.databaseType);
   projectDb = project.name;
-  for (const sql of [...project.open, ...project.use, ...project.fill]) await engine.run(sql, 0);
+  for (const sql of [...project.open, ...project.use]) await engine.run(sql, 0);
+  // its rows: the plan's ONCE load, run by the hosts' runner (B3)
+  await runLoad(JSON.stringify(project.load), (sql) => engine.run(sql, 0));
   elements = await parser.modelElements(MODEL) as ModelElement[];
 });
 

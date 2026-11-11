@@ -295,6 +295,9 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                         switch (f.ref().format()) {
                             case DataRef.Csv csv -> sb.append("csv").append(csv.delimiter()).append(csv.quote());
                             case DataRef.Statements statements -> sb.append("statements");
+                            case DataRef.DetectedCsv detected -> sb.append("detectedCsv");
+                            case DataRef.Parquet parquet -> sb.append("parquet");
+                            case DataRef.Json json -> sb.append("json");
                         }
                         switch (f.delivery()) {
                             case LoadStep.Delivery.Reads r -> {
@@ -306,6 +309,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                                 for (String statement : r.after()) {
                                     field(sb, statement);
                                 }
+                            }
+                        }
+                    }
+                    case LoadStep.Bound b -> {
+                        // the names a host binds, never their values: a rotated key keeps the load's identity
+                        field(field(sb.append('B'), b.sql()), b.reach().name()).append(b.binds().size()).append(':');
+                        for (LoadStep.Bind bind : b.binds()) {
+                            switch (bind) {
+                                case LoadStep.Bind.Value v -> field(sb.append('V'), v.text());
+                                case LoadStep.Bind.Held h -> field(field(sb.append('H'), h.name()), h.field());
                             }
                         }
                     }
@@ -340,6 +353,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             content = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(content));
             java.util.Set<String> named = new java.util.TreeSet<>();
             for (LoadStep step : steps) {
+                if (step instanceof LoadStep.Bound && cadence != Cadence.HOST_SESSION) {
+                    throw new IllegalArgumentException("the load " + identity + " is " + cadence + ": a statement the"
+                            + " host binds from its store is a HOST_SESSION load's alone");
+                }
                 if (step instanceof LoadStep.File f && f.ref().namespace() == DataRef.Namespace.CONTENT) {
                     named.add(f.ref().digest());
                 }
@@ -384,7 +401,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              *  a program's node, run inside the run's own transaction on the catalog -- which is rolled back when the
              *  run ends, so no other run sees it -- once per run (the seeds' memo, which the rollback clears); refused
              *  by name on a session that holds no such transaction. */
-            PER_TRANSACTION
+            PER_TRANSACTION,
+            /** A HOST'S OWN LOAD, KEPT FOR ITS SESSION (B3, 2026-11-11, the orchestrator's go; the design's §3 rule 4:
+             *  "the browser's uploaded tables live until the person resets them: a load whose lifetime is the host
+             *  session"): a person's file read into the host's database -- a table of its own, or a model's declared
+             *  table in Studio's workspace -- run once when the person puts it in and kept until they reset it. A plan of
+             *  it is the host's alone (a root load its runner runs); exec refuses it by name. (AT_RELEASE, the session
+             *  tables' drop, went with the JSON pass, 2026-11-11.) */
+            HOST_SESSION
         }
     }
 
@@ -931,10 +955,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
+    /** Where a host's bound statement's effect lives ({@link LoadStep.Bound}, B3's Q3): the database (run once with its
+     *  load), or the connection (a session variable, replayed on every connection the host opens). */
+    public enum Reach { DATABASE, CONNECTION }
+
     /** One step of a load or of a target's setup: a statement, the model's data as a content blob of statements (A2,
      *  2026-11-10: until then rows the database's own bulk loader took), or a file by its reference
      *  (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
-    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Statements, LoadStep.File {
+    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Statements, LoadStep.File, LoadStep.Bound {
 
         /** A statement, run as it is. */
         record Statement(String sql) implements LoadStep {
@@ -1006,6 +1034,55 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                     after = List.copyOf(after);
                     if (statements.isEmpty()) {
                         throw new IllegalArgumentException("a file's load of no statement");
+                    }
+                }
+            }
+        }
+
+        /**
+         * A STATEMENT WHOSE {@code ?}s THE HOST BINDS (B3's Q3, 2026-11-11, the user's ruling of that day: "Yes do option
+         * 2"; docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md): each bind the plan's own value, never a
+         * credential (a secret's scope), or a value the host holds BY NAME ({@link Bind.Held}: a credential's field, a
+         * bearer URL) -- never a held value itself, so no plan holds a secret. {@code reach}:
+         * {@link ExecutionPlan.Reach#DATABASE}, run once with its load (a secret, which the database instance keeps);
+         * {@link ExecutionPlan.Reach#CONNECTION}, a setting of the connection (a session variable, which DuckDB keeps per
+         * connection: measured 2026-11-11), run with its load and replayed by the host on every connection it opens to
+         * that database afterwards. A host's step alone: only a {@link Load.Cadence#HOST_SESSION} load holds one
+         * ({@link Load}), and exec, which holds no host's store, never meets one.
+         */
+        record Bound(String sql, List<Bind> binds, Reach reach) implements LoadStep {
+            public Bound {
+                Objects.requireNonNull(sql, "sql");
+                Objects.requireNonNull(reach, "reach");
+                binds = List.copyOf(binds);
+                if (sql.strip().isEmpty()) {
+                    throw new IllegalArgumentException("a bound statement of no text");
+                }
+                if (binds.isEmpty()) {
+                    throw new IllegalArgumentException("a bound statement binds a value: plan a statement: " + sql);
+                }
+            }
+        }
+
+        /** One {@code ?} of a {@link Bound} statement. */
+        sealed interface Bind permits Bind.Value, Bind.Held {
+
+            /** The plan's own value, bound as its text: never a credential (the planner's makers alone make one). */
+            record Value(String text) implements Bind {
+                public Value {
+                    Objects.requireNonNull(text, "text");
+                }
+            }
+
+            /** A value the host holds: its store's entry {@code name}, its field {@code field} (an S3 secret's KEY_ID,
+             *  SECRET, SESSION_TOKEN, REGION, ENDPOINT, URL_STYLE or USE_SSL; URL, a bearer URL). */
+            record Held(String name, String field) implements Bind {
+                public Held {
+                    Objects.requireNonNull(name, "name");
+                    Objects.requireNonNull(field, "field");
+                    if (!name.matches("[A-Za-z0-9_]+") || !field.matches("[A-Z_]+")) {
+                        throw new IllegalArgumentException("a held value is named by a store's name and a field's: "
+                                + name + "." + field);
                     }
                 }
             }

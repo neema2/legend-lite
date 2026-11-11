@@ -70,6 +70,12 @@ esbuild_bundle(
     ],
 )
 
+# the load runners' shared conformance fixture (B3, 2026-11-11): the tab's runLoad and Python's run_load run it alike
+exports_files(
+    ["test/fixtures/run-load-conformance.json"],
+    visibility = ["//python:__pkg__"],
+)
+
 # The host's plan runner as a source the census reads (P7 of docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09: its plan
 # version equals the Java planner's, PlanVersionsAgreeTest)
 filegroup(
@@ -201,9 +207,12 @@ node_test(
     data = [
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
+        "test/fixtures/run-load-conformance.json",
         "test/planner.ts",
     ],
     entry_point = "test/plan-runner.test.ts",
+    # the load runners' shared conformance fixture (B3): Python's engine test runs it too
+    env = {"RUN_LOAD_FIXTURE": "$(rlocationpath test/fixtures/run-load-conformance.json)"},
     wasm = True,
 )
 

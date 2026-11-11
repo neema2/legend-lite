@@ -55,6 +55,247 @@ public final class LoadPlanner {
         return load(cadence, steps.steps(), target, steps.content());
     }
 
+    /**
+     * A PROJECT'S DATA ROWS as the ONCE load its own database is made with, alone as a plan, or null for a model with
+     * none (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "the hosts run the plan's loads"; census
+     * M14): the load a server's project plan names its database with (the same steps, content and identity:
+     * {@code PlanMaker}'s project fill), for a host that makes a project's database itself -- the tab's DuckDB,
+     * Python's -- and runs it there, its statements blob checked against its digest. Until then the host was handed the
+     * fill's statements as text ({@code ProjectData.fill}) and ran them outside any plan. A model whose Data rows cannot
+     * make the database is refused by name ({@code ProjectData.refusal}).
+     */
+    public static @com.legend.base.Nullable ExecutionPlan projectData(com.legend.compiler.element.ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect, com.legend.executionplan.DatabaseType type) {
+        com.legend.setup.LoadSteps fill = com.legend.setup.CsvSeed.planned(
+                com.legend.setup.ProjectData.fillSteps(ctx, dialect), dialect);
+        if (fill.isEmpty()) {
+            return null;
+        }
+        ExecutionPlan.Target database = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type,
+                new ExecutionPlan.Project(Hash.ofUtf8(com.legend.setup.ProjectData.contentKey(ctx)).hex(), null)),
+                dialect.sessionSetup(), List.of());
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.ONCE, fill, database));
+    }
+
+    /** Where a remote file is, as a host names it (B3's Q3): an address that carries no token, written as it is, or a
+     *  BEARER URL (a presigned link, its query string the token) the host holds by name, never handed to the planner. */
+    public sealed interface RemoteLocation permits PlainLocation, BearerLocation {
+    }
+
+    /** An address that carries no token ({@code s3://}, {@code https://} with no query string): the plan names it. */
+    public record PlainLocation(String url) implements RemoteLocation {
+        public PlainLocation {
+            java.util.Objects.requireNonNull(url, "url");
+            if (url.indexOf('?') >= 0) {
+                throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it as a"
+                        + " bearer URL, and the plan names it");
+            }
+        }
+    }
+
+    /** A bearer URL the host holds under {@code name} (its field {@code URL}); {@code shown}, its address without the
+     *  query string -- what a secret's scope is cut from, never the token. */
+    public record BearerLocation(String name, String shown) implements RemoteLocation {
+        public BearerLocation {
+            java.util.Objects.requireNonNull(name, "name");
+            java.util.Objects.requireNonNull(shown, "shown");
+            if (shown.indexOf('?') >= 0) {
+                throw new IllegalArgumentException("a bearer URL's shown address is its address without the query"
+                        + " string, which carries the token");
+            }
+        }
+    }
+
+    /** An S3 secret the host holds under {@code name}: the fields it holds (KEY_ID, SECRET, ...), never their values. */
+    public record RemoteCredentials(String name, List<String> fields) {
+        public RemoteCredentials {
+            java.util.Objects.requireNonNull(name, "name");
+            fields = List.copyOf(fields);
+        }
+    }
+
+    /** A remote file mounted: the view it is read through ({@code null}: its access alone, no view), where it is, its
+     *  format, and the credentials it is read with, if any. */
+    public record RemoteMount(@com.legend.base.Nullable String view, RemoteLocation location,
+            com.legend.sql.dialect.HostOperation.RemoteFormat format, @com.legend.base.Nullable RemoteCredentials credentials) {
+        public RemoteMount {
+            java.util.Objects.requireNonNull(location, "location");
+            java.util.Objects.requireNonNull(format, "format");
+        }
+    }
+
+    /** The field a bearer URL is held under in the host's store. */
+    public static final String URL_FIELD = "URL";
+
+    /**
+     * A REMOTE FILE MOUNTED, as a plan (B3's Q3, 2026-11-11, the user's ruling of that day: "Yes do option 2";
+     * docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md): one
+     * {@link ExecutionPlan.Load.Cadence#HOST_SESSION} load, kept until the person lets the file go -- the extensions its
+     * format reads with; its S3 secret, each field bound from the host's store by name and the scope, the plan's own
+     * value, cut from its address; a bearer URL bound to a session variable the dialect names for it (a step of the
+     * CONNECTION, which the host replays on every connection it opens: a variable is one connection's, measured); and the
+     * view, reading the address as it is or the variable. No credential, no token, in any statement or in the plan:
+     * each is named, the host binds it. Until then the host ran the mount as operations outside any plan, the token in
+     * the view's text (census M14). A bearer Iceberg table is refused by name (a table is a folder: there is no
+     * presigned link to it).
+     */
+    public static ExecutionPlan remoteMount(com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.executionplan.DatabaseType type, RemoteMount mount) {
+        com.legend.sql.dialect.HostOperations host = com.legend.sql.dialect.HostOperations.of(dialect);
+        boolean iceberg = mount.format() == com.legend.sql.dialect.HostOperation.RemoteFormat.ICEBERG;
+        com.legend.setup.LoadSteps.Builder steps = new com.legend.setup.LoadSteps.Builder();
+        for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.Extensions(
+                iceberg ? List.of("httpfs", "iceberg") : List.of("httpfs")))) {
+            steps.statement(sql);
+        }
+        String address = switch (mount.location()) {
+            case PlainLocation p -> p.url();
+            case BearerLocation b -> {
+                if (iceberg) {
+                    throw new IllegalArgumentException("an Iceberg table is a folder, read by its address: a bearer URL"
+                            + " names one file (" + b.shown() + ")");
+                }
+                yield b.shown();
+            }
+        };
+        if (mount.credentials() != null && !mount.credentials().fields().isEmpty()) {
+            RemoteCredentials c = mount.credentials();
+            com.legend.sql.dialect.HostOperation.Secret secret = new com.legend.sql.dialect.HostOperation.Secret(
+                    c.name(), scope(address), c.fields());
+            List<ExecutionPlan.LoadStep.Bind> binds = new java.util.ArrayList<>();
+            for (String field : c.fields()) {
+                binds.add(com.legend.setup.LoadSteps.held(c.name(), field));
+            }
+            binds.add(com.legend.setup.LoadSteps.value(secret.scope()));
+            steps.add(com.legend.setup.LoadSteps.bound(host.statements(secret), binds,
+                    ExecutionPlan.Reach.DATABASE));
+        }
+        com.legend.sql.dialect.HostOperation.Location at = switch (mount.location()) {
+            case PlainLocation p -> new com.legend.sql.dialect.HostOperation.Location.Url(p.url());
+            case BearerLocation b -> {
+                steps.add(com.legend.setup.LoadSteps.bound(host.statements(
+                        new com.legend.sql.dialect.HostOperation.SetVariable(b.name())),
+                        List.of(com.legend.setup.LoadSteps.held(b.name(), URL_FIELD)),
+                        ExecutionPlan.Reach.CONNECTION));
+                yield new com.legend.sql.dialect.HostOperation.Location.Variable(b.name());
+            }
+        };
+        if (mount.view() != null) {
+            for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.MakeRelation(
+                    com.legend.sql.dialect.HostOperation.Kind.VIEW,
+                    com.legend.sql.dialect.HostOperation.Name.of(mount.view()), true, null, List.of(),
+                    new com.legend.sql.dialect.HostOperation.Source.Remote(at, mount.format())))) {
+                steps.statement(sql);
+            }
+        }
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null),
+                dialect.sessionSetup(), List.of());
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps.build(), target));
+    }
+
+    /** Where a secret's keys apply: its address as a prefix of the URLs it is used for -- cut before a glob, an Iceberg
+     *  table's metadata folder its table's (its data files lie beside it). */
+    static String scope(String address) {
+        String scope = address;
+        int glob = -1;
+        for (int i = 0; i < scope.length(); i++) {
+            char ch = scope.charAt(i);
+            if (ch == '*' || ch == '?' || ch == '[') {
+                glob = i;
+                break;
+            }
+        }
+        if (glob >= 0) {
+            scope = scope.substring(0, glob);
+        }
+        return scope.replaceFirst("(?i)/metadata/?$", "");
+    }
+
+    /** Where a host's own file goes: a table of its own (a person's upload), or a model's declared table (a person's
+     *  file put into Studio's workspace, over the model's own rows). */
+    public sealed interface HostFileInto permits NewTable, DeclaredTable {
+    }
+
+    /** A table of the file's own, {@code table} (a person's name, quoted), made or replaced from the file's columns. */
+    public record NewTable(String table) implements HostFileInto {
+        public NewTable {
+            java.util.Objects.requireNonNull(table, "table");
+        }
+    }
+
+    /** The table {@code schema.table} the Database {@code database} of {@code ctx} declares, made as declared and filled
+     *  from the file, each declared column from the file's column of its name. */
+    public record DeclaredTable(com.legend.compiler.element.ModelContext ctx, String database, String schema,
+            String table) implements HostFileInto {
+    }
+
+    /**
+     * A HOST'S OWN FILE READ INTO ITS DATABASE, as a plan (B3, 2026-11-11, the orchestrator's go: "uploads and Studio's
+     * file puts as planned loads, the file a pointer"; the design's B3 row: "a dropped file is a pointer DuckDB reads"):
+     * one {@link ExecutionPlan.Load.Cadence#HOST_SESSION} load -- kept until the person resets it -- whose file step names
+     * the host's file by reference ({@link com.legend.executionplan.DataRef.Namespace#HOST}: its name, digest, size and
+     * format) and is delivered as its database reads it, the statement's {@code ?} the file as the host's store binds it.
+     * A table of its own is made or replaced from the file (its types the reader's: a CSV detected, Parquet's, JSON's
+     * records); a declared table is made as the model declares it (its DDL the seed's, a header alone) and filled from
+     * the file (a CSV's cells as text, a Parquet's as typed, the database converting each to its column's type). The
+     * host runs the plan (engine-client's runLoad); exec has no store of a host's files, so it refuses one by name.
+     */
+    public static ExecutionPlan hostFile(com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.executionplan.DatabaseType type, com.legend.executionplan.DataRef file, HostFileInto into) {
+        if (file.namespace() != com.legend.executionplan.DataRef.Namespace.HOST) {
+            throw new IllegalArgumentException("a host's file load names a HOST file: " + file);
+        }
+        com.legend.sql.dialect.HostOperations host = com.legend.sql.dialect.HostOperations.of(dialect);
+        List<ExecutionPlan.LoadStep> steps = new java.util.ArrayList<>();
+        java.util.Map<String, String> content = java.util.Map.of();
+        com.legend.sql.dialect.HostOperation read = switch (into) {
+            case NewTable n -> new com.legend.sql.dialect.HostOperation.MakeRelation(
+                    com.legend.sql.dialect.HostOperation.Kind.TABLE, com.legend.sql.dialect.HostOperation.Name.of(n.table()),
+                    true, null, List.of(), new com.legend.sql.dialect.HostOperation.Source.HostFile(switch (file.format()) {
+                        case com.legend.executionplan.DataRef.DetectedCsv d -> com.legend.sql.dialect.HostOperation.FileFormat.CSV;
+                        case com.legend.executionplan.DataRef.Parquet p -> com.legend.sql.dialect.HostOperation.FileFormat.PARQUET;
+                        case com.legend.executionplan.DataRef.Json j -> com.legend.sql.dialect.HostOperation.FileFormat.JSON;
+                        case com.legend.executionplan.DataRef.Csv c -> throw new IllegalArgumentException("a table of a"
+                                + " file's own detects a CSV's columns: its format is detectedCsv, not a declared CSV");
+                        case com.legend.executionplan.DataRef.Statements st -> throw new IllegalArgumentException(
+                                "a host's file is no statements blob");
+                    }));
+            case DeclaredTable d -> {
+                com.legend.model.DatabaseDefinition.TableDefinition def = d.ctx().findTableDefinition(d.database(),
+                        "default".equals(d.schema()) ? d.table() : d.schema() + "." + d.table()).orElseThrow(() ->
+                        new IllegalArgumentException("a file fills " + d.schema() + "." + d.table() + ", which the"
+                                + " Database " + d.database() + " declares not"));
+                // the table as the model declares it, empty: the seed's statements for its header alone
+                com.legend.setup.LoadSteps made = com.legend.setup.CsvSeed.planned(com.legend.setup.CsvSeed.steps(
+                        d.schema() + "\n" + d.table() + "\n" + String.join(",", def.columns().stream()
+                                .map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toList()),
+                        d.database(), d.ctx(), dialect), dialect);
+                steps.addAll(made.steps());
+                content = made.content();
+                yield new com.legend.sql.dialect.HostOperation.Insert(
+                        com.legend.sql.dialect.HostOperation.Name.declared(d.schema(), d.table()),
+                        def.columns().stream().map(c -> new com.legend.sql.dialect.HostOperation.Column(c.name(), c.name()))
+                                .toList(),
+                        new com.legend.sql.dialect.HostOperation.Source.HostFile(switch (file.format()) {
+                            case com.legend.executionplan.DataRef.Csv c -> com.legend.sql.dialect.HostOperation.FileFormat.CSV_TEXT;
+                            case com.legend.executionplan.DataRef.Parquet p -> com.legend.sql.dialect.HostOperation.FileFormat.PARQUET;
+                            case com.legend.executionplan.DataRef.DetectedCsv dc -> throw new IllegalArgumentException(
+                                    "a declared table's CSV is read as text, cast into its declared columns: its format"
+                                            + " is csv, not detectedCsv");
+                            case com.legend.executionplan.DataRef.Json j -> throw new IllegalArgumentException(
+                                    "a declared table is filled from a .csv or a .parquet file, not JSON");
+                            case com.legend.executionplan.DataRef.Statements st -> throw new IllegalArgumentException(
+                                    "a host's file is no statements blob");
+                        }));
+            }
+        };
+        // the host's own file, read by its database's statements (setup.LoadSteps: the planner's makers make a step)
+        steps.addAll(com.legend.setup.LoadSteps.hostFile(file, host.statements(read)).steps());
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null),
+                dialect.sessionSetup(), List.of());
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps, target, content));
+    }
+
     /** {@code steps} as the loads a target establishes on acquisition: none for no step, else one load into
      *  {@code target}'s own database and session. */
     public static List<ExecutionPlan.Load> targetLoads(com.legend.setup.LoadSteps steps,

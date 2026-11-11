@@ -230,7 +230,22 @@ class DataMechanismCensusTest {
             // TDG appeal that replayed its fetches, and the generator's statement origin deleted
             new Row("M13-output", "the test-data generator's rows handed on as seed text", new Deleted("B2d.2",
                     List.of("class TestDataGeneratorRun", "Appeal.Kind.TDG", "StatementOrigin.TDG"))),
-            new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Pending("L7")),
+            // DELETED at B3, 2026-11-11 (docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2, the orchestrator's go and the
+            // user's ruling of that day on the remote mount, "Yes do option 2"): every way a host put data into its
+            // database is a planned load its runner runs (engine-client's runLoad, Python's projects.run_load) -- a
+            // project's Data the ONCE load its database is made with (B3.4, LoadPlanner.projectData); a person's file,
+            // an upload or Studio's put, a HOST_SESSION load naming the file by reference, bound to its reader's ? (B3.5,
+            // LoadPlanner.hostFile); a remote file's mount a HOST_SESSION load whose secret and bearer URL the host binds
+            // from its store by name, the view reading the URL through a session variable (B3's Q3,
+            // LoadPlanner.remoteMount; docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md). Gone: the
+            // fill's text, the seed text, a file and a remote file named in a host's operation, a secret's operation
+            new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Deleted("B3", List.of(
+                    // B3.4: a project's database filled from the fill's statement text
+                    "out.put(\"fill\"", "p.fill()", "List<String> fill",
+                    // B3.5: a model's rows handed over as seed text, a host's file named in an operation
+                    "testDataSql(", "lite_test_data_sql", "record File(String at", "Source.File(",
+                    // B3's Q3: a remote file's URL written into an operation's view, and a secret made by an operation
+                    "record Remote(String url", "new HostOperation.Source.Remote(string(", "HostOperation.Secret(string(o"))),
             // M15 in its two halves, as M7 is (B2c, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2c, the
             // user's yes): the Java test fixtures' own JDBC writes BOUNDED by their guard, not converted -- each file's
             // literal write sends pinned, a total ceiling that only falls; the referee's replay of seed texts moved
@@ -352,7 +367,9 @@ class DataMechanismCensusTest {
         // M15-referee deleted, the referee's copy of a seed a load and its files gone, 57e2c445 and 00e67e38); 6 -> 7
         // (2026-11-11, B2d.2: M13-output deleted, the generator one planned read-only statement, its interleaved run
         // and the TDG appeal gone); 7 -> 9 (2026-11-11, the merge of B4 into the generator's branch: M5 and M6 deleted,
-        // every statement reading the system store on the in-process catalog, the server's forms gone)
-        assertEquals(9, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // every statement reading the system store on the in-process catalog, the server's forms gone); 9 -> 10
+        // (2026-11-11, B3 merged: M14 deleted, every host's data a planned load -- a project's Data, a person's file, a
+        // remote file's mount -- its symbols in its row)
+        assertEquals(10, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

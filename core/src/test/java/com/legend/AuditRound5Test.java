@@ -137,8 +137,15 @@ class AuditRound5Test {
         assertEquals(false, scalar("|test::GT.CITY == 1"));
         // ...but an Any operand is undecided: the lowering must not fold it
         // (LOUD or genuinely compared are both acceptable; false-by-fiat is not)
-        String sql = Compiler.query(Compiler.compileModel(com.legend.testbackend.StorelessRuntime.with(MODEL, Databases.PLATFORM)), "|[test::GT.CITY, 'x']->first() == test::GT.CITY").plan(com.legend.testbackend.StorelessRuntime.RUNTIME).sql();
-        assertTrue(!sql.contains("SELECT FALSE") && !sql.contains("SELECT false"),
-                "enum-vs-Any must not constant-fold: " + sql);
+        // read off the execution plan (B3, 2026-11-11: the text plan is the execution plan's answering statement, and
+        // a value the program wrote sends none): a statement that computes it, or a value the program wrote that is
+        // not FALSE
+        com.legend.executionplan.ExecutionPlan plan = Compiler.query(Compiler.compileModel(
+                com.legend.testbackend.StorelessRuntime.with(MODEL, Databases.PLATFORM)),
+                "|[test::GT.CITY, 'x']->first() == test::GT.CITY").executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME);
+        String answer = plan.root() instanceof com.legend.executionplan.ExecutionPlan.Constant c
+                ? "the constant " + c.cells() : plan.answerSql().statement();
+        assertTrue(!answer.contains("SELECT FALSE") && !answer.contains("SELECT false")
+                && !answer.equals("the constant [[false]]"), "enum-vs-Any must not constant-fold: " + answer);
     }
 }

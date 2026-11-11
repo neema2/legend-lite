@@ -114,10 +114,16 @@ public final class TabExports {
 
     // ---- a model's data and its tables
 
-    /** {@link Boundary#testDataSql}. */
+    /** {@link Boundary#fileLoad}: a host's own file read into its database, as a plan (B3). */
     @JSExport
-    public static String testDataSqlOrError(String model, String database, String tablesJson) {
-        return Folded.of(() -> Boundary.testDataSql(model, database, tablesJson));
+    public static String fileLoadOrError(String request) {
+        return Folded.of(() -> Boundary.fileLoad(request));
+    }
+
+    /** {@link Boundary#remoteMount}: a remote file mounted, as a plan (B3's Q3). */
+    @JSExport
+    public static String remoteMountOrError(String request) {
+        return Folded.of(() -> Boundary.remoteMount(request));
     }
 
     /** {@link Boundary#databaseFromCatalog}. */

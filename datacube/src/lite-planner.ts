@@ -32,7 +32,8 @@ import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
-import type { SeedTable, TableSeed } from '../../engine-client/src/model-data.ts';
+import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
+import type { RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
@@ -651,14 +652,20 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /**
-   * A model's test data as the statements the server seeds DuckDB with, and each table's names as they spell them
-   * (engine-client's SeedSource, model-data.ts): for each table `database` declares, its TableSeed, in order. The model
-   * is the one given, not this planner's own.
+   * A host's own file read into its database, as a plan (Boundary.fileLoad, B3: uploads and Studio's file puts as
+   * planned loads): one HOST_SESSION load the hosts' runner runs (runLoad), the file a reference the host's store binds
+   * -- PlanJson's text. A declared table's model is the one given, not this planner's own.
    */
-  async testDataSql(model: string, database: string, tables: readonly SeedTable[]): Promise<TableSeed[]> {
-    const tablesJson = JSON.stringify(tables);
-    const answer = await this.#call({ kind: 'testData', model, database, tables: tablesJson });
-    return JSON.parse(decode(answer, `the test data of ${database}`)) as TableSeed[];
+  async fileLoad(request: FileLoadRequest): Promise<string> {
+    return decode(await this.#call({ kind: 'fileLoad', request: JSON.stringify(request) }), `the load of ${request.file.name}`);
+  }
+
+  /**
+   * A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): one HOST_SESSION load the hosts' runner runs,
+   * binding by name what this host holds (its keys, a bearer URL) -- PlanJson's text, holding no value.
+   */
+  async remoteMount(request: RemoteMountRequest): Promise<string> {
+    return decode(await this.#call({ kind: 'remoteMount', request: JSON.stringify(request) }), `the mount of ${request.view ?? 'a remote file'}`);
   }
 
   /**

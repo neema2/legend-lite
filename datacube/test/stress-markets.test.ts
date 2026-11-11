@@ -15,6 +15,7 @@ import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import { runLoad } from '../../engine-client/src/plan-runner.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { derive, element, fn, lambda, lit, projectObjects, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { MARKETS_PROJECT, marketsClassesPage, SAVED_GRIDS, savedQuerySource, savedQueryTree } from '../src/examples/markets-classes.ts';
@@ -94,7 +95,9 @@ before(async () => {
   corpus = plannerFor(PROJECT, 'stress::RT');
   projectEngine = new DuckDbEngine((await openDatabase()).connection);
   const project = await corpus.projectData(PROJECT, projectEngine.databaseType);
-  for (const sql of [...project.open, ...project.use, ...project.fill]) await projectEngine.run(sql, 0);
+  for (const sql of [...project.open, ...project.use]) await projectEngine.run(sql, 0);
+  // its rows: the plan's ONCE load, run by the hosts' runner (B3)
+  await runLoad(JSON.stringify(project.load), (sql) => projectEngine.run(sql, 0));
   measured['the model held and its Data filled (ms)'] = performance.now() - t0;
   classes = new Map([['px', { snapshot: snapshotOf(QUOTES, [
     { name: 'ticker', type: 'String' }, { name: 'quoteTime', type: 'DateTime' }, { name: 'closePrice', type: 'Float' },

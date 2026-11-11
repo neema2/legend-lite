@@ -10,6 +10,9 @@
 # 2026-11-11 (B2a, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): 42 lines went -- a data: source (a sourceUrl payload,
 # a JSON connection's frame) is the plan's load into a session table H2 makes (SqlDialect.dataTable), so its tests
 # pass; a file: source's 16 stay (no JSON file reader here, refused by name).
+# 2026-11-11 (B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: the text plan renders from the execution plan): 3 pivot
+# lines went -- a pivot whose columns the data names is the keyed plan the lane runs, its text no longer refused at
+# render; the two multi-column SQL-shape lines kept, re-measured (their EXCLUDE assertion is DuckDB's spelling).
 UserFunctionIntegrationTest$RelationGeneric#aChainOfCallsIsTypedOnceEach	not run 2026-10-29 (T-d2): twenty chained calls of a window-extending generic function lower to twenty nested derived tables; H2's planner re-plans every level per candidate plan (QueryExpressionIndex.getQuery) and exhausts the 512 MB heap in Select.getPlanSQL, which JUnit rethrows as unrecoverable, ending the run; passes on DuckDB and SQLite; the start page's track F
 CorrelatedRelationCheckerTest#aCorrelatedMapToOneIsAScalarSubquery	measured 2026-10-29: Column "_tds0.id" not found; SQL statement:  SELECT "_tds0"."id" AS "id", (SELECT "t1"."value" AS "value" FROM ( SELECT 
 CorrelatedRelationCheckerTest#aRootMapToOneOverAWindowFilter	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
@@ -106,11 +109,8 @@ JsonMappingIntegrationTest$BothJsonTests#testBothJsonProperties	measured 2026-11
 JsonMappingIntegrationTest$OrderJsonItemsScalarTests#testMixedOrderProperties	measured 2026-11-05 (H2 2.5.252): expected: <Bob> but was: <null>
 JsonMappingIntegrationTest$OrderJsonItemsScalarTests#testOrderJsonProperties	measured 2026-11-05 (H2 2.5.252): expected: <Alice> but was: <null>
 JsonMappingIntegrationTest$OrderScalarItemsJsonTests#testOrderItemJsonProperties	measured 2026-11-05 (H2 2.5.252): No value present
-PivotCheckerTest$MultiColumnPivot#testTwoColumnPivot	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
-PivotCheckerTest$SingleColumnPivot#testComputedMultiplicationExpression	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
-PivotCheckerTest$SingleColumnPivot#testLiteralCountExpression	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
-PivotCheckerTest$SqlGeneration#testMultiColumnPivotSql	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
-PivotCheckerTest$SqlGeneration#testSingleColumnPivotSql	measured 2026-10-29: pivot reached a dialect without a PIVOT strategy
+PivotCheckerTest$MultiColumnPivot#testTwoColumnPivot	measured 2026-11-11 (B3, the text plan is the keyed plan the lane runs; H2 has no EXCLUDE): Should use EXCLUDE to remove pivot columns ==> expected: <true> but was: <false>
+PivotCheckerTest$SqlGeneration#testMultiColumnPivotSql	measured 2026-11-11 (B3, the text plan is the keyed plan the lane runs; H2 has no EXCLUDE): Should use EXCLUDE clause ==> expected: <true> but was: <false>
 RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayCrossProduct	measured 2026-10-29: Should use UNNEST for array access ==> expected: <true> but was: <false>
 RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayWithEmptyArray	measured 2026-10-29: Should use LEFT JOIN LATERAL for empty array support ==> expected: <true> but was: <false>
 ScalarFunctionIntegrationTest#testBitAnd	measured 2026-10-29: BIT_AND reached a dialect without bit-op support

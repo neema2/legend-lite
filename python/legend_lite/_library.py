@@ -25,7 +25,7 @@ _NAMES = {'darwin': 'libcompiler.dylib', 'linux': 'libcompiler.so', 'win32': 'li
 # each entry point and how many C strings it takes after its isolate thread
 _ARITY = {
     'lite_plan_json': 3, 'lite_plan_text': 3, 'lite_hold_model': 1, 'lite_release_model': 1, 'lite_plan_json_held': 3,
-    'lite_relation_type_held': 2, 'lite_execution_plan_json_held': 3, 'lite_plan_text_held': 3, 'lite_relation_type_text_held': 2, 'lite_test_data_sql': 3,
+    'lite_relation_type_held': 2, 'lite_execution_plan_json_held': 3, 'lite_plan_text_held': 3, 'lite_relation_type_text_held': 2, 'lite_file_load': 1, 'lite_remote_mount': 1,
     'lite_database_from_catalog': 1, 'lite_table_model': 1, 'lite_catalog_columns_sql': 2, 'lite_session_setup': 1,
     # a project's own database (C5)
     'lite_project_data': 2,

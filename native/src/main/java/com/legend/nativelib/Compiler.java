@@ -189,15 +189,28 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** A model's test data as DuckDB statements, per table ({@code Boundary.testDataSql}): the tab's
-     *  {@code testDataSqlOrError}, a DataCube planner's worker's {@code testData}. */
-    @CEntryPoint(name = "lite_test_data_sql")
-    static CCharPointer testDataSql(IsolateThread thread, CCharPointer model, CCharPointer database,
-            CCharPointer tablesJson) {
+    /** A host's own file read into its database, as a plan ({@code Boundary.fileLoad}, B3): the tab's
+     *  {@code fileLoadOrError}, a DataCube planner's worker's {@code fileLoad}. */
+    @CEntryPoint(name = "lite_file_load")
+    static CCharPointer fileLoad(IsolateThread thread, CCharPointer request) {
         String a;
         try {
-            String m = text(model), d = text(database), t = text(tablesJson);
-            a = Folded.of(() -> Boundary.testDataSql(m, d, t));
+            String r = text(request);
+            a = Folded.of(() -> Boundary.fileLoad(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A remote file mounted, as a plan ({@code Boundary.remoteMount}, B3's Q3): the tab's {@code remoteMountOrError},
+     *  a DataCube planner's worker's {@code remoteMount}. */
+    @CEntryPoint(name = "lite_remote_mount")
+    static CCharPointer remoteMount(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.remoteMount(r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

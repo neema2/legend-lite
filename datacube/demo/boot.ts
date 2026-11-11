@@ -16,7 +16,7 @@ import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
 import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTrades } from '../src/sample-trades.ts';
 import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataSource } from '../../engine-client/src/project-data.ts';
-import { mountRemote } from '../src/remote.ts';
+import { mountRemote, shownAddress } from '../src/remote.ts';
 import { isPageFragment } from '../src/share/link.ts';
 import type { TableModels } from '../src/infer.ts';
 import { pageConfig } from './page-config.ts';
@@ -300,6 +300,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     sessionSetup: (databaseType: string) => engineReady.then((p) => p.tables.sessionSetup(databaseType)),
     hostOperations: (databaseType: string, operations: Parameters<TableModels['hostOperations']>[1]) =>
       engineReady.then((p) => p.tables.hostOperations(databaseType, operations)),
+    // a remote file's mount, as a planned load (B3's Q3)
+    remoteMount: (request: Parameters<TableModels['remoteMount']>[0]) => engineReady.then((p) => p.tables.remoteMount(request)),
   };
   const duck = await startDuckDbInTab((await configured).vendor, planned);
   performance.mark('dc:database-ready');
@@ -320,7 +322,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   /** Generated rows are a copy in this tab from the start; a mounted remote file is live. */
   let generated: HeldCopy | undefined;
   if (start.kind === 'sample' && remote) {
-    status.textContent = `mounting ${remote}…`;
+    status.textContent = `mounting ${shownAddress(remote)}…`;
     const format = params.get('format');
     await mountRemote(duck.engine, planned, {
       sources: [{
@@ -336,8 +338,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       // embedding application.
     });
     // said on every receipt: this tab's DuckDB answers, reading the file over HTTP
-    duck.engine.readsRemote(remote);
-    status.textContent = `reading ${remote}`;
+    duck.engine.readsRemote(shownAddress(remote));
+    status.textContent = `reading ${shownAddress(remote)}`;
   } else if (start.kind === 'sample') {
 
   status.textContent = `generating ${SAMPLE_TRADES.toLocaleString(UI_LOCALE)} rows…`;

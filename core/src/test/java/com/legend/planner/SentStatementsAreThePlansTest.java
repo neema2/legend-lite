@@ -89,6 +89,8 @@ class SentStatementsAreThePlansTest {
                     case ExecutionPlan.LoadStep.Statements st -> out.addAll(com.legend.executionplan.DataRef.Statements
                             .decode(load.content().get(st.ref().digest())));
                     case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("no file in these plans");
+                    case ExecutionPlan.LoadStep.Bound b -> throw new IllegalStateException("no host's bound statement"
+                            + " in these plans");
                 }
             }
         }

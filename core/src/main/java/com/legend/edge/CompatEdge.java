@@ -79,6 +79,9 @@ public final class CompatEdge implements Edge {
                                 new RawSqlBoundary.FileRead(bytes(f, copy), reads.statements(), reads.after()));
                     }
                 }
+                // a host's statement, bound from its own store (B3's Q3): a HOST_SESSION load's alone, never a seed's
+                case ExecutionPlan.LoadStep.Bound b -> throw new IllegalStateException("the referee's copy binds a"
+                        + " statement from a host's store, which no seed holds: " + b.sql());
             }
         }
     }

@@ -142,6 +142,18 @@ reference and the database.
      does not); the bound size each driver and database takes; and whether a database's own CSV reader (where it has
      one, item 4) or this form is the one road for pasted CSV on it. A file's bytes arrive only at run: a file stays
      with the database's reader or a bulk loader (item 3).
+7. **Short-lived scoped credentials for buckets we control** (the user, 2026-11-11, ruling on B3's presigned links:
+   "Yes do option 2, add short-lived credentials to roadmap").
+   - **The shape:** a small service issues credentials (STS-style) scoped to a prefix and expiring in minutes.
+     - The host holds them as `Held(name, KEY_ID/SECRET/SESSION_TOKEN)`, the same held binds a remote mount's S3 secret
+       takes today (B3's Q3, `LoadPlanner.remoteMount`).
+     - The view reads a plain `s3://` address.
+     - A refresh is a re-bind: the host's store takes the new values, and the mount's secret is made again from them.
+       The plan is unchanged, since its identity digests names, never values.
+   - **Presigned links stay** for links handed to us. Each is a bearer URL the host holds by name, bound to the
+     connection's session variable the view reads (B3's Q3, `docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md`).
+   - **New work:** who mints the credentials and when (the service, its scope rules, the refresh before expiry). The
+     plan records need no change.
 
 **What a database with no file reader and no bulk loader keeps** (SQLite, Trino's memory connector, MongoDB for CSV):
 - pasted data, as SQL values or inline rows;

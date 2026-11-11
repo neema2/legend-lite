@@ -395,8 +395,15 @@ public final class PureV1Api {
                 com.legend.Compiler.Target target = query.target();
                 String runtime = runtimeOf(request, query);
                 QueryPlan plan = query.plan(runtime);
-                return Json.toCompact(executionPlan(plan,
-                        connectionOf(model.records(), runtime, target.store())));
+                Map<String, Object> out = executionPlan(plan, connectionOf(model.records(), runtime, target.store()));
+                if (plan.beyondItsText() != null) {
+                    // what runs the text where neither it nor its connection says it (a data: or file: source, a pivot
+                    // whose keys are read first): lite's execution plan it renders from (B3, 2026-11-11), a field of
+                    // lite's own beside upstream's plan -- a connection's declared test data its connection already
+                    // carries, as upstream's plan does (e9: exactly upstream's)
+                    out.put("legendLitePlan", Json.parse(com.legend.executionplan.PlanJson.write(plan.plan())));
+                }
+                return Json.toCompact(out);
             });
         });
     }
@@ -592,6 +599,11 @@ public final class PureV1Api {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
             QueryPlan plan = hosted.query().plan(hosted.runtime());
+            String refused = plan.beyondItsText();
+            if (refused != null) {
+                throw new com.legend.error.NotImplementedException("a host runs a plan's statement itself, and this"
+                        + " query's plan does not run as its text: " + refused + "; legend-lite's server runs it");
+            }
             if (plan.shape() != com.legend.plan.ResultShape.TABULAR && plan.shape() != com.legend.plan.ResultShape.GRAPH) {
                 throw unprobed(hosted.query());
             }
@@ -607,6 +619,10 @@ public final class PureV1Api {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", plan.sql());
             out.put("metadata", metadata);
+            if (!plan.textAlone()) {
+                // what runs the text: the execution plan it renders from (B3, 2026-11-11), its target's loads
+                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan.plan())));
+            }
             return Json.toCompact(out);
         });
     }

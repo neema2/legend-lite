@@ -1,0 +1,55 @@
+# B3's Q3 measurement (2026-11-11, the B3 worker): duckdb-python 1.5.5 (the build's own wheel) -- a remote mount's URL
+# held as a session variable bound by a parameter, the view reading it through getvariable(), so no view's text holds
+# the URL (a presigned URL's token). Measured: SET VARIABLE binds; the view's text holds the getvariable call alone; a
+# rebind makes the view follow; CSV and a list of files read alike; a variable is ONE connection's (a second cursor reads
+# NULL: "read_parquet cannot take NULL list as parameter"); CREATE VIEW binds at once, and a failed read's error repeats
+# the whole URL, its token included; getvariable() and duckdb_variables() read the value back on that connection.
+# Probe values only: the token is a sentinel. The https read fails offline (no network), which is the error measured.
+# Run: <python 3.12> -I getvariable_view.py <the wheel unpacked> <a scratch folder> <unused>
+# The same day, DuckDB-WASM 1.33.1-dev57 (a temporary case in //engine-client:node_duckdb_test, not kept): the same on
+# every point -- the variable bound by a prepared SET VARIABLE; the view's text holding getvariable('datacube_url_t')
+# alone; a rebind followed; a second connection reading NULL ("read_csv cannot take NULL list as parameter"); CREATE
+# VIEW over a remote URL read at once, its failure "HTTP GET error on 'https://example.invalid/t.parquet?X-Amz-
+# Signature=<TOKEN>'" repeating the token.
+import sys, os
+sys.path.insert(0, sys.argv[1])
+import duckdb
+data = sys.argv[2]
+ext_httpfs = sys.argv[3]
+print('duckdb', duckdb.__version__)
+c = duckdb.connect()
+pq = os.path.join(data, 'a.parquet'); pq2 = os.path.join(data, 'b.parquet')
+c.execute(f"COPY (SELECT 1 AS id, 'x' AS v UNION ALL SELECT 2, 'y') TO '{pq}' (FORMAT PARQUET)")
+c.execute(f"COPY (SELECT 3 AS id, 'z' AS v) TO '{pq2}' (FORMAT PARQUET)")
+def step(label, f):
+    try:
+        r = f(); print('OK  ', label, '->', r)
+    except Exception as e:
+        print('FAIL', label, '->', type(e).__name__, str(e).splitlines()[0][:300])
+step('SET VARIABLE bound', lambda: c.execute("SET VARIABLE datacube_url_t = ?", [pq]).fetchall())
+step('view over getvariable', lambda: c.execute("CREATE OR REPLACE VIEW t AS SELECT * FROM read_parquet(getvariable('datacube_url_t'))").fetchall())
+step('read the view', lambda: c.execute("SELECT * FROM t ORDER BY id").fetchall())
+step('the view text', lambda: c.execute("SELECT sql FROM duckdb_views() WHERE view_name='t'").fetchall())
+step('duckdb_variables shows', lambda: c.execute("SELECT name, value FROM duckdb_variables()").fetchall())
+step('getvariable readable by a query', lambda: c.execute("SELECT getvariable('datacube_url_t')").fetchall())
+step('rebind -> the view follows', lambda: (c.execute("SET VARIABLE datacube_url_t = ?", [pq2]).fetchall(), c.execute("SELECT * FROM t").fetchall())[1])
+c2 = c.cursor()
+step('another cursor (connection) sees the variable', lambda: c2.execute("SELECT * FROM t").fetchall())
+c3 = duckdb.connect(); 
+step('csv via getvariable', lambda: (c.execute(f"COPY (SELECT 1 AS id) TO '{data}/c.csv' (HEADER)"), c.execute("SET VARIABLE u_c = ?", [data + '/c.csv']), c.execute("CREATE OR REPLACE VIEW tc AS SELECT * FROM read_csv(getvariable('u_c'), AUTO_DETECT=TRUE, HEADER=TRUE)"), c.execute("SELECT * FROM tc").fetchall())[3])
+step('unset variable -> view error', lambda: (c.execute("RESET VARIABLE datacube_url_t"), c.execute("SELECT * FROM t").fetchall())[1])
+step('list as a variable (glob list)', lambda: (c.execute("SET VARIABLE ul = ?", [[pq, pq2]]), c.execute("CREATE OR REPLACE VIEW tl AS SELECT * FROM read_parquet(getvariable('ul'))"), c.execute("SELECT count(*) FROM tl").fetchall())[2])
+# what an error echoes for a remote URL carrying a token (no network: an https read fails)
+try:
+    c.execute(f"LOAD '{ext_httpfs}'"); print('OK   httpfs loaded')
+except Exception as e:
+    print('FAIL httpfs load', str(e)[:200])
+tok = 'https://example.invalid/t.parquet?X-Amz-Signature=SENTINEL_TOKEN_123'
+step('SET VARIABLE remote url bound', lambda: c.execute("SET VARIABLE datacube_url_r = ?", [tok]).fetchall())
+step('view over remote getvariable (binds lazily?)', lambda: c.execute("CREATE OR REPLACE VIEW r AS SELECT * FROM read_parquet(getvariable('datacube_url_r'))").fetchall())
+try:
+    c.execute("SELECT * FROM r").fetchall(); print('OK   read r (unexpected)')
+except Exception as e:
+    m = str(e); print('FAIL read r -> error echoes token:', 'SENTINEL_TOKEN_123' in m, '|', m.splitlines()[0][:160].replace('SENTINEL_TOKEN_123','<TOKEN>'))
+step('view text r', lambda: c.execute("SELECT sql FROM duckdb_views() WHERE view_name='r'").fetchall())
+step('EXPLAIN r echoes token?', lambda: 'SENTINEL_TOKEN_123' in str(c.execute("EXPLAIN SELECT * FROM r").fetchall()))

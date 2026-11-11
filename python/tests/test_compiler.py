@@ -163,8 +163,8 @@ class Compiling(unittest.TestCase):
         held.close()
 
     def test_a_held_model_answers_a_datacube_planners_worker_as_the_tab_does(self):
-        # the headless host answers DataCube's `relationType` and `testData` with these, over the same Boundary functions
-        # as the tab's relationTypeHeldOrError and testDataSqlOrError (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3)
+        # the headless host answers DataCube's `relationType` and `fileLoad` with these, over the same Boundary functions
+        # as the tab's relationTypeHeldOrError and fileLoadOrError (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3)
         lib = library()
         handle = _answer(lib.call('lite_hold_model', MODEL))
         try:
@@ -179,15 +179,45 @@ class Compiling(unittest.TestCase):
         refused = lib.call('lite_plan_text_held', handle, GROUP, 'trades::RT')
         self.assertTrue(refused.startswith('ERR\n'), f'a handle let go is refused: {refused[:120]}')
 
-    def test_a_models_test_data_comes_back_as_duckdb_statements_per_table(self):
-        tables = [{'schema': 'default', 'table': 'TRADES', 'csv': 'region,desk,year\nEMEA,Rates,2024\n'}]
-        seeds = json.loads(_answer(library().call('lite_test_data_sql', MODEL, 'trades::DB', json.dumps(tables))))
-        self.assertEqual(len(seeds), 1)
-        self.assertEqual(seeds[0]['table'], 'TRADES')
-        self.assertTrue(any(s.lower().startswith('create table trades') for s in seeds[0]['sql']), seeds[0]['sql'])
-        self.assertIn('region', [c['name'].lower() for c in seeds[0]['columns']])
-        refused = library().call('lite_test_data_sql', MODEL, 'trades::DB', json.dumps([{'schema': 'default', 'table': 'NOPE', 'csv': 'a\n'}]))
-        self.assertTrue(refused.startswith('ERR\n') and 'declares no table' in refused, refused)
+    def test_a_hosts_file_comes_back_as_a_planned_load(self):
+        # B3 (2026-11-11): a person's file put into a declared table is a plan -- one HOST_SESSION load, the table made
+        # as declared, the file a reference (its name, digest and size) the host binds, never a path in a statement
+        digest = '0' * 64
+        request = {'databaseType': 'DuckDB', 'file': {'name': 'upload-1.csv', 'digest': digest, 'size': 12, 'format': 'csv'},
+                   'into': {'model': MODEL, 'database': 'trades::DB', 'schema': 'default', 'table': 'TRADES'}}
+        plan = json.loads(_answer(library().call('lite_file_load', json.dumps(request))))
+        load = plan['root']
+        self.assertEqual((load['_type'], load['cadence']), ('load', 'HOST_SESSION'))
+        self.assertTrue(any(s.get('_type') == 'statement' and s['sql'].lower().startswith('create table trades')
+                            for s in load['steps']), load['steps'])
+        file = load['steps'][-1]
+        self.assertEqual(file['ref'], {'namespace': 'HOST', 'name': 'upload-1.csv', 'digest': digest, 'size': 12,
+                                       'format': {'_type': 'csv', 'delimiter': ',', 'quote': '"'}})
+        self.assertTrue(all('?' in s and 'upload-1' not in s for s in file['delivery']['statements']), file)
+        request['into']['table'] = 'NOPE'
+        refused = library().call('lite_file_load', json.dumps(request))
+        self.assertTrue(refused.startswith('ERR\n') and 'declares not' in refused, refused)
+
+    def test_a_remote_files_mount_comes_back_as_a_planned_load_naming_what_the_host_holds(self):
+        # B3's Q3 (2026-11-11, the user's ruling: "Yes do option 2"): a remote file's mount is a plan -- one HOST_SESSION
+        # load, its secret's fields and its bearer URL bound from the host's store BY NAME, never a value in the plan; the
+        # request is names and fields alone, any other key refused
+        request = {'databaseType': 'DuckDB', 'view': 'trades', 'format': 'parquet',
+                   'location': {'bearer': 'datacube_url_trades', 'shown': 'https://b.s3.amazonaws.com/trades.parquet'},
+                   'credentials': {'name': 'datacube_s3_trades', 'fields': ['KEY_ID', 'SECRET']}}
+        plan = json.loads(_answer(library().call('lite_remote_mount', json.dumps(request))))
+        load = plan['root']
+        self.assertEqual((load['_type'], load['cadence']), ('load', 'HOST_SESSION'))
+        bound = [s for s in load['steps'] if s['_type'] == 'bound']
+        self.assertEqual([(s['reach'], s['binds']) for s in bound], [
+            ('DATABASE', [{'_type': 'held', 'name': 'datacube_s3_trades', 'field': 'KEY_ID'},
+                          {'_type': 'held', 'name': 'datacube_s3_trades', 'field': 'SECRET'},
+                          {'_type': 'value', 'text': 'https://b.s3.amazonaws.com/trades.parquet'}]),
+            ('CONNECTION', [{'_type': 'held', 'name': 'datacube_url_trades', 'field': 'URL'}])])
+        self.assertIn('getvariable', load['steps'][-1]['sql'])
+        request['credentials']['secret'] = 'SENTINEL'
+        refused = library().call('lite_remote_mount', json.dumps(request))
+        self.assertTrue(refused.startswith('ERR\n') and 'has no key secret' in refused and 'SENTINEL' not in refused, refused)
 
     def test_a_model_that_does_not_compile_is_refused_when_held(self):
         with self.assertRaises(ll.LegendError):
@@ -253,7 +283,11 @@ Data demo::party::PartyData
         self.assertEqual(p['open'], [f"ATTACH ':memory:' AS \"{p['name']}\""])
         self.assertEqual(p['use'], [f'USE "{p["name"]}"'])
         self.assertEqual(p['close'], [f'DETACH DATABASE IF EXISTS "{p["name"]}"'])
-        self.assertTrue(any('Meridian Capital' in s for s in p['fill']), p['fill'])
+        # its rows: the plan's ONCE load, its statements a blob the host checks against its digest (B3, 2026-11-11)
+        load = p['load']['root']
+        self.assertEqual((load['_type'], load['cadence']), ('load', 'ONCE'))
+        self.assertTrue(any('Meridian Capital' in text for text in load['content'].values()), load)
+        self.assertNotIn('fill', p)
         # named by what it holds: the same rows the same name, an edited row another
         self.assertEqual(project_data(self.PARTY + '\n', 'DuckDB')['name'], p['name'])
         self.assertNotEqual(project_data(self.PARTY.replace('Meridian', 'Kestrel'), 'DuckDB')['name'], p['name'])

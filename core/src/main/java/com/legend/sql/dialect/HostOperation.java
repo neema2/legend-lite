@@ -49,16 +49,52 @@ public sealed interface HostOperation {
         record Relation(Name name) implements Source {
         }
 
-        /** A file the database reads, by a registered name or a path ({@code at}), in a format. */
-        record File(String at, FileFormat format) implements Source {
+        /**
+         * A HOST'S OWN FILE, in a format, read through the statement's one {@code ?} -- which the host binds to what its
+         * database reads the file by (a registered buffer's name, a path) -- in a planned load (B3, 2026-11-11:
+         * {@code LoadPlanner.hostFile}; until then the file's name or path written into the statement, run outside any
+         * plan, census M14).
+         */
+        record HostFile(FileFormat format) implements Source {
         }
 
-        /** A file the database reads from a remote address, in a format. */
-        record Remote(String url, RemoteFormat format) implements Source {
+        /**
+         * A file the database reads from a remote address, in a format: its {@link Location} written as the address
+         * itself, or read from a session variable a bearer URL is bound to (B3's Q3, 2026-11-11: a presigned link's
+         * token never in a statement's text, nor in a view's).
+         */
+        record Remote(Location location, RemoteFormat format) implements Source {
+            public Remote {
+                java.util.Objects.requireNonNull(location, "location");
+                java.util.Objects.requireNonNull(format, "format");
+            }
         }
 
         /** A query a planner wrote, for this database. */
         record Query(String sql) implements Source {
+        }
+    }
+
+    /** Where a remote file is: an address written as it is, or a session variable a host binds its bearer URL to. */
+    sealed interface Location {
+        /** An address that carries no token: written as it is. One with a query string carries its token (a presigned
+         *  link's signature), so it is refused by name: the host holds it, and the plan names it ({@link Variable}). */
+        record Url(String url) implements Location {
+            public Url {
+                java.util.Objects.requireNonNull(url, "url");
+                if (url.indexOf('?') >= 0) {
+                    throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it,"
+                            + " and the plan names it");
+                }
+            }
+        }
+
+        /** The session variable the host binds the address it holds under {@code held} to ({@link SetVariable}), read
+         *  where the file is read. */
+        record Variable(String held) implements Location {
+            public Variable {
+                HostOperation.variable(held);
+            }
         }
     }
 
@@ -114,10 +150,75 @@ public sealed interface HostOperation {
     record Count(Source from) implements HostOperation {
     }
 
-    /** A secret a remote source's reads use, named, scoped to a path: its credentials by their kind's names. */
-    record Secret(String name, String scope, Map<String, String> credentials) implements HostOperation {
+    /**
+     * A secret a remote source's reads use, named, scoped to a path: its credentials BY NAME (B3, 2026-11-11,
+     * docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "credentials by name ... a guard keeps any secret value out of the
+     * plan"; until then the values themselves, which the statement spelled as literals). {@code fields} names which of
+     * the secret's credentials the host holds (their kind's names: {@code KEY_ID}, {@code SECRET}, ...), never a value:
+     * the statement binds, in order, each field's value and then {@code scope} -- {@link #binds()} -- and the host binds
+     * them from its own store under {@code name}. Measured on DuckDB 1.5.6: every field and the scope bind as parameters
+     * (docs/data-delivery-homework/probes/DuckDbBoundSecret.java.txt).
+     */
+    record Secret(String name, String scope, List<String> fields) implements HostOperation {
         public Secret {
-            credentials = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(credentials));
+            java.util.Objects.requireNonNull(name, "name");
+            java.util.Objects.requireNonNull(scope, "scope");
+            fields = List.copyOf(fields);
+            if (new java.util.HashSet<>(fields).size() != fields.size()) {
+                throw new IllegalArgumentException("a secret names each of its fields once: " + fields);
+            }
+        }
+
+        /** What the statement's {@code ?}s bind, in order: each field's value, then the scope ({@link #SCOPE}). */
+        public List<String> binds() {
+            List<String> out = new java.util.ArrayList<>(fields);
+            out.add(SCOPE);
+            return List.copyOf(out);
+        }
+
+        /** The last bound value's name: the secret's scope, the operation's own (no credential). */
+        public static final String SCOPE = "SCOPE";
+    }
+
+    /** The session variable for the value the host holds under {@code held} (a bearer URL, from its store: B3's Q3),
+     *  set to the statement's one {@code ?}, which the host binds: the connection's own, so a host sets it again on
+     *  every connection it opens. */
+    record SetVariable(String held) implements HostOperation {
+        public SetVariable {
+            HostOperation.variable(held);
+        }
+    }
+
+    /** The session variable for the value held under {@code held} reset, set or not (the connection's own). */
+    record ResetVariable(String held) implements HostOperation {
+        public ResetVariable {
+            HostOperation.variable(held);
+        }
+    }
+
+    /**
+     * The session variable a value the host holds under {@code held} is bound to, as a statement writes it: the
+     * dialect's own spelling, {@code lite_url_} and the hex of the name's UTF-8 bytes -- a word, one name each, so a
+     * plan's set and a host's reset name the same variable and no person's name reaches an identifier. A store's name
+     * is a word itself ({@code [A-Za-z0-9_]+}), refused by name otherwise.
+     */
+    static String variable(String held) {
+        java.util.Objects.requireNonNull(held, "held");
+        if (!held.matches("[A-Za-z0-9_]+")) {
+            throw new IllegalArgumentException("a value a host holds is named by a word of letters, digits and '_', not "
+                    + held);
+        }
+        StringBuilder out = new StringBuilder("lite_url_");
+        for (byte b : held.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            out.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+        }
+        return out.toString();
+    }
+
+    /** A secret dropped, when it is there (a remote source let go of: its keys go with it). */
+    record DropSecret(String name) implements HostOperation {
+        public DropSecret {
+            java.util.Objects.requireNonNull(name, "name");
         }
     }
 

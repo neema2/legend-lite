@@ -256,6 +256,28 @@ def _bytes_of(path: Path) -> tuple[int, str]:
     return path.stat().st_size, digest.hexdigest()
 
 
+def _connection_settings(settings: Any, url: str) -> tuple[tuple[str, tuple[Any, ...]], ...]:
+    """A remote file's settings of the connection, as its planned mount answers them (B3's Q3: a bearer URL's session
+    variable -- its statement, and its binds by name, never a value), each with its values: what this engine holds for
+    the mount -- the URL the page gave, under the field ``URL`` -- or the plan's own value as it is. Every read's cursor
+    runs them (``Frames.reading``): a variable is one connection's. A bind this engine holds nothing for is refused in
+    words (``ValueError``), naming it, never a value."""
+    out = []
+    held_url = url[:-len('#iceberg')] if url.lower().endswith('#iceberg') else url
+    for setting in settings:
+        params: list[Any] = []
+        for bind in setting['binds']:
+            if bind.get('_type') == 'value':
+                params.append(bind['text'])
+            elif bind.get('_type') == 'held' and bind.get('field') == 'URL':
+                params.append(held_url)
+            else:
+                raise ValueError(f"a remote file's setting binds {bind.get('name')}.{bind.get('field')}, which this engine"
+                                 ' holds nothing for')
+        out.append((setting['sql'], tuple(params)))
+    return tuple(out)
+
+
 def remote_url(url: str) -> bool:
     """Whether a page's URL is a remote one this engine reads: exactly ``<scheme>://<host>...`` for one of the schemes,
     as written -- DuckDB matches its remote file systems by that very prefix, case and all, and reads anything else
@@ -725,7 +747,8 @@ class Engine:
                 if refused is not None:
                     raise ValueError(refused)
             said: dict[str, Any] = json.loads(headless.call('mount', json.dumps(mount)))
-            self.frames.keep_file(name, said, view=True)
+            settings = _connection_settings(said.pop('settings', []), url)
+            self.frames.keep_file(name, said, view=True, settings=settings)
         return {**said, 'table': name}
 
     def mount_remote(self, url: str, s3: Mapping[str, Any] | None = None) -> dict[str, Any]:

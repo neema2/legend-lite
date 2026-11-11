@@ -633,6 +633,47 @@ class Remote(unittest.TestCase):
         carried = os.path.normcase(os.path.abspath(os.environ['LEGEND_LITE_DUCKDB_EXTENSIONS']))
         self.assertTrue(os.path.normcase(os.path.abspath(httpfs[1])).startswith(carried + os.sep), httpfs[1])
 
+    def test_a_remote_files_keys_are_bound_into_its_secret_never_written(self):
+        # credentials by name (B3, 2026-11-11): DataCube's mount names the secret's fields and binds their values on
+        # Python's DuckDB (duckdb-python measured here); the secret is temporary, scoped to the file, and the database's
+        # own listing redacts its values
+        sentinel = 'SENTINEL-' + os.urandom(4).hex()
+        url = f'{self.base}/desks.csv'
+        answer = self.engine.answer('POST', '/remote.json', '', json.dumps({'url': url, 'name': 'remote_keyed', 's3': {
+            'accessKeyId': sentinel + '-key', 'secretAccessKey': sentinel + '-secret', 'region': 'eu-west-1'}}))
+        self.assertEqual(answer.status, 200, answer.body[:300])
+        self.assertNotIn(sentinel.encode('utf-8'), answer.body)
+        self.assertEqual(self.frames.connection.execute('SELECT count(*) FROM remote_keyed').fetchone()[0], 2)
+        # the database's own listing redacts the secret (an access key's id it shows, as AWS does)
+        name, persistent, scope, written = self.frames.connection.execute(
+            "SELECT name, persistent, scope, secret_string LIKE ? FROM duckdb_secrets() WHERE name = 'datacube_s3_remote_keyed'",
+            ['%' + sentinel + '-secret%']).fetchone()
+        self.assertEqual((name, persistent, scope, written), ('datacube_s3_remote_keyed', False, [url], False))
+
+    def test_a_presigned_url_is_bound_to_each_reads_connection_never_written(self):
+        # a bearer URL (B3's Q3, 2026-11-11, the user's ruling: "Yes do option 2"): its query string its token, held by
+        # Python and bound to the session variable the view reads -- set on each read's cursor, a variable being one
+        # connection's (measured) -- never in the view's text nor in the mount's plan
+        import duckdb
+        sentinel = 'SENTINEL-' + os.urandom(4).hex()
+        url = f'{self.base}/trades.parquet?X-Amz-Signature={sentinel}'
+        answer = self.mount(url, 'remote_signed')
+        self.assertEqual(answer.status, 200, answer.body[:300])
+        text = self.frames.connection.execute("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_signed'").fetchone()[0]
+        self.assertNotIn(sentinel, text)
+        self.assertIn('getvariable', text)
+        # two reads, two cursors: each reads the file through the setting replayed on it
+        for _ in range(2):
+            with self.frames.reading() as read:
+                self.assertEqual(read.execute('SELECT count(*) FROM remote_signed').fetchone()[0], 3)
+        # a cursor the setting was not replayed on reads nothing
+        bare = self.frames.connection.cursor()
+        try:
+            with self.assertRaises(duckdb.Error):
+                bare.execute('SELECT count(*) FROM remote_signed').fetchone()
+        finally:
+            bare.close()
+
     def test_a_remote_iceberg_table_is_read_through_a_view_with_the_extensions_carried(self):
         answer = self.mount(self.iceberg, 'remote_iceberg')
         self.assertEqual(answer.status, 200, answer.body[-600:])
