@@ -10,7 +10,9 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { establish, hostSession, PlanRefusal, release, requestsOwn, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { establish, hostSession, PlanRefusal, release, requestsOwn, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { readFileSync } from 'node:fs';
+import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { loadPlanner, loadPlannerModule } from './planner.ts';
 import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
@@ -239,3 +241,34 @@ describe("a plan's loads, established on a database the host made for its target
     ]);
   });
 });
+
+// THE LOAD RUNNERS' CONFORMANCE (B3, 2026-11-11): runLoad and Python's projects.run_load run one fixture -- the same
+// plan's load, the same rows, the same tampered blob refused in the same words (python/tests/test_engine.py)
+describe("the load runners' shared conformance fixture", () => {
+  interface Fixture { model: string; databaseType: string; check: string; rows: unknown[][]; tamper: { from: string; to: string }; refused: string }
+  const fixture = JSON.parse(readFileSync(runfileFromEnv('RUN_LOAD_FIXTURE'), 'utf8')) as Fixture;
+  const planOf = (): { open: string[]; use: string[]; load: { root: { content: Record<string, string> } } } =>
+    JSON.parse(ok(answer(m, { kind: 'projectData', model: fixture.model, databaseType: fixture.databaseType })));
+
+  it('gives the rows the fixture names', async () => {
+    const project = planOf();
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+    for (const sql of [...project.open, ...project.use]) await own.run(sql, 0);
+    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+    const rows = await own.exclusive((held) => held.rows(fixture.check, []));
+    assert.deepEqual(rows.map((r) => r.map((v) => (typeof v === 'bigint' ? Number(v) : v))), fixture.rows);
+  });
+
+  it('refuses the tampered blob in the fixture\'s words, nothing run', async () => {
+    const project = planOf();
+    const content = project.load.root.content;
+    const [digest] = Object.keys(content);
+    content[digest!] = content[digest!]!.replace(fixture.tamper.from, fixture.tamper.to);
+    const sent: string[] = [];
+    await assert.rejects(() => runLoad(JSON.stringify(project.load), async (sql) => { sent.push(sql); }),
+      (e: unknown) => e instanceof PlanRefusal && e.message === fixture.refused || assert.fail(String(e instanceof Error ? e.message : e)));
+    assert.ok(!sent.some((s) => /INSERT/i.test(s)), sent.join('; '));
+  });
+});
+
