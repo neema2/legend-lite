@@ -138,7 +138,7 @@ final class JudgePlans {
 
             @Override
             public int chars(SqlQuery statement) {
-                return env.dialect().render(env.read(statement)).length();
+                return env.dialect().renderStatement(env.read(statement)).sql().length();
             }
 
             @Override

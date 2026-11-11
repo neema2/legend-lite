@@ -461,7 +461,7 @@ final class DatabaseJudge {
             // H2's Variant sides declined their canon before the side was written, so the database judge alone read
             // UNJUDGED where the host judge, and the ledger, read the dialect's UNNEST refusal); planning only, a
             // render with nothing sent
-            env.dialect().render(env.read(w.plan()));
+            env.dialect().renderStatement(env.read(w.plan()));
             return new SideRows(w, rider, rider.declined() != null ? "side: " + rider.declined()
                     : "graph AssertVerdicts.side (leg 3.2)");
         }
@@ -1012,7 +1012,7 @@ final class DatabaseJudge {
                             jr.textRowsMany(), ja.textRows());
                     boolean placeable;
                     try {
-                        env.dialect().render(env.read(mq));
+                        env.dialect().renderStatement(env.read(mq));
                         placeable = true;
                     } catch (com.legend.sql.DialectCapability wall) {
                         placeable = false;
