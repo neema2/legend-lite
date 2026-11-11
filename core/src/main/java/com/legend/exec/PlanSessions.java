@@ -169,26 +169,24 @@ public final class PlanSessions {
 
     /**
      * A SERVER LANE'S SESSIONS (the PCT's, moved here from its harness as data, 2026-11-09): a target with setup on the
-     * plan's own sessions ({@link #shared}: a server's database is the user's, so its own source refuses it by name); a
-     * target whose session statements are {@code optionsOnly} -- the dialect's own options, run on any session again as
-     * on a new one -- on {@code held}, the lane's held session, where it holds one; any other on a new owned session from
-     * {@code fresh}, closed with the plan's use of it (a table of the session's own, the system metamodel store's, lives
-     * only on a session of its own: round 14, 2026-11-03).
+     * plan's own sessions ({@link #shared}: a server's database is the user's, so its own source refuses it by name);
+     * any other on {@code held}, the lane's held session, where it holds one, else on a new owned session from
+     * {@code fresh}, closed with the plan's use of it. (A target whose session statements were more than the dialect's
+     * options -- the system metamodel store's session tables, round 14 -- took a new session even beside a held one,
+     * until B4, 2026-11-11: the store is the process's in-process catalog.)
      */
-    public static Source lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
-            Sessions.Opener fresh) {
-        return new Lane(held, java.util.List.copyOf(optionsOnly), java.util.Objects.requireNonNull(fresh, "fresh"));
+    public static Source lane(Sessions.@com.legend.base.Nullable Session held, Sessions.Opener fresh) {
+        return new Lane(held, java.util.Objects.requireNonNull(fresh, "fresh"));
     }
 
-    private record Lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
-            Sessions.Opener fresh) implements Source {
+    private record Lane(Sessions.@com.legend.base.Nullable Session held, Sessions.Opener fresh) implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
             if (!target.loads().isEmpty()) {
                 return openShared(target);
             }
             Sessions.Session h = held;
-            return h != null && target.session().equals(optionsOnly) ? Sessions.view(h) : Sessions.open(fresh);
+            return h != null ? Sessions.view(h) : Sessions.open(fresh);
         }
     }
 
