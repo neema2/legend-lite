@@ -30,11 +30,9 @@ class DataDeliveryMatrixPostgresTest {
             // (a bad value's refusal names its table and column since A2, 2026-11-10: refused at planning)
             // (A5, 2026-11-10: a query given no runtime runs on the one its from()s name; a write on the caller's session
             // establishes its declared setup as a read does)
-            // B4 (every catalog statement on the process's in-process catalog): a test body's and a service's catalog
-            // read on a server database asks for a system connection none configured; a program reading the store on a
-            // server database is refused by name (A5: the catalog is made in process, and the server's form is a
-            // query's alone)
-            "matrix:WRITE/CATALOG/Postgres", "matrix:TEST_BODY/CATALOG/Postgres", "matrix:SERVICE/CATALOG/Postgres");
+            // (B4, 2026-11-11: every catalog statement on the process's in-process catalog -- a test body's, a service's
+            // and a program's catalog read on Postgres green, its three cells taken off: WRITE, TEST_BODY and SERVICE)
+            );
 
     @Test
     void theMatrix(@TempDir Path dir) throws Exception {

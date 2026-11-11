@@ -64,8 +64,25 @@ public final class ProgramState {
     /** What a statement of the program reads: the system metamodel store's tables, another source. */
     private enum Reads { SYSTEM, OTHER }
 
+    /**
+     * The product door's program reads the system metamodel store (B4, 2026-11-11): raised by its first pass, on the
+     * runtime's own database, at the first statement whose reads hold the store -- before that statement is written in
+     * the runtime's dialect, which may refuse a shape the catalog's writes -- so the door plans the program whole on the
+     * process's catalog ({@code PlanMaker.plan}). A planning decision, no failure: it carries no message and no stack.
+     */
+    static final class ReadsTheCatalog extends RuntimeException {
+        ReadsTheCatalog() {
+            super(null, null, false, false);
+        }
+    }
+
+    /** Whether a statement reading the system store ends this pass ({@link ReadsTheCatalog}): the product door's first
+     *  pass over a program. */
+    private final boolean findsTheCatalog;
+
     ProgramState(TypedQuery query, String runtime, SqlDialect dialect, ExecutionPlan.Target target,
-            List<SqlExpr.PlanParam> slots, Set<Feature> features, DataSources.Tables data) {
+            List<SqlExpr.PlanParam> slots, Set<Feature> features, DataSources.Tables data, boolean findsTheCatalog) {
+        this.findsTheCatalog = findsTheCatalog;
         this.query = query;
         this.runtime = runtime;
         this.dialect = dialect;
@@ -150,17 +167,15 @@ public final class ProgramState {
     }
 
     private void reads(PlanMaker.TableReads read) {
+        if (read.system() && findsTheCatalog) {
+            throw new ReadsTheCatalog();
+        }
         if (read.system()) {
             reads.add(Reads.SYSTEM);
         }
         if (read.other()) {
             reads.add(Reads.OTHER);
         }
-    }
-
-    /** Whether a statement of the program reads the system metamodel store's tables. */
-    boolean readsSystem() {
-        return reads.contains(Reads.SYSTEM);
     }
 
     /** Whether a statement of the program reads, or writes, a source other than the system metamodel store. */

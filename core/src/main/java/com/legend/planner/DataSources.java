@@ -135,6 +135,15 @@ public record DataSources(SqlQuery query, List<ExecutionPlan.LoadStep> steps, Li
 
         /** Holds the tables to one database: {@code on}'s, the first time; a later read on another refused by name. */
         private void atHome(ExecutionPlan.Target on) {
+            if (on.database() instanceof ExecutionPlan.Database.System s && com.legend.database.Databases.dialect(
+                    ConnectionPlans.model(s.type())).getClass() != dialect.getClass()) {
+                // a side routed to the process's catalog beside a body on a server keeps the body's tables, written in
+                // the body's dialect (B4, 2026-11-11): the catalog of another dialect holds none of them
+                throw new com.legend.error.NotImplementedException("a statement reads a data: source on the process's"
+                        + " catalog (" + s.type() + "), where the body's data: tables are written for "
+                        + dialect.getClass().getSimpleName() + ": a statement reading the system metamodel store and a"
+                        + " data: source is not planned on a database the platform does not run in process");
+            }
             if (home == null) {
                 home = on.database();
             } else if (!home.equals(on.database())) {

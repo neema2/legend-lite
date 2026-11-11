@@ -781,72 +781,56 @@ class PlanMakerTest {
     private static final String CLASSES = "|meta::pure::metamodel::type::Class.all()->isEmpty()";
 
     /**
-     * The system metamodel store's tables, in the form the plan's database takes (the plan path program's step 9):
-     * on an engine in this process, the process's catalog (L4's product half, 2026-11-10; until then the target's
-     * setup, in their schema, 2026-10-18); on a SERVER engine, the
-     * session's own TEMPORARY tables (the legacy system database's form, the user's design of 2026-10-11), made by
-     * the session's statements and read by the query under their session names, with no setup for the user's
-     * database (2026-10-19: every server lane had pinned {@code testBasic} by "the plan has setup for it: never run
-     * on it"); on a server without temporary tables (Trino, MongoDB; 2026-10-20) the tables are the query's own
-     * rows, inline.
+     * The system metamodel store's tables on every relational database are the process's CATALOG (B4, 2026-11-11, the
+     * user's ruling: every statement reading the store runs on the in-process catalog; until then a server's plan
+     * carried the store as its session's temporary tables, or as the query's inline rows, census M6's forms 2 and 3,
+     * deleted): the catalog of the runtime's own engine where the platform runs it in process, DuckDB's for a server,
+     * the query written in that catalog's dialect, its ONCE load making the tables, and nothing of the store in the
+     * user's database or session.
      */
     @Test
-    void theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer() throws Exception {
-        // every relational database, each by its dialect's facts (main's merge, 2026-10-22: it named DuckDB, Postgres
-        // and Trino, one of each form)
-        java.util.Set<String> forms = new java.util.TreeSet<>();
+    void theMetamodelStoresTablesAreTheInProcessCatalogsOnEveryDatabase() throws Exception {
+        java.util.Set<DatabaseType> engines = new java.util.TreeSet<>();
         for (DatabaseType type : Databases.relational()) {
             com.legend.sql.dialect.SqlDialect dialect = Databases.dialect(type);
             ExecutionPlan plan = plan(type, CLASSES, Written.CSV);
             com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + CLASSES);
             ExecutionPlan.Target target = target(plan);
             String sql = plan.answerSql().statement();
-            if (dialect.inProcess()) {
-                // the process's catalog (L4's product half, 2026-11-10): its ONCE load makes the tables; the query's
-                // own database holds none (CatalogProductTest runs it)
-                forms.add("catalog");
-                assertTrue(target.database() instanceof ExecutionPlan.Database.System, type + ": " + target);
-                assertTrue(target.loads().stream().filter(l -> l.cadence() == ExecutionPlan.Load.Cadence.ONCE)
-                        .flatMap(l -> l.steps().stream()).anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
-                        && st.sql().contains("classes")), type + ": " + target.loads());
-                assertEquals(dialect.sessionSetup(), target.session(), type.name());
-                assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
-                continue;
-            }
-            assertTrue(target.loads().stream().flatMap(l -> l.steps().stream()).noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
+            assertTrue(target.database() instanceof ExecutionPlan.Database.System, type + ": " + target);
+            var system = (ExecutionPlan.Database.System) target.database();
+            DatabaseType catalog = ConnectionPlans.model(system.type());
+            engines.add(catalog);
+            assertEquals(dialect.inProcess() ? type : Databases.PLATFORM, catalog, type.name());
+            com.legend.sql.dialect.SqlDialect written = Databases.dialect(catalog);
+            assertTrue(written.inProcess(), type + ": " + catalog);
+            assertEquals(written.sessionSetup(), target.session(), type.name());
+            assertTrue(target.loads().stream().filter(l -> l.cadence() == ExecutionPlan.Load.Cadence.ONCE)
+                    .flatMap(l -> l.steps().stream()).anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                     && st.sql().contains("classes")), type + ": " + target.loads());
-            if (!dialect.temporaryTables()) {
-                forms.add("inline");
-                assertTrue(target.session().stream().noneMatch(s -> s.contains("metamodel_classes")),
-                        type + ": " + target.session());
-                assertTrue(sql.contains("VALUES") && !sql.contains("metamodel_classes")
-                        && !sql.contains("metamodel.classes"), type + ": " + sql);
-                continue;
-            }
-            forms.add("session");
-            List<String> session = target.session();
-            // the dialect's own session statements first (a time zone), then the session's tables
-            int create = -1;
-            for (int i = 0; i < session.size(); i++) {
-                if (session.get(i).contains("metamodel_classes")) {
-                    create = i;
-                    break;
-                }
-            }
-            assertTrue(create >= 0, type + ": " + session);
-            String made = session.get(create);
-            assertTrue(made.toLowerCase(java.util.Locale.ROOT).contains("temp"), type + ": " + made);
-            // its rows made with it (a temporary view over VALUES, Databricks') or inserted next
-            if (!made.contains("VALUES")) {
-                assertTrue(create + 1 < session.size(), type + ": " + session);
-                String insert = session.get(create + 1);
-                assertTrue(insert.toUpperCase(java.util.Locale.ROOT).startsWith("INSERT INTO")
-                        && insert.contains("metamodel_classes"), type + ": " + insert.substring(0, Math.min(120,
-                        insert.length())));
-            }
-            assertTrue(sql.contains("metamodel_classes") && !sql.contains("metamodel.classes"), type + ": " + sql);
+            // the store's tables under their own names, never a session's temporary table or the query's own rows
+            assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
+            assertTrue(target.session().stream().noneMatch(s -> s.contains("classes")), type + ": "
+                    + target.session());
+            // the same statement the catalog's own engine plans
+            assertEquals(plan(catalog, CLASSES, Written.CSV).answerSql().statement(), sql, type.name());
         }
-        assertEquals(java.util.Set.of("catalog", "inline", "session"), forms);
+        // the in-process engines' own catalogs and none other
+        assertEquals(new java.util.TreeSet<>(Databases.relational().stream().filter(t -> Databases.dialect(t)
+                .inProcess()).toList()), engines);
+    }
+
+    /** A query reading the system metamodel store beside a user's table is refused by name on every database (B4: no
+     *  session holds both; the catalog answers the metamodel alone). */
+    @Test
+    void aQueryReadingTheCatalogBesideAUsersTableIsRefusedOnEveryDatabase() {
+        for (DatabaseType type : Databases.relational()) {
+            var ctx = Compiler.compileModel(model(type.name()));
+            var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(ctx,
+                    "|meta::pure::metamodel::type::Class.all()->size() + s::Item.all()->size()")
+                    .executionPlan("s::RT"), type.name());
+            assertTrue(refused.getMessage().contains("system metamodel store"), type + ": " + refused.getMessage());
+        }
     }
 
     static ExecutionPlan plan(DatabaseType type, String query, Written output) {
