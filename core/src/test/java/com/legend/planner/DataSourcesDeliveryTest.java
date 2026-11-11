@@ -202,6 +202,38 @@ class DataSourcesDeliveryTest {
         }
     }
 
+    /** The PAYLOAD'S ORDER where a statement asks none, pinned on every database (the orchestrator's finding,
+     *  2026-11-11): a select of named columns reading an array's elements reads each element's place and is ordered by
+     *  it -- the source's place written by each dialect's own split, or its inline rows' index; a sorted, grouped or
+     *  aggregated select is as written, its source with no place. */
+    @Test
+    void anUnsortedSelectOfAPayloadIsOrderedByItsPlaceOnEveryDatabase() {
+        List<OutputCol> element = List.of(new OutputCol("data", SqlType.Scalar.JSON, true, OutputCol.Origin.PHYSICAL));
+        SqlSource.SourceUrl elements = new SqlSource.SourceUrl(PAYLOAD, "t0", element,
+                SqlSource.SourceUrl.Form.ELEMENTS);
+        com.legend.sql.SqlExpr data = com.legend.sql.SqlExpr.Column.of("t0", element.get(0));
+        SqlSelect unsorted = SqlSelect.starOf(elements).withProjections(List.of(new SqlSelect.Projection(data, "d",
+                new OutputCol("d", SqlType.Scalar.JSON, true))));
+        SqlSelect sorted = unsorted.withOrderBy(List.of(SqlSelect.SortKey.asc(data)));
+        for (DatabaseType type : java.util.stream.Stream.concat(BOUND.keySet().stream(), INLINE.stream()).toList()) {
+            SqlDialect dialect = dialect(type);
+            SqlQuery ordered = DataSources.read(unsorted, dialect);
+            assertTrue(ordered instanceof SqlSelect s && s.orderBy().size() == 1, type + ": ordered: " + ordered);
+            String sql = type == DatabaseType.MongoDB ? dialect.render(ordered)
+                    : dialect.renderStatement(ordered).sql();
+            assertTrue(sql.contains(SqlSource.SourceUrl.PLACE) || sql.contains(
+                    SqlSource.SourceUrl.PLACE.toUpperCase(java.util.Locale.ROOT)), type + ": the place read: " + sql);
+            assertTrue(type == DatabaseType.MongoDB ? sql.contains("$sort") : sql.contains("ORDER BY"),
+                    type + ": ordered by it: " + sql);
+            SqlQuery asWritten = DataSources.read(sorted, dialect);
+            String sortedSql = type == DatabaseType.MongoDB ? dialect.render(asWritten)
+                    : dialect.renderStatement(asWritten).sql();
+            assertTrue(!sortedSql.contains(SqlSource.SourceUrl.PLACE) && !sortedSql.contains(
+                    SqlSource.SourceUrl.PLACE.toUpperCase(java.util.Locale.ROOT)), type + ": the query's own sort: "
+                    + sortedSql);
+        }
+    }
+
     /** Trino's driver writes a parameter into the statement's text, which Trino bounds at 1,000,000 characters: a
      *  payload whose literal alone is longer can never run, refused at planning by name. */
     @Test

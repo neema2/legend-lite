@@ -119,6 +119,62 @@ public class JsonPayloadFormsTest {
         assertEquals(List.of(), run(c, model, source("[]") + "->from(" + StorelessRuntime.RUNTIME + ")"),
                 db + ": an empty array");
         assertFrameReadsBack(db, c);
+        assertModelOrder(db, c);
+    }
+
+    /** A JSON connection's model on {@code db}'s runtime (the orchestrator's finding, 2026-11-11): its records out of
+     *  key order, so an order the database chose on its own would show. */
+    static String jsonModel(DatabaseType db) {
+        return """
+                Class m::Raw { id: Integer[1]; t: String[1]; }
+                Class m::P { id: Integer[1]; t: String[1]; }
+                ###Mapping
+                Mapping m::MM ( m::P: Pure { ~src m::Raw id: $src.id, t: $src.t } )
+                ###Relational
+                Database m::Db ( )
+                ###Connection
+                RelationalDatabaseConnection m::Conn { store: m::Db; %s }
+                ###Runtime
+                Runtime m::RT { mappings: [m::MM]; connections: [ m::Db: [ env: m::Conn ], ModelStore: [ json: #{
+                    JsonModelConnection { class: m::Raw; url: 'data:application/json,[{"id":3,"t":"c"},{"id":1,"t":"a"},
+                    {"id":5,"t":"e"},{"id":2,"t":"b"},{"id":4,"t":"d"}]'; } }# ] ]; }
+                """.formatted(TestBackends.of(db).connectionBody());
+    }
+
+    /**
+     * The PAYLOAD'S ORDER where a query asks none (the orchestrator's finding of 2026-11-11, the Databricks lane): a
+     * JSON connection's model-to-model query, unsorted, answers its records in the payload's order, as legend-engine's
+     * JSON reader yields them (the array's order) -- its statement orders by each record's place, so no database's
+     * own order decides it; a {@code take} the first records in that order; a bare {@code sourceUrl} relation too.
+     */
+    static void assertModelOrder(DatabaseType db, Connection c) throws Exception {
+        String model = jsonModel(db);
+        com.legend.executionplan.ExecutionPlan plan = Compiler.query(Compiler.compileModel(model),
+                "|m::P.all()->project(~[id, t])").executionPlan("m::RT");
+        assertTrue(plan.answerSql().statement().contains("ORDER BY") && plan.answerSql().statement().contains(
+                SqlSource.SourceUrl.PLACE), db + ": ordered by the place: " + plan.answerSql().statement());
+        assertEquals(List.of(List.of("3", "c"), List.of("1", "a"), List.of("5", "e"), List.of("2", "b"),
+                List.of("4", "d")), strings(runOn(c, model, "|m::P.all()->project(~[id, t])")), db + ": in order");
+        assertEquals(List.of(List.of("3", "c"), List.of("1", "a")),
+                strings(runOn(c, model, "|m::P.all()->project(~[id, t])->take(2)")), db + ": the first two");
+        String relation = "[{\"a\":2},{\"a\":9},{\"a\":1}]";
+        List<Object> bare = new ArrayList<>();
+        for (List<Object> row : runOn(c, model, source(relation) + "->from(m::RT)")) {
+            bare.add(value(Json.parse((String) row.get(0))));
+        }
+        List<Object> expected = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) Json.parse(relation)).items()) {
+            expected.add(value(n));
+        }
+        assertEquals(expected, bare, db + ": a bare relation in order");
+    }
+
+    private static List<List<Object>> runOn(Connection c, String model, String query) throws Exception {
+        Collector collector = new Collector();
+        Execution.run(Compiler.query(Compiler.compileModel(model), query), "m::RT",
+                SessionSource.given(TestSessions.over(c)), PlanSessions.of(TestSessions.over(c)),
+                ProductRun.Establish.DECLARED_SETUP, new Output.Rows(collector));
+        return collector.collected().rows();
     }
 
     /**

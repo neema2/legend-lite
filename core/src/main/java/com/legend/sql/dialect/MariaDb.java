@@ -215,7 +215,7 @@ public class MariaDb extends AnsiSqlRenderer {
             return super.sourceUrl(writer, u);
         }
         writer.append("SELECT legend_payload.legend_element AS ").append(aliasIdent(payloadColumn(u).name()));
-        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+        if (u.placed()) {
             com.legend.sql.OutputCol place = placeColumn(u);
             writer.append(", CAST(legend_payload.legend_ord - 1 AS ").append(castTypeName(place.type()))
                     .append(") AS ").append(aliasIdent(place.name()));

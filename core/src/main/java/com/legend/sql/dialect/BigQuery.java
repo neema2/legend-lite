@@ -651,7 +651,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             return super.sourceUrl(writer, u);
         }
         writer.append("SELECT legend_payload AS ").append(ident(payloadColumn(u).name()));
-        boolean frame = u.form() == SqlSource.SourceUrl.Form.RECORDS;
+        boolean frame = u.placed();
         if (frame) {
             writer.append(", legend_place AS ").append(ident(placeColumn(u).name()));
         }

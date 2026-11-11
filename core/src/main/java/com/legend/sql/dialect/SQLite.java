@@ -153,7 +153,7 @@ public final class SQLite extends AnsiSqlRenderer {
         writer.append("SELECT CASE legend_payload.type WHEN 'text' THEN json_quote(legend_payload.value)"
                 + " WHEN 'null' THEN 'null' WHEN 'true' THEN 'true' WHEN 'false' THEN 'false'"
                 + " ELSE CAST(legend_payload.value AS TEXT) END AS ").append(aliasIdent(payloadColumn(u).name()));
-        if (u.form() == SqlSource.SourceUrl.Form.RECORDS) {
+        if (u.placed()) {
             com.legend.sql.OutputCol place = placeColumn(u);
             writer.append(", CAST(legend_payload.key AS ").append(castTypeName(place.type())).append(") AS ")
                     .append(aliasIdent(place.name()));

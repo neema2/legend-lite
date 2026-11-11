@@ -99,6 +99,12 @@ public sealed interface SqlSource {
             return "data:application/json;sha256=" + digest + ",";
         }
 
+        /** Whether this source reads each row's place beside it ({@link #PLACE} among its outputs): a frame's, and an
+         *  array's elements' where a statement orders by their place (the planner's payload order, 2026-11-11). */
+        public boolean placed() {
+            return outputs.stream().anyMatch(o -> o.name().equals(PLACE));
+        }
+
         /** Whether {@code url} names a payload by its digest ({@link #byDigest}). */
         public static boolean namesByDigest(String url) {
             return url.startsWith("data:application/json;sha256=");
@@ -187,11 +193,11 @@ public sealed interface SqlSource {
 
     /** {@code (VALUES (...), (...)) AS alias(col, ...)} &mdash; TDS / instance literals. {@code payload}: where these
      *  are the rows of a {@code data:} payload a dialect writes into its statement ({@code SqlDialect.inlineRows}), the
-     *  payload's SHA-256, set by the planner, which names the payload by it in the typed tree a plan carries beside the
-     *  statement ({@link SourceUrl#byDigest}: the rows are the statement's text, once -- the JSON pass, 2026-11-11);
-     *  null for every other relation of literals. Renderers read no part of it. */
+     *  payload's source named by its digest ({@link SourceUrl#byDigest}), set by the planner: what the typed tree a plan
+     *  carries beside the statement holds in their place (the rows are the statement's text, once -- the JSON pass,
+     *  2026-11-11); null for every other relation of literals. Renderers read no part of it. */
     record Values(List<List<SqlExpr>> rows, List<String> columns, String alias,
-                  List<OutputCol> outputs, @com.legend.base.Nullable String payload) implements SqlSource {
+                  List<OutputCol> outputs, @com.legend.base.Nullable SourceUrl payload) implements SqlSource {
 
         /** Literal rows of no payload. */
         public Values(List<List<SqlExpr>> rows, List<String> columns, String alias, List<OutputCol> outputs) {
