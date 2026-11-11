@@ -87,25 +87,23 @@ final class JdbcStatements implements Statements {
     }
 
     /**
-     * {@code failure}, the database's own refusal of a statement that binds a {@code data:} payload, naming the payload
-     * (the JSON pass, 2026-11-11): the database splits the payload itself, so its refusal -- a malformed element, a
-     * connection's statement or packet limit (ClickHouse's {@code max_query_size}, MySQL's and MariaDB's
-     * {@code max_allowed_packet}) -- reaches the caller saying which payload it was, as a load's failure names what it
-     * loads. A raised message (pure's own, {@link RaisedErrors}) keeps its exact text; a statement binding no payload
-     * is told as it is.
+     * {@code failure}, the database's own refusal of a statement that binds a {@code data:} payload, told under the
+     * payload's label (the JSON pass, 2026-11-11): the database splits the payload itself, so its refusal -- a malformed
+     * element, a connection's statement or packet limit (ClickHouse's {@code max_query_size}, MySQL's and MariaDB's
+     * {@code max_allowed_packet}, Trino's {@code query.max-length}) -- reaches the caller saying which payload it was,
+     * as a load's failure names what it loads. The label is the plan's ({@link ExecutionPlan.Binding.Payload#label}), and
+     * a raise is told by its type ({@link RaisedErrors.Raised}: pure's own text, kept exactly), never by comparing texts
+     * (the B checkpoint's tenets audit, LOW 4, 2026-11-11); a statement binding no payload is told as it is.
      */
     private static com.legend.error.DataError naming(SQLException e, com.legend.error.DataError failure,
-            List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
-        if (!String.valueOf(failure.getMessage()).equals(String.valueOf(e.getMessage()))) {
+            List<ExecutionPlan.Slot> slots) {
+        if (failure.getCause() instanceof RaisedErrors.Raised) {
             return failure;   // a raise, its text pure's own
         }
-        for (int i = 0; i < slots.size(); i++) {
-            if (slots.get(i).binding() instanceof ExecutionPlan.Binding.Payload payload) {
-                int characters = values.get(i) instanceof PlanParameters.One one && one.value() instanceof String text
-                        ? text.length() : 0;
-                com.legend.error.DataError named = new com.legend.error.DataError("the statement reading the data:"
-                        + " payload " + payload.digest().substring(0, 16) + " (" + characters + " characters) was"
-                        + " refused: " + failure.getMessage(), failure.getCause() != null ? failure.getCause() : e);
+        for (ExecutionPlan.Slot slot : slots) {
+            if (slot.binding() instanceof ExecutionPlan.Binding.Payload payload) {
+                com.legend.error.DataError named = new com.legend.error.DataError(payload.label() + " was refused: "
+                        + failure.getMessage(), failure.getCause() != null ? failure.getCause() : e);
                 for (Throwable suppressed : failure.getSuppressed()) {
                     named.addSuppressed(suppressed);
                 }
@@ -226,7 +224,7 @@ final class JdbcStatements implements Statements {
             }
             return st.executeUpdate();
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots, values);
+            throw naming(e, failed(e), slots);
         }
     }
 
@@ -327,7 +325,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots, values);
+            throw naming(e, failed(e), slots);
         }
     }
 
@@ -380,7 +378,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots, values);
+            throw naming(e, failed(e), slots);
         }
     }
 
@@ -410,7 +408,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots, values);
+            throw naming(e, failed(e), slots);
         }
     }
 

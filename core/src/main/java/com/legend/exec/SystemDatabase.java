@@ -51,7 +51,7 @@ public final class SystemDatabase {
     /** A catalog's session, made with its target's ONCE loads -- the store's tables and the platform's rows -- and taken
      *  by one run at a time ({@link #turn}), each run's registration inside a transaction rolled back when its leases
      *  close. */
-    private static final class Held {
+    static final class Held {
         final String key;
         final Sessions.Session session;
         final java.util.concurrent.locks.ReentrantLock turn = new java.util.concurrent.locks.ReentrantLock();
@@ -158,14 +158,20 @@ public final class SystemDatabase {
                 taken = true;
                 // the run's own loads (a product query's model registration, PER_ACQUISITION; L4's product half,
                 // 2026-11-10): inside the turn, rolled back with it -- no other run sees them
+                // (a switch EXPRESSION, so javac holds it to every cadence: the B checkpoint's tenets audit, LOW 3,
+                // 2026-11-11 -- the statement it replaced passed a host's own load by in silence)
                 for (var load : target.loads()) {
-                    switch (load.cadence()) {
-                        case ONCE -> {
-                        }
-                        case PER_ACQUISITION -> PlanRunner.establishOn(load, catalog.session);
+                    boolean perRun = switch (load.cadence()) {
+                        case ONCE -> false;
+                        case PER_ACQUISITION -> true;
                         case BEFORE_STEP, AT_STEP, PER_TRANSACTION -> throw new IllegalStateException("a "
                                 + load.cadence() + " load on the catalog's target: a program's step, never the"
                                 + " target's");
+                        case HOST_SESSION -> throw new IllegalStateException("a host's own load (HOST_SESSION) on the"
+                                + " catalog's target: a host's root load, which exec never runs");
+                    };
+                    if (perRun) {
+                        PlanRunner.establishOn(load, catalog.session);
                     }
                 }
             } finally {
@@ -177,11 +183,24 @@ public final class SystemDatabase {
 
         @Override
         public void close() {
-            com.legend.error.@com.legend.base.Nullable DataError failed = null;
+            endTurns(turns, Sessions::endTurn);
+        }
+    }
+
+    /**
+     * Every turn of {@code turns} ended by {@code end} -- its transaction rolled back -- and released, whatever any end
+     * throws (the B checkpoint's correctness audit, C8, 2026-11-11: until then a failure other than a
+     * {@code DataError} left the remaining turns locked, the list uncleared and the catalog not marked): a turn whose end
+     * failed may hold the run's rows still, so its catalog is broken, never read again; the first failure is thrown once
+     * every turn is released, each later one suppressed into it.
+     */
+    static void endTurns(List<Held> turns, java.util.function.Consumer<Sessions.Session> end) {
+        Throwable failed = null;
+        try {
             for (Held h : turns) {
                 try {
-                    Sessions.endTurn(h.session);
-                } catch (com.legend.error.DataError e) {
+                    end.accept(h.session);
+                } catch (Throwable e) {
                     // a turn not rolled back leaves rows behind: the catalog is broken, never read again
                     h.broken = true;
                     if (failed == null) {
@@ -193,10 +212,17 @@ public final class SystemDatabase {
                     h.turn.unlock();
                 }
             }
+        } finally {
             turns.clear();
-            if (failed != null) {
-                throw failed;
-            }
+        }
+        if (failed instanceof RuntimeException r) {
+            throw r;
+        }
+        if (failed instanceof Error e) {
+            throw e;
+        }
+        if (failed != null) {
+            throw new IllegalStateException("a catalog's turn did not end", failed);
         }
     }
 

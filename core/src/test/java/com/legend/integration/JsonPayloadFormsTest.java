@@ -122,6 +122,38 @@ public class JsonPayloadFormsTest {
         assertModelOrder(db, c);
     }
 
+    /**
+     * A PAYLOAD THE DATABASE REFUSES is told under its planned label (the B checkpoint's tenets audit, LOW 4,
+     * 2026-11-11: the label is the plan's, the runner writing nothing from the value it binds): a payload's element
+     * that is no JSON, on each database that binds the payload, refused naming the payload's digest and size; a raise
+     * inside such a statement (pure's own error: a division by zero) is told by its type, its text pure's exactly.
+     */
+    @ParameterizedTest
+    @MethodSource("inProcess")
+    void aPayloadsRefusalIsToldUnderItsPlannedLabel(DatabaseType db) throws Exception {
+        String model = TestBackends.of(db).withStorelessRuntime("");
+        try (Connection c = TestBackends.of(db).open()) {
+            String bad = "[{\"t\":nope}]";
+            if (!TestBackends.of(db).dialect().deliver(SqlDialect.DataPayload.alone(new SqlSource.SourceUrl(
+                    "data:application/json," + bad, "t0", List.of(new OutputCol("data", SqlType.Scalar.JSON, true,
+                            OutputCol.Origin.PHYSICAL)), SqlSource.SourceUrl.Form.ELEMENTS), List.of("{\"t\":nope}")))
+                    .getClass().equals(SqlSource.SourceUrl.class)) {
+                return;   // the payload is the statement's own rows: no slot binds it, the database's text as it is
+            }
+            String digest = com.legend.cache.Hash.ofUtf8(bad).hex();
+            var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.DataError.class,
+                    () -> run(c, model, source(bad) + "->from(" + StorelessRuntime.RUNTIME + ")"));
+            assertTrue(refused.getMessage().startsWith("the statement reading the data: payload "
+                    + digest.substring(0, 16) + " (" + bad.length() + " characters) was refused: "),
+                    db + ": " + refused.getMessage());
+            var raised = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.DataError.class,
+                    () -> run(c, model, source("[{\"a\":1}]") + "->extend(~[d: r|1 / (cast(get($r.data, 'a'),"
+                            + " @Integer)->toOne() - 1)])->select(~[d])->from(" + StorelessRuntime.RUNTIME + ")"));
+            assertTrue(!raised.getMessage().contains("was refused"), db + ": a raise is pure's own text: "
+                    + raised.getMessage());
+        }
+    }
+
     /** A JSON connection's model on {@code db}'s runtime (the orchestrator's finding, 2026-11-11): its records out of
      *  key order, so an order the database chose on its own would show. */
     static String jsonModel(DatabaseType db) {
@@ -145,7 +177,8 @@ public class JsonPayloadFormsTest {
      * The PAYLOAD'S ORDER where a query asks none (the orchestrator's finding of 2026-11-11, the Databricks lane): a
      * JSON connection's model-to-model query, unsorted, answers its records in the payload's order, as legend-engine's
      * JSON reader yields them (the array's order) -- its statement orders by each record's place, so no database's
-     * own order decides it; a {@code take} the first records in that order; a bare {@code sourceUrl} relation too.
+     * own order decides it; a {@code take} the first records in that order, below the root too (a filter, a union's
+     * arm, a grouping above it); a bare {@code sourceUrl} relation too.
      */
     static void assertModelOrder(DatabaseType db, Connection c) throws Exception {
         String model = jsonModel(db);
@@ -157,6 +190,28 @@ public class JsonPayloadFormsTest {
                 List.of("4", "d")), strings(runOn(c, model, "|m::P.all()->project(~[id, t])")), db + ": in order");
         assertEquals(List.of(List.of("3", "c"), List.of("1", "a")),
                 strings(runOn(c, model, "|m::P.all()->project(~[id, t])->take(2)")), db + ": the first two");
+        // a take, a slice, a drop or a first BELOW the root (the B checkpoint's tenets audit, M1, 2026-11-11): the
+        // payload's first records, and the rows above in its order
+        assertEquals(List.of(List.of("3", "c"), List.of("1", "a")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->take(2)->filter(r|$r.id < 5)")), db + ": take, then filter");
+        assertEquals(List.of(List.of("3", "c"), List.of("1", "a")), strings(runOn(c, model,
+                "|m::P.all()->take(2)->project(~[id, t])")), db + ": a class's take");
+        assertEquals(List.of(List.of("1", "a"), List.of("5", "e")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->slice(1, 3)->filter(r|$r.id > 0)")), db + ": slice, then filter");
+        assertEquals(List.of(List.of("2", "b"), List.of("4", "d")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->drop(3)->filter(r|$r.id > 0)")), db + ": drop, then filter");
+        assertEquals(List.of(List.of("3")), strings(runOn(c, model, "|m::P.all()->first()->toOne().id")),
+                db + ": the first");
+        List<List<String>> arms = new ArrayList<>(strings(runOn(c, model, "|m::P.all()->project(~[id, t])->take(2)"
+                + "->concatenate(m::P.all()->project(~[id, t])->drop(3))")));
+        arms.sort(java.util.Comparator.comparing(row -> row.get(0)));
+        assertEquals(List.of(List.of("1", "a"), List.of("2", "b"), List.of("3", "c"), List.of("4", "d")), arms,
+                db + ": a take in a union's arm");
+        assertEquals(List.of(List.of("a", "1"), List.of("c", "3"), List.of("e", "5")), strings(runOn(c, model,
+                "|m::P.all()->project(~[id, t])->take(3)->groupBy(~[t], ~[c: x|$x.id : y|$y->sum()])"
+                        + "->sort(~t->ascending())")), db + ": a take under a grouping");
+        assertEquals(List.of(List.of("c"), List.of("a")), strings(runOn(c, model,
+                "|m::P.all()->project(~[t])->distinct()->take(2)")), db + ": the first distinct rows");
         String relation = "[{\"a\":2},{\"a\":9},{\"a\":1}]";
         List<Object> bare = new ArrayList<>();
         for (List<Object> row : runOn(c, model, source(relation) + "->from(m::RT)")) {
@@ -190,7 +245,7 @@ public class JsonPayloadFormsTest {
         SqlSource.SourceUrl url = new SqlSource.SourceUrl("data:application/json," + records, "t0", outputs,
                 SqlSource.SourceUrl.Form.RECORDS);
         List<String> cut = List.of("{\"t\":\"it's\"}", "{\"t\":\"a\\nb\"}", "{\"t\":\"c\"}");
-        SqlSource read = dialect.deliver(new SqlDialect.DataPayload(url, cut));
+        SqlSource read = dialect.deliver(SqlDialect.DataPayload.alone(url, cut));
         RenderedStatement statement = dialect.renderStatement(SqlSelect.starOf(read));
         Map<Long, Object> byPlace = new TreeMap<>();
         try (java.sql.PreparedStatement p = c.prepareStatement(statement.sql())) {

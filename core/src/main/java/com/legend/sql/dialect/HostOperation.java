@@ -75,26 +75,6 @@ public sealed interface HostOperation {
         }
     }
 
-    /**
-     * Refuses an address that names a user or a password ({@code https://user:password@host/...}): a credential written
-     * in the address, which no plan holds -- the file's keys are a secret the host holds by name (the B checkpoint's
-     * tenets audit, LOW 5, 2026-11-11). The address is not repeated in the words.
-     */
-    static void refuseUserinfo(String url) {
-        int scheme = url.indexOf("://");
-        if (scheme < 0) {
-            return;
-        }
-        int end = scheme + 3;
-        while (end < url.length() && "/?#".indexOf(url.charAt(end)) < 0) {
-            end++;
-        }
-        if (url.substring(scheme + 3, end).indexOf('@') >= 0) {
-            throw new IllegalArgumentException("a URL naming a user or a password (user:password@host) carries its"
-                    + " credential: the host holds a file's keys as a secret, and the plan names it");
-        }
-    }
-
     /** Where a remote file is: an address written as it is, or a session variable a host binds its bearer URL to. */
     sealed interface Location {
         /** An address that carries no token: written as it is. One with a query string carries its token (a presigned
@@ -106,8 +86,29 @@ public sealed interface HostOperation {
                     throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it,"
                             + " and the plan names it");
                 }
-                refuseUserinfo(url);
+                noUserinfo(url);
             }
+        }
+
+        /**
+         * {@code url}, its authority naming no user: an address's {@code user:password@} is a credential, which would
+         * land in the plan and in a view's text (the B checkpoint's tenets audit, LOW 5, 2026-11-11: an address such as
+         * {@code https://u:p@h/f.parquet} was accepted as it is); one that names a user is refused by name, its text
+         * never repeated in the refusal.
+         */
+        static String noUserinfo(String url) {
+            int scheme = url.indexOf("://");
+            if (scheme >= 0) {
+                int end = scheme + 3;
+                while (end < url.length() && "/?#".indexOf(url.charAt(end)) < 0) {
+                    end++;
+                }
+                if (url.substring(scheme + 3, end).indexOf('@') >= 0) {
+                    throw new IllegalArgumentException("an address that names a user (user:password@host) carries a"
+                            + " credential: the host holds its credentials by name, and the plan names none");
+                }
+            }
+            return url;
         }
 
         /** The session variable the host binds the address it holds under {@code held} to ({@link SetVariable}), read

@@ -90,7 +90,8 @@ public final class LoadPlanner {
                 throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it as a"
                         + " bearer URL, and the plan names it");
             }
-            com.legend.sql.dialect.HostOperation.refuseUserinfo(url);
+            // a user in the address is a credential (the B checkpoint's tenets audit, LOW 5, 2026-11-11)
+            com.legend.sql.dialect.HostOperation.Location.noUserinfo(url);
         }
     }
 
@@ -104,7 +105,7 @@ public final class LoadPlanner {
                 throw new IllegalArgumentException("a bearer URL's shown address is its address without the query"
                         + " string, which carries the token");
             }
-            com.legend.sql.dialect.HostOperation.refuseUserinfo(shown);
+            com.legend.sql.dialect.HostOperation.Location.noUserinfo(shown);
         }
     }
 

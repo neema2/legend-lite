@@ -61,6 +61,12 @@ public record QueryPlan(com.legend.executionplan.ExecutionPlan plan, ExprType ro
      * reads it from the plan it is given beside the text, by digest, verified once ({@link #bindsPayload}).
      */
     public @com.legend.base.Nullable String beyondItsText() {
+        if (target().database() instanceof com.legend.executionplan.ExecutionPlan.Database.System) {
+            // the process's catalog, never the runtime's connection (the B checkpoint's tenets audit, LOW 8, 2026-11-11:
+            // its text, in the catalog's dialect, was answered under the runtime's connection as if it ran there)
+            return "its statement reads the system metamodel store, on the process's catalog, not the runtime's"
+                    + " connection";
+        }
         if (plan.root() instanceof com.legend.executionplan.ExecutionPlan.Keyed) {
             return "a pivot whose columns the data names reads its keys first, then its body per key";
         }

@@ -195,12 +195,11 @@ class HostOperationsTest {
         assertEquals("RESET VARIABLE " + HostOperation.variable("datacube_url_r"), one(new HostOperation.ResetVariable("datacube_url_r")));
         assertTrue(assertThrows(IllegalArgumentException.class, () -> new HostOperation.Location.Url(
                 "https://b.s3.amazonaws.com/t.parquet?X-Amz-Signature=SENTINEL")).getMessage().contains("carries its token"));
-        // a user or a password in the address (the tenets audit's LOW 5): refused by name, the address not repeated
-        String named = assertThrows(IllegalArgumentException.class, () -> new HostOperation.Location.Url(
-                "https://sam:SENTINEL-password@b.example/t.parquet")).getMessage();
-        assertTrue(named.contains("user:password@host") && !named.contains("SENTINEL"), named);
-        // an '@' past the address (a path's, a fragment's) is no user
-        assertEquals("https://b.example/a@b.parquet", new HostOperation.Location.Url("https://b.example/a@b.parquet").url());
+        // a user in the address is a credential (the B checkpoint's tenets audit, LOW 5, 2026-11-11)
+        var withUser = assertThrows(IllegalArgumentException.class, () -> new HostOperation.Location.Url(
+                "https://u:SENTINEL@h/f.parquet"));
+        assertTrue(withUser.getMessage().contains("names a user") && !withUser.getMessage().contains("SENTINEL"),
+                withUser.getMessage());
         assertThrows(IllegalArgumentException.class, () -> new HostOperation.SetVariable("x = 1; DROP TABLE t"));
         assertEquals("CREATE OR REPLACE TABLE \"db\".\"s\".\"t\" AS SELECT * REPLACE (CAST(x AS VARCHAR) AS \"x\") FROM (SELECT 1 AS x)",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, new HostOperation.Name("db", "s", "t", false), true,

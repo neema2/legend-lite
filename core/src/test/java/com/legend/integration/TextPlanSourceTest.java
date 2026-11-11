@@ -54,6 +54,34 @@ class TextPlanSourceTest {
         assertEquals("its statement binds a file: source's path", fileText.beyondItsText());
     }
 
+    /** A CATALOG READ does not run as its text (the B checkpoint's tenets audit, LOW 8, 2026-11-11): its statement runs
+     *  on the process's catalog, never the runtime's connection -- its plan's System target -- so arrowPlan, whose host
+     *  runs the text itself, refuses it by name, on an H2 runtime (its catalog H2's in process) and a Postgres one (its
+     *  catalog DuckDB's, whose text was answered as Postgres's) alike. generatePlan answers legend-engine's plan alone,
+     *  nothing beside it (M5, the user's ruling of 2026-11-11: "yes, take out of compatibility plan"): lite's plan, its
+     *  catalog target, reaches a lite host by lite's own routes. */
+    @Test
+    void aCatalogReadDoesNotRunAsItsText() {
+        for (DatabaseType db : java.util.List.of(DatabaseType.H2, DatabaseType.Postgres)) {
+            String model = DataDeliveryMatrixTest.model(DataDeliveryMatrixTest.connection(db,
+                    DataDeliveryMatrixTest.localH2("testDataSetupCSV: ''")), "");
+            var query = Compiler.query(Compiler.compileModel(model), "|" + DataDeliveryMatrixTest.CATALOG);
+            assertTrue(query.plan("x::RT").target().database()
+                    instanceof com.legend.executionplan.ExecutionPlan.Database.System, db.name());
+            String lambda = com.legend.server.PureV1Api.grammarToJsonLambda("|" + DataDeliveryMatrixTest.CATALOG,
+                    false).json();
+            String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda + ",\"model\":"
+                    + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", model))
+                    + ",\"runtime\":{\"runtime\":\"x::RT\"},\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+            var generated = com.legend.server.PureV1Api.generatePlan(request);
+            assertEquals(200, generated.status(), generated.json());
+            assertTrue(SINGLE_EXECUTION_PLAN.containsAll(com.legend.json.Json.parseObject(generated.json()).fields()
+                    .keySet()), db + ": legend-engine's plan alone: " + generated.json());
+            var arrow = com.legend.server.PureV1Api.arrowPlan(request, java.util.List.of(model));
+            assertTrue(arrow.json().contains("the system metamodel store"), db + ": " + arrow.json());
+        }
+    }
+
     /** The fields of legend-engine's SingleExecutionPlan (protocol-pure 4.145.0, SingleExecutionPlan.java:29-37, and
      *  ExecutionPlan's {@code _type}): its reader fails on any other top-level field (Jackson's
      *  FAIL_ON_UNKNOWN_PROPERTIES, no @JsonIgnoreProperties). */

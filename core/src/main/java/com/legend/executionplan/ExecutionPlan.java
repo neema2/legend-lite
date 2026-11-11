@@ -832,10 +832,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         /** A {@code data:} payload's one JSON array, the plan's own value, bound as its text to a statement that splits
          *  it itself (its dialect's delivery, 2026-11-11); named by its SHA-256 {@code digest}, its text the
          *  statement's {@link Sql#content} (the JSON pass, 2026-11-11: the payload's bytes once in the plan's data, as a
-         *  load's are); the slot names no declared parameter. Census M18: the payload in the plan. */
-        record Payload(String digest) implements Binding {
+         *  load's are); the slot names no declared parameter. Census M18: the payload in the plan. {@code label}: what
+         *  the database's refusal of the statement is told under (its digest's head and its size, planned: the B
+         *  checkpoint's tenets audit, LOW 4, 2026-11-11 -- until then the runner wrote it from the bound value). */
+        record Payload(String digest, String label) implements Binding {
             public Payload {
                 Objects.requireNonNull(digest, "digest");
+                Objects.requireNonNull(label, "label");
             }
         }
     }

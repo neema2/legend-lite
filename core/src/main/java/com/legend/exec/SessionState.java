@@ -12,13 +12,21 @@ import java.util.Set;
  * D70, 2026-10-30, shared by its views; until then a process-wide weak map keyed by the driver's connection, because a
  * connection was wrapped as a session anew at every call): the seeds it ran, by their SOURCES (a value key the driver builds: the from()'s
  * inline setups and the runtimes it names, never the rendered text, 2026-09-16), or a seed step's key; the session
- * statements each target ran on it. A writing statement, or a rollback, forgets every key's seeds: the next
- * establishment of each re-seeds. Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
+ * statements each target ran on it; the run's registrations on the catalog. A writing statement, or a rollback, forgets
+ * every key's seeds: the next establishment of each re-seeds; a rollback alone forgets a registration. Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
  * keyed by the {@code java.sql.Connection} it held; the driver now holds a {@link Sessions.Session} and asks it.
  */
 public final class SessionState {
 
     private final Set<Record> seeded = new HashSet<>();
+
+    /** The run's REGISTRATIONS on the process's catalog in place on this session ({@code PER_TRANSACTION} loads: the
+     *  model's rows inserted into the catalog's keyed tables, inside the run's turn), held apart from the seeds: no write
+     *  undoes them -- a write is the user's, or a staged table's, never the catalog's own rows -- so they stand until the
+     *  turn's transaction rolls back ({@link #rolledBack}). Until the B checkpoint's correctness audit (C1, 2026-11-11)
+     *  they were seeds, which a write forgot: the next catalog step registered the model again, its rows inserted twice
+     *  into keyed tables (a duplicate key). */
+    private final Set<Record> registered = new HashSet<>();
 
     /** The targets' session statement lists that have run on this session, each once: the dialect's session setup is
      *  idempotent by contract ({@code SqlDialect.sessionSetup}), so a list runs before the connection's first
@@ -53,9 +61,20 @@ public final class SessionState {
 
     /** A statement that WRITES is about to run on the session: every key's seeds establish again (a write may change
      *  any seeded table; until MRe one flag stood for them all, and establishing one key cleared it for every other --
-     *  the MR inventory's latent defect). */
+     *  the MR inventory's latent defect). A registration stands ({@link #registered}). */
     public synchronized void markWriting() {
         seeded.clear();
+    }
+
+    /** Whether the registration {@code key} names is in place: run on this session in its transaction, and no rollback
+     *  since. */
+    public synchronized boolean registered(Record key) {
+        return registered.contains(key);
+    }
+
+    /** The registration {@code key} names was just run on this session, inside its transaction. */
+    public synchronized void register(Record key) {
+        registered.add(key);
     }
 
     /** Whether {@code statements}, a target's session statements, have still to run on this session: not run since
@@ -76,6 +95,7 @@ public final class SessionState {
     public synchronized void rolledBack() {
         sessionStatementsRun.clear();
         seeded.clear();
+        registered.clear();
     }
 
     /** A run's turn on the catalog began on this session ({@code Sessions.beginTurn}). */

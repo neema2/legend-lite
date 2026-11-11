@@ -69,9 +69,14 @@ class SourceUrlUserCallableTest {
         assertTrue(!sql.statement().contains("\"a\":1") && !sql.statement().contains("legend_data_"),
                 "no payload and no session table in the statement: " + sql.statement());
         String digest = com.legend.cache.Hash.ofUtf8(PAYLOAD.substring(PAYLOAD.indexOf(',') + 1)).hex();
-        assertEquals(List.of(new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest)),
+        String text = PAYLOAD.substring(PAYLOAD.indexOf(',') + 1);
+        // its label planned (the B checkpoint's tenets audit, LOW 4, 2026-11-11): what the database's refusal is told
+        // under, its digest's head and its size, never written by the runner from the value it binds
+        assertEquals(List.of(new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest,
+                "the statement reading the data: payload " + digest.substring(0, 16) + " (" + text.length()
+                        + " characters)")),
                 sql.slots().stream().map(com.legend.executionplan.ExecutionPlan.Slot::binding).toList());
-        assertEquals(java.util.Map.of(digest, PAYLOAD.substring(PAYLOAD.indexOf(',') + 1)), sql.content());
+        assertEquals(java.util.Map.of(digest, text), sql.content());
         assertEquals(List.of(), sql.target().loads(), "no load");
     }
 
@@ -85,9 +90,8 @@ class SourceUrlUserCallableTest {
                 q).executionPlan("test::RT");
         com.legend.executionplan.ExecutionPlan.Sql sql = plan.answerSql();
         String digest = com.legend.cache.Hash.ofUtf8(PAYLOAD.substring(PAYLOAD.indexOf(',') + 1)).hex();
-        assertEquals(List.of(new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest),
-                new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest)),
-                sql.slots().stream().map(com.legend.executionplan.ExecutionPlan.Slot::binding).toList());
+        assertEquals(List.of(digest, digest), sql.slots().stream().map(slot ->
+                ((com.legend.executionplan.ExecutionPlan.Binding.Payload) slot.binding()).digest()).toList());
         assertEquals(1, sql.content().size(), "one text for two equal sources: " + sql.content().keySet());
         try (Connection c = LaneFloor.backend().open()) {
             Lean.Result r = Lean.run(MIN_MODEL, q, "test::RT", c);

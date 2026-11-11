@@ -35,53 +35,196 @@ public final class DataSources {
     /** {@code q} reading each {@code data:} source as {@code dialect}'s database takes it, in the payload's order where
      *  {@code q} asks none ({@link #inPayloadOrder}). */
     public static SqlQuery read(SqlQuery q, SqlDialect dialect) {
-        return new Rewriter(dialect).rewrite(inPayloadOrder(q));
+        SqlQuery ordered = inPayloadOrder(q);
+        return new Rewriter(dialect, RunValues.in(ordered)).rewrite(ordered);
     }
 
     /**
      * {@code q} in its payload's order where it asks none (the orchestrator's finding of 2026-11-11, the Databricks
-     * lane: a JSON connection's model-to-model query wrote its records' order nowhere): a select reading a {@code data:}
-     * source directly, its own rows one per record -- its columns (a star named as the source's own), no sort, no
-     * grouping, no aggregate or window, no DISTINCT -- reads each record's place ({@link SqlSource.SourceUrl#PLACE}: every delivery numbers the payload's
-     * elements from 0) and is ordered by it, as legend-engine yields a JSON connection's instances: in the array's
-     * order (its {@code JsonDataReader} queues the array's elements as it reads them, first in first out). Any other
-     * select is as its query wrote it: a sort is the query's own, and a grouping, a join or a star asks no order of
-     * the payload's.
+     * lane: a JSON connection's model-to-model query wrote its records' order nowhere), as legend-engine yields a JSON
+     * connection's instances: in the array's order (its {@code JsonDataReader} queues the array's elements as it reads
+     * them, first in first out). Every delivery numbers the payload's elements from 0, and a select reads each record's
+     * place ({@link SqlSource.SourceUrl#PLACE}) where it orders by it:
+     * <ul>
+     * <li>EVERY SELECT, AT ANY DEPTH, WHOSE LIMIT OR OFFSET PICKS A PAYLOAD'S RECORDS without a sort of its own -- a
+     * {@code take}, {@code slice}, {@code drop}, {@code limit} or {@code first} under a filter, a union's arm, a
+     * grouping, a subquery or a common table expression (the B checkpoint's tenets audit, M1, 2026-11-11: only the
+     * root was ordered, so {@code ->take(2)->filter(...)} kept whichever two records the database read first) -- is
+     * ordered by the place, read through the selects between it and the payload where each keeps its records (a
+     * filter, a projection, a window: {@link #carried}); a select whose rows are groups (a grouping, an aggregate, a
+     * DISTINCT, there or below) by each group's first record's place, its DISTINCT a grouping by its columns, so its
+     * LIMIT keeps the first groups as the payload names them;</li>
+     * <li>the ROOT, where it asks no order and keeps its records, as the statement's rows: its answer in the payload's
+     * order.</li>
+     * </ul>
+     * Any other select is as its query wrote it: a sort is the query's own (and decides the order above it), and a
+     * join, a union, a common table expression's reference or a grouping without a LIMIT asks no order of the
+     * payload's.
      */
     static SqlQuery inPayloadOrder(SqlQuery q) {
-        if (!(q instanceof SqlSelect s) || !(s.from() instanceof SqlSource.SourceUrl u) || !u.url().startsWith("data:")
-                || SqlSource.SourceUrl.namesByDigest(u.url()) || s.distinct() || !s.groupBy().isEmpty()
-                || s.having() != null || s.qualify() != null || !s.orderBy().isEmpty()) {
-            return q;
-        }
-        if (s.projections().isEmpty()) {
-            // the star: the source's own columns, named, so its place is read and not answered
-            s = s.withProjections(u.outputs().stream().map(o -> new SqlSelect.Projection(SqlExpr.Column.of(u.alias(), o),
-                    o.name(), o)).toList());
-        }
-        for (SqlSelect.Projection p : s.projections()) {
-            if (p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.StarExcept || aggregates(p.expr())) {
-                return q;
+        SqlQuery limited = new SqlRewriter() {
+            @Override
+            protected SqlQuery select(SqlSelect s) {
+                if (s.limit() == null && s.offset() == null || !s.orderBy().isEmpty()) {
+                    return s;
+                }
+                Carried c = carried(s, true);
+                return c == null ? s : c.select().withOrderBy(List.of(SqlSelect.SortKey.asc(c.place())));
+            }
+        }.rewrite(q);
+        if (limited instanceof SqlSelect root && root.orderBy().isEmpty()) {
+            Carried c = carried(root, false);
+            if (c != null) {
+                return c.select().withOrderBy(List.of(SqlSelect.SortKey.asc(c.place())));
             }
         }
-        OutputCol place = u.outputs().stream().filter(o -> o.name().equals(SqlSource.SourceUrl.PLACE)).findFirst()
-                .orElse(new OutputCol(SqlSource.SourceUrl.PLACE, com.legend.sql.SqlType.Scalar.BIGINT, false,
-                        OutputCol.Origin.PHYSICAL));
-        List<OutputCol> outputs = new ArrayList<>(u.outputs());
-        if (!u.placed()) {
-            outputs.add(place);
-        }
-        return s.withFrom(new SqlSource.SourceUrl(u.url(), u.alias(), outputs, u.form()))
-                .withOrderBy(List.of(SqlSelect.SortKey.asc(SqlExpr.Column.of(u.alias(), place))));
+        return limited;
     }
 
-    /** Whether {@code e} aggregates or windows its rows, at any depth. */
-    private static boolean aggregates(SqlExpr e) {
-        if (e instanceof com.legend.sql.SqlAgg || e instanceof SqlExpr.WindowCall || e instanceof SqlExpr.JsonArrayAgg) {
+    /** A select reading its records' place: {@code place} the expression, in the select's own scope, its order by the
+     *  payload's is. */
+    private record Carried(SqlSelect select, SqlExpr place) {
+    }
+
+    /**
+     * {@code s} reading the place of the payload's records it reads -- its source a {@code data:} payload's (placed:
+     * {@link SqlSource.SourceUrl#placed}), or a subquery that keeps them and exposes their place (a projection of its
+     * own, never seen by a star above it: a star is named as its source's columns) -- with the place in {@code s}'s
+     * scope: a record's own, or a group's first record's ({@code MIN}) where {@code s} groups ({@code groups}, a DISTINCT
+     * then a grouping by its columns). Null where {@code s} reads no payload's records through such selects, sorts by a
+     * key of its own, joins, or groups when {@code groups} is false (the root rule: a grouping asks no order of its
+     * own) or windows there.
+     */
+    private static @com.legend.base.Nullable Carried carried(SqlSelect s, boolean groups) {
+        boolean windows = s.qualify() != null || s.projections().stream().anyMatch(p -> windows(p.expr()));
+        boolean aggregates = s.projections().stream().anyMatch(p -> com.legend.sql.SqlAgg.aggregatesSelect(p.expr()));
+        boolean distinct = s.distinct();
+        boolean grouped = distinct || !s.groupBy().isEmpty() || s.having() != null || aggregates;
+        if (grouped && !groups || windows && !groups
+                || distinct && (!s.groupBy().isEmpty() || s.having() != null || aggregates || windows)) {
+            return null;
+        }
+        SqlSource from = s.from();
+        List<OutputCol> own = from.outputs();
+        SqlSource placedFrom;
+        SqlExpr rowPlace;
+        if (from instanceof SqlSource.SourceUrl u && u.url().startsWith("data:")
+                && !SqlSource.SourceUrl.namesByDigest(u.url())) {
+            OutputCol place = u.outputs().stream().filter(o -> o.name().equals(SqlSource.SourceUrl.PLACE)).findFirst()
+                    .orElse(new OutputCol(SqlSource.SourceUrl.PLACE, com.legend.sql.SqlType.Scalar.BIGINT, false,
+                            OutputCol.Origin.PHYSICAL));
+            List<OutputCol> outputs = new ArrayList<>(u.outputs());
+            if (!u.placed()) {
+                outputs.add(place);
+            }
+            placedFrom = new SqlSource.SourceUrl(u.url(), u.alias(), outputs, u.form());
+            rowPlace = SqlExpr.Column.of(u.alias(), place);
+        } else if (from instanceof SqlSource.Subselect sub && sub.inner() instanceof SqlSelect inner) {
+            Carried below = carried(inner, groups);
+            if (below == null) {
+                return null;
+            }
+            SqlSelect exposed = below.select();
+            OutputCol place = exposed.outputs().stream().filter(o -> o.name().equals(SqlSource.SourceUrl.PLACE))
+                    .findFirst().orElse(null);
+            if (place == null) {
+                place = new OutputCol(SqlSource.SourceUrl.PLACE, com.legend.sql.SqlType.Scalar.BIGINT, false,
+                        OutputCol.Origin.DERIVED);
+                List<SqlSelect.Projection> ps = new ArrayList<>(exposed.projections());
+                ps.add(new SqlSelect.Projection(below.place(), SqlSource.SourceUrl.PLACE, place));
+                exposed = exposed.withProjections(ps);
+                place = exposed.outputs().get(exposed.outputs().size() - 1);
+            }
+            placedFrom = new SqlSource.Subselect(exposed, sub.alias(), sub.frameName());
+            rowPlace = SqlExpr.Column.of(sub.alias(), place);
+        } else {
+            return null;
+        }
+        SqlExpr place = grouped ? com.legend.sql.SqlAgg.Reducer.of(com.legend.sql.SqlAgg.Fn.MIN, rowPlace) : rowPlace;
+        if (!s.orderBy().isEmpty() && !placeOrder(s.orderBy())) {
+            return null;   // a sort of the query's own: it decides the order
+        }
+        List<SqlSelect.Projection> named = named(s.projections(), own, from.alias());
+        if (named == null || named.isEmpty()) {
+            return null;
+        }
+        SqlSelect out = s.withFrom(placedFrom).withProjections(named);
+        if (distinct) {
+            // a DISTINCT, a grouping by its columns: ordered by each group's first record -- a constant column groups
+            // nothing, and a literal key reads as a position in some databases' GROUP BY, so it is no key
+            List<SqlExpr> keys = named.stream().map(SqlSelect.Projection::expr).filter(e -> !constant(e)).toList();
+            if (keys.isEmpty()) {
+                return null;
+            }
+            out = new SqlSelect(out.projections(), false, out.from(), out.where(), keys, null, null, out.orderBy(),
+                    out.limit(), out.offset(), out.outputs());
+        }
+        return new Carried(out, place);
+    }
+
+    /** {@code projections} with each star named as the columns of {@code own}, its source's ({@code alias}) before the
+     *  place was read, so the place is never one of the select's rows; the star of an empty list too. Null where a star
+     *  names another source. */
+    private static @com.legend.base.Nullable List<SqlSelect.Projection> named(List<SqlSelect.Projection> projections,
+            List<OutputCol> own, String alias) {
+        if (projections.isEmpty()) {
+            return own.stream().map(o -> new SqlSelect.Projection(SqlExpr.Column.of(alias, o), o.name(), o)).toList();
+        }
+        List<SqlSelect.Projection> out = new ArrayList<>();
+        for (SqlSelect.Projection p : projections) {
+            List<String> except;
+            String table;
+            if (p.expr() instanceof SqlExpr.Star star) {
+                table = star.table();
+                except = List.of();
+            } else if (p.expr() instanceof SqlExpr.StarExcept se) {
+                table = se.table();
+                except = se.except();
+            } else {
+                out.add(p);
+                continue;
+            }
+            if (table != null && !table.equals(alias)) {
+                return null;
+            }
+            for (OutputCol o : own) {
+                if (!except.contains(o.name())) {
+                    out.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, o), o.name(), o));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Whether {@code keys} is the payload's order {@link #carried} wrote: one ascending key on a place (the reserved
+     *  column {@link SqlSource.SourceUrl#PLACE}), a record's or a group's first record's. */
+    private static boolean placeOrder(List<SqlSelect.SortKey> keys) {
+        if (keys.size() != 1 || !keys.get(0).ascending()) {
+            return false;
+        }
+        SqlExpr e = keys.get(0).expr();
+        if (e instanceof com.legend.sql.SqlAgg.Reducer r && r.fn() == com.legend.sql.SqlAgg.Fn.MIN
+                && r.args().size() == 1) {
+            e = r.args().get(0);
+        }
+        return e instanceof SqlExpr.Column c && c.name().equals(SqlSource.SourceUrl.PLACE);
+    }
+
+    /** Whether {@code e} is one value for every row: a literal, or a parameter the run binds once. */
+    private static boolean constant(SqlExpr e) {
+        return e instanceof SqlExpr.StringLit || e instanceof SqlExpr.IntLit || e instanceof SqlExpr.FloatLit
+                || e instanceof SqlExpr.DecimalLit || e instanceof SqlExpr.BoolLit || e instanceof SqlExpr.NullLit
+                || e instanceof SqlExpr.DateLit || e instanceof SqlExpr.TimestampLit || e instanceof SqlExpr.TimeLit
+                || e instanceof SqlExpr.PlanParam;
+    }
+
+    /** Whether {@code e} windows its rows, at any depth. */
+    private static boolean windows(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall) {
             return true;
         }
         for (SqlExpr c : e.children()) {
-            if (aggregates(c)) {
+            if (windows(c)) {
                 return true;
             }
         }
@@ -90,7 +233,7 @@ public final class DataSources {
 
     /** {@code dml}'s rows and conditions reading each {@code data:} source as {@code dialect}'s database takes it. */
     public static SqlDml read(SqlDml dml, SqlDialect dialect) {
-        Rewriter r = new Rewriter(dialect);
+        Rewriter r = new Rewriter(dialect, RunValues.in(dml));
         return switch (dml) {
             case SqlDml.InsertSelect i -> new SqlDml.InsertSelect(i.schema(), i.table(), i.quoting(), i.columns(),
                     i.quotedColumns(), r.rewrite(i.query()));
@@ -137,12 +280,19 @@ public final class DataSources {
         }.rewrite(tree);
     }
 
-    /** The rewriter: a {@code data:} source becomes the source its dialect delivers it as. */
+    /** The rewriter: a {@code data:} source becomes the source its dialect delivers it as -- told what its statement
+     *  binds besides (the payloads delivered bound before it, each slot counted; whether a value only the run knows is
+     *  bound: the B checkpoint's correctness audit, C3, 2026-11-11), so a dialect whose driver bounds a statement's
+     *  parameters together decides per statement. One per statement. */
     private static final class Rewriter extends SqlRewriter {
         private final SqlDialect dialect;
+        private final boolean runValues;
+        /** The characters of each payload delivered bound so far in the statement, one per slot. */
+        private final List<Integer> bound = new ArrayList<>();
 
-        Rewriter(SqlDialect dialect) {
+        Rewriter(SqlDialect dialect, boolean runValues) {
             this.dialect = dialect;
+            this.runValues = runValues;
         }
 
         SqlExpr expression(SqlExpr e) {
@@ -157,13 +307,89 @@ public final class DataSources {
             String content = content(u.url());
             List<String> elements = u.form() == SqlSource.SourceUrl.Form.RECORDS ? records(content, u.url())
                     : elements(content, u.url());
-            SqlDialect.DataPayload payload = new SqlDialect.DataPayload(u, elements);
+            long before = bound.stream().mapToLong(Integer::longValue).sum();
+            SqlDialect.DataPayload payload = new SqlDialect.DataPayload(u, elements, before, runValues);
             SqlSource delivered = dialect.deliver(payload);
+            if (delivered instanceof SqlSource.SourceUrl) {
+                // bound: one more parameter of the payload's characters
+                bound.add(payload.array().length());
+            }
             // a payload written as the statement's own rows is named by its digest (as a bound one's text is), which
             // the typed tree its plan carries reads it by (byDigest): the rows once, the statement's text
             return delivered instanceof SqlSource.Values v ? new SqlSource.Values(v.rows(), v.columns(), v.alias(),
                     v.outputs(), new SqlSource.SourceUrl(SqlSource.SourceUrl.byDigest(com.legend.cache.Hash.ofUtf8(
                             payload.array()).hex()), u.alias(), u.outputs(), u.form())) : delivered;
+        }
+    }
+
+    /** Whether a statement binds a value only its run knows -- a declared parameter, a keyed region's key, a live
+     *  source's admitted path -- whose size no plan can count. */
+    private static final class RunValues {
+        private RunValues() {
+        }
+
+        static boolean in(SqlQuery q) {
+            List<Object> found = new ArrayList<>();
+            scan(found).rewrite(q);
+            return !found.isEmpty();
+        }
+
+        static boolean in(SqlDml dml) {
+            List<Object> found = new ArrayList<>();
+            Scan scan = scan(found);
+            switch (dml) {
+                case SqlDml.InsertSelect i -> scan.rewrite(i.query());
+                case SqlDml.Merge m -> scan.rewrite(m.query());
+                case SqlDml.Update u -> {
+                    u.assignments().forEach(a -> scan.expression(a.value()));
+                    if (u.where() != null) {
+                        scan.expression(u.where());
+                    }
+                }
+                case SqlDml.DeleteWhere d -> {
+                    if (d.where() != null) {
+                        scan.expression(d.where());
+                    }
+                }
+                case SqlDml.CreateTempTableAs c -> scan.rewrite(c.query());
+                // rows written as literals, a staged table's name, a file's path: no query source in them
+                case SqlDml.InsertValues v -> {
+                }
+                case SqlDml.InsertFromTable t -> {
+                }
+                case SqlDml.DeleteAll d -> {
+                }
+                case SqlDml.LoadCsv l -> {
+                }
+            }
+            return !found.isEmpty();
+        }
+
+        /** A walk adding each run value it meets to {@code found}. */
+        private static Scan scan(List<Object> found) {
+            return new Scan() {
+                @Override
+                protected SqlExpr expr(SqlExpr e) {
+                    if (e instanceof SqlExpr.PlanParam || e instanceof SqlExpr.KeyCell) {
+                        found.add(e);
+                    }
+                    return e;
+                }
+
+                @Override
+                protected SqlSource source(SqlSource s) {
+                    if (s instanceof SqlSource.SourceUrl u && !u.url().startsWith("data:")) {
+                        found.add(s);
+                    }
+                    return s;
+                }
+            };
+        }
+
+        private abstract static class Scan extends SqlRewriter {
+            final SqlExpr expression(SqlExpr e) {
+                return rewriteExpr(e);
+            }
         }
     }
 
