@@ -48,7 +48,10 @@ public final class PeRatchets {
                     + " own branch; the merged tree measures 3136, the two branches' moves not additive (as measured, not"
                     + " attributed)",
             "own_corpus.matched 3136 -> 3137 (2026-11-11, B3 merged onto the total wall, f1a6eea2c): B3's tests' models (its"
-                    + " remote mount's and host file's tests)");
+                    + " remote mount's and host file's tests)",
+            "own_corpus.matched 3137 -> 3140 (2026-11-11, the B checkpoint's audit fixes on claude/total-wall: M1, C1/C9,"
+                    + " C3, LOW 8): their tests' models (a Databricks runtime with a declared parameter, the catalog's"
+                    + " staged reads, the text plan's catalog read)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -508,29 +508,12 @@ public final class PlanMaker {
                     // catalog is read only in a run (a write on it is refused, ProgramRunner's writesHome), so the
                     // rows the let's turn would hold are the rows every reader reads, as a raw grid read before any
                     // effect stays a splice (STAGED_GRID); its readers route to the catalog by their stores
-                    state.let(unstaged(let));
+                    state.let(StagedRows.unstaged(let));
                 } else {
                     stagedLet(state, i, let);
                 }
             }
         }
-    }
-
-    /** {@code let} binding its rows themselves, its {@code stage()} dropped (under its {@code from()}s). */
-    private static TypedLet unstaged(TypedLet let) {
-        return new TypedLet(let.name(), unstaged(let.value()), let.info());
-    }
-
-    private static TypedSpec unstaged(TypedSpec value) {
-        if (value instanceof com.legend.compiler.spec.typed.TypedFrom f) {
-            TypedSpec source = unstaged(f.source());
-            return f.withSource(source, f.info());
-        }
-        if (value instanceof com.legend.compiler.spec.typed.TypedNativeCall call
-                && com.legend.builtin.Pure.Lite.STAGE.equals(call.callee().qualifiedName())) {
-            return call.args().get(0);
-        }
-        throw new IllegalStateException("a staged let whose value is no stage() call: " + value);
     }
 
     /** A STAGED RAW GRID (the walk deletion, 2026-11-06; the walk's since the seam program's S3c): a raw read bound by

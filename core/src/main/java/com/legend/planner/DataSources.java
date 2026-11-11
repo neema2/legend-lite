@@ -145,15 +145,19 @@ public final class DataSources {
             return null;   // a sort of the query's own: it decides the order
         }
         List<SqlSelect.Projection> named = named(s.projections(), own, from.alias());
-        if (named == null) {
+        if (named == null || named.isEmpty()) {
             return null;
         }
         SqlSelect out = s.withFrom(placedFrom).withProjections(named);
         if (distinct) {
-            // a DISTINCT, a grouping by its columns: ordered by each group's first record
-            out = new SqlSelect(out.projections(), false, out.from(), out.where(), named.stream()
-                    .map(SqlSelect.Projection::expr).toList(), null, null, out.orderBy(), out.limit(), out.offset(),
-                    out.outputs());
+            // a DISTINCT, a grouping by its columns: ordered by each group's first record -- a constant column groups
+            // nothing, and a literal key reads as a position in some databases' GROUP BY, so it is no key
+            List<SqlExpr> keys = named.stream().map(SqlSelect.Projection::expr).filter(e -> !constant(e)).toList();
+            if (keys.isEmpty()) {
+                return null;
+            }
+            out = new SqlSelect(out.projections(), false, out.from(), out.where(), keys, null, null, out.orderBy(),
+                    out.limit(), out.offset(), out.outputs());
         }
         return new Carried(out, place);
     }
@@ -168,14 +172,14 @@ public final class DataSources {
         }
         List<SqlSelect.Projection> out = new ArrayList<>();
         for (SqlSelect.Projection p : projections) {
-            java.util.Set<String> except;
+            List<String> except;
             String table;
             if (p.expr() instanceof SqlExpr.Star star) {
                 table = star.table();
-                except = java.util.Set.of();
+                except = List.of();
             } else if (p.expr() instanceof SqlExpr.StarExcept se) {
                 table = se.table();
-                except = java.util.Set.copyOf(se.except());
+                except = se.except();
             } else {
                 out.add(p);
                 continue;
@@ -204,6 +208,14 @@ public final class DataSources {
             e = r.args().get(0);
         }
         return e instanceof SqlExpr.Column c && c.name().equals(SqlSource.SourceUrl.PLACE);
+    }
+
+    /** Whether {@code e} is one value for every row: a literal, or a parameter the run binds once. */
+    private static boolean constant(SqlExpr e) {
+        return e instanceof SqlExpr.StringLit || e instanceof SqlExpr.IntLit || e instanceof SqlExpr.FloatLit
+                || e instanceof SqlExpr.DecimalLit || e instanceof SqlExpr.BoolLit || e instanceof SqlExpr.NullLit
+                || e instanceof SqlExpr.DateLit || e instanceof SqlExpr.TimestampLit || e instanceof SqlExpr.TimeLit
+                || e instanceof SqlExpr.PlanParam;
     }
 
     /** Whether {@code e} windows its rows, at any depth. */
@@ -275,8 +287,8 @@ public final class DataSources {
     private static final class Rewriter extends SqlRewriter {
         private final SqlDialect dialect;
         private final boolean runValues;
-        /** The characters of the payloads delivered bound so far in the statement. */
-        private long bound;
+        /** The characters of each payload delivered bound so far in the statement, one per slot. */
+        private final List<Integer> bound = new ArrayList<>();
 
         Rewriter(SqlDialect dialect, boolean runValues) {
             this.dialect = dialect;
@@ -295,11 +307,12 @@ public final class DataSources {
             String content = content(u.url());
             List<String> elements = u.form() == SqlSource.SourceUrl.Form.RECORDS ? records(content, u.url())
                     : elements(content, u.url());
-            SqlDialect.DataPayload payload = new SqlDialect.DataPayload(u, elements, bound, runValues);
+            long before = bound.stream().mapToLong(Integer::longValue).sum();
+            SqlDialect.DataPayload payload = new SqlDialect.DataPayload(u, elements, before, runValues);
             SqlSource delivered = dialect.deliver(payload);
             if (delivered instanceof SqlSource.SourceUrl) {
                 // bound: one more parameter of the payload's characters
-                bound += payload.array().length();
+                bound.add(payload.array().length());
             }
             // a payload written as the statement's own rows is named by its digest (as a bound one's text is), which
             // the typed tree its plan carries reads it by (byDigest): the rows once, the statement's text
@@ -311,29 +324,31 @@ public final class DataSources {
 
     /** Whether a statement binds a value only its run knows -- a declared parameter, a keyed region's key, a live
      *  source's admitted path -- whose size no plan can count. */
-    private static final class RunValues extends SqlRewriter {
-        private boolean found;
+    private static final class RunValues {
+        private RunValues() {
+        }
 
         static boolean in(SqlQuery q) {
-            RunValues scan = new RunValues();
-            scan.rewrite(q);
-            return scan.found;
+            List<Object> found = new ArrayList<>();
+            scan(found).rewrite(q);
+            return !found.isEmpty();
         }
 
         static boolean in(SqlDml dml) {
-            RunValues scan = new RunValues();
+            List<Object> found = new ArrayList<>();
+            Scan scan = scan(found);
             switch (dml) {
                 case SqlDml.InsertSelect i -> scan.rewrite(i.query());
                 case SqlDml.Merge m -> scan.rewrite(m.query());
                 case SqlDml.Update u -> {
-                    u.assignments().forEach(a -> scan.rewriteExpr(a.value()));
+                    u.assignments().forEach(a -> scan.expression(a.value()));
                     if (u.where() != null) {
-                        scan.rewriteExpr(u.where());
+                        scan.expression(u.where());
                     }
                 }
                 case SqlDml.DeleteWhere d -> {
                     if (d.where() != null) {
-                        scan.rewriteExpr(d.where());
+                        scan.expression(d.where());
                     }
                 }
                 case SqlDml.CreateTempTableAs c -> scan.rewrite(c.query());
@@ -347,19 +362,34 @@ public final class DataSources {
                 case SqlDml.LoadCsv l -> {
                 }
             }
-            return scan.found;
+            return !found.isEmpty();
         }
 
-        @Override
-        protected SqlExpr expr(SqlExpr e) {
-            found |= e instanceof SqlExpr.PlanParam || e instanceof SqlExpr.KeyCell;
-            return e;
+        /** A walk adding each run value it meets to {@code found}. */
+        private static Scan scan(List<Object> found) {
+            return new Scan() {
+                @Override
+                protected SqlExpr expr(SqlExpr e) {
+                    if (e instanceof SqlExpr.PlanParam || e instanceof SqlExpr.KeyCell) {
+                        found.add(e);
+                    }
+                    return e;
+                }
+
+                @Override
+                protected SqlSource source(SqlSource s) {
+                    if (s instanceof SqlSource.SourceUrl u && !u.url().startsWith("data:")) {
+                        found.add(s);
+                    }
+                    return s;
+                }
+            };
         }
 
-        @Override
-        protected SqlSource source(SqlSource s) {
-            found |= s instanceof SqlSource.SourceUrl u && !u.url().startsWith("data:");
-            return s;
+        private abstract static class Scan extends SqlRewriter {
+            final SqlExpr expression(SqlExpr e) {
+                return rewriteExpr(e);
+            }
         }
     }
 
