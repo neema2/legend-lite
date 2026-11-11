@@ -64,6 +64,30 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
                 List.of()), Integer.MAX_VALUE)));
     }
 
+    /**
+     * Each of {@code statements} as a statement whose {@code ?}s the host binds (B3's Q3, 2026-11-11): every statement
+     * binds {@code binds}, in order, {@code reach} saying where its effect lives -- a secret's (the database's) or a
+     * session variable's (the connection's). The binds name what the host holds, never its value.
+     */
+    public static LoadSteps bound(List<String> statements, List<ExecutionPlan.LoadStep.Bind> binds,
+            ExecutionPlan.Reach reach) {
+        List<ExecutionPlan.LoadStep> steps = new java.util.ArrayList<>();
+        for (String sql : statements) {
+            steps.add(new ExecutionPlan.LoadStep.Bound(sql, binds, reach));
+        }
+        return of(steps);
+    }
+
+    /** A value of the plan's own, bound to a host's statement: never a credential (a secret's scope). */
+    public static ExecutionPlan.LoadStep.Bind value(String text) {
+        return new ExecutionPlan.LoadStep.Bind.Value(text);
+    }
+
+    /** A value the host holds under {@code name}, its field {@code field}: named, never written. */
+    public static ExecutionPlan.LoadStep.Bind held(String name, String field) {
+        return new ExecutionPlan.LoadStep.Bind.Held(name, field);
+    }
+
     /** {@code load}'s rows as {@code dialect} writes them, in one blob ({@link #blob}) named as the table's data: none
      *  for a load of no row. */
     public static LoadSteps rows(RowLoad load, com.legend.sql.dialect.SqlDialect dialect) {

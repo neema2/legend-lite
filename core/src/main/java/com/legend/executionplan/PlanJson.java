@@ -124,7 +124,9 @@ public final class PlanJson {
      *  ({@code payload}, its {@code json}: the dialect's delivery, Snowflake's and BigQuery's). 47 the same day (B3): a
      *  data reference may name a HOST's own file (a person's upload) in the formats {@code detectedCsv},
      *  {@code parquet} and {@code json}, and a load may be HOST_SESSION (kept until the person resets it), a host's
-     *  alone. */
+     *  alone; and (B3's Q3, the same day) such a load's step may be {@code bound}: a statement whose {@code ?}s the host
+     *  binds ({@code binds}: the plan's own {@code value}, or a {@code held} one named by its store's {@code name} and
+     *  {@code field}, never its value), its {@code reach} DATABASE or CONNECTION. */
     public static final int VERSION = 47;
 
     private PlanJson() {
@@ -136,7 +138,9 @@ public final class PlanJson {
 
     enum OutputTag { fixed, perKey }
 
-    enum SetupTag { statement, statements, file }
+    enum SetupTag { statement, statements, file, bound }
+
+    enum BindTag { value, held }
 
     enum BindingTag { one, array, key, source, payload }
 
@@ -803,6 +807,28 @@ public final class PlanJson {
                 }
                 o.put("delivery", delivery);
             }
+            case LoadStep.Bound b -> {
+                o.put("_type", SetupTag.bound.name());
+                o.put("sql", b.sql());
+                o.put("reach", b.reach().name());
+                List<Object> binds = new ArrayList<>();
+                for (LoadStep.Bind bind : b.binds()) {
+                    Map<String, Object> each = new LinkedHashMap<>();
+                    switch (bind) {
+                        case LoadStep.Bind.Value v -> {
+                            each.put("_type", BindTag.value.name());
+                            each.put("text", v.text());
+                        }
+                        case LoadStep.Bind.Held h -> {
+                            each.put("_type", BindTag.held.name());
+                            each.put("name", h.name());
+                            each.put("field", h.field());
+                        }
+                    }
+                    binds.add(each);
+                }
+                o.put("binds", binds);
+            }
         }
         return o;
     }
@@ -1165,7 +1191,36 @@ public final class PlanJson {
                 };
                 yield new LoadStep.File(data, delivery, o.getInt("sizeLimitMegabytes"));
             }
+            case bound -> {
+                // exactly the writer's keys: a key that might carry a value (a "secret", a "token") is refused as unknown
+                only(o, "a bound statement", "_type", "sql", "reach", "binds");
+                List<LoadStep.Bind> binds = new ArrayList<>();
+                for (Json.Node n : o.getArr("binds").items()) {
+                    Json.Obj b = (Json.Obj) n;
+                    binds.add(switch (tag(BindTag.class, b, "bound statement's bind")) {
+                        case value -> {
+                            only(b, "a plan's own bound value", "_type", "text");
+                            yield new LoadStep.Bind.Value(b.getString("text"));
+                        }
+                        case held -> {
+                            only(b, "a held bound value", "_type", "name", "field");
+                            yield new LoadStep.Bind.Held(b.getString("name"), b.getString("field"));
+                        }
+                    });
+                }
+                yield new LoadStep.Bound(o.getString("sql"), binds, ExecutionPlan.Reach.valueOf(o.getString("reach")));
+            }
         };
+    }
+
+    /** {@code o}'s keys exactly {@code keys}, any other refused by name ({@code what} names the object). */
+    private static void only(Json.Obj o, String what, String... keys) {
+        java.util.Set<String> allowed = java.util.Set.of(keys);
+        for (String key : o.fields().keySet()) {
+            if (!allowed.contains(key)) {
+                throw new IllegalArgumentException(what + " has no key " + key);
+            }
+        }
     }
 
 

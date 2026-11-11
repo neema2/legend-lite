@@ -198,6 +198,27 @@ class Compiling(unittest.TestCase):
         refused = library().call('lite_file_load', json.dumps(request))
         self.assertTrue(refused.startswith('ERR\n') and 'declares not' in refused, refused)
 
+    def test_a_remote_files_mount_comes_back_as_a_planned_load_naming_what_the_host_holds(self):
+        # B3's Q3 (2026-11-11, the user's ruling: "Yes do option 2"): a remote file's mount is a plan -- one HOST_SESSION
+        # load, its secret's fields and its bearer URL bound from the host's store BY NAME, never a value in the plan; the
+        # request is names and fields alone, any other key refused
+        request = {'databaseType': 'DuckDB', 'view': 'trades', 'format': 'parquet',
+                   'location': {'bearer': 'datacube_url_trades', 'shown': 'https://b.s3.amazonaws.com/trades.parquet'},
+                   'credentials': {'name': 'datacube_s3_trades', 'fields': ['KEY_ID', 'SECRET']}}
+        plan = json.loads(_answer(library().call('lite_remote_mount', json.dumps(request))))
+        load = plan['root']
+        self.assertEqual((load['_type'], load['cadence']), ('load', 'HOST_SESSION'))
+        bound = [s for s in load['steps'] if s['_type'] == 'bound']
+        self.assertEqual([(s['reach'], s['binds']) for s in bound], [
+            ('DATABASE', [{'_type': 'held', 'name': 'datacube_s3_trades', 'field': 'KEY_ID'},
+                          {'_type': 'held', 'name': 'datacube_s3_trades', 'field': 'SECRET'},
+                          {'_type': 'value', 'text': 'https://b.s3.amazonaws.com/trades.parquet'}]),
+            ('CONNECTION', [{'_type': 'held', 'name': 'datacube_url_trades', 'field': 'URL'}])])
+        self.assertIn('getvariable', load['steps'][-1]['sql'])
+        request['credentials']['secret'] = 'SENTINEL'
+        refused = library().call('lite_remote_mount', json.dumps(request))
+        self.assertTrue(refused.startswith('ERR\n') and 'has no key secret' in refused and 'SENTINEL' not in refused, refused)
+
     def test_a_model_that_does_not_compile_is_refused_when_held(self):
         with self.assertRaises(ll.LegendError):
             ll.HeldModel('###Pure\nClass bad::C { a: Nope[1]; }')

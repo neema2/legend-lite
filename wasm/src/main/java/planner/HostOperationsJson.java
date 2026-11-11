@@ -43,16 +43,12 @@ final class HostOperationsJson {
             case "schema" -> new HostOperation.MakeSchema(stringOrNull(o, "database"), string(o, "name"));
             case "dropSchema" -> new HostOperation.DropSchema(stringOrNull(o, "database"), string(o, "name"));
             case "count" -> new HostOperation.Count(source(object(o, "from")));
-            case "secret" -> {
-                // credentials by name (B3, 2026-11-11): an operation names the secret's fields, never their values,
-                // which the host binds from its own store
-                if (o.has("credentials")) {
-                    throw new IllegalArgumentException("a secret's operation names its fields, never their values: "
-                            + "send {name, scope, fields}, the values bound from the host's own store");
-                }
-                yield new HostOperation.Secret(string(o, "name"), string(o, "scope"), stringList(o, "fields"));
-            }
+            // a remote file's secret is a step of its planned mount, its fields bound from the host's store (B3's
+            // Q3, 2026-11-11: Boundary.remoteMount), never an operation
+            case "secret" -> throw new IllegalArgumentException("a remote file's secret is made by its planned mount"
+                    + " (remoteMount), not an operation");
             case "dropSecret" -> new HostOperation.DropSecret(string(o, "name"));
+            case "resetVariable" -> new HostOperation.ResetVariable(string(o, "held"));
             case "extensions" -> new HostOperation.Extensions(stringList(o, "names"));
             case "extensionRepository" -> new HostOperation.ExtensionRepository(string(o, "url"));
             case "extensionDirectory" -> new HostOperation.ExtensionDirectory(string(o, "folder"));
@@ -100,19 +96,15 @@ final class HostOperationsJson {
             throw new IllegalArgumentException("a host's file is read by a planned load (fileLoad), not an operation");
         }
         if (o.has("remote")) {
-            Json.Obj r = object(o, "remote");
-            String format = string(r, "format");
-            return new HostOperation.Source.Remote(string(r, "url"), switch (format) {
-                case "csv" -> HostOperation.RemoteFormat.CSV;
-                case "parquet" -> HostOperation.RemoteFormat.PARQUET;
-                case "iceberg" -> HostOperation.RemoteFormat.ICEBERG;
-                default -> throw new IllegalArgumentException("a remote file is csv, parquet or iceberg, not " + format);
-            });
+            // a remote file is mounted by a planned load (B3's Q3, 2026-11-11: Boundary.remoteMount), its bearer URL
+            // and its keys bound from the host's store, never written in an operation
+            throw new IllegalArgumentException("a remote file is mounted by a planned load (remoteMount), not an"
+                    + " operation");
         }
         if (o.has("query")) {
             return new HostOperation.Source.Query(string(o, "query"));
         }
-        throw new IllegalArgumentException("a source is a relation, a remote file or a query");
+        throw new IllegalArgumentException("a source is a relation or a query");
     }
 
     private static List<HostOperation.Conversion> conversions(Json.Obj o) {

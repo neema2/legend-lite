@@ -24,6 +24,7 @@ export interface PlannerModule {
     executeJsonPlanOrError(body: string, modelsJson: string): string;
     executeJsonAnswerOrError(plan: string, rows: string): string;
     fileLoadOrError(request: string): string;
+    remoteMountOrError(request: string): string;
     sessionSetupOrError(databaseType: string): string;
     projectDataOrError(model: string, databaseType: string): string;
     hostOperationsOrError(databaseType: string, operations: string): string;
@@ -47,6 +48,7 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'executePlan': return m.exports.executeJsonPlanOrError(r.body, r.models);
     case 'executeAnswer': return m.exports.executeJsonAnswerOrError(r.plan, r.rows);
     case 'fileLoad': return m.exports.fileLoadOrError(r.request);
+    case 'remoteMount': return m.exports.remoteMountOrError(r.request);
     case 'sessionSetup': return m.exports.sessionSetupOrError(r.databaseType);
     case 'projectData': return m.exports.projectDataOrError(r.model, r.databaseType);
     case 'hostOperations': return m.exports.hostOperationsOrError(r.databaseType, r.operations);

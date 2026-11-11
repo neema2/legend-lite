@@ -24,8 +24,10 @@
 
 import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
 import {
-  SecretStore, type HostOperation, type HostOperationsSource, type SecretField, type SecretValue,
+  SecretStore, type RemoteMountRequest, type RemoteMountSource, type SecretField, type SecretValue,
 } from '../../engine-client/src/host-operations.ts';
+import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/connection-settings.ts';
+import type { PlanValue } from '../../engine-client/src/plan-runner.ts';
 
 export type RemoteFormat = 'parquet' | 'csv' | 'iceberg';
 
@@ -75,52 +77,43 @@ export function scanUrl(url: string): string {
   return url.replace(/#iceberg$/i, '');
 }
 
-/** The view a source is read through: its name the model's table, its rows the remote file's, read by its format. */
-export function viewOperation(source: RemoteSource): HostOperation {
-  return {
-    op: 'relation', kind: 'view', target: { name: source.name }, replace: true,
-    from: { remote: { url: scanUrl(source.url), format: source.format ?? inferFormat(source.url) } },
-  };
-}
-
 /**
- * Where a source's keys apply: its own path, as a secret's SCOPE (a prefix of the URLs it is used for) -- the URL
- * without an Iceberg mark, cut before a glob, and an Iceberg table's metadata folder its table's (its data files lie
- * beside it).
+ * The name a source's values are held under in the host's store, as a plan names it: `prefix` and the source's name,
+ * each character but a letter, a digit or '_' written `_<hex>_` -- a word (the plan names a store's entry by a word:
+ * LoadStep.Bind.Held). A source's name is an identifier already wherever a host makes one (a table's name), and kept
+ * as it is.
  */
-export function credentialScope(url: string): string {
-  let scope = scanUrl(url);
-  const glob = scope.search(/[*?[]/);
-  if (glob >= 0) scope = scope.slice(0, glob);
-  return scope.replace(/\/metadata\/?$/i, '');
+export function storeName(prefix: string, source: string): string {
+  return prefix + [...source].map((c) => (/[A-Za-z0-9_]/.test(c) ? c : `_${c.codePointAt(0)!.toString(16)}_`)).join('');
 }
 
-/** The secret a source's credentials are read with: named by the source (`datacube_s3_<name>`). */
+/** The secret a source's credentials are read with, and held under: named by the source (`datacube_s3_<name>`). */
 export function secretName(source: string): string {
-  return `datacube_s3_${source}`;
+  return storeName('datacube_s3_', source);
 }
 
-/** A source's secret: its operation, which names its fields alone, and their values, which only the host's store holds. */
-export interface SourceSecret {
-  readonly operation: Extract<HostOperation, { op: 'secret' }>;
-  readonly values: ReadonlyMap<SecretField, SecretValue>;
+/** The name a source's bearer URL is held under (`datacube_url_<name>`): the plan's held bind, the dialect's variable. */
+export function bearerName(source: string): string {
+  return storeName('datacube_url_', source);
 }
 
-/**
- * The secret one source's credentials are read with, BY NAME (B3, 2026-11-11: credentials by name): the operation names
- * the secret and the fields it holds, never a value; the values go to the host's store (`SecretStore`), from which the
- * statement binds them.
- *
- * A scoped, replaceable secret rather than process-wide settings, which leak between sources when a cube reads two
- * buckets. One secret per source, named by it and scoped to its own path: where one database serves several pages
- * (Python's), one page's keys never replace another's, nor reach another's files. None without credentials.
- */
-export function credentialSecret(
-  creds: S3Credentials | undefined,
-  source: { readonly name: string; readonly url: string },
-): SourceSecret | undefined {
-  if (!creds) return undefined;
+/** Whether a URL is a BEARER URL: its query string carries its token (a presigned link's signature), so it is held by
+ *  the host and bound, never written into a statement or a plan. */
+export function isBearer(url: string): boolean {
+  return scanUrl(url).includes('?');
+}
+
+/** A URL's address without its query string: what a receipt names and a secret's scope is cut from, never the token. */
+export function shownAddress(url: string): string {
+  const at = scanUrl(url);
+  const query = at.indexOf('?');
+  return query < 0 ? at : at.slice(0, query);
+}
+
+/** A source's S3 values, by field (none for none given). */
+function credentialValues(creds: S3Credentials | undefined): Map<SecretField, SecretValue> {
   const values = new Map<SecretField, SecretValue>();
+  if (!creds) return values;
   if (creds.accessKeyId) values.set('KEY_ID', creds.accessKeyId);
   if (creds.secretAccessKey) values.set('SECRET', creds.secretAccessKey);
   if (creds.sessionToken) values.set('SESSION_TOKEN', creds.sessionToken);
@@ -128,135 +121,128 @@ export function credentialSecret(
   if (creds.endpoint) values.set('ENDPOINT', creds.endpoint);
   if (creds.urlStyle) values.set('URL_STYLE', creds.urlStyle);
   if (creds.useSsl !== undefined) values.set('USE_SSL', creds.useSsl);
-  if (values.size === 0) return undefined;
+  return values;
+}
+
+/**
+ * ONE SOURCE'S MOUNT AS THE PLANNER IS ASKED FOR IT (B3's Q3, 2026-11-11, the user's ruling: "Yes do option 2"):
+ * NAMES AND FIELDS ONLY -- an address that carries no token as it is, a bearer URL by the name this host holds it under
+ * and its address without the query string; the S3 secret by the name it is held under and the fields given. `view`:
+ * the view it is read through under the source's name, or none (its access alone).
+ */
+export function mountRequest(databaseType: string, source: RemoteSource, creds: S3Credentials | undefined,
+  view: boolean): RemoteMountRequest {
+  const fields = [...credentialValues(creds).keys()];
   return {
-    operation: { op: 'secret', name: secretName(source.name), scope: credentialScope(source.url), fields: [...values.keys()] },
-    values,
+    databaseType,
+    ...(view ? { view: source.name } : {}),
+    location: isBearer(source.url) ? { bearer: bearerName(source.name), shown: shownAddress(source.url) } : { url: scanUrl(source.url) },
+    format: source.format ?? inferFormat(source.url),
+    ...(fields.length > 0 ? { credentials: { name: secretName(source.name), fields } } : {}),
   };
 }
 
-/** The operations one source's credentials take: its secret's, by name (none without credentials). */
-export function credentialOperations(
-  creds: S3Credentials | undefined,
-  source: { readonly name: string; readonly url: string },
-): HostOperation[] {
-  const secret = credentialSecret(creds, source);
-  return secret === undefined ? [] : [secret.operation];
-}
-
-/** The host's store for `options`' sources: each one's secret's values, under its name. */
-export function secretStore(options: RemoteOptions): SecretStore {
+/** The host's store for one source: its S3 values under its secret's name, its bearer URL under its own -- what the
+ *  plan's held binds name, bound by the hosts' runner, never written. */
+export function sourceStore(source: RemoteSource, creds: S3Credentials | undefined): SecretStore {
   const store = new SecretStore();
-  for (const source of options.sources) {
-    const secret = credentialSecret(options.s3, source);
-    if (secret !== undefined) store.hold(secret.operation.name, secret.values);
-  }
+  const values = credentialValues(creds);
+  if (values.size > 0) store.hold(secretName(source.name), values);
+  if (isBearer(source.url)) store.hold(bearerName(source.name), new Map([['URL', scanUrl(source.url)]]));
   return store;
 }
 
 /**
  * Remove credentials from text before it can be shown or logged.
  *
- * No statement holds a credential any more (each is bound: B3, 2026-11-11), but a database may still echo a bound
- * value in its own error. The values are redacted by VALUE rather than by parsing the message, so a secret is caught
- * whatever words carry it.
+ * No statement and no plan holds a credential or a bearer URL's token (each is bound: B3), but a database may still
+ * echo a bound value in its own error -- a failed read repeats the whole URL it read (measured, B3's Q3). The values
+ * are redacted by VALUE rather than by parsing the message, so a secret is caught whatever words carry it.
  */
 export function redactSecrets(
   text: string,
   creds: S3Credentials | undefined,
+  urls: readonly string[] = [],
 ): string {
-  if (!creds) return text;
   let out = text;
-  for (const secret of [
-    creds.secretAccessKey,
-    creds.sessionToken,
-    creds.accessKeyId,
-  ]) {
-    if (secret && secret.length > 0) {
-      out = out.split(secret).join('***');
-    }
+  const secrets: string[] = [];
+  for (const secret of [creds?.secretAccessKey, creds?.sessionToken, creds?.accessKeyId]) {
+    if (secret) secrets.push(secret);
+  }
+  for (const url of urls) {
+    if (!isBearer(url)) continue;
+    const at = scanUrl(url);
+    // the whole URL, then its query string alone (a message may quote either)
+    secrets.push(at, at.slice(at.indexOf('?') + 1));
+  }
+  for (const secret of secrets) {
+    if (secret.length > 0) out = out.split(secret).join('***');
   }
   return out;
 }
 
-/** Extensions a format needs, loaded before anything references it: httpfs, and iceberg for an Iceberg table. */
-export function extensionOperation(sources: readonly RemoteSource[]): HostOperation {
-  const formats = new Set(sources.map((s) => s.format ?? inferFormat(s.url)));
-  return { op: 'extensions', names: ['httpfs', ...(formats.has('iceberg') ? ['iceberg'] : [])] };
-}
-
-/**
- * The extensions and credentials the sources are read with, before any view of them: what a host that checks what a
- * source names runs first (Python's, for an Iceberg table, whose metadata names its files by path: R4).
- */
-export function accessOperations(options: RemoteOptions): HostOperation[] {
-  return [extensionOperation(options.sources), ...options.sources.flatMap((source) => credentialOperations(options.s3, source))];
-}
-
-/** Every operation, in the order it has to run. */
-export function mountOperations(options: RemoteOptions): HostOperation[] {
-  return [...accessOperations(options), ...options.sources.map(viewOperation)];
-}
-
-/** The engine a remote source is mounted on: its database's type, its queue's run (a statement that binds nothing,
- *  run as every query is: DuckDbEngine.run), and its connection held for a statement that binds a secret's values
- *  (DuckDbEngine.exclusive). */
+/** The engine a remote source is mounted on: its database's type, its queue's run (a statement that binds nothing),
+ *  its connection held for a statement that binds (DuckDbEngine.exclusive), and where it keeps a mount's connection
+ *  settings for the connections its host opens (the tab's: DuckDbEngine.settings), if anywhere. */
 export interface RemoteEngine {
   readonly databaseType: string;
   run(sql: string, epoch: number): Promise<unknown>;
   exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
+  readonly settings?: ConnectionSettings | undefined;
+}
+
+/** One source mounted: its name, and the settings its mount made on the connection, which a host that opens other
+ *  connections to its database replays on each (a bearer URL's session variable; the plan's held binds, no value). */
+export interface Mounted {
+  readonly name: string;
+  readonly settings: readonly KeptSetting[];
 }
 
 /**
- * Point the engine's connection at remote data: the operations' statements as the planner writes them for the
- * engine's database (`host`), run in order, a secret's with its values bound from the host's store (`secretStore`).
+ * Point the engine's connection at remote data, each source by its PLANNED LOAD (B3's Q3: the planner's remoteMount,
+ * run by the hosts' runner): its extensions, its S3 secret and its bearer URL bound from the host's store by name, its
+ * view -- no credential and no token in any statement or in the plan. Its connection settings are kept where the
+ * engine keeps them (the tab's), and answered.
  *
- * Runs before the first query. Failures are rethrown with the
- * credentials stripped, and name the source rather than the
- * statement, because "could not mount TRADES" is actionable where a
- * redacted CREATE SECRET is not.
+ * Runs before the first query. Failures are rethrown with the credentials and the bearer URL stripped, and name the
+ * source rather than the statement, because "could not mount TRADES" is actionable where a redacted CREATE SECRET is not.
  */
 export async function mountRemote(
   engine: RemoteEngine,
-  host: HostOperationsSource,
+  planner: RemoteMountSource,
   options: RemoteOptions,
-): Promise<void> {
-  await runRedacted(engine, host, mountOperations(options), options);
+): Promise<Mounted[]> {
+  const mounted: Mounted[] = [];
+  for (const source of options.sources) {
+    const settings = await runMount(engine, planner, source, options.s3, true);
+    engine.settings?.keep(source.name, settings, sourceStore(source, options.s3));
+    mounted.push({ name: source.name, settings });
+  }
+  return mounted;
 }
 
-/** The engine's connection given the sources' extensions and credentials, no view yet (`accessOperations`). */
-export async function accessRemote(engine: RemoteEngine, host: HostOperationsSource,
+/** The engine's connection given the sources' extensions and credentials, no view yet: its access alone (Python's,
+ *  before it checks an Iceberg table's files: R4). */
+export async function accessRemote(engine: RemoteEngine, planner: RemoteMountSource,
   options: RemoteOptions): Promise<void> {
-  await runRedacted(engine, host, accessOperations(options), options);
+  for (const source of options.sources) await runMount(engine, planner, source, options.s3, false);
 }
 
-async function runRedacted(engine: RemoteEngine, host: HostOperationsSource,
-  operations: readonly HostOperation[], options: RemoteOptions): Promise<void> {
+/** One source's mount planned and run, its failures redacted: its connection settings. */
+async function runMount(engine: RemoteEngine, planner: RemoteMountSource, source: RemoteSource,
+  creds: S3Credentials | undefined, view: boolean): Promise<readonly KeptSetting[]> {
   const redacted = (cause: unknown): Error =>
-    new Error(`could not mount remote data: ${redactSecrets(cause instanceof Error ? cause.message : String(cause), options.s3)}`);
-  let statements: string[][];
+    new Error(`could not mount remote data: ${redactSecrets(cause instanceof Error ? cause.message : String(cause), creds, [source.url])}`);
   try {
-    statements = await host.hostOperations(engine.databaseType, operations);
+    const plan = await planner.remoteMount(mountRequest(engine.databaseType, source, creds, view));
+    // the hosts' plan runner, fetched with the first mount (a grid-only page carries none of it)
+    const { runLoad } = await import('../../engine-client/src/plan-runner.ts');
+    // a statement that binds nothing runs as every query runs (DuckDbEngine.run: B3.1's fix, the demo's cube over a
+    // remote Parquet); one that binds, on the held connection
+    const run = (sql: string, params: readonly PlanValue[]): Promise<unknown> =>
+      (params.length === 0 ? engine.run(sql, 0) : engine.exclusive((held) => held.rows(sql, params)));
+    return (await runLoad(plan, run, { secrets: sourceStore(source, creds) })).settings;
   } catch (cause) {
     throw redacted(cause);
-  }
-  const store = secretStore(options);
-  for (const [i, operation] of operations.entries()) {
-    for (const statement of statements[i] ?? []) {
-      try {
-        if (operation.op === 'secret') {
-          // a secret's one statement binds its values from the store, in secretBinds' order, on the held connection
-          const params = store.bound(operation);
-          await engine.exclusive((held) => held.rows(statement, params));
-        } else {
-          // every other binds none, and runs as every query runs (DuckDbEngine.run). Measured 2026-11-11: a mount's
-          // statements run instead through the held connection's query left the demo's cube over a remote Parquet
-          // failing with DuckDB-WASM's "Overflow in timestamp subtraction" (//datacube:verify_remote_test)
-          await engine.run(statement, 0);
-        }
-      } catch (cause) {
-        throw redacted(cause);
-      }
-    }
   }
 }

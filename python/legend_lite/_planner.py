@@ -28,6 +28,7 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'executePlan': ('lite_execute_json_plan', lambda m: (m['body'], m['models'])),
     'executeAnswer': ('lite_execute_json_answer', lambda m: (m['plan'], m['rows'])),
     'fileLoad': ('lite_file_load', lambda m: (m['request'],)),
+    'remoteMount': ('lite_remote_mount', lambda m: (m['request'],)),
     'sessionSetup': ('lite_session_setup', lambda m: (m['databaseType'],)),
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),

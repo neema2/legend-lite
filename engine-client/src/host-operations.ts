@@ -16,8 +16,7 @@ export interface HostName {
 export type HostSource =
   | { readonly relation: HostName }
   // a person's own file is read by a planned load (B3: the planner's fileLoad, run by plan-runner.ts runLoad), never by
-  // an operation naming it
-  | { readonly remote: { readonly url: string; readonly format: 'csv' | 'parquet' | 'iceberg' } }
+  // an operation naming it; a remote file likewise (B3's Q3: the planner's remoteMount)
   /** A query a planner wrote, for this database. */
   | { readonly query: string };
 
@@ -34,34 +33,31 @@ export type HostOperation =
   | { readonly op: 'dropSchema'; readonly database?: string; readonly name: string }
   /** How many rows: one row, one column `n`. */
   | { readonly op: 'count'; readonly from: HostSource }
-  /** A secret for S3, scoped to a path, BY NAME (B3, 2026-11-11: credentials by name): which of its fields the host
-   *  holds, never their values -- its one statement binds each field's value, then the scope (`secretBinds`), from the
-   *  host's own store (`SecretStore`). */
-  | { readonly op: 'secret'; readonly name: string; readonly scope: string; readonly fields: readonly SecretField[] }
+  // a remote file's secret is a step of its planned mount, its fields bound from the host's store (B3's Q3: the
+  // planner's remoteMount), never an operation
   /** A secret dropped, when it is there. */
   | { readonly op: 'dropSecret'; readonly name: string }
+  /** The session variable for the value held under `held` reset, set or not: the connection's own (a remote file's
+   *  bearer URL, let go of; the dialect names the variable). */
+  | { readonly op: 'resetVariable'; readonly held: string }
   | { readonly op: 'extensions'; readonly names: readonly string[] }
   /** Where the database installs extensions from, on demand (the site's folder). */
   | { readonly op: 'extensionRepository'; readonly url: string }
   | { readonly op: 'transaction'; readonly step: 'begin' | 'commit' | 'rollback' };
 
-/** An S3 secret's fields, as DuckDB's CREATE SECRET names them (the platform's DuckDbHostOperations.CREDENTIALS). */
-export type SecretField = 'KEY_ID' | 'SECRET' | 'SESSION_TOKEN' | 'REGION' | 'ENDPOINT' | 'URL_STYLE' | 'USE_SSL';
+/** An S3 secret's fields, as DuckDB's CREATE SECRET names them (the platform's DuckDbHostOperations.CREDENTIALS), and
+ *  URL, a bearer URL's (a presigned link, its query string its token: B3's Q3). */
+export type SecretField = 'KEY_ID' | 'SECRET' | 'SESSION_TOKEN' | 'REGION' | 'ENDPOINT' | 'URL_STYLE' | 'USE_SSL' | 'URL';
 
 /** A secret's value: a text, or USE_SSL's boolean. */
 export type SecretValue = string | boolean;
 
-/** What a secret operation's statement binds, in order (HostOperation.Secret.binds in Java): each field's value, then
- *  the scope. */
-export function secretBinds(op: Extract<HostOperation, { op: 'secret' }>): readonly string[] {
-  return [...op.fields, 'SCOPE'];
-}
-
 /**
  * THE HOST'S SECRETS, BY NAME (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "credentials by name ...
- * a guard keeps any secret value out of the plan"): the values a person gave a source, held in this host's memory under
- * the secret's name and bound into its statement -- never written into an operation or a statement's text. A secret
- * this store does not hold, or a field it holds no value for, is refused by name, the values never named.
+ * a guard keeps any secret value out of the plan"): the values a person gave a source -- its keys, a bearer URL --
+ * held in this host's memory under a name and bound into a planned statement where the plan names them (plan-runner.ts
+ * HostSecrets) -- never written into an operation, a statement's text or a plan. A name this store does not hold, or a
+ * field it holds no value for, is refused by name, the values never named.
  */
 export class SecretStore {
   readonly #held = new Map<string, ReadonlyMap<SecretField, SecretValue>>();
@@ -71,16 +67,35 @@ export class SecretStore {
     this.#held.set(name, new Map(values));
   }
 
-  /** What `op`'s statement binds (secretBinds' order): each field's value from this store, then the scope. */
-  bound(op: Extract<HostOperation, { op: 'secret' }>): SecretValue[] {
-    const values = this.#held.get(op.name);
-    if (values === undefined) throw new Error(`the secret '${op.name}' is not one this host holds`);
-    return [...op.fields.map((field) => {
-      const value = values.get(field);
-      if (value === undefined) throw new Error(`the secret '${op.name}' holds no ${field}`);
-      return value;
-    }), op.scope];
+  /** The value held under `name`'s `field`: what a plan's held bind names (plan-runner.ts HostSecrets). */
+  value(name: string, field: string): SecretValue {
+    const values = this.#held.get(name);
+    if (values === undefined) throw new Error(`'${name}' is not a secret this host holds`);
+    const value = values.get(field as SecretField);
+    if (value === undefined) throw new Error(`the secret '${name}' holds no ${field}`);
+    return value;
   }
+}
+
+/**
+ * A REMOTE FILE'S MOUNT, as the planner is asked for its plan (Boundary.remoteMount, B3's Q3): NAMES AND FIELDS ONLY --
+ * an address that carries no token, or a bearer URL by the name this host holds it under and its address without the
+ * query string; an S3 secret by the name this host holds it under and the fields it holds. The planner refuses any
+ * other key, so no value rides in one.
+ */
+export interface RemoteMountRequest {
+  readonly databaseType: string;
+  /** The view it is read through; none for its access alone (its extensions and keys, before a check of its files). */
+  readonly view?: string;
+  readonly location: { readonly url: string } | { readonly bearer: string; readonly shown: string };
+  readonly format: 'csv' | 'parquet' | 'iceberg';
+  readonly credentials?: { readonly name: string; readonly fields: readonly SecretField[] };
+}
+
+/** Where a remote file's mount's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
+export interface RemoteMountSource {
+  /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad), binding what it names. */
+  remoteMount(request: RemoteMountRequest): Promise<string>;
 }
 
 /** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
@@ -93,9 +108,6 @@ export interface HostOperationsSource {
 export async function runHostOperations(source: HostOperationsSource,
   engine: { readonly databaseType: string; run(sql: string, epoch: number): Promise<unknown> },
   operations: readonly HostOperation[], epoch = 0): Promise<void> {
-  // a secret's statement binds its values (SecretStore): never run here as text
-  const secret = operations.find((o) => o.op === 'secret');
-  if (secret !== undefined) throw new Error(`the secret '${(secret as { readonly name: string }).name}' binds its values: run it with the host's store, not as text`);
   for (const statements of await source.hostOperations(engine.databaseType, operations)) {
     for (const sql of statements) await engine.run(sql, epoch);
   }

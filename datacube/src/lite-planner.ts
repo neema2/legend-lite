@@ -33,6 +33,7 @@ import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, Model
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
+import type { RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
@@ -657,6 +658,14 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    */
   async fileLoad(request: FileLoadRequest): Promise<string> {
     return decode(await this.#call({ kind: 'fileLoad', request: JSON.stringify(request) }), `the load of ${request.file.name}`);
+  }
+
+  /**
+   * A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): one HOST_SESSION load the hosts' runner runs,
+   * binding by name what this host holds (its keys, a bearer URL) -- PlanJson's text, holding no value.
+   */
+  async remoteMount(request: RemoteMountRequest): Promise<string> {
+    return decode(await this.#call({ kind: 'remoteMount', request: JSON.stringify(request) }), `the mount of ${request.view ?? 'a remote file'}`);
   }
 
   /**

@@ -10,7 +10,8 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { establish, hostSession, PlanRefusal, release, requestsOwn, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { ConnectionSettings, establish, hostSession, PlanRefusal, release, requestsOwn, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { loadPlanner, loadPlannerModule } from './planner.ts';
@@ -244,6 +245,39 @@ describe("a plan's loads, established on a database the host made for its target
 
 // THE LOAD RUNNERS' CONFORMANCE (B3, 2026-11-11): runLoad and Python's projects.run_load run one fixture -- the same
 // plan's load, the same rows, the same tampered blob refused in the same words (python/tests/test_engine.py)
+describe("a remote file's mount, a planned load whose bearer URL the host binds on each connection (B3's Q3)", () => {
+  it('binds the held URL by name, keeps the setting, and a second connection reads the view once it is replayed', async () => {
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    db.registerFileText('held.csv', 'id,name\n1,a\n2,b\n');
+    const first = new DuckDbEngine(db.connect() as ArrowishConnection);
+    // the planner is asked names alone: the bearer URL by the name the host holds it under, its address shown
+    const plan = ok(answer(m, { kind: 'remoteMount', request: JSON.stringify({
+      databaseType: 'DuckDB', view: 'remote_t', location: { bearer: 'datacube_url_t', shown: 'https://h/t.csv' }, format: 'csv',
+    }) }));
+    assert.ok(!plan.includes('held.csv') && plan.includes('"_type":"held","name":"datacube_url_t","field":"URL"'), plan);
+    // the host's store: the URL it holds (a registered file here: a Node test makes no HTTP request)
+    const store = new SecretStore();
+    store.hold('datacube_url_t', new Map([['URL', 'held.csv']]));
+    const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown> =>
+      (params.length === 0 ? e.run(sql, 0) : e.exclusive((held) => held.rows(sql, params)));
+    const { settings } = await runLoad(plan, route(first), { secrets: store });
+    const count = (e: DuckDbEngine): Promise<string> => e.exclusive(async (held) => String((await held.rows('SELECT count(*) FROM remote_t', []))[0]![0]));
+    assert.equal(await count(first), '2');
+    const viewText = await first.exclusive(async (held) => String((await held.rows("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_t'", []))[0]![0]));
+    assert.ok(!viewText.includes('held.csv') && viewText.includes('getvariable'), viewText);
+    // a second connection to the same database: the variable is the first's, so it reads nothing until the setting is
+    // replayed on it, bound again from the store
+    const second = new DuckDbEngine(db.connect() as ArrowishConnection);
+    await assert.rejects(() => count(second), /NULL/);
+    const kept = new ConnectionSettings();
+    kept.keep('remote_t', settings, store);
+    await kept.replay(route(second));
+    assert.equal(await count(second), '2');
+    // a bound statement this run was given no store for is refused by name
+    await assert.rejects(() => runLoad(plan, route(first)), /binds what a host holds, and this run was given no host's store/);
+  });
+});
+
 describe("the load runners' shared conformance fixture", () => {
   interface Fixture { model: string; databaseType: string; check: string; rows: unknown[][]; tamper: { from: string; to: string }; refused: string }
   const fixture = JSON.parse(readFileSync(runfileFromEnv('RUN_LOAD_FIXTURE'), 'utf8')) as Fixture;

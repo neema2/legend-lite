@@ -281,6 +281,62 @@ public final class Boundary {
     }
 
     /**
+     * A REMOTE FILE MOUNTED, AS A PLAN (B3's Q3, 2026-11-11, the user's ruling of that day: "Yes do option 2";
+     * docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md): {@code request} is
+     * {@code {"databaseType", "view"?, "location": {"url"} | {"bearer", "shown"}, "format", "credentials"?: {"name",
+     * "fields"}}} -- NAMES AND FIELDS ONLY: an address that carries no token, or a bearer URL by the name the host holds
+     * it under and its address without the query string; an S3 secret by the name the host holds it under and the
+     * fields it holds. Any other key is refused by name, so no value can ride in one. The answer is the plan
+     * (PlanJson's): one HOST_SESSION load the host's runner runs, binding what it names from the host's store
+     * ({@code LoadPlanner.remoteMount}). Until then the host ran the mount as operations, the token in a view's text.
+     */
+    public static String remoteMount(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a remote mount's request", "databaseType", "view", "location", "format", "credentials");
+        com.legend.json.Json.Obj where = in.getObj("location");
+        com.legend.planner.LoadPlanner.RemoteLocation location;
+        if (where.has("url")) {
+            only(where, "a remote file's address", "url");
+            location = new com.legend.planner.LoadPlanner.PlainLocation(where.getString("url"));
+        } else {
+            only(where, "a bearer URL's name", "bearer", "shown");
+            location = new com.legend.planner.LoadPlanner.BearerLocation(where.getString("bearer"),
+                    where.getString("shown"));
+        }
+        String format = in.getString("format");
+        com.legend.sql.dialect.HostOperation.RemoteFormat read = switch (format) {
+            case "csv" -> com.legend.sql.dialect.HostOperation.RemoteFormat.CSV;
+            case "parquet" -> com.legend.sql.dialect.HostOperation.RemoteFormat.PARQUET;
+            case "iceberg" -> com.legend.sql.dialect.HostOperation.RemoteFormat.ICEBERG;
+            default -> throw new IllegalArgumentException("a remote file is csv, parquet or iceberg, not " + format);
+        };
+        com.legend.planner.LoadPlanner.RemoteCredentials credentials = null;
+        if (in.has("credentials")) {
+            com.legend.json.Json.Obj c = in.getObj("credentials");
+            only(c, "a remote file's credentials", "name", "fields");
+            credentials = new com.legend.planner.LoadPlanner.RemoteCredentials(c.getString("name"),
+                    c.getStringArray("fields"));
+        }
+        String databaseType = in.getString("databaseType");
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.remoteMount(
+                dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                new com.legend.planner.LoadPlanner.RemoteMount(in.getStringOr("view", null), location, read,
+                        credentials)));
+    }
+
+    /** {@code o}'s keys among {@code keys}, any other refused by name ({@code what} names the object). */
+    private static void only(com.legend.json.Json.Obj o, String what, String... keys) {
+        java.util.Set<String> allowed = java.util.Set.of(keys);
+        for (String key : o.fields().keySet()) {
+            if (!allowed.contains(key)) {
+                throw new IllegalArgumentException(what + " has no key " + key + " (names and fields only, never a"
+                        + " value)");
+            }
+        }
+    }
+
+    /**
      * A Pure Database from a DuckDB table's CATALOG (T2): the rows {@code DESCRIBE} reports, read by legend-lite's
      * DuckDB dialect -- the declared types, and the conversions the source must apply, or the columns left out when it
      * cannot. {@code {"path", "schema"?, "table", "convertible", "databaseType", "columns": [catalog rows]}} in;

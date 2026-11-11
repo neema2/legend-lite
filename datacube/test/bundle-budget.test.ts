@@ -504,8 +504,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  credentials by name -- the secret's operation names its fields, their values held in the host's store and bound
  *  (remote.ts credentialSecret, host-operations.ts SecretStore) -- and a picked file read by a planned load, named by its
  *  SHA-256 and size (upload.ts readFileInto); the hosts' plan runner that runs it is a chunk fetched with the first file
- *  read (upload.ts planRunner): at startup it measured 434,801). Measured 430,886. */
-const BUDGET = 431_000;
+ *  read (upload.ts planRunner): at startup it measured 434,801). Measured 430,886.
+ *  431,000 -> 432,000 (2026-11-11, the total wall's B3, its Q3: the user's ruling "Yes do option 2" -- a remote file's
+ *  mount a planned load, its keys and a bearer URL held by name and bound: remote.ts mountRequest, sourceStore, the
+ *  bearer URL's address shown without its token and redacted by value, and the tab's connection settings, kept and
+ *  replayed on every connection it opens (engine-client's connection-settings.ts, a module of its own so the tab carries
+ *  them without the plan runner, which stays a chunk fetched with the first mount or file read). Measured 431,646. */
+const BUDGET = 432_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

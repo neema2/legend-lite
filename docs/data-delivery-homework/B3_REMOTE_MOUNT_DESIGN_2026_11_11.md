@@ -1,8 +1,19 @@
-# A remote file mounted by a planned load, its secrets bound by name (B3's Q3, option c′; design only, 2026-11-11)
+# A remote file mounted by a planned load, its secrets bound by name (B3's Q3, option c′, 2026-11-11)
 
 The B3 worker's design, asked by the orchestrator ("design (c′) to the level of the exact plan records, host steps and
-tests ... no code"). Not built. It waits for the user's word on (c′): the cost read and its measurements are
-`probes/DuckDbUrlVariable.py.txt` (duckdb-python 1.5.5 and DuckDB-WASM 1.33.1-dev57).
+tests ... no code"). The cost read and its measurements are `probes/DuckDbUrlVariable.py.txt` (duckdb-python 1.5.5 and
+DuckDB-WASM 1.33.1-dev57).
+
+**RULED and BUILT (2026-11-11).** The user's ruling, relayed by the orchestrator: "Yes do option 2, add short-lived
+credentials to roadmap". It was built as below, with two differences:
+- `Bound` is folded into plan version 47, the orchestrator's call: 47 had not landed, and the JSON pass takes 48.
+- The bearer URL's session variable is named by the DIALECT, not the planner: `lite_url_` and the hex of the held name's
+  UTF-8 bytes (`HostOperation.variable`).
+  - Why: a host that undoes a mount resets the variable (`ResetVariable`), so the set and the reset must spell one name.
+  - Naming an identifier is the dialect's job (AGENTS.md invariant 3).
+  - The hex is one-to-one and needs no hash.
+
+The short-lived credentials are item 7 of `docs/DATA_LOADING_TARGET_MODEL_2026_11_11.md` §5.
 
 **The rule it implements (the orchestrator's framing):** authentication is a property of the connection.
 - A remote file's LOCATION is not secret, and the plan names it.
@@ -25,7 +36,7 @@ The view reads the location literally (`read_parquet('s3://b/t.parquet')`), or r
 connection it opens to that database afterwards: the tab's `connect`, and each Python read's cursor. A variable belongs
 to one connection; that much is measured.
 
-## 2. Plan records (core `executionplan`, plan version 48 — or folded into 47 if 47 has not landed; the orchestrator's call)
+## 2. Plan records (core `executionplan`, plan version 47: folded in, the orchestrator's call)
 
 ```java
 // ExecutionPlan.LoadStep gains one variant
@@ -97,9 +108,9 @@ setup. Its steps, in order:
 2. With credentials: `Bound(CREATE OR REPLACE TEMPORARY SECRET "n" (TYPE S3, KEY_ID ?, …, SCOPE ?),
    [Held(n, f) for f in fields] + [Value(scope)], DATABASE)`. The scope is the location's; `credentialScope` moves
    from `remote.ts` into the planner, its one place.
-3. With a bearer URL: `Bound(SET VARIABLE v = ?, [Held(name, "URL")], CONNECTION)`. The variable `v` is the planner's
-   own spelling: `lite_url_` and the first 16 hex digits of the SHA-256 of `name`, so no person's name reaches an
-   identifier.
+3. With a bearer URL: `Bound(SET VARIABLE v = ?, [Held(name, "URL")], CONNECTION)`. The variable `v` is spelled by
+   the dialect from `name`: `lite_url_` and the hex of its bytes (as built; this design first had the planner hash it).
+   No person's name reaches an identifier.
 4. With a view: `Statement(CREATE OR REPLACE VIEW "view" AS SELECT * FROM read_…(<'url' | getvariable('v')>))`.
    Without one (the headless `remoteAccess`, before Python's Iceberg checks), no view step.
 
@@ -221,6 +232,15 @@ setup. Its steps, in order:
    - a variable set, a view created, then the view read on a NEW connection after replay;
    - whether the B3.1 regression reproduces when `CREATE VIEW` runs prepared with no parameter. The route above avoids
      it either way.
+   **Measured 2026-11-11** (duckdb-python 1.5.5 and DuckDB-WASM 1.33.1-dev57, alike on every point):
+   - `SET VARIABLE lite_url_0123456789abcdef = ?` binds.
+   - `read_csv_auto(getvariable('…'))` reads in a view.
+   - A new connection reads the view as NULL ("… cannot take NULL list as parameter") until the setting is replayed on
+     it, then reads it.
+   - `RESET VARIABLE` resets the connection's own variable alone (another connection keeps its own) and takes an unset
+     name without error.
+   - On DuckDB-WASM, a prepared `CREATE VIEW` with no parameter makes a view that reads.
+   The B3.1 regression came only from the full app, so the routing stays.
 1. Java: the plan records, `PlanJson`, the maker, the host operations, the planner, the boundary (wasm and native),
    and the tests.
 2. TypeScript: the runner, the store, the tab's registry and `connect`, `remote.ts`, `upload.ts`, and the tests.

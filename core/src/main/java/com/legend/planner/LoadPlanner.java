@@ -77,6 +77,140 @@ public final class LoadPlanner {
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.ONCE, fill, database));
     }
 
+    /** Where a remote file is, as a host names it (B3's Q3): an address that carries no token, written as it is, or a
+     *  BEARER URL (a presigned link, its query string the token) the host holds by name, never handed to the planner. */
+    public sealed interface RemoteLocation permits PlainLocation, BearerLocation {
+    }
+
+    /** An address that carries no token ({@code s3://}, {@code https://} with no query string): the plan names it. */
+    public record PlainLocation(String url) implements RemoteLocation {
+        public PlainLocation {
+            java.util.Objects.requireNonNull(url, "url");
+            if (url.indexOf('?') >= 0) {
+                throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it as a"
+                        + " bearer URL, and the plan names it");
+            }
+        }
+    }
+
+    /** A bearer URL the host holds under {@code name} (its field {@code URL}); {@code shown}, its address without the
+     *  query string -- what a secret's scope is cut from, never the token. */
+    public record BearerLocation(String name, String shown) implements RemoteLocation {
+        public BearerLocation {
+            java.util.Objects.requireNonNull(name, "name");
+            java.util.Objects.requireNonNull(shown, "shown");
+            if (shown.indexOf('?') >= 0) {
+                throw new IllegalArgumentException("a bearer URL's shown address is its address without the query"
+                        + " string, which carries the token");
+            }
+        }
+    }
+
+    /** An S3 secret the host holds under {@code name}: the fields it holds (KEY_ID, SECRET, ...), never their values. */
+    public record RemoteCredentials(String name, List<String> fields) {
+        public RemoteCredentials {
+            java.util.Objects.requireNonNull(name, "name");
+            fields = List.copyOf(fields);
+        }
+    }
+
+    /** A remote file mounted: the view it is read through ({@code null}: its access alone, no view), where it is, its
+     *  format, and the credentials it is read with, if any. */
+    public record RemoteMount(@com.legend.base.Nullable String view, RemoteLocation location,
+            com.legend.sql.dialect.HostOperation.RemoteFormat format, @com.legend.base.Nullable RemoteCredentials credentials) {
+        public RemoteMount {
+            java.util.Objects.requireNonNull(location, "location");
+            java.util.Objects.requireNonNull(format, "format");
+        }
+    }
+
+    /** The field a bearer URL is held under in the host's store. */
+    public static final String URL_FIELD = "URL";
+
+    /**
+     * A REMOTE FILE MOUNTED, as a plan (B3's Q3, 2026-11-11, the user's ruling of that day: "Yes do option 2";
+     * docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md): one
+     * {@link ExecutionPlan.Load.Cadence#HOST_SESSION} load, kept until the person lets the file go -- the extensions its
+     * format reads with; its S3 secret, each field bound from the host's store by name and the scope, the plan's own
+     * value, cut from its address; a bearer URL bound to a session variable the dialect names for it (a step of the
+     * CONNECTION, which the host replays on every connection it opens: a variable is one connection's, measured); and the
+     * view, reading the address as it is or the variable. No credential, no token, in any statement or in the plan:
+     * each is named, the host binds it. Until then the host ran the mount as operations outside any plan, the token in
+     * the view's text (census M14). A bearer Iceberg table is refused by name (a table is a folder: there is no
+     * presigned link to it).
+     */
+    public static ExecutionPlan remoteMount(com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.executionplan.DatabaseType type, RemoteMount mount) {
+        com.legend.sql.dialect.HostOperations host = com.legend.sql.dialect.HostOperations.of(dialect);
+        boolean iceberg = mount.format() == com.legend.sql.dialect.HostOperation.RemoteFormat.ICEBERG;
+        com.legend.setup.LoadSteps.Builder steps = new com.legend.setup.LoadSteps.Builder();
+        for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.Extensions(
+                iceberg ? List.of("httpfs", "iceberg") : List.of("httpfs")))) {
+            steps.statement(sql);
+        }
+        String address = switch (mount.location()) {
+            case PlainLocation p -> p.url();
+            case BearerLocation b -> {
+                if (iceberg) {
+                    throw new IllegalArgumentException("an Iceberg table is a folder, read by its address: a bearer URL"
+                            + " names one file (" + b.shown() + ")");
+                }
+                yield b.shown();
+            }
+        };
+        if (mount.credentials() != null && !mount.credentials().fields().isEmpty()) {
+            RemoteCredentials c = mount.credentials();
+            com.legend.sql.dialect.HostOperation.Secret secret = new com.legend.sql.dialect.HostOperation.Secret(
+                    c.name(), scope(address), c.fields());
+            List<ExecutionPlan.LoadStep.Bind> binds = new java.util.ArrayList<>();
+            for (String field : c.fields()) {
+                binds.add(com.legend.setup.LoadSteps.held(c.name(), field));
+            }
+            binds.add(com.legend.setup.LoadSteps.value(secret.scope()));
+            steps.add(com.legend.setup.LoadSteps.bound(host.statements(secret), binds,
+                    ExecutionPlan.Reach.DATABASE));
+        }
+        com.legend.sql.dialect.HostOperation.Location at = switch (mount.location()) {
+            case PlainLocation p -> new com.legend.sql.dialect.HostOperation.Location.Url(p.url());
+            case BearerLocation b -> {
+                steps.add(com.legend.setup.LoadSteps.bound(host.statements(
+                        new com.legend.sql.dialect.HostOperation.SetVariable(b.name())),
+                        List.of(com.legend.setup.LoadSteps.held(b.name(), URL_FIELD)),
+                        ExecutionPlan.Reach.CONNECTION));
+                yield new com.legend.sql.dialect.HostOperation.Location.Variable(b.name());
+            }
+        };
+        if (mount.view() != null) {
+            for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.MakeRelation(
+                    com.legend.sql.dialect.HostOperation.Kind.VIEW,
+                    com.legend.sql.dialect.HostOperation.Name.of(mount.view()), true, null, List.of(),
+                    new com.legend.sql.dialect.HostOperation.Source.Remote(at, mount.format())))) {
+                steps.statement(sql);
+            }
+        }
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null),
+                dialect.sessionSetup(), List.of());
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps.build(), target));
+    }
+
+    /** Where a secret's keys apply: its address as a prefix of the URLs it is used for -- cut before a glob, an Iceberg
+     *  table's metadata folder its table's (its data files lie beside it). */
+    static String scope(String address) {
+        String scope = address;
+        int glob = -1;
+        for (int i = 0; i < scope.length(); i++) {
+            char ch = scope.charAt(i);
+            if (ch == '*' || ch == '?' || ch == '[') {
+                glob = i;
+                break;
+            }
+        }
+        if (glob >= 0) {
+            scope = scope.substring(0, glob);
+        }
+        return scope.replaceFirst("(?i)/metadata/?$", "");
+    }
+
     /** Where a host's own file goes: a table of its own (a person's upload), or a model's declared table (a person's
      *  file put into Studio's workspace, over the model's own rows). */
     public sealed interface HostFileInto permits NewTable, DeclaredTable {

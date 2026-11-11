@@ -58,12 +58,43 @@ public sealed interface HostOperation {
         record HostFile(FileFormat format) implements Source {
         }
 
-        /** A file the database reads from a remote address, in a format. */
-        record Remote(String url, RemoteFormat format) implements Source {
+        /**
+         * A file the database reads from a remote address, in a format: its {@link Location} written as the address
+         * itself, or read from a session variable a bearer URL is bound to (B3's Q3, 2026-11-11: a presigned link's
+         * token never in a statement's text, nor in a view's).
+         */
+        record Remote(Location location, RemoteFormat format) implements Source {
+            public Remote {
+                java.util.Objects.requireNonNull(location, "location");
+                java.util.Objects.requireNonNull(format, "format");
+            }
         }
 
         /** A query a planner wrote, for this database. */
         record Query(String sql) implements Source {
+        }
+    }
+
+    /** Where a remote file is: an address written as it is, or a session variable a host binds its bearer URL to. */
+    sealed interface Location {
+        /** An address that carries no token: written as it is. One with a query string carries its token (a presigned
+         *  link's signature), so it is refused by name: the host holds it, and the plan names it ({@link Variable}). */
+        record Url(String url) implements Location {
+            public Url {
+                java.util.Objects.requireNonNull(url, "url");
+                if (url.indexOf('?') >= 0) {
+                    throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it,"
+                            + " and the plan names it");
+                }
+            }
+        }
+
+        /** The session variable the host binds the address it holds under {@code held} to ({@link SetVariable}), read
+         *  where the file is read. */
+        record Variable(String held) implements Location {
+            public Variable {
+                HostOperation.variable(held);
+            }
         }
     }
 
@@ -147,6 +178,41 @@ public sealed interface HostOperation {
 
         /** The last bound value's name: the secret's scope, the operation's own (no credential). */
         public static final String SCOPE = "SCOPE";
+    }
+
+    /** The session variable for the value the host holds under {@code held} (a bearer URL, from its store: B3's Q3),
+     *  set to the statement's one {@code ?}, which the host binds: the connection's own, so a host sets it again on
+     *  every connection it opens. */
+    record SetVariable(String held) implements HostOperation {
+        public SetVariable {
+            HostOperation.variable(held);
+        }
+    }
+
+    /** The session variable for the value held under {@code held} reset, set or not (the connection's own). */
+    record ResetVariable(String held) implements HostOperation {
+        public ResetVariable {
+            HostOperation.variable(held);
+        }
+    }
+
+    /**
+     * The session variable a value the host holds under {@code held} is bound to, as a statement writes it: the
+     * dialect's own spelling, {@code lite_url_} and the hex of the name's UTF-8 bytes -- a word, one name each, so a
+     * plan's set and a host's reset name the same variable and no person's name reaches an identifier. A store's name
+     * is a word itself ({@code [A-Za-z0-9_]+}), refused by name otherwise.
+     */
+    static String variable(String held) {
+        java.util.Objects.requireNonNull(held, "held");
+        if (!held.matches("[A-Za-z0-9_]+")) {
+            throw new IllegalArgumentException("a value a host holds is named by a word of letters, digits and '_', not "
+                    + held);
+        }
+        StringBuilder out = new StringBuilder("lite_url_");
+        for (byte b : held.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            out.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+        }
+        return out.toString();
     }
 
     /** A secret dropped, when it is there (a remote source let go of: its keys go with it). */

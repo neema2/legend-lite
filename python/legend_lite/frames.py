@@ -267,6 +267,9 @@ class _File:
     runtime: str
     source: Any
     leaf: dict[str, Any] | None
+    # a remote file's settings of the connection (a bearer URL's session variable: B3's Q3), each a statement and the
+    # values it binds, which every read's cursor runs (a cursor is a connection of its own, a variable one connection's)
+    settings: tuple[tuple[str, tuple[Any, ...]], ...] = ()
 
     def hosted(self) -> dict[str, Any]:
         """As DataCube's headless code takes it (headless host-tables.ts HostFile)."""
@@ -526,13 +529,16 @@ class Frames:
                                             'target': _host.name(name, schema='main')})
                 raise
 
-    def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False) -> None:
+    def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False,
+                  settings: tuple[tuple[str, tuple[Any, ...]], ...] = ()) -> None:
         """The table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy
         (``reading_file``'s name), as DataCube's code read it (``made``: its model, runtime and the relation that reads
         it -- ``source`` -- and, a page's file or remote file, the file it is: headless ingest's and mount's ``leaf``):
-        served beside the frames' from now on, a file by what a page names it by (``hosted``)."""
+        served beside the frames' from now on, a file by what a page names it by (``hosted``). ``settings``: a remote
+        file's settings of the connection, run on every read's cursor while it is kept (B3's Q3)."""
         held = compiler.HeldModel(made['model'])
-        kept = _File(name, made['model'], view, held, made.get('runtime', ''), made.get('source'), made.get('leaf'))
+        kept = _File(name, made['model'], view, held, made.get('runtime', ''), made.get('source'), made.get('leaf'),
+                     tuple(settings))
         with self._lock:
             before = self._files.get(name.lower())
             self._files[name.lower()] = kept
@@ -641,6 +647,11 @@ class Frames:
             try:
                 for statement in self._setup:
                     cursor.execute(statement)
+                # each remote file's settings of the connection, its bound values with it (B3's Q3: a bearer URL's
+                # session variable, which a view of it reads, is one connection's)
+                for kept in self._files.values():
+                    for statement, params in kept.settings:
+                        cursor.execute(statement, list(params))
                 for table in self._tables.values():
                     if table.live:
                         cursor.register(table._registered, table._arrow)

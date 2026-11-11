@@ -143,7 +143,7 @@ export async function loadFileTable(sink: FileSink, source: FileLoadSource & Hos
     await sink.hold(async (run) => {
       for (const sql of begin!) await run(sql, []);
       try {
-        await runLoad(plan, run, files);
+        await runLoad(plan, run, { files });
         for (const sql of commit!) await run(sql, []);
       } catch (e) {
         try {

@@ -98,6 +98,8 @@ class HostOperationsTest {
                     }
                     case com.legend.executionplan.ExecutionPlan.LoadStep.File file ->
                             throw new AssertionError("a project's Data is statements: " + file);
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Bound bound ->
+                            throw new AssertionError("a project's Data binds nothing from a host: " + bound);
                 }
             }
             assertEquals(List.of("1 Ada", "2 Grace"), rows(st, "SELECT id || ' ' || name FROM firm.Person ORDER BY id"));
@@ -181,7 +183,19 @@ class HostOperationsTest {
                 HostOperation.Name.of("t"), false, null, List.of(), new HostOperation.Source.Relation(HostOperation.Name.of("__reg")))));
         assertEquals("CREATE OR REPLACE VIEW \"r\" AS SELECT * FROM iceberg_scan('s3://b/t')", one(new HostOperation.MakeRelation(
                 HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, null, List.of(),
-                new HostOperation.Source.Remote("s3://b/t", HostOperation.RemoteFormat.ICEBERG))));
+                new HostOperation.Source.Remote(new HostOperation.Location.Url("s3://b/t"), HostOperation.RemoteFormat.ICEBERG))));
+        // a bearer URL (B3's Q3): read through the session variable the host binds it to, the view's text holding none
+        // the variable the dialect names for the value the host holds under "datacube_url_r": the hex of the name's bytes
+        assertEquals("lite_url_6461746163756265" + "5f75726c5f72", HostOperation.variable("datacube_url_r"));
+        assertEquals("CREATE OR REPLACE VIEW \"r\" AS SELECT * FROM read_parquet(getvariable('" + HostOperation.variable("datacube_url_r") + "'))",
+                one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, null, List.of(),
+                        new HostOperation.Source.Remote(new HostOperation.Location.Variable("datacube_url_r"),
+                                HostOperation.RemoteFormat.PARQUET))));
+        assertEquals("SET VARIABLE " + HostOperation.variable("datacube_url_r") + " = ?", one(new HostOperation.SetVariable("datacube_url_r")));
+        assertEquals("RESET VARIABLE " + HostOperation.variable("datacube_url_r"), one(new HostOperation.ResetVariable("datacube_url_r")));
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> new HostOperation.Location.Url(
+                "https://b.s3.amazonaws.com/t.parquet?X-Amz-Signature=SENTINEL")).getMessage().contains("carries its token"));
+        assertThrows(IllegalArgumentException.class, () -> new HostOperation.SetVariable("x = 1; DROP TABLE t"));
         assertEquals("CREATE OR REPLACE TABLE \"db\".\"s\".\"t\" AS SELECT * REPLACE (CAST(x AS VARCHAR) AS \"x\") FROM (SELECT 1 AS x)",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, new HostOperation.Name("db", "s", "t", false), true,
                         null, List.of(new HostOperation.Conversion("x", "CAST(x AS VARCHAR)")),
@@ -272,6 +286,53 @@ class HostOperationsTest {
         assertEquals(secret.binds().size(), made.chars().filter(ch -> ch == '?').count(),
                 "one bound value per ? (each field's, then the scope)");
         assertFalse(made.contains("s3://bucket"), "the scope is bound too: the statement holds no value");
+    }
+
+    /**
+     * A BEARER URL IS ONE CONNECTION'S (B3's Q3, 2026-11-11, measured first on duckdb-python 1.5.5 and DuckDB-WASM): the
+     * variable bound by the prepared {@code SET VARIABLE}, the view reading it through {@code getvariable} -- its text
+     * holding the variable's name, never the address; a second connection to the same database reads the view only once
+     * the setting is replayed on it (the host's replay), and a reset leaves the other connection's own.
+     */
+    @Test
+    void aBearerUrlIsOneConnectionsVariable(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        // the file written by Java, not by a JDBC write (the fixtures' writes are bounded: FixtureWriteCensusTest)
+        java.nio.file.Path file = dir.resolve("t.csv");
+        java.nio.file.Files.writeString(file, "id\n1\n2\n");
+        String variable = HostOperation.variable("datacube_url_t");
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement();
+                // another connection to the same database, opened before the variable is set (DuckDB JDBC's duplicate
+                // copies the variables it has then -- measured, 1.5.6 -- so a later one would start with it); reached
+                // without its type: no direct dependency here
+                Connection other = (Connection) c.getClass().getMethod("duplicate").invoke(c);
+                Statement os = other.createStatement()) {
+            try (java.sql.PreparedStatement set = c.prepareStatement(one(new HostOperation.SetVariable("datacube_url_t")))) {
+                set.setString(1, file.toString());
+                set.execute();
+            }
+            st.execute(one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("t"), true, null,
+                    List.of(), new HostOperation.Source.Remote(new HostOperation.Location.Variable("datacube_url_t"),
+                            HostOperation.RemoteFormat.CSV))));
+            assertEquals(List.of("2"), rows(st, "SELECT count(*) FROM \"t\""));
+            String text = rows(st, "SELECT sql FROM duckdb_views() WHERE view_name = 't'").get(0);
+            assertFalse(text.contains(dir.toString()), "the view's text holds the variable's name, never the address: " + text);
+            // the other connection holds no variable: the view reads nothing there until the setting is replayed on it
+            assertEquals(java.util.Collections.singletonList(null), rows(os, "SELECT getvariable('" + variable + "')"));
+            // (a failed query closes DuckDB JDBC's statement: each read after one on a statement of its own)
+            assertThrows(SQLException.class, () -> rows(os, "SELECT count(*) FROM \"t\""));
+            try (java.sql.PreparedStatement replay = other.prepareStatement(one(new HostOperation.SetVariable("datacube_url_t")))) {
+                replay.setString(1, file.toString());
+                replay.execute();
+            }
+            try (Statement again = other.createStatement()) {
+                assertEquals(List.of("2"), rows(again, "SELECT count(*) FROM \"t\""));
+            }
+            st.execute(one(new HostOperation.ResetVariable("datacube_url_t")));
+            assertThrows(SQLException.class, () -> rows(st, "SELECT count(*) FROM \"t\""));
+            try (Statement again = other.createStatement()) {
+                assertEquals(List.of("2"), rows(again, "SELECT count(*) FROM \"t\""), "a reset is its own connection's");
+            }
+        }
     }
 
     @Test

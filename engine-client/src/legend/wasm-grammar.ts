@@ -11,6 +11,7 @@ import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
+import type { RemoteMountRequest } from '../host-operations.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
 
@@ -245,5 +246,13 @@ export class WasmGrammar implements Grammar {
    */
   async fileLoad(request: FileLoadRequest): Promise<string> {
     return unfold(await this.#port.ask({ kind: 'fileLoad', request: JSON.stringify(request) }));
+  }
+
+  /**
+   * A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): one HOST_SESSION load the hosts' runner runs,
+   * binding by name what this host holds (its keys, a bearer URL) -- PlanJson's text, holding no value.
+   */
+  async remoteMount(request: RemoteMountRequest): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'remoteMount', request: JSON.stringify(request) }));
   }
 }

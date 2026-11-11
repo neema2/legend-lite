@@ -696,6 +696,10 @@ public final class PlanRunner {
                     }
                     answered.add(false);
                 }
+                // a host's statement, bound from its own store (B3's Q3): only a HOST_SESSION load holds one, which exec
+                // never runs; exec holds no host's store
+                case ExecutionPlan.LoadStep.Bound b -> throw new IllegalStateException("the load " + seeds.identity()
+                        + " binds a statement from a host's store, which exec holds none of: " + b.sql());
             }
         }
     }

@@ -9,7 +9,7 @@ import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { accessRemote, inferFormat, scanUrl, type S3Credentials } from '../remote.ts';
 import { lastSegment } from '../cube-document.ts';
-import { dropFileTable, modelLanded, mountRemoteView, readFileInto, tableNameOf, uploadFileName } from '../upload.ts';
+import { dropFileTable, modelLanded, mountedView, readFileInto, tableNameOf, uploadFileName } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
 import type { HostLeaf } from './host-tables.ts';
 
@@ -68,19 +68,21 @@ export async function landed(spec: string): Promise<string> {
   return using(async ({ engine, writer }) => JSON.stringify(await modelLanded(engine, writer, s.table)));
 }
 
-/** A remote file mounted as the view Python named, through the httpfs extension Python's DuckDB carries: its model,
- *  as the tab's mount says it, JSON. Python checked its URL is remote before anything ran. */
+/** A remote file mounted as the view Python named, through the httpfs extension Python's DuckDB carries, by its planned
+ *  load (B3's Q3): its model, as the tab's mount says it, and the settings its mount made on the connection (a bearer
+ *  URL's session variable, its binds by name: Python replays them on each read's cursor), JSON. Python checked its URL
+ *  is remote before anything ran. */
 export async function mount(spec: string): Promise<string> {
   const s = JSON.parse(spec) as { readonly url: string; readonly name: string; readonly s3?: S3Credentials };
   return using(async ({ engine, writer }) => {
-    const mounted = await mountRemoteView(engine, writer, { url: s.url, name: s.name, ...(s.s3 ? { s3: s.s3 } : {}) });
+    const { model, settings } = await mountedView(engine, writer, { url: s.url, name: s.name, ...(s.s3 ? { s3: s.s3 } : {}) });
     // the remote file as a page's cube names it (host-tables.ts HostLeaf): what the host serves the view by
     const leaf: HostLeaf = { _type: 'remoteFile', name: lastSegment(s.url), url: s.url };
-    return JSON.stringify({ ...mounted, leaf });
+    return JSON.stringify({ ...model, leaf, settings });
   });
 }
 
-/** A remote file's extensions and keys put in place, no view yet (remote.ts `accessOperations`), and what it is read as
+/** A remote file's extensions and keys put in place, no view yet (its planned load's access alone), and what it is read as
  *  and from where, JSON (`{"format", "url"}`): an Iceberg table's URL is its table's, whose metadata names every file
  *  it reads by path, which Python checks are remote too before it mounts the table (R4). */
 export async function remoteAccess(spec: string): Promise<string> {

@@ -71,6 +71,8 @@ final class DuckDbHostOperations implements HostOperations {
             case HostOperation.Count c -> List.of("SELECT count(*) AS n FROM " + source(c.from()));
             case HostOperation.Secret s -> secret(s);
             case HostOperation.DropSecret d -> List.of("DROP TEMPORARY SECRET IF EXISTS " + quoted(d.name()));
+            case HostOperation.SetVariable v -> List.of("SET VARIABLE " + HostOperation.variable(v.held()) + " = ?");
+            case HostOperation.ResetVariable v -> List.of("RESET VARIABLE " + HostOperation.variable(v.held()));
             case HostOperation.Extensions e -> {
                 List<String> out = new ArrayList<>();
                 for (String name : e.names()) {
@@ -155,11 +157,19 @@ final class DuckDbHostOperations implements HostOperations {
                 // each record's top-level keys its columns; what is nested below them a STRUCT or a LIST, kept
                 case JSON -> "read_json(?, auto_detect=true)";
             };
-            case HostOperation.Source.Remote r -> switch (r.format()) {
-                case CSV -> "read_csv_auto(" + literal(r.url()) + ")";
-                case PARQUET -> "read_parquet(" + literal(r.url()) + ")";
-                case ICEBERG -> "iceberg_scan(" + literal(r.url()) + ")";
-            };
+            case HostOperation.Source.Remote r -> {
+                // the address as it is, or the session variable a bearer URL is bound to (B3's Q3: measured on
+                // duckdb-python 1.5.5 and DuckDB-WASM, the view's text then holds the variable's name alone)
+                String at = switch (r.location()) {
+                    case HostOperation.Location.Url u -> literal(u.url());
+                    case HostOperation.Location.Variable v -> "getvariable(" + literal(HostOperation.variable(v.held())) + ")";
+                };
+                yield switch (r.format()) {
+                    case CSV -> "read_csv_auto(" + at + ")";
+                    case PARQUET -> "read_parquet(" + at + ")";
+                    case ICEBERG -> "iceberg_scan(" + at + ")";
+                };
+            }
             case HostOperation.Source.Query q -> "(" + q.sql() + ")";
         };
     }

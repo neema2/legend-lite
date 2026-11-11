@@ -20,15 +20,23 @@
 // and `release` runs the target's AT_RELEASE loads and the plan's release once the host lets the session go, whatever
 // the run's outcome. A file's load names a HOST's own file (a person's upload, Studio's put): the host's store
 // (HostFiles) says what its database reads it by and that its bytes are the reference's, and the statement's ? is
-// bound to it -- never a path in a statement's text (B3: uploads and file puts as planned loads).
+// bound to it -- never a path in a statement's text (B3: uploads and file puts as planned loads). A remote file's mount
+// (B3's Q3) is a load whose `bound` steps bind what the host holds BY NAME (HostSecrets: a key's field, a bearer URL),
+// the plan holding no value; its CONNECTION-reach steps (a session variable) are handed back for the host to replay on
+// every connection it opens (ConnectionSettings).
 //
 // PURE: no DOM, no planner; a host gives its session.
 
 import type { HostOperationsSource } from './host-operations.ts';
+import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
 import { familyOf, isBoolean } from './types.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
+
+// a host's held values and the settings a load makes on a connection: a module of their own, so a page that keeps them
+// (the tab's duckdb-tab.ts) carries this runner only once it runs a plan (B3's Q3)
+export { ConnectionSettings, replaySettings, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
 
 /** Where a plan runs: a host's own database, one statement at a time, its transaction the host's to begin and end. */
 export interface PlanSession {
@@ -99,7 +107,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // host database's plan. B3 (2026-11-11, no new version): a target's loads and a plan's release run here where the host
 // established a session for the target (establish, release); a load node of a program and a file's load stay refused
 // 47 the same day (B3): a data reference may name a HOST's own file (detectedCsv, parquet, json) and a load may be
-// HOST_SESSION -- a person's file read into the host's database, kept until reset (runLoad, with the host's files)
+// HOST_SESSION -- a person's file read into the host's database, kept until reset (runLoad, with the host's files);
+// and (B3's Q3) such a load's `bound` step, its binds the plan's own value or a value the host holds by name
 const PLAN_VERSION = 47;
 interface Column { readonly name: string; readonly type: string }
 type Step =
@@ -122,7 +131,11 @@ type LoadStep =
   | { readonly _type: 'statement'; readonly sql: string }
   | { readonly _type: 'statements'; readonly ref: DataRef; readonly of: string }
   | { readonly _type: 'file'; readonly ref: DataRef }
+  | BoundStep
   | { readonly _type: string };
+/** A statement whose `?`s the host binds (PlanJson's `bound`): its effect the database's, or the connection's. */
+interface BoundStep { readonly _type: 'bound'; readonly sql: string; readonly reach: 'DATABASE' | 'CONNECTION'; readonly binds: readonly Bind[] }
+
 interface DataRef { readonly namespace: string; readonly name: string; readonly digest: string; readonly size: number; readonly format: { readonly _type: string } }
 /** A target as a plan's statement writes it: its loads by identity, into the plan's load section. */
 interface Target { readonly database?: unknown; readonly session?: readonly string[]; readonly loads?: readonly string[] }
@@ -217,7 +230,9 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
  *  against the digest and size its reference names first, each statement as written, a refusal naming the data; a
  *  host's own file through `files`, each delivery statement's ? bound to what its database reads it by, the statements
  *  that undo the delivery run whatever its outcome. */
-async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: HostFiles): Promise<void> {
+async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: HostFiles,
+  secrets?: HostSecrets): Promise<KeptSetting[]> {
+  const settings: KeptSetting[] = [];
   for (const step of load.steps) {
     if (step._type === 'statement') {
       await session.run((step as { readonly sql: string }).sql, []);
@@ -259,10 +274,17 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
       } finally {
         for (const statement of delivery.after) await session.run(statement, []);
       }
+    } else if (step._type === 'bound') {
+      // what the host holds bound by name, never written (B3's Q3); a connection's setting kept for the host to replay
+      const bound = step as BoundStep;
+      await session.run(bound.sql, boundValues(bound.binds, secrets, `the load ${load.identity}'s bound statement`));
+      if (bound.reach === 'CONNECTION') settings.push({ sql: bound.sql, binds: bound.binds });
+      else if (bound.reach !== 'DATABASE') throw new PlanRefusal(`a bound statement's reach is DATABASE or CONNECTION, not ${String(bound.reach)}`);
     } else {
-      throw new PlanRefusal(`a load's step is a statement, a statements blob or a file, not a ${step._type}`);
+      throw new PlanRefusal(`a load's step is a statement, a statements blob, a file or a bound statement, not a ${step._type}`);
     }
   }
+  return settings;
 }
 
 /**
@@ -275,12 +297,13 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
  * (a project's database dropped whole, a file put in one transaction).
  */
 export async function runLoad(plan: string, run: (sql: string, params: readonly PlanValue[]) => Promise<unknown>,
-  files?: HostFiles): Promise<void> {
+  host: { readonly files?: HostFiles; readonly secrets?: HostSecrets } = {}): Promise<{ readonly settings: readonly KeptSetting[] }> {
   const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
   if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
-  // a project's Data, made with its database (ONCE); a person's file, kept until reset (HOST_SESSION)
+  // a project's Data, made with its database (ONCE); a person's file or a remote file's mount, kept until reset
+  // (HOST_SESSION)
   if (root.cadence !== 'ONCE' && root.cadence !== 'HOST_SESSION') throw new PlanRefusal(`a load's plan is ONCE or HOST_SESSION, not ${root.cadence}`);
-  await deliver(root, { run: (sql, params) => run(sql, params).then(() => []) }, files);
+  return { settings: await deliver(root, { run: (sql, params) => run(sql, params).then(() => []) }, host.files, host.secrets) };
 }
 
 /**

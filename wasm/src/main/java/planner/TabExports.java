@@ -120,6 +120,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.fileLoad(request));
     }
 
+    /** {@link Boundary#remoteMount}: a remote file mounted, as a plan (B3's Q3). */
+    @JSExport
+    public static String remoteMountOrError(String request) {
+        return Folded.of(() -> Boundary.remoteMount(request));
+    }
+
     /** {@link Boundary#databaseFromCatalog}. */
     @JSExport
     public static String databaseFromCatalogOrError(String catalogJson) {

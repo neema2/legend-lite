@@ -9,6 +9,7 @@ import { DuckDbEngine, type ArrowishConnection } from './duckdb.ts';
 import { setUpSession } from './engine.ts';
 import type { FileSink } from './model-data.ts';
 import { runHostOperations, type HostOperationsSource } from './host-operations.ts';
+import { ConnectionSettings } from './connection-settings.ts';
 
 export interface DuckDbInTab {
   readonly engine: DuckDbEngine;
@@ -22,6 +23,9 @@ export interface DuckDbInTab {
    * planner's): what a project's own database is queried on (project-data.ts), its names pointed there alone.
    */
   connect(): Promise<DuckDbEngine>;
+  /** The settings a remote file's mount made on a connection (a bearer URL's session variable: B3's Q3), kept for the
+   *  tab's database and replayed on every connection `connect` opens. */
+  readonly settings: ConnectionSettings;
 }
 
 /** What the tab's DuckDB is set up by: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
@@ -56,11 +60,14 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
   const bundle = { mainModule: asset('duckdb-eh.wasm'), mainWorker: asset('duckdb-browser-eh.worker.js'), pthreadWorker: null };
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), new Worker(bundle.mainWorker!));
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-  // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's
+  // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's -- a remote
+  // file's session variable included, replayed from the tab's settings (B3's Q3: a variable is one connection's)
+  const settings = new ConnectionSettings();
   const connect = async (): Promise<DuckDbEngine> => {
-    const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection);
+    const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection, { settings });
     await ownExtensions(connection, planner, asset('duckdb-extensions'));
     await setUpSession(connection, (databaseType) => planner.sessionSetup(databaseType));
+    await settings.replay((sql, params) => connection.exclusive((held) => held.rows(sql, params)));
     return connection;
   };
   const engine = await connect();
@@ -72,5 +79,6 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
     },
     db,
     connect,
+    settings,
   };
 }

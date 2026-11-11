@@ -203,6 +203,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A remote file mounted, as a plan ({@code Boundary.remoteMount}, B3's Q3): the tab's {@code remoteMountOrError},
+     *  a DataCube planner's worker's {@code remoteMount}. */
+    @CEntryPoint(name = "lite_remote_mount")
+    static CCharPointer remoteMount(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.remoteMount(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A Pure Database (model text) written from a table's catalog rows, as DataCube writes one for a file. */
     @CEntryPoint(name = "lite_database_from_catalog")
     static CCharPointer databaseFromCatalog(IsolateThread thread, CCharPointer catalogJson) {

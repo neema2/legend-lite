@@ -98,6 +98,8 @@ class SourceUrlUserCallableTest {
                         com.legend.executionplan.DataRef.Statements.decode(load.content().get(st.ref().digest())));
                 case com.legend.executionplan.ExecutionPlan.LoadStep.File f -> throw new IllegalStateException(
                         "no file in a data: source's load");
+                case com.legend.executionplan.ExecutionPlan.LoadStep.Bound b -> throw new IllegalStateException(
+                        "no host's bound statement in a data: source's load");
             }
         }
         return out;

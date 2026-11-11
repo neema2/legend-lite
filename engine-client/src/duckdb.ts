@@ -14,6 +14,7 @@
 // arithmetic. Left alone it produces a crash far from its cause, so it
 // is narrowed here, once, at the boundary.
 
+import type { ConnectionSettings } from './connection-settings.ts';
 import type { Receipt } from './receipt.ts';
 import type { QueryEngine, RawColumn, RawTable } from './engine.ts';
 import { QueryError, typedByPlan } from './engine.ts';
@@ -349,8 +350,14 @@ export class DuckDbEngine implements QueryEngine {
   /** Remote files a mounted source reads over HTTP (`readsRemote`), for the receipt. */
   readonly #reads: string[] = [];
 
-  constructor(connection: ArrowishConnection) {
+  /** Where this engine's database keeps the settings a remote file's mount made on a connection (a session variable:
+   *  B3's Q3), replayed on every connection its host opens: the tab's (duckdb-tab.ts), none where the host keeps them
+   *  itself (Python's: the mount's answer carries them). */
+  readonly settings: ConnectionSettings | undefined;
+
+  constructor(connection: ArrowishConnection, options: { readonly settings?: ConnectionSettings } = {}) {
     this.#conn = connection;
+    this.settings = options.settings;
   }
 
   /**

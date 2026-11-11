@@ -8,7 +8,8 @@ import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
-import { mountRemote, secretName, type S3Credentials } from './remote.ts';
+import { bearerName, mountRemote, secretName, type S3Credentials } from './remote.ts';
+import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/plan-runner.ts';
 import { runHostOperations } from '../../engine-client/src/host-operations.ts';
 import { isIdentifier } from '../../pure-protocol/src/index.ts';
 
@@ -348,7 +349,7 @@ export async function readFileInto(
     },
   };
   const { runLoad } = await planRunner();
-  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params), files));
+  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params), { files }));
 
   const inferred = await modelLanded(engine, models, table);
 
@@ -396,18 +397,28 @@ export async function modelLanded(engine: QueryEngine & { readonly databaseType:
  */
 export async function mountRemoteView(engine: DuckDbEngine, models: TableModels,
   file: { readonly url: string; readonly s3?: S3Credentials; readonly name: string }): Promise<InferredModel> {
-  await mountRemote(engine, models, { sources: [{ name: file.name, url: file.url }], ...(file.s3 ? { s3: file.s3 } : {}) });
-  return models.tableModel(await catalogColumns(engine, models, file.name), {
+  return (await mountedView(engine, models, file)).model;
+}
+
+/** {@link mountRemoteView}, with the settings its mount made on the connection (a bearer URL's session variable: the
+ *  plan's held binds, no value) -- what a host that opens a connection per read replays on each (Python's). */
+export async function mountedView(engine: DuckDbEngine, models: TableModels,
+  file: { readonly url: string; readonly s3?: S3Credentials; readonly name: string }): Promise<{ readonly model: InferredModel; readonly settings: readonly KeptSetting[] }> {
+  const [mounted] = await mountRemote(engine, models, { sources: [{ name: file.name, url: file.url }], ...(file.s3 ? { s3: file.s3 } : {}) });
+  const model = await models.tableModel(await catalogColumns(engine, models, file.name), {
     table: file.name, convertible: false, databaseType: engine.databaseType,
   });
+  return { model, settings: mounted?.settings ?? [] };
 }
 
 /** A file's table dropped: its name is free again (the caller lets go of the file itself, where it keeps one). */
-export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
-  table: string, view = false): Promise<void> {
-  // a remote file's is a view (mountRemoteView), and its keys go with it: its secret, by its name, when it has one
+export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string; readonly settings?: ConnectionSettings | undefined },
+  models: TableModels, table: string, view = false): Promise<void> {
+  // a remote file's is a view (mountRemoteView), and its keys go with it: its secret, by its name, when it has one, and
+  // its bearer URL's session variable (B3's Q3), the setting no longer replayed on a connection opened later
   await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } },
-    ...(view ? [{ op: 'dropSecret', name: secretName(table) } as const] : [])]);
+    ...(view ? [{ op: 'dropSecret', name: secretName(table) } as const, { op: 'resetVariable', held: bearerName(table) } as const] : [])]);
+  if (view) engine.settings?.forget(table);
 }
 
 /**
