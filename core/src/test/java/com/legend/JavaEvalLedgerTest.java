@@ -1633,6 +1633,12 @@ class JavaEvalLedgerTest {
                     // holds (com.legend.testexec.SideShapes.holding: at most one row, at least one, exactly one for a to-one reader),
                     // counting rows, never computing a cell -- the D30 residue until the plan carries the contract
                     "TestPlanner.java",
+                    // 2026-11-11, B2d.2 of the total-wall program (docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2, the
+                    // generator design the user approved 2026-11-10): a body's generateTestData planned before the body
+                    // is classed (TestDataPlanner's one read-only statement), its sqls the fetch texts as constants, its
+                    // dataCsvString the statement's cell read where it stands; planning only, it rewrites the typed
+                    // body, sends nothing and evaluates no value (the database answers the text)
+                    "GeneratedTestData.java",
                     // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): a test plan run -- lowered to the runner's program, each verdict step read as its judge
                     // asks through the callback and handed to the judges; it reads and hands on, it decides nothing
                     // ConnectionLets.java left for the planner 2026-10-31 (the seam program's S2b: a let's read analysis)

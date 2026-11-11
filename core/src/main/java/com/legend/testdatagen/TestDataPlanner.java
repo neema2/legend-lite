@@ -231,28 +231,42 @@ public final class TestDataPlanner {
     }
 
     /** The statement answering the test-data text: every fetch's clause, then one cell -- each table's block (its
-     *  header, a planning constant; its lines, the database's, joined in order; {@code -----}) concatenated. */
+     *  header, a planning constant; its lines, the database's, joined in order; {@code -----}) concatenated. Each
+     *  table's lines are a one-row aggregate in the statement's FROM, the tables cross-joined, never a scalar
+     *  subquery: the statement is read where a value stands (B2d.2, a scalar subquery of its own), and H2 2.5.252
+     *  does not resolve a nested {@code WITH}'s clauses from a scalar subquery in its body once that {@code WITH} is
+     *  inside a common table expression -- as the database judge's verdict statement places a side (measured
+     *  2026-11-11: "Table not found"; from a derived table in the body's FROM it resolves them, as DuckDB and SQLite
+     *  do either way). */
     private static SqlQuery csv(Walk walk, boolean hashStrings) {
         if (walk.fetched.isEmpty()) {
             throw new IllegalStateException("testDataGen: a relation tree with no table");
         }
         List<SqlExpr> blocks = new ArrayList<>();
+        SqlSource from = null;
+        int n = 0;
         for (Fetched f : walk.fetched.values()) {
             // the CSV's column order sorts on the display (upper-cased) name, as upstream's goldens pin
             List<String> cs = new ArrayList<>(f.cols());
             cs.sort(java.util.Comparator.comparing(TestDataPlanner::headerCase));
             String header = f.schema() + "\n" + f.table() + "\n"
                     + String.join(",", cs.stream().map(TestDataPlanner::headerCase).toList()) + "\n";
+            String alias = "_t" + n++;
+            SqlSource lines = new SqlSource.Subselect(lines(walk, f, cs, hashStrings), alias, null);
+            from = from == null ? lines : new SqlSource.Join(from, lines, SqlSource.Join.Kind.CROSS, null);
             blocks.add(new SqlExpr.StringLit(header));
-            blocks.add(SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.ScalarSubquery(lines(walk, f, cs, hashStrings),
-                    SqlTyping.UNKNOWN), new SqlExpr.StringLit("")));
+            blocks.add(SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Column.derived(alias, LINES),
+                    new SqlExpr.StringLit("")));
             blocks.add(new SqlExpr.StringLit("-----\n"));
         }
         SqlExpr text = new SqlExpr.Call(SqlFn.CONCAT, blocks, SqlTyping.UNKNOWN);
         SqlSelect cell = new SqlSelect(List.of(new SqlSelect.Projection(text, "dataCsvString", null)), false,
-                new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
+                java.util.Objects.requireNonNull(from), null, List.of(), null, null, List.of(), null, null, List.of());
         return SqlWith.prepend(walk.ctes, cell);
     }
+
+    /** A table's lines' one column. */
+    private static final String LINES = "_csv_lines";
 
     /** {@code f}'s lines as one text: its fetches' distinct rows, each cell's display text (a text cell hashed or
      *  quoted where it holds a comma, a quote or a line break, a NULL {@code ---null---}) joined by commas, each line ending in a line break, in the cells' order. */
@@ -292,7 +306,7 @@ public final class TestDataPlanner {
                 .map(c -> SqlSelect.SortKey.asc(SqlExpr.Column.derived(CSV_ROW, tempColumn(f.def(), c)))).toList();
         SqlExpr joined = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(line, new SqlExpr.StringLit("")), false,
                 order);
-        return new SqlSelect(List.of(new SqlSelect.Projection(joined, "_csv_lines", null)), false,
+        return new SqlSelect(List.of(new SqlSelect.Projection(joined, LINES, null)), false,
                 new SqlSource.Subselect(cells, CSV_ROW, null), null, List.of(), null, null, List.of(), null, null,
                 List.of());
     }

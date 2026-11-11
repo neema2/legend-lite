@@ -143,6 +143,8 @@ final class CollectionLanes {
             // (BodyDriver); its result is a VALUE — defensive true
             case com.legend.compiler.spec.typed.TypedCsvCensus c -> true;
             case com.legend.compiler.spec.typed.TypedTestDataGen g -> true;
+            // a planned statement's one cell (B2d.2): a scalar value
+            case com.legend.compiler.spec.typed.TypedPlannedValue v -> true;
             case TypedDistinct d -> valueLane(d.source());
             case TypedDrop d -> valueLane(d.source());
             // take()/limit() — the DEEP_AUDIT catch: the whitelist had

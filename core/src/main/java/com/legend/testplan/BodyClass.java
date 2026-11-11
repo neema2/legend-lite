@@ -411,6 +411,9 @@ public enum BodyClass {
         // and its effects and raw reads would have run on the system database)
         return n instanceof TypedFrom
                 || n instanceof TypedRawSqlRelation
+                // a planned statement's value (B2d.2: the test-data generator's text, a comparison over its slice) reads
+                // the body's database
+                || n instanceof com.legend.compiler.spec.typed.TypedPlannedValue
                 || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid
                 || n instanceof TypedNativeCall call && (NativeFn.Handle.isExecute(call.callee().id())
                         || NativeFn.Handle.runsAFrame(call.callee().id())
@@ -1032,11 +1035,12 @@ public enum BodyClass {
          *  {@link TypedCsvCensus}): the program road has no fold for it, so a body holding it is refused by name (its
          *  Java fold went with the walk, 2026-11-06; the tests skipped by a ruled register row). */
         CSV_CENSUS("csv-census"),
-        /** The test-data generator's carrier ({@code generateTestData}, {@code generateSeedDataString}: the checker's
-         *  {@link TypedTestDataGen} of the {@code generate} and {@code seedString} flavours): the program road has no
-         *  step for the generator's fetches, so a body holding it is refused by name (the walk's run of them deleted,
-         *  2026-11-06/07; the tests skipped by a ruled register row). The {@code plan} flavour is a value the
-         *  planner renders ({@code generatorPlanText}) and no kind (M10b). */
+        /** A test-data generator's carrier the program road does not plan (the checker's {@link TypedTestDataGen}): a
+         *  body holding one is refused by name. Since B2d.2 (2026-11-11) a {@code generateTestData} read by its
+         *  {@code sqls} or its {@code dataCsvString} is planned before the body is classed ({@code GeneratedTestData}:
+         *  none reaches the class rules); what remains is {@code generateSeedDataString} (the {@code seedString}
+         *  flavour) and a generator read another way. The {@code plan} flavour is a value the planner renders
+         *  ({@code generatorPlanText}) and no kind (M10b). */
         TDG_GENERATOR("tdg-generator");
 
         private final String tag;

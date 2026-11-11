@@ -3243,6 +3243,8 @@ public final class Lowerer {
                     : new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
+            // a value a planned statement answers (B2d.2, 2026-11-11): its statement, read where the value stands
+            case com.legend.compiler.spec.typed.TypedPlannedValue v -> new SqlExpr.ScalarSubquery(v.statement());
             // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
             case TypedCFloat c -> c.exact() != null
                     ? new SqlExpr.DecimalLit(c.exact())
