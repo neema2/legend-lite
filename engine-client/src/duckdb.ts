@@ -418,13 +418,18 @@ export class DuckDbEngine implements QueryEngine {
       t.schema.fields.map((_f, c) => t.getChildAt(c)?.get(r)));
     return this.#serialised(() => work({
       rows: async (sql, params) => {
-        if (params.length === 0) return rowsOf(await conn.query(sql));
-        if (conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
-        const prepared = await conn.prepare(sql);
+        if (params.length > 0 && conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
         try {
-          return rowsOf(await prepared.query(...params));
-        } finally {
-          await prepared.close?.();
+          if (params.length === 0) return rowsOf(await conn.query(sql));
+          const prepared = await conn.prepare!(sql);
+          try {
+            return rowsOf(await prepared.query(...params));
+          } finally {
+            await prepared.close?.();
+          }
+        } catch (cause) {
+          // the database's words, any value a kept setting binds taken out (M2)
+          throw this.#failed(cause, sql);
         }
       },
       table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
@@ -541,6 +546,17 @@ export class DuckDbEngine implements QueryEngine {
     }
   }
 
+  /**
+   * A database's failure as this engine says it (the B checkpoint's tenets audit, M2, 2026-11-11): its words with every
+   * value a kept setting binds taken out (ConnectionSettings.redact) -- an expired presigned link's read repeats the
+   * whole URL -- and, where any was, without the database's own error, which still holds it.
+   */
+  #failed(cause: unknown, sql: string): QueryError {
+    const said = cause instanceof Error ? cause.message : String(cause);
+    const message = this.settings === undefined ? said : this.settings.redact(said);
+    return new QueryError(message, sql, message === said ? { cause } : {});
+  }
+
   async #whole(
     sql: string,
     epoch: number,
@@ -551,11 +567,7 @@ export class DuckDbEngine implements QueryEngine {
     try {
       table = await this.#conn.query(sql);
     } catch (cause) {
-      throw new QueryError(
-        cause instanceof Error ? cause.message : String(cause),
-        sql,
-        { cause },
-      );
+      throw this.#failed(cause, sql);
     }
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return toRawTable(table, epoch, performance.now() - started);
@@ -593,11 +605,7 @@ export class DuckDbEngine implements QueryEngine {
       batches = await send.call(this.#conn, sql);
     } catch (cause) {
       if (signal?.aborted) throw signal.reason ?? cause;
-      throw new QueryError(
-        cause instanceof Error ? cause.message : String(cause),
-        sql,
-        { cause },
-      );
+      throw this.#failed(cause, sql);
     }
 
     try {
@@ -613,11 +621,7 @@ export class DuckDbEngine implements QueryEngine {
         await cancel();
         throw signal.reason ?? cause;
       }
-      throw new QueryError(
-        cause instanceof Error ? cause.message : String(cause),
-        sql,
-        { cause },
-      );
+      throw this.#failed(cause, sql);
     }
 
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');

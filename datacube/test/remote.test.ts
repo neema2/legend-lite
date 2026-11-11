@@ -17,6 +17,7 @@ import type { ResultTable } from '../../engine-client/src/result.ts';
 import { plannerFor } from './catalog-builder.ts';
 import {
   bearerName,
+  carriesUserinfo,
   inferFormat,
   isBearer,
   mountRemote,
@@ -287,6 +288,18 @@ describe('a bearer URL: a presigned link, its query string its token (B3\'s Q3)'
     assert.deepEqual(replayed, [[url]], 'replayed on a new connection, bound again');
   });
 
+  it('is refused, never asked of the planner, when its address names a user or a password (the tenets audit\'s LOW 5)', async () => {
+    let asked = 0;
+    const counting = { remoteMount: async (r: RemoteMountRequest) => { asked += 1; return planner.remoteMount(r); } };
+    for (const named of ['https://sam:SENTINEL-pw@b.example/trades.parquet', `https://sam:SENTINEL-pw@b.example/trades.parquet?${token}`]) {
+      await assert.rejects(() => mountRemote(new RecordingEngine(), counting, { sources: [{ name: 'trades', url: named }] }),
+        (e: Error) => /names a user or a password/.test(e.message) && !e.message.includes('SENTINEL'));
+    }
+    assert.equal(asked, 0);
+    // an '@' in the path is no user
+    assert.equal(carriesUserinfo('https://b.example/a@b.parquet'), false);
+  });
+
   it('is refused for an Iceberg table, a folder that has no presigned link', async () => {
     await assert.rejects(() => mountRemote(new RecordingEngine(), planner, { sources: [{ name: 't', url: `s3://b/t?${token}`, format: 'iceberg' }] }),
       (e: Error) => /a folder/.test(e.message) && !e.message.includes('SENTINEL'));
@@ -301,6 +314,10 @@ describe('a bearer URL: a presigned link, its query string its token (B3\'s Q3)'
     assert.ok(!redactSecrets(`on '${url}'`, undefined, [url]).includes('SENTINEL'));
     // its query string alone, as a message may quote it
     assert.equal(redactSecrets(`signed by ${url.slice(url.indexOf('?') + 1)}`, undefined, [url]), 'signed by ***');
+    // and one parameter's value alone, raw or decoded (the tenets audit's M2, 2026-11-11)
+    for (const [, value] of new URL(url).searchParams) {
+      if (value.length >= 8) assert.ok(!redactSecrets(`expired: ${value}`, undefined, [url]).includes(value), value);
+    }
   });
 });
 

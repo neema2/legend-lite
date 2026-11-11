@@ -14,6 +14,7 @@ import {
 } from '../cube-document.ts';
 import { HOST_TABLES, leafRefusal, openedLeaves } from '../join-open.ts';
 import { LitePlanner } from '../lite-planner.ts';
+import { shownAddress } from '../remote.ts';
 import { savedQueryOpened, type QueryReading } from '../saved-queries.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { hostCalls, hostEngine, hostFetch, hostWorker, type HostCalls } from './host.ts';
@@ -96,7 +97,7 @@ export async function leafOnHost(leaf: LeafSource | HostLeaf, host: HostTables, 
     }
     case 'remoteFile': {
       const remote = host.remotes[leaf.url];
-      if (remote === undefined) throw new CubeRefusal(`the remote file ${leaf.url} is not mounted here`);
+      if (remote === undefined) throw new CubeRefusal(`the remote file ${shownAddress(leaf.url)} is not mounted here`);
       return { base: fileBase(remote), table: remote.table, leaf: remote.leaf };
     }
     case 'class':

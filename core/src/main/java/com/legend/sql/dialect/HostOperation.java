@@ -75,6 +75,26 @@ public sealed interface HostOperation {
         }
     }
 
+    /**
+     * Refuses an address that names a user or a password ({@code https://user:password@host/...}): a credential written
+     * in the address, which no plan holds -- the file's keys are a secret the host holds by name (the B checkpoint's
+     * tenets audit, LOW 5, 2026-11-11). The address is not repeated in the words.
+     */
+    static void refuseUserinfo(String url) {
+        int scheme = url.indexOf("://");
+        if (scheme < 0) {
+            return;
+        }
+        int end = scheme + 3;
+        while (end < url.length() && "/?#".indexOf(url.charAt(end)) < 0) {
+            end++;
+        }
+        if (url.substring(scheme + 3, end).indexOf('@') >= 0) {
+            throw new IllegalArgumentException("a URL naming a user or a password (user:password@host) carries its"
+                    + " credential: the host holds a file's keys as a secret, and the plan names it");
+        }
+    }
+
     /** Where a remote file is: an address written as it is, or a session variable a host binds its bearer URL to. */
     sealed interface Location {
         /** An address that carries no token: written as it is. One with a query string carries its token (a presigned
@@ -86,6 +106,7 @@ public sealed interface HostOperation {
                     throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it,"
                             + " and the plan names it");
                 }
+                refuseUserinfo(url);
             }
         }
 

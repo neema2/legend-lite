@@ -297,6 +297,57 @@ class DataMechanismCensusTest {
      *  since B4 (2026-11-11): M5's and M6's moved into their DELETED rows. */
     static final java.util.Map<String, List<String>> REMOVED_SO_FAR = java.util.Map.of();
 
+    /**
+     * A DELETED ROW'S HOST SPELLINGS (the B checkpoint's tenets audit, M4, 2026-11-11): where a mechanism lived in the
+     * hosts -- the tab's and DataCube's TypeScript, Python's package -- its own spellings there, each present in the
+     * hosts' history (git log -S) and reading zero in every host source now, as the Java symbols above do in the Java
+     * trees. M14: the fill's statement text, the seed text, a host's file and remote file named in an operation, a
+     * secret's operation (its view, mount, access and credential operations, their scope and binds), a table's seed
+     * rows and the tables a project's Data loaded outside its plan.
+     */
+    static final java.util.Map<String, List<String>> HOST_SYMBOLS = java.util.Map.of("M14", List.of(
+            // TypeScript (engine-client, datacube)
+            "testDataSql(", "viewOperation(", "mountOperations(", "accessOperations(", "credentialOperations(",
+            "credentialScope(", "secretBinds(", "op: 'secret'", "op: 'insert'", "TableSeed", "loadDataTables(",
+            // Python (legend_lite)
+            "lite_test_data_sql", "statements['fill']"));
+
+    /** The hosts' sources the census reads (M4): DataCube's and engine-client's TypeScript, Python's package. */
+    private static List<Path> hostSources() {
+        List<Path> out = new ArrayList<>();
+        for (String tree : List.of("datacube/src", "engine-client/src", "python/legend_lite")) {
+            List<Path> files = SourceFiles.under(tree);
+            assertTrue(!files.isEmpty(), "the census read nothing under " + tree);
+            out.addAll(files);
+        }
+        return out;
+    }
+
+    @Test
+    void aDeletedMechanismsHostSpellingsReadZero() throws IOException {
+        List<Path> files = hostSources();
+        assertTrue(files.size() > 100, "the census read too few host sources to prove anything: " + files.size());
+        Set<String> deleted = ROWS.stream().filter(r -> r.state() instanceof Deleted).map(Row::id)
+                .collect(Collectors.toSet());
+        assertTrue(deleted.containsAll(HOST_SYMBOLS.keySet()), "host spellings are a DELETED row's: " + HOST_SYMBOLS.keySet());
+        List<String> found = new ArrayList<>();
+        for (Path f : files) {
+            String name = f.getFileName().toString();
+            if (!name.endsWith(".ts") && !name.endsWith(".py")) {
+                continue;
+            }
+            String text = Files.readString(f, StandardCharsets.UTF_8);
+            HOST_SYMBOLS.forEach((id, symbols) -> {
+                for (String symbol : symbols) {
+                    if (text.contains(symbol)) {
+                        found.add(id + " '" + symbol + "' in " + f);
+                    }
+                }
+            });
+        }
+        assertEquals(List.of(), found, "a deleted mechanism's host spelling is back");
+    }
+
     /** Every source tree the census reads (the census target's declared files: core, spec, pct, parser-equivalence,
      *  native, testing, warehouse, wasm), each of the trees a mechanism lived in required to be read. */
     private static List<Path> sources() {

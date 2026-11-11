@@ -550,6 +550,38 @@ class Files(unittest.TestCase):
         with self.frames.serving() as models:
             self.assertNotIn('files_bad', models)
 
+    def test_a_file_that_changes_while_it_is_read_is_refused_its_table_dropped(self):
+        # the tenets audit's LOW 9 (2026-11-11): the plan names the file by the digest taken before DuckDB reads its
+        # path, so the file is hashed again once read; one whose bytes changed meanwhile is refused, nothing kept. The
+        # change is simulated where it is seen: the second hash differs from the first
+        import tempfile
+        from unittest import mock
+        from legend_lite import engine as engine_module
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        path = Path(folder.name, 'moving.csv')
+        path.write_text('a\n1\n2\n')
+        real = engine_module._bytes_of
+        seen = []
+
+        def changing(p):
+            size, digest = real(p)
+            seen.append(digest)
+            return (size, digest) if len(seen) == 1 else (size + 1, '0' * 64)
+
+        with mock.patch.object(engine_module, '_bytes_of', changing):
+            with self.assertRaises(ValueError) as refused:
+                self.engine.read_file(path, 'moving.csv')
+        self.assertIn('the file moving.csv changed while it was read', str(refused.exception))
+        self.assertEqual(len(seen), 2, 'hashed before the read and again after it')
+        self.assertEqual(self.tables('moving'), 0)
+        with self.frames.serving() as models:
+            self.assertNotIn('moving', models)
+        # unchanged, it is read and kept as before
+        said = self.engine.read_file(path, 'moving.csv')
+        self.addCleanup(self.engine.forget_read, said)
+        self.assertEqual(self.frames.connection.execute(f'SELECT count(*) FROM {said["table"]}').fetchone()[0], 2)
+
     def test_without_its_bundle_reading_a_file_says_so_never_hides_it(self):
         import os
         from unittest import mock
@@ -673,6 +705,54 @@ class Remote(unittest.TestCase):
                 bare.execute('SELECT count(*) FROM remote_signed').fetchone()
         finally:
             bare.close()
+
+    def test_a_presigned_links_token_is_in_no_failures_words(self):
+        # the B checkpoint's tenets audit, M2 (2026-11-11): DuckDB repeats the URL it read in its own error -- a link
+        # that expired, a file gone -- so a read's failure, and a mount's, is said with every value Python holds taken
+        # out (the whole URL, its query string, each parameter long enough to be a token), the address named
+        import shutil
+        import duckdb
+        sentinel = 'SENTINEL-' + os.urandom(6).hex()
+        served = Path(self.folder.name)
+        shutil.copy(served / 'trades.parquet', served / 'expiring.parquet')
+        url = f'{self.base}/expiring.parquet?X-Amz-Expires=300&X-Amz-Signature={sentinel}'
+        answer = self.mount(url, 'remote_expiring')
+        self.assertEqual(answer.status, 200, answer.body[:300])
+        with self.frames.reading() as read:
+            self.assertEqual(read.execute('SELECT count(*) FROM remote_expiring').fetchone()[0], 3)
+        # the link no longer answers: the read fails, in DuckDB's words, without the token
+        (served / 'expiring.parquet').unlink()
+        with self.frames.reading() as read:
+            with self.assertRaises(duckdb.Error) as failed:
+                read.execute('SELECT count(*) FROM remote_expiring').fetchone()
+        self.assertNotIn(sentinel, str(failed.exception))
+        self.assertIsNone(failed.exception.__context__, 'the database\'s own error, which holds the URL, is not chained')
+        # a page's mount of a link that does not answer (Page.load): named by its address, the token in no word
+        with self.assertRaises(ValueError) as refused:
+            self.engine.mount_remote(f'{self.base}/gone.parquet?X-Amz-Signature={sentinel}')
+        self.assertNotIn(sentinel, str(refused.exception))
+        self.assertIsNone(refused.exception.__context__)
+        self.assertIn(f'{self.base}/gone.parquet is not read', str(refused.exception))
+        # and as /remote.json answers it
+        answer = self.mount(f'{self.base}/gone.parquet?X-Amz-Signature={sentinel}', 'remote_gone')
+        self.assertNotEqual(answer.status, 200)
+        self.assertNotIn(sentinel.encode('utf-8'), answer.body)
+
+    def test_a_mounts_setting_binds_the_url_only_to_the_name_the_mount_holds_it_by(self):
+        # the tenets audit's LOW 6 (2026-11-11): the page's URL is bound to the held bind the mount names (its answer's
+        # bearer) and to no other: a setting binding another name, or another field, is refused by name, never a value
+        from legend_lite.engine import _connection_settings
+        url = f'{self.base}/trades.parquet?X-Amz-Signature=SENTINEL-name-check'
+        setting = {'sql': 'SET VARIABLE v = ?', 'binds': [{'_type': 'held', 'name': 'datacube_url_t', 'field': 'URL'}]}
+        settings, held = _connection_settings([setting], url, 'datacube_url_t')
+        self.assertEqual((settings, held), ((('SET VARIABLE v = ?', (url,)),), (url,)))
+        for bearer, bind in (('datacube_url_other', setting['binds'][0]), (None, setting['binds'][0]),
+                             ('datacube_url_t', {'_type': 'held', 'name': 'datacube_url_t', 'field': 'KEY_ID'})):
+            with self.subTest(bearer=bearer, bind=bind):
+                with self.assertRaises(ValueError) as refused:
+                    _connection_settings([{'sql': 'SET VARIABLE v = ?', 'binds': [bind]}], url, bearer)
+                self.assertIn(f"binds {bind['name']}.{bind['field']}, which this engine holds nothing for", str(refused.exception))
+                self.assertNotIn('SENTINEL', str(refused.exception))
 
     def test_a_remote_iceberg_table_is_read_through_a_view_with_the_extensions_carried(self):
         answer = self.mount(self.iceberg, 'remote_iceberg')

@@ -43,6 +43,49 @@ export async function replaySettings(settings: readonly KeptSetting[],
   for (const setting of settings) await run(setting.sql, boundValues(setting.binds, secrets, 'a connection setting'));
 }
 
+/** The shortest query-string parameter value redacted on its own: a shorter one (`X-Amz-Expires=3600`'s, a `1`) is no
+ *  token, and taking it out of a message would take out the message's own words and numbers. The whole URL and the whole
+ *  query string are redacted whatever their length. */
+const SHORTEST_HELD_PARAMETER = 8;
+
+/**
+ * THE TEXTS A HELD VALUE MAY COME BACK AS (the B checkpoint's tenets audit, M2, 2026-11-11): a database repeats a value it
+ * was bound in its own error -- an expired presigned link's read names the whole URL (measured, B3's Q3) -- and may quote
+ * its query string, or one parameter, alone, percent-encoded or not. So a held URL is taken out as itself, its query
+ * string, and each parameter's value (raw and decoded); any other held value as itself.
+ */
+export function heldTexts(value: string): string[] {
+  const out = new Set<string>([value]);
+  const query = value.indexOf('?');
+  if (query >= 0) {
+    const fragment = value.indexOf('#', query);
+    const string = value.slice(query + 1, fragment < 0 ? undefined : fragment);
+    out.add(string);
+    for (const part of string.split('&')) {
+      const raw = part.slice(part.indexOf('=') + 1);
+      for (const v of [raw, decoded(raw)]) if (v.length >= SHORTEST_HELD_PARAMETER) out.add(v);
+    }
+  }
+  // the longest first, so a part never leaves the rest of a longer one behind
+  return [...out].filter((t) => t.length > 0).sort((a, b) => b.length - a.length);
+}
+
+const decoded = (text: string): string => {
+  try {
+    return decodeURIComponent(text.replace(/\+/g, ' '));
+  } catch {
+    // not percent-encoding as written: the raw text is redacted, and nothing else is read from it
+    return text;
+  }
+};
+
+/** `text` with every held value in `values` (each as heldTexts takes it apart) written `***`. */
+export function redactHeld(text: string, values: Iterable<string>): string {
+  let out = text;
+  for (const value of values) for (const t of heldTexts(value)) out = out.split(t).join('***');
+  return out;
+}
+
 /**
  * THE SETTINGS A HOST KEEPS FOR ITS CONNECTIONS (B3's Q3): each mount's connection settings, by the mount's name, with
  * the store that binds them -- replayed on every connection the host opens afterwards (the tab's `connect`), forgotten
@@ -50,6 +93,22 @@ export async function replaySettings(settings: readonly KeptSetting[],
  */
 export class ConnectionSettings {
   readonly #kept = new Map<string, { readonly settings: readonly KeptSetting[]; readonly secrets: HostSecrets }>();
+
+  /** `text` with every value the kept settings bind from a host's store taken out (redactHeld): what a database's error
+   *  is written through before it is shown, logged or kept -- a bearer URL's read repeats the URL (M2). */
+  redact(text: string): string {
+    const held: string[] = [];
+    for (const { settings, secrets } of this.#kept.values()) {
+      for (const setting of settings) {
+        for (const b of setting.binds) {
+          if (b._type !== 'held') continue;
+          const v = secrets.value(b.name, b.field);
+          if (typeof v === 'string') held.push(v);
+        }
+      }
+    }
+    return held.length === 0 ? text : redactHeld(text, held);
+  }
 
   keep(name: string, settings: readonly KeptSetting[], secrets: HostSecrets): void {
     if (settings.length === 0) this.#kept.delete(name);

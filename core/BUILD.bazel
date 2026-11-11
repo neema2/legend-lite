@@ -518,6 +518,11 @@ _CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 _CENSUS_READS = _CORE_READS + [
     # the host's plan runner, whose plan version the census holds equal to the planner's (P7, 2026-11-09)
     "//engine-client:plan_runner_src",
+    # the hosts' sources, where a deleted mechanism's host spellings must read zero too (the B checkpoint's tenets
+    # audit, M4, 2026-11-11)
+    "//datacube:census_src",
+    "//engine-client:census_src",
+    "//python:census_src",
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",

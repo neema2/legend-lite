@@ -58,6 +58,14 @@ write_source_files(
     visibility = ["//:__pkg__"],
 )
 
+# the host sources the data mechanism census reads (DataMechanismCensusTest: a deleted mechanism's host spellings read
+# zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
+filegroup(
+    name = "census_src",
+    srcs = glob(["legend_lite/**/*.py"]),
+    visibility = ["//core:__pkg__"],
+)
+
 # the whole package: the bindings, the frames, the engine and show()
 py_library(
     name = "legend_lite",

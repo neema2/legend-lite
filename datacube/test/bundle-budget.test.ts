@@ -723,8 +723,11 @@ const BUDGET = 433_000;
  *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
  *  same date). Measured 417,953.
  *  418,500 -> 419,500 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
- *  same date). Measured 419,122. */
-const ENGINE_BUDGET = 419_500;
+ *  same date). Measured 419,122.
+ *  419,500 -> 420,500 (2026-11-11, the B checkpoint's tenets audit, M2: the engine says every database failure with the
+ *  values its kept settings bind taken out -- a presigned link's URL, its query string, each parameter -- so an expired
+ *  link's error names no token; connection-settings.ts heldTexts/redactHeld, duckdb.ts #failed). Measured 420,058. */
+const ENGINE_BUDGET = 420_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1107,8 +1110,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  446,500 -> 447,000 (2026-11-11, the total wall's B3 -- the grid-only page's note of the same date; with the hosts'
  *  plan runner at startup it measured 449,333). Measured 446,567.
  *  447,000 -> 448,000 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
- *  same date). Measured 447,348. */
-const WIDGET_BUDGET = 448_000;
+ *  same date). Measured 447,348.
+ *  448,000 -> 449,000 (2026-11-11, the tenets audit's M2 -- the engine page's note of the same date). Measured 448,290. */
+const WIDGET_BUDGET = 449_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

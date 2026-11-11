@@ -7,7 +7,7 @@
 
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { LitePlanner } from '../lite-planner.ts';
-import { accessRemote, inferFormat, scanUrl, type S3Credentials } from '../remote.ts';
+import { accessRemote, bearerName, inferFormat, isBearer, scanUrl, type S3Credentials } from '../remote.ts';
 import { lastSegment } from '../cube-document.ts';
 import { dropFileTable, modelLanded, mountedView, readFileInto, tableNameOf, uploadFileName } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
@@ -69,16 +69,17 @@ export async function landed(spec: string): Promise<string> {
 }
 
 /** A remote file mounted as the view Python named, through the httpfs extension Python's DuckDB carries, by its planned
- *  load (B3's Q3): its model, as the tab's mount says it, and the settings its mount made on the connection (a bearer
- *  URL's session variable, its binds by name: Python replays them on each read's cursor), JSON. Python checked its URL
- *  is remote before anything ran. */
+ *  load (B3's Q3): its model, as the tab's mount says it, the settings its mount made on the connection (a bearer
+ *  URL's session variable, its binds by name: Python replays them on each read's cursor) and -- a bearer URL -- the name
+ *  it is held under (`bearer`: Python binds the URL to that held bind alone, the tenets audit's LOW 6), JSON. Python
+ *  checked its URL is remote before anything ran. */
 export async function mount(spec: string): Promise<string> {
   const s = JSON.parse(spec) as { readonly url: string; readonly name: string; readonly s3?: S3Credentials };
   return using(async ({ engine, writer }) => {
     const { model, settings } = await mountedView(engine, writer, { url: s.url, name: s.name, ...(s.s3 ? { s3: s.s3 } : {}) });
     // the remote file as a page's cube names it (host-tables.ts HostLeaf): what the host serves the view by
     const leaf: HostLeaf = { _type: 'remoteFile', name: lastSegment(s.url), url: s.url };
-    return JSON.stringify({ ...model, leaf, settings });
+    return JSON.stringify({ ...model, leaf, settings, ...(isBearer(s.url) ? { bearer: bearerName(s.name) } : {}) });
   });
 }
 

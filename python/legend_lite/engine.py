@@ -61,7 +61,7 @@ from . import _host, _json, compiler, warehouse
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, Reading, UntypedColumn, typed_by_plan
+from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
 from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -256,26 +256,45 @@ def _bytes_of(path: Path) -> tuple[int, str]:
     return path.stat().st_size, digest.hexdigest()
 
 
-def _connection_settings(settings: Any, url: str) -> tuple[tuple[str, tuple[Any, ...]], ...]:
+def _connection_settings(settings: Any, url: str, bearer: str | None) -> tuple[
+        tuple[tuple[str, tuple[Any, ...]], ...], tuple[str, ...]]:
     """A remote file's settings of the connection, as its planned mount answers them (B3's Q3: a bearer URL's session
     variable -- its statement, and its binds by name, never a value), each with its values: what this engine holds for
-    the mount -- the URL the page gave, under the field ``URL`` -- or the plan's own value as it is. Every read's cursor
-    runs them (``Frames.reading``): a variable is one connection's. A bind this engine holds nothing for is refused in
-    words (``ValueError``), naming it, never a value."""
+    the mount -- the URL the page gave, under the name the mount holds it by (``bearer``, the mount's answer) and the
+    field ``URL`` -- or the plan's own value as it is; and the values held so (what a failure's words are cleared of:
+    M2). Every read's cursor runs them (``Frames.reading``): a variable is one connection's. A bind this engine holds
+    nothing for -- another name, another field -- is refused in words (``ValueError``), naming it, never a value."""
     out = []
+    held: list[str] = []
     held_url = url[:-len('#iceberg')] if url.lower().endswith('#iceberg') else url
     for setting in settings:
         params: list[Any] = []
         for bind in setting['binds']:
             if bind.get('_type') == 'value':
                 params.append(bind['text'])
-            elif bind.get('_type') == 'held' and bind.get('field') == 'URL':
+            elif bind.get('_type') == 'held' and bearer is not None and bind.get('name') == bearer \
+                    and bind.get('field') == 'URL':
                 params.append(held_url)
+                if held_url not in held:
+                    held.append(held_url)
             else:
                 raise ValueError(f"a remote file's setting binds {bind.get('name')}.{bind.get('field')}, which this engine"
                                  ' holds nothing for')
         out.append((setting['sql'], tuple(params)))
-    return tuple(out)
+    return tuple(out), tuple(held)
+
+
+def _bearer(url: str) -> list[str]:
+    """The values a remote URL holds that a message must not name: the URL itself where its query string carries a token
+    (a presigned link: DataCube's remote.ts ``isBearer``), else none -- an address is said as it is."""
+    return [url] if '?' in url else []
+
+
+def shown_address(url: str) -> str:
+    """A remote URL as a message names it: its address without its query string (a presigned link's token never in
+    words: M2; DataCube's remote.ts ``shownAddress``)."""
+    at = url[:-len('#iceberg')] if url.lower().endswith('#iceberg') else url
+    return at.partition('?')[0]
 
 
 def remote_url(url: str) -> bool:
@@ -714,10 +733,11 @@ class Engine:
         try:
             said = self._mount(url, asked['name'], asked.get('s3'))
         except ValueError as refused:
-            return _said(400, str(refused))
+            return _said(400, redact_held(str(refused), _bearer(url)))
         except Exception as failure:
-            # the file not read (not there, its keys refused, a format DuckDB cannot read): said, as the tab says it
-            return _said(422, f'{type(failure).__name__}: {failure}')
+            # the file not read (not there, its keys refused, a format DuckDB cannot read): said, as the tab says it,
+            # the link's token in no word (M2)
+            return _said(422, redact_held(f'{type(failure).__name__}: {failure}', _bearer(url)))
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
 
     def _mount(self, url: str, asked: str, s3: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -747,8 +767,8 @@ class Engine:
                 if refused is not None:
                     raise ValueError(refused)
             said: dict[str, Any] = json.loads(headless.call('mount', json.dumps(mount)))
-            settings = _connection_settings(said.pop('settings', []), url)
-            self.frames.keep_file(name, said, view=True, settings=settings)
+            settings, held = _connection_settings(said.pop('settings', []), url, said.pop('bearer', None))
+            self.frames.keep_file(name, said, view=True, settings=settings, held=held)
         return {**said, 'table': name}
 
     def mount_remote(self, url: str, s3: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -756,12 +776,19 @@ class Engine:
         under the view DataCube names one (headless tableFor), as the tab's mount does (``_mount``). One not read (not
         there, its keys refused, a format DuckDB cannot read) refused in words (``ValueError``), as the tab says it."""
         assert self._headless is not None
+        refusal: ValueError | None = None
         try:
             return self._mount(url, self._headless().call('tableFor', None), s3)
         except ValueError:
             raise
         except Exception as failure:
-            raise ValueError(f'the remote file {url} is not read: {type(failure).__name__}: {failure}') from failure
+            if '?' not in url:
+                raise ValueError(f'the remote file {url} is not read: {type(failure).__name__}: {failure}') from failure
+            # a presigned link: named by its address, the database's words without its token (M2) -- raised outside, so
+            # the database's own error, which still holds it, is not chained to it
+            said = redact_held(f'{type(failure).__name__}: {failure}', _bearer(url))
+            refusal = ValueError(f'the remote file {shown_address(url)} is not read: {said}')
+        raise refusal
 
     def mount_remote_once(self, url: str) -> tuple[dict[str, Any], bool]:
         """A remote file mounted for a grid (``page.grid(remote=...)``), once for its URL: the view a remote file of the
@@ -898,6 +925,13 @@ class Engine:
         with headless.turn(), self.frames.reading_file(asked) as table:
             read: dict[str, Any] = json.loads(headless.call('ingest', json.dumps(
                 {'path': str(path), 'name': name, 'table': table, 'size': size, 'sha256': sha256})))
+            # the bytes the database read are the bytes the plan names (the tenets audit's LOW 9, 2026-11-11): the plan
+            # names the file by the digest taken before the read, and DuckDB reads the path, so the file is hashed again
+            # once read -- one changed meanwhile is refused, its table dropped (reading_file), never kept as the file
+            again = _bytes_of(path)
+            if again != (size, sha256):
+                raise ValueError(f'the file {name} changed while it was read ({size} bytes of digest {sha256} before, '
+                                 f'{again[0]} bytes of digest {again[1]} after): read it again')
             self.frames.keep_file(table, read)
         return read
 
@@ -1664,7 +1698,8 @@ class Engine:
                 if answer.status != 200:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
-                rows = connection.execute(planned['sql']).to_arrow_table()
+                # a failure's words name no value this engine holds (a bearer URL: M2)
+                rows = execute_redacted(connection, planned['sql'], self.frames.held_values()).to_arrow_table()
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -1680,7 +1715,7 @@ class Engine:
                 planned = self.planner.execute_json_plan(body, served)
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
-                cursor = connection.execute(json.loads(planned.body)['run'])
+                cursor = execute_redacted(connection, json.loads(planned.body)['run'], self.frames.held_values())
                 names = [d[0] for d in cursor.description]
                 rows = compiler.host_rows(names, cursor.fetchall())
         answer = self.planner.execute_json_answer(planned.body, rows)

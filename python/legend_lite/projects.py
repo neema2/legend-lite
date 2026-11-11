@@ -28,6 +28,12 @@ from . import compiler
 _NOT_A_MODEL = frozenset({'PARSER', 'COMPILATION'})
 
 
+# the plan format this host runs: the planner's (PlanJson.VERSION), as the tab's runner's is (plan-runner.ts PLAN_VERSION,
+# held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
+# runs (test_engine) -- so the two cannot drift apart unseen
+PLAN_VERSION = 48
+
+
 class LoadRefused(ValueError):
     """A plan's load this host does not run, whose data is not the data it was planned against, or whose statement the
     database refused (its words, the data named): refused by name."""
@@ -40,8 +46,13 @@ def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
     digest and size its reference names, each statement as written, a refusal naming its data; a file's load refused by
     name (no store a host's plan names). The rule is engine-client's plan-runner.ts ``runLoad`` (the tab's), the same plan
     format (B3, 2026-11-11)."""
-    root = plan.get('root') if isinstance(plan, dict) else None
-    if plan.get('format') != 'legend-lite-plan' or not isinstance(root, dict) or root.get('_type') != 'load':
+    if not isinstance(plan, dict) or plan.get('format') != 'legend-lite-plan' or plan.get('version') != PLAN_VERSION:
+        # the tab's runner's words (plan-runner.ts read), the shared fixture's (the tenets audit's LOW 1, 2026-11-11)
+        said = {'format': plan.get('format'), 'version': plan.get('version')} if isinstance(plan, dict) else {}
+        raise LoadRefused(f'not a legend-lite execution plan of version {PLAN_VERSION}: '
+                          f"{json.dumps(said, separators=(',', ':'))}")
+    root = plan.get('root')
+    if not isinstance(root, dict) or root.get('_type') != 'load':
         raise LoadRefused('a load\'s plan is a legend-lite plan with a load at its root')
     if root.get('cadence') != 'ONCE':
         raise LoadRefused(f"a load's plan made with a database is ONCE, not {root.get('cadence')}")

@@ -113,6 +113,14 @@ js_library(
 )
 
 # the cube's stylesheets, for the Query app, which shows its results in a CubeApp
+# the host sources the data mechanism census reads (DataMechanismCensusTest: a deleted mechanism's host spellings read
+# zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
+filegroup(
+    name = "census_src",
+    srcs = glob(["src/**/*.ts"]),
+    visibility = ["//core:__pkg__"],
+)
+
 filegroup(
     name = "styles",
     srcs = glob(["src/**/*.css"]),

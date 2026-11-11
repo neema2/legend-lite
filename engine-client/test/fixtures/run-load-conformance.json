@@ -17,5 +17,10 @@
     "from": "Meridian",
     "to": "Kestrel!"
   },
-  "refused": "the data of the table PARTY.PARTY is not the data it was planned against: 97 bytes of digest ce87ac7f57b84e12d09122fa8ff3d83c1ac57f224f72df8ad7138b6b68e9f4e3, where the plan names 97 bytes of digest a5e8b8835e3251961586f69001e6851bf891a805a15100a3999ac30a4934b245"
+  "refused": "the data of the table PARTY.PARTY is not the data it was planned against: 97 bytes of digest ce87ac7f57b84e12d09122fa8ff3d83c1ac57f224f72df8ad7138b6b68e9f4e3, where the plan names 97 bytes of digest a5e8b8835e3251961586f69001e6851bf891a805a15100a3999ac30a4934b245",
+  "_aboutVersion": "the same plan stamped with another format version, refused in the same words before anything runs (the B checkpoint's tenets audit, LOW 1, 2026-11-11): {VERSION} is the version the planner writes, read from the fresh plan",
+  "version": {
+    "given": 0,
+    "refused": "not a legend-lite execution plan of version {VERSION}: {\"format\":\"legend-lite-plan\",\"version\":0}"
+  }
 }

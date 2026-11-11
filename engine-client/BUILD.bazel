@@ -84,6 +84,14 @@ filegroup(
     visibility = ["//core:__pkg__"],
 )
 
+# the host sources the data mechanism census reads (DataMechanismCensusTest: a deleted mechanism's host spellings read
+# zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
+filegroup(
+    name = "census_src",
+    srcs = glob(["src/**/*.ts"]),
+    visibility = ["//core:__pkg__"],
+)
+
 # THE BUNDLES ENGINE-CLIENT SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the planner's worker, which
 # Query and Studio copy into their sites
 filegroup(

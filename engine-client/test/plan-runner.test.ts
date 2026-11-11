@@ -11,6 +11,8 @@ import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { ConnectionSettings, establish, hostSession, PlanRefusal, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { heldTexts, redactHeld } from '../src/connection-settings.ts';
+import { QueryError } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
@@ -277,8 +279,55 @@ describe("a remote file's mount, a planned load whose bearer URL the host binds 
   });
 });
 
+// the B checkpoint's tenets audit, M2 (2026-11-11): a database repeats a bound value in its own error -- an expired
+// presigned link's read names the whole URL -- so the engine says a failure with every value its kept settings bind
+// taken out, and without the database's own error, which still holds it
+describe("a failure's words, the values a host holds taken out at the engine's QueryError boundary (M2)", () => {
+  const SIGNATURE = 'SENTINEL0signature0123456789abcdef';
+  const CREDENTIAL = 'SENTINEL-AKIA-credential%2F20261111';
+  const URL = `https://bucket.example/t.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${CREDENTIAL}`
+    + `&X-Amz-Expires=3600&X-Amz-Signature=${SIGNATURE}`;
+
+  it('a held URL is taken out whole, as its query string and as each parameter long enough to be a token', () => {
+    const texts = heldTexts(URL);
+    for (const t of [URL, URL.slice(URL.indexOf('?') + 1), SIGNATURE, CREDENTIAL, decodeURIComponent(CREDENTIAL)]) {
+      assert.ok(texts.includes(t), t);
+    }
+    // a short value (an expiry's seconds) is no token: the message keeps its own words and numbers
+    assert.ok(!texts.includes('3600'), texts.join(' | '));
+    assert.equal(redactHeld(`expired: ${URL}; signed ${SIGNATURE}; by ${decodeURIComponent(CREDENTIAL)} for 3600 s`, [URL]),
+      'expired: ***; signed ***; by *** for 3600 s');
+  });
+
+  it("the engine's failure, run as a query or on the held connection, names no held value and carries no raw error", async () => {
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const store = new SecretStore();
+    store.hold('datacube_url_t', new Map([['URL', URL]]));
+    const settings = new ConnectionSettings();
+    settings.keep('remote_t', [{ sql: 'SET VARIABLE lite_url_t = ?', binds: [{ _type: 'held', name: 'datacube_url_t', field: 'URL' }] }], store);
+    const engine = new DuckDbEngine(db.connect() as ArrowishConnection, { settings });
+    // DuckDB's own error repeating the URL, its query string and one parameter, as a failed read's does
+    const failing = `SELECT error('HTTP 403 reading "${URL}" (${URL.slice(URL.indexOf('?') + 1)}; ${SIGNATURE})')`;
+    const said = (e: unknown): boolean => {
+      assert.ok(e instanceof QueryError, String(e));
+      assert.ok(!e.message.includes('SENTINEL'), e.message);
+      assert.match(e.message, /HTTP 403 reading/);
+      assert.equal(e.cause, undefined, 'the raw error, which holds the URL, is not carried');
+      return true;
+    };
+    await assert.rejects(() => engine.run(failing, 0), said);
+    await assert.rejects(() => engine.exclusive((held) => held.rows(failing, [])), said);
+    // a failure that names no held value is said as it is, its cause kept
+    await assert.rejects(() => engine.run("SELECT error('plain')", 0), (e: unknown) =>
+      e instanceof QueryError && /plain/.test(e.message) && e.cause !== undefined);
+  });
+});
+
 describe("the load runners' shared conformance fixture", () => {
-  interface Fixture { model: string; databaseType: string; check: string; rows: unknown[][]; tamper: { from: string; to: string }; refused: string }
+  interface Fixture {
+    model: string; databaseType: string; check: string; rows: unknown[][]; tamper: { from: string; to: string }; refused: string;
+    version: { given: number; refused: string };
+  }
   const fixture = JSON.parse(readFileSync(runfileFromEnv('RUN_LOAD_FIXTURE'), 'utf8')) as Fixture;
   const planOf = (): { open: string[]; use: string[]; load: { root: { content: Record<string, string> } } } =>
     JSON.parse(ok(answer(m, { kind: 'projectData', model: fixture.model, databaseType: fixture.databaseType })));
@@ -302,6 +351,16 @@ describe("the load runners' shared conformance fixture", () => {
     await assert.rejects(() => runLoad(JSON.stringify(project.load), async (sql) => { sent.push(sql); }),
       (e: unknown) => e instanceof PlanRefusal && e.message === fixture.refused || assert.fail(String(e instanceof Error ? e.message : e)));
     assert.ok(!sent.some((s) => /INSERT/i.test(s)), sent.join('; '));
+  });
+
+  it("refuses a plan of another format version in the fixture's words, nothing run", async () => {
+    const load = planOf().load as unknown as { version: number };
+    const words = fixture.version.refused.replace('{VERSION}', String(load.version));
+    load.version = fixture.version.given;
+    const sent: string[] = [];
+    await assert.rejects(() => runLoad(JSON.stringify(load), async (sql) => { sent.push(sql); }),
+      (e: unknown) => e instanceof PlanRefusal && e.message === words || assert.fail(String(e instanceof Error ? e.message : e)));
+    assert.deepEqual(sent, []);
   });
 });
 

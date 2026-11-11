@@ -111,6 +111,12 @@ class DuckDbRemoteMountTest {
         assertTrue(assertThrows(IllegalArgumentException.class, () -> new LoadPlanner.PlainLocation(
                 "https://b.s3.amazonaws.com/t.parquet?X-Amz-Signature=SENTINEL")).getMessage().contains("carries its token"));
         assertThrows(IllegalArgumentException.class, () -> new LoadPlanner.BearerLocation("n", "https://h/t?x=1"));
+        // a user or a password in the address, plain or a bearer URL's shown address (the tenets audit's LOW 5)
+        for (Runnable named : List.<Runnable>of(() -> new LoadPlanner.PlainLocation("s3://key:SENTINEL@b/t.parquet"),
+                () -> new LoadPlanner.BearerLocation("n", "https://sam:SENTINEL@h/t"))) {
+            String said = assertThrows(IllegalArgumentException.class, named::run).getMessage();
+            assertTrue(said.contains("user:password@host") && !said.contains("SENTINEL"), said);
+        }
         assertTrue(assertThrows(IllegalArgumentException.class, () -> LoadPlanner.remoteMount(new DuckDb(),
                 DatabaseType.DuckDB, new LoadPlanner.RemoteMount("t", new LoadPlanner.BearerLocation("datacube_url_t",
                         "https://h/t"), HostOperation.RemoteFormat.ICEBERG, null))).getMessage().contains("a folder"));

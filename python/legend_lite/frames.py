@@ -33,7 +33,8 @@ import re
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, Callable, Iterable, Iterator, Mapping
+from urllib.parse import unquote_plus
 
 from ._extra import require_datacube
 
@@ -252,6 +253,65 @@ class Table:
             return self._frames.run(self._model().plan(self._tree(query), self.runtime))
 
 
+# the shortest query-string parameter value redacted on its own (engine-client connection-settings.ts, the same rule): a
+# shorter one (``X-Amz-Expires=3600``'s) is no token, and taking it out would take out the message's own words
+_SHORTEST_HELD_PARAMETER = 8
+
+
+def held_texts(value: str) -> list[str]:
+    """THE TEXTS A HELD VALUE MAY COME BACK AS (the B checkpoint's tenets audit, M2, 2026-11-11; engine-client
+    connection-settings.ts ``heldTexts``): a database repeats a value it was bound in its own error -- an expired
+    presigned link's read names the whole URL -- and may quote its query string, or one parameter, alone, encoded or
+    not. So a held URL is taken out as itself, its query string and each parameter's value (raw and decoded), the
+    longest first."""
+    out = {value}
+    query = value.find('?')
+    if query >= 0:
+        fragment = value.find('#', query)
+        string = value[query + 1:] if fragment < 0 else value[query + 1:fragment]
+        out.add(string)
+        for part in string.split('&'):
+            raw = part.partition('=')[2] if '=' in part else part
+            for v in (raw, unquote_plus(raw)):
+                if len(v) >= _SHORTEST_HELD_PARAMETER:
+                    out.add(v)
+    return sorted((t for t in out if t), key=len, reverse=True)
+
+
+def redact_held(text: str, values: Iterable[str]) -> str:
+    """``text`` with every held value in ``values`` (each as ``held_texts`` takes it apart) written ``***``."""
+    for value in values:
+        for t in held_texts(value):
+            text = text.replace(t, '***')
+    return text
+
+
+def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | None:
+    """``failure`` again, of its type, its words with every held value taken out -- or None where none was in them. The
+    caller raises it outside its ``except``, so the database's own error, which still holds the value, is not chained
+    to it."""
+    said = str(failure)
+    out = redact_held(said, held)
+    if out == said:
+        return None
+    try:
+        return type(failure)(out)
+    except Exception:  # an error type that takes no message: said as the database's error
+        return duckdb.Error(out)
+
+
+def execute_redacted(connection: Any, sql: str, held: Iterable[str]) -> Any:
+    """``sql`` run on ``connection``, a failure's words with every held value taken out (``redacted``)."""
+    failure: BaseException | None = None
+    try:
+        return connection.execute(sql)
+    except duckdb.Error as e:
+        failure = redacted(e, held)
+        if failure is None:
+            raise
+    raise failure
+
+
 @dataclass
 class _File:
     """A table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy, as
@@ -270,6 +330,8 @@ class _File:
     # a remote file's settings of the connection (a bearer URL's session variable: B3's Q3), each a statement and the
     # values it binds, which every read's cursor runs (a cursor is a connection of its own, a variable one connection's)
     settings: tuple[tuple[str, tuple[Any, ...]], ...] = ()
+    # the values those settings bind that the engine holds (a bearer URL: B3's Q3), taken out of a read's failure (M2)
+    held_values: tuple[str, ...] = ()
 
     def hosted(self) -> dict[str, Any]:
         """As DataCube's headless code takes it (headless host-tables.ts HostFile)."""
@@ -285,18 +347,23 @@ class Reading:
     and asks what it asks of Python's engine over it, on its own thread, waiting on no thread. One thread uses it at a
     time (its read's: the caller, then DataCube's thread while the call runs)."""
 
-    def __init__(self, cursor: duckdb.DuckDBPyConnection, hosted: dict[str, Any], models: dict[str, str]) -> None:
+    def __init__(self, cursor: duckdb.DuckDBPyConnection, hosted: dict[str, Any], models: dict[str, str],
+                 held: tuple[str, ...] = ()) -> None:
         self.cursor = cursor
         self.hosted = hosted
         self.models = models
+        # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
+        self.held_values = held
 
     def execute(self, sql: str) -> duckdb.DuckDBPyConnection:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
         overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
-        database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was."""
+        database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was.
+        A failure's words name no value the engine holds (an expired presigned link's read repeats its URL: M2)."""
+        failure: BaseException | None = None
         try:
             return self.cursor.execute(sql)
-        except duckdb.Error:
+        except duckdb.Error as e:
             try:
                 _pin(self.cursor)
             except duckdb.TransactionException:
@@ -304,7 +371,10 @@ class Reading:
                     self.cursor.rollback()
                 self.cursor.begin()
                 _pin(self.cursor)
-            raise
+            failure = redacted(e, self.held_values)
+            if failure is None:
+                raise
+        raise failure
 
     def run(self, plan: compiler.Plan) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
@@ -395,7 +465,13 @@ class Frames:
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).
         Only SQL a planner wrote for this database comes here."""
         with self._lock:
-            return typed_by_plan(self.connection.execute(plan.sql).to_arrow_table(), plan)
+            return typed_by_plan(execute_redacted(self.connection, plan.sql, self.held_values()).to_arrow_table(), plan)
+
+    def held_values(self) -> tuple[str, ...]:
+        """Every value the kept remote files' settings bind that the engine holds (a bearer URL): what a failure's words
+        are cleared of before they are raised (M2)."""
+        with self._lock:
+            return tuple(v for f in self._files.values() for v in f.held_values)
 
     @contextlib.contextmanager
     def serving(self) -> Iterator[dict[str, str]]:
@@ -530,15 +606,16 @@ class Frames:
                 raise
 
     def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False,
-                  settings: tuple[tuple[str, tuple[Any, ...]], ...] = ()) -> None:
+                  settings: tuple[tuple[str, tuple[Any, ...]], ...] = (), held: tuple[str, ...] = ()) -> None:
         """The table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy
         (``reading_file``'s name), as DataCube's code read it (``made``: its model, runtime and the relation that reads
         it -- ``source`` -- and, a page's file or remote file, the file it is: headless ingest's and mount's ``leaf``):
         served beside the frames' from now on, a file by what a page names it by (``hosted``). ``settings``: a remote
-        file's settings of the connection, run on every read's cursor while it is kept (B3's Q3)."""
-        held = compiler.HeldModel(made['model'])
-        kept = _File(name, made['model'], view, held, made.get('runtime', ''), made.get('source'), made.get('leaf'),
-                     tuple(settings))
+        file's settings of the connection, run on every read's cursor while it is kept (B3's Q3); ``held``, the values
+        they bind that the engine holds, taken out of a failure's words (M2)."""
+        model = compiler.HeldModel(made['model'])
+        kept = _File(name, made['model'], view, model, made.get('runtime', ''), made.get('source'), made.get('leaf'),
+                     tuple(settings), tuple(held))
         with self._lock:
             before = self._files.get(name.lower())
             self._files[name.lower()] = kept
@@ -662,7 +739,8 @@ class Frames:
                 cursor.close()
                 raise
             read = Reading(cursor, self._hosted(), {**{t.name: t.model for t in self._tables.values()},
-                                                    **{f.name: f.model for f in self._files.values()}})
+                                                    **{f.name: f.model for f in self._files.values()}},
+                           tuple(v for f in self._files.values() for v in f.held_values))
         self._local.reading = read
         try:
             yield read

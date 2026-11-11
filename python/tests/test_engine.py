@@ -271,6 +271,15 @@ class ProjectQueries(Served):
             projects.run_load(tampered, sent.append)
         self.assertEqual(str(refused.exception), fixture['refused'])
         self.assertFalse(any('INSERT' in s.upper() for s in sent), sent)
+        # a plan of another format version, refused in the same words before anything runs (the tenets audit's LOW 1)
+        stale = compiler.project_data(fixture['model'], fixture['databaseType'])['load']
+        words = fixture['version']['refused'].replace('{VERSION}', str(stale['version']))
+        stale['version'] = fixture['version']['given']
+        sent = []
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_load(stale, sent.append)
+        self.assertEqual(str(refused.exception), words)
+        self.assertEqual(sent, [])
 
     def test_a_projects_query_answers_its_own_rows(self):
         status, _, body = self.post('/api/pure/v1/execution/execute', self.project_input())

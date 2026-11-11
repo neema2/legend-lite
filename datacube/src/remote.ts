@@ -26,7 +26,7 @@ import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
 import {
   SecretStore, type RemoteMountRequest, type RemoteMountSource, type SecretField, type SecretValue,
 } from '../../engine-client/src/host-operations.ts';
-import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/connection-settings.ts';
+import { heldTexts, type ConnectionSettings, type KeptSetting } from '../../engine-client/src/connection-settings.ts';
 import type { PlanValue } from '../../engine-client/src/plan-runner.ts';
 
 export type RemoteFormat = 'parquet' | 'csv' | 'iceberg';
@@ -103,6 +103,16 @@ export function isBearer(url: string): boolean {
   return scanUrl(url).includes('?');
 }
 
+/** Whether a URL names a user or a password in its address (`https://user:password@host/...`): a credential written in
+ *  it, which no plan or statement holds. An '@' past the address (a path's) is no user. */
+export function carriesUserinfo(url: string): boolean {
+  const scheme = url.indexOf('://');
+  if (scheme < 0) return false;
+  const rest = url.slice(scheme + 3);
+  const end = rest.search(/[/?#]/);
+  return (end < 0 ? rest : rest.slice(0, end)).includes('@');
+}
+
 /** A URL's address without its query string: what a receipt names and a secret's scope is cut from, never the token. */
 export function shownAddress(url: string): string {
   const at = scanUrl(url);
@@ -132,6 +142,12 @@ function credentialValues(creds: S3Credentials | undefined): Map<SecretField, Se
  */
 export function mountRequest(databaseType: string, source: RemoteSource, creds: S3Credentials | undefined,
   view: boolean): RemoteMountRequest {
+  // a user or a password in the address is a credential written in it: refused by name before the planner is asked,
+  // the address not repeated (the tenets audit's LOW 5, 2026-11-11; the planner refuses it too)
+  if (carriesUserinfo(source.url)) {
+    throw new Error(`${source.name}'s URL names a user or a password (user:password@host): a credential is never written`
+      + " in an address -- give the file's keys as its credentials");
+  }
   const fields = [...credentialValues(creds).keys()];
   return {
     databaseType,
@@ -171,11 +187,11 @@ export function redactSecrets(
   }
   for (const url of urls) {
     if (!isBearer(url)) continue;
-    const at = scanUrl(url);
-    // the whole URL, then its query string alone (a message may quote either)
-    secrets.push(at, at.slice(at.indexOf('?') + 1));
+    // the whole URL, its query string alone, each parameter's value (a message may quote any: heldTexts, M2)
+    secrets.push(...heldTexts(scanUrl(url)));
   }
-  for (const secret of secrets) {
+  // the longest first, so a part never leaves the rest of a longer one behind
+  for (const secret of secrets.sort((a, b) => b.length - a.length)) {
     if (secret.length > 0) out = out.split(secret).join('***');
   }
   return out;
