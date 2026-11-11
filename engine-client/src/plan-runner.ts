@@ -12,6 +12,15 @@
 // a list or a key's cell bound, a statement of per-key regions, a step of another database or of several, a database set
 // up first.
 //
+// THE LOADS (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "the hosts run the plan's loads"): a plan's
+// target may name loads -- a connection's declared test data, a project's Data, a data: source's session table -- in
+// the plan's load section, by identity. The host makes a database for such a target (its session source: never its own
+// tables) and `establish`es it there once, its ONCE and PER_ACQUISITION loads run in one transaction, each content
+// blob's bytes checked against the digest its load names; runPlan then runs the plan on that session (`established`),
+// and `release` runs the target's AT_RELEASE loads and the plan's release once the host lets the session go, whatever
+// the run's outcome. A file's load (bytes by reference, read by the database) is refused by name here until a host's
+// files are a store a plan names.
+//
 // PURE: no DOM, no planner; a host gives its session.
 
 import type { HostOperationsSource } from './host-operations.ts';
@@ -86,7 +95,8 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 45 since 2026-11-11: a plan may carry its release (on, statements: its data: tables' drops, sent once the run is
 // over whatever its outcome) -- refused by name here, as a load is
 // 46 the same day: a slot may bind a data: payload's JSON array (payload: Snowflake's and BigQuery's delivery) -- not a
-// host database's plan
+// host database's plan. B3 (2026-11-11, no new version): a target's loads and a plan's release run here where the host
+// established a session for the target (establish, release); a load node of a program and a file's load stay refused
 const PLAN_VERSION = 46;
 interface Column { readonly name: string; readonly type: string }
 type Step =
@@ -96,6 +106,185 @@ type Step =
   | { readonly _type: 'constant'; readonly columns: readonly Column[]; readonly cells: readonly (readonly (string | null)[])[] }
   | { readonly _type: 'sequence'; readonly steps: readonly Step[] }
   | { readonly _type: string };
+
+/** A load as the plan's load section writes it (PlanJson): its identity, cadence and steps, and its content blobs by
+ *  digest (inline: the plan the host's planner writes holds them). */
+interface Load {
+  readonly identity: string;
+  readonly cadence: string;
+  readonly steps: readonly LoadStep[];
+  readonly content?: Readonly<Record<string, string>>;
+}
+type LoadStep =
+  | { readonly _type: 'statement'; readonly sql: string }
+  | { readonly _type: 'statements'; readonly ref: DataRef; readonly of: string }
+  | { readonly _type: 'file'; readonly ref: DataRef }
+  | { readonly _type: string };
+interface DataRef { readonly namespace: string; readonly name: string; readonly digest: string; readonly size: number; readonly format: { readonly _type: string } }
+/** A target as a plan's statement writes it: its loads by identity, into the plan's load section. */
+interface Target { readonly database?: unknown; readonly session?: readonly string[]; readonly loads?: readonly string[] }
+/** A plan read: its JSON, and its load section by identity. */
+interface ReadPlan {
+  readonly format?: unknown; readonly version?: unknown; readonly parameters?: unknown; readonly root?: Step;
+  readonly release?: { readonly statements?: readonly string[]; readonly on?: Target };
+  readonly loads?: readonly Load[];
+}
+
+/** `plan`'s JSON read, refused by name unless it is a legend-lite plan of the version this runner reads. */
+function read(plan: string): ReadPlan {
+  const p = JSON.parse(plan) as ReadPlan;
+  if (p.format !== 'legend-lite-plan' || p.version !== PLAN_VERSION) {
+    throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: p.format, version: p.version })}`);
+  }
+  return p;
+}
+
+/** The statements of `plan`'s steps that a session runs (a constant sends none). */
+function sentSqls(plan: ReadPlan): Sql[] {
+  const root = plan.root;
+  if (root === undefined) throw new PlanRefusal('a plan with no root');
+  if (root._type === 'keyed') return [(root as Keyed).keys, (root as Keyed).body];
+  const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps : [root];
+  return steps.filter((s) => s._type !== 'constant').map((s) => stepSql(s));
+}
+
+/** The one target `plan`'s statements run on (none for a constant alone), refused by name where they name several. */
+function targetOf(plan: ReadPlan): Target | undefined {
+  const sqls = sentSqls(plan);
+  if (sqls.length === 0) return undefined;
+  const target = JSON.stringify(sqls[0]!.target);
+  if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
+  return sqls[0]!.target as Target;
+}
+
+/** `target`'s loads from `plan`'s load section, in the target's order: one the section lacks refused by name. */
+function loadsOf(plan: ReadPlan, target: Target): Load[] {
+  const section = new Map((plan.loads ?? []).map((l) => [l.identity, l]));
+  return (target.loads ?? []).map((identity) => {
+    const load = section.get(identity);
+    if (load === undefined) throw new PlanRefusal(`a target names the load ${identity}, which its plan does not hold`);
+    return load;
+  });
+}
+
+/**
+ * The identity of what a plan's target holds once established: its database, its session statements and its loads'
+ * identities (each the digest of its content) -- the key a host keeps the database it made for the target by, as
+ * Java's shared sessions key theirs (PlanJson.writeTarget). Null for a plan whose target loads nothing (the host's own
+ * session serves it).
+ */
+export function targetKey(plan: string): string | null {
+  const target = targetOf(read(plan));
+  if (target === undefined || (target.loads ?? []).length === 0) return null;
+  return JSON.stringify({ database: target.database, session: target.session ?? [], loads: target.loads });
+}
+
+/** Whether `plan`'s target's loads are the request's own (a data: source's session table, dropped at its release):
+ *  a database made for it is the request's alone, never kept for another. */
+export function requestsOwn(plan: string): boolean {
+  const p = read(plan);
+  const target = targetOf(p);
+  return target !== undefined && loadsOf(p, target).some((l) => l.cadence === 'AT_RELEASE');
+}
+
+/** `text`'s SHA-256, lowercase hex, and its length in UTF-8 bytes: WebCrypto's in every host (the tab, Node, and
+ *  Python's V8, where the headless bundle installs it over the host's hashlib: install-web.ts). */
+async function digestOf(text: string): Promise<{ readonly digest: string; readonly size: number }> {
+  const bytes = new TextEncoder().encode(text);
+  const hash = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return { digest: [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join(''), size: bytes.length };
+}
+
+/** One load's steps sent in order on `session`: a statement as it is; a content blob of statements, its bytes checked
+ *  against the digest and size its reference names first, each statement as written, a refusal naming the data; a
+ *  file's rows refused by name (no store a host's plan names yet). */
+async function deliver(load: Load, session: PlanSession): Promise<void> {
+  for (const step of load.steps) {
+    if (step._type === 'statement') {
+      await session.run((step as { readonly sql: string }).sql, []);
+    } else if (step._type === 'statements') {
+      const { ref, of } = step as Extract<LoadStep, { _type: 'statements' }>;
+      const text = load.content?.[ref.digest];
+      if (text === undefined) throw new PlanRefusal(`the load ${load.identity} reads the content ${ref.digest}, which its plan does not carry`);
+      const held = await digestOf(text);
+      if (held.digest !== ref.digest || held.size !== ref.size) {
+        throw new PlanRefusal(`${of} is not the data it was planned against: ${held.size} bytes of digest ${held.digest}, where the plan names ${ref.size} bytes of digest ${ref.digest}`);
+      }
+      const statements = JSON.parse(text) as unknown;
+      if (!Array.isArray(statements) || statements.length === 0 || statements.some((x) => typeof x !== 'string')) {
+        throw new PlanRefusal(`${of}: a statements blob is a non-empty JSON array of strings`);
+      }
+      for (const statement of statements as string[]) {
+        try {
+          await session.run(statement, []);
+        } catch (e) {
+          // the database's own words, the data named (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5)
+          throw new Error(`${of}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+        }
+      }
+    } else if (step._type === 'file') {
+      const { ref } = step as Extract<LoadStep, { _type: 'file' }>;
+      throw new PlanRefusal(`the file '${ref.name}' (${ref.namespace}) is a load this host does not run: a host's files are no store a plan names yet`);
+    } else {
+      throw new PlanRefusal(`a load's step is a statement, a statements blob or a file, not a ${step._type}`);
+    }
+  }
+}
+
+/**
+ * THE TARGET ESTABLISHED on `session`, a session of a database the host made for it now (B3): its session statements,
+ * then its ONCE loads (a project's Data) and its PER_ACQUISITION loads (a connection's declared test data, a data:
+ * source's session table) in its order, in one transaction -- a failure rolls every load back and is thrown, naming
+ * its data. Run once per database the host makes (`targetKey`); runPlan then runs the plan there (`established`).
+ */
+export async function establish(plan: string, session: PlanSession): Promise<void> {
+  const p = read(plan);
+  const target = targetOf(p);
+  if (target === undefined) return;
+  for (const statement of target.session ?? []) await session.run(statement, []);
+  const loads = loadsOf(p, target).filter((l) => l.cadence !== 'AT_RELEASE');
+  for (const l of loads) {
+    if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE, PER_ACQUISITION or AT_RELEASE, not ${l.cadence}`);
+  }
+  if (loads.length === 0) return;
+  await session.transaction('begin');
+  try {
+    for (const l of loads) await deliver(l, session);
+    await session.transaction('commit');
+  } catch (e) {
+    await session.transaction('rollback').catch(() => {});
+    throw e;
+  }
+}
+
+/**
+ * THE TARGET RELEASED on `session` (B3): its AT_RELEASE loads (a data: source's session table dropped) and the plan's
+ * release (a writing query's data: tables' drops), sent once the host lets the session go, whatever the run's outcome
+ * -- every statement tried, the first failure thrown after.
+ */
+export async function release(plan: string, session: PlanSession): Promise<void> {
+  const p = read(plan);
+  const target = targetOf(p);
+  const statements: string[] = [];
+  if (target !== undefined) {
+    for (const l of loadsOf(p, target).filter((x) => x.cadence === 'AT_RELEASE')) {
+      for (const step of l.steps) {
+        if (step._type !== 'statement') throw new PlanRefusal(`a release's step is a statement, not a ${step._type}`);
+        statements.push((step as { readonly sql: string }).sql);
+      }
+    }
+  }
+  statements.push(...(p.release?.statements ?? []));
+  let failed: unknown;
+  for (const statement of statements) {
+    try {
+      await session.run(statement, []);
+    } catch (e) {
+      failed ??= e;
+    }
+  }
+  if (failed !== undefined) throw failed;
+}
 
 /**
  * A host's session over its database (`run`, one statement at a time, held for the plan: duckdb.ts exclusive), its
@@ -125,15 +314,24 @@ export class PlanRefusal extends Error {
  * is open already (a table made before it is written, one change: an Output's create), so the plan runs inside it and
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
-export async function runPlan(plan: string, session: PlanSession, o: { readonly joined?: boolean } = {}): Promise<string> {
-  const read = JSON.parse(plan) as { format?: unknown; version?: unknown; parameters?: unknown; root?: Step; release?: unknown };
+export async function runPlan(plan: string, session: PlanSession,
+  o: { readonly joined?: boolean; readonly established?: boolean } = {}): Promise<string> {
+  const read = JSON.parse(plan) as ReadPlan;
   if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
     throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
   }
-  if (read.release !== undefined) throw new PlanRefusal("a plan with a release (its data: tables' drops) is not run here: the loads that make them are refused by name");
+  // a release (a writing query's data: tables' drops) is sent by `release` once the host lets an established session go
+  if (read.release !== undefined && o.established !== true) throw new PlanRefusal("a plan with a release (its data: tables' drops) runs on a session established for it (establish, then release)");
   if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
   const root = read.root;
   if (root === undefined) throw new PlanRefusal('a plan with no root');
+  if (root._type === 'keyed') {
+    // a pivot whose columns the data names: its keys read first, then its body per key (B3: the hosts run it)
+    const keyed = root as Keyed;
+    checkTarget(keyed.keys, session, o);
+    if (o.established !== true) for (const statement of (keyed.keys.target as Target).session ?? []) await session.run(statement, []);
+    return keyedRows(keyed, session);
+  }
   const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
     : root._type === 'tdsResult' || root._type === 'constant' ? [root] : undefined;
   if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence, a typed result or a constant, not a ${root._type}`);
@@ -147,13 +345,7 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   const [first] = sqls;
   const target = JSON.stringify(first!.target);
   if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
-  const t = first!.target as { database?: { _type?: string; connection?: { databaseType?: string }; databaseType?: string };
-    session?: readonly string[]; loads?: readonly unknown[] };
-  const type = t.database?.connection?.databaseType ?? t.database?.databaseType;
-  if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
-  // a target's loads (its declared test data, a project's Data: L2/L3) are refused by name, as its setup steps were; a
-  // target with an empty list is a host's own database as it is, and one whose list is absent is no plan of version 32
-  if (!Array.isArray(t.loads) || t.loads.length > 0) throw new PlanRefusal('a plan that loads data into its database first is not run here: it runs on the host\'s own');
+  const t = checkTarget(first!, session, o);
   for (const s of sent) {
     // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
     // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
@@ -176,7 +368,8 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
     }
   }
   const changes = steps.some((s) => s._type === 'update') && o.joined !== true;
-  for (const statement of t.session ?? []) await session.run(statement, []);
+  // the target's session statements: run by `establish` on a session established for it, else here
+  if (o.established !== true) for (const statement of t.session ?? []) await session.run(statement, []);
   const values = new Map<string, PlanValue>();
   const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
     if (!values.has(slot.parameter)) throw new PlanRefusal(`'${slot.parameter}' is bound before any step gives it`);
@@ -206,6 +399,127 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
     throw e;
   }
   return text!;
+}
+
+/** A per-key region of a keyed body (ExecutionPlan.Region): the text [start, end) written once per key. */
+interface Region {
+  readonly start: number; readonly end: number; readonly lead: string; readonly separator: string;
+  readonly empty: string | null; readonly firstSlot: number; readonly slotCount: number; readonly counters: readonly number[];
+}
+/** A keyed result (ExecutionPlan.Keyed): a dynamic pivot's keys statement, its outputs and its body. */
+interface Keyed {
+  readonly _type: 'keyed'; readonly keys: Sql; readonly keysOf: string; readonly keyFields: readonly string[];
+  readonly outputs: readonly { readonly _type: string; readonly name?: number; readonly field: string; readonly column: Column }[];
+  readonly perKeyAt: number; readonly body: Sql & { readonly regions?: readonly Region[] }; readonly snapshot: string;
+  readonly maxColumns: number | null;
+}
+
+/**
+ * A keyed body written for `keys` (Java's PlanRunner.expand, the plan's one allowed edit at run, the charter's A3(a)):
+ * the text outside its regions as it is; each region once per key (`lead` before the first copy, `separator` between
+ * copies, the key's position at each counter; with no key `empty`, or the statement refused where it has none); each
+ * slot inside a region bound in every copy, a key's cell to that key's text. A slot outside a region binds a declared
+ * parameter, which a host's plan takes none of: refused by name.
+ */
+export function expandKeyed(body: Sql & { readonly regions?: readonly Region[] }, keys: readonly (readonly string[])[]): { readonly statement: string; readonly params: PlanValue[] } {
+  const text = body.statement;
+  let out = '';
+  const params: PlanValue[] = [];
+  let from = 0;
+  let slot = 0;
+  for (const r of body.regions ?? []) {
+    out += text.slice(from, r.start);
+    if (slot < r.firstSlot) throw new PlanRefusal(`'${body.slots[slot]!.parameter}' is bound outside a per-key region: a host's plan binds no parameter`);
+    if (keys.length === 0) {
+      if (r.empty === null) throw new PlanRefusal('a dynamic pivot with no fixed column found no key: its relation has no column');
+      out += r.empty;
+    } else {
+      out += r.lead;
+      keys.forEach((key, k) => {
+        if (k > 0) out += r.separator;
+        let at = r.start;
+        for (const counter of r.counters) {
+          out += text.slice(at, counter) + String(k);
+          at = counter;
+        }
+        out += text.slice(at, r.end);
+        for (let s = r.firstSlot; s < r.firstSlot + r.slotCount; s++) {
+          const binding = body.slots[s]!.binding as { readonly _type: string; readonly cell?: number };
+          if (binding._type !== 'key') throw new PlanRefusal(`'${body.slots[s]!.parameter}' binds a ${binding._type} inside a per-key region: a host's plan binds a key's cell there alone`);
+          const cell = key[binding.cell!];
+          if (typeof cell !== 'string') throw new PlanRefusal(`a keys row's cell ${binding.cell} is ${String(cell)}: the probe writes each key's text and names`);
+          params.push(cell);
+        }
+      });
+    }
+    slot = r.firstSlot + r.slotCount;
+    from = r.end;
+  }
+  if (slot < body.slots.length) throw new PlanRefusal(`'${body.slots[slot]!.parameter}' is bound outside a per-key region: a host's plan binds no parameter`);
+  return { statement: out + text.slice(from), params };
+}
+
+/**
+ * A KEYED RESULT run (Java's PlanRunner.keyedOn): the keys statement read (each row the key's text and each per-key
+ * output's name), the body written for those keys and run, in one transaction where the plan asks a snapshot; its
+ * answer the relation's columns in their own order -- the first `perKeyAt` fixed ones, every key's per-key ones, the
+ * rest of the fixed ones -- as lite's JSON rows. A raw grid's keys (the columns its result reports) are a test body's,
+ * refused by name.
+ */
+async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
+  if (keyed.keysOf !== 'ROWS') throw new PlanRefusal("a raw grid's keyed result (its keys the columns its result reports) is not run here: the planner runs it");
+  const perKey = keyed.outputs.filter((o) => o._type === 'perKey').length;
+  const snapshot = keyed.snapshot !== 'NONE';
+  if (snapshot) await session.transaction('begin');
+  try {
+    if (keyed.keys.slots.length > 0) throw new PlanRefusal("a keys statement binding a value is not run here: a host's plan binds none");
+    const keys = (await session.run(keyed.keys.statement, [])).map((row) => row.slice(0, perKey + 1).map((cell) => {
+      if (typeof cell !== 'string') throw new PlanRefusal(`a keys row holds ${String(cell)}: the probe writes each key's text and names`);
+      return cell;
+    }));
+    const fixed = keyed.outputs.length - perKey;
+    const width = fixed + keys.length * perKey;
+    if (keyed.maxColumns !== null && width > keyed.maxColumns) {
+      throw new PlanRefusal(`a dynamic pivot of ${keys.length} keys answers ${width} columns, more than the database's ${keyed.maxColumns}`);
+    }
+    // the body's columns in its own order (its fixed ones first), then placed in the relation's
+    const answered: Column[] = keyed.outputs.filter((o) => o._type === 'fixed').map((o) => o.column);
+    keys.forEach((key) => {
+      for (const o of keyed.outputs) {
+        if (o._type === 'perKey') answered.push({ ...o.column, name: key[o.name!]! });
+      }
+    });
+    const at = keyed.perKeyAt;
+    const place = answered.map((_c, i) => (i < at ? i : i < fixed ? i + (width - fixed) : i - (fixed - at)));
+    const inOrder: Column[] = new Array<Column>(width);
+    answered.forEach((c, i) => { inOrder[place[i]!] = c; });
+    const body = expandKeyed(keyed.body, keys);
+    const rows = (await session.run(body.statement, body.params)).map((row) => {
+      const placed = new Array<unknown>(width);
+      row.forEach((cell, i) => { placed[place[i]!] = cell; });
+      return placed;
+    });
+    if (snapshot) await session.transaction('commit');
+    return rowsOf(inOrder, rows);
+  } catch (e) {
+    if (snapshot) await session.transaction('rollback').catch(() => {});
+    throw e;
+  }
+}
+
+/**
+ * `sql`'s target, of this session's database type: its loads (its declared test data, a project's Data, a data:
+ * source's session table) run where the host made a database for the target and established it there (B3:
+ * `establish`); on the host's own session a target that loads data is refused by name -- never run against tables no
+ * load made. A target whose list is absent is no plan of version 32.
+ */
+function checkTarget(sql: Sql, session: PlanSession, o: { readonly established?: boolean }): Target {
+  const t = sql.target as Target & { database?: { _type?: string; connection?: { databaseType?: string }; databaseType?: string } };
+  const type = t.database?.connection?.databaseType ?? t.database?.databaseType;
+  if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
+  if (!Array.isArray(t.loads)) throw new PlanRefusal('a plan whose target names no loads list is not of this version');
+  if (t.loads.length > 0 && o.established !== true) throw new PlanRefusal('a plan that loads data into its database first runs on a database the host made for it and established (establish): not on the host\'s own');
+  return t;
 }
 
 /** A step's SQL; refused by name for a step a host's program does not plan. */
