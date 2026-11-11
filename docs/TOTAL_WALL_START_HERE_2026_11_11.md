@@ -277,9 +277,12 @@ The delivery is per database, `SqlDialect.dataDelivery`, measured and chosen at 
    - delete the `ProgramState.placeMade` refusal, and add a test;
    - confirm the catalog's release runs after its run transaction is rolled back (H2's DROP commits).
 3. **The second audit's findings** (on 862a4d02..2f164ec4). S6-S12 were handed to the worker's own subagent:
-   - **S5 (comes after B2d):** MAKE_TIMESTAMP and `DateCtorRule`'s ISO_MICRO path cut a Float second to 6 digits. Apply
-     S181: keep 9 where the target keeps 9; else refuse a literal of more than 6 fraction digits at planning, and a
-     parameter by a SQL guard or by name.
+   - **S5, DONE (the commit after dad2dc77):** `DateCtorRule`'s Float-second path writes its text carrier in six digits
+     (ISO_MICRO) on every database, so a known second of more is refused at planning by name, and a computed one by the
+     statement's own raise (its DECIMAL(38, 9) value against itself rounded to six); MongoDB, which keeps milliseconds,
+     refuses a known second of more than three and any computed fractional second by name. `DateTimeFractionTest`
+     (DuckDB, SQLite; MongoDB's render). Seen in passing: on SQLite a Float PARAMETER's second meets `date()`'s range
+     guard first and raises "Invalid second: 1.5" for a legal value -- the range guard's, older than S5; not fixed here.
    - **S6:** `DataSources.Tables` must hold its home target and refuse a different `on`; pass `routed` through. If the
      refusal newly refuses any test, use per-target tables instead.
    - **S7:** track frame runs by node identity, not an integer shift.

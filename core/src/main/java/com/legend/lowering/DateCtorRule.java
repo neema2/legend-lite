@@ -98,6 +98,8 @@ final class DateCtorRule {
             // digits (11.0, not 11.000) — the string carrier again.
             if (n.args().get(5).info().type() == Type.Primitive.FLOAT
                     || n.args().get(5).info().type() == Type.Primitive.DECIMAL) {
+                args = new ArrayList<>(args);
+                args.set(5, keptSecond(args.get(5), n));
                 SqlExpr iso = SqlExpr.Call.of(SqlFn.STRFTIME,
                         new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args),
                         // %f = MICROseconds — %g's milliseconds
@@ -135,6 +137,38 @@ final class DateCtorRule {
         // marker cast never renders)
         return new SqlExpr.Cast(java.util.Objects.requireNonNull(out,
                 "date() with no components"), SqlType.Scalar.TEMPORAL_TEXT);
+    }
+
+    /** The digits of a second the fractional {@code date()}'s text carrier writes ({@code DateFmt.ISO_MICRO}). */
+    static final int CARRIED_DIGITS = 6;
+
+    /**
+     * {@code second}, a fractional {@code date()}'s seconds, as the text carrier keeps it: a second with more fraction
+     * digits than the carrier writes ({@link #CARRIED_DIGITS}) is REFUSED, never cut (S181, the user's ruling of
+     * 2026-11-10; the second audit's S5: {@code MAKE_TIMESTAMP} and the carrier's microsecond format cut a Float second
+     * of 9 digits to 6). A known second is refused at planning, by name; a computed one by the statement's own raise
+     * when its value has more (its value as a DECIMAL(38, 9) differs from itself rounded to the carrier's digits).
+     */
+    private static SqlExpr keptSecond(SqlExpr second, TypedNativeCall n) {
+        java.math.BigDecimal known = second instanceof SqlExpr.FloatLit fl ? java.math.BigDecimal.valueOf(fl.value())
+                : second instanceof SqlExpr.DecimalLit dl ? dl.value() : null;
+        if (known != null) {
+            int digits = Math.max(0, known.stripTrailingZeros().scale());
+            if (digits > CARRIED_DIGITS) {
+                throw new com.legend.sql.DialectCapability("the second " + known.toPlainString() + " has " + digits
+                        + " fraction digits; a date()'s fractional second keeps " + CARRIED_DIGITS
+                        + ": refused, never cut (S181)");
+            }
+            return second;
+        }
+        SqlExpr exact = new SqlExpr.Cast(second, new SqlType.Decimal(38, 9));
+        return Scalars.guarded(SqlExpr.Call.of(SqlFn.NOT_EQUAL, exact,
+                        SqlExpr.Call.of(SqlFn.ROUND, exact, new SqlExpr.IntLit(CARRIED_DIGITS))),
+                Scalars.cat(new SqlExpr.StringLit("the second "), Scalars.str(second),
+                        new SqlExpr.StringLit(" has more than " + CARRIED_DIGITS
+                                + " fraction digits, which a date()'s fractional second keeps: refused, never cut"
+                                + " (S181)")),
+                second, n.pos());
     }
 
     /** Real pure's month length (DateFunctions.getDaysInMonth — proleptic

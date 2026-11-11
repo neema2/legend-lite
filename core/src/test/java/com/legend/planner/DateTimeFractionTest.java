@@ -221,6 +221,39 @@ class DateTimeFractionTest {
         }
     }
 
+    /** A {@code date()}'s fractional second (the second audit's S5): its text carrier writes six digits of it, so a
+     *  known second of more is refused at planning, by name, and a computed one by the statement's own raise; six
+     *  answer as written. On DuckDB and SQLite (H2 has no date-time constructor); MongoDB keeps three, its own check. */
+    @Test
+    void aDateConstructorsSecondFinerThanItsCarrierIsRefused() {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.SQLite)) {
+            String six = answer(type, "|date(2024, 1, 2, 10, 0, 1.123456)", Map.of());
+            assertTrue(six.contains("2024-01-02T10:00:01.123456"), type + ": " + six);
+            String nine = answer(type, "|date(2024, 1, 2, 10, 0, 1.123456789)", Map.of());
+            assertTrue(nine.contains("the second 1.123456789 has 9 fraction digits; a date()'s fractional second keeps"
+                    + " 6: refused, never cut (S181)"), type + ": " + nine);
+            if (type == DatabaseType.SQLite) {
+                // a Float parameter's second meets date()'s range guard first on SQLite, which raises "Invalid second"
+                // for 1.5 too (before S5; noted to the orchestrator): the computed second is DuckDB's case alone
+                continue;
+            }
+            String param = "{s: Float[1]|date(2024, 1, 2, 10, 0, $s)}";
+            String half = answer(type, param, Map.of("s", 1.5));
+            assertTrue(half.contains("2024-01-02T10:00:01.5"), type + ": " + half);
+            String computed = answer(type, param, Map.of("s", 1.123456789));
+            assertTrue(computed.contains("has more than 6 fraction digits, which a date()'s fractional second keeps:"
+                    + " refused, never cut (S181)"), type + ": " + computed);
+        }
+        var mongo = assertThrows(com.legend.sql.DialectCapability.class, () -> Databases.dialect(DatabaseType.MongoDB)
+                .render(com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Dual()).withWhere(
+                        com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL, com.legend.sql.SqlExpr.Call.of(
+                                com.legend.sql.SqlFn.MAKE_TIMESTAMP, new com.legend.sql.SqlExpr.IntLit(2024),
+                                new com.legend.sql.SqlExpr.IntLit(1), new com.legend.sql.SqlExpr.IntLit(2),
+                                new com.legend.sql.SqlExpr.IntLit(10), new com.legend.sql.SqlExpr.IntLit(0),
+                                new com.legend.sql.SqlExpr.FloatLit(1.1234))))));
+        assertTrue(mongo.getMessage().contains("MongoDb keeps 3"), mongo.getMessage());
+    }
+
     /** A list of date-times is bound as the driver's timestamps, which no statement's raise reads (the A delta audit's 2,
      *  2026-11-11: DuckDB's cut an element of nine digits to six in silence): the plan says the digits its database keeps
      *  of an element, and the runner refuses a finer one by name; one of the kept digits answers. H2 keeps nine. */

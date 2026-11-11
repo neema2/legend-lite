@@ -1783,6 +1783,7 @@ public final class MongoDb extends AnsiSqlRenderer {
         writer.append("{\"$dateFromParts\": {\"year\": ").expr(a.get(0), 0).append(", \"month\": ").expr(a.get(1), 0)
                 .append(", \"day\": ").expr(a.get(2), 0);
         if (a.size() == 6) {
+            keptMillis(a.get(5));
             writer.append(", \"hour\": ").expr(a.get(3), 0).append(", \"minute\": ").expr(a.get(4), 0)
                     .append(", \"second\": {\"$toLong\": {\"$floor\": ").expr(a.get(5), 0)
                     .append("}}, \"millisecond\": {\"$toLong\": {\"$round\": [{\"$multiply\": [{\"$mod\": [")
@@ -1791,6 +1792,25 @@ public final class MongoDb extends AnsiSqlRenderer {
             throw new IllegalStateException("a date from " + a.size() + " parts");
         }
         return writer.append("}}");
+    }
+
+    /** A date's second as MongoDB keeps it, its milliseconds (a BSON date): a known second with more fraction digits
+     *  is refused at planning, and a computed fractional second by name, since the pipeline would round it to the
+     *  millisecond (S181: never cut; the second audit's S5). An integral second is kept whole. */
+    private static void keptMillis(SqlExpr second) {
+        java.math.BigDecimal known = second instanceof SqlExpr.FloatLit fl ? java.math.BigDecimal.valueOf(fl.value())
+                : second instanceof SqlExpr.DecimalLit dl ? dl.value() : null;
+        if (known != null) {
+            int digits = Math.max(0, known.stripTrailingZeros().scale());
+            if (digits > 3) {
+                throw new DialectCapability("the second " + known.toPlainString() + " has " + digits
+                        + " fraction digits; MongoDb keeps 3 (a BSON date's milliseconds): refused, never cut (S181)");
+            }
+        } else if (second.type() instanceof TypeFact.Typed t
+                && (t.type() == SqlType.Scalar.DOUBLE || t.type() instanceof SqlType.Decimal)) {
+            throw new DialectCapability("a computed fractional second reached MongoDb, whose date keeps milliseconds:"
+                    + " its digits past the third would be rounded, so it is refused, never cut (S181)");
+        }
     }
 
     /** A day's or a month's name, from the calendar operator's 1-based number. */
