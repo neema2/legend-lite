@@ -58,7 +58,11 @@ public final class DeclarationTable {
                 byId.put(id, f);
             } else if (f instanceof FunctionDefinition && prior instanceof FunctionDefinition
                     && !f.equals(prior)) {
-                duplicates.add(id.qualified());
+                // each id once, in first-met order (2026-11-12, the owner's ruling on slice 1b's report: a third
+                // differing body reported the id again)
+                if (!duplicates.contains(id.qualified())) {
+                    duplicates.add(id.qualified());
+                }
             } else if (f instanceof FunctionDefinition) {
                 byId.put(id, f);   // the bodied declaration is upstream's reference
             }
@@ -77,7 +81,7 @@ public final class DeclarationTable {
         return byFqn.getOrDefault(fqn, List.of());
     }
 
-    /** Ids declared by two different bodies (the first kept). */
+    /** Ids declared by two different bodies (the first kept), each once, in the order first met. */
     public List<String> duplicates() {
         return duplicates;
     }
