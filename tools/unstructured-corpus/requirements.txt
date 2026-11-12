@@ -7,7 +7,6 @@ huggingface-hub==${HUGGINGFACE_HUB_VERSION}
 safetensors==${SAFETENSORS_VERSION}
 numpy==${NUMPY_VERSION}
 duckdb==${DUCKDB_VERSION}
-psycopg==${PSYCOPG_VERSION}
-psycopg-binary==${PSYCOPG_BINARY_VERSION}
+pg8000==${PG8000_VERSION}
 pyyaml==${PYYAML_VERSION}
 requests==${REQUESTS_VERSION}

@@ -215,9 +215,8 @@ def needs_pgvector(backend: str, arm: str) -> bool:
     return backend == "postgres" and arm != "keyword"
 
 
-def judge_text(cases, duck, pg, vectors, refusal, failures) -> list[dict]:
+def judge_text(cases, duck, pg, postgres, vectors, refusal, failures) -> list[dict]:
     import duckdb
-    import psycopg
 
     ledger = []
     for case in cases:
@@ -240,12 +239,15 @@ def judge_text(cases, duck, pg, vectors, refusal, failures) -> list[dict]:
                     if backend == "postgres" and "vector" in arguments:
                         arguments["vector"] = "[" + ",".join(repr(x) for x in arguments["vector"]) + "]"
                     try:
-                        connection = duck if backend == "duckdb" else pg
-                        rows = connection.execute(statement(f"{arm}_{backend}.sql"), arguments).fetchall()
-                    except psycopg.Error as failure:
-                        if needs_pgvector(backend, arm) and refusal is not None and failure.sqlstate in PGVECTOR_ABSENT:
+                        if backend == "duckdb":
+                            rows = duck.execute(statement(f"{arm}_{backend}.sql"), arguments).fetchall()
+                        else:
+                            rows = postgres.execute(pg, statement(f"{arm}_{backend}.sql"), arguments).fetchall()
+                    except postgres.Error as failure:
+                        if (needs_pgvector(backend, arm) and refusal is not None and isinstance(failure, postgres.DatabaseError)
+                                and postgres.sqlstate(failure) in PGVECTOR_ABSENT):
                             outcome = {"verdict": logic.REFUSED, "receipts": [], "detail": f"{refusal}; {arm}_postgres.sql, run: "
-                                       f"{type(failure).__name__} {failure.sqlstate}: {failure.diag.message_primary}"}
+                                       f"{postgres.sqlstate(failure)}: {postgres.message(failure)}"}
                         else:
                             outcome = {"verdict": logic.ERROR, "receipts": [], "detail": f"{type(failure).__name__}: {failure}"[:400]}
                             failures.append(identity)
@@ -283,7 +285,7 @@ def fused_list() -> str:
     return once(text, "SELECT RANK, SHA256, SCORE, LOCATIONS\nFROM ranked", "SELECT RANK, SHA256, FUSED, LOCATIONS\nFROM ranked")
 
 
-def write_evidence(cases, duck, pg, vectors, header: list[str]) -> None:
+def write_evidence(cases, duck, pg, postgres, vectors, header: list[str]) -> None:
     """The numbers DECISIONS.md's floors and candidates are read from, which a ledger row does not carry (evidence/README.md)."""
     lines = [f"# {line}" for line in header] + ["\t".join(("case", "arm", "backend", "kind", "path", "charStart", "rank", "score"))]
     for case in cases:
@@ -296,7 +298,10 @@ def write_evidence(cases, duck, pg, vectors, header: list[str]) -> None:
                                                    "time_aware": case["type"] == "time-aware", "cut": EVERY_PASSAGE}).fetchall()
             else:
                 argument = {"question": case["question"]} if arm == "keyword" else {"vector": vectors[case["id"]]}
-                rows = (duck if backend == "duckdb" else pg).execute(whole_list(arm, backend), argument).fetchall()
+                if backend == "duckdb":
+                    rows = duck.execute(whole_list(arm, backend), argument).fetchall()
+                else:
+                    rows = postgres.execute(pg, whole_list(arm, backend), argument).fetchall()
             where: dict = {}
             for rank, _, score, locations in rows:
                 for location in locations:
@@ -343,9 +348,9 @@ def judge_structured(cases, base: str, model: str, failures) -> list[dict]:
 
 def run(mode: str) -> int:
     import duckdb
-    import psycopg
 
     embed = load_embedder()
+    postgres = embed.postgres()
     pins = embed.read_pins()
     embed.refuse_off_pin(pins)
     cases, key_sha256 = load_key()
@@ -361,12 +366,15 @@ def run(mode: str) -> int:
     texts = [case for case in cases if "text" in routes_of(case)]
     vectors = dict(zip([case["id"] for case in texts], embed.encode_questions(model, [case["question"] for case in texts], pins)))
     failures: list[dict] = []
-    with psycopg.connect(url, autocommit=True) as pg:
+    pg = postgres.connect(url, autocommit=True)
+    try:
         refusal = embed.pgvector_refusal(pg)
-        ledger = judge_text(cases, duck, pg, vectors, refusal, failures)
+        ledger = judge_text(cases, duck, pg, postgres, vectors, refusal, failures)
         header = [f"answer_key.yaml sha256 {key_sha256}"] + [f"{k}={v}" for k, v in pins.items() if k != "EMBED_QUERY_INSTRUCTION"]
         if mode == "--write":
-            write_evidence(cases, duck, pg, vectors, header)
+            write_evidence(cases, duck, pg, postgres, vectors, header)
+    finally:
+        pg.close()
     duck.close()  # the server opens this file: DuckDB allows one writer or many readers, never both across processes
     with Server() as server:
         ledger += judge_structured(cases, server.base, model_text(), failures)

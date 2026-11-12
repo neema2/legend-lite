@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -31,8 +32,8 @@ MODEL_FILES = ["1_Pooling/config.json", "README.md", "config.json", "config_sent
 DISTRIBUTIONS = {"sentence-transformers": "SENTENCE_TRANSFORMERS_VERSION", "torch": "TORCH_VERSION",
                  "transformers": "TRANSFORMERS_VERSION", "tokenizers": "TOKENIZERS_VERSION",
                  "huggingface-hub": "HUGGINGFACE_HUB_VERSION", "safetensors": "SAFETENSORS_VERSION",
-                 "numpy": "NUMPY_VERSION", "duckdb": "DUCKDB_VERSION", "psycopg": "PSYCOPG_VERSION",
-                 "psycopg-binary": "PSYCOPG_BINARY_VERSION", "pyyaml": "PYYAML_VERSION", "requests": "REQUESTS_VERSION"}
+                 "numpy": "NUMPY_VERSION", "duckdb": "DUCKDB_VERSION", "pg8000": "PG8000_VERSION",
+                 "pyyaml": "PYYAML_VERSION", "requests": "REQUESTS_VERSION"}
 
 
 def read_pins() -> dict[str, str]:
@@ -141,32 +142,42 @@ def store_duckdb(rows: list[tuple[str, list[float]]], pins: dict[str, str]) -> N
         connection.close()
 
 
+def postgres():
+    """postgres.py beside this file, the study's one way to Postgres, loaded by its path as the judge loads this file."""
+    specification = importlib.util.spec_from_file_location("unstructured_postgres", Path(__file__).resolve().with_name("postgres.py"))
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
 def pgvector_refusal(connection) -> str | None:
     """Why this server cannot hold the vectors, by name, read from the catalogue; None if it can. Changes nothing."""
-    version = connection.execute("SHOW server_version").fetchone()[0]
-    available = connection.execute("SELECT count(*) FROM pg_available_extensions").fetchone()[0]
-    if connection.execute("SELECT count(*) FROM pg_available_extensions WHERE name = 'vector'").fetchone()[0] == 0:
+    pg = postgres()
+    version = pg.execute(connection, "SHOW server_version", ()).fetchone()[0]
+    available = pg.execute(connection, "SELECT count(*) FROM pg_available_extensions", ()).fetchone()[0]
+    if pg.execute(connection, "SELECT count(*) FROM pg_available_extensions WHERE name = 'vector'", ()).fetchone()[0] == 0:
         return f"pgvector: extension 'vector' is not among the {available} extensions PostgreSQL {version} has available"
     return None
 
 
 def store_postgres(url: str, rows: list[tuple[str, list[float]]], pins: dict[str, str]) -> None:
-    import psycopg
-
+    pg = postgres()
     dimensions = int(pins["EMBED_DIMENSIONS"])
-    with psycopg.connect(url) as connection:
+    connection = pg.connect(url, autocommit=False)
+    try:
         refusal = pgvector_refusal(connection)
         if refusal is not None:
             print(f"postgres: REFUSED {refusal}. Nothing was installed; the vector arm on Postgres is a REFUSED row.")
             return
-        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        connection.execute("DROP TABLE IF EXISTS CO_PASSAGE_EMBEDDING")
-        connection.execute(f"CREATE TABLE CO_PASSAGE_EMBEDDING (SHA256 VARCHAR PRIMARY KEY, EMBEDDING vector({dimensions}) NOT NULL)")
-        with connection.cursor() as cursor:
-            cursor.executemany(f"INSERT INTO CO_PASSAGE_EMBEDDING VALUES (%s, %s::vector({dimensions}))",
-                               [(sha256, "[" + ",".join(repr(x) for x in vector) + "]") for sha256, vector in rows])
+        pg.execute(connection, "CREATE EXTENSION IF NOT EXISTS vector", ())
+        pg.execute(connection, "DROP TABLE IF EXISTS CO_PASSAGE_EMBEDDING", ())
+        pg.execute(connection, f"CREATE TABLE CO_PASSAGE_EMBEDDING (SHA256 VARCHAR PRIMARY KEY, EMBEDDING vector({dimensions}) NOT NULL)", ())
+        connection.cursor().executemany(f"INSERT INTO CO_PASSAGE_EMBEDDING VALUES (%s, %s::vector({dimensions}))",
+                                        [(sha256, "[" + ",".join(repr(x) for x in vector) + "]") for sha256, vector in rows])
         connection.commit()
-        print("postgres:", connection.execute("SELECT count(*) FROM CO_PASSAGE_EMBEDDING").fetchone()[0], "vectors")
+        print("postgres:", pg.execute(connection, "SELECT count(*) FROM CO_PASSAGE_EMBEDDING", ()).fetchone()[0], "vectors")
+    finally:
+        connection.close()
 
 
 def main() -> int:

@@ -13,8 +13,20 @@ import socket
 import subprocess
 import sys
 import tempfile
+import importlib.util
 import time
 from pathlib import Path
+
+STARTING_UP = "57P03"  # the server's "the database system is starting up"
+
+
+def load_postgres():
+    """tools/unstructured-corpus/postgres.py, the study's one way to Postgres."""
+    path = Path(__file__).resolve().parents[1] / "unstructured-corpus" / "postgres.py"
+    specification = importlib.util.spec_from_file_location("unstructured_postgres", path)
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
 
 
 def free_port() -> int:
@@ -36,15 +48,21 @@ def main() -> int:
         server = subprocess.Popen([bin_directory / "postgres", "-D", data / "data", "-p", str(port), "-c", "unix_socket_directories=",
                                    "-c", "listen_addresses=127.0.0.1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
-            import psycopg
+            postgres = load_postgres()
 
             deadline = time.monotonic() + 60
             while True:
                 try:
-                    with psycopg.connect(f"postgresql://postgres@127.0.0.1:{port}/postgres", autocommit=True) as connection:
-                        connection.execute("CREATE DATABASE unstructured")
+                    connection = postgres.connect(f"postgresql://postgres@127.0.0.1:{port}/postgres", autocommit=True)
+                    try:
+                        postgres.execute(connection, "CREATE DATABASE unstructured", ())
+                    finally:
+                        connection.close()
                     break
-                except psycopg.OperationalError:
+                except (postgres.InterfaceError, postgres.DatabaseError) as failure:
+                    # not listening yet, or listening and still starting up; any other refusal is the server's answer
+                    if isinstance(failure, postgres.DatabaseError) and postgres.sqlstate(failure) != STARTING_UP:
+                        raise
                     if server.poll() is not None or time.monotonic() > deadline:
                         raise SystemExit(f"the embedded Postgres did not start on port {port} (exit {server.poll()})")
                     time.sleep(0.2)
