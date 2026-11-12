@@ -386,7 +386,7 @@ class Reading:
         # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
         self.held_values = held
 
-    def execute(self, sql: str, params: tuple[str, ...] = ()) -> Result:
+    def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
         overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
         database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was.
