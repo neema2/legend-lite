@@ -1489,6 +1489,10 @@ class JavaEvalLedgerTest {
                     // value is a formula of the row's number the DATABASE computes; the planner chooses each column's
                     // formula from its declared type and the request's knob (model and request text, never a value)
                     "Synthesize.java",
+                    // 2026-11-12 (the user's ruling "Yes do 5 and 6": Studio's SQL playground through the planner): a
+                    // person's one statement as a plan, carried as written -- never parsed, rewritten or split; the
+                    // planner computes nothing, the database answers the relation it reports
+                    "Authored.java",
                     // 2026-11-10, docs/DATA_IN_THE_PLAN_2026_11_09.md L6b: a query's data: sources as one load into
                     // session tables named by their content's digest, the payload split into its elements verbatim
                     // (build-time model text, compared never computed) and the source read as its table

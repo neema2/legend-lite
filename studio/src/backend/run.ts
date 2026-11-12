@@ -9,7 +9,7 @@ import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
 import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
-import { notPlanned } from '../../../engine-client/src/planned-sql.ts';
+import { runAuthored } from '../../../engine-client/src/plan-runner.ts';
 
 export type { TableState };
 
@@ -45,6 +45,9 @@ export interface RunSession {
   engine(): Promise<Engine>;
   /** The tab's DuckDB itself, for the SQL playground (upstream's: SQL on a connection); a server's has none here. */
   sqlEngine?(): Promise<QueryEngine>;
+  /** The person's one statement as the planner carries it on the playground's database, a plan (Boundary.authored: the
+   *  playground's, 2026-11-12). */
+  authored?(text: string): Promise<string>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
   loadData?(model: PureModelContextData, text: string): Promise<void>;
   /** The tab's tables and where their rows are from (plan A2); a server has its own data. */
@@ -83,10 +86,11 @@ function lambdaOf(own: PureModelContextData): Lambda {
 
 /**
  * UPSTREAM'S SQL PLAYGROUND: a person's own SQL on the tab's DuckDB, the model's own test data loaded first; refused on a
- * server. The one statement a host sends that no plan carries (planned-sql.ts notPlanned; the orchestrator's ruling of
- * 2026-11-12: kept, named). An object of its own, apart from the Runner every run is handed (the C checkpoint's code
- * audit, SHOULD-FIX 5, 2026-11-12): the app makes it once and hands it to the editor's SQL playground alone
- * (EditorContext.playground), so nothing else holds a way to send unplanned SQL (tools/guards/PlannedSqlTest.java).
+ * server. Through the planner (the user's ruling of 2026-11-12, "Yes do 5 and 6"): the person's text is a plan's one
+ * statement -- carried as written, as the author's SQL (the census's M7-authored), never parsed, rewritten or split
+ * (Boundary.authored) -- run by the hosts' plan runner (runAuthored), so the playground sends a plan's statement like
+ * every other send. (Until then the one statement no plan carried, named by notPlanned, deleted with it.) An object of
+ * its own, apart from the Runner every run is handed: the app makes it and hands it to the editor's SQL playground.
  */
 export interface Playground {
   /** `statement`, as the person typed it, over `modelText`'s own test data. */
@@ -97,10 +101,12 @@ export function playground(session: RunSession): Playground {
   return {
     async sql(statement, modelText) {
       if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
+      if (!session.authored) throw new Error('the SQL playground plans the person\'s statement in this tab: this session has no planner of its own');
       const engine = await session.sqlEngine();
       if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
-      // a person's own SQL, run as typed: no plan carries it (planned-sql.ts, NOT_PLANNED)
-      return engine.run(notPlanned('the SQL playground', statement), 0);
+      // the person's own SQL, carried by the planner as written: the plan's one statement, run as the plan says
+      const plan = await session.authored(statement);
+      return runAuthored(plan, (sql) => engine.run(sql, 0));
     },
   };
 }

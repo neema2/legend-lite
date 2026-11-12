@@ -132,6 +132,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.snapStream(request));
     }
 
+    /** {@link Boundary#authored}: a statement a person wrote, as a plan (Studio's SQL playground, 2026-11-12). */
+    @JSExport
+    public static String authoredOrError(String request) {
+        return Folded.of(() -> Boundary.authored(request));
+    }
+
     /** {@link Boundary#synthesize}: rows the database generates into a declared table, as a plan (SYNTHESIZE). */
     @JSExport
     public static String synthesizeOrError(String request) {

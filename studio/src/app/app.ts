@@ -112,7 +112,7 @@ function serverSession(api: string, user: string): RunSession & BuilderSession {
 
 /** A run in this tab: the planner writes the SQL, DuckDB here runs it on the model's own test data (plan A2, A3). */
 function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession & BuilderSession {
-  type Started = { engine: BrowserEngine; sql: QueryEngine; tables: TabTables };
+  type Started = { engine: BrowserEngine; sql: QueryEngine; databaseType: string; tables: TabTables };
   let started: Promise<Started> | undefined;
   const start = (): Promise<Started> => (started ??= startDuckDbInTab(duckdbVendor, grammar)
     .then((tab) => {
@@ -125,6 +125,7 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
       return {
         engine: new BrowserEngine(grammar, runner, user),
         sql: runner,
+        databaseType: tab.engine.databaseType,
         tables: new TabTables(projects, runner, tab.engine, tab.data, grammar),
       };
     }));
@@ -134,6 +135,8 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
     lambdaText: (lambda, style) => grammar.lambdaText(lambda, style),
     engine: async () => (await start()).engine,
     sqlEngine: async () => (await start()).sql,
+    // the playground's statement, planned for the tab's own database (Boundary.authored, 2026-11-12)
+    authored: async (text) => grammar.authored((await start()).databaseType, text),
     plane: async () => {
       const tab = await start();
       return { execution: { kind: 'duckdb-wasm', user }, engine: tab.engine, planner: grammar, cubeRows: { kind: 'sql', engine: tab.sql }, user };

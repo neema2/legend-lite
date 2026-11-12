@@ -45,23 +45,17 @@ class PlannedSqlTest {
             "datacube/src/lite-planner.ts",
             "datacube/src/planner.ts");
 
-    /**
-     * What a host still sends that no plan carries, NAMED (planned-sql.ts {@code notPlanned}): each file and the name it
-     * gives. 2026-11-12 (C3), both reported to the orchestrator for a ruling (plan each, or keep it named): Studio's SQL
-     * playground (a person's own SQL, run as typed), kept named by the ruling (below), and Query's demo warehouse fixture
-     * (its seed files' statements), planned by the ruling: 2026-11-12, the C3 follow-up, the warehouse is made by the
-     * project's own Data load (query/demo/main.ts seed, Boundary.projectData), and its SQL file is deleted.
-     */
-    static final Map<String, String> NOT_PLANNED = Map.of(
-            "studio/src/backend/run.ts", "the SQL playground");
+    // (NOT_PLANNED -- what a host still sent that no plan carried, named by planned-sql.ts's notPlanned: Studio's SQL
+    // playground and, until the C3 follow-up, Query's demo warehouse fixture -- DELETED 2026-11-12, the user's ruling
+    // "Yes do 5 and 6": the playground's statement is a plan's (Boundary.authored, plan-runner.ts runAuthored), and
+    // notPlanned is gone with its last caller. No host sends a statement outside a plan.)
 
     /**
-     * THE PLAYGROUND'S ONE PATH (the orchestrator's ruling of 2026-11-12: Studio's SQL playground stays named -- a person's
-     * own SQL run as typed is the author's statement -- and nothing but the playground reaches it). 2026-11-12, the C
-     * checkpoint's code audit, SHOULD-FIX 5: by STRUCTURE, not by a call's spelling -- the send is the {@code Playground}
-     * object's (run.ts {@code playground()}), apart from the Runner every run is handed; the app makes it (app.ts, the
-     * factory's one importer) and hands it to the editor's context alone (editor.ts, the type's one importer), whose SQL
-     * playground is its one reader.
+     * THE PLAYGROUND'S ONE PATH (the orchestrator's ruling of 2026-11-12; the user's of the same day, "Yes do 5 and 6"):
+     * the person's text is a plan's one statement, carried by the planner as written (Boundary.authored), run by the
+     * hosts' plan runner (runAuthored) -- the run backend's Playground object's send, apart from the Runner every run is
+     * handed; the app makes it (app.ts, the factory's one importer) and hands it to the editor's context alone (editor.ts,
+     * the type's one importer), whose SQL playground is its one reader.
      */
     static final String PLAYGROUND = "studio/src/backend/run.ts";
     static final Map<String, Set<String>> PLAYGROUND_IMPORTS = Map.of(
@@ -76,16 +70,16 @@ class PlannedSqlTest {
      */
     static final Map<String, Integer> MINT_REFERENCES = Map.of(
             // 2026-11-12 (the second audit): the hosts' plan runner, each step's statement typed as it is read
-            "engine-client/src/plan-runner.ts", 16,
+            "engine-client/src/plan-runner.ts", 17,
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
             "engine-client/src/legend/wasm-grammar.ts", 8,
             "datacube/src/lite-planner.ts", 8,
             "datacube/src/planner.ts", 2,
             // the definitions themselves, and the mints' own test
-            "engine-client/src/planned-sql.ts", 8,
-            "engine-client/test/planned-sql.test.ts", 5,
-            // the SQL playground: its import and its one named send
-            "studio/src/backend/run.ts", 2);
+            "engine-client/src/planned-sql.ts", 7,
+            "engine-client/test/planned-sql.test.ts", 5);
+            // (studio/src/backend/run.ts, the SQL playground's notPlanned and its import: gone 2026-11-12 with
+            // notPlanned; the plan runner's runAuthored types the playground's statement, its count one more)
 
     /**
      * THE TYPE SYSTEM'S ESCAPE HATCHES in the product's TypeScript (host_sql.txt's [typescript]; 2026-11-12, the C
@@ -442,26 +436,19 @@ class PlannedSqlTest {
         }
         assertEquals(List.of(), refused, "planned-sql.ts is imported by name, a value at a time, never aliased, by"
                 + " namespace, by default, dynamically or re-exported: each importer and each name is pinned");
-        Set<String> importers = new TreeSet<>(MINTS);
-        importers.addAll(NOT_PLANNED.keySet());
-        assertEquals(importers, productImports.keySet(), "a value of planned-sql.ts -- a mint, or notPlanned -- is"
-                + " imported only where a plan or the planner's answer is read (PlannedSqlTest.MINTS) or a statement no"
-                + " plan carries is named (NOT_PLANNED): a host's own text is not a plan's");
+        assertEquals(new TreeSet<>(MINTS), productImports.keySet(), "a value of planned-sql.ts -- a mint -- is imported"
+                + " only where a plan or the planner's answer is read (PlannedSqlTest.MINTS): a host's own text is not a"
+                + " plan's");
         for (String mint : MINTS) {
             assertTrue(MINT_NAMES.containsAll(productImports.get(mint)), mint + " imports " + productImports.get(mint)
-                    + ": a plan reader imports the mints alone (PlannedSqlTest.MINT_NAMES), never notPlanned");
-        }
-        for (String file : NOT_PLANNED.keySet()) {
-            assertEquals(Set.of("notPlanned"), productImports.get(file), file + " names what no plan carries, and"
-                    + " imports nothing else of planned-sql.ts");
+                    + ": a plan reader imports the mints alone (PlannedSqlTest.MINT_NAMES)");
         }
         assertEquals(new TreeMap<>(TEST_IMPORTS), testImports, "a test types its own SQL with `unplanned`"
                 + " (engine-client/test/unplanned.ts); a test that imports a mint is pinned (PlannedSqlTest.TEST_IMPORTS)");
         assertEquals(List.of(), casts, "a cast to PlannedSql (or a guard narrowing to it) outside its mints: a test's own"
                 + " SQL is `unplanned` (engine-client/test/unplanned.ts), a product's is planned");
-        assertEquals(new TreeMap<>(NOT_PLANNED), named, "a statement no plan carries is sent only by a name the guard"
-                + " pins (PlannedSqlTest.NOT_PLANNED), each call's first argument read whatever it is: a new one is"
-                + " reported, never added in passing");
+        assertEquals(Map.of(), named, "notPlanned is deleted (2026-11-12): no host sends a statement outside a plan, so"
+                + " none names one");
     }
 
     /** The census refuses each form it cannot pin: measured, so a change to the census that stops seeing one is red. */
@@ -490,13 +477,18 @@ class PlannedSqlTest {
     }
 
     @Test
-    void thePlaygroundsUnplannedSendIsReachedFromThePlaygroundAlone() throws IOException {
+    void thePlaygroundSendsAPlansStatement_reachedFromThePlaygroundAlone() throws IOException {
         String backend = read(PLAYGROUND);
         int factory = backend.indexOf("export function playground(session: RunSession): Playground {");
         int runner = backend.indexOf("export function runner(session: RunSession): Runner {");
         assertTrue(factory >= 0 && runner > factory, "run.ts's playground() and runner() moved: " + PLAYGROUND);
-        int send = backend.indexOf("notPlanned('the SQL playground'");
+        int send = backend.indexOf("return runAuthored(plan, (sql) => engine.run(sql, 0));");
         assertTrue(send > factory && send < runner, "the playground's send is the Playground object's, and no other's");
+        int planned = backend.indexOf("const plan = await session.authored(statement);");
+        assertTrue(planned > factory && planned < send, "the playground sends the plan's one statement: the person's"
+                + " text as the planner carried it (Boundary.authored), never the text itself");
+        assertTrue(!backend.contains("planned-sql.ts"), "the playground mints nothing: the plan runner types the plan's"
+                + " statement");
         String runnerType = backend.substring(backend.indexOf("export interface Runner {"),
                 backend.indexOf("}", backend.indexOf("export interface Runner {")));
         assertTrue(!runnerType.contains("sql("), "the Runner every run is handed holds no way to send SQL");

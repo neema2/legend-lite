@@ -10,7 +10,7 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { ConnectionSettings, establish, hostSession, PlanRefusal, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { ConnectionSettings, establish, hostSession, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams } from '../src/plan-params.ts';
 import { relationColumns } from '../src/relation-type.ts';
@@ -561,5 +561,38 @@ Database s::DB
     const scaled = JSON.stringify({ databaseType: 'DuckDB', model: SYNTH, database: 's::DB', schema: 'demo',
       table: 'TRADES', count: 10, columns: { region: { values: ['EMEA'], scale: 2 } } });
     assert.throws(() => ok(answer(m, { kind: 'synthesize', request: scaled })), /scale is its range's, and region gives values/);
+  });
+});
+
+
+// A STATEMENT A PERSON WROTE, AS A PLAN (Studio's SQL playground; the user's ruling of 2026-11-12, "Yes do 5 and 6"):
+// the WASM planner carries the person's one text as written -- never parsed, rewritten or split -- as a plan's one
+// statement, and the hosts' runner sends exactly that statement on DuckDB-WASM
+describe("a person's own statement, carried by the WASM planner as written and run on DuckDB-WASM", () => {
+  const authored = (text: string): string => ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text }) }));
+
+  it('the plan carries the text exactly, and the runner sends that one statement, its answer the database\'s', async () => {
+    const text = "CREATE OR REPLACE TABLE playground_t AS SELECT 1 AS n  -- a person's own; as typed\n";
+    const plan = authored(text);
+    const root = (JSON.parse(plan) as { root: { _type: string; shape: string; columns: unknown[]; sql: { statement: string; slots: unknown[] } } }).root;
+    assert.deepEqual([root._type, root.shape, root.columns, root.sql.statement, root.sql.slots], ['tdsResult', 'RELATION', [], text, []]);
+    const sent: string[] = [];
+    await runAuthored(plan, async (sql) => { sent.push(sql); return engine.run(sql, 0); });
+    assert.deepEqual(sent, [text], 'the one statement, as the person wrote it');
+    const read = await runAuthored(authored('SELECT n, n + 1 AS m FROM playground_t'), (sql) => engine.run(sql, 0));
+    assert.deepEqual(read.columns.map((c) => [c.name, c.values.map(String)]), [['n', ['1']], ['m', ['2']]]);
+  });
+
+  it("a text the database cannot take is the database's own error; an empty one is refused by name", async () => {
+    await assert.rejects(() => runAuthored(authored('SELEC 1'), (sql) => engine.run(sql, 0)), /syntax error/i);
+    assert.throws(() => authored('   '), /an authored statement is the person's text, and this one is empty/);
+  });
+
+  it('a plan that is not an authored statement is refused by name, nothing sent', async () => {
+    const sent: string[] = [];
+    const load = ok(answer(m, { kind: 'snapStream', request: JSON.stringify({ databaseType: 'DuckDB', plane: 'warehouse',
+      sql: 'SELECT 1', table: 't' }) }));
+    await assert.rejects(() => runAuthored(load, async (sql) => { sent.push(sql); }), /an authored statement's plan answers the relation its database reports, not a load/);
+    assert.deepEqual(sent, []);
   });
 });

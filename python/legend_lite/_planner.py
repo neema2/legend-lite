@@ -31,6 +31,7 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'remoteMount': ('lite_remote_mount', lambda m: (m['request'],)),
     'snapStream': ('lite_snap_stream', lambda m: (m['request'],)),
     'synthesize': ('lite_synthesize', lambda m: (m['request'],)),
+    'authored': ('lite_authored', lambda m: (m['request'],)),
     'sessionSetup': ('lite_session_setup', lambda m: (m['databaseType'],)),
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),

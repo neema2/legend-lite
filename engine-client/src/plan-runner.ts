@@ -545,6 +545,22 @@ export async function runPlan(plan: string, session: PlanSession,
   return text!;
 }
 
+/**
+ * A STATEMENT A PERSON WROTE, run (Studio's SQL playground: Boundary.authored, the user's ruling of 2026-11-12): the
+ * plan's one statement -- the person's text as the planner carried it, never parsed, rewritten or split -- sent as
+ * written by `run`, its answer the database's own (the relation it reports, its columns as it says them). A text the
+ * database cannot take is its own error, passed on. Any other plan is refused by name.
+ */
+export async function runAuthored<T>(plan: string, run: (sql: PlannedSql) => Promise<T>): Promise<T> {
+  const root = read(plan).root;
+  const result = root as { readonly _type?: string; readonly shape?: string; readonly columns?: readonly Column[]; readonly sql?: Sql } | undefined;
+  if (result?._type !== 'tdsResult' || result.shape !== 'RELATION' || (result.columns ?? []).length > 0 || result.sql === undefined) {
+    throw new PlanRefusal(`an authored statement's plan answers the relation its database reports, not a ${String(result?._type)}`);
+  }
+  if (result.sql.slots.length > 0) throw new PlanRefusal("an authored statement binds no value: it is the person's text, as written");
+  return run(fromPlan(result.sql.statement));
+}
+
 /** A per-key region of a keyed body (ExecutionPlan.Region): the text [start, end) written once per key. */
 interface Region {
   readonly start: number; readonly end: number; readonly lead: string; readonly separator: string;

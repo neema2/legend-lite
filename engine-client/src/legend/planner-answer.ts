@@ -27,6 +27,7 @@ export interface PlannerModule {
     remoteMountOrError(request: string): string;
     snapStreamOrError(request: string): string;
     synthesizeOrError(request: string): string;
+    authoredOrError(request: string): string;
     sessionSetupOrError(databaseType: string): string;
     projectDataOrError(model: string, databaseType: string): string;
     hostOperationsOrError(databaseType: string, operations: string): string;
@@ -53,6 +54,7 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'remoteMount': return m.exports.remoteMountOrError(r.request);
     case 'snapStream': return m.exports.snapStreamOrError(r.request);
     case 'synthesize': return m.exports.synthesizeOrError(r.request);
+    case 'authored': return m.exports.authoredOrError(r.request);
     case 'sessionSetup': return m.exports.sessionSetupOrError(r.databaseType);
     case 'projectData': return m.exports.projectDataOrError(r.model, r.databaseType);
     case 'hostOperations': return m.exports.hostOperationsOrError(r.databaseType, r.operations);
