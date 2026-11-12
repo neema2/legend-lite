@@ -106,14 +106,45 @@ public final class TestDataPlanner {
     public static Planned plan(ModelContext ctx, LambdaFunction query, String mappingFqn,
             List<TestDataGenerator.TableRowIds> rowIds, TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates,
             boolean hashStrings, Views views) {
+        return planned(ctx, query, mappingFqn, rowIds, dates, hashStrings, views, null, false);
+    }
+
+    /**
+     * The test data of the server's routes (B2d.3e; upstream's {@code TestDataGenerationAPI}:
+     * {@code generateTestData_WithSeed} and {@code generateTestData_WithDefaultSeed}, which run the generator's PLAN
+     * form, {@code planTestDataGenerationWithParameterValuePairs}, and write its rows with
+     * {@code TestDataGeneration.manageTestDataResult}): {@code query} over {@code mappingFqn} from {@code rowIds}, or,
+     * for a root none of them names, from {@code seed} -- the default seed, its chosen keys the statement's first
+     * clause and the root's rows read through it (every row, by key, where it holds none: upstream's
+     * {@code orFilters([])}); the text's tables in the routes' order, by schema then table ({@code manageTestDataResult},
+     * :282), each cell written as the function writes it (the user's ruling R5, register S191). A view in the query's
+     * relation tree is refused by name: upstream's plan form fetches a view's own rows {@code top 20} and a child view's
+     * main table through its parent (TDG:1023-1201), which lite does not plan. A root no identifier names and no seed
+     * starts is upstream's error node ({@link Unseeded}).
+     */
+    public static Planned route(ModelContext ctx, LambdaFunction query, String mappingFqn,
+            List<TestDataGenerator.TableRowIds> rowIds, @com.legend.base.Nullable Seed seed, boolean hashStrings) {
+        return planned(ctx, query, mappingFqn, rowIds, null, hashStrings, (db, view, reads, tables) -> {
+            throw new IllegalStateException("a view on the server's route is refused before it is fetched");
+        }, seed, true);
+    }
+
+    private static Planned planned(ModelContext ctx, LambdaFunction query, String mappingFqn,
+            List<TestDataGenerator.TableRowIds> rowIds, TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates,
+            boolean hashStrings, Views views, @com.legend.base.Nullable Seed seed, boolean route) {
         List<ScanRelations.Rel> roots = ScanRelations.relTree(ctx, query, mappingFqn);
+        if (route) {
+            for (ScanRelations.Rel r : roots) {
+                noView(ctx, r);
+            }
+        }
         // the engine's generateRelationColumnMap: a table's demanded columns merged across every node that fetches it
         // (a view's: its own tables', and its children's, TDG:567-583)
         Map<String, List<String>> colMap = new LinkedHashMap<>();
         for (ScanRelations.Rel r : roots) {
             columns(ctx, r, colMap);
         }
-        Walk walk = new Walk(ctx, colMap, rowIds, dates, views);
+        Walk walk = new Walk(ctx, colMap, rowIds, dates, views, seed, route);
         for (ScanRelations.Rel r : roots) {
             walk.root(r);
         }
@@ -127,7 +158,19 @@ public final class TestDataPlanner {
         for (Fetched f : walk.fetched.values()) {
             tables.add(new Table(f.schema(), f.table(), f.def(), headerOrder(f.cols()), f.ctes()));
         }
-        return new Planned(fetches, csv(walk, hashStrings), walk.ctes, tables, hashStrings);
+        return new Planned(fetches, csv(walk, hashStrings, route), walk.ctes, tables, hashStrings);
+    }
+
+    /** A view in {@code rel}'s tree, refused by name on the server's route ({@link #route}). */
+    private static void noView(ModelContext ctx, ScanRelations.Rel rel) {
+        if (ScanRelations.isView(ctx, rel.db(), rel.table())) {
+            throw new NotImplementedException("testDataGen: the view '" + rel.table() + "' in the query's relation"
+                    + " tree on the server's route: not planned (B2d.3e; upstream's plan form fetches a view's own rows"
+                    + " top 20 and a child view's main table through its parent, TDG:1023-1201)");
+        }
+        for (ScanRelations.Rel c : rel.children()) {
+            noView(ctx, c);
+        }
     }
 
     /** The demanded columns of every table {@code rel}'s tree fetches: a table's as {@link TestDataGenerator#mergeCols}
@@ -165,18 +208,25 @@ public final class TestDataPlanner {
         private final List<TestDataGenerator.TableRowIds> rowIds;
         private final TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates;
         private final Views views;
+        /** The default seed the server's route starts its root from, or null. */
+        private final @com.legend.base.Nullable Seed seed;
+        /** Whether this is the server's route (its root's error is the route's, {@link Unseeded}). */
+        private final boolean route;
         private final List<SqlWith.Cte> ctes = new ArrayList<>();
         private final Map<String, Fetched> fetched = new LinkedHashMap<>();
         /** Each table clause's table, by physical name: what a view's own fetch reads it from. */
         private final Map<String, String> clauseTables = new LinkedHashMap<>();
 
         Walk(ModelContext ctx, Map<String, List<String>> colMap, List<TestDataGenerator.TableRowIds> rowIds,
-                TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates, Views views) {
+                TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates, Views views,
+                @com.legend.base.Nullable Seed seed, boolean route) {
             this.ctx = ctx;
             this.colMap = colMap;
             this.rowIds = rowIds;
             this.dates = dates;
             this.views = views;
+            this.seed = seed;
+            this.route = route;
         }
 
         void root(ScanRelations.Rel rel) {
@@ -294,10 +344,39 @@ public final class TestDataPlanner {
                 }
             }
             if (ids == null) {
-                throw noIdentifiers(ctx, db, loc, table, view);
+                Seed s = seed;
+                if (s != null && view == null && s.table().equals(table) && s.loc().schema().equals(loc.schema())) {
+                    return seeded(loc, table, s);
+                }
+                throw route ? unseeded(ctx, db, loc, table, view) : noIdentifiers(ctx, db, loc, table, view);
             }
             List<String> cols = cols(loc, table);
             return add(loc, table, cols, idFetch(ids, loc, table, cols));
+        }
+
+        /** The root {@code table}'s rows from the default seed {@code s} (B2d.3e; the design's §1.3): the seed's chosen
+         *  keys as the next clause, then the table's rows by key, at most 20 -- those whose keys the seed holds, or,
+         *  where it holds none, any (upstream's {@code orFilters([])}). One statement: no second round. */
+        private String seeded(TestDataGenerator.Located loc, String table, Seed s) {
+            String keys = "tdg_" + ctes.size();
+            ctes.add(new SqlWith.Cte(keys, s.rows()));
+            SqlExpr match = null;
+            for (String k : s.keys()) {
+                match = and(match, SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.derived("_seed",
+                        tempColumn(loc.def(), k)), stored(ROOT, loc.def(), k)));
+            }
+            SqlExpr held = new SqlExpr.Exists(one(new SqlSource.Cte(keys, "_seed", List.of()), match));
+            SqlExpr none = SqlExpr.Call.of(SqlFn.NOT, new SqlExpr.Exists(one(new SqlSource.Cte(keys, "_any",
+                    List.of()), null)));
+            List<String> cols = cols(loc, table);
+            return add(loc, table, cols, fetch(cols, loc.def(), ROOT, storeTable(loc, table, ROOT),
+                    SqlExpr.Call.of(SqlFn.OR, none, held)));
+        }
+
+        /** {@code select 1 from <from> [where <where>]}. */
+        private static SqlSelect one(SqlSource from, @com.legend.base.Nullable SqlExpr where) {
+            return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "_one", null)), false, from,
+                    where, List.of(), null, null, List.of(), null, null, List.of());
         }
 
         private List<String> cols(TestDataGenerator.Located loc, String table) {
@@ -334,10 +413,11 @@ public final class TestDataPlanner {
                         "a row identifier with no column"));
                 where = where == null ? group : SqlExpr.Call.of(SqlFn.OR, where, group);
             }
-            SqlExpr rows = java.util.Objects.requireNonNull(where, "no row identifiers");
+            // no identifiers in the list is no filter: the table's rows by key, at most 20 (upstream's
+            // orFilters([]), TDG; the design's §1.2, "an empty seed is no filter")
             SqlExpr mf = milestoningFilter(loc.def(), ROOT, dates);
-            return fetch(cols, loc.def(), ROOT, storeTable(loc, table, ROOT), mf == null ? rows
-                    : SqlExpr.Call.of(SqlFn.AND, new SqlExpr.Group(rows), mf));
+            return fetch(cols, loc.def(), ROOT, storeTable(loc, table, ROOT), where == null ? mf : mf == null ? where
+                    : SqlExpr.Call.of(SqlFn.AND, new SqlExpr.Group(where), mf));
         }
     }
 
@@ -353,14 +433,59 @@ public final class TestDataPlanner {
     static AssertFailed noIdentifiers(ModelContext ctx, String db, TestDataGenerator.Located loc, String table,
             @com.legend.base.Nullable String view) {
         String owner = owningDatabase(ctx, db, loc.def());
+        return new AssertFailed(unidentified(owner, loc, table, view) + "Example:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(" + owner + ", '" + loc.schema()
+                + "', '" + table + "', [\n\n  ])\n");
+    }
+
+    /** Upstream's no-identifiers text up to its example, both forms': {@code Row Identifers should be provided for the
+     *  root table[ of the view (V)]: <db>.<[schema.]table> [<key>:<type>,...]\n}. */
+    private static String unidentified(String owner, TestDataGenerator.Located loc, String table,
+            @com.legend.base.Nullable String view) {
         String keys = loc.def().columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
                 .map(c -> c.name() + ":" + com.legend.plan.PlanText.spell(c.dataType()))
                 .collect(java.util.stream.Collectors.joining(","));
-        return new AssertFailed("Row Identifers should be provided for the root table"
-                + (view == null ? "" : " of the view (" + view + ")") + ": " + owner + "."
-                + physical(loc.schema(), table) + " [" + keys + "]\nExample:\n"
-                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(" + owner + ", '" + loc.schema()
-                + "', '" + table + "', [\n\n  ])\n");
+        return "Row Identifers should be provided for the root table" + (view == null ? "" : " of the view (" + view
+                + ")") + ": " + owner + "." + physical(loc.schema(), table) + " [" + keys + "]\n";
+    }
+
+    /**
+     * No identifiers and no seed for a root on the server's route (B2d.3e): upstream's plan form's error node
+     * (TDG:1244-1252), which the route answers as its 500's text -- the node's message, {@code Example:\n} and the
+     * table's identifiers as JSON ({@code TestDataGeneration.manageTestDataResult}, :230-262). Upstream's example holds
+     * the table's first 5 keys, read for it; planning reads no row, so the route's example holds none (register S300,
+     * as the function's). The message, and the table the example names, are data: the route writes the JSON.
+     */
+    public static final class Unseeded extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        private final String database;
+        private final String schema;
+        private final String table;
+
+        Unseeded(String message, String database, String schema, String table) {
+            super(message);
+            this.database = database;
+            this.schema = schema;
+            this.table = table;
+        }
+
+        public String database() {
+            return database;
+        }
+
+        public String schema() {
+            return schema;
+        }
+
+        public String table() {
+            return table;
+        }
+    }
+
+    private static Unseeded unseeded(ModelContext ctx, String db, TestDataGenerator.Located loc, String table,
+            @com.legend.base.Nullable String view) {
+        String owner = owningDatabase(ctx, db, loc.def());
+        return new Unseeded(unidentified(owner, loc, table, view), owner, loc.schema(), table);
     }
 
     /** The database that declares {@code def}, searched from {@code db} through its includes (upstream's
@@ -420,14 +545,20 @@ public final class TestDataPlanner {
      *  inside a common table expression -- as the database judge's verdict statement places a side (measured
      *  2026-11-11: "Table not found"; from a derived table in the body's FROM it resolves them, as DuckDB and SQLite
      *  do either way). */
-    private static SqlQuery csv(Walk walk, boolean hashStrings) {
+    private static SqlQuery csv(Walk walk, boolean hashStrings, boolean route) {
         if (walk.fetched.isEmpty()) {
             throw new IllegalStateException("testDataGen: a relation tree with no table");
+        }
+        List<Fetched> order = new ArrayList<>(walk.fetched.values());
+        if (route) {
+            // the server's routes' order: by schema and table, as upstream's writer sorts its blocks
+            // (manageTestDataResult, :282: schemaName + '.' + relationName) -- the model's names, a planning constant
+            order.sort(java.util.Comparator.comparing(f -> f.schema() + "." + f.table()));
         }
         List<SqlExpr> blocks = new ArrayList<>();
         SqlSource from = null;
         int n = 0;
-        for (Fetched f : walk.fetched.values()) {
+        for (Fetched f : order) {
             List<String> cs = headerOrder(f.cols());
             String header = f.schema() + "\n" + f.table() + "\n"
                     + String.join(",", cs.stream().map(TestDataPlanner::headerCase).toList()) + "\n";
@@ -638,6 +769,54 @@ public final class TestDataPlanner {
         return new SqlSelect(List.of(new SqlSelect.Projection(text, "seedDataString", null)), false,
                 new SqlSource.Subselect(seed.rows(), "_k", null), null, List.of(), null, null, List.of(), null, null,
                 List.of());
+    }
+
+    /**
+     * {@code seed} as upstream's seed route answers it (B2d.3e; {@code generateSeedData},
+     * {@code SeedDataGeneration.streamSeedDataResult}): the JSON object {@code {"table":{"_type":"table","table":T,
+     * "schema":S,"database":D},"rowIdentifiers":[{"columnValuePairs":[{"name":k,"value":v},...]},...]}}, built by the
+     * database -- each value its JSON for the key's cell, the identifiers in the keys' order (R2, register S198) --
+     * one statement, its one cell the text. A key's name is its column's, in double quotes where it holds a space
+     * (upstream's {@code getQuotedLabelIfContainSpace}).
+     */
+    public static SqlQuery seedJson(ModelContext ctx, Seed seed) {
+        DatabaseDefinition.TableDefinition def = seed.loc().def();
+        List<SqlExpr> pairs = new ArrayList<>(seed.keys().size());
+        List<SqlExpr.JsonArrayAgg.Key> order = new ArrayList<>(seed.keys().size());
+        for (String k : seed.keys()) {
+            String name = bareName(k);
+            SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
+            pairs.add(new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("name"), new SqlExpr.StringLit(
+                    name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), cell)));
+            order.add(new SqlExpr.JsonArrayAgg.Key(cell, false));
+        }
+        SqlExpr identifier = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("columnValuePairs"),
+                new SqlExpr.JsonArray(pairs)));
+        SqlExpr table = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("table"),
+                new SqlExpr.StringLit("table"), new SqlExpr.StringLit(seed.table()), new SqlExpr.StringLit("schema"),
+                new SqlExpr.StringLit(seed.loc().schema()), new SqlExpr.StringLit("database"),
+                new SqlExpr.StringLit(owningDatabase(ctx, seed.db(), def))));
+        SqlExpr answer = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("table"), table,
+                new SqlExpr.StringLit("rowIdentifiers"), new SqlExpr.JsonArrayAgg(identifier, order)));
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(answer, SqlType.Scalar.VARCHAR),
+                "seedData", null)), false, new SqlSource.Subselect(seed.rows(), "_k", null), null, List.of(), null,
+                null, List.of(), null, null, List.of());
+    }
+
+    /**
+     * The seed's query is lowered on {@code runtime}, whose mappings resolve its classes: a runtime that does not declare
+     * {@code mapping} where it maps anything is refused by name, never guessed (a mapping that maps nothing, a TDS
+     * query's {@code EmptyMapping}, resolves nothing: any runtime runs the query).
+     */
+    public static void declares(ModelContext ctx, String runtime, String mapping) {
+        List<String> mappings = ctx.findRuntime(runtime).map(r -> r.mappings()).orElse(List.of());
+        boolean mapsClasses = ctx.findMapping(mapping).map(m -> !m.classBindings().isEmpty()
+                || !m.associationBindings().isEmpty() || !m.includes().isEmpty()).orElse(true);
+        if (mapsClasses && !mappings.contains(mapping)) {
+            throw new NotImplementedException("the seed's query over the mapping " + mapping + " on the runtime "
+                    + runtime + ", which declares " + mappings + ": not planned (B2d.3 plans the seed on the runtime,"
+                    + " whose mappings resolve the query)");
+        }
     }
 
     /** A key value as Pure's {@code toRepresentation} writes it (legend-pure {@code toRepresentation.pure:40-51}), by

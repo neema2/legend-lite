@@ -21475,3 +21475,43 @@ The mislabelled refusal is gone: `generateTestData` with no identifiers for a st
 (B2d.3a, register S300). The planner's old text, "the default starting rows: B2d's next slice", went with it.
 
 S143 now names, of the generator, the server's routes alone (B2d.3e).
+
+## 2026-11-12 — B2d.3e: the generator's product doors, legend-engine's four routes (S143 narrowed; S191, S300 amended)
+
+The B2d.3 design's §3.3, with the user's rulings R1 (the default seed is the server's route alone) and R5 (the routes
+write S191's faithful cells in the routes' table order). `TestDataRoutes` (in `pure_v1`, beside `PureV1Api`, which
+routes the four paths to it) answers upstream's `TestDataGenerationAPI` and the census's `TestDataGeneration`. Each route
+that reads the database composes one planning call and one run on the server's door (the `Runner`, as for an execute).
+The planning call is the generator's statement, with the database building the answer's text in its one cell. The run
+is that statement, a value the query answers (`GeneratorSplice.plannedValue`, minted in the compiler layer), with its one
+cell written as it is (`Output.Rows`). Every route is read only.
+- **`generateSeedData`:** the seed (B2d.3c's rule, a view root's main table admitted) as upstream's JSON
+  (`TestDataPlanner.seedJson`): `{"table":{"_type":"table",...},"rowIdentifiers":[{"columnValuePairs":[...]}]}`, built
+  by the database's JSON functions, the identifiers by key (S198).
+- **`generateTestData_WithSeed`:** the test data from the request's `tableRowIdentifiers` (`TestDataPlanner.route`), as
+  `text/plain`: tables by schema then table (upstream's `manageTestDataResult`, :282), cells as the function writes
+  them (S191, amended). A root that no identifier names is upstream's error node's answer: a 500 whose text is the
+  message, `Example:\n` and the table's identifiers as JSON, which hold no keys (S300, amended).
+- **`generateTestData_WithDefaultSeed`:** the same, started from the default seed. The seed's chosen keys are the
+  statement's first clause, and the root's rows are read through them by key, at most 20: the rows the seed holds, or
+  every row where it holds none (upstream's `orFilters([])`). Upstream runs two plans, lite one statement.
+- **`DONOTUSE_generateTestData`:** the census (B2d.3b) as upstream's embedded data,
+  `{"data":[{"_type":"relationalCSVData","tables":[...]}]}`, a model fact: nothing runs.
+- **Refused by name:**
+  - a view in the query's relation tree on the routes (upstream's plan form fetches a view's own rows `top 20` and a
+    child view's main table through its parent, TDG:1023-1201, which lite does not plan);
+  - a runtime given inline (`engineRuntime`);
+  - the query's parameters bound.
+
+  `ProductStatements.noGenerator` stays for a generator inside a product query (S143's remainder).
+- **One upstream behaviour taken on the function road too:** an identifier list holding none is no filter (upstream's
+  `orFilters([])`; until now lite raised a planning error, "no row identifiers").
+
+Layers: `pure_v1` reaches `testdatagen` (`core-layers.txt`, dated). The seed's mapping check (the runtime declares the
+mapping) moved from the test planner into `TestDataPlanner.declares`, so the test road and the routes share it.
+
+Tests:
+- `TestDataRoutesTest` (DuckDB file, through `PureV1Api.route` and the server's runner): the routes' order (FIRM
+  before the root PERSON); the default seed from the query's keys and from an empty seed; the route's error node; the
+  seed's JSON; the census; an inline runtime refused.
+- `TestDataPlannerTest.thePlannedStatementAnswersTheTestData` (DuckDB, H2, SQLite): an empty identifier list.

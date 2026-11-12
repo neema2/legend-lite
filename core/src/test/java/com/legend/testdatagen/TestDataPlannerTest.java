@@ -101,6 +101,12 @@ class TestDataPlannerTest {
             assertSame(c, ctx, dialect, join, fiveAndSix, false, 2,
                     "default\nPERSON\nID,NAME\n5,\"o'neil, \"\"jr\"\"\nthe 2nd\"\n6,---null---\n-----\n"
                             + "default\nBICYCLE\nID,PERSONID\n14,5\n-----\n");
+            // an identifier list holding none is no filter: the table's rows by key, at most 20 (upstream's
+            // orFilters([]); B2d.3e -- until then a planning error, "no row identifiers")
+            assertSame(c, ctx, dialect, join, List.of(new TestDataGenerator.TableRowIds("default", "PERSON",
+                    List.of())), false, 2, "default\nPERSON\nID,NAME\n1,boss\n2,ann\n3,\"o'neil, jr\"\n4,dan\n"
+                            + "5,\"o'neil, \"\"jr\"\"\nthe 2nd\"\n6,---null---\n-----\n"
+                            + "default\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,4\n14,5\n-----\n");
         }
     }
 
@@ -287,6 +293,21 @@ class TestDataPlannerTest {
                     + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['c\\\\d']),\n"
                     + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['e\\nf'])\n  ])\n",
                     text(c, dialect, TestDataPlanner.seedString(ctx, codes)));
+            // the seed route's answer (B2d.3e): upstream's JSON, the database's, by key
+            String table = "{\"table\":{\"_type\":\"table\",\"table\":\"%s\",\"schema\":\"default\",\"database\":"
+                    + "\"t::DB\"},\"rowIdentifiers\":[";
+            assertEquals(table.formatted("KEYS") + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":2}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]}]}",
+                    text(c, dialect, TestDataPlanner.seedJson(ctx, three)));
+            assertEquals(table.formatted("CODES") + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a'b\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"c\\\\d\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"e\\nf\"}]}]}",
+                    text(c, dialect, TestDataPlanner.seedJson(ctx, codes)));
+            // no key: an empty list
+            assertEquals(table.formatted("KEYS") + "]}", text(c, dialect, TestDataPlanner.seedJson(ctx,
+                    TestDataPlanner.seed(ctx, query("|t::K.all()->filter(k|$k.id > 99)->project([k|$k.name], ['n'])"),
+                            "t::M", false, queries))));
         }
     }
 

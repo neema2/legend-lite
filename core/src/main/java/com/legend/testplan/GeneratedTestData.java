@@ -119,15 +119,7 @@ final class GeneratedTestData {
         return q -> {
             String runtime = java.util.Objects.requireNonNull(runtimeFqn,
                     "the seed's query is planned on the body's runtime, and the body names none");
-            List<String> mappings = typed.context().findRuntime(runtime).map(r -> r.mappings()).orElse(List.of());
-            boolean mapsClasses = typed.context().findMapping(mapping).map(m -> !m.classBindings().isEmpty()
-                    || !m.associationBindings().isEmpty() || !m.includes().isEmpty()).orElse(true);
-            // a mapping that maps nothing (a TDS query's EmptyMapping) resolves nothing: any runtime runs the query
-            if (mapsClasses && !mappings.contains(mapping)) {
-                throw new com.legend.error.NotImplementedException("the seed's query over the mapping " + mapping
-                        + " on the runtime " + runtime + ", which declares " + mappings + ": not planned (B2d.3 plans"
-                        + " the seed on the body's runtime, whose mappings resolve the query)");
-            }
+            TestDataPlanner.declares(typed.context(), runtime, mapping);
             return com.legend.Compiler.query(typed.context(), q).lower(runtime, false).plan();
         };
     }
