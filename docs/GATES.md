@@ -21574,3 +21574,34 @@ The generator's other name matches, audited (the orchestrator's question):
   The last is upstream's own behaviour: its reload inserts with the header names as unquoted identifiers, which H2
   folds. The first four are leniencies, because upstream's Pure resolves a column by its exact name. Tightening them is
   a separate slice measured on the corpus; it was not done here.
+
+## 2026-11-12 — G7 built as ruled: a test-data text's values as written, a CRLF a line break (S302)
+
+The user's ruling (2026-11-12, option C, "Def want windows files accepted"), relayed by the orchestrator. `CsvSeed` now
+reads a test-data text as upstream's loader does (`setUpDataSQLs`, `loadCsvDataToDbTable`), at both use sites (a
+connection's CSV test data, and assertTestData's expected text), with one leniency:
+- **A CRLF line ending is a line break** (`records`): the `\r` before a `\n` is never part of a value or a name, in a
+  quoted cell too. A lone `\r` is a character.
+- **The schema and table lines are read verbatim.** A schema or table the database does not declare is refused with
+  upstream's words at the connection's site (`declared`), as the comparison already refused it. Lite used to load an
+  undeclared table by its text.
+- **Each cell is as written** (`rowLoad`): a padded cell keeps its spaces, as upstream's does. Lite used to strip it.
+  The empty and `---null---` cells are NULL, as before.
+- **Header names stay trimmed**, as upstream's.
+
+Outside the ruling and unchanged (S302 posts them):
+- the block separator, a line of dashes;
+- an empty line inside a block, skipped;
+- a quoted column's header, matched by exact name.
+
+Tests:
+- `TestDataTextAsWrittenTest` (DuckDB, H2, SQLite): a CRLF text loads exactly, with its padded cell; a padded schema or
+  table is refused with upstream's words.
+- `CsvSeedRecordsTest.aBlockIsReadAsWrittenACrlfALineBreak`.
+- `GeneratedTestDataProgramTest.theGeneratedTextIsComparedAsUpstreamDecides`, under assertTestData: a CRLF expected
+  text holds, a padded cell differs, a padded schema line fails with upstream's words.
+
+Measured on the built change (2026-11-12): both corpus lanes are green, their roster shards cached (the judge passes'
+outputs byte-identical). The three core integration lanes and PCT DuckDB's five suites are green. No test changes
+outcome, as the G7 measurement found before the build. Guards: parser-equivalence `own_corpus.matched` 3163 -> 3164
+(`PeRatchets`, dated).

@@ -203,8 +203,10 @@ class GeneratedTestDataProgramTest {
         // than its header (upstream reads the header's cells alone), a header-only block (no insert)
         String reordered = "default\nBICYCLE\nID,PERSONID\n12,3\n11,3\n10,2\n-----\n"
                 + "default\nPERSON\nID,NAME\n3,\"o'neil, jr\"\n2,ann\n-----\n";
+        // and the slice saved with CRLF line endings: a CRLF is a line break (the user's G7 ruling, register S302)
         for (String expected : List.of(SLICE, reordered, SLICE.replace("ID,NAME", "id,Name"),
-                SLICE.replace("2,ann", "2,ann,extra"), SLICE + "default\nPERSON\nNAME,MANAGERID\n-----\n")) {
+                SLICE.replace("2,ann", "2,ann,extra"), SLICE + "default\nPERSON\nNAME,MANAGERID\n-----\n",
+                SLICE.replace("\n", "\r\n"))) {
             expect(wrong, expected, List.of(ok), compare(backend, judge, ctx, LETS, expected));
         }
         // a cell with a line break and a NULL, as the generated text writes them and the reader reads them back; an
@@ -214,8 +216,10 @@ class GeneratedTestDataProgramTest {
         for (String expected : List.of(fourFive, fourFive.replace("5,---null---", "5,"))) {
             expect(wrong, expected, List.of(ok), compare(backend, judge, ctx, LETS_45, expected));
         }
-        // a cell, a missing row, an extra row, a missing table, a row twice: each fails, the database's verdict
-        for (String differs : List.of(SLICE.replace("2,ann", "2,anne"), SLICE.replace("11,3\n", ""),
+        // a cell, a missing row, an extra row, a missing table, a row twice: each fails, the database's verdict; and a
+        // padded cell, its spaces kept as upstream keeps them (register S302)
+        for (String differs : List.of(SLICE.replace("2,ann", "2,anne"), SLICE.replace("2,ann", "2, ann"),
+                SLICE.replace("11,3\n", ""),
                 SLICE.replace("12,3\n", "12,3\n14,3\n"), SLICE.substring(0, SLICE.indexOf("default\nBICYCLE")),
                 SLICE.replace("10,2\n", "10,2\n10,2\n"))) {
             expectDiffers(wrong, differs, compare(backend, judge, ctx, LETS, differs));
@@ -238,6 +242,9 @@ class GeneratedTestDataProgramTest {
         planned.put("other\nPERSON\nID\n2\n", "There should be exactly 1 schema with name other found in the provided"
                 + " runtime database(s) [t::DB] at the given connection.");
         planned.put("default\nNOPE\nID\n2\n", "Table \"NOPE\" not found in Schema \"default\" in Database(s) t::DB");
+        // a padded schema line read as written, as upstream reads it (register S302)
+        planned.put(" default\nPERSON\nID\n2\n", "There should be exactly 1 schema with name  default found in the"
+                + " provided runtime database(s) [t::DB] at the given connection.");
         planned.put("default\nPERSON\nID,NOPE\n2,x\n",
                 "Column \"NOPE\" not found in Table \"PERSON\" in Database(s) t::DB");
         planned.put("default\nPERSON\nID,NAME\n2,\"ann\n", "the expected test data: the test data ends inside the"
@@ -552,7 +559,7 @@ class GeneratedTestDataProgramTest {
 
     /** {@code text} as a Pure string literal's body. */
     static String pure(String text) {
-        return text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n");
+        return text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r");
     }
 
     private static LambdaFunction query(String text) {

@@ -1,0 +1,96 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.testdatagen;
+
+import com.legend.Compiler;
+import com.legend.compiler.element.ModelContext;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.setup.CsvSeed;
+import com.legend.sql.dialect.SqlDialect;
+import com.legend.database.Databases;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+/**
+ * A TEST-DATA TEXT LOADED AS WRITTEN (the user's G7 ruling, 2026-11-12, "Def want windows files accepted"; register
+ * S302): a connection's CSV test data loads each value exactly as written -- a padded cell keeps its spaces, the schema
+ * and table lines are read verbatim, a schema or table the database does not declare refused with upstream's words
+ * ({@code loadCsvDataToDbTable}) -- with one leniency: a CRLF line ending is a line break. On every database with an
+ * in-process instance.
+ */
+class TestDataTextAsWrittenTest {
+
+    private static final String MODEL = """
+            ###Relational
+            Database t::DB
+            (
+              Table K (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Schema S ( Table T (ID INTEGER PRIMARY KEY) )
+            )
+            """;
+
+    static List<DatabaseType> inMemory() throws java.sql.SQLException {
+        return ReservedNamesGenerationTest.inMemory();
+    }
+
+    /** A text saved with CRLF line endings loads as its LF twin: each '\r' before a '\n' a line break, never part of
+     *  a value or a name; a padded cell's spaces kept. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aCrlfTextLoadsAsWritten(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        // the first block's schema line is where upstream's reading of a CRLF text fails ("default\r")
+        String crlf = "default\r\nK\r\nID,NAME\r\n1, ann \r\n2,bob\r\n-----\r\n";
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls(crlf, "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            assertEquals(List.of("1| ann ", "2|bob"), rows(c, "SELECT ID, NAME FROM K ORDER BY ID"), type.name());
+        }
+    }
+
+    /** A schema line read as written: a padded one is a schema the database does not declare, refused with upstream's
+     *  words, as upstream's loader refuses it; a table the schema does not declare, likewise. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aSchemaOrTableTheDatabaseDoesNotDeclareIsRefusedAsUpstreamRefusesIt(DatabaseType type) {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        com.legend.error.AssertFailed schema = assertThrows(com.legend.error.AssertFailed.class,
+                () -> CsvSeed.sqls(" default\nK\nID\n1\n", "t::DB", ctx, dialect));
+        assertEquals("There should be exactly 1 schema with name  default found in the provided runtime database(s)"
+                + " [t::DB] at the given connection.", schema.getMessage());
+        com.legend.error.AssertFailed table = assertThrows(com.legend.error.AssertFailed.class,
+                () -> CsvSeed.sqls("default\nK \nID\n1\n", "t::DB", ctx, dialect));
+        assertEquals("Table \"K \" not found in Schema \"default\" in Database(s) t::DB", table.getMessage());
+    }
+
+    /** {@code sql}'s rows, each its cells joined by {@code |}. */
+    private static List<String> rows(Connection c, String sql) throws Exception {
+        List<String> out = new ArrayList<>();
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
+            int n = r.getMetaData().getColumnCount();
+            while (r.next()) {
+                List<String> cells = new ArrayList<>(n);
+                for (int i = 1; i <= n; i++) {
+                    cells.add(String.valueOf(r.getObject(i)));
+                }
+                out.add(String.join("|", cells));
+            }
+        }
+        return out;
+    }
+}

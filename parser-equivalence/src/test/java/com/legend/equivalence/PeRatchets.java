@@ -57,7 +57,9 @@ public final class PeRatchets {
                     + " store, mapping and runtime)",
             "own_corpus.matched 3159 -> 3163 (2026-11-12, the B checkpoint's G4 and the routes' parameters on"
                     + " claude/total-wall-b2d3): their tests' models (TestDataPlannerTest's keyless table and lower-case"
-                    + " view, GeneratedTestDataProgramTest's lower-case table, TestDataRoutesTest's parameterised query)");
+                    + " view, GeneratedTestDataProgramTest's lower-case table, TestDataRoutesTest's parameterised query)",
+            "own_corpus.matched 3163 -> 3164 (2026-11-12, G7 built as ruled, S302, on claude/total-wall-b2d3):"
+                    + " TestDataTextAsWrittenTest's store");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
