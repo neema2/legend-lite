@@ -52,5 +52,8 @@ use\s+(?:"|[a-z_]+$)
 begin\s+transaction
 
 [kept]
+# (datacube/demo/remote-harness.ts | "SELECT region, sum(notional) AS m FROM " -- a test page's query over the mount
+# it checks: REMOVED 2026-11-12 by C3, the total wall's, 76590e57f -- the page asks the tab's planner for the query
+# over the demo's model, so no host spells it; the C checkpoint's code audit asked for this note)
 studio/src/ui/editor.ts | "SELECT * FROM \"PARTY\".\"PARTY\"" | the SQL editor's placeholder: an example of the person's own SQL, shown in the empty box, never run
 query/src/ui/results.ts | "SELECT " | the plan's SQL shown for reading (formatSql): its first keyword written upper case, never run
