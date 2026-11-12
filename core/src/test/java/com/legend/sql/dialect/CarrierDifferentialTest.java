@@ -662,6 +662,11 @@ class CarrierDifferentialTest {
         }
 
         @Override
+        public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+            return null;
+        }
+
+        @Override
         public com.legend.sql.SqlSource deliver(SqlDialect.DataPayload payload) {
             return duck.deliver(payload);
         }

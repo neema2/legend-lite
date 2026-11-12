@@ -53,6 +53,40 @@ public interface SqlDialect {
      */
     @com.legend.base.Nullable RaiseReadBack raiseReadBack();
 
+    /**
+     * The settings a database this dialect writes for MUST HAVE, as values (the C checkpoint's SHOULD-FIX 3, the
+     * orchestrator's ruling of 2026-11-12): settings that are the DATABASE's, not a session's, whose {@code SET} commits
+     * an open transaction (H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}, measured on 2.5.252), so they cannot be
+     * session statements ({@link #sessionSetup}), which run inside a caller's transaction. The plan's target carries
+     * them as data ({@code ExecutionPlan.Target#settings}): exec writes them where it opens the database (H2's in-memory
+     * URL), and on a session it did not open sends {@code readBack} -- this dialect's statement answering each
+     * setting's name and value -- and refuses a session whose values differ, by name, never running the plan with
+     * other semantics. Null where the database needs none. Each dialect answers, as {@link #raiseReadBack}: a default
+     * would let a new database's settings go undeclared without a word. Until 2026-11-12 the H2 connector put them on
+     * every in-memory URL, outside every plan.
+     */
+    @com.legend.base.Nullable DatabaseSettings databaseSettings();
+
+    /** The settings a database must have ({@code required}, each a name and its value, as the database reports it) and
+     *  the statement that reads them back ({@code readBack}: rows of a setting's name and its value). */
+    record DatabaseSettings(java.util.List<Setting> required, String readBack) {
+        public DatabaseSettings {
+            required = java.util.List.copyOf(required);
+            java.util.Objects.requireNonNull(readBack, "readBack");
+            if (required.isEmpty()) {
+                throw new IllegalArgumentException("a database's settings name at least one setting");
+            }
+        }
+    }
+
+    /** One setting a database must have: its name and its value, each as the database reports them. */
+    record Setting(String name, String value) {
+        public Setting {
+            java.util.Objects.requireNonNull(name, "name");
+            java.util.Objects.requireNonNull(value, "value");
+        }
+    }
+
     /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one row,
      *  one column; null where none is held), {@code reset} clears it, so a later failure reads no stale one. */
     record RaiseReadBack(String read, String reset) {

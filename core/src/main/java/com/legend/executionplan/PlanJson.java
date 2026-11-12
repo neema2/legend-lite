@@ -136,7 +136,10 @@ public final class PlanJson {
      *  {@code plane} by name, its {@code sql}, the {@code schema} and {@code table} it lands in, the {@code prepare}
      *  statements before it, the {@code count} after it and its {@code transaction}'s statements) or {@code attach} (a {@code held} value by name, attached {@code as} a relation, its
      *  {@code reach}); and (C2, 2026-11-12) a target may carry {@code raiseReadBack}, the {@code read} and {@code reset}
-     *  statements exec sends after a failure (MariaDB's and MySQL's), written only where a target declares them. */
+     *  statements exec sends after a failure (MariaDB's and MySQL's), written only where a target declares them; and
+     *  (SHOULD-FIX 3, 2026-11-12) a target may carry {@code settings}, the {@code required} settings its database must
+     *  have (each a {@code name} and {@code value}) and their {@code readBack} statement (H2's), written only where a
+     *  target declares them. */
     public static final int VERSION = 48;
 
     private PlanJson() {
@@ -729,6 +732,18 @@ public final class PlanJson {
             readBack.put("reset", t.raiseReadBack().reset());
             to.put("raiseReadBack", readBack);
         }
+        // the settings the target's database must have (SHOULD-FIX 3, 2026-11-12: H2's), written where there are some
+        if (t.settings() != null) {
+            Map<String, Object> settings = new LinkedHashMap<>();
+            settings.put("required", t.settings().required().stream().map(s -> {
+                Map<String, Object> one = new LinkedHashMap<>();
+                one.put("name", s.name());
+                one.put("value", s.value());
+                return one;
+            }).toList());
+            settings.put("readBack", t.settings().readBack());
+            to.put("settings", settings);
+        }
         return to;
     }
 
@@ -1203,7 +1218,21 @@ public final class PlanJson {
             only(r, "a target's error read-back", "read", "reset");
             readBack = new ExecutionPlan.RaiseReadBack(r.getString("read"), r.getString("reset"));
         }
-        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads, readBack);
+        ExecutionPlan.DatabaseSettings settings = null;
+        if (t.has("settings")) {
+            Json.Obj o = t.getObj("settings");
+            only(o, "a target's database settings", "required", "readBack");
+            List<ExecutionPlan.Setting> required = new ArrayList<>();
+            for (Json.Node n : o.getArr("required").items()) {
+                if (!(n instanceof Json.Obj one)) {
+                    throw new IllegalArgumentException("a database setting is an object of its name and value: " + n);
+                }
+                only(one, "a database setting", "name", "value");
+                required.add(new ExecutionPlan.Setting(one.getString("name"), one.getString("value")));
+            }
+            settings = new ExecutionPlan.DatabaseSettings(required, o.getString("readBack"));
+        }
+        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads, readBack, settings);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {

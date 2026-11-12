@@ -905,9 +905,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * alike for every version lite runs (2026-11-05, one H2). {@code raiseReadBack}: the two statements exec sends after a
      * statement fails, to read back a raise the database keeps in the session (MariaDB's and MySQL's: the charter's A3(c),
      * C2, 2026-11-12; null where the database's errors carry the raise) -- declared by the dialect, never the connector's.
+     * {@code settings}: the settings the database must have, as values, and the statement that reads them back (H2's
+     * {@code MODE} and {@code DEFAULT_NULL_ORDERING}: the database's, whose {@code SET} commits an open transaction; the
+     * C checkpoint's SHOULD-FIX 3, 2026-11-12; null where the database needs none) -- written by exec where it opens the
+     * database, verified on a session it did not open; declared by the dialect, until then the connector's URL.
      */
     public record Target(Database database, List<String> session, List<Load> loads,
-            @com.legend.base.Nullable RaiseReadBack raiseReadBack) {
+            @com.legend.base.Nullable RaiseReadBack raiseReadBack, @com.legend.base.Nullable DatabaseSettings settings) {
         public Target {
             Objects.requireNonNull(database, "database");
             session = List.copyOf(session);
@@ -925,7 +929,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 }
                 if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
                         || !load.target().session().equals(session)
-                        || !Objects.equals(load.target().raiseReadBack(), raiseReadBack)) {
+                        || !Objects.equals(load.target().raiseReadBack(), raiseReadBack)
+                        || !Objects.equals(load.target().settings(), settings)) {
                     throw new IllegalArgumentException("a target's load loads into the target's own database and"
                             + " session, and names no load of its own: " + load.identity());
                 }
@@ -937,12 +942,39 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This target with no load: where its loads load. */
         public Target bare() {
-            return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack);
+            return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack, settings);
         }
 
         /** The session statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
         public List<PlannedSql> plannedSession() {
             return PlannedSql.allFromPlan(session);
+        }
+    }
+
+    /** The settings a target's database must have ({@link Target#settings}): each a name and its value as the database
+     *  reports them ({@code required}), and {@code readBack}, the statement answering rows of a setting's name and value.
+     *  Plan data: the dialect writes them; exec writes the values where it opens the database and, on a session it did
+     *  not open, sends exactly {@code readBack} and refuses a value that differs. */
+    public record DatabaseSettings(List<Setting> required, String readBack) {
+        public DatabaseSettings {
+            required = List.copyOf(required);
+            Objects.requireNonNull(readBack, "readBack");
+            if (required.isEmpty()) {
+                throw new IllegalArgumentException("a database's settings name at least one setting");
+            }
+        }
+
+        /** The read-back, as the plan holds it: what a session sends ({@link PlannedSql}). */
+        public PlannedSql plannedReadBack() {
+            return PlannedSql.fromPlan(readBack);
+        }
+    }
+
+    /** One setting a database must have: its name and value, each as the database reports them. */
+    public record Setting(String name, String value) {
+        public Setting {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(value, "value");
         }
     }
 

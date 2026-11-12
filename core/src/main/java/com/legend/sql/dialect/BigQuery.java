@@ -129,6 +129,11 @@ public final class BigQuery extends AnsiSqlRenderer {
         return null;   // its errors carry a raise's text
     }
 
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
      *  2026-11-11, on round 2's measurement, probes/BigQueryDelivery2.java.txt): it reads 100,000 records (7.6 s) where
      *  the statement's own rows are refused, past BigQuery's 1 MB of query text; a {@code TEMP} table needs a session,

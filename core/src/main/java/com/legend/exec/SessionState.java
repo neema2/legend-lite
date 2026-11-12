@@ -92,6 +92,23 @@ public final class SessionState {
         registered.add(key);
     }
 
+    /** The database settings this session is known to have (the C checkpoint's SHOULD-FIX 3, 2026-11-12): written where
+     *  this platform opened its database, or read back from it once ({@code JdbcStatements.check}). A database's
+     *  settings are no transaction's, so a rollback keeps them. */
+    private final Set<com.legend.executionplan.ExecutionPlan.DatabaseSettings> settingsHeld = new HashSet<>();
+
+    /** {@code settings}, written where this session's database was opened or read back from it: held (none for null). */
+    public synchronized void settingsHeld(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        if (settings != null) {
+            settingsHeld.add(settings);
+        }
+    }
+
+    /** Whether this session is known to have {@code settings}: written where it was opened, or read back. */
+    public synchronized boolean holdsSettings(com.legend.executionplan.ExecutionPlan.DatabaseSettings settings) {
+        return settingsHeld.contains(settings);
+    }
+
     /** Whether {@code statements}, a target's session statements, have still to run on this session: not run since
      *  the connection was opened or last rolled back. */
     public synchronized boolean needsSessionStatements(List<String> statements) {

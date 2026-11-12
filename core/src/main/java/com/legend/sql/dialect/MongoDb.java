@@ -2494,6 +2494,11 @@ public final class MongoDb extends AnsiSqlRenderer {
         return null;   // its errors carry a raise's text
     }
 
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** The BSON type name a cast converts to, a refusal where MongoDB has no such type. */
     @Override
     protected String scalarTypeName(SqlType.Scalar s) {

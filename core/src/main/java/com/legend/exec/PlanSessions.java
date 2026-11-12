@@ -304,7 +304,7 @@ public final class PlanSessions {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not the shared one");
             case ExecutionPlan.Database.Platform p -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
-                            () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
+                            () -> setUpOpened(Sessions.openPrivate(p.type(), target.settings()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
                 if (connector.ownSessions()) {
@@ -313,18 +313,18 @@ public final class PlanSessions {
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
                     case Sessions.Opening.Held h -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
-                                    () -> setUpOpened(Sessions.openHeld(h), target)));
+                                    () -> setUpOpened(Sessions.openHeld(h, target.settings()), target)));
                     case Sessions.Opening.Named n -> {
                         String usersName = n.name();
                         if (usersName != null) {
                             refuseLoads(target, d, "an in-memory database the user named ('" + usersName + "')");
-                            yield Sessions.openNamed(n, usersName);
+                            yield Sessions.openNamed(n, usersName, target.settings());
                         }
                         Named named = NAMED.getOrOpenSlowly(key, held -> Sessions.closed(held.keeper()), () -> {
                             String name = "plan_" + key.hex().substring(0, 16) + "_" + ATTEMPTS.incrementAndGet();
-                            return new Named(setUpOpened(Sessions.openKept(n, name), target), name);
+                            return new Named(setUpOpened(Sessions.openKept(n, name, target.settings()), target), name);
                         });
-                        yield Sessions.joinKept(n, named.name());
+                        yield Sessions.joinKept(n, named.name(), target.settings());
                     }
                     case Sessions.Opening.Url u -> {
                         refuseLoads(target, d, "a database reached by a URL");
@@ -341,15 +341,15 @@ public final class PlanSessions {
         return switch (target.database()) {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " is read-only: no plan writes it");
-            case ExecutionPlan.Database.Platform p -> setUpOpened(Sessions.openPrivate(p.type()), target);
+            case ExecutionPlan.Database.Platform p -> setUpOpened(Sessions.openPrivate(p.type(), target.settings()), target);
             case ExecutionPlan.Database.Declared d -> switch (Sessions.openingFor(d.connection())) {
-                case Sessions.Opening.Held h -> setUpOpened(Sessions.openHeld(h), target);
+                case Sessions.Opening.Held h -> setUpOpened(Sessions.openHeld(h, target.settings()), target);
                 case Sessions.Opening.Named n -> {
                     if (n.name() != null) {
                         yield openShared(target);
                     }
                     String name = "plan_own_" + ATTEMPTS.incrementAndGet();
-                    yield setUpOpened(Sessions.openKept(n, name), target);
+                    yield setUpOpened(Sessions.openKept(n, name, target.settings()), target);
                 }
                 case Sessions.Opening.Url u -> openShared(target);
             };
@@ -401,7 +401,7 @@ public final class PlanSessions {
                     + " database on " + s.type() + " opens through its holder's sessions source, not a project's");
             // a kept session serves one request at a time (§3 rule 4, A4): the view holds its lock until closed
             case ExecutionPlan.Database.Platform p -> Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
-                    () -> made(Sessions.openPrivate(p.type()), target)));
+                    () -> made(Sessions.openPrivate(p.type(), target.settings()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
                 if (connector.ownSessions()) {
@@ -421,14 +421,14 @@ public final class PlanSessions {
                     case Sessions.Opening.Named n -> {
                         if (n.name() != null) {
                             refuseFill(target, d, "an in-memory database the user named ('" + n.name() + "')");
-                            yield Sessions.openNamed(n, n.name());
+                            yield Sessions.openNamed(n, n.name(), target.settings());
                         }
                         String name = "c_" + key.hex().substring(0, 16);
                         yield Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
-                                () -> made(Sessions.openNamed(n, name), target)));
+                                () -> made(Sessions.openNamed(n, name, target.settings()), target)));
                     }
                     case Sessions.Opening.Held h -> Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
-                            () -> made(Sessions.openHeld(h), target)));
+                            () -> made(Sessions.openHeld(h, target.settings()), target)));
                 };
             }
         };
@@ -445,8 +445,10 @@ public final class PlanSessions {
      */
     public static Hash projectKey(ExecutionPlan.Target target) {
         StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeTarget(
-                // the database alone: no session statement, no load and no read-back is what it holds
-                new ExecutionPlan.Target(target.database(), java.util.List.of(), java.util.List.of(), null)));
+                // the database and the settings it is made with: no session statement, no load and no read-back is
+                // what it holds
+                new ExecutionPlan.Target(target.database(), java.util.List.of(), java.util.List.of(), null,
+                        target.settings())));
         for (ExecutionPlan.Load load : target.loads()) {
             if (load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
                 PlanRunner.verifyIdentity(load);

@@ -406,7 +406,7 @@ public final class LoadPlanner {
     /** {@code target} establishing {@code steps} on acquisition (none: the target as it is). */
     public static ExecutionPlan.Target withLoads(ExecutionPlan.Target target, com.legend.setup.LoadSteps steps) {
         return new ExecutionPlan.Target(target.database(), target.session(), targetLoads(steps, target),
-                target.raiseReadBack());
+                target.raiseReadBack(), target.settings());
     }
 
     /** {@link #withLoads(ExecutionPlan.Target, com.legend.setup.LoadSteps)} for steps that read no blob. */

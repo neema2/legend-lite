@@ -34,7 +34,7 @@ class ExecutionTraceTest {
     /** A plan whose one statement reads its own stamp: the execution-trace comment, bound when the plan runs. */
     private static ExecutionPlan stampReader() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null);
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null);
         ExecutionPlan.Sql sql = new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot(
                 "#stamp0", new ExecutionPlan.Binding.One("VARCHAR", null))), target, null).stamped("#stamp0");
         return ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(sql));

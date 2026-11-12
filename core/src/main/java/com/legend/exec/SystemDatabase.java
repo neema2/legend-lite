@@ -115,7 +115,7 @@ public final class SystemDatabase {
             synchronized (SystemDatabase.class) {
                 current = CURRENT.get(engine);
                 if (current == null) {
-                    current = new Held(key.toString(), Sessions.lazy(() -> openPrivate(engine)));
+                    current = new Held(key.toString(), Sessions.lazy(() -> openPrivate(engine, target.settings())));
                     CURRENT.put(engine, current);
                 } else if (!current.key.equals(key.toString())) {
                     throw new IllegalStateException("a second catalog on " + engine + ": the process's catalog is made"
@@ -226,9 +226,10 @@ public final class SystemDatabase {
         }
     }
 
-    private static Sessions.Session openPrivate(com.legend.executionplan.DatabaseType engine) {
+    private static Sessions.Session openPrivate(com.legend.executionplan.DatabaseType engine,
+            com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         try {
-            return Sessions.openPrivate(engine);
+            return Sessions.openPrivate(engine, settings);
         } catch (com.legend.error.DataError e) {
             throw new IllegalStateException("system database: cannot open the "
                     + engine + " session", e);

@@ -52,7 +52,7 @@ class ReservedNamesGenerationTest {
     static List<DatabaseType> inMemory() throws SQLException {
         List<DatabaseType> out = new ArrayList<>();
         for (DatabaseType t : DatabaseType.values()) {
-            try (Connection ignored = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(t)).openPrivate()) {
+            try (Connection ignored = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(t)).openPrivate(null)) {
                 out.add(t);
             } catch (NotImplementedException refused) {
                 // no in-memory instance of this type
@@ -66,7 +66,7 @@ class ReservedNamesGenerationTest {
     void generates(DatabaseType type) throws Exception {
         SqlDialect dialect = Databases.dialect(type);
         ModelContext ctx = Compiler.compileModel(MODEL);
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(ReservedNames.CSV, "s::DB", ctx, dialect)) {
                     s.execute(sql);

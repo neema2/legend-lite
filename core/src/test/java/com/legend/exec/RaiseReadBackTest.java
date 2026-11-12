@@ -104,7 +104,7 @@ class RaiseReadBackTest {
         List<String> sent = new ArrayList<>();
         try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent)) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                    com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack);
+                    com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack, null);
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
                     PlanSessions.of(Sessions.borrowed(c))));

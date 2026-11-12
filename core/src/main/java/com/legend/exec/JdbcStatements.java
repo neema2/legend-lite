@@ -182,6 +182,44 @@ final class JdbcStatements implements Statements {
         driver = declared.decoding();   // the driver's facts are its connector's (D72)
         // the error read-back the plan's target declares, kept with the session for a failure on it (C2)
         state.declareRaiseReadBack(target.raiseReadBack());
+        // the settings the target's database must have: written where this platform opened it, else read back once
+        ExecutionPlan.DatabaseSettings settings = target.settings();
+        if (settings != null && !state.holdsSettings(settings)) {
+            verifySettings(c, settings);
+            state.settingsHeld(settings);
+        }
+    }
+
+    /**
+     * {@code settings}, the ones the plan's target says its database must have, READ BACK from a session this platform
+     * did not open (a caller's, a borrowed one, a URL's; the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling of
+     * 2026-11-12): the target's own read-back statement sent as written and counted as the session's, each row a
+     * setting's name and value; a value that differs, or a setting the database does not report, refuses the session by
+     * name -- the plan is never run with other semantics (H2's null ordering would order its answer otherwise).
+     */
+    static void verifySettings(Connection c, ExecutionPlan.DatabaseSettings settings) {
+        PlannedSql read = settings.plannedReadBack();
+        java.util.Map<String, String> reported = new java.util.LinkedHashMap<>();
+        StatementOrigin.sent(StatementOrigin.SESSION, read.text());
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(read.text())) {
+            while (rs.next()) {
+                reported.put(rs.getString(1), rs.getString(2));
+            }
+        } catch (SQLException e) {
+            throw RaisedErrors.dataError(e);
+        }
+        List<String> differ = new java.util.ArrayList<>();
+        for (ExecutionPlan.Setting s : settings.required()) {
+            if (!s.value().equals(reported.get(s.name()))) {
+                differ.add(s.name() + " is " + (reported.containsKey(s.name()) ? reported.get(s.name()) : "not reported")
+                        + ", not " + s.value());
+            }
+        }
+        if (!differ.isEmpty()) {
+            throw new com.legend.error.NotImplementedException("the session's database does not have the settings the"
+                    + " plan's target declares (" + String.join("; ", differ) + "): a session this platform did not"
+                    + " open is read back, and never runs a plan with other settings");
+        }
     }
 
     @Override

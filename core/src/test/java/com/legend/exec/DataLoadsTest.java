@@ -83,7 +83,7 @@ class DataLoadsTest {
     private static ExecutionPlan.Load load(TestBackend b, ExecutionPlan.LoadStep.File file) {
         return com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, List.of(file),
                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(b.planType(), null), List.of(),
-                        List.of(), null));
+                        List.of(), null, null));
     }
 
     /** {@code load} run on a fresh table of {@code b}'s, its rows read back. */

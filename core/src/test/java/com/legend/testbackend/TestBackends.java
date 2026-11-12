@@ -22,6 +22,18 @@ public final class TestBackends {
     private TestBackends() {
     }
 
+    /** The settings a test's OWN H2 connection is opened with, on its URL ({@code ;NAME=VALUE} each): the H2 dialect's
+     *  non-keywords (its session statement, which a plan's run sends first) and the settings its database must have
+     *  ({@code SqlDialect.databaseSettings}, which a plan's target carries and exec writes where it opens an in-memory
+     *  H2; the C checkpoint's SHOULD-FIX 3, 2026-11-12: until then {@code H2Connector.SETTINGS}). */
+    public static String h2UrlSettings() {
+        StringBuilder url = new StringBuilder(";NON_KEYWORDS=" + com.legend.sql.dialect.H2.NON_KEYWORDS);
+        for (com.legend.sql.dialect.SqlDialect.Setting s : new com.legend.sql.dialect.H2().databaseSettings().required()) {
+            url.append(';').append(s.name()).append('=').append(s.value());
+        }
+        return url.toString();
+    }
+
     /** {@code type}'s backend. */
     public static TestBackend of(DatabaseType type) {
         return switch (type) {

@@ -81,7 +81,7 @@ class RunScopeTest {
         try (var planning = RunScope.plans("a test body")) {
             assertTrue(RunScope.isPlanning());
             RunScope.Refused opened = assertThrows(RunScope.Refused.class,
-                    () -> Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM)));
+                    () -> Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM), null));
             assertTrue(opened.getMessage().contains("a session opened while a test body is planned"),
                     opened.getMessage());
             RunScope.Refused ran = assertThrows(RunScope.Refused.class, RunScope::enter);
@@ -100,7 +100,7 @@ class RunScopeTest {
         int[] opened = {0};
         try (Sessions.Session lazy = Sessions.lazy(() -> {
             opened[0]++;
-            return Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM));
+            return Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM), null);
         })) {
             try (var planning = RunScope.plans("a system-routed body")) {
                 // a planner names the session (its state is its own) and opens nothing
@@ -121,7 +121,7 @@ class RunScopeTest {
 
     @Test
     void rule3ASessionsStatementsAndItsCheckAreARunsAlone() throws Exception {
-        try (Sessions.Session session = Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM))) {
+        try (Sessions.Session session = Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM), null)) {
             RunScope.Refused sent = assertThrows(RunScope.Refused.class, session::statements);
             assertTrue(sent.getMessage().contains("a session's statements outside a plan's run"), sent.getMessage());
             assertThrows(RunScope.Refused.class, () -> Sessions.check(session, com.legend.planner.ConnectionPlans.type(PLATFORM)));

@@ -31,6 +31,28 @@ import java.util.Set;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    /** The words H2 2.x reserves that legend-engine's own H2 session frees ({@code NON_KEYWORDS}: H2Manager's list,
+     *  4.145.0), so a golden replayed here reads as it did in the engine's run. A session's setting, which commits no
+     *  transaction: H2's session statement ({@link #sessionSetup}). */
+    public static final String NON_KEYWORDS = "ANY,ASYMMETRIC,AUTHORIZATION,CAST,CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,"
+            + "ELSE,END,HOUR,KEY,MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,USER,VALUE,"
+            + "WHEN,YEAR,OVER";
+
+    /** H2's session statement: the engine's non-keywords, set on every connection (a session's setting; measured on
+     *  2.5.252: it commits no open transaction). */
+    static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
+
+    /** The settings an H2 database must have, the engine's own (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY},
+     *  and {@code DEFAULT_NULL_ORDERING=HIGH}, the engine's null placement (null is largest -- ascending nulls last,
+     *  descending first), which its printer leaves bare because the database already orders that way. Both are the
+     *  database's, and their {@code SET} commits an open transaction (measured on 2.5.252), so they are the target's
+     *  data, written on the URL of an in-memory database exec opens and read back from a session it did not
+     *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}). */
+    static final DatabaseSettings DATABASE_SETTINGS = new DatabaseSettings(List.of(new Setting("MODE", "LEGACY"),
+            new Setting("DEFAULT_NULL_ORDERING", "HIGH")), "SELECT SETTING_NAME, SETTING_VALUE FROM"
+            + " INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME IN ('MODE', 'DEFAULT_NULL_ORDERING')");
+
+
     /** {@inheritDoc} The statement's own rows (the JSON pass, the user's ruling of 2026-11-11: "for h2 should we also
      *  inline so we can get rid of all the temp table code completely?"): H2 refuses an array parameter of more than
      *  65,536 elements, so a payload is not bound here; its rows took 460 ms for 100,000 records (measured). */
@@ -54,6 +76,18 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
         return null;   // its errors carry a raise's text
+    }
+
+    /** {@inheritDoc} H2's non-keywords ({@link #SESSION_SETUP}). */
+    @Override
+    public List<String> sessionSetup() {
+        return SESSION_SETUP;
+    }
+
+    /** {@inheritDoc} {@code MODE=LEGACY}, {@code DEFAULT_NULL_ORDERING=HIGH} ({@link #DATABASE_SETTINGS}). */
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return DATABASE_SETTINGS;
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,

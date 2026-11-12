@@ -43,7 +43,7 @@ final class ProgramRunnerTest {
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
         target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of(), null);
+                List.of(), List.of(), null, null);
     }
 
     @AfterAll
@@ -96,7 +96,7 @@ final class ProgramRunnerTest {
     @Test
     void aSystemTargetThatMakesNoCatalogIsRefusedByName() {
         ExecutionPlan.Target bare = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
-                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"), List.of(), List.of(), null);
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"), List.of(), List.of(), null, null);
         try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
             var refused = assertThrows(IllegalStateException.class, () -> leases.sessionFor(bare));
             assertTrue(refused.getMessage().contains("makes the catalog"), refused.getMessage());
@@ -113,7 +113,7 @@ final class ProgramRunnerTest {
                 continue;
             }
             ExecutionPlan.Target server = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
-                    com.legend.planner.ConnectionPlans.type(type), "a-graph"), List.of(), List.of(), null);
+                    com.legend.planner.ConnectionPlans.type(type), "a-graph"), List.of(), List.of(), null, null);
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 var refused = assertThrows(IllegalStateException.class, () -> leases.sessionFor(server), type.name());
                 assertTrue(refused.getMessage().contains("in process"), type + ": " + refused.getMessage());

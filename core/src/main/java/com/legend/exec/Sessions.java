@@ -535,11 +535,20 @@ public final class Sessions {
         }
     }
 
-    /** Opens a session on {@code named}'s in-memory database {@code name}, which outlives it. */
-    public static Session openNamed(Opening.Named named, String name) {
+    /** {@code connection}, opened by this platform with {@code settings} written where the database is opened (the
+     *  plan's target's; null for none): owned, its state holding them, so the session is not read back for them
+     *  ({@code JdbcStatements.check}; the C checkpoint's SHOULD-FIX 3, 2026-11-12). */
+    private static Session opened(Connection connection, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        Session session = owned(connection);
+        session.state().settingsHeld(settings);
+        return session;
+    }
+
+    /** Opens a session on {@code named}'s in-memory database {@code name}, which outlives it, with {@code settings}. */
+    public static Session openNamed(Opening.Named named, String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return owned(named.memory().openNamed(name));
+            return opened(named.memory().openNamed(name, settings), settings);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
@@ -547,10 +556,10 @@ public final class Sessions {
 
     /** Opens a session on {@code named}'s in-memory database {@code name}, which lives only while a connection to
      *  it is open: its opener keeps one, and when that one closes with no other open, the database is gone. */
-    public static Session openKept(Opening.Named named, String name) {
+    public static Session openKept(Opening.Named named, String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return owned(named.memory().openKept(name));
+            return opened(named.memory().openKept(name, settings), settings);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
@@ -558,31 +567,32 @@ public final class Sessions {
 
     /** Opens another session on the kept database {@code name} ({@link #openKept}), which must still be open: one
      *  whose keeper closed is gone, and connecting fails by name rather than making an empty database of that name. */
-    public static Session joinKept(Opening.Named named, String name) {
+    public static Session joinKept(Opening.Named named, String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return owned(named.memory().joinKept(name));
+            return opened(named.memory().joinKept(name, settings), settings);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
     }
 
     /** Opens the in-memory database a {@link Opening.Held} opening names: it lives as long as this session. */
-    public static Session openHeld(Opening.Held held) {
+    public static Session openHeld(Opening.Held held, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return owned(held.connector().openPrivate());
+            return opened(held.connector().openPrivate(settings), settings);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
     }
 
     /** A PRIVATE in-memory database of {@code type}, gone when this session closes (the system database, the
-     *  platform's engine); a type with none is refused by name. */
-    public static Session openPrivate(DatabaseType type) {
+     *  platform's engine), made with {@code settings} (the plan's target's; null for none); a type with none is refused
+     *  by name. */
+    public static Session openPrivate(DatabaseType type, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return owned(Connectors.of(type).openPrivate());
+            return opened(Connectors.of(type).openPrivate(settings), settings);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
