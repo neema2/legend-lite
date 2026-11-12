@@ -12,7 +12,6 @@ none."""
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import re
@@ -224,11 +223,14 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
         for sql in all_from_plan(step['transaction']['commit']):
             send(connection, sql)
         return Landed(step['plane'], schema, table, counted, dict(receipt))
-    except BaseException:
-        # the database's own undo: the table made in the transaction goes with it, one there before is as it was
-        for sql in all_from_plan(step['transaction']['rollback']):
-            with contextlib.suppress(Exception):
+    except BaseException as failure:
+        # the database's own undo: the table made in the transaction goes with it, one there before is as it was; a
+        # rollback that fails too is said with the failure, never swallowed (G7; the final audit, 2026-11-12)
+        try:
+            for sql in all_from_plan(step['transaction']['rollback']):
                 send(connection, sql)
+        except Exception as rollback:
+            raise LoadRefused(f'{failure} -- and rolling its transaction back failed: {rollback}') from failure
         raise
     finally:
         # a read that ended early lets its plane free the statement (the warehouse's: closed or cancelled)

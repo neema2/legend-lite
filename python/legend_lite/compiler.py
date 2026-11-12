@@ -89,15 +89,21 @@ def plan_params(plan: Any) -> tuple[str, ...]:
 
 
 def statement_params(statement: dict[str, Any]) -> tuple[str, ...]:
-    """The values ``statement``'s slots bind (``plan_params``' rule), in its placeholders' order."""
-    content = statement.get('content') or {}
+    """The values ``statement``'s slots bind (``plan_params``' rule), in its placeholders' order. What the planner always
+    writes is required, never defaulted (G7; the final audit, 2026-11-12, plan-params.ts's twin): a statement with no
+    slots, and a payload its statement does not carry (no digest, no content), each refused by name."""
+    if 'slots' not in statement:
+        raise PlanParamsRefused("this plan's statement does not carry its slots")
+    content = statement.get('content')
     out = []
-    for slot in statement.get('slots') or []:
+    for slot in statement['slots']:
         kind = slot['binding'].get('_type')
         if kind != 'payload':
             what = {'key': "a key's cell", 'source': "a file source's path", 'array': 'a list'}.get(kind, 'a value the run supplies')
             raise PlanParamsRefused(f"'{slot['parameter']}' binds {what}, which a host running the plan's text does not bind")
-        digest = slot['binding'].get('digest', '')
+        digest = slot['binding'].get('digest')
+        if digest is None or content is None:
+            raise PlanParamsRefused(f"'{slot['parameter']}' binds a payload its statement does not carry")
         text = content.get(digest)
         if text is None:
             raise PlanParamsRefused(f"the plan's statement binds the payload {digest}, which its content does not carry")

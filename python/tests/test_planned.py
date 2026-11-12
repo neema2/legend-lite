@@ -228,6 +228,38 @@ class WitnessTest(unittest.TestCase):
         self.assertEqual(witness.received, [*step['transaction']['begin'], *step['prepare'], '<from_arrow>', step['count'],
                                             *step['transaction']['commit']])
 
+    def test_a_streams_failed_rollback_is_said_with_its_failure(self):
+        # G7 (the final audit's item 4, 2026-11-12): a rollback that failed too was suppressed, the failure said alone
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                raise ConnectionResetError('the connection was reset')
+                yield b''
+
+        class NoRollback(_Witness):
+            def execute(self, sql, params=None):
+                if str(sql).upper().startswith('ROLLBACK'):
+                    raise RuntimeError('the rollback was refused')
+                return super().execute(sql, params)
+
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'unrolled'})
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_host_load(plan, Database(NoRollback(duckdb.connect())), planes={'warehouse': Plane()})
+        self.assertEqual(str(refused.exception), 'the connection was reset -- and rolling its transaction back failed: '
+                                                 'the rollback was refused')
+        self.assertIsInstance(refused.exception.__cause__, ConnectionResetError)
+
+    def test_a_statement_missing_what_the_planner_always_writes_is_refused_by_name(self):
+        # G7 (the final audit's item 4, 2026-11-12): `slots or []` ran a statement missing its slots as one binding
+        # nothing, and `content or {}` / `get('digest', '')` looked a payload up by no digest
+        with self.assertRaises(compiler.PlanParamsRefused) as refused:
+            compiler.statement_params({'statement': 'SELECT 1'})
+        self.assertEqual(str(refused.exception), "this plan's statement does not carry its slots")
+        payload = {'parameter': 'p', 'binding': {'_type': 'payload', 'digest': 'ab'}}
+        for statement in ({'slots': [payload]}, {'slots': [{**payload, 'binding': {'_type': 'payload'}}], 'content': {}}):
+            with self.assertRaises(compiler.PlanParamsRefused) as refused:
+                compiler.statement_params(statement)
+            self.assertEqual(str(refused.exception), "'p' binds a payload its statement does not carry")
+
 
 # A SNAPSHOT'S PULL (the user's ruling of 2026-11-12, "that is a real off platform problem"): a stream's request carries
 # the model, its runtime and the query, which the planner plans in the call; never the statement the plane runs

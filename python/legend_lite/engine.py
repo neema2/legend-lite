@@ -1456,7 +1456,12 @@ class Engine:
             (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}},
                                            database_type=table.database_type)
             counted = _arrow_of(table.warehouse.arrow_chunks(counting))
-            rows = int(counted.column(0)[0].as_py()) if counted.num_rows else 0
+            # the count is the warehouse's one value: none is refused by name, never read as no rows (G7; the final
+            # audit, 2026-11-12)
+            if counted.num_rows != 1 or counted.num_columns != 1 or counted.column(0)[0].as_py() is None:
+                return _said(422, f'the snap could not be counted: the warehouse answered {counted.num_rows} row(s), '
+                                  'not its rows\' count')
+            rows = int(counted.column(0)[0].as_py())
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
         except warehouse.SessionExpired:

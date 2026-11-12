@@ -703,6 +703,19 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     }
   });
 
+  it('a rollback that fails too is said with the failure, never swallowed', async () => {
+    // G7 (the final audit's item 4, 2026-11-12): `.catch(() => {})` dropped the rollback's failure, the stream's said alone
+    const failing = async (sql: string): Promise<unknown[][]> => {
+      if (sql.toUpperCase().startsWith('ROLLBACK')) throw new Error('the rollback was refused');
+      return [];
+    };
+    await assert.rejects(() => runLoad(planOf('unrolled'), failing,
+      { streams: { planes: { warehouse: plane([chunkOf(1, 4)], { cutAfter: 0 }) }, held: { rows: failing, insertArrow: async () => {} } } }),
+    (e: unknown) => e instanceof Error
+      && e.message === 'the connection was reset -- and rolling its transaction back failed: the rollback was refused'
+      && e.cause instanceof Error && e.cause.message === 'the connection was reset');
+  });
+
   it('a plane this host does not hold, and a host that streams none, are refused by name, nothing run', async () => {
     const sent: string[] = [];
     const record = async (sql: string): Promise<unknown[][]> => { sent.push(sql); return []; };
