@@ -35,6 +35,7 @@ class TestDataTextAsWrittenTest {
             Database t::DB
             (
               Table K (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Table Q (ID INTEGER PRIMARY KEY, "Name" VARCHAR(20))
               Schema S ( Table T (ID INTEGER PRIMARY KEY) )
             )
             """;
@@ -76,6 +77,27 @@ class TestDataTextAsWrittenTest {
         com.legend.error.AssertFailed table = assertThrows(com.legend.error.AssertFailed.class,
                 () -> CsvSeed.sqls("default\nK \nID\n1\n", "t::DB", ctx, dialect));
         assertEquals("Table \"K \" not found in Schema \"default\" in Database(s) t::DB", table.getMessage());
+    }
+
+    /** A header names its column as upstream's loader matches it (the orchestrator's go, 2026-11-12: exactness): trimmed,
+     *  its matching quotes stripped, any case -- a quoted column's included (until then lite matched a quoted column by
+     *  its exact name alone); a header no column matches refused with upstream's words. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aHeaderNamesItsColumnAsUpstreamMatchesIt(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls("default\nQ\n id , \"NAME\"\n1,ann\n", "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            assertEquals(List.of("1|ann"), rows(c, "SELECT ID, \"Name\" FROM Q"), type.name());
+        }
+        com.legend.error.AssertFailed nope = assertThrows(com.legend.error.AssertFailed.class,
+                () -> CsvSeed.sqls("default\nQ\nID,NOPE\n1,x\n", "t::DB", ctx, dialect));
+        assertEquals("Column \"NOPE\" not found in Table \"Q\" in Database(s) t::DB", nope.getMessage());
     }
 
     /** {@code sql}'s rows, each its cells joined by {@code |}. */

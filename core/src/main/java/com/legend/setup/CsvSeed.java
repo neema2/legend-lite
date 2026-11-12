@@ -247,12 +247,16 @@ public final class CsvSeed {
                 rows.add(cells(lines[i]));
             }
         }
-        // a declared table's names as its store declared them (quoted ones keep their case); with no declaration,
-        // the CSV's names spelled as bare names
+        // a declared table's columns as the header names them, matched as upstream's loader matches them, written by
+        // their declared names (quoted ones keep their case); with no declaration, the CSV's names spelled as bare names
+        List<com.legend.model.DatabaseDefinition.ColumnDefinition> named = def.isPresent()
+                ? columnsOf(def.get(), table, String.valueOf(dbFqn), cols) : null;
+        String[] names = named == null ? cols
+                : named.stream().map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toArray(String[]::new);
         RowLoad load = rowLoad(defaultSchema ? null : schema, table,
                 def.map(d -> Ddl.quoting(d, defaultSchema ? null : schema)).orElse(com.legend.sql.NameQuoting.BARE),
-                cols, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows,
-                def.map(d -> types(d, schema, cols)).orElse(List.of()));
+                names, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows,
+                named == null ? List.of() : types(named));
         if (load != null) {
             out.add(new Step.Rows(load));
         }
@@ -522,27 +526,44 @@ public final class CsvSeed {
         return new RowLoad(schema, table, quoting, names, quoted, cols.length, out, types);
     }
 
-    /** The declared type of each of the CSV's columns {@code cols} in {@code def}, in the CSV's order: a column the
-     *  store declared quoted matched by its exact name, any other by its name in any case (the database folds it). A
-     *  column the table does not declare is refused by name: its rows would be a guess. */
-    static List<com.legend.sql.SqlDdl.ColumnType> types(com.legend.model.DatabaseDefinition.TableDefinition def,
-            String schema, String[] cols) {
-        List<com.legend.sql.SqlDdl.ColumnType> out = new ArrayList<>(cols.length);
+    /** The column of {@code def} each of the CSV's header cells {@code cols} names, in the CSV's order, matched as
+     *  upstream's loader matches it ({@code loadCsvDataToDbTable}: the header trimmed, both names' matching quotes
+     *  stripped, any case, the first column that matches): a header no column matches refused with upstream's words.
+     *  The header is the user's text naming a declared column, which upstream resolves so, so lite does (the
+     *  orchestrator's go, 2026-11-12: exactness, no ruling needed). */
+    static List<com.legend.model.DatabaseDefinition.ColumnDefinition> columnsOf(
+            com.legend.model.DatabaseDefinition.TableDefinition def, String table, String dbFqn, String[] cols) {
+        List<com.legend.model.DatabaseDefinition.ColumnDefinition> out = new ArrayList<>(cols.length);
         for (String c : cols) {
-            String name = c.strip();
+            String name = stripMatchingQuotes(c.strip());
             com.legend.model.DatabaseDefinition.ColumnDefinition found = null;
             for (var col : def.columns()) {
-                if (col.quoted() ? col.name().equals(name) : col.name().equalsIgnoreCase(name)) {
+                if (stripMatchingQuotes(col.name()).equalsIgnoreCase(name)) {
                     found = col;
                     break;
                 }
             }
             if (found == null) {
-                throw new com.legend.error.DataError("the data for the table " + ("default".equals(schema) ? ""
-                        : schema + ".") + def.name() + " names the column " + name + ", which the table does not"
-                        + " declare");
+                throw new com.legend.error.AssertFailed("Column \"" + c + "\" not found in Table \"" + table
+                        + "\" in Database(s) " + dbFqn);
             }
-            out.add(com.legend.compiler.element.StoreCompiler.declaredType(found.dataType()));
+            out.add(found);
+        }
+        return out;
+    }
+
+    /** {@code name} without its enclosing double quotes, where it has both (upstream's {@code stripMatchingQuotes}). */
+    private static String stripMatchingQuotes(String name) {
+        return name.length() > 1 && name.startsWith("\"") && name.endsWith("\"")
+                ? name.substring(1, name.length() - 1) : name;
+    }
+
+    /** The declared type of each of {@code columns}, in order. */
+    static List<com.legend.sql.SqlDdl.ColumnType> types(
+            List<com.legend.model.DatabaseDefinition.ColumnDefinition> columns) {
+        List<com.legend.sql.SqlDdl.ColumnType> out = new ArrayList<>(columns.size());
+        for (var col : columns) {
+            out.add(com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
         }
         return out;
     }

@@ -21605,3 +21605,17 @@ Measured on the built change (2026-11-12): both corpus lanes are green, their ro
 outputs byte-identical). The three core integration lanes and PCT DuckDB's five suites are green. No test changes
 outcome, as the G7 measurement found before the build. Guards: parser-equivalence `own_corpus.matched` 3163 -> 3164
 (`PeRatchets`, dated).
+
+## 2026-11-12 — S197 amended (its empty-line half), and a header matched as upstream matches it at the connection's site
+
+The orchestrator's two calls after G7, no new ruling:
+- **S197, amended (dated):** an empty line inside a block is the same ruling's other half. Upstream ends a block at an
+  empty one-cell record; lite skips the line, which neither ends the block nor is a row. A one-column table's NULL row
+  is written `---null---`. S302's note now points to S197 for both reader differences.
+- **A header names its column as upstream's loader matches it** (`loadCsvDataToDbTable`: trimmed, its matching quotes
+  stripped, any case, the first match), at the connection's site too (`CsvSeed.columnsOf`). This is exactness. Until
+  now lite matched a quoted column by its exact name alone. The load is written by the declared columns' names, and a
+  header no column matches is refused with upstream's words.
+
+Test: `TestDataTextAsWrittenTest.aHeaderNamesItsColumnAsUpstreamMatchesIt` (DuckDB, H2, SQLite): a padded, re-cased,
+quoted header loads the quoted column `"Name"`; an unknown header is refused with upstream's words.
