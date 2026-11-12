@@ -273,14 +273,13 @@ class PlannedSqlTest {
 
     /**
      * THE AUTHORED DOOR in Java (H1): the planner's {@code Authored.plan} is reached by the planner boundary alone
-     * (Boundary.authored), and that by the two exports a host asks -- the tab's (TabExports.authoredOrError) and a
-     * headless host's (the native library's lite_authored) -- by file, exactly. Python's request kind is pinned by
-     * python/tests/test_planned_guard.py.
+     * (Boundary.authored), and that by the one export a host asks -- the tab's (TabExports.authoredOrError) -- by file,
+     * exactly. (2026-11-12, the orchestrator's ruling: the native library's lite_authored, which no headless host
+     * walked, deleted; Python refuses the kind by name, pinned by python/tests/test_planned_guard.py.)
      */
     static final Map<String, Integer> AUTHORED_JAVA = Map.of(
             "wasm/src/main/java/planner/Boundary.java", 1,
-            "wasm/src/main/java/planner/TabExports.java", 2,
-            "native/src/main/java/com/legend/nativelib/Compiler.java", 1);
+            "wasm/src/main/java/planner/TabExports.java", 2);
     static final List<String> JAVA_PRODUCT = List.of("core/src/main/java", "wasm/src/main/java/planner", "native/src/main/java");
 
     /** The tests' folders, read beside the product's (host_sql.txt's): where a cast would hide a host's own SQL. */

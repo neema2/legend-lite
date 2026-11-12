@@ -247,6 +247,23 @@ def _pull() -> dict:
     return {'model': _PULL_MODEL, 'runtime': 's::RT', 'lambda': json.dumps(compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
 
 
+class TheAuthoredDoorIsNotPythonsTest(unittest.TestCase):
+    """2026-11-12 (the orchestrator's ruling): a person's own statement is Studio's SQL playground's alone. Python's
+    planner protocol refuses the kind by name, the native library exports no lite_authored, and the headless check
+    still agrees with the bundle, which names the kind for the tab."""
+
+    def test_the_kind_is_refused_by_name_and_the_library_exports_none(self):
+        from legend_lite import _headless, _planner
+        said = answer(library(), {'id': 7, 'kind': 'authored', 'request': '{"databaseType": "DuckDB", "text": "DROP TABLE t"}'})
+        self.assertEqual((said['id'], said['ok']), (7, False))
+        self.assertRegex(said['error'], "Studio's SQL playground alone")
+        self.assertNotIn('authored', _planner.KINDS)
+        self.assertFalse(library().exports('lite_authored'), 'the native library exports no authored door')
+        _headless.check_interface([*_planner.KINDS, 'authored'], library())
+        with self.assertRaises(_headless.InterfaceMismatch):
+            _headless.check_interface([*_planner.KINDS], library())
+
+
 class KeyedExpansionFixtureTest(unittest.TestCase):
     """THE KEYED EXPANSION'S ONE FIXTURE (the C final audit's H8, 2026-11-12; engine-client/test/fixtures/
     keyed-expansion.json): the text Python's bridge holds a keyed statement to (_keyed_text) is the text Java's

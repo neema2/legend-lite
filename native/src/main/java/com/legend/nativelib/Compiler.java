@@ -232,20 +232,6 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** A statement a person wrote, as a plan ({@code Boundary.authored}: Studio's SQL playground, the user's ruling of
-     *  2026-11-12): the tab's {@code authoredOrError}, a headless host's. */
-    @CEntryPoint(name = "lite_authored")
-    static CCharPointer authored(IsolateThread thread, CCharPointer request) {
-        String a;
-        try {
-            String r = text(request);
-            a = Folded.of(() -> Boundary.authored(r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
     /** Rows the database generates into a declared table, as a plan ({@code Boundary.synthesize}: SYNTHESIZE, the user's
      *  ruling of 2026-11-12): the tab's {@code synthesizeOrError}, a headless host's. */
     @CEntryPoint(name = "lite_synthesize")

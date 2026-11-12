@@ -42,7 +42,7 @@ from ._planned import Answered, Database, across_the_bridge, connect, send
 from ._library import Library, library
 from ._pool import library_thread
 
-from ._planner import KINDS, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
+from ._planner import KINDS, REFUSED, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
 # WebCrypto's digests, by the names crypto.subtle.digest takes
 _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512': 'sha512'}
@@ -107,8 +107,9 @@ class InterfaceMismatch(RuntimeError):
 
 
 def check_interface(bundle_kinds: list[str], lib: Library) -> None:
-    """The bundle's request kinds against ``KINDS``, and each function ``KINDS`` names against the library's exports."""
-    sent, answered = set(bundle_kinds), set(KINDS)
+    """The bundle's request kinds against ``KINDS`` and the kinds this host refuses by name (``REFUSED``), and each
+    function ``KINDS`` names against the library's exports."""
+    sent, answered = set(bundle_kinds), set(KINDS) | set(REFUSED)
     missing = sorted(k for k in KINDS if not lib.exports(KINDS[k][0]))
     if sent != answered or missing:
         raise InterfaceMismatch(
