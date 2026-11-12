@@ -121,8 +121,8 @@ class MongoDbPlanTest {
     /**
      * WHAT MONGODB IS SENT IS THE PLAN'S COMMAND (the C checkpoint's MUST-FIX 1 and its NOTE, 2026-11-12): the aggregate
      * command the server receives -- read by the driver's own command listener -- carries the plan's pipeline EXACTLY,
-     * each plan parameter the pipeline variable {@code "$$pN"} the dialect wrote, and the parameters' values in the
-     * command's {@code let} alone ({@code pN} the N-th slot's, as a {@code $literal}): the session writes nothing into
+     * each plan parameter the pipeline variable {@code "$$lpN"} the dialect wrote, and the parameters' values in the
+     * command's {@code let} alone ({@code lpN} the N-th slot's, as a {@code $literal}): the session writes nothing into
      * the pipeline (AGENTS.md invariant 3; until 2026-11-12 it replaced a marker document by each value). The
      * session's statements take the plan's text by type ({@code PlannedSql}); this is the run's witness of what it
      * sends.
@@ -135,7 +135,7 @@ class MongoDbPlanTest {
         ExecutionPlan.Sql sql = plan.answerSql();
         assertEquals(List.of("n", "s"), sql.slots().stream().map(ExecutionPlan.Slot::parameter).toList(),
                 "a slot for each parameter, in document order");
-        assertTrue(sql.statement().contains("\"$$p1\"") && sql.statement().contains("\"$$p2\""), sql.statement());
+        assertTrue(sql.statement().contains("\"$$lp1\"") && sql.statement().contains("\"$$lp2\""), sql.statement());
         assertTrue(!sql.statement().contains("$legendParam"), "no marker in the plan: " + sql.statement());
         List<org.bson.BsonDocument> sent = new java.util.ArrayList<>();
         com.mongodb.event.CommandListener listener = new com.mongodb.event.CommandListener() {
@@ -167,8 +167,54 @@ class MongoDbPlanTest {
         org.bson.BsonDocument planned = org.bson.BsonDocument.parse(sql.statement());
         assertEquals(planned.get("aggregate"), sent.get(0).get("aggregate"));
         assertEquals(planned.get("pipeline"), sent.get(0).get("pipeline"), "the plan's pipeline, untouched");
-        assertEquals(org.bson.BsonDocument.parse("{\"p1\": {\"$literal\": {\"$numberLong\": \"30\"}},"
-                + " \"p2\": {\"$literal\": \"Ann\"}}"), sent.get(0).get("let"), "the values, in the let alone");
+        assertEquals(org.bson.BsonDocument.parse("{\"lp1\": {\"$literal\": {\"$numberLong\": \"30\"}},"
+                + " \"lp2\": {\"$literal\": \"Ann\"}}"), sent.get(0).get("let"), "the values, in the let alone");
+    }
+
+    /** An aggregate's {@code let} is MongoDB's from 5.0: an older server is refused by name where the session is
+     *  checked, before any plan runs (the embedded 8.0 is taken, as every test here shows). */
+    @Test
+    void aServerBeforeFiveIsRefusedByName() {
+        com.legend.error.NotImplementedException old = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> MongoDbStatements.requireLet("4.4.29"));
+        assertEquals("the MongoDB server is 4.4.29: a plan's parameters are bound through the aggregate command's let,"
+                + " which MongoDB takes from 5.0; the server is refused, never sent a plan", old.getMessage());
+        com.legend.error.NotImplementedException odd = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> MongoDbStatements.requireLet("unknown"));
+        assertTrue(odd.getMessage().contains("'unknown'"), odd.getMessage());
+        MongoDbStatements.requireLet("5.0.0");
+        MongoDbStatements.requireLet("8.0.17");
+    }
+
+    /**
+     * A dynamic pivot's keys and a plan's parameters bind apart (the keyed plan of 2026-10-20 on MongoDB): each copy of
+     * the per-key region binds its key at the key's marker, as it did, and the parameters -- before the region and
+     * after it in document order -- are the command's let variables, numbered over the parameters alone. Swapped,
+     * {@code lp1} and {@code lp2} would filter every row out.
+     */
+    @Test
+    void aDynamicPivotsKeysAndParametersBindApart() throws Exception {
+        String query = "{lo: Integer[1], hi: Integer[1] | #>{test::Store.people}#->filter(x | ($x.age > $lo) &&"
+                + " ($x.age < $hi))->select(~[city, age])->pivot(~city, ~[s: x | $x.age : y | $y->plus()])}";
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT");
+        String body = plan.answerSql().statement();
+        assertTrue(body.contains("\"$$lp1\"") && body.contains("\"$$lp2\"") && body.contains("$legendParam"),
+                "the parameters' variables and the keys' markers: " + body);
+        assertEquals("[{\"Oslo__|__s\":62}]", run(query, PlanCases.Written.JSON, Map.of("lo", 20L, "hi", 40L)));
+        assertEquals("[{\"Oslo__|__s\":34,\"Rome__|__s\":41}]",
+                run(query, PlanCases.Written.JSON, Map.of("lo", 30L, "hi", 50L)));
+    }
+
+    /** A parameter inside the per-key region is refused by name: each copy of the region would bind it again, and a
+     *  pipeline variable is bound once. */
+    @Test
+    void aParameterInsideAPerKeyRegionIsRefusedByName() {
+        String query = "{n: Integer[1] | #>{test::Store.people}#->select(~[city, age])"
+                + "->pivot(~city, ~[s: x | $x.age->toOne() + $n : y | $y->plus()])}";
+        RuntimeException refused = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT"));
+        assertTrue(String.valueOf(refused.getMessage()).contains("inside a dynamic pivot's per-key region"),
+                String.valueOf(refused.getMessage()));
     }
 
     @Test

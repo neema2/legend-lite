@@ -34,7 +34,7 @@ import java.util.Map;
  * A MongoDB session's {@link Statements} (docs/MONGODB_PLAN_2026_10_16.md §5.1 and §5.2): the plan's statement is a
  * command in Extended JSON, as the MongoDb dialect writes it; an {@code aggregate} command runs through the driver's
  * cursor, and each row's one field is the text the pipeline wrote (D10): carried, never read as a value. A plan
- * parameter is the pipeline variable {@code "$$pN"}, bound through the command's {@code let}: {@code pN} the N-th of
+ * parameter is the pipeline variable {@code "$$lpN"}, bound through the command's {@code let}: {@code lpN} the N-th of
  * the statement's parameter slots, each value in the driver's own encoding (decision D5), and the pipeline sent as
  * the plan holds it (the C checkpoint's NOTE, 2026-11-12: until then each parameter was a marker document this session
  * replaced in place). A dynamic pivot's key cell is the one marker left ({@code {"$legendParam": "?"}}): the runner
@@ -49,7 +49,14 @@ final class MongoDbStatements implements Statements {
     /** A dynamic pivot's key cell, as the MongoDb dialect writes it in each copy of the per-key region. */
     private static final String KEY_MARKER = "$legendParam";
 
+    /** The first major version of MongoDB whose aggregate command takes a {@code let}, which binds a plan's
+     *  parameters. */
+    static final int LET_SINCE = 5;
+
     private final MongoDatabase database;
+
+    /** Whether the server was found to take an aggregate's {@code let} (read once a session). */
+    private boolean letChecked;
 
     MongoDbStatements(MongoDatabase database) {
         this.database = database;
@@ -62,6 +69,32 @@ final class MongoDbStatements implements Statements {
                 || d.connection().databaseType() != com.legend.executionplan.DatabaseType.MongoDB) {
             throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
                     + " but the session is MongoDB — dialect/connection mismatch");
+        }
+        if (!letChecked) {
+            // the server's own report of its version, as JDBC's metadata names a database's (a check, no plan text)
+            BsonValue version = run(new BsonDocument("buildInfo", new org.bson.BsonInt32(1))).get("version");
+            requireLet(version != null && version.isString() ? version.asString().getValue() : String.valueOf(version));
+            letChecked = true;
+        }
+    }
+
+    /** A server of {@code version} refused by name where its aggregate command takes no {@code let} (before 5.0): a
+     *  plan's parameters are bound through it, and the session never runs a plan on a server that would not bind
+     *  them. */
+    static void requireLet(String version) {
+        int major;
+        try {
+            major = Integer.parseInt(version.substring(0, version.indexOf('.') < 0 ? version.length()
+                    : version.indexOf('.')));
+        } catch (NumberFormatException e) {
+            throw new com.legend.error.NotImplementedException("the MongoDB server reports its version as '" + version
+                    + "', which names no major version: a plan's parameters are bound through the aggregate command's"
+                    + " let, which MongoDB takes from " + LET_SINCE + ".0");
+        }
+        if (major < LET_SINCE) {
+            throw new com.legend.error.NotImplementedException("the MongoDB server is " + version + ": a plan's"
+                    + " parameters are bound through the aggregate command's let, which MongoDB takes from "
+                    + LET_SINCE + ".0; the server is refused, never sent a plan");
         }
     }
 
@@ -170,7 +203,7 @@ final class MongoDbStatements implements Statements {
 
     /**
      * The aggregate command's cursor, run through the driver: the plan's pipeline as the plan holds it, each plan
-     * parameter's slot bound to its variable through the command's {@code let} ({@code p1}, {@code p2}, ... in slot
+     * parameter's slot bound to its variable through the command's {@code let} ({@code lp1}, {@code lp2}, ... in slot
      * order, as the MongoDb dialect names them: {@code MongoJson.parameterVariable}), each key cell's slot -- the
      * runner's, for a copy of a per-key region: no parameter's name -- at its marker, in document order.
      */
@@ -185,7 +218,7 @@ final class MongoDbStatements implements Statements {
                 keySlots.add(slot);
                 keys.add(values.get(i));
             } else {
-                let.append("p" + (let.size() + 1), literal(value(slot, values.get(i), i + 1)));
+                let.append("lp" + (let.size() + 1), literal(value(slot, values.get(i), i + 1)));
             }
         }
         BsonDocument command = command(statement);

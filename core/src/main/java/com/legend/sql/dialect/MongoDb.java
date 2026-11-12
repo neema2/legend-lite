@@ -32,7 +32,7 @@ import java.util.Set;
  *       MongoDB's operators, or a refusal by name -- never a fallback;</li>
  *   <li>SQL's three-valued comparisons over BSON's total ones (D7): an operator whose answer MongoDB defines over
  *       null is written through a null guard ({@link MongoJson#guarded}) where an operand may be null;</li>
- *   <li>a plan parameter as the pipeline variable {@code "$$pN"} ({@link #parameter}: N its place among the
+ *   <li>a plan parameter as the pipeline variable {@code "$$lpN"} ({@link #parameter}: N its place among the
  *       statement's parameters, from 1, in document order), which the session binds through the aggregate command's
  *       {@code let} and never writes into the pipeline (the C checkpoint's NOTE, 2026-11-12; until then a marker
  *       document the session replaced in place). A variable is read only where MongoDB evaluates an expression:
@@ -382,8 +382,8 @@ public final class MongoDb extends AnsiSqlRenderer {
     }
 
     /**
-     * {@code bind}'s pipeline variable, {@code "$$pN"}: N its place among the statement's plan parameters, from 1, in
-     * document order (a key's cell not counted). The session binds {@code pN} to the N-th parameter's slot through the
+     * {@code bind}'s pipeline variable, {@code "$$lpN"}: N its place among the statement's plan parameters, from 1, in
+     * document order (a key's cell not counted). The session binds {@code lpN} to the N-th parameter's slot through the
      * aggregate command's {@code let} ({@code MongoDbStatements}), so the pipeline is sent as the plan holds it. A
      * parameter inside a dynamic pivot's per-key region is refused by name: the region's copies would each bind it
      * again, and a pipeline variable is bound once.
@@ -2783,6 +2783,10 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.DateLit d -> writer.append(MongoJson.dateLiteral(d.iso()));
             case SqlExpr.TimestampLit t -> writer.append(MongoJson.dateLiteral(t.iso()));
             case SqlExpr.Cast c -> value(writer, c.value());
+            // a parameter is a pipeline variable, which only an aggregate command's let binds: an insert takes none
+            case SqlExpr.PlanParam p -> throw new DialectCapability("plan parameter '" + p.name() + "' in an insert"
+                    + " command reached MongoDb: a parameter is a pipeline variable, which only an aggregate command's"
+                    + " let binds");
             default -> throw new DialectCapability("a row's cell is " + cell.getClass().getSimpleName()
                     + ": a MongoDb insert holds values, not expressions");
         };
