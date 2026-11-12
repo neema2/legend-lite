@@ -793,6 +793,45 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   `remote.ts` routes them through the queue and `//datacube:verify_remote_test` pins it. The cause inside DuckDB-WASM is
   not traced.
 
+### 5.12 The product is lite's own; D and E start (2026-11-12)
+
+- **The ruling, verbatim** (the user, 2026-11-12, starting D and E in parallel with C's audit fixes): "we really want the
+  most expert lean and fast SQL on the product path and push ALL compatibility to the edge so never have to worry about
+  leaking into product - and that you are full owner and decision maker on Product plans/sql so we can do the right thing
+  for the Product without ever having to think of compatibility - just the best fastest leanest best expert plan/sql with
+  typed output".
+- **What it settles:**
+  - Upstream fidelity (G8) governs the product's ANSWER: values by type and value, and errors by kind and where. It never
+    governs HOW: the plan's shape, the SQL, the statement count, or a value's text.
+  - Everything that exists to match upstream's spelling, print forms, engine text or formats is the edge's (G5, E1-E4),
+    adapting the product's typed answer.
+  - The orchestrator rules on product plan and SQL design. A change to the product's answer, or a divergence, is still
+    posted to the user and ledgered.
+- **E is two tracks.**
+  - E1/E2, as briefed: exec's decoding residue (`C_E_BRIEF` §E).
+  - E3, lean product SQL (new): a product-SQL size baseline and its shrink-only guard (G3's, never built), the causes
+    measured, then a design the orchestrator rules on before product lowering changes.
+  - Its first evidence is the Snowflake lane's baseline at 970f0a992. PCT essential under channel B and BOTH: 7
+    statements a test; 5.07M characters against channel A's 0.31M. The causes:
+    - lowering's Dedup scalar inlined at every reference (8 copies, 90% of a 55K statement);
+    - Snowflake's Float shortest-digits text written 7 times by the judge's canon (97% of a 37K statement);
+    - a floor of about 0.18 s per small statement.
+- **D starts with a refresh of its brief and inventory against the current head** (both were written before B and C),
+  then the guards (D2's, and G5's ArchUnit rule, each with a planted violator, today's sites a shrink-only list), then
+  D1.0-D1.7.
+- **The planned branch (the charter's A3(b)) re-read** (the user asked "is the planned branches design right?"):
+  - It is right. A test body's `if` holds asserts. Upstream runs one side only, so an assert that would raise in the side
+    not taken never raises.
+  - Folding both sides into one statement under `CASE` or `WHERE` guards would evaluate both sides, and SQL has no
+    portable procedural `IF`.
+  - The plan holds the condition and both sides, fully written. The database computes the Boolean; exec runs the named
+    side's planned statements as written.
+  - It is test-plan only: a product query's `if` stays the database's `CASE`.
+  - Two refinements:
+    - the condition's cell is read by its declared type, not by parsing the texts `"true"` and `"false"`
+      (`TestRun.taken`);
+    - a guard that no product plan carries a branch.
+
 ## 6. What remains, in order
 
 | step | what | done means | read |
