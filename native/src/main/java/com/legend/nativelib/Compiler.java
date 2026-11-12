@@ -232,6 +232,21 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A snapshot's copy into the host's own database, as one plan ({@code Boundary.snapCopy}, the final audit's 1(b),
+     *  2026-11-12): the tab's {@code snapCopyOrError}, Python's local copy -- the request the pull, planned in this call,
+     *  never a statement. */
+    @CEntryPoint(name = "lite_snap_copy")
+    static CCharPointer snapCopy(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.snapCopy(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** Rows the database generates into a declared table, as a plan ({@code Boundary.synthesize}: SYNTHESIZE, the user's
      *  ruling of 2026-11-12): the tab's {@code synthesizeOrError}, a headless host's. */
     @CEntryPoint(name = "lite_synthesize")

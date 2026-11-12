@@ -364,6 +364,31 @@ public final class Boundary {
     }
 
     /**
+     * A SNAPSHOT'S COPY, AS A PLAN (the final audit's 1(b), 2026-11-12, the user's ruling; B3's contract): {@code request}
+     * is {@code {"databaseType", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type, the
+     * pull (the model's text, the runtime it runs through -- the host's own store's -- and the grid's base query as a
+     * lambda's protocol JSON, a text), and the table of the host's database it is copied into. The pull is planned HERE,
+     * in this call (the model held by its text: compiled once). Any other key -- a statement ({@code sql}) above all -- is
+     * refused by name. The answer is the plan (PlanJson's): one writing {@code Sequence} on the host's database, its
+     * target carrying the database's transaction -- the schema made where one is named, the table dropped, and the
+     * table made AS the pull's own statement, its {@code data:} payloads bound as the pull binds them
+     * ({@code com.legend.planner.SnapCopy}). Until then the host made the copy as host operations around a query it handed
+     * back as text ({@code HostOperation.Source.Query}, deleted).
+     */
+    public static String snapCopy(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a snapshot's copy", "databaseType", "model", "runtime", "lambda", "schema", "table");
+        String databaseType = in.getString("databaseType");
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(in.getString("model"), ctx ->
+                com.legend.planner.SnapCopy.plan(com.legend.Compiler.query(ctx,
+                        com.legend.protocol.ProtocolReader.lambda(in.getString("lambda"))), in.getString("runtime"),
+                        dialect, type, in.getStringOr("schema", null), in.getString("table"))));
+    }
+
+    /**
      * A STATEMENT A PERSON WROTE, as a plan (the user's ruling of 2026-11-12: Studio's SQL playground goes through the
      * planner): {@code request} is {@code {"databaseType", "text"}}, the database the playground points at and the
      * person's one statement. The answer is the plan (PlanJson's): the text carried as written -- never parsed,

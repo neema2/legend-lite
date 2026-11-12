@@ -156,6 +156,54 @@ public final class PlanMaker {
                 stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
     }
 
+    /**
+     * A SNAPSHOT'S COPY of a pull (the final audit's 1(b), 2026-11-12; the user's ruling, B3's contract): {@code query}'s
+     * relation lowered as {@link #plan} lowers a query's one statement -- its enumerations through their value tables,
+     * each {@code data:} source read as {@code dialect}'s database takes it, the answer's statement
+     * ({@link TypedRows#statement}) -- and that statement's TREE written by {@code dialect} as the making of
+     * {@code table} ({@link SqlDml.CreateTableAs}), on {@code target}: so its slots and its content are the pull's, in
+     * placeholder order by construction, and no text of the pull's is pasted. The caller has checked the pull's own plan
+     * ({@code SnapCopy}); a pull this lowering answers otherwise -- a value the program wrote, the metamodel's, a keyed
+     * result, a pull whose database is not {@code dialect}'s -- is refused by name.
+     */
+    public static ExecutionPlan.Sql copyInto(TypedQuery query, String runtime, SqlDialect dialect,
+            ExecutionPlan.Target target, @Nullable String schema, String table) {
+        try (var planning = com.legend.base.RunScope.plans("a snapshot's copy")) {
+            ProgramFrames frames = new ProgramFrames();
+            ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, Set.of(),
+                    frames);
+            if (ProductStatements.constant(st) != null) {
+                throw new NotImplementedException("the pull copied into " + table + " is not one statement: a value"
+                        + " the program wrote");
+            }
+            if (st.stores().contains(SystemMetamodel.STORE_FQN)) {
+                throw new NotImplementedException("the pull copied into " + table + " reads the system metamodel,"
+                        + " which the process's catalog answers: a snapshot's copy reads its host's database");
+            }
+            Prepared.Planned planned = ProductStatements.planned(st);
+            Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(),
+                    true, withStamps(List.of(), frames), new ObjectSites()),
+                    planned.body().get(planned.body().size() - 1), query.context());
+            SqlDialect decided = decide(l.ctx(), runtime).dialect();
+            if (decided.getClass() != dialect.getClass()) {
+                throw new NotImplementedException("the pull copied into " + table + " runs on "
+                        + decided.getClass().getSimpleName() + ", and the copy is made on "
+                        + dialect.getClass().getSimpleName() + ": a snapshot's copy reads its host's own database");
+            }
+            SqlQuery lowered = DataSources.read(EnumValueTables.apply(l.plan()), dialect);
+            if (KeyedPivot.dynamic(lowered) != null) {
+                throw new NotImplementedException("the pull copied into " + table + " is not one statement: a pivot"
+                        + " whose columns its data names (a keyed result)");
+            }
+            SqlQuery statement = TypedRows.statement(lowered);
+            if (!gridReports(statement).isEmpty()) {
+                throw new NotImplementedException("the pull copied into " + table + " is not one statement: a raw"
+                        + " grid's report (a keyed result)");
+            }
+            return sql(dialect.renderStatement(new SqlDml.CreateTableAs(schema, table, statement)), target, null);
+        }
+    }
+
     /** {@code slots} and the stamp parameters of {@code frames}, which every statement's lowering binds. */
     static List<SqlExpr.PlanParam> withStamps(List<SqlExpr.PlanParam> slots,
             ProgramFrames frames) {

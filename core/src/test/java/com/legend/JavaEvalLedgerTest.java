@@ -1497,6 +1497,11 @@ class JavaEvalLedgerTest {
                     // person's one statement as a plan, carried as written -- never parsed, rewritten or split; the
                     // planner computes nothing, the database answers the relation it reports
                     "Authored.java",
+                    // 2026-11-12, the final audit's 1(b) (the user's ruling; B3's contract): a snapshot's copy as one
+                    // writing plan -- the pull planned as the product plans its one statement, the copy its statement's
+                    // tree written by the dialect (CREATE TABLE ... AS), its payloads the pull's; schema, drop and copy
+                    // the host's operations, on a target carrying the database's transaction; nothing evaluated
+                    "SnapCopy.java",
                     // 2026-11-10, docs/DATA_IN_THE_PLAN_2026_11_09.md L6b: a query's data: sources as one load into
                     // session tables named by their content's digest, the payload split into its elements verbatim
                     // (build-time model text, compared never computed) and the source read as its table

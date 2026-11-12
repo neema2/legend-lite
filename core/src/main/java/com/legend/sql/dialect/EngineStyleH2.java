@@ -462,7 +462,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
             case com.legend.sql.SqlDml.DeleteAll da -> super.render(da);
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> super.render(ct);
-            // (the store writes: legend-engine's text has none; the base refuses)
+            // (a host's copy, and the store writes: legend-engine's text has none; the base refuses)
+            case com.legend.sql.SqlDml.CreateTableAs ct -> super.render(ct);
             case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
             case com.legend.sql.SqlDml.Update u -> super.render(u);
             case com.legend.sql.SqlDml.DeleteWhere dw -> super.render(dw);

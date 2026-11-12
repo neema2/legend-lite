@@ -872,6 +872,13 @@ public final class DuckDb extends AnsiSqlRenderer {
         return createTemporaryTableAs(ct);
     }
 
+    /** {@inheritDoc} DuckDB runs the standard spelling: every host's copy is made in its own DuckDB (the tab's,
+     *  Python's; a snapshot's copy, the final audit's 1(b), 2026-11-12). */
+    @Override
+    protected SqlWriter tableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        return createTableAs(ct);
+    }
+
     /** DuckDB's catalog names a column's type as its JDBC driver does, a DECIMAL with its precision and scale
      *  ({@code DECIMAL(10,2)}), whose code is DECIMAL's; each name's code is the driver's (measured 2026-10-16 against
      *  {@code DatabaseMetaData.getColumns}, CatalogGridTest). REAL is FLOAT there. */
