@@ -1790,7 +1790,12 @@ class JavaEvalLedgerTest {
                             // 2026-11-11, B2d (the user's approved design of 2026-11-10): the generator as ONE
                             // planned read-only statement -- WITH clauses per fetch, each table's lines hashed,
                             // scrubbed and joined by the database; it builds IR and evaluates nothing
-                            "TestDataPlanner.java"));
+                            "TestDataPlanner.java",
+                            // 2026-11-12, B2d.3b (the B2d.3 design's §3.2, the user's rulings of 2026-11-11): the
+                            // census (getRelationalCSVDataFromQuery) as a planning constant -- a MODEL fact read from
+                            // the relation tree (build-time model text -> typed constants, the charter's rule); it
+                            // reads no row and evaluates nothing
+                            "TestDataCensus.java"));
 
     /** THE JUDGMENT-ONLY VOCABULARY PIN (user directive 2026-09-01):
      * verdict-arm files may JUDGE database-produced results — equals,

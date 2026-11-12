@@ -21371,3 +21371,17 @@ The corpus lanes, measured (DuckDB's host judge at this commit, `corpus_one`; bo
   They leave both accepted rosters.
 - **Unchanged:** both fail rosters, the other registers, the strength floors.
 - **Guards:** none moved.
+
+## 2026-11-12 — B2d.3b, completed: both lanes measured, the census typed in the compiler layer
+
+- **Both lanes' full runs (both judges):**
+  - DuckDB: the three census tests pass under both judges; the database registers are unchanged.
+  - H2: the three fail with `DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list
+    encoding`. Their `->joinStrings` over the census's constant tables is a list reduction, and the H2 dialect has no
+    list encoding: the lane's known gap, shared by 104 other H2 fail-roster rows (`LIST_FILTER`, `STRING_AGG`). They
+    move from the accepted roster's S143 rows to `h2-fail-roster.txt` (3 rows).
+- **Guards:**
+  - Invariant 7: the census's `RelationalCSVData` literal is minted in the compiler layer
+    (`GeneratorSplice.relationalCsvData`); `TestDataCensus` computes the model fact alone (`rows`).
+  - The funnel register gains `TestDataCensus.java` with its tenet argument (`JavaEvalLedgerTest`, dated).
+- **Tests:** `BodyRouterParityTest.systemRoutedPrograms`' census body, refused until B2d.3b, now runs and passes.

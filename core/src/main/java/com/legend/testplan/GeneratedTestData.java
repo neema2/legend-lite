@@ -82,7 +82,7 @@ final class GeneratedTestData {
 
     private static TypedSpec census(TypedSpec n, ModelContext ctx) {
         if (n instanceof com.legend.compiler.spec.typed.TypedCsvCensus c) {
-            return TestDataCensus.constant(ctx, c.query(), c.mappingFqn());
+            return GeneratorSplice.relationalCsvData(TestDataCensus.rows(ctx, c.query(), c.mappingFqn()));
         }
         List<TypedSpec> kids = n.children();
         if (kids.isEmpty()) {

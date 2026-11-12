@@ -4,13 +4,6 @@
 package com.legend.testdatagen;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.compiler.element.type.ExprType;
-import com.legend.compiler.element.type.Multiplicity;
-import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.typed.TypedCString;
-import com.legend.compiler.spec.typed.TypedCollection;
-import com.legend.compiler.spec.typed.TypedNewInstance;
-import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lineage.ScanRelations;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.RelationalOperation;
@@ -29,7 +22,7 @@ import java.util.TreeSet;
  * {@code getRelationalCSVDataFromQuery(query, mapping)} ({@code testDataGeneration.pure:753-777}) is a fact of the MODEL
  * -- the tables a query reads through its mapping and, per table, the columns a test's data for it needs -- so it is
  * computed at planning (the charter's "build-time model text -> typed constants") and the carrier is replaced by the
- * instance it is: a {@code RelationalCSVData} whose {@code tables} are the reached tables sorted by schema and name, each
+ * instance it is (typed in the compiler layer): a {@code RelationalCSVData} whose {@code tables} are the reached tables sorted by schema and name, each
  * a {@code RelationalCSVTable} whose {@code values} are its column names joined by commas -- its primary key sorted by
  * name, then the columns the query reads of it sorted by name (the values its mapping reads and both sides of every
  * join), then its milestoning date columns sorted by name, without repeats. Upstream reads the columns through its
@@ -41,9 +34,6 @@ public final class TestDataCensus {
 
     private TestDataCensus() {
     }
-
-    private static final String DATA = "meta::relational::metamodel::data::RelationalCSVData";
-    private static final String TABLE = "meta::relational::metamodel::data::RelationalCSVTable";
 
     /** One table of the census: its schema, its name and its column names in upstream's order. */
     public record Table(String schema, String table, List<String> columns) {
@@ -73,22 +63,14 @@ public final class TestDataCensus {
         return out;
     }
 
-    /** {@link #of} as the instance upstream returns: a {@code RelationalCSVData} literal, typed. */
-    public static TypedSpec constant(ModelContext ctx, LambdaFunction query, String mappingFqn) {
-        ExprType string = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
-        ExprType table = new ExprType(new Type.ClassType(TABLE), Multiplicity.Bounded.ONE);
-        List<TypedSpec> tables = new ArrayList<>();
+    /** {@link #of} as the rows of the instance upstream returns: each table's schema, name and column names joined by
+     *  commas (the compiler types it: {@code GeneratorSplice.relationalCsvData}). */
+    public static List<List<String>> rows(ModelContext ctx, LambdaFunction query, String mappingFqn) {
+        List<List<String>> out = new ArrayList<>();
         for (Table t : of(ctx, query, mappingFqn)) {
-            Map<String, TypedSpec> ps = new LinkedHashMap<>();
-            ps.put("schema", new TypedCString(t.schema(), string));
-            ps.put("table", new TypedCString(t.table(), string));
-            ps.put("values", new TypedCString(String.join(",", t.columns()), string));
-            tables.add(new TypedNewInstance(TABLE, ps, table));
+            out.add(List.of(t.schema(), t.table(), String.join(",", t.columns())));
         }
-        Map<String, TypedSpec> data = new LinkedHashMap<>();
-        data.put("tables", new TypedCollection(tables, new ExprType(new Type.ClassType(TABLE),
-                new Multiplicity.Bounded(tables.size(), tables.size()))));
-        return new TypedNewInstance(DATA, data, new ExprType(new Type.ClassType(DATA), Multiplicity.Bounded.ONE));
+        return out;
     }
 
     /** A table the query reaches: where it is and the columns read of it, sorted by name. */
