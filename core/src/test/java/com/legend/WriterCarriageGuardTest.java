@@ -239,8 +239,9 @@ class WriterCarriageGuardTest {
             Map.entry("RaisedErrors.java", Map.of("Integer.parseInt", 2)),
             // a list parameter's date-time finer than its database keeps refused, never cut (S181)
             Map.entry("JdbcStatements.java", Map.of("getNano", 1)),
-            // a date-time parameter finer than milliseconds refused (S181), and the server's reported version's major
-            Map.entry("MongoDbStatements.java", Map.of("getNano", 1, "Integer.parseInt", 1)),
+            // a date-time parameter finer than milliseconds refused (S181) (Integer.parseInt x1 GONE 2026-11-12: the
+            // server's version check deleted by the C final audit's J3)
+            Map.entry("MongoDbStatements.java", Map.of("getNano", 1)),
             // a source's scheme (file:), a location, never a cell
             Map.entry("SourceAdmission.java", Map.of("startsWith(\"\")", 1)),
             // a reported decimal's scale floored at zero; a reported type NAME tested for a zone (E1 item 3)
