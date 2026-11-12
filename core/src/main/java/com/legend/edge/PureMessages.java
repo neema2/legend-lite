@@ -59,6 +59,9 @@ public final class PureMessages {
                     SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, str(r.operands().get(1)),
                             new SqlExpr.StringLit(") in a slice operation")));
             case DATE_COMPONENT_INVALID -> dateComponent(r);
+            // lite's own refusals (S138, S181, the CSV width): no upstream text; the compatibility road writes the
+            // product's former sentence, its parts the operands (a text written as it is, a value as its text)
+            case VALUE_NOT_HELD, FRACTION_NOT_KEPT, CSV_TOO_WIDE -> parts(r);
             // [the source type's name, the target's]
             case CAST_IMPOSSIBLE -> new SqlExpr.StringLit("Cast exception: " + text(r, 0) + " cannot be cast to "
                     + text(r, 1));
@@ -69,8 +72,7 @@ public final class PureMessages {
             case CONSTRAINT_UNEVALUABLE -> new SqlExpr.StringLit("Unable to evaluate constraint [" + text(r, 0)
                     + "]: data not available - check your mappings");
             case MAP_KEYS_MISALIGNED, MAP_KEY_NULL,
-                 MAP_KEYS_NOT_UNIQUE, TEXT_NOT_INTEGER, TEXT_NOT_DATE, VALUE_NOT_HELD, FRACTION_NOT_KEPT,
-                 CSV_TOO_WIDE -> throw new UnsupportedOperationException("a raise of kind " + r.kind()
+                 MAP_KEYS_NOT_UNIQUE, TEXT_NOT_INTEGER, TEXT_NOT_DATE -> throw new UnsupportedOperationException("a raise of kind " + r.kind()
                     + " reached the edge: no site raises it yet (phase D's D1.1 moves its sites one family at a time)");
         };
     }
@@ -96,6 +98,16 @@ public final class PureMessages {
         }
         // a value the database holds: its text
         return cat(new SqlExpr.StringLit(head), str(o.get(1)));
+    }
+
+    /** {@code r}'s operands as one text, in order: a text the planner knew as it is, a value as its text. */
+    private static SqlExpr parts(SqlExpr.RaiseText r) {
+        java.util.List<SqlExpr> o = r.operands();
+        SqlExpr[] parts = new SqlExpr[o.size()];
+        for (int i = 0; i < parts.length; i++) {
+            parts[i] = o.get(i) instanceof SqlExpr.StringLit ? o.get(i) : str(o.get(i));
+        }
+        return parts.length == 1 ? parts[0] : cat(parts);
     }
 
     /** Operand {@code i}, a text the planner knew (a label, a type's name, a bound). */

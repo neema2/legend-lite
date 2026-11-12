@@ -180,7 +180,7 @@ class PlanMakerTest {
                 Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
                 BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
-                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('VALUE_NOT_HELD'	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('VALUE_NOT_HELD'
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
             spelled.put(cells[0], new String[] {cells[1], cells[2]});
@@ -643,9 +643,8 @@ class PlanMakerTest {
      *  of a finer digit raised by the statement (S181, A7, 2026-11-10). */
     static String platformDateTime() {
         return "CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS"
-                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('the DateTime parameter ''t'' has more fraction digits"
-                + " than " + Databases.dialect(Databases.PLATFORM).getClass().getSimpleName() + " keeps (6): refused,"
-                + " never cut (S181)') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
+                // the product's raise names its kind (phase D's D1.1)
+                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('FRACTION_NOT_KEPT') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
                 + " VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
     }
 

@@ -796,9 +796,9 @@ public class ClickHouse extends AnsiSqlRenderer {
         // a value of a digit past the six kept raises too (S181, A7: never cut)
         return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN toInt32(substring(")
                 .bind(textBind(p, asText)).append(", 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(")
-                .piece(x -> error(x, raised(DATE_RANGE))).append(" AS " + type.name() + ") WHEN substring(")
+                .piece(x -> error(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE))).append(" AS " + type.name() + ") WHEN substring(")
                 .bind(textBind(p, asText)).append(", 27) NOT IN ('', '000') THEN CAST(")
-                .piece(x -> error(x, raised(FRACTION))).append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
+                .piece(x -> error(x, raised(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, FRACTION))).append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
     }
 
@@ -1945,7 +1945,8 @@ public class ClickHouse extends AnsiSqlRenderer {
 
     /** The {@code ERROR} arm of {@link #call}. */
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
-        List<SqlExpr> a = c.args();
+        // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence)
+        List<SqlExpr> a = raised(c).args();
         writer.append("toInt64(materialize(concat(char(31), ");
         if (a.size() > 1) {
             writer.expr(a.get(1), 0).append(", char(30), ");
@@ -1963,8 +1964,9 @@ public class ClickHouse extends AnsiSqlRenderer {
     private static final String DATE_RANGE = "a date outside the years 1900 to 2299 has no ClickHouse value (it clamps"
             + " one to the end it passed)";
 
-    private static SqlExpr.Call raised(String message) {
-        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(message));
+    /** A raise of {@code kind} whose sentence, lite's own, the edge writes ({@code message}, D1.1). */
+    private static SqlExpr.Call raised(com.legend.sql.RaiseKind kind, String message) {
+        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(kind, List.of(new SqlExpr.StringLit(message))));
     }
 
     /** Whether {@code date} moved by {@code n} of {@code unit} leaves ClickHouse's dates, 1900-01-01 to the last
@@ -2224,8 +2226,8 @@ public class ClickHouse extends AnsiSqlRenderer {
                 // first and raised outside them (2026-10-20, the parity phase)
                 SqlType slot = typeOf(c);
                 yield writer.append("CASE WHEN ").piece(outsideDates(unit, a.get(2), a.get(1))).append(" THEN ")
-                        .piece(slot == null ? x -> error(x, raised(DATE_RANGE)) : x -> x.append("CAST(")
-                                .piece(y -> error(y, raised(DATE_RANGE))).append(" AS " + castTypeName(slot) + ")"))
+                        .piece(slot == null ? x -> error(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE)) : x -> x.append("CAST(")
+                                .piece(y -> error(y, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE))).append(" AS " + castTypeName(slot) + ")"))
                         .append(" ELSE " + fn + "(").expr(a.get(2), 0).append(", ").expr(a.get(1), 0)
                         .append(") END");
             }

@@ -161,10 +161,11 @@ final class DateCtorRule {
         SqlExpr exact = new SqlExpr.Cast(second, new SqlType.Decimal(38, 9));
         return Scalars.guarded(SqlExpr.Call.of(SqlFn.NOT_EQUAL, exact,
                         SqlExpr.Call.of(SqlFn.ROUND, exact, new SqlExpr.IntLit(CARRIED_DIGITS))),
-                Scalars.cat(new SqlExpr.StringLit("the second "), Scalars.str(second),
-                        new SqlExpr.StringLit(" has more than " + CARRIED_DIGITS
-                                + " fraction digits, which a date()'s fractional second keeps: refused, never cut"
-                                + " (S181)")),
+                // FRACTION_NOT_KEPT: lite's own sentence, its parts the operands, written by the edge alone (D1.1)
+                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, List.of(
+                        new SqlExpr.StringLit("the second "), second, new SqlExpr.StringLit(" has more than "
+                                + CARRIED_DIGITS + " fraction digits, which a date()'s fractional second keeps: refused,"
+                                + " never cut (S181)"))),
                 second, n.pos());
     }
 

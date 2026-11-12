@@ -1074,6 +1074,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return new SqlExpr.Call(c.fn(), args);
     }
 
+    /** A raise's arguments as a dialect's own raise helper takes them: {@code r}'s text as this dialect writes it
+     *  ({@link #raiseMessage}). For a raise a dialect writes itself, outside a planned {@code ERROR} call. */
+    protected final List<SqlExpr> raiseArgs(SqlExpr.RaiseText r) {
+        return List.of(raiseMessage(r));
+    }
+
     /**
      * THE PRODUCT'S RAISE TEXT (phase D's D1.1; the user's ruling of 2026-11-10: "a product error is its kind plus where
      * it happened ... never the value"): the kind's name, its operands never written -- no value cast to text, no
@@ -1825,9 +1831,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
         int past = 9 - kept;
         String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
-        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("the " + kind
+        // FRACTION_NOT_KEPT: lite's own sentence the operand, written by the edge alone (D1.1)
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, List.of(new SqlExpr.StringLit("the " + kind
                 + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
-                + " keeps (" + kept + "): refused, never cut (S181)"));
+                + " keeps (" + kept + "): refused, never cut (S181)"))));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");
         java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");
@@ -2186,8 +2194,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected String csvRecordCheck(int width) {
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
-                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true));
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.StringLit("a record of the CSV"
+                + " file has more cells than its table's " + width + " column(s)")))))), new SqlExpr.BoolLit(true));
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");

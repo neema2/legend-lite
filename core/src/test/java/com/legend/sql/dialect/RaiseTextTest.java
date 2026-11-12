@@ -152,11 +152,19 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.CONSTRAINT_UNEVALUABLE, List.of(lit("posInt"))),
                 lit("Unable to evaluate constraint [posInt]: data not available - check your mappings"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.USER_FAIL, List.of(lit("my own words"))), lit("my own words"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.VALUE_NOT_HELD, List.of(lit("an integer past 64 bits has no SQLite"
+                + " value"))), lit("an integer past 64 bits has no SQLite value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.FRACTION_NOT_KEPT, List.of(lit("the second "), a, lit(" has more"))),
+                cat(lit("the second "), str(a), lit(" has more")));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of(lit("a record of the CSV file is wide"))),
+                lit("a record of the CSV file is wide"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.LIST_LENGTHS_DIFFER, List.of(lit("zip"))),
                 lit("zip: the two value lists differ in length"));
         for (DatabaseType type : Databases.implemented()) {
             for (var e : moved.entrySet()) {
-                assertEquals(text(Databases.dialect(type), select(e.getValue())),
+                // both through the edge: a raise nested in the old message's own SQL (SQLite's Float print) is the
+                // edge's sentence on both sides
+                assertEquals(text(com.legend.edge.PureText.dialect(type), select(e.getValue())),
                         text(com.legend.edge.PureText.dialect(type), select(e.getKey())), type + ": " + e.getKey());
             }
         }
@@ -165,7 +173,7 @@ class RaiseTextTest {
     @Test
     void aKindNoSiteRaisesYetIsRefusedAtTheEdge() {
         var refused = assertThrows(UnsupportedOperationException.class, () -> com.legend.edge.PureMessages.sentence(
-                new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of())));
-        assertTrue(refused.getMessage().contains("CSV_TOO_WIDE"), refused.getMessage());
+                new SqlExpr.RaiseText(RaiseKind.MAP_KEY_NULL, List.of())));
+        assertTrue(refused.getMessage().contains("MAP_KEY_NULL"), refused.getMessage());
     }
 }

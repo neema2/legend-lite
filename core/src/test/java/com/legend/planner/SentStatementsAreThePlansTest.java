@@ -58,7 +58,7 @@ class SentStatementsAreThePlansTest {
                 } catch (com.legend.error.DataError refused) {
                     // a value finer than its slot keeps, refused by the statement's own raise, which was sent as the
                     // plan wrote it (S181, A7, 2026-11-10: DuckDB's microsecond slot and the nanosecond case)
-                    assertTrue(String.valueOf(refused.getMessage()).contains("refused, never cut (S181)"),
+                    assertTrue(String.valueOf(refused.getMessage()).contains(com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()),
                             type + " " + q.withParameters() + ": " + refused.getMessage());
                 }
                 assertFalse(sent.isEmpty(), type + " " + q.withParameters());

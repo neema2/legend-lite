@@ -2927,14 +2927,14 @@ final class Scalars {
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
-    static SqlExpr guarded(SqlExpr cond, SqlExpr msg, SqlExpr value) {
+    static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 SqlExpr.Call.of(SqlFn.ERROR, msg))), value);
     }
 
     /** The provenance-carrying guard: the raising call's source span rides
      * the raise ({@link PureSql#raise}) — assertError's position channel. */
-    static SqlExpr guarded(SqlExpr cond, SqlExpr msg, SqlExpr value,
+    static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 PureSql.raise(msg, pos))), value);
