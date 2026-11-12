@@ -57,6 +57,13 @@ final class JdbcStatements implements Statements {
         }
     }
 
+    /** One act of this session's: a run's (THE WALL's rule 3), on a session that holds no raise its reset failed to
+     *  clear ({@link SessionState#refuseIfRaiseHeld}, the re-audit's note 8, 2026-11-12). */
+    private void act() {
+        com.legend.base.RunScope.statement("a statement");
+        state.refuseIfRaiseHeld();
+    }
+
     /** The error a failed statement is told as: its raise where the error carries one, else the raise the session
      *  holds ({@link #held}, read then alone -- the audit of D65, 2026-10-29: read before the error's own text was
      *  looked at, every failure paid the session's metadata read), else the database's own text
@@ -124,7 +131,7 @@ final class JdbcStatements implements Statements {
      *  beside the statement's {@code failure}, never dropped (the A delta audit's 6, 2026-11-11). */
     static @com.legend.base.Nullable String held(Connection c, SessionState state, SQLException failure) {
         try {
-            return held(c, state.raiseReadBack(), failure);
+            return held(c, state.raiseReadBack(), failure, state);
         } catch (SQLException unreadable) {
             failure.addSuppressed(unreadable);
             return null;
@@ -148,6 +155,15 @@ final class JdbcStatements implements Statements {
      *  text passed on unread. A run's act (THE WALL's rule 3). */
     static @com.legend.base.Nullable String held(Connection c,
             ExecutionPlan.@com.legend.base.Nullable RaiseReadBack readBack, SQLException failure) throws SQLException {
+        return held(c, readBack, failure, new SessionState());
+    }
+
+    /** {@link #held(Connection, ExecutionPlan.RaiseReadBack, SQLException)} on the session whose {@code state} it
+     *  marks where the reset fails: that session may hold the raise still, and refuses every further statement by name
+     *  (the re-audit's note 8, 2026-11-12: until then it went on, and a later failure read the stale raise). */
+    private static @com.legend.base.Nullable String held(Connection c,
+            ExecutionPlan.@com.legend.base.Nullable RaiseReadBack readBack, SQLException failure, SessionState state)
+            throws SQLException {
         if (readBack == null) {
             return null;
         }
@@ -168,6 +184,7 @@ final class JdbcStatements implements Statements {
                     st.execute(reset.text());
                 } catch (SQLException unreset) {
                     unread.addSuppressed(unreset);
+                    state.raiseUnreset(String.valueOf(unreset.getMessage()));
                 }
                 throw unread;
             }
@@ -176,6 +193,7 @@ final class JdbcStatements implements Statements {
                 st.execute(reset.text());
             } catch (SQLException unreset) {
                 failure.addSuppressed(unreset);
+                state.raiseUnreset(String.valueOf(unreset.getMessage()));
             }
             return held;
         }
@@ -183,7 +201,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public void check(ExecutionPlan.Target target) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         Sessions.check(c, target.database().type());
         declared = Connectors.of(target.database().type());
         driver = declared.decoding();   // the driver's facts are its connector's (D72)
@@ -242,7 +260,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public boolean execute(PlannedSql statement) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (Statement st = c.createStatement()) {
             return st.execute(statement.text());
         } catch (SQLException e) {
@@ -253,7 +271,7 @@ final class JdbcStatements implements Statements {
     @Override
     public long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -266,7 +284,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public List<Reported> columns(PlannedSql statement) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement.text())) {
             return reported(rs.getMetaData());
         } catch (SQLException e) {
@@ -276,7 +294,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public List<Reported> describe(PlannedSql statement) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement.text())) {
             java.sql.ResultSetMetaData md = st.getMetaData();
             return md == null ? List.of() : reported(md);
@@ -297,7 +315,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public void readsFile(PlannedSql statement, String path) {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement.text())) {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
             if (st.getParameterMetaData().getParameterCount() == 1) {
@@ -350,7 +368,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -371,7 +389,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -422,7 +440,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) throws IOException {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
@@ -454,7 +472,7 @@ final class JdbcStatements implements Statements {
      *  and is the snapshot then -- never committed here (the runners' rule, {@code PlanRunner}'s sequence). */
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
-        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        act();   // THE WALL's rule 3, per act (2026-11-06)
         if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE || !ownsTransaction()) {
             work.run();
             return;

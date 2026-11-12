@@ -61,8 +61,16 @@ public final class PlanRunner {
      */
     public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             java.util.UUID execution) throws IOException {
+        return rows(plan, values, sessions, com.legend.base.Executions.one(execution));
+    }
+
+    /** {@link #rows(ExecutionPlan, Map, PlanSessions.Source, java.util.UUID)} as {@code executions}: a test body's
+     *  plan read again after its run (an appeal's side), its stamps each bound to its own execution's id (the re-audit's
+     *  SHOULD-FIX 1, 2026-11-12). */
+    public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
+            com.legend.base.Executions executions) throws IOException {
         Collector collector = new Collector();
-        stream(plan, values, sessions, collector, execution);
+        stream(plan, values, sessions, collector, com.legend.result.Batcher.DEFAULT_CAPACITY, executions);
         Collector.Collected c = collector.collected();
         return new Rows(c.columns(), c.rows());
     }
@@ -85,8 +93,15 @@ public final class PlanRunner {
      */
     public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             ResultSink sink, int capacity, java.util.UUID execution) throws IOException {
+        stream(plan, values, sessions, sink, capacity, com.legend.base.Executions.one(execution));
+    }
+
+    /** {@link #stream(ExecutionPlan, Map, PlanSessions.Source, ResultSink, int, java.util.UUID)} as
+     *  {@code executions}, as the run's door minted them. */
+    public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
+            ResultSink sink, int capacity, com.legend.base.Executions executions) throws IOException {
         // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
-        try (var run = com.legend.base.RunScope.enter(execution)) {
+        try (var run = com.legend.base.RunScope.enter(executions)) {
             streamRun(plan, values, sessions, sink, capacity);
         }
     }
@@ -95,8 +110,8 @@ public final class PlanRunner {
             ResultSink sink, int capacity) throws IOException {
         // the execution's id, its door's, to the run's listener before anything else (the writers' activity reports it)
         sink.execution(com.legend.base.RunScope.execution());
-        Map<String, PlanParameters.Checked> checked = admitSources(PlanParameters.check(plan.parameters(), values),
-                List.of(plan.root()), sessions.admitted());
+        Map<String, PlanParameters.Checked> checked = executionsBound(admitSources(PlanParameters.check(
+                plan.parameters(), values), List.of(plan.root()), sessions.admitted()), List.of(plan.root()));
         switch (plan.root()) {
             case ExecutionPlan.TdsResult tds -> {
                 if (reported(tds)) {
@@ -198,7 +213,8 @@ public final class PlanRunner {
     private static long updateIn(ExecutionPlan.Update update, PlanSessions.Source sessions) throws IOException {
         long[] count = {0};
         // its live sources admitted once, at this run's entry, as every run's are (the checkpoint tenets audit's 7)
-        send(update.sql(), admitSources(Map.of(), List.of(update), sessions.admitted()), sessions,
+        send(update.sql(), executionsBound(admitSources(Map.of(), List.of(update), sessions.admitted()),
+                List.of(update)), sessions,
                 (st, statement, values) ->
                 count[0] = st.update(statement, update.sql().slots(), values));
         return count[0];
@@ -218,7 +234,8 @@ public final class PlanRunner {
             throw new IllegalStateException("an effect binds no slot: its text is the statement");
         }
         boolean[] rows = {false};
-        send(effect.sql(), admitSources(Map.of(), List.of(effect), sessions.admitted()), sessions,
+        send(effect.sql(), executionsBound(admitSources(Map.of(), List.of(effect), sessions.admitted()),
+                List.of(effect)), sessions,
                 (st, statement, values) -> rows[0] = st.execute(statement));
         return rows[0];
     }
@@ -529,7 +546,6 @@ public final class PlanRunner {
     /** A check's rows read and dropped (the database computes what it may raise). */
     static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
-        stamp(k.sql(), values);
         PlannedSql statement = k.sql().planned();
         StatementOrigin.sent(st.mark(), statement.text());
         st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
@@ -760,7 +776,6 @@ public final class PlanRunner {
     /** A typed result's rows into {@code held}. */
     static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
             Held held) throws IOException {
-        stamp(t.sql(), values);
         PlannedSql statement = t.sql().planned();
         StatementOrigin.sent(st.mark(), statement.text());
         if (reported(t)) {
@@ -786,9 +801,11 @@ public final class PlanRunner {
         }
     }
 
-    /** A statement whose stamp the runner does not bind (a keyed plan's, a write's, an effect's: none reads the
-     *  execution's id; since C1, 2026-11-12, no statement is sent under a comment at all): one that binds it is a
-     *  planner defect, refused by name. */
+    /** A statement that carries no stamp of its own (a keyed plan's, a write's, an effect's: a statement's own stamp
+     *  names the execution it is, a query's or a check's; since C1, 2026-11-12, no statement is sent under a comment at
+     *  all): one that carries it is a planner defect, refused by name. A stamp such a statement's SLOT reads (an activity
+     *  row's comment) is bound with every other at the run's start ({@link #executionsBound}, the re-audit's note 3,
+     *  2026-11-12). */
     private static void unstamped(ExecutionPlan.Sql sql) {
         if (sql.stamp() != null) {
             throw new IllegalStateException("a keyed, write or effect statement binds its own execution-trace stamp ('"
@@ -796,7 +813,8 @@ public final class PlanRunner {
         }
     }
 
-    /** {@code sql}'s execution id, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): legend-engine's
+    /** {@code values} with the execution id of every stamp {@code nodes}' statements read ({@link ExecutionPlan.Sql#stamp},
+     *  and a slot's): legend-engine's
      *  execution-trace comment of the execution the stamp names -- a product plan's one execution, every statement of
      *  it the same, as upstream's {@code execID} is; a test body's {@code execute()}'s own, as upstream's interpreted
      *  execute mints one per query ({@link com.legend.base.RunScope#execution(String)}, the door's: the execution id as
@@ -804,16 +822,27 @@ public final class PlanRunner {
      *  the activity rows the plan's statements write read it as a bound value. The statement itself is sent as the plan
      *  wrote it, no comment in front of it (C1, 2026-11-12, the user's ruling of 2026-11-10, "Agree with all": the
      *  database receives exactly the plan's text; upstream writes the comment into the text at run, register S304). */
-    private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values) {
-        // every execution the statement reads -- its own stamp and each one a slot reads (an activity row's comment) --
-        // bound to the id its door minted for it (the execution id as upstream, 2026-11-12: until then the statement's
-        // own stamp alone, a stamp another step bound read from the values that step left)
+    static Map<String, PlanParameters.Checked> executionsBound(Map<String, PlanParameters.Checked> values,
+            List<ExecutionPlan.Node> nodes) {
+        // every execution the run's statements read -- a statement's own stamp and each one a slot reads (an activity
+        // row's comment) -- bound once, at the run's start, to the id its door minted for it: a product run's one, a
+        // test body's execute()'s own (the execution id as upstream, 2026-11-12; the re-audit's notes 3 and 4: until
+        // then each query and check bound its stamps as it was sent, copying the values for every statement, and a
+        // keyed statement or a write that read one found none). An execution the run does not hold is refused by name
+        // here, before anything is sent (Executions.of)
         java.util.Set<String> read = new java.util.LinkedHashSet<>();
-        sql.stamps(read);
+        for (ExecutionPlan.Node node : nodes) {
+            ExecutionPlan.stamps(node, read);
+        }
+        if (read.isEmpty()) {
+            return values;
+        }
+        Map<String, PlanParameters.Checked> out = new HashMap<>(values);
         for (String execution : read) {
-            values.put(execution,
+            out.put(execution,
                     new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution(execution))));
         }
+        return out;
     }
 
     /** Each slot's value, in the statement's order. */
@@ -1048,12 +1077,9 @@ public final class PlanRunner {
             Statements st = opened(session, sql.target(), sessions.mark());
             // every live source the run reads was admitted once, at its entry (admitSources): the path is bound here,
             // never admitted again (the checkpoint tenets audit's 7, 2026-11-10: until then per statement as well)
-            Map<String, PlanParameters.Checked> bound = checked;
-            bound = new HashMap<>(bound);
-            stamp(sql, bound);
             List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
             for (int i = 0; i < sql.slots().size(); i++) {
-                values.add(value(bound, sql, sql.slots().get(i), i + 1));
+                values.add(value(checked, sql, sql.slots().get(i), i + 1));
             }
             PlannedSql statement = sql.planned();
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted

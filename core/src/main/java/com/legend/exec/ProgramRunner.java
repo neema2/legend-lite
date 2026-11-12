@@ -195,15 +195,11 @@ public final class ProgramRunner {
         }
         // the values a step produces (a write's count, a run's stamp), bound for the steps after it
         Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
-        // every execution the plan declares, its id bound from the start for each statement that reads it -- a frame's
-        // activity rows, an inline execute's -- as upstream fills ${execID} into every node of an execution (the
-        // execution id as upstream, 2026-11-12: one id per execute(), the door's)
-        Map<String, java.util.UUID> executions = com.legend.base.RunScope.executions().declared();
-        if (executions != null) {
-            for (Map.Entry<String, java.util.UUID> e : executions.entrySet()) {
-                live.put(e.getKey(), new PlanParameters.One(ExecutionPlan.traceComment(e.getValue())));
-            }
-        }
+        // every execution the program's statements read, its id bound from the start for each statement that reads
+        // it -- a frame's activity rows, an inline execute's -- as upstream fills ${execID} into every node of an
+        // execution (the execution id as upstream, 2026-11-12: a product program's one, a test body's execute()'s own;
+        // one it does not hold refused by name before anything is sent)
+        live.putAll(PlanRunner.executionsBound(Map.of(), nodes));
         if (on == null) {
             // a program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, held, no session
             // opened; a callback reads nothing here -- a statement it declared would have given the program a target

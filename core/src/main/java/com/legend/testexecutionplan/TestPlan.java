@@ -136,6 +136,21 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                 case Branch b -> statements(b).forEach(n -> ExecutionPlan.stamps(n, out));
             }
         }
+        // an appeal's sides, read again after the run as the same executions (the re-audit's SHOULD-FIX 1, 2026-11-12:
+        // until then an appeal read every stamp as the run's id)
+        for (List<Extension> at : extensionsByVerdict.values()) {
+            for (Extension e : at) {
+                if (e instanceof Appeal a && a.rows() != null) {
+                    for (Appeal.Read read : List.of(a.rows().rows(), a.rows().population())) {
+                        if (read.side() != null) {
+                            List<Node> side = new java.util.ArrayList<>();
+                            sideStatement(read.side(), side);
+                            side.forEach(n -> ExecutionPlan.stamps(n, out));
+                        }
+                    }
+                }
+            }
+        }
         return List.copyOf(out);
     }
 

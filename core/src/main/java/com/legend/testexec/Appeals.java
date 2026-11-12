@@ -66,11 +66,12 @@ final class Appeals {
     /** A write of the body's ran at all: a failed run's rollback undoes it before the appeals are decided. */
     private boolean wrote;
 
-    /** The body's execution, its door's id: an appeal's sides are read after the body's run, as the same execution
-     *  (they judge its statements; 2026-11-12). */
-    private final java.util.UUID execution;
+    /** The body's executions, its door's ids: an appeal's sides are read after the body's run as the same executions
+     *  (they judge its statements; 2026-11-12) -- each stamp its own execute()'s id, never the run's in its place (the
+     *  re-audit's SHOULD-FIX 1, 2026-11-12), and one the plan does not declare refused by name. */
+    private final com.legend.base.Executions execution;
 
-    Appeals(@Nullable AssertListener listener, java.util.UUID execution) {
+    Appeals(@Nullable AssertListener listener, com.legend.base.Executions execution) {
         this.execution = java.util.Objects.requireNonNull(execution, "execution");
         this.listener = listener;
         this.keeping = listener == null ? null : new Keeping(listener);
@@ -174,15 +175,7 @@ final class Appeals {
         // our rows read for the referee: counted under REFEREE_OURS (the reader's own mark, on its sessions)
         PlanSessions.Source source = PlanSessions.marked(PlanSessions.of(session, systemSessions),
                 com.legend.exec.StatementOrigin.REFEREE_OURS);
-        // the edge's reader: each planned side a plan of its own, run on the body's sessions after its run
-        com.legend.testexec.SideReader own = side -> switch (side) {
-            case TestPlan.Side.Rows r -> PlanRunner.rows(ExecutionPlan.reading(List.of(), r.result()), Map.of(),
-                    source, execution);
-            case TestPlan.Side.KeyedRows k -> PlanRunner.rows(ExecutionPlan.reading(List.of(), k.keyed()), Map.of(),
-                    source, execution);
-            case TestPlan.Side.Constant c -> throw new IllegalStateException("an appeal's side is a constant: its"
-                    + " answer is the planned side's own, never read");
-        };
+        com.legend.testexec.SideReader own = reader(source, execution);
         int told = 0;
         for (Held h : held) {
             for (; told < h.at(); told++) {
@@ -290,5 +283,18 @@ final class Appeals {
                 to.refereed(assertName, outcome);
             }
         }
+    }
+
+    /** The edge's reader: each planned side a plan of its own, run on {@code source} after the body's run, as the
+     *  body's {@code executions} -- each stamp its own execute()'s id (the re-audit's SHOULD-FIX 1, 2026-11-12). */
+    static com.legend.testexec.SideReader reader(PlanSessions.Source source, com.legend.base.Executions executions) {
+        return side -> switch (side) {
+            case TestPlan.Side.Rows r -> PlanRunner.rows(ExecutionPlan.reading(List.of(), r.result()), Map.of(),
+                    source, executions);
+            case TestPlan.Side.KeyedRows k -> PlanRunner.rows(ExecutionPlan.reading(List.of(), k.keyed()), Map.of(),
+                    source, executions);
+            case TestPlan.Side.Constant c -> throw new IllegalStateException("an appeal's side is a constant: its"
+                    + " answer is the planned side's own, never read");
+        };
     }
 }

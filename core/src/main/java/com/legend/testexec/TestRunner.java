@@ -83,7 +83,7 @@ public final class TestRunner {
         try (var callbacks = com.legend.base.RunScope.callingBack()) {
             // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
             // judges tell the caller's listener through it, its reports kept back while an appeal is held
-            Appeals appeals = new Appeals(callers, execution.run());
+            Appeals appeals = new Appeals(callers, execution);
             // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
             BodyRun run = new BodyRun(appeals);
             AssertListener listener = appeals.listener();

@@ -2052,12 +2052,18 @@ final class ArchitectureTest {
             .that().resideInAnyPackage("com.legend.exec..", "com.legend.base..", "com.legend.testexec..",
                     "com.legend.result..")
             .should().callMethod(java.util.UUID.class, "randomUUID")
+            // an id made any other way (the re-audit's note 6, 2026-11-12: the rule caught randomness alone, so an id
+            // built from two longs, parsed from text or named from bytes passed it)
+            .orShould().callConstructor(java.util.UUID.class, long.class, long.class)
+            .orShould().callMethod(java.util.UUID.class, "fromString", String.class)
+            .orShould().callMethod(java.util.UUID.class, "nameUUIDFromBytes", byte[].class)
             .orShould().callMethod(Math.class, "random")
             .orShould().callMethod(StrictMath.class, "random")
             // SecureRandom and ThreadLocalRandom are Randoms
             .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
             .as("exec makes no value of its own: an execution's id is its door's (Execution, TestExecution), passed in"
-                    + " and bound, never minted by exec, the test's run, the result library or the run's scope");
+                    + " and bound, never made by exec, the test's run, the result library or the run's scope -- not"
+                    + " drawn at random, built, parsed nor named");
 
     /**
      * EXEC MAKES NO VALUE OF ITS OWN (the user's ruling of 2026-11-12, "Do the exec id as part of C"; earlier, no
@@ -2091,9 +2097,44 @@ final class ArchitectureTest {
             java.util.stream.Stream.of("com.legend.sql", "com.legend.executionplan", "com.legend.testexecutionplan",
                     "com.legend.model")).map(p -> p + "..").toArray(String[]::new);
 
+    /** The plan side's classes in the root package (AGENTS.md: the planner's doors, {@code //core:planner}), each with
+     *  its nested classes: the planning no-value rule reads them as it reads the planning packages (the re-audit's note
+     *  6, 2026-11-12: until then the root's planning doors were outside it). {@link #theRootsPlanSideClassesExist} pins
+     *  that each names a product class. */
+    private static final java.util.List<String> PLAN_SIDE_ROOT = java.util.List.of("com.legend.Compiler",
+            "com.legend.TypedQuery", "com.legend.HeldModels");
+
+    /** A class of the planning side: in a planning package, or one of {@code roots} or nested in one. */
+    private static com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaClass>
+            planningSide(java.util.List<String> roots) {
+        return new com.tngtech.archunit.base.DescribedPredicate<>("a planning-side class (the planning packages, "
+                + roots + ")") {
+            @Override
+            public boolean test(com.tngtech.archunit.core.domain.JavaClass c) {
+                for (String p : VALUE_FREE_PLANNING) {
+                    String pkg = p.substring(0, p.length() - 2);
+                    if (c.getPackageName().equals(pkg) || c.getPackageName().startsWith(pkg + ".")) {
+                        return true;
+                    }
+                }
+                for (String root : roots) {
+                    if (c.getName().equals(root) || c.getName().startsWith(root + "$")) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        };
+    }
+
     /** PLANNING MAKES NO VALUE OF ITS OWN (the rule of {@link #planningMakesNoValueOfItsOwn}). */
-    static final com.tngtech.archunit.lang.ArchRule PLANNING_MAKES_NO_VALUE = noClasses()
-            .that().resideInAnyPackage(VALUE_FREE_PLANNING)
+    static final com.tngtech.archunit.lang.ArchRule PLANNING_MAKES_NO_VALUE = planningMakesNoValue(PLAN_SIDE_ROOT);
+
+    /** The rule over the planning packages and the root classes {@code roots}: the product's are
+     *  {@link #PLAN_SIDE_ROOT}; {@link #theNoValueRuleBitesAPlantedPlanningClock} adds a planted root class. */
+    private static com.tngtech.archunit.lang.ArchRule planningMakesNoValue(java.util.List<String> roots) {
+        return noClasses()
+            .that(planningSide(roots))
             .should().callMethod(java.util.UUID.class, "randomUUID")
             .orShould().callMethod(Math.class, "random")
             .orShould().callMethod(StrictMath.class, "random")
@@ -2109,6 +2150,7 @@ final class ArchitectureTest {
             // SecureRandom and ThreadLocalRandom are Randoms
             .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
             .as("planning makes no value of its own: the same model and query plan to the same plan, byte for byte");
+    }
 
     /**
      * PLANNING MAKES NO VALUE OF ITS OWN (G10 determinism; the C checkpoint's follow-up, 2026-11-12): the same model and
@@ -2131,6 +2173,21 @@ final class ArchitectureTest {
     void theNoValueRuleBitesAPlantedPlanningClock() {
         bites(PLANNING_MAKES_NO_VALUE, com.legend.planner.PlantedPlanningValue.class);
         bites(PLANNING_MAKES_NO_VALUE, com.legend.planner.PlantedPlanningValue.Clock.class);
+        // the root's arm (the re-audit's note 6, 2026-11-12): the rule as built for the product's root classes, with a
+        // planted root class named beside them -- it and its nested class bitten
+        java.util.List<String> roots = new java.util.ArrayList<>(PLAN_SIDE_ROOT);
+        roots.add(com.legend.PlantedRootPlanningValue.class.getName());
+        bites(planningMakesNoValue(roots), com.legend.PlantedRootPlanningValue.class);
+        bites(planningMakesNoValue(roots), com.legend.PlantedRootPlanningValue.Nested.class);
+    }
+
+    /** Each of {@link #PLAN_SIDE_ROOT} names a product class: a door renamed or moved is a red build here, never a
+     *  class the planning no-value rule silently stops reading. */
+    @Test
+    void theRootsPlanSideClassesExist() {
+        for (String root : PLAN_SIDE_ROOT) {
+            org.junit.jupiter.api.Assertions.assertTrue(CORE_PROD_CLASSES.contain(root), root);
+        }
     }
 
     /** {@link #execMakesNoValueOfItsOwn} fails on a class of exec's package that mints an id
@@ -2139,7 +2196,10 @@ final class ArchitectureTest {
     @Test
     void theNoValueRuleBitesAPlantedRandomUuid() {
         for (Class<?> planted : java.util.List.of(com.legend.exec.PlantedRandomUuid.class,
-                com.legend.testexec.PlantedRunValue.class, com.legend.result.PlantedWriterValue.class)) {
+                com.legend.testexec.PlantedRunValue.class, com.legend.result.PlantedWriterValue.class,
+                // an id built, parsed or named (the re-audit's note 6, 2026-11-12)
+                com.legend.exec.PlantedRandomUuid.Built.class, com.legend.exec.PlantedRandomUuid.Parsed.class,
+                com.legend.exec.PlantedRandomUuid.Named.class)) {
             bites(EXEC_MAKES_NO_VALUE, planted);
         }
     }
@@ -2982,32 +3042,60 @@ final class ArchitectureTest {
             + "|DatabaseSettings|Setting|RaiseReadBack|Keyed|Region|Effect\\$Script|Load|LoadStep(\\$.*)?)"
             + "|testexecutionplan\\.TestPlan\\$Verdicts\\$Savepoint)";
 
+    /** The plan's text readers: a plan, or one of its records, made from JSON text. */
+    private static final String PLAN_TEXT_READER = "com\\.legend\\.(executionplan\\.PlanJson"
+            + "|testexecutionplan\\.TestPlanJson)";
+
+    /** What a plan reader makes that carries statement text: a plan, a test plan, or one of their text records. */
+    private static final String READ_PLAN_TEXT = "com\\.legend\\.(executionplan\\.ExecutionPlan"
+            + "|testexecutionplan\\.TestPlan)|" + TEXT_CARRYING_RECORD;
+
+    /** {@code m} is its record's accessor of its own component: no parameter, and a field of its name and type. */
+    private static boolean isComponentAccessor(com.tngtech.archunit.core.domain.JavaCodeUnit m) {
+        return m instanceof com.tngtech.archunit.core.domain.JavaMethod && m.getParameters().isEmpty()
+                && m.getOwner().tryGetField(m.getName()).map(f -> f.getRawType().equals(m.getRawReturnType()))
+                        .orElse(false);
+    }
+
     /** THE RUN SIDE WRITES NO PLAN TEXT (the rule of {@link #theRunSideMakesNoPlanRecordThatCarriesText}). */
     static final com.tngtech.archunit.lang.ArchRule RUN_SIDE_MAKES_NO_PLAN_TEXT = noClasses()
             .that().resideInAnyPackage(RUN_SIDE)
             .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a constructor or a static factory of a plan"
-                    + " record that carries statement text") {
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a constructor or a method of a plan record that"
+                    + " carries statement text making another, or a plan read from its JSON") {
                 @Override
                 public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
-                    if (!access.getTargetOwner().getName().matches(TEXT_CARRYING_RECORD)
-                            || !(access.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget
+                    if (!(access.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget
                                     .CodeUnitAccessTarget unit)) {
+                        return false;
+                    }
+                    String owner = access.getTargetOwner().getName();
+                    if (owner.matches(PLAN_TEXT_READER)) {
+                        // a plan READ from text on the run side (the re-audit's note 7, 2026-11-12): its statements are
+                        // text the run made into a plan, the brand minted by the reader; the run side is handed its plan
+                        // (a door reads one, the server's), and reads none
+                        return unit.getName().startsWith("read") && unit.getRawReturnType().getName()
+                                .matches(READ_PLAN_TEXT);
+                    }
+                    if (!owner.matches(TEXT_CARRYING_RECORD)) {
                         return false;
                     }
                     if (unit.getName().equals(com.tngtech.archunit.core.domain.JavaConstructor.CONSTRUCTOR_NAME)) {
                         return true;
                     }
-                    // a static method that returns such a record: a factory (Load.canonical, the text a load's identity
-                    // digests, returns a String no session is sent: exec verifies an identity with it); one that cannot
-                    // be resolved is refused, never passed
+                    // a method that returns such a record, static or not: a factory (Sql.of), or a record derived from
+                    // the plan's (Sql.stamped, Sql.unstamped, Target.bare: none rewrites text today, and the run side
+                    // calls none; the re-audit's note 7, 2026-11-12: until then a static factory alone) -- never the
+                    // record's accessor of its own component (Keyed.keys, Sql.target), which reads the plan's. One
+                    // that cannot be resolved is refused, never passed. (Load.canonical, the text a load's identity
+                    // digests, returns a String no session is sent: exec verifies an identity with it.)
                     return unit.getRawReturnType().getName().matches(TEXT_CARRYING_RECORD)
-                            && unit.resolveMember().map(m -> m.getModifiers().contains(
-                                    com.tngtech.archunit.core.domain.JavaModifier.STATIC)).orElse(true);
+                            && !unit.resolveMember().map(ArchitectureTest::isComponentAccessor).orElse(false);
                 }
             })
             .as("the run side makes no plan record that carries statement text: a statement, a target, its settings and"
-                    + " read-back, a keyed node, a region, a script, a load and a savepoint are the plan's, read from it");
+                    + " read-back, a keyed node, a region, a script, a load and a savepoint are the plan's, read from it"
+                    + " -- never built, derived, nor read from the plan's JSON on the run side");
 
     /**
      * THE RUN SIDE MAKES NO PLAN RECORD THAT CARRIES TEXT (the C final audit's J2, 2026-11-12): the brand
@@ -3030,9 +3118,16 @@ final class ArchitectureTest {
     @Test
     void theRunSideRuleBitesAPlantedPlanText() {
         for (Class<?> planted : java.util.List.of(com.legend.exec.PlantedPlanText.Factory.class,
-                com.legend.exec.PlantedPlanText.Constructs.class, com.legend.exec.PlantedPlanText.ByReference.class)) {
+                com.legend.exec.PlantedPlanText.Constructs.class, com.legend.exec.PlantedPlanText.ByReference.class,
+                // the re-audit's note 7, 2026-11-12: a record derived by an instance method, by call and by reference,
+                // and a plan and a test plan read from JSON
+                com.legend.exec.PlantedPlanText.Derives.class, com.legend.exec.PlantedPlanText.DerivesByReference.class,
+                com.legend.exec.PlantedPlanText.ReadsAPlan.class, com.legend.exec.PlantedPlanText.ReadsATestPlan.class)) {
             bites(RUN_SIDE_MAKES_NO_PLAN_TEXT, planted);
         }
+        // and passes a class that reads the plan's records by their accessors alone
+        RUN_SIDE_MAKES_NO_PLAN_TEXT.check(new ClassFileImporter().importClasses(
+                com.legend.exec.PlantedPlanText.ReadsOnly.class));
     }
 
     /**
