@@ -247,7 +247,7 @@ test_suite(
         # the tab's execute (its planner's plan, DuckDB-WASM's rows) against Python's over the same frame (C1)
         "//datacube:python_execute_test",
         # DataCube's own non-screen tests in V8 inside Python: the native library's planner, Python's DuckDB, no
-        # WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6; not in //gates:local: run it by name)
+        # WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6; in //gates:local too since 2026-11-12)
         "//datacube:headless_test",
         # a notebook's cube in a real JupyterLab and a real marimo, legend-lite's wheel and the notebook installed as a
         # developer installs them (Linux and Apple-silicon Macs)
@@ -423,6 +423,11 @@ test_suite(
         ":datacube",
         ":ui",
         ":sdlc",
+        # 2026-11-12 (the total wall, the B3 worker's red lane): DataCube's own tests in Python's V8 went red unseen for
+        # two pushes -- the V8 bridge's statement check (e0a90d7c5) refused the tests' own setup SQL -- because this
+        # lane ran in the warehouse lane alone and a session's gate never ran it. It builds the compiler's native
+        # library (a few minutes, cached after); its test host is the lane's own (datacube/test/headless/run.py)
+        "//datacube:headless_test",
     ],
 )
 

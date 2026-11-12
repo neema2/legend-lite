@@ -120,9 +120,10 @@ class Headless:
                  reading: Callable[[], Any] | None = None) -> None:
         """``bundle`` is a headless bundle's script. ``connection`` the duckdb connection its queries run on (a Frames'
         one, whose tables a page's grids read; a new database of the engine's own when not given, closed with it).
-        ``folder`` where the files DataCube registers are written (a temporary folder of the engine's own when not
-        given); a database of the engine's own reads relative names from it. A connection given is left as it is: a
-        file registered meanwhile is in ``folder``, which that database does not search (no grid registers one).
+        ``folder`` where the host writes a file for DataCube's code to read (a temporary folder of the engine's own
+        when not given; a test's registered files, the headless lane's TestHost); a database of the engine's own reads
+        relative names from it. A connection given is left as it is: a file written meanwhile is in ``folder``, which
+        that database does not search (no grid reads one by a relative name).
         ``reading``: the read of the frames the calling thread is in, if any (``Frames.reading_now``): a call made in one
         queries through it."""
         self._lib = lib or library()
@@ -174,8 +175,8 @@ class Headless:
 
     @property
     def folder(self) -> Path:
-        """The engine's own folder: where the files DataCube registers are written, and where its host writes a file
-        for DataCube's code to read (a page's file: the engine's file.json)."""
+        """The engine's own folder: where its host writes a file for DataCube's code to read (a page's file: the
+        engine's file.json)."""
         return self._folder
 
     # ---- the calls out of V8, each on the engine's loop
