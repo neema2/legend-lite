@@ -162,6 +162,10 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             // interleaved joinStrings unit: same infix chain, NEVER
             // spliced into the enclosing '+' chain (its parens pin it)
             case CONCAT_JOIN -> writer.append("(").join(a, " concat ", 0).append(")");
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on legend-engine's DB2 text, so
+            // refused by name (its composite text, which takes it from here, too)
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by"
+                    + " their code points) reached legend-engine's DB2 text, whose binary collation is not measured");
             case TRIM -> a.size() == 1
                     ? writer.append("trim(").expr(a.get(0), 0).append(")")
                     : super.call(writer, c, parentPrec);

@@ -76,6 +76,15 @@ public final class TestDataGenerator {
             ScanRelations.Rel rel, Map<String, List<String>> colMap,
             @com.legend.base.Nullable String parentDb) {
         rel = expandIfView(ctx, rel, parentDb);
+        mergeCols(ctx, rel, colMap);
+        for (ScanRelations.Rel child : rel.children()) {
+            collectColMap(ctx, child, colMap, rel.db());
+        }
+    }
+
+    /** {@code rel}'s table's demanded columns merged into {@code colMap} (the node half of the engine's
+     *  generateRelationColumnMap; its children not walked). */
+    static void mergeCols(ModelContext ctx, ScanRelations.Rel rel, Map<String, List<String>> colMap) {
         Located loc = locate(ctx, rel.db(), rel.table());
         String key = loc.schema() + "\n" + rel.table();
         // engine sortBy(name) is the plain pure string sort — ASCII
@@ -84,17 +93,10 @@ public final class TestDataGenerator {
         TreeSet<String> merged = new TreeSet<>();
         merged.addAll(colMap.getOrDefault(key, List.of()));
         for (String c : fetchCols(ctx, loc, rel)) {
-            // demanded names arrive in MAPPING spelling — canonicalize
-            // to the DDL case before the (case-sensitive) engine sort
-            merged.add(loc.def().columns().stream()
-                    .map(DatabaseDefinition.ColumnDefinition::name)
-                    .filter(n -> n.equalsIgnoreCase(c))
-                    .findFirst().orElse(c));
+            // a demanded name is the model's: the declared column of that exact name (column)
+            merged.add(column(loc.def(), c).name());
         }
         colMap.put(key, List.copyOf(merged));
-        for (ScanRelations.Rel child : rel.children()) {
-            collectColMap(ctx, child, colMap, rel.db());
-        }
     }
 
     record Located(String schema,
@@ -391,15 +393,11 @@ public final class TestDataGenerator {
                 && name.endsWith("\"")) {
             name = name.substring(1, name.length() - 1);
         }
+        // by its exact name, as upstream resolves a column (HelperRelationalBuilder.getColumn; a row identifier's
+        // column, testDataGeneration.pure: $x.name == $cv.first) -- every name here is the model's or a row
+        // identifier's, never a database's folding (the orchestrator's go, 2026-11-12: no case leniency)
         for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
             if (c.name().equals(name)) {
-                return c;
-            }
-        }
-        // unquoted SQL identifiers are case-insensitive (H2 uppercases
-        // them in engine goldens)
-        for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
-            if (c.name().equalsIgnoreCase(name)) {
                 return c;
             }
         }

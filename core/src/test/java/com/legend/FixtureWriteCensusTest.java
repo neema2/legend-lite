@@ -57,8 +57,14 @@ class FixtureWriteCensusTest {
      *  quote-aware), and GeneratedTestDataProgramTest seeds one text cell holding the empty text (1), which no CSV can
      *  seed (the reader loads an empty cell as NULL), for the reload's empty-text-as-NULL case. 911 -> 907 (2026-11-11,
      *  the JSON pass merged: no session table remains, so its drop-safety tests went -- DataTableSessionTest deleted,
-     *  DataDeliveryMatrixPostgresTest's user's table of the name with it, 4). */
-    private static final int CEILING = 907;
+     *  DataDeliveryMatrixPostgresTest's user's table of the name with it, 4). 907 -> 908 (2026-11-12, the B checkpoint's
+     *  G4, the orchestrator's go): the reload keeps a keyless table's ('', 1) and (NULL, 1) as two rows, as upstream
+     *  inserts each text row -- TestDataPlannerTest seeds the empty text (1), which no CSV can seed (the reader loads an
+     *  empty cell as NULL); the table and its NULL row are its CSV. 908 -> 909 (2026-11-12, the B2d.3 audit's M4): the
+     *  seed's COLLATE "C" on Postgres is shown on a column collated otherwise (PostgresArmTest, 1: one ALTER, the
+     *  column's own collation, which no model or CSV can declare -- the embedded server's initdb --no-locale makes the
+     *  database's own binary); the table and its rows are its CSV. */
+    private static final int CEILING = 909;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -158,7 +164,8 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java", 2),
             Map.entry("core/src/test/java/com/legend/server/CypherParityPostgresTest.java", 3),
             Map.entry("core/src/test/java/com/legend/server/IqParityPostgresTest.java", 2),
-            Map.entry("core/src/test/java/com/legend/server/PostgresArmTest.java", 1),
+            // 2026-11-12, the B2d.3 audit's M4: a column's own collation on Postgres (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/server/PostgresArmTest.java", 2),
             Map.entry("core/src/test/java/com/legend/server/SqlIslandPostgresTest.java", 4),
             Map.entry("core/src/test/java/com/legend/server/SqlParityPostgresTest.java", 2),
             Map.entry("core/src/test/java/com/legend/setup/RowLoadCellsTest.java", 2),
@@ -180,6 +187,9 @@ class FixtureWriteCensusTest {
             // text, which no CSV can seed (the test-data reader loads an empty cell as NULL). TestDataPlannerTest's two
             // (B2d, ruling 3) are its CSV now, the reader quote-aware (H2): their pin went
             Map.entry("core/src/test/java/com/legend/testdatagen/GeneratedTestDataProgramTest.java", 1),
+            // 2026-11-12, the B checkpoint's G4: the reload keeps a keyless table's ('', 1) and (NULL, 1) as two rows;
+            // its empty text, which no CSV can seed, written as it is (the table and its NULL row are its CSV)
+            Map.entry("core/src/test/java/com/legend/testdatagen/TestDataPlannerTest.java", 1),
             Map.entry("core/src/test/java/com/legend/testplan/RenderedTextTest.java", 2),
             Map.entry("spec/src/test/java/com/legend/harness/ReplayReferee.java", 7),
             Map.entry("testing/src/main/java/com/legend/testing/EmbeddedPostgres.java", 1),

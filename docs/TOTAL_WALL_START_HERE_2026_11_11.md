@@ -709,10 +709,12 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   (refused by name otherwise); "How much do we care about exact error message" -- answered: little, no test reads it.
 - **CSV block ends** (S197): "keep ours" -- a block ends only at a line of dashes, not at any one-cell record that is
   empty or starts with `-` (upstream's rule cuts a one-column table of negative numbers short).
-- **Open with the user:** the B2d.3 design's R1-R5 (`docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md`
-  §5 on `claude/total-wall-b2d3`; the orchestrator recommended R1 upstream's error in `generateTestData` and the default
-  only as the server route, R2 the seed's 10 by key, R3 the message without the example keys, R4 a note, R5 faithful
-  cells in the routes' table order); .
+- **The B2d.3 design's R1-R5, ruled** (2026-11-11, `docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md`
+  §5): R1 "yes" (upstream's error in `generateTestData`, the default rows only on the server's route); R2 "can we get
+  best of both? Order by but pick some row numbers from beginning middle end?" (the seed's 10 by key, spread evenly
+  from the first to the last, S198); R3 "yes fine" (upstream's message without the example's keys, S300); R4 "yes fine"
+  (a note on the seed string's line order); R5 "yes fine" (the routes write S191's faithful cells in the routes' table
+  order).
 - **A saved DataCube page holding a presigned link:** strip the whole query string and save the rest with a warning, the
   address saved as needing a fresh link (the user's proposal, "can we strip the presigned and save the rest of report
   with warning?", agreed 2026-11-11; built by the B3 worker).
@@ -741,9 +743,20 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   each connection, read live (census M14-snap, M14-frames DELETED).
 - **CSV test data** (S302, "Def want windows files accepted"): values kept exactly as written; a CRLF line ending a line
   break; everything else as upstream reads it.
-- **Open with the user:** views on legend-engine's test-data server routes (build, about a day, or refuse); inline
-  runtimes across the whole engine-compatible API (recommended: refused now, a later-list item; lite's own clients send
-  none).
+- **Views on the test-data routes and runtimes written out in a request, to the later list** (S301; the user: "Can put views for test data as follow up"; "It can also go to follow up if doesn't block Plan vs exec total split work"):
+  refused by name meanwhile. Upstream accepts both; its own route tests name their runtime. The check found
+  `pure/v1`'s execute routes reading a written-out runtime as none and planning on the query's own `->from`
+  runtime, a silent fallback: now refused by name (`PureV1HttpTest.aRuntimeWrittenOutIsRefusedByName`).
+- **The generator's printing** (S306, the L9 question; the user: "Our clean sheet lite plan should always do the
+  clean/nice/right thing. In backwards compat we can chop the timestamp and we can make float a known divergence"): in
+  lite's own mode the generator prints a timestamp in full, in lite's text; in the compatibility mode it cuts the
+  timestamp as upstream does, and a float's digits are a known divergence.
+- **The Alloy-only bodies** (S305, the B2d.3 audit's M6; the user: "Agree, refuse with register row"): the corpus bodies
+  that need Alloy's own harness are refused by name, the rosters pointing at the row.
+- **A result's columns carry their Pure names** (the demo's catch, 2026-11-12, 0276a473e; a fix, not a divergence):
+  the renderer labels every root column with its Pure name, as upstream aliases every projected column
+  (`pureToSQLQuery.pure`), so a table lite's DDL stored folded (`year` as `YEAR`) answers the name the query asked for;
+  closes F44 (a DataCube-made project's saved query answered no rows on Python).
 - **Residue, named** (B3.1, 2026-11-11): DuckDB-WASM answers a remote Parquet's cube "Overflow in timestamp subtraction"
   when a mount's unbound statements run through the held connection's `query()` rather than the queue's `send()`;
   `remote.ts` routes them through the queue and `//datacube:verify_remote_test` pins it. The cause inside DuckDB-WASM is
@@ -1035,6 +1048,10 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
 - **Features M17 names:** ModelStore, ExternalFormat, ServiceStore and Relation data; mapping and function test suites.
 - **Model data for these column types:** BINARY, VARBINARY, OTHER, DISTINCT, ARRAY, OBJECT.
 - **A statement over both the catalog and user tables.**
+- **Views on the test-data routes** (S301, 2026-11-12): `generateTestData_WithSeed` and `_WithDefaultSeed` over a
+  query whose relation tree holds a view (about a day; the generator's views already plan for the Pure function).
+- **A runtime written out in a request** (S301, 2026-11-12): `ExecuteInput.runtime` as an `engineRuntime` or
+  `legacyRuntime` on the `pure/v1` routes, compiled as an element of the request's model.
 - **The catalog's turn lock, after the total wall** (B4's audit, finding 6, 2026-11-11). One lock with no timeout
   serializes every run reading an engine's catalog, process-wide, held while a product query streams its answer.
   Proposal: (A) a pool of connections to one in-memory catalog per engine, each run its own transaction (DuckDB

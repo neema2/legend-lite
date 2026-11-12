@@ -2,8 +2,13 @@ meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProjec
 meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| statement=1
 meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates ||| statement=1
 meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates ||| statement=1
+meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin ||| statement=1
+meta::relational::testDataGeneration::tests::testSimpleViewRoot ||| statement=1
+meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin ||| statement=1
 meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| statement=1
 meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| statement=1
+meta::relational::testDataGeneration::tests::testUnionViewOnView ||| statement=1
+meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| statement=1
 meta::relational::tests::ddl::dropAndCreateTempTable ||| other=1
 meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression ||| statement=1
 meta::relational::tests::mapping::inheritance::relational::testGetAll ||| flushes=2

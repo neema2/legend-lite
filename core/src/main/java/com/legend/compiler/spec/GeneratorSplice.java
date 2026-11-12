@@ -103,6 +103,42 @@ public final class GeneratorSplice {
         SqlQuery csv();
     }
 
+    /** {@code source} read over a slice: each table it reads by a typed reference whose identity is one of
+     *  {@code reads} ({@code store|physical name}) read from {@code tables} instead (the generator's view fetch, B2d.3:
+     *  a view's relation over the clauses that fetched its tables, as the reload reads a slice). */
+    public static TypedSpec overSlice(TypedSpec source, java.util.Set<String> reads, Map<String, SqlQuery> tables) {
+        return new com.legend.compiler.spec.typed.TypedTableSwap(source, reads, tables, source.info());
+    }
+
+    /** A value the database answers: {@code statement}'s one cell, typed {@code info} (a seed string's text, B2d.3c),
+     *  minted here (only the compiler layers mint typed nodes, invariant 7). */
+    public static TypedSpec plannedValue(SqlQuery statement, ExprType info) {
+        return new TypedPlannedValue(statement, info);
+    }
+
+    /** The test-data census's instance (B2d.3b, 2026-11-12): a {@code RelationalCSVData} literal whose {@code tables}
+     *  are {@code tables}, each {@code [schema, table, values]} -- a planning constant the census computed from the
+     *  model, typed here (only the compiler layers mint typed nodes, invariant 7). */
+    public static TypedSpec relationalCsvData(List<List<String>> tables) {
+        String data = "meta::relational::metamodel::data::RelationalCSVData";
+        String table = "meta::relational::metamodel::data::RelationalCSVTable";
+        ExprType string = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
+        List<TypedSpec> rows = new ArrayList<>(tables.size());
+        for (List<String> t : tables) {
+            Map<String, TypedSpec> ps = new java.util.LinkedHashMap<>();
+            ps.put("schema", new TypedCString(t.get(0), string));
+            ps.put("table", new TypedCString(t.get(1), string));
+            ps.put("values", new TypedCString(t.get(2), string));
+            rows.add(new com.legend.compiler.spec.typed.TypedNewInstance(table, ps,
+                    new ExprType(new Type.ClassType(table), Multiplicity.Bounded.ONE)));
+        }
+        Map<String, TypedSpec> ps = new java.util.LinkedHashMap<>();
+        ps.put("tables", new TypedCollection(rows, new ExprType(new Type.ClassType(table),
+                new Multiplicity.Bounded(rows.size(), rows.size()))));
+        return new com.legend.compiler.spec.typed.TypedNewInstance(data, ps,
+                new ExprType(new Type.ClassType(data), Multiplicity.Bounded.ONE));
+    }
+
     /** Whether {@code body} holds a generator this splice plans ({@code generateTestData}). */
     public static boolean holdsAGenerator(List<TypedSpec> body) {
         for (TypedSpec s : body) {
@@ -203,6 +239,69 @@ public final class GeneratorSplice {
                 effects.add(i);
             }
         }
+    }
+
+    /**
+     * A database effect -- a statement reaching one, through the user functions it calls -- standing between a let of
+     * one of {@code values} (each a planned seed string, {@code generateSeedDataString}: B2d.3) and a read of that let
+     * (or of a let carrying it): refused by name, as {@link #refuseEffectsBeforeARead} refuses one for a generator's
+     * result (the B2d.3 audit's M5, 2026-11-12). A read let is evaluated where it is read (lite's let rule), so the seed
+     * string's statement runs at the read, upstream's at its let: across the effect the two read different data (the
+     * user's ruling of 2026-11-11, "read where read", register S196).
+     */
+    public static void refuseEffectsBeforeAReadOf(List<TypedSpec> body, java.util.Set<TypedSpec> values,
+            SpecCompiler specs) {
+        if (values.isEmpty()) {
+            return;
+        }
+        // each let carrying a planned value, by name: the place after which an effect is refused before its read
+        Map<String, Integer> boundAt = new HashMap<>();
+        Map<com.legend.model.FunctionId, Boolean> memo = new HashMap<>();
+        List<Integer> effects = new ArrayList<>();
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec s = body.get(i);
+            Integer earliest = null;
+            for (String v : com.legend.compiler.spec.typed.FreeVars.of(s)) {
+                Integer at = boundAt.get(v);
+                if (at != null && (earliest == null || at < earliest)) {
+                    earliest = at;
+                }
+            }
+            if (earliest != null) {
+                for (int e : effects) {
+                    if (e > earliest) {
+                        throw new NotImplementedException("a database effect between the seed string's let"
+                                + " (generateSeedDataString) and a read of it: not planned (B2d.3: the seed string's"
+                                + " statement runs where it is read, upstream's at its let, and across the effect the"
+                                + " two read different data)");
+                    }
+                }
+            }
+            if (s instanceof TypedLet let) {
+                boolean holds = holdsAnyOf(let.value(), values);
+                if (holds || earliest != null) {
+                    boundAt.put(let.name(), holds ? (earliest == null ? i : Math.min(i, earliest)) : earliest);
+                } else {
+                    boundAt.remove(let.name());
+                }
+            }
+            if (StatementEffects.reaches(s, GeneratorSplice::writesTheDatabase, specs, memo)) {
+                effects.add(i);
+            }
+        }
+    }
+
+    /** Whether {@code n} holds one of {@code values}, by identity. */
+    private static boolean holdsAnyOf(TypedSpec n, java.util.Set<TypedSpec> values) {
+        if (values.contains(n)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (holdsAnyOf(c, values)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ===== the loads of a generated text, compared (B2d.2: assertTestData) =====

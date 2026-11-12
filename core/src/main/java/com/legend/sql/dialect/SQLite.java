@@ -1533,6 +1533,8 @@ public final class SQLite extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation: BINARY, whatever the column's own (the B2d.3 audit's M4)
+            case BINARY_COLLATE -> writer.append("(").expr(c.args().get(0), 0).append(" COLLATE BINARY)");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());

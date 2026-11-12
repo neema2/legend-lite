@@ -265,4 +265,75 @@ class PostgresArmTest {
             String query) {
         return com.legend.Compiler.query(ctx, query).executionPlan("s::RT");
     }
+
+    /** The test-data generator's seed over a text key, on Postgres (the B2d.3 audit's M4). */
+    private static final String SEED = """
+            Class seed::Code { n: Integer[0..1]; }
+            ###Relational
+            Database seed::DB ( Table SEED_CODES ( CODE VARCHAR(20) PRIMARY KEY, N INTEGER ) )
+            ###Mapping
+            Mapping seed::M ( seed::Code: Relational { ~mainTable [seed::DB] SEED_CODES n: [seed::DB] SEED_CODES.N } )
+            ###Connection
+            RelationalDatabaseConnection seed::Conn { store: seed::DB; %s }
+            ###Runtime
+            Runtime seed::RT { mappings: [seed::M]; connections: [ seed::DB: [ c1: seed::Conn ] ]; }
+            """;
+
+    /**
+     * The seed's text keys in code-point order on Postgres whatever the column's collation (the B2d.3 audit's M4,
+     * 2026-11-12; the design's §3.1, ruled with R4; register S198's note): the keys of a column collated by ICU's root
+     * order ({@code "und-x-icu"}, which sorts {@code a b B Z}) are chosen, written in the seed string and answered by
+     * the seed route as {@code B, Z, a, b} -- the dialect's {@code COLLATE "C"}. This server's initdb runs
+     * {@code --no-locale}, so its default collation is binary already: only a column's own collation shows the
+     * difference, which this table declares.
+     */
+    @Test
+    @DisplayName("the test-data generator's seed orders a text key by its code points on Postgres (COLLATE \"C\")")
+    void theSeedOrdersATextKeyByItsCodePoints() throws Exception {
+        var ctx = com.legend.Compiler.compileModel(SEED.formatted(POSTGRES.connectionBody()));
+        try (Connection c = POSTGRES.open()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : com.legend.setup.CsvSeed.sqls("default\nSEED_CODES\nCODE,N\nb,1\nB,2\na,3\nZ,4\n",
+                        "seed::DB", ctx, POSTGRES.dialect())) {
+                    s.execute(sql);
+                }
+                // the one statement no model or CSV can say: the column's own collation
+                s.execute("ALTER TABLE SEED_CODES ALTER COLUMN CODE TYPE VARCHAR(20) COLLATE \"und-x-icu\"");
+            }
+            java.util.List<String> binary = java.util.List.of("B", "Z", "a", "b");
+            // the premise: the column's own order is not the code points'
+            org.junit.jupiter.api.Assertions.assertNotEquals(binary, column(c, "SELECT CODE FROM SEED_CODES ORDER BY CODE"));
+            com.legend.protocol.spec.LambdaFunction query = (com.legend.protocol.spec.LambdaFunction)
+                    com.legend.compiler.NameResolver.resolveQuery(com.legend.Compiler.parseQuery(
+                            "|seed::Code.all()->project([x|$x.n], ['n'])"));
+            com.legend.testdatagen.TestDataPlanner.Seed seed = com.legend.testdatagen.TestDataPlanner.seed(ctx, query,
+                    "seed::M", false, q -> com.legend.Compiler.query(ctx, com.legend.testdatagen.TestDataPlanner
+                            .underMapping(q, "seed::M", "seed::RT", com.legend.Compiler::parseQuery)).lower("seed::RT", false)
+                    .plan());
+            assertEquals(binary, column(c, POSTGRES.dialect().render(seed.rows())));
+            String line = "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['%s'])";
+            assertEquals(java.util.List.of("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(seed::DB,"
+                    + " 'default', 'SEED_CODES', [\n" + String.join(",\n", line.formatted("B"), line.formatted("Z"),
+                            line.formatted("a"), line.formatted("b")) + "\n  ])\n"), column(c, POSTGRES.dialect().render(
+                                    com.legend.testdatagen.TestDataPlanner.seedString(ctx, seed))));
+            String json = column(c, POSTGRES.dialect().render(com.legend.testdatagen.TestDataPlanner.seedJson(ctx, seed)))
+                    .get(0);
+            assertTrue(json.replace(" ", "").endsWith("\"rowIdentifiers\":["
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"Z\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"b\"}]}]}"), json);
+        }
+    }
+
+    /** {@code sql}'s first column, each row's text. */
+    private static java.util.List<String> column(Connection c, String sql) throws Exception {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
+            while (r.next()) {
+                out.add(r.getString(1));
+            }
+        }
+        return out;
+    }
 }

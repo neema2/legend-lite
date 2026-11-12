@@ -42,6 +42,7 @@ class GeneratedTestDataProgramTest {
               Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(40), MANAGERID INTEGER)
               Table BICYCLE (ID INTEGER PRIMARY KEY, PERSONID INTEGER)
               Table FLAG (ID INTEGER PRIMARY KEY, ACTIVE BIT)
+              Table pet (id INTEGER PRIMARY KEY, name VARCHAR(20))
               Join Person_Bicycle(PERSON.ID = BICYCLE.PERSONID)
             )
             ###Pure
@@ -49,6 +50,7 @@ class GeneratedTestDataProgramTest {
             Class t::Person { name: String[0..1]; bicycles: t::Bicycle[*]; }
             Class t::Bicycle { id: Integer[1]; }
             Class t::Flag { id: Integer[1]; active: Boolean[0..1]; }
+            Class t::Pet { name: String[0..1]; }
             // a user function that reads the database, and one that reaches nothing
             function t::names():String[*] { t::Person.all().name }
             function t::two():Integer[1] { 1 + 1 }
@@ -86,6 +88,7 @@ class GeneratedTestDataProgramTest {
                 bicycles: [t::DB]@Person_Bicycle }
               t::Bicycle: Relational { ~mainTable [t::DB]BICYCLE id: [t::DB]BICYCLE.ID }
               t::Flag: Relational { ~mainTable [t::DB]FLAG id: [t::DB]FLAG.ID, active: [t::DB]FLAG.ACTIVE }
+              t::Pet: Relational { ~mainTable [t::DB]pet name: [t::DB]pet.name }
             )
             """;
 
@@ -94,7 +97,7 @@ class GeneratedTestDataProgramTest {
      *  {@link #run} (the reader reads an empty cell as NULL). */
     private static final String CSV = "default\nPERSON\nID,NAME,MANAGERID\n1,boss,\n2,ann,1\n3,\"o'neil, jr\",1\n"
             + "4,\"two\nlines\",1\n5,---null---,1\n-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,5\n"
-            + "-----\ndefault\nFLAG\nID,ACTIVE\n1,true\n2,false\n";
+            + "-----\ndefault\nFLAG\nID,ACTIVE\n1,true\n2,false\n-----\ndefault\npet\nid,name\n1,rex\n2,tom\n3,kit\n";
 
     private static final String QUERY = "|t::Person.all()->project([p|$p.name, p|$p.bicycles.id], ['n', 'b'])";
 
@@ -142,7 +145,8 @@ class GeneratedTestDataProgramTest {
         for (com.legend.sql.SqlQuery f : TestDataPlanner.plan(ctx, query(QUERY), "t::M", List.of(
                 new TestDataGenerator.TableRowIds("default", "PERSON", List.of(
                         new TestDataGenerator.RowId(List.of("ID"), List.of(2L)),
-                        new TestDataGenerator.RowId(List.of("ID"), List.of(3L))))), null, false).fetches()) {
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(3L))))), null, false,
+                PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN).fetches()) {
             texts.add(backend.dialect().render(f));
         }
         assertEquals(2, texts.size(), "one text per fetch");
@@ -199,8 +203,10 @@ class GeneratedTestDataProgramTest {
         // than its header (upstream reads the header's cells alone), a header-only block (no insert)
         String reordered = "default\nBICYCLE\nID,PERSONID\n12,3\n11,3\n10,2\n-----\n"
                 + "default\nPERSON\nID,NAME\n3,\"o'neil, jr\"\n2,ann\n-----\n";
+        // and the slice saved with CRLF line endings: a CRLF is a line break (the user's G7 ruling, register S302)
         for (String expected : List.of(SLICE, reordered, SLICE.replace("ID,NAME", "id,Name"),
-                SLICE.replace("2,ann", "2,ann,extra"), SLICE + "default\nPERSON\nNAME,MANAGERID\n-----\n")) {
+                SLICE.replace("2,ann", "2,ann,extra"), SLICE + "default\nPERSON\nNAME,MANAGERID\n-----\n",
+                SLICE.replace("\n", "\r\n"))) {
             expect(wrong, expected, List.of(ok), compare(backend, judge, ctx, LETS, expected));
         }
         // a cell with a line break and a NULL, as the generated text writes them and the reader reads them back; an
@@ -210,8 +216,10 @@ class GeneratedTestDataProgramTest {
         for (String expected : List.of(fourFive, fourFive.replace("5,---null---", "5,"))) {
             expect(wrong, expected, List.of(ok), compare(backend, judge, ctx, LETS_45, expected));
         }
-        // a cell, a missing row, an extra row, a missing table, a row twice: each fails, the database's verdict
-        for (String differs : List.of(SLICE.replace("2,ann", "2,anne"), SLICE.replace("11,3\n", ""),
+        // a cell, a missing row, an extra row, a missing table, a row twice: each fails, the database's verdict; and a
+        // padded cell, its spaces kept as upstream keeps them (register S302)
+        for (String differs : List.of(SLICE.replace("2,ann", "2,anne"), SLICE.replace("2,ann", "2, ann"),
+                SLICE.replace("11,3\n", ""),
                 SLICE.replace("12,3\n", "12,3\n14,3\n"), SLICE.substring(0, SLICE.indexOf("default\nBICYCLE")),
                 SLICE.replace("10,2\n", "10,2\n10,2\n"))) {
             expectDiffers(wrong, differs, compare(backend, judge, ctx, LETS, differs));
@@ -234,6 +242,9 @@ class GeneratedTestDataProgramTest {
         planned.put("other\nPERSON\nID\n2\n", "There should be exactly 1 schema with name other found in the provided"
                 + " runtime database(s) [t::DB] at the given connection.");
         planned.put("default\nNOPE\nID\n2\n", "Table \"NOPE\" not found in Schema \"default\" in Database(s) t::DB");
+        // a padded schema line read as written, as upstream reads it (register S302)
+        planned.put(" default\nPERSON\nID\n2\n", "There should be exactly 1 schema with name  default found in the"
+                + " provided runtime database(s) [t::DB] at the given connection.");
         planned.put("default\nPERSON\nID,NOPE\n2,x\n",
                 "Column \"NOPE\" not found in Table \"PERSON\" in Database(s) t::DB");
         planned.put("default\nPERSON\nID,NAME\n2,\"ann\n", "the expected test data: the test data ends inside the"
@@ -354,6 +365,38 @@ class GeneratedTestDataProgramTest {
     }
 
     /**
+     * A table and its columns declared in lower case, unquoted, read over the reload (the B checkpoint's G4, 2026-11-12):
+     * the slice labels each column by its declared name and the swap reads it by that label, spelled as the plan's own
+     * names are, so the pruner and every database read the one spelling -- the slice's DISTINCT dropped, the slice's
+     * select is pruned to what the query reads, and a read left in the table's physical spelling would be folded by H2
+     * ({@code name} read as {@code NAME}) and miss the label {@code "name"}.
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void theReloadReadsALowerCaseColumnByItsOwnLabel(TestBackend backend, PlanningOptions.JudgeMode judge)
+            throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String lets = "let runtime = t::RT.runtimeValue;\n"
+                + "let ids = ^meta::relational::testDataGeneration::TableRowIdentifiers(table ="
+                + " meta::relational::testDataGeneration::getTable(t::DB, 'default', 'pet'), rowIdentifiers ="
+                + " [^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['id'], [1])),"
+                + " ^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['id'], [2]))]);\n"
+                + "let testData = meta::relational::testDataGeneration::generateTestData({|t::Pet.all()->project("
+                + "[x|$x.name], ['n'])}, t::M, $runtime, $ids, [])->toOne();\n"
+                + "let conn = $runtime.connectionStores.connection->toOne()"
+                + "->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);\n"
+                + "let loads = meta::alloy::service::execution::setUpDataSQLs($testData.dataCsvString, t::DB);\n"
+                + "$loads->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $conn));\n";
+        String what = backend.name() + " " + judge;
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + lets
+                + "let r = meta::pure::router::execute(|t::Pet.all()->project([x|$x.name], ['n']), t::M, $runtime,"
+                + " []);\nassertSize($r.values.rows, 2);}"), what);
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + lets
+                + "let r = meta::pure::router::execute(|t::Pet.all()->filter(x|$x.name == 'tom')->project([x|$x.name],"
+                + " ['n']), t::M, $runtime, []);\nassertSize($r.values.rows, 1);}"), what);
+    }
+
+    /**
      * What the read-only reload cannot answer, refused by name (B2d.2's audit, 2026-11-11): after the reload upstream's
      * database holds the slice to the body's end, so any statement but the query run over it that reaches the database
      * -- a read, a write, an {@code executeInDb}, a user function whose body does, before or after that query -- is
@@ -417,6 +460,54 @@ class GeneratedTestDataProgramTest {
                 + "assertSize($testData.sqls, 2);}"));
         expect(wrong, "t::RT2", List.of(other), run(backend, judge, ctx, "{|" + LETS_45.replace("t::RT.runtimeValue",
                 "t::RT2.runtimeValue") + "assertSize($testData.sqls, 2);}"));
+        assertEquals(List.of(), wrong, what);
+    }
+
+    /**
+     * A seed string ({@code generateSeedDataString}, B2d.3) read where it is read, as a generator's result is (the
+     * user's ruling of 2026-11-11, "read where read", register S196): a database effect between its let and a read of
+     * it -- directly, or through a let carrying it -- is refused by name, as upstream reads the seed at its let (the B2d.3
+     * audit's M5, 2026-11-12: until then the seed string's statement ran after the effect, unguarded); an effect before
+     * its let, or none, is not refused by this guard.
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void aSeedStringReadAcrossAnEffectIsRefusedByName(TestBackend backend, PlanningOptions.JudgeMode judge)
+            throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String what = backend.name() + " " + judge;
+        String prelude = "let runtime = t::RT.runtimeValue;\n"
+                + "let conn = $runtime.connectionStores.connection->toOne()"
+                + "->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);\n";
+        String let = "let s = meta::relational::testDataGeneration::generateSeedDataString({|t::Person.all()->project("
+                + "[p|$p.name], ['n'])}, t::M, $runtime, ^meta::pure::runtime::ExecutionContext(), [], []);\n";
+        String seed = prelude + let;
+        String effect = "meta::relational::metamodel::execute::executeInDb('DELETE FROM BICYCLE', $conn);\n";
+        StringBuilder lines = new StringBuilder();
+        for (int i = 1; i <= 6; i++) {
+            lines.append(i > 1 ? ",\n" : "").append("       meta::relational::testDataGeneration::createRowIdentifier("
+                    + "['ID'], [").append(i).append("])");
+        }
+        String expected = "\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default',"
+                + " 'PERSON', [\n" + lines + "\n  ])\n";
+        String refused = "NotImplementedException: a database effect between the seed string's let"
+                + " (generateSeedDataString) and a read of it: not planned (B2d.3: the seed string's statement runs"
+                + " where it is read, upstream's at its let, and across the effect the two read different data)";
+        List<String> wrong = new ArrayList<>();
+        expect(wrong, "an effect, then the read", List.of(refused), run(backend, judge, ctx, "{|" + seed + effect
+                + "assertEquals('" + pure(expected) + "', $s);}"));
+        expect(wrong, "a carrier, an effect, then the read", List.of(refused), run(backend, judge, ctx, "{|" + seed
+                + "let t = $s;\n" + effect + "assertEquals('" + pure(expected) + "', $t);}"));
+        // no effect: the seed string, read where it is read
+        expect(wrong, "no effect", List.of("assertEquals true"), run(backend, judge, ctx, "{|" + seed
+                + "assertEquals('" + pure(expected) + "', $s);}"));
+        // an effect before its let, none between: not this guard's (the harness's executeInDb is refused later, at
+        // its own turn, by decision D2's rule for a connection whose text's language is unknown)
+        List<String> before = run(backend, judge, ctx, "{|" + prelude + effect + let + "assertEquals('"
+                + pure(expected) + "', $s);}");
+        if (before.size() != 1 || !before.get(0).startsWith("NotImplementedException: executeInDb over a connection")) {
+            wrong.add("an effect before the let -> " + before);
+        }
         assertEquals(List.of(), wrong, what);
     }
 
@@ -516,7 +607,7 @@ class GeneratedTestDataProgramTest {
 
     /** {@code text} as a Pure string literal's body. */
     static String pure(String text) {
-        return text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n");
+        return text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r");
     }
 
     private static LambdaFunction query(String text) {

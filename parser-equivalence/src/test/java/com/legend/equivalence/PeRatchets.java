@@ -52,8 +52,23 @@ public final class PeRatchets {
             "own_corpus.matched 3137 -> 3140 (2026-11-11, the B checkpoint's audit fixes on claude/total-wall: M1, C1/C9,"
                     + " C3, LOW 8): their tests' models (a Databricks runtime with a declared parameter, the catalog's"
                     + " staged reads, the text plan's catalog read)",
-            "own_corpus.matched 3140 -> 3142 (2026-11-12, SYNTHESIZE's simple slice, register S303): DuckDbSynthesizeTest's"
-                    + " two models (its every-type table's Database; the demo's TRADES Database)");
+            "own_corpus.matched 3140 -> 3159 (2026-11-12, B2d.3a-e on claude/total-wall-b2d3): the generator's slices'"
+                    + " tests' models (TestDataPlannerTest's view, seed, schema and reload models, TestDataRoutesTest's"
+                    + " store, mapping and runtime)",
+            "own_corpus.matched 3159 -> 3163 (2026-11-12, the B checkpoint's G4 and the routes' parameters on"
+                    + " claude/total-wall-b2d3): their tests' models (TestDataPlannerTest's keyless table and lower-case"
+                    + " view, GeneratedTestDataProgramTest's lower-case table, TestDataRoutesTest's parameterised query)",
+            "own_corpus.matched 3163 -> 3164 (2026-11-12, G7 built as ruled, S302, on claude/total-wall-b2d3):"
+                    + " TestDataTextAsWrittenTest's store",
+            "own_corpus.matched 3164 -> 3166 (2026-11-12, the simple synthesize slice merged, a24f3a5b4):"
+                    + " DuckDbSynthesizeTest's models (its TRADES table and the refusals' tables)",
+            "own_corpus.matched 3166 -> 3179 (2026-11-12, the B2d.3 audit's findings M1-M5, L1-L9): their tests'"
+                    + " models (TestDataPlannerTest's route text, seed shapes, default-schema and view-with-note models,"
+                    + " TestDataTextAsWrittenTest's two-database connection, TestDataRoutesTest's view and unmapped"
+                    + " runtime, PostgresArmTest's seed model)",
+            "own_corpus.matched 3179 -> 3192 (2026-11-12, L9's printing merged, 7d1bfcf8e; it measured 3164 -> 3177 on its"
+                    + " branch): its tests' models (TestDataPlannerTest's timestamp store, GeneratedTestDataPrintingTest's,"
+                    + " TestDataRoutesTest's timestamp route)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

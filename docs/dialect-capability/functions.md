@@ -129,6 +129,7 @@ Database types planned with it: H2.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `composed` |  | 0 |
 | `ENCODE_BASE64` | refused | `encodeBase64 reached H2, which has no to_base64()` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -319,6 +320,7 @@ Database types planned with it: Postgres.
 | `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `(… COLLATE "C")` |  | 0 |
 | `ENCODE_BASE64` | emulated | `replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(gen_random_uuid() AS VARCHAR)` |  | 2 |
@@ -509,6 +511,7 @@ Database types planned with it: Snowflake.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Snowflake, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | spelled | `base64_encode` |  | 3 |
 | `LEVENSHTEIN` | spelled | `editdistance` |  | 2 |
 | `GUID` | spelled | `UUID_STRING` |  | 2 |
@@ -699,6 +702,7 @@ Database types planned with it: Trino.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Trino, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `to_base64(to_utf8(…))` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein_distance` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -889,6 +893,7 @@ Database types planned with it: BigQuery.
 | `CHR` | spelled | `CHR` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached BigQuery, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `asText: TO_BASE64(CAST(… AS BYTES))` |  | 3 |
 | `LEVENSHTEIN` | spelled | `EDIT_DISTANCE` |  | 2 |
 | `GUID` | spelled | `GENERATE_UUID` |  | 2 |
@@ -1079,6 +1084,7 @@ Database types planned with it: Databricks.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Databricks, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `replace(replace(base64(CAST(… AS BINARY)), chr(13), ''), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | spelled | `uuid` |  | 2 |
@@ -1269,6 +1275,7 @@ Database types planned with it: DuckDB.
 | `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `composed` |  | 0 |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -1459,6 +1466,7 @@ Database types planned with it: ClickHouse.
 | `CHR` | spelled | `char` |  | 9 |
 | `UC_FIRST` | emulated | `concat(upperUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))` |  | 5 |
 | `LC_FIRST` | emulated | `concat(lowerUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached ClickHouse, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | spelled | `base64Encode` |  | 3 |
 | `LEVENSHTEIN` | emulated | `toInt64(editDistanceUTF8(…))` |  | 2 |
 | `GUID` | emulated | `toString(generateUUIDv4())` |  | 2 |
@@ -1649,6 +1657,7 @@ Database types planned with it: SQLite.
 | `CHR` | spelled | `char` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `(… COLLATE BINARY)` |  | 0 |
 | `ENCODE_BASE64` | emulated | `base64Encoded` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `lower(hex(randomblob(4)) \|\| '-' \|\| hex(randomblob(2)) \|\| '-4' \|\| substr(hex(r...` |  | 2 |
@@ -1839,6 +1848,7 @@ Database types planned with it: MariaDB.
 | `CHR` | emulated | `CONVERT(CHAR(… USING utf32) USING utf8mb4)` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(UUID() AS CHAR)` |  | 2 |
@@ -2029,6 +2039,7 @@ Database types planned with it: MySQL.
 | `CHR` | emulated | `CONVERT(CHAR(… USING utf32) USING utf8mb4)` | `as MariaDb` | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as MariaDb` | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as MariaDb` | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured` | `as MariaDb` | 0 |
 | `ENCODE_BASE64` | emulated | `REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')` | `as MariaDb` | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` | `as MariaDb` | 2 |
 | `GUID` | emulated | `CAST(UUID() AS CHAR)` | `as MariaDb` | 2 |
@@ -2219,6 +2230,7 @@ Database types planned with it: MongoDB.
 | `CHR` | emulated | `guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}` |  | 0 |
 | `UC_FIRST` | emulated | `firstCased: $toUpper` |  | 0 |
 | `LC_FIRST` | emulated | `firstCased: $toLower` |  | 0 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MongoDB, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `guarded: {"$convert": {"input":,  {"$convert": {"input": , , "to": "binData", "format": "utf8"}},,  "to": "string", "format": "base64"}}` |  | 0 |
 | `LEVENSHTEIN` | emulated | `guarded` |  | 0 |
 | `GUID` | emulated | `{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...` |  | 0 |
@@ -2409,6 +2421,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `CHR` | spelled | `char` |  | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | — |
+| `BINARY_COLLATE` | emulated | `composed` |  | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | — |
@@ -2599,6 +2612,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `CHR` | spelled | `char` | `as EngineStyleH2` | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleH2` | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleH2` | — |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` |  | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleH2` | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleH2` | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleH2` | — |
@@ -2789,6 +2803,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `CHR` | spelled | `char` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` | `as EngineStyleDB2` | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleDB2, as EngineStyleH2` | — |

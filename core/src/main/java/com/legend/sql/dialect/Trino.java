@@ -942,6 +942,9 @@ public final class Trino extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on Trino, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached Trino, whose binary collation is not measured");
             case TODAY -> writer.append("current_date");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());

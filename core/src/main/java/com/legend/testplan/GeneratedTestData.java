@@ -15,6 +15,7 @@ import com.legend.protocol.spec.ValueSpecification;
 import com.legend.setup.CsvSeed;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.SqlDialect;
+import com.legend.testdatagen.TestDataCensus;
 import com.legend.testdatagen.TestDataGenerationNatives;
 import com.legend.testdatagen.TestDataGenerator;
 import com.legend.testdatagen.TestDataPlanner;
@@ -35,9 +36,13 @@ final class GeneratedTestData {
     private GeneratedTestData() {
     }
 
-    /** {@code typed} with each test-data generator it binds planned, or {@code typed} itself where it binds none;
-     *  statements written in {@code dialect}, the body's, whose runtime is {@code runtimeFqn}. */
-    static TypedQuery planned(TypedQuery typed, SqlDialect dialect, @com.legend.base.Nullable String runtimeFqn) {
+    /** {@code given} with each census replaced by its constant and each test-data generator it binds planned, or as
+     *  it is where it holds neither;
+     *  statements written in {@code dialect}, the body's, whose runtime is {@code runtimeFqn}; a timestamp printed as
+     *  {@code printing} says (the body's judging rules: L9, 2026-11-12). */
+    static TypedQuery planned(TypedQuery given, SqlDialect dialect, @com.legend.base.Nullable String runtimeFqn,
+            TestDataPlanner.Printing printing) {
+        TypedQuery typed = withSeedStrings(withCensus(given), runtimeFqn);
         if (!GeneratorSplice.holdsAGenerator(typed.body())) {
             return typed;
         }
@@ -46,7 +51,7 @@ final class GeneratedTestData {
         return typed.withBody(GeneratorSplice.spliced(body, ctx, typed.specs(), new GeneratorSplice.Generator() {
             @Override
             public GeneratorSplice.Generated plan(TypedTestDataGen g) {
-                return generated(g, ctx, dialect, body, runtimeFqn);
+                return generated(g, typed, dialect, body, runtimeFqn, printing);
             }
 
             @Override
@@ -61,6 +66,104 @@ final class GeneratedTestData {
                         TestDataPlanner.slice(((Generated) generated).planned(), ctx, dbFqn));
             }
         }));
+    }
+
+    /** {@code typed} with each seed string ({@code generateSeedDataString}, the checker's {@code seedString}
+     *  carrier) the planned statement whose one cell is its text ({@link TestDataPlanner#seedString}, B2d.3): the seed
+     *  of its query over its mapping on the body's runtime, a root table only (upstream's seed string refuses a view
+     *  root, TDG:222); the query's parameters beyond none refused by name. */
+    private static TypedQuery withSeedStrings(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn) {
+        List<TypedSpec> body = new ArrayList<>(typed.body().size());
+        boolean changed = false;
+        // each seed string's planned value, by identity: a database effect between its let and a read of it is
+        // refused by name (the B2d.3 audit's M5; read where read, S196)
+        java.util.Set<TypedSpec> planned = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (TypedSpec s : typed.body()) {
+            TypedSpec r = seedStrings(s, typed, runtimeFqn, planned);
+            changed |= r != s;
+            body.add(r);
+        }
+        GeneratorSplice.refuseEffectsBeforeAReadOf(body, planned, typed.specs());
+        return changed ? typed.withBody(body) : typed;
+    }
+
+    private static TypedSpec seedStrings(TypedSpec n, TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            java.util.Set<TypedSpec> planned) {
+        if (n instanceof TypedTestDataGen g && "seedString".equals(g.flavor())) {
+            List<ValueSpecification> ps = g.params();
+            theBodysRuntime(ps.get(2), typed.body(), runtimeFqn);
+            if (ps.size() > 4 && !(ps.get(4) instanceof com.legend.protocol.spec.PureCollection c
+                    && c.values().isEmpty())) {
+                throw new com.legend.error.NotImplementedException("generateSeedDataString with the query's parameters"
+                        + " bound: not planned (B2d.3 seeds a query with none)");
+            }
+            LambdaFunction query = (LambdaFunction) ps.get(0);
+            String mapping = ((PackageableElementPtr) ps.get(1)).fullPath();
+            TestDataPlanner.Seed seed = TestDataPlanner.seed(typed.context(), query, mapping, false,
+                    queries(typed, mapping, runtimeFqn));
+            TypedSpec value = GeneratorSplice.plannedValue(TestDataPlanner.seedString(typed.context(), seed), g.info());
+            planned.add(value);
+            return value;
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> next = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = seedStrings(k, typed, runtimeFqn, planned);
+            changed |= r != k;
+            next.add(r);
+        }
+        return changed ? n.withChildren(next) : n;
+    }
+
+    /** The user's query lowered as a product query on the body's runtime, read through {@code mapping} whatever
+     *  mappings that runtime declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function
+     *  with the given mapping): typed, inlined, resolved and lowered by the planner (the seed carries its keys through
+     *  it). */
+    static TestDataPlanner.Queries queries(TypedQuery typed, String mapping,
+            @com.legend.base.Nullable String runtimeFqn) {
+        return q -> {
+            String runtime = java.util.Objects.requireNonNull(runtimeFqn,
+                    "the seed's query is planned on the body's runtime, and the body names none");
+            return com.legend.Compiler.query(typed.context(), TestDataPlanner.underMapping(q, mapping, runtime,
+                    com.legend.Compiler::parseQuery))
+                    .lower(runtime, false).plan();
+        };
+    }
+
+    /** {@code typed} with each test-data census ({@code getRelationalCSVDataFromQuery}, the checker's
+     *  {@link com.legend.compiler.spec.typed.TypedCsvCensus}) the instance it is, a planning constant
+     *  ({@link TestDataCensus}, B2d.3): a model fact, nothing executed. */
+    private static TypedQuery withCensus(TypedQuery typed) {
+        List<TypedSpec> body = new ArrayList<>(typed.body().size());
+        boolean changed = false;
+        for (TypedSpec s : typed.body()) {
+            TypedSpec r = census(s, typed.context());
+            changed |= r != s;
+            body.add(r);
+        }
+        return changed ? typed.withBody(body) : typed;
+    }
+
+    private static TypedSpec census(TypedSpec n, ModelContext ctx) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedCsvCensus c) {
+            return GeneratorSplice.relationalCsvData(TestDataCensus.rows(ctx, c.query(), c.mappingFqn()));
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> next = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = census(k, ctx);
+            changed |= r != k;
+            next.add(r);
+        }
+        return changed ? n.withChildren(next) : n;
     }
 
     /** Whether the loads of {@code planned}'s text and of the test-data text {@code expected} on {@code dbFqn} are the
@@ -92,8 +195,9 @@ final class GeneratedTestData {
     /** {@code g} planned by {@link TestDataPlanner}: its runtime argument the body's ({@link #theBodysRuntime}), its
      *  arguments after the query, the mapping and the runtime classified (the row identifiers, the milestoning dates,
      *  the hash flag; each a literal, a non-literal refused by name), its fetches' texts written in {@code dialect}. */
-    private static Generated generated(TypedTestDataGen g, ModelContext ctx, SqlDialect dialect, List<TypedSpec> body,
-            @com.legend.base.Nullable String runtimeFqn) {
+    private static Generated generated(TypedTestDataGen g, TypedQuery typed, SqlDialect dialect, List<TypedSpec> body,
+            @com.legend.base.Nullable String runtimeFqn, TestDataPlanner.Printing printing) {
+        ModelContext ctx = typed.context();
         List<ValueSpecification> ps = g.params();
         theBodysRuntime(ps.get(2), body, runtimeFqn);
         LambdaFunction query = (LambdaFunction) ps.get(0);
@@ -104,12 +208,24 @@ final class GeneratedTestData {
         for (int i = 3; i < ps.size(); i++) {
             TestDataGenerationNatives.classifyArg(ps.get(i), rowIds, dates, hash);
         }
-        TestDataPlanner.Planned p = TestDataPlanner.plan(ctx, query, mapping, rowIds, dates[0], hash[0]);
+        TestDataPlanner.Planned p = TestDataPlanner.plan(ctx, query, mapping, rowIds, dates[0], hash[0],
+                views(typed, runtimeFqn, dialect), printing);
         List<String> texts = new ArrayList<>(p.fetches().size());
         for (SqlQuery f : p.fetches()) {
             texts.add(dialect.render(f));
         }
         return new Generated(List.copyOf(texts), p.csv(), p);
+    }
+
+    /** A view's own fetch, planned by the planner over the generator's clauses
+     *  ({@link com.legend.planner.BodyPlanner#viewFetch}): the body's model and compiler, its runtime, written in the
+     *  body's dialect, no session. */
+    static TestDataPlanner.Views views(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SqlDialect dialect) {
+        com.legend.planner.PlanEnv env = com.legend.planner.PlanEnv.of(typed.context(), runtimeFqn, dialect,
+                java.util.Set.of(), com.legend.planner.ProductStatements::noGenerator);
+        return (db, view, reads, tables) -> com.legend.planner.BodyPlanner.viewFetch(db, view, reads, tables,
+                typed.specs(), env);
     }
 
     /**

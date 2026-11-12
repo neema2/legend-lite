@@ -39,8 +39,14 @@ public final class TestPlanner {
                 runtimeFqn).type());
         // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
         // body is classed and planned as any other
-        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn)), runtimeFqn, dialect,
-                options);
+        // its texts print a timestamp as the body is judged (L9, the user's ruling of 2026-11-12): lite's own rules the
+        // clean form, the compatibility rules upstream's
+        com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules()
+                == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
+                ? com.legend.testdatagen.TestDataPlanner.Printing.COMPAT
+                : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
+        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing)), runtimeFqn,
+                dialect, options);
     }
 
     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */

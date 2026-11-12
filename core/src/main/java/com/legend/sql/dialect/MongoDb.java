@@ -1077,6 +1077,9 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + ", " + G0 + ", 1]}]}"));
             case UC_FIRST -> firstCased(writer, a, "$toUpper");
             case LC_FIRST -> firstCased(writer, a, "$toLower");
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on MongoDB, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached MongoDB, whose binary collation is not measured");
             case REPEAT_STR -> MongoJson.guarded(writer, a, MongoJson.text("{\"$reduce\": {\"input\": {\"$range\":"
                     + " [0, {\"$max\": [0, " + G1 + "]}]}, \"initialValue\": \"\", \"in\": {\"$concat\": [" + VALUE
                     + ", " + G0 + "]}}}"));
