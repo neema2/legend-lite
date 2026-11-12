@@ -86,8 +86,7 @@ final class StressSuites {
                 : backend.type() == TestBackends.referee().type() ? ServiceTestRunner.Sessions.FRESH_PER_TEST
                         : ServiceTestRunner.Sessions.SHARED;
         // each: a private in-memory database per session, as the backend opens it; H2's carries the engine's own
-        // session settings (its dialect's session statements, H2.sessionSetup: NON_KEYWORDS incl VALUE/YEAR,
-        // MODE LEGACY; until 2026-11-12 the connector's URL settings), as the
+        // session settings (H2Connector.SETTINGS: NON_KEYWORDS incl VALUE/YEAR, MODE=LEGACY), as the
         // engine's test connection does — a bare in-memory H2 refused ESG_METRIC.VALUE
         var sessionType = backend.type();
         // the ledgers' names: the platform's lane bare, any other suffixed with its backend's name

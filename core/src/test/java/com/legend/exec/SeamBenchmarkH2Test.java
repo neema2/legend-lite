@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 
 /** {@link SeamBenchmark} on H2: a generated relation of {@code seam.rows.h2} rows (2 million by default), as our
  *  sessions open it and with lazy query execution. */
@@ -19,7 +20,7 @@ final class SeamBenchmarkH2Test {
 
     @Test
     void h2() throws Exception {
-        try (Connection c = com.legend.testbackend.TestBackends.of(com.legend.model.ConnectionDefinition.DatabaseType.H2).open()) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:seam" + H2Connector.SETTINGS)) {
             h2(c, "h2", false);   // H2 as our sessions open it buffers a result whole: what fails here is the finding
         }
     }
@@ -27,7 +28,7 @@ final class SeamBenchmarkH2Test {
     /** H2 with lazy query execution: its driver otherwise buffers a result whole (the default's peak heap says so). */
     @Test
     void h2Lazy() throws Exception {
-        try (Connection c = com.legend.testbackend.TestBackends.of(com.legend.model.ConnectionDefinition.DatabaseType.H2).open()) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:seamlazy" + H2Connector.SETTINGS)) {
             SeamBenchmark.exec(c, "SET LAZY_QUERY_EXECUTION 1");
             h2(c, "h2 lazy", true);
         }
@@ -36,7 +37,7 @@ final class SeamBenchmarkH2Test {
     /** Small fetches ({@link SeamBenchmark#smallFetches}) on H2 as our sessions open it. */
     @Test
     void smallFetches() throws Exception {
-        try (Connection c = com.legend.testbackend.TestBackends.of(com.legend.model.ConnectionDefinition.DatabaseType.H2).open()) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:seamsmall" + H2Connector.SETTINGS)) {
             bench(c, java.util.Arrays.stream(SeamBenchmark.smallSizes()).max().orElseThrow());
             SeamBenchmark.smallFetches("h2", c, DatabaseType.H2);
         }

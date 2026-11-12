@@ -19,28 +19,9 @@ abstract class InProcessBackend implements TestBackend {
         return name();
     }
 
-    /** A private instance, its session as a plan's target opens one: its dialect's session statements run first (the
-     *  C checkpoint's SHOULD-FIX 3, 2026-11-12: H2's settings are plan statements, no longer on its connector's URL, and
-     *  a harness that seeds the session by its own text needs them as a plan's run does; idempotent, a plan's first
-     *  statement runs them again). */
     @Override
     public final Connection open() throws SQLException {
-        return withSession(com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type())).openPrivate(),
-                dialect());
-    }
-
-    /** {@code c} with {@code dialect}'s session statements run on it; closed if one fails. */
-    static Connection withSession(Connection c, com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
-        try (java.sql.Statement st = c.createStatement()) {
-            for (String s : dialect.sessionSetup()) {
-                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                st.execute(s);
-            }
-        } catch (SQLException e) {
-            c.close();
-            throw e;
-        }
-        return c;
+        return com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type())).openPrivate();
     }
 
     @Override
