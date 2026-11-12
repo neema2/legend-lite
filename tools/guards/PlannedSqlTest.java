@@ -68,6 +68,42 @@ class PlannedSqlTest {
             "studio/src/app/app.ts", Set.of("playground"),
             "studio/src/ui/editor.ts", Set.of("Playground"));
 
+    /**
+     * EVERY USE OF A MINT, by identifier (2026-11-12, the C checkpoint's second audit: a mint file's own
+     * {@code fromPlan(a.sql + ' LIMIT 1')} was unseen): each file's references to fromPlan, allFromPlan, notPlanned and
+     * plannedProjectData in its code -- comments and string text blanked -- exactly. A new call in a mint file, or one
+     * gone, moves its count, with a dated note here.
+     */
+    static final Map<String, Integer> MINT_REFERENCES = Map.of(
+            // 2026-11-12 (the second audit): the hosts' plan runner, each step's statement typed as it is read
+            "engine-client/src/plan-runner.ts", 16,
+            // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
+            "engine-client/src/legend/wasm-grammar.ts", 8,
+            "datacube/src/lite-planner.ts", 8,
+            "datacube/src/planner.ts", 2,
+            // the definitions themselves, and the mints' own test
+            "engine-client/src/planned-sql.ts", 8,
+            "engine-client/test/planned-sql.test.ts", 5,
+            // the SQL playground: its import and its one named send
+            "studio/src/backend/run.ts", 2);
+
+    /**
+     * THE TYPE SYSTEM'S ESCAPE HATCHES in the product's TypeScript (host_sql.txt's [typescript]; 2026-11-12, the C
+     * checkpoint's second audit: {@code as never}, {@code as any} and a suppressed check satisfy the PlannedSql brand
+     * as a cast does), counted per file in its code: shrink-only -- a new one fails, one gone lowers its file's count
+     * here, dated.
+     */
+    static final Map<String, Integer> ESCAPES = Map.of(
+            // 2026-11-12, measured (the second audit): each a cast of a JSON, protocol or library value, none a statement
+            "datacube/src/app.ts", 1,
+            "datacube/src/binning.ts", 1,
+            "datacube/src/generate-rows.ts", 2,
+            "datacube/src/headless/timeseries.ts", 1,
+            "datacube/src/query.ts", 1,
+            "query/src/app/persist.ts", 1,
+            "query/src/ui/columns.ts", 9,
+            "studio/src/backend/query-builder.ts", 4);
+
     /** The tests' folders, read beside the product's (host_sql.txt's): where a cast would hide a host's own SQL. */
     static final List<String> TESTS = List.of("engine-client/test", "datacube/test", "query/test", "studio/test");
 
@@ -101,6 +137,10 @@ class PlannedSqlTest {
     private static final Pattern CAST = Pattern.compile("\\bas\\s+PlannedSql\\b|(?<![\\w$])<PlannedSql>|\\bis\\s+PlannedSql\\b");
     private static final Pattern NOT_PLANNED_CALL = Pattern.compile("\\bnotPlanned\\s*\\(");
     private static final Pattern STRING_LITERAL = Pattern.compile("(['\"`])((?:(?!\\1)[^\\\\]|\\\\.)*)\\1");
+    private static final Pattern MINT_IDENTIFIER = Pattern.compile(
+            "(?<![\\w$])(?:fromPlan|allFromPlan|notPlanned|plannedProjectData)(?![\\w$])");
+    private static final Pattern ESCAPE = Pattern.compile("\\bas\\s+(?:never|any)\\b");
+    private static final Pattern SUPPRESSION = Pattern.compile("@ts-(?:ignore|expect-error|nocheck)");
     private static final Pattern RUN_TS_IMPORT = Pattern.compile(
             "\\bimport\\s*(type\\s+)?\\{([^}]*)\\}\\s*from\\s*['\"`][^'\"`]*backend/run(?:\\.ts)?['\"`]");
     private static final Pattern PLAYGROUND_READ = Pattern.compile("\\.\\s*playground\\b|\\[\\s*['\"`]playground['\"`]\\s*\\]"
@@ -225,6 +265,143 @@ class PlannedSqlTest {
             }
         }
         return reasons;
+    }
+
+    /**
+     * {@code src}'s code: each comment and each string's text blanked to spaces (newlines kept), a template's
+     * {@code ${...}} kept as code -- what an identifier count and a cast count read, prose and messages left out.
+     */
+    static String code(String src) {
+        StringBuilder out = new StringBuilder(src.length());
+        java.util.ArrayDeque<int[]> templates = new java.util.ArrayDeque<>();   // each open ${, its brace depth
+        int i = 0;
+        int n = src.length();
+        while (i < n) {
+            char c = src.charAt(i);
+            char next = i + 1 < n ? src.charAt(i + 1) : '\0';
+            if (c == '/' && next == '/') {
+                while (i < n && src.charAt(i) != '\n') {
+                    out.append(' ');
+                    i++;
+                }
+            } else if (c == '/' && next == '*') {
+                int end = src.indexOf("*/", i + 2);
+                end = end < 0 ? n : end + 2;
+                for (; i < end; i++) {
+                    out.append(src.charAt(i) == '\n' ? '\n' : ' ');
+                }
+            } else if (c == '\'' || c == '"') {
+                out.append(c);
+                i++;
+                while (i < n && src.charAt(i) != c && src.charAt(i) != '\n') {
+                    if (src.charAt(i) == '\\' && i + 1 < n) {
+                        out.append(' ');
+                        i++;
+                    }
+                    out.append(' ');
+                    i++;
+                }
+                if (i < n) {
+                    out.append(src.charAt(i));
+                    i++;
+                }
+            } else if (c == '`' || (c == '}' && !templates.isEmpty() && templates.peek()[0] == 0)) {
+                if (c == '}') {
+                    templates.pop();
+                }
+                out.append(c);
+                i++;
+                // a template's text, to its end or its next ${
+                while (i < n && src.charAt(i) != '`' && !(src.charAt(i) == '$' && i + 1 < n && src.charAt(i + 1) == '{')) {
+                    if (src.charAt(i) == '\\' && i + 1 < n) {
+                        out.append(' ');
+                        i++;
+                    }
+                    out.append(src.charAt(i) == '\n' ? '\n' : ' ');
+                    i++;
+                }
+                if (i < n && src.charAt(i) == '`') {
+                    out.append('`');
+                    i++;
+                } else if (i < n) {
+                    out.append("${");
+                    i += 2;
+                    templates.push(new int[] {0});
+                }
+            } else {
+                if (!templates.isEmpty()) {
+                    if (c == '{') {
+                        templates.peek()[0]++;
+                    } else if (c == '}') {
+                        templates.peek()[0]--;
+                    }
+                }
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    private static int count(Pattern p, String text) {
+        int found = 0;
+        Matcher m = p.matcher(text);
+        while (m.find()) {
+            found++;
+        }
+        return found;
+    }
+
+    @Test
+    void everyUseOfAMintIsCounted_andNoNewEscapeFromTheTypeSystem() throws IOException {
+        List<String> product = folders().get("typescript");
+        List<String> read = new ArrayList<>(product);
+        read.addAll(TESTS);
+        Map<String, Integer> references = new TreeMap<>();
+        Map<String, Integer> escapes = new TreeMap<>();
+        for (String file : inventory()) {
+            if (!file.matches(".*\\.(?:[cm]?ts|tsx)$") || !under(file, read)) {
+                continue;
+            }
+            String code = code(read(file));
+            int refs = count(MINT_IDENTIFIER, code);
+            if (refs > 0) {
+                references.put(file, refs);
+            }
+            if (under(file, product)) {
+                int e = count(ESCAPE, code) + count(SUPPRESSION, read(file));
+                if (e > 0) {
+                    escapes.put(file, e);
+                }
+            }
+        }
+        assertEquals(new TreeMap<>(MINT_REFERENCES), references, "each file's uses of a mint, by identifier, pinned"
+                + " (PlannedSqlTest.MINT_REFERENCES): a new one is a statement typed where no plan was read");
+        List<String> grew = new ArrayList<>();
+        List<String> shrank = new ArrayList<>();
+        for (Map.Entry<String, Integer> e : escapes.entrySet()) {
+            int pinned = ESCAPES.getOrDefault(e.getKey(), 0);
+            if (e.getValue() > pinned) {
+                grew.add(e.getKey() + ": " + e.getValue() + " > " + pinned);
+            }
+        }
+        for (Map.Entry<String, Integer> e : ESCAPES.entrySet()) {
+            int now = escapes.getOrDefault(e.getKey(), 0);
+            if (now < e.getValue()) {
+                shrank.add(e.getKey() + ": " + now + " < " + e.getValue());
+            }
+        }
+        assertEquals(List.of(), grew, "a new `as never`, `as any` or suppressed check in the product's TypeScript: it"
+                + " satisfies the PlannedSql brand as a cast does (PlannedSqlTest.ESCAPES, shrink-only)");
+        assertEquals(List.of(), shrank, "an escape gone: lower its file's count in PlannedSqlTest.ESCAPES, dated");
+    }
+
+    @Test
+    void theCodeReaderBlanksProseAndText() {
+        String src = "const a = fromPlan(x); // fromPlan in a comment\n/* as any */ const b = 'fromPlan as never';\n"
+                + "const c = `${fromPlan(y)} as any ${`as never`}`; const d = z as any;";
+        assertEquals(2, count(MINT_IDENTIFIER, code(src)), code(src));
+        assertEquals(1, count(ESCAPE, code(src)), code(src));
     }
 
     @Test
