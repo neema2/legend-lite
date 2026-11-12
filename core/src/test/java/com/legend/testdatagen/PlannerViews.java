@@ -12,6 +12,19 @@ final class PlannerViews {
     private PlannerViews() {
     }
 
+    /** The user's query lowered as the test planner lowers it for a seed ({@code GeneratedTestData.queries}): its last
+     *  statement read {@code ->from(mapping, runtime)}, planned as a product query. */
+    static TestDataPlanner.Queries queries(ModelContext ctx, String mapping, String runtime) {
+        return q -> {
+            java.util.List<com.legend.protocol.spec.ValueSpecification> body = new java.util.ArrayList<>(q.body());
+            com.legend.protocol.spec.ValueSpecification last = body.remove(body.size() - 1);
+            body.add(new com.legend.protocol.spec.AppliedFunction("from", java.util.List.of(last,
+                    new com.legend.protocol.spec.PackageableElementPtr(mapping),
+                    new com.legend.protocol.spec.PackageableElementPtr(runtime)), java.util.List.of()));
+            return com.legend.Compiler.query(ctx, q.withBody(body)).lower(runtime, false).plan();
+        };
+    }
+
     /** No view to fetch: a model whose queries read none. */
     static TestDataPlanner.Views of(ModelContext ctx) {
         return (db, view, reads, tables) -> {

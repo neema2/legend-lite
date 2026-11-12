@@ -110,6 +110,12 @@ public final class GeneratorSplice {
         return new com.legend.compiler.spec.typed.TypedTableSwap(source, reads, tables, source.info());
     }
 
+    /** A value the database answers: {@code statement}'s one cell, typed {@code info} (a seed string's text, B2d.3c),
+     *  minted here (only the compiler layers mint typed nodes, invariant 7). */
+    public static TypedSpec plannedValue(SqlQuery statement, ExprType info) {
+        return new TypedPlannedValue(statement, info);
+    }
+
     /** The test-data census's instance (B2d.3b, 2026-11-12): a {@code RelationalCSVData} literal whose {@code tables}
      *  are {@code tables}, each {@code [schema, table, values]} -- a planning constant the census computed from the
      *  model, typed here (only the compiler layers mint typed nodes, invariant 7). */

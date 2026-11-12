@@ -260,6 +260,93 @@ class TestDataPlannerTest {
         }
     }
 
+    /** The seed (B2d.3): the starting table's keys carried through the query, distinct, sorted by key, and -- the user's
+     *  ruling R2, register S198 -- all of them where there are 10 or fewer, else the 10 at rows 1 + floor(i*(n-1)/9):
+     *  the first, the last and 8 evenly between; the seed string writes them as upstream's Pure code, a text key's
+     *  quote, backslash and line feed escaped as toRepresentation escapes them. */
+    private static final String SEED_MODEL = """
+            ###Relational
+            Database t::DB
+            (
+              Table KEYS (ID INTEGER PRIMARY KEY, NAME VARCHAR(40))
+              Table CODES (CODE VARCHAR(20) PRIMARY KEY, N INTEGER)
+            )
+            ###Pure
+            Class t::K { id: Integer[1]; name: String[0..1]; }
+            Class t::C { code: String[1]; n: Integer[0..1]; }
+            ###Mapping
+            Mapping t::M
+            (
+              t::K: Relational { ~mainTable [t::DB]KEYS id: [t::DB]KEYS.ID, name: [t::DB]KEYS.NAME }
+              t::C: Relational { ~mainTable [t::DB]CODES code: [t::DB]CODES.CODE, n: [t::DB]CODES.N }
+            )
+            """;
+
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theSeedSpreadsItsTenKeys(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = SEED_MODEL + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "
+                + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
+                + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+        ModelContext ctx = Compiler.compileModel(model);
+        StringBuilder csv = new StringBuilder("default\nKEYS\nID,NAME\n");
+        for (int i = 25; i >= 1; i--) {
+            csv.append(i).append(",k").append(i).append('\n');
+        }
+        csv.append("-----\ndefault\nCODES\nCODE,N\n\"a'b\",1\n\"c\\d\",2\n\"e\nf\",3\n");
+        TestDataPlanner.Queries queries = PlannerViews.queries(ctx, "t::M", "t::RT");
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls(csv.toString(), "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            // 25 keys: the 10 at rows 1, 3, 6, 9, 11, 14, 17, 19, 22, 25 of the sorted keys
+            assertEquals(List.of(1L, 3L, 6L, 9L, 11L, 14L, 17L, 19L, 22L, 25L), keys(c, dialect, TestDataPlanner.seed(
+                    ctx, query("|t::K.all()->project([k|$k.name], ['n'])"), "t::M", false, queries)));
+            // the keys the query reaches, not the table's: 13 of them, over 10, spread from 13 to 25
+            assertEquals(List.of(13L, 14L, 15L, 17L, 18L, 19L, 21L, 22L, 23L, 25L), keys(c, dialect,
+                    TestDataPlanner.seed(ctx, query("|t::K.all()->filter(k|$k.id > 12)->project([k|$k.name], ['n'])"),
+                            "t::M", false, queries)));
+            // 10 or fewer: all of them, as the seed string writes them
+            TestDataPlanner.Seed three = TestDataPlanner.seed(ctx,
+                    query("|t::K.all()->filter(k|$k.id <= 3)->project([k|$k.name], ['n'])"), "t::M", false, queries);
+            assertEquals("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'KEYS', [\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['ID'], [1]),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['ID'], [2]),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['ID'], [3])\n  ])\n",
+                    text(c, dialect, TestDataPlanner.seedString(ctx, three)));
+            // a text key: quoted, its quote, backslash and line feed escaped (Pure's toRepresentation)
+            TestDataPlanner.Seed codes = TestDataPlanner.seed(ctx, query("|t::C.all()->project([x|$x.n], ['n'])"),
+                    "t::M", false, queries);
+            assertEquals("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'CODES', [\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['a\\'b']),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['c\\\\d']),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['e\\nf'])\n  ])\n",
+                    text(c, dialect, TestDataPlanner.seedString(ctx, codes)));
+        }
+    }
+
+    /** The seed's keys, as the database answers its rows statement. */
+    private static List<Long> keys(Connection c, SqlDialect dialect, TestDataPlanner.Seed seed) throws Exception {
+        List<Long> out = new java.util.ArrayList<>();
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(seed.rows()))) {
+            while (r.next()) {
+                out.add(r.getLong(1));
+            }
+        }
+        return out;
+    }
+
+    /** A one-cell statement's text. */
+    private static String text(Connection c, SqlDialect dialect, com.legend.sql.SqlQuery q) throws Exception {
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(q))) {
+            assertTrue(r.next());
+            return r.getString(1);
+        }
+    }
+
     /** No identifiers for a starting table -- the root, a view's main table: upstream's error, its example's keys not
      *  read (the user's ruling R3, 2026-11-11; register S300). */
     @ParameterizedTest

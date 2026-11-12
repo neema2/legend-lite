@@ -21404,3 +21404,34 @@ The corpus lanes, measured (DuckDB's host judge at this commit, `corpus_one`; bo
   one write; the table and its NULL row come from the CSV. The test's pin is 1, dated.
 - **G7 (CRLF):** posted to the orchestrator (2026-11-12), not landed. Upstream reads both sites through one Pure reader
   that keeps the `'\r'`; lite strips it. The corpus impact is being measured.
+
+## 2026-11-12 — B2d.3c: the seed and the seed string (S198; S143 narrowed)
+
+The B2d.3 design's §1.2 and §3.1, with the user's rulings R2 and R4 (2026-11-11). `TestDataPlanner.seed` plans
+upstream's seed rule (`generateSeedDataGenerationFunction`, TDG:256-290; `columnProjectionsFromRoot`,
+pureToSQLQuery.pure:7328):
+- **The table:** the query's one root table (a view root's main table, where the caller admits a view: the server's
+  route); two or more roots are refused with upstream's words.
+- **The keys:** its primary key, else its non-null columns except a text or binary one over 1000, else refused with
+  upstream's words.
+- **Carried:** the keys go to the query's root select, through each derived table and into each GROUP BY (upstream's
+  `recursiveAddColumnsToRoot`), over the query as the planner lowers it on the body's runtime. A root the pass cannot
+  reach is refused by name.
+- **Chosen (R2):** the keys are DISTINCT and sorted by key. With 10 or fewer, all of them are taken; otherwise the 10 at
+  rows `1 + floor(i*(n-1)/9)`, i = 0..9 (register S198). Upstream takes any 10 the database picks.
+
+`TestDataPlanner.seedString` writes upstream's `generateSeedDataString` text in SQL: the `createTableRowIdentifiers(...)`
+code with a line per key row, sorted, each value as Pure's `toRepresentation` writes it (a text key's quote, backslash
+and line feed escaped; a whole number its digits; another type refused by name). The lines are sorted in the
+database's order of their text (R4, S198's note). The test planner plans a body's `generateSeedDataString` as that
+statement (`GeneratedTestData.withSeedStrings`): a root table only, as upstream's; bound query parameters are refused by
+name.
+
+Tests: `TestDataPlannerTest.theSeedSpreadsItsTenKeys` (DuckDB, H2, SQLite):
+- 25 keys, of which the 10 at rows 1, 3, 6, 9, 11, 14, 17, 19, 22, 25;
+- the 13 keys a filtered query reaches, spread;
+- 3 keys as the seed string;
+- a text key's three escapes.
+
+The corpus lanes: `testGenerateSeedDataWithQuotedColumns` passes on both (3 quoted key columns, 4 rows), off both
+accepted rosters.

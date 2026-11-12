@@ -504,6 +504,258 @@ public final class TestDataPlanner {
         return hashStrings && isText(column(def, c).dataType()) ? hashString(cell) : cell;
     }
 
+    // ===== the seed: the starting rows a query reaches (B2d.3; the user's ruling R2, 2026-11-11) =====
+
+    /** The user's query lowered by the planner as a product query over the generator's mapping and runtime: the
+     *  statement the seed carries its keys through. The planner's, not the generator's. */
+    @FunctionalInterface
+    public interface Queries {
+        SqlQuery lowered(LambdaFunction query);
+    }
+
+    /** The seed of a query: its starting table (the one root, or a view root's main table: {@code db} names the
+     *  database it is reached through), the table's keys, and {@code rows}, the statement whose rows are the keys
+     *  chosen -- each column labelled as a fetch labels it ({@link #tempColumn}). */
+    public record Seed(String db, TestDataGenerator.Located loc, String table, List<String> keys, SqlSelect rows) {
+        public Seed {
+            keys = List.copyOf(keys);
+        }
+    }
+
+    /** The most keys a seed takes: upstream's {@code top 10}. */
+    static final int SEED_LIMIT = 10;
+
+    /**
+     * The seed of {@code query} over {@code mappingFqn}: upstream's rule ({@code generateSeedDataGenerationFunction},
+     * TDG:256-290; {@code columnProjectionsFromRoot}, pureToSQLQuery.pure:7328) -- the query's one root table (a view
+     * root's main table, where {@code viewRoot} admits one: the server's route; the seed string refuses it, TDG:222),
+     * its primary key (else its non-null columns but a text or binary one over 1000, else refused with upstream's
+     * words), carried to the query's root select ({@link #carried}), DISTINCT -- and of those distinct keys, by the
+     * user's ruling R2 ("Order by but pick some row numbers from beginning middle end"; register S198) rather than any
+     * 10 the database picks: sorted by key, all of them where there are 10 or fewer, else the 10 at rows
+     * {@code 1 + floor(i * (n - 1) / 9)}, {@code i = 0..9} -- the first, the last and 8 evenly between. Deterministic
+     * on every database; the database does it.
+     */
+    public static Seed seed(ModelContext ctx, LambdaFunction query, String mappingFqn, boolean viewRoot,
+            Queries queries) {
+        List<ScanRelations.Rel> roots = ScanRelations.relTree(ctx, query, mappingFqn);
+        if (roots.size() != 1) {
+            throw new AssertFailed(viewRoot
+                    ? "Seed data generation currently supports queries with a single root table/view (unions are not"
+                            + " supported)"
+                    : "Seed data generation currently supports queries with a single root (got: " + roots.size()
+                            + ")");
+        }
+        ScanRelations.Rel root = roots.get(0);
+        String db = root.db();
+        String table = java.util.Objects.requireNonNull(root.table(), "a root with no relation");
+        if (ScanRelations.isView(ctx, db, table)) {
+            if (!viewRoot) {
+                throw new AssertFailed("Seed data generation currently supports queries with a root table"
+                        + " (unions/views are not supported, got: the view " + table + ")");
+            }
+            ScanRelations.Rel base = ScanRelations.viewExpansion(ctx, db, table).tree();
+            db = base.db();
+            table = java.util.Objects.requireNonNull(base.table(), "a view with no main table");
+        }
+        TestDataGenerator.Located loc = locate(ctx, db, table);
+        List<String> keys = seedKeys(loc.def(), table);
+        SqlSelect carried = carried(queries.lowered(query), physical(loc.schema(), table), loc.def(), keys);
+        List<SqlSelect.Projection> distinct = new ArrayList<>(keys.size());
+        List<String> labels = new ArrayList<>(keys.size());
+        for (String k : keys) {
+            String label = tempColumn(loc.def(), k);
+            labels.add(label);
+            distinct.add(new SqlSelect.Projection(SqlExpr.Column.derived(ROOT, carriedName(k)), label, null));
+        }
+        SqlSelect distinctKeys = new SqlSelect(distinct, true, new SqlSource.Subselect(carried, ROOT, null), null,
+                List.of(), null, null, List.of(), null, null, List.of());
+        List<SqlSelect.SortKey> byKeys = new ArrayList<>(labels.size());
+        List<SqlSelect.Projection> ranked = new ArrayList<>(labels.size() + 2);
+        for (String l : labels) {
+            byKeys.add(SqlSelect.SortKey.asc(SqlExpr.Column.derived("_d", l)));
+            ranked.add(new SqlSelect.Projection(SqlExpr.Column.derived("_d", l), l, null));
+        }
+        ranked.add(new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
+                List.of()), List.of(), byKeys, null), "_rn", null));
+        ranked.add(new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
+                false, List.of()), List.of(), List.of(), null), "_n", null));
+        SqlSelect rankedKeys = new SqlSelect(ranked, false, new SqlSource.Subselect(distinctKeys, "_d", null), null,
+                List.of(), null, null, List.of(), null, null, List.of());
+        SqlExpr rn = SqlExpr.Column.derived("_s", "_rn");
+        SqlExpr n = SqlExpr.Column.derived("_s", "_n");
+        SqlExpr chosen = SqlExpr.Call.of(SqlFn.LESS_EQUAL, n, new SqlExpr.IntLit(SEED_LIMIT));
+        for (int i = 0; i < SEED_LIMIT; i++) {
+            SqlExpr at = SqlExpr.Call.of(SqlFn.PLUS, new SqlExpr.IntLit(1), SqlExpr.Call.of(SqlFn.INT_DIVIDE,
+                    SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.IntLit(i), new SqlExpr.Group(SqlExpr.Call.of(SqlFn.MINUS,
+                            n, new SqlExpr.IntLit(1)))), new SqlExpr.IntLit(SEED_LIMIT - 1)));
+            chosen = SqlExpr.Call.of(SqlFn.OR, chosen, SqlExpr.Call.of(SqlFn.EQUAL, rn, at));
+        }
+        List<SqlSelect.Projection> out = new ArrayList<>(labels.size());
+        List<SqlSelect.SortKey> order = new ArrayList<>(labels.size());
+        for (String l : labels) {
+            out.add(new SqlSelect.Projection(SqlExpr.Column.derived("_s", l), l, null));
+            order.add(SqlSelect.SortKey.asc(SqlExpr.Column.derived("_s", l)));
+        }
+        SqlSelect rows = new SqlSelect(out, false, new SqlSource.Subselect(rankedKeys, "_s", null), chosen,
+                List.of(), null, null, order, null, null, List.of());
+        return new Seed(db, loc, table, keys, rows);
+    }
+
+    /**
+     * {@code seed} as upstream's seed string ({@code generateSeedDataString}, TDG:216-230): Pure code naming the table
+     * and its keys -- {@code \ncreateTableRowIdentifiers(<db>, '<schema>', '<table>', [\n}, a line per key row
+     * {@code       createRowIdentifier(['<key>',...], [<value>,...])}, the lines sorted and joined by {@code ,\n},
+     * then {@code \n  ])\n} -- each value as Pure's {@code toRepresentation} writes it (a text quoted, its {@code \},
+     * {@code '} and line feed escaped; a whole number its digits), in SQL; one statement, its one cell the text. The
+     * lines are sorted by the database's own order of their text, which is upstream's sort for any text of characters
+     * up to U+FFFF (the user's ruling R4: register S198's note).
+     */
+    public static SqlQuery seedString(ModelContext ctx, Seed seed) {
+        String names = seed.keys().stream().map(k -> "'" + pureName(seed.loc().def(), k) + "'")
+                .collect(java.util.stream.Collectors.joining(","));
+        List<SqlExpr> parts = new ArrayList<>();
+        parts.add(new SqlExpr.StringLit("       meta::relational::testDataGeneration::createRowIdentifier([" + names
+                + "], ["));
+        for (int i = 0; i < seed.keys().size(); i++) {
+            if (i > 0) {
+                parts.add(new SqlExpr.StringLit(","));
+            }
+            String k = seed.keys().get(i);
+            parts.add(representation(SqlExpr.Column.derived("_k", tempColumn(seed.loc().def(), k)),
+                    column(seed.loc().def(), k), seed.table()));
+        }
+        parts.add(new SqlExpr.StringLit("])"));
+        SqlExpr line = new SqlExpr.Call(SqlFn.CONCAT, parts, SqlTyping.UNKNOWN);
+        SqlExpr lines = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(line, new SqlExpr.StringLit(",\n")), false,
+                List.of(SqlSelect.SortKey.asc(line)));
+        String owner = owningDatabase(ctx, seed.db(), seed.loc().def());
+        SqlExpr text = new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit(
+                "\nmeta::relational::testDataGeneration::createTableRowIdentifiers(" + owner + ", '"
+                        + seed.loc().schema() + "', '" + seed.table() + "', [\n"),
+                SqlExpr.Call.of(SqlFn.COALESCE, lines, new SqlExpr.StringLit("")),
+                new SqlExpr.StringLit("\n  ])\n")), SqlTyping.UNKNOWN);
+        return new SqlSelect(List.of(new SqlSelect.Projection(text, "seedDataString", null)), false,
+                new SqlSource.Subselect(seed.rows(), "_k", null), null, List.of(), null, null, List.of(), null, null,
+                List.of());
+    }
+
+    /** A key value as Pure's {@code toRepresentation} writes it (legend-pure {@code toRepresentation.pure:40-51}), by
+     *  its column's declared type: a text quoted, {@code \} {@code '} and line feed escaped; a whole number its
+     *  digits; any other type refused by name (no test pins its spelling). */
+    private static SqlExpr representation(SqlExpr v, DatabaseDefinition.ColumnDefinition c, String table) {
+        if (isText(c.dataType())) {
+            SqlExpr escaped = replace(replace(v, new SqlExpr.StringLit("\\"), "\\\\"), new SqlExpr.StringLit("'"),
+                    "\\'");
+            escaped = replace(escaped, SqlExpr.Call.of(SqlFn.CHR, new SqlExpr.IntLit(10)), "\\n");
+            return new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit("'"), escaped,
+                    new SqlExpr.StringLit("'")), SqlTyping.UNKNOWN);
+        }
+        return switch (c.dataType()) {
+            case RelationalDataType.BigInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            case RelationalDataType.Integer_ x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            case RelationalDataType.SmallInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            case RelationalDataType.TinyInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            default -> throw new NotImplementedException("testDataGen: the seed string's key " + table + "."
+                    + c.name() + " of type " + com.legend.plan.PlanText.spell(c.dataType()) + ": its Pure"
+                    + " representation is not planned (B2d.3 writes a text key and a whole-number key)");
+        };
+    }
+
+    /** A column's name as upstream's model writes it: a quoted name with its quotes. */
+    private static String pureName(DatabaseDefinition.TableDefinition def, String c) {
+        DatabaseDefinition.ColumnDefinition cd = column(def, c);
+        return cd.quoted() ? "\"" + cd.name() + "\"" : cd.name();
+    }
+
+    /** The seed's key columns of {@code def}: its primary key in declaration order, else its non-null columns but a
+     *  text or binary column longer than 1000 (TDG:266-271), else upstream's refusal (TDG:272). */
+    static List<String> seedKeys(DatabaseDefinition.TableDefinition def, String table) {
+        List<String> pk = def.columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                .map(DatabaseDefinition.ColumnDefinition::name).toList();
+        if (!pk.isEmpty()) {
+            return pk;
+        }
+        List<String> nonNull = def.columns().stream().filter(c -> c.notNull() && !long1000(c.dataType()))
+                .map(DatabaseDefinition.ColumnDefinition::name).toList();
+        if (nonNull.isEmpty()) {
+            throw new AssertFailed("Table : " + table + " must have atleast 1 primary key or non-null column to"
+                    + " utilise this feature");
+        }
+        return nonNull;
+    }
+
+    private static boolean long1000(RelationalDataType t) {
+        return t instanceof RelationalDataType.Varchar v && v.size() > 1000
+                || t instanceof RelationalDataType.Varbinary b && b.size() > 1000;
+    }
+
+    /** A carried key column's name: upstream's {@code gen_col_projection_<name>}, its quotes stripped, a space an
+     *  underscore. */
+    private static String carriedName(String key) {
+        return "gen_col_projection_" + bareName(key).replace(' ', '_');
+    }
+
+    /**
+     * {@code q} with the key columns {@code keys} of the table {@code physical} carried to its root select
+     * (upstream's {@code recursiveAddColumnsToRoot}, pureToSQLQuery.pure:7371-7398): a select reading the table as
+     * its first source projects them; a select reading a derived table first carries them up from it; each select on
+     * the way that groups is grouped by them as well. A query whose root is none of these -- a set operation, a
+     * clause the lowering extracted, a star select -- is refused by name.
+     */
+    private static SqlSelect carried(SqlQuery q, String physical, DatabaseDefinition.TableDefinition def,
+            List<String> keys) {
+        if (!(q instanceof SqlSelect s)) {
+            throw notCarried("its statement is a " + q.getClass().getSimpleName());
+        }
+        if (s.projections().isEmpty()) {
+            throw notCarried("its root select reads every column (a star)");
+        }
+        SqlSource first = leftmost(s.from());
+        List<SqlExpr> read = new ArrayList<>(keys.size());
+        SqlSource from = s.from();
+        if (first instanceof SqlSource.Table t && !t.call() && t.name().equals(physical)) {
+            for (String k : keys) {
+                read.add(stored(t.alias(), def, k));
+            }
+        } else if (first instanceof SqlSource.Subselect sub) {
+            SqlSelect inner = carried(sub.inner(), physical, def, keys);
+            from = replaceLeftmost(s.from(), new SqlSource.Subselect(inner, sub.alias(), sub.frameName()));
+            for (String k : keys) {
+                read.add(SqlExpr.Column.derived(sub.alias(), carriedName(k)));
+            }
+        } else {
+            throw notCarried("its root reads " + first.getClass().getSimpleName() + " first, not the table "
+                    + physical);
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>(s.projections());
+        for (int i = 0; i < keys.size(); i++) {
+            ps.add(new SqlSelect.Projection(read.get(i), carriedName(keys.get(i)), null));
+        }
+        List<SqlExpr> groupBy = s.groupBy();
+        if (!groupBy.isEmpty()) {
+            groupBy = new ArrayList<>(groupBy);
+            groupBy.addAll(read);
+        }
+        return new SqlSelect(ps, s.distinct(), from, s.where(), groupBy, s.having(), s.qualify(), s.orderBy(),
+                s.limit(), s.offset(), List.of());
+    }
+
+    private static SqlSource leftmost(SqlSource s) {
+        return s instanceof SqlSource.Join j ? leftmost(j.left()) : s;
+    }
+
+    private static SqlSource replaceLeftmost(SqlSource s, SqlSource with) {
+        return s instanceof SqlSource.Join j
+                ? new SqlSource.Join(replaceLeftmost(j.left(), with), j.right(), j.kind(), j.on(), j.outputs())
+                : with;
+    }
+
+    private static NotImplementedException notCarried(String why) {
+        return new NotImplementedException("testDataGen: the seed's keys cannot be carried through the query: " + why
+                + " (B2d.3 carries them through selects and derived tables, as upstream's columnProjectionsFromRoot)");
+    }
+
     // ===== the comparison with an expected text (B2d.2: assertTestData, as upstream decides it) =====
 
     /** One block of an expected test-data text, as lite's reader reads it: its schema, table, header cells and rows,
