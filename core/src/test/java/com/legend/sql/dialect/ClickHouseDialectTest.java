@@ -147,7 +147,9 @@ class ClickHouseDialectTest {
                 List.of(col("t0", "xs", ints))), "x", null)), false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null, List.of());
         for (SqlSource.Join.Kind kind : List.of(SqlSource.Join.Kind.CROSS_LATERAL, SqlSource.Join.Kind.LEFT_LATERAL)) {
-            SqlSource from = new SqlSource.Join(people, new SqlSource.Subselect(marker, "t1", null), kind, null);
+            // a LEFT lateral carries ON TRUE (its join requires one); a CROSS lateral none
+            SqlSource from = new SqlSource.Join(people, new SqlSource.Subselect(marker, "t1", null), kind,
+                    kind == SqlSource.Join.Kind.LEFT_LATERAL ? new SqlExpr.BoolLit(true) : null);
             String sql = render(new SqlSelect(List.of(), false, from, null, List.of(), null, null, List.of(), null, null,
                     List.of()));
             String head = sql.substring(0, sql.indexOf("FROM"));
