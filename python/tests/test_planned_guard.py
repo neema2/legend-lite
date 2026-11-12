@@ -28,7 +28,7 @@ FILES = runfiles.Create()
 # (compiler.py), the load runners (projects.py) and execute's plan half (engine.py); the rest take the type, the one
 # send, the bridge's check or the type's check (require).
 IMPORTS = {
-    '_headless.py': {'across_the_bridge', 'answered_texts', 'send'},
+    '_headless.py': {'Answered', 'across_the_bridge', 'send'},
     '_host.py': {'PlannedSql', 'send'},
     'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan'},
     'engine.py': {'PlannedSql', 'across_the_bridge', 'from_plan', 'send'},

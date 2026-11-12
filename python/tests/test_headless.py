@@ -21,7 +21,7 @@ import legend_lite as ll
 from legend_lite import datacube
 from legend_lite import _pool
 from legend_lite._headless import Headless, bundle
-from legend_lite._planned import PlannedSql, answered_texts
+from legend_lite._planned import PlannedSql
 from legend_lite.engine import Engine
 from legend_lite.frames import Frames
 
@@ -1001,7 +1001,7 @@ class OneRead(unittest.TestCase):
         """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64. The test
         stands in for DataCube's planner: its own question is declared answered first, as the bridge sends only what the
         session's planner answered (the orchestrator's ruling of 2026-11-12, _planned.py across_the_bridge)."""
-        answered_texts('OK\n' + sql, self.headless._answered)
+        self.headless._answered.record('plan', 'OK\n' + json.dumps({'sql': sql}))
         said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
         return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
 
