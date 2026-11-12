@@ -188,6 +188,78 @@ class TestDataPlannerTest {
                 new TestDataCensus.Table("default", "PERSON", List.of("ID", "NAME"))), census);
     }
 
+    /** The reload's tables by schema (the B checkpoint audit's G2, 2026-11-11): a database's flat table list holds a
+     *  named schema's tables too, by their bare name, so the reload read them twice -- two schemas' tables of one name,
+     *  or a default table beside a schema's of its name, refused as "declared twice"; a schema's lone table read as a
+     *  phantom default one. Upstream reloads each table where its schema declares it. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theReloadReadsEachTableInItsSchema(DatabaseType type) {
+        String store = """
+                ###Relational
+                Database t::DB
+                (
+                  Table T (ID INTEGER PRIMARY KEY, N INTEGER)
+                  Schema S1 ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) )
+                  Schema S2 ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) )
+                )
+                Database t::Other ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) )
+                Database t::One ( Schema S ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) ) )
+                ###Pure
+                Class t::X { id: Integer[1]; n: Integer[0..1]; }
+                ###Mapping
+                Mapping t::M ( t::X: Relational { ~mainTable [t::DB]S1.T id: [t::DB]S1.T.ID, n: [t::DB]S1.T.N } )
+                """;
+        ModelContext ctx = Compiler.compileModel(store);
+        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query("|t::X.all()->project([x|$x.n], ['n'])"),
+                "t::M", List.of(new TestDataGenerator.TableRowIds("S1", "T", List.of(
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))), null, false, PlannerViews.of(ctx));
+        // two schemas' T and the default T: each its own table, none refused as declared twice
+        assertEquals(java.util.Set.of("T", "S1.T", "S2.T"), TestDataPlanner.slice(planned, ctx, "t::DB").keySet());
+        assertEquals(java.util.Set.of("t::DB|T", "t::DB|S1.T", "t::DB|S2.T"), TestDataPlanner.reads(ctx, "t::DB"));
+        // a schema's lone T is no default T: the reload reads S.T alone, so another database's default T is not
+        // taken for one it replaces
+        assertEquals(java.util.Set.of("t::One|S.T"), TestDataPlanner.reads(ctx, "t::One"));
+    }
+
+    /** The reload's rows as upstream's table holds them (the B checkpoint audit's G4, 2026-11-11): the slice's rows are
+     *  its fetches' distinct rows, each empty or ---null--- text cell then NULL -- upstream inserts each row, so a
+     *  keyless table's ('', 1) and (NULL, 1) are two rows, not one. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel("""
+                ###Relational
+                Database t::DB ( Table K (NAME VARCHAR(10), N INTEGER) )
+                ###Pure
+                Class t::K { name: String[0..1]; n: Integer[0..1]; }
+                ###Mapping
+                Mapping t::M ( t::K: Relational { ~mainTable [t::DB]K name: [t::DB]K.NAME, n: [t::DB]K.N } )
+                """);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                // the table and its NULL row from the data (an empty cell is NULL); the empty text no CSV can load
+                for (String sql : CsvSeed.sqls("default\nK\nNAME,N\n,1\n", "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+                s.execute("INSERT INTO K VALUES ('', 1)");
+            }
+            TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx,
+                    query("|t::K.all()->project([k|$k.name, k|$k.n], ['a', 'b'])"), "t::M",
+                    List.of(new TestDataGenerator.TableRowIds("default", "K", List.of(
+                            new TestDataGenerator.RowId(List.of("N"), List.of(1L))))), null, false, PlannerViews.of(ctx));
+            com.legend.sql.SqlQuery k = TestDataPlanner.slice(planned, ctx, "t::DB").get("K");
+            int rows = 0;
+            try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(k))) {
+                while (r.next()) {
+                    rows++;
+                }
+            }
+            assertEquals(2, rows, dialect.render(k));
+        }
+    }
+
     /** No identifiers for a starting table -- the root, a view's main table: upstream's error, its example's keys not
      *  read (the user's ruling R3, 2026-11-11; register S300). */
     @ParameterizedTest

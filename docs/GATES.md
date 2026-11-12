@@ -21385,3 +21385,22 @@ The corpus lanes, measured (DuckDB's host judge at this commit, `corpus_one`; bo
     (`GeneratorSplice.relationalCsvData`); `TestDataCensus` computes the model fact alone (`rows`).
   - The funnel register gains `TestDataCensus.java` with its tenet argument (`JavaEvalLedgerTest`, dated).
 - **Tests:** `BodyRouterParityTest.systemRoutedPrograms`' census body, refused until B2d.3b, now runs and passes.
+
+## 2026-11-12 — the B checkpoint's generator items G2 and G4 (B2d.2's reload)
+
+- **G2 (MEDIUM): the reload read every schema's tables twice.** `TestDataPlanner.tablesOf` and `declarations` walked
+  the database's flat table list, which also holds each named schema's tables by bare name. Consequences:
+  - two schemas' `T`, or a default `T` beside `S.T`, were refused as "declared twice";
+  - a lone `S.T` also read as a phantom default `T`, so another database's default `T` was taken for a reloaded one.
+
+  Both now read the default schema's own tables (`defaultSchemaTables()`) and each schema's under its name.
+  `TestDataPlannerTest.theReloadReadsEachTableInItsSchema` (DuckDB, H2, SQLite) fails without it: "the table T is
+  declared by t::DB and by t::DB".
+- **G4 (LOW): the reload merged rows only its NULL reading made equal.** The slice's statement applied DISTINCT after
+  reading an empty or `---null---` text as NULL, so a keyless table's `('', 1)` and `(NULL, 1)` reloaded as one row;
+  upstream inserts two. The DISTINCT is dropped: the fetches' rows are already distinct.
+  `TestDataPlannerTest.theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual` fails without it (1 row for 2).
+- **Guard moved:** `FixtureWriteCensusTest` 907 -> 908. The G4 test seeds its empty text, which no CSV can load, with
+  one write; the table and its NULL row come from the CSV. The test's pin is 1, dated.
+- **G7 (CRLF):** posted to the orchestrator (2026-11-12), not landed. Upstream reads both sites through one Pure reader
+  that keeps the `'\r'`; lite strips it. The corpus impact is being measured.

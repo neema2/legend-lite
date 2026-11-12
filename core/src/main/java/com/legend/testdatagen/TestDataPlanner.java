@@ -860,7 +860,9 @@ public final class TestDataPlanner {
             SqlSelect rows = g == null
                     ? new SqlSelect(ps, false, new SqlSource.Dual(), new SqlExpr.BoolLit(false), List.of(), null,
                             null, List.of(), null, null, List.of())
-                    : new SqlSelect(ps, true, new SqlSource.Subselect(inline(fetchedRows(g.clauses()), inlined), "_u",
+                    // its fetches' distinct rows, each then as the reload reads it -- no DISTINCT after: a keyless
+                    // table's ('', 1) and (NULL, 1) are two rows upstream's reload inserts (the audit's G4)
+                    : new SqlSelect(ps, false, new SqlSource.Subselect(inline(fetchedRows(g.clauses()), inlined), "_u",
                             null), null, List.of(), null, null, List.of(), null, null, List.of());
             out.put(e.getKey(), rows);
         }
@@ -913,7 +915,9 @@ public final class TestDataPlanner {
         }
         DatabaseDefinition db = ctx.findDatabase(dbFqn).orElseThrow(() -> new IllegalStateException(
                 "testDataGen: no database '" + dbFqn + "', an include of the model's"));
-        for (DatabaseDefinition.TableDefinition t : db.tables()) {
+        // the default schema's own tables: the flat list holds every schema's too, by bare name (the B checkpoint
+        // audit's G2, 2026-11-11)
+        for (DatabaseDefinition.TableDefinition t : db.defaultSchemaTables()) {
             out.computeIfAbsent(t.name(), k -> new ArrayList<>()).add(dbFqn);
         }
         for (DatabaseDefinition.SchemaDefinition sc : db.schemas()) {
@@ -949,7 +953,8 @@ public final class TestDataPlanner {
         }
         DatabaseDefinition db = ctx.findDatabase(dbFqn).orElseThrow(() -> new IllegalStateException(
                 "testDataGen: no database '" + dbFqn + "' to reload the slice into"));
-        for (DatabaseDefinition.TableDefinition t : db.tables()) {
+        // the default schema's own tables, each schema's under its own name below (G2)
+        for (DatabaseDefinition.TableDefinition t : db.defaultSchemaTables()) {
             add(out, owners, t.name(), t, dbFqn);
         }
         for (DatabaseDefinition.SchemaDefinition sc : db.schemas()) {
