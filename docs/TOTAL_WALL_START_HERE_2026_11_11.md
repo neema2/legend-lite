@@ -852,6 +852,14 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   - How it is held:
     - E3 counts these per family and dialect as a second shrink-only pin, where an unclassified pattern fails by name;
     - D's shrink-only list marks the sites D owns.
+- **Mixed lists: the hybrid** (the user, 2026-11-12: "hybrid mixed list is good, lets go with that"). On the product
+  path a list has one element type:
+  - Number lists are promoted by a fixed rule (Integer+Decimal -> Decimal, Integer+Float -> Float; integer literals
+    above 2^53 refused);
+  - Date lists: StrictDate+DateTime -> DateTime;
+  - a truly mixed (Any) list is an implicit Variant (a JSON array): kinds kept, a date tagged, sort across kinds
+    refused by name.
+  Today's tagged lists leave the product. Each answer change is a "product" register row. E builds it after P1a.
 - **D starts with a refresh of its brief and inventory against the current head** (both were written before B and C),
   then the guards (D2's, and G5's ArchUnit rule, each with a planted violator, today's sites a shrink-only list), then
   D1.0-D1.7.
