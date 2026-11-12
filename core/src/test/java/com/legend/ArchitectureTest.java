@@ -2419,7 +2419,8 @@ final class ArchitectureTest {
 
     /** THE AUTHORED DOOR'S REACH (the rule of {@link #theAuthoredDoorIsReachedFromTheBoundaryAlone}): the planner's
      *  {@code Authored.plan} from {@code planner.Boundary.authored} alone, and that from the tab's export
-     *  ({@code TabExports.authoredOrError}) and the native entry ({@code nativelib.Compiler.authored}) alone. */
+     *  ({@code TabExports.authoredOrError}) alone: the native entry's door went with the hosts' 23a6882cf (the merge of
+     *  2026-11-12 drops its allowance; the import still holds the native entry, so the rule proves it reaches neither). */
     static final com.tngtech.archunit.lang.ArchRule AUTHORED_DOOR = noClasses()
             .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
                     com.tngtech.archunit.core.domain.JavaAccess<?>>("the authored door reached past the boundary") {
@@ -2430,20 +2431,19 @@ final class ArchitectureTest {
                         return !madeFrom(access, "planner.Boundary", "authored");
                     }
                     if (target.equals("planner.Boundary#authored")) {
-                        // the native entry until the hosts worker deletes it (the orchestrator, 2026-11-12)
-                        return !(madeFrom(access, "planner.TabExports", "authoredOrError")
-                                || madeFrom(access, "com.legend.nativelib.Compiler", "authored"));
+                        return !madeFrom(access, "planner.TabExports", "authoredOrError");
                     }
                     return false;
                 }
             })
             .as("a person's own statement is planned through the boundary alone: Authored.plan from Boundary.authored,"
-                    + " that from the tab's export and the native entry");
+                    + " that from the tab's export alone");
 
     /**
      * THE AUTHORED DOOR IS REACHED FROM THE BOUNDARY ALONE (the third re-audit's SHOULD-FIX 5, 2026-11-12): a statement
      * a person wrote (Studio's SQL playground) is planned by {@code Authored.plan}, which only
-     * {@code planner.Boundary.authored} calls, which only the tab's {@code authoredOrError} and the native entry call --
+     * {@code planner.Boundary.authored} calls, which only the tab's {@code authoredOrError} calls (the native entry's
+     * door deleted, 2026-11-12) --
      * by a call or a reference, read from the classes of core, the boundary, the tab's adapter and the native entry
      * ({@code //core:authored_door_jars}). Until then the pin was a source regex
      * ({@code PlannedSqlTest.AUTHORED_JAVA_REFERENCE}), which {@code Authored::plan} or a static import passed.
