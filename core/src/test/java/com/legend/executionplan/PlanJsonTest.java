@@ -217,7 +217,7 @@ class PlanJsonTest {
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v48 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v49 plan"), refused.getMessage());
     }
 
     @Test

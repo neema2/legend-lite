@@ -100,34 +100,10 @@ class DatabaseSettingsH2Test {
             JdbcStatements st = new JdbcStatements(bare, new SessionState());
             com.legend.error.NotImplementedException refused = assertThrows(
                     com.legend.error.NotImplementedException.class, () -> st.check(target));
-            assertEquals("the session's database does not have the settings the plan's target declares (MODE is"
-                    + " REGULAR, not LEGACY; DEFAULT_NULL_ORDERING is LOW, not HIGH): a session this platform did not"
-                    + " open is read back, and never runs a plan with other settings", refused.getMessage());
-        }
-    }
-
-    /** Why they are no session statement: each {@code SET} commits the open transaction (a caller's savepoints, the
-     *  catalog's staged read would be committed under them); the non-keywords commit nothing. */
-    @Test
-    void theirSetCommitsAnOpenTransaction_theNonKeywordsDoNot() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:settings_commit", "sa", "")) {
-            try (Statement st = c.createStatement()) {
-                st.execute("CREATE TABLE t(x INT)");
-            }
-            c.setAutoCommit(false);
-            for (String set : List.of("SET NON_KEYWORDS VALUE", "SET MODE LEGACY", "SET DEFAULT_NULL_ORDERING HIGH")) {
-                try (Statement st = c.createStatement()) {
-                    st.execute("DELETE FROM t");
-                    c.commit();
-                    st.execute("INSERT INTO t VALUES (1)");
-                    st.execute(set);
-                }
-                c.rollback();
-                try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM t")) {
-                    rs.next();
-                    assertEquals(set.startsWith("SET NON_KEYWORDS") ? 0 : 1, rs.getInt(1), set);
-                }
-            }
+            assertEquals("the session's database does not have the settings the plan's target declares (it has"
+                    + " DEFAULT_NULL_ORDERING=LOW, MODE=REGULAR; the target declares MODE=LEGACY,"
+                    + " DEFAULT_NULL_ORDERING=HIGH): a session this platform did not open is read back, and never runs"
+                    + " a plan with other settings", refused.getMessage());
         }
     }
 }

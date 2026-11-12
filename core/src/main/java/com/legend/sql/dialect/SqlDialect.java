@@ -60,7 +60,7 @@ public interface SqlDialect {
      * session statements ({@link #sessionSetup}), which run inside a caller's transaction. The plan's target carries
      * them as data ({@code ExecutionPlan.Target#settings}): exec writes them where it opens the database (H2's in-memory
      * URL), and on a session it did not open sends {@code readBack} -- this dialect's statement answering each
-     * setting's name and value -- and refuses a session whose values differ, by name, never running the plan with
+     * setting the database has otherwise -- and refuses a session it answers any for, by name, never running the plan with
      * other semantics. Null where the database needs none. Each dialect answers, as {@link #raiseReadBack}: a default
      * would let a new database's settings go undeclared without a word. Until 2026-11-12 the H2 connector put them on
      * every in-memory URL, outside every plan.
@@ -68,7 +68,8 @@ public interface SqlDialect {
     @com.legend.base.Nullable DatabaseSettings databaseSettings();
 
     /** The settings a database must have ({@code required}, each a name and its value, as the database reports it) and
-     *  the statement that reads them back ({@code readBack}: rows of a setting's name and its value). */
+     *  the statement that reads them back ({@code readBack}: one text per required setting the database has OTHERWISE,
+     *  its name and its value; no row where it has them all -- the database compares, exec carries the texts). */
     record DatabaseSettings(java.util.List<Setting> required, String readBack) {
         public DatabaseSettings {
             required = java.util.List.copyOf(required);

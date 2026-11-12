@@ -157,7 +157,8 @@ final class JdbcStatements implements Statements {
             try {
                 StatementOrigin.sent(StatementOrigin.SESSION, read.text());
                 try (ResultSet rs = st.executeQuery(read.text())) {
-                    held = rs.next() ? rs.getString(1) : null;
+                    List<String> texts = texts(rs);
+                    held = texts.isEmpty() ? null : texts.get(0);
                 }
             } catch (SQLException unread) {
                 try {
@@ -193,33 +194,36 @@ final class JdbcStatements implements Statements {
     /**
      * {@code settings}, the ones the plan's target says its database must have, READ BACK from a session this platform
      * did not open (a caller's, a borrowed one, a URL's; the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling of
-     * 2026-11-12): the target's own read-back statement sent as written and counted as the session's, each row a
-     * setting's name and value; a value that differs, or a setting the database does not report, refuses the session by
-     * name -- the plan is never run with other semantics (H2's null ordering would order its answer otherwise).
+     * 2026-11-12): the target's own read-back statement sent as written and counted as the session's. It answers one
+     * text for each setting the database has otherwise -- the DATABASE compares; exec carries the texts unread -- and
+     * any row refuses the session by name: the plan is never run with other semantics (H2's null ordering would order
+     * its answer otherwise).
      */
     static void verifySettings(Connection c, ExecutionPlan.DatabaseSettings settings) {
         PlannedSql read = settings.plannedReadBack();
-        java.util.Map<String, String> reported = new java.util.LinkedHashMap<>();
+        List<String> otherwise;
         StatementOrigin.sent(StatementOrigin.SESSION, read.text());
         try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(read.text())) {
-            while (rs.next()) {
-                reported.put(rs.getString(1), rs.getString(2));
-            }
+            otherwise = texts(rs);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
-        List<String> differ = new java.util.ArrayList<>();
-        for (ExecutionPlan.Setting s : settings.required()) {
-            if (!s.value().equals(reported.get(s.name()))) {
-                differ.add(s.name() + " is " + (reported.containsKey(s.name()) ? reported.get(s.name()) : "not reported")
-                        + ", not " + s.value());
-            }
-        }
-        if (!differ.isEmpty()) {
+        if (!otherwise.isEmpty()) {
             throw new com.legend.error.NotImplementedException("the session's database does not have the settings the"
-                    + " plan's target declares (" + String.join("; ", differ) + "): a session this platform did not"
-                    + " open is read back, and never runs a plan with other settings");
+                    + " plan's target declares (it has " + String.join(", ", otherwise) + "; the target declares "
+                    + String.join(", ", settings.required().stream().map(s -> s.name() + "=" + s.value()).toList())
+                    + "): a session this platform did not open is read back, and never runs a plan with other"
+                    + " settings");
         }
+    }
+
+    /** Each row's one text, in order: the database's own, passed on unread (a plan's read-back answers texts). */
+    private static List<String> texts(ResultSet rs) throws SQLException {
+        List<String> out = new java.util.ArrayList<>();
+        while (rs.next()) {
+            out.add(rs.getString(1));
+        }
+        return out;
     }
 
     @Override

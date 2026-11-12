@@ -146,7 +146,12 @@ class SentStatementsAreThePlansTest {
                         }, sink(rows));
             }
             assertEquals(List.of(List.of("Joe", 21L), List.of("Jill", 31L)), rows, b.name() + ": the file was read");
-            List<String> planned = new ArrayList<>(target.session());
+            List<String> planned = new ArrayList<>();
+            // a caller's session, read back for the settings its database must have (H2's: SHOULD-FIX 3)
+            if (target.settings() != null) {
+                planned.add(target.settings().readBack());
+            }
+            planned.addAll(target.session());
             planned.add(create);
             planned.addAll(reads.statements());
             planned.addAll(reads.after());

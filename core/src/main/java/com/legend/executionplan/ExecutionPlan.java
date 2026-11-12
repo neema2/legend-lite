@@ -952,9 +952,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     }
 
     /** The settings a target's database must have ({@link Target#settings}): each a name and its value as the database
-     *  reports them ({@code required}), and {@code readBack}, the statement answering rows of a setting's name and value.
-     *  Plan data: the dialect writes them; exec writes the values where it opens the database and, on a session it did
-     *  not open, sends exactly {@code readBack} and refuses a value that differs. */
+     *  reports them ({@code required}), and {@code readBack}, the statement answering one text for each of them the
+     *  database has otherwise (none where it has them all: the database compares). Plan data: the dialect writes them;
+     *  exec writes the values where it opens the database and, on a session it did not open, sends exactly
+     *  {@code readBack} and refuses the session where it answers any row. */
     public record DatabaseSettings(List<Setting> required, String readBack) {
         public DatabaseSettings {
             required = List.copyOf(required);

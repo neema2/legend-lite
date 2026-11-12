@@ -47,10 +47,22 @@ public class H2 extends AnsiSqlRenderer {
      *  descending first), which its printer leaves bare because the database already orders that way. Both are the
      *  database's, and their {@code SET} commits an open transaction (measured on 2.5.252), so they are the target's
      *  data, written on the URL of an in-memory database exec opens and read back from a session it did not
-     *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}). */
-    static final DatabaseSettings DATABASE_SETTINGS = new DatabaseSettings(List.of(new Setting("MODE", "LEGACY"),
-            new Setting("DEFAULT_NULL_ORDERING", "HIGH")), "SELECT SETTING_NAME, SETTING_VALUE FROM"
-            + " INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME IN ('MODE', 'DEFAULT_NULL_ORDERING')");
+     *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}; the read-back's rows
+     *  are the settings it has otherwise, the database comparing, {@link #differing}). */
+    static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
+            new Setting("DEFAULT_NULL_ORDERING", "HIGH")));
+
+    /** {@code required} with the statement answering each of them the database has OTHERWISE, as one text
+     *  ({@code NAME=VALUE}, by name): none where it has them all. Both H2 reports, whatever their values. */
+    private static DatabaseSettings differing(List<Setting> required) {
+        StringBuilder sql = new StringBuilder("SELECT SETTING_NAME || '=' || SETTING_VALUE FROM"
+                + " INFORMATION_SCHEMA.SETTINGS WHERE ");
+        for (int i = 0; i < required.size(); i++) {
+            sql.append(i > 0 ? " OR " : "").append("(SETTING_NAME = '").append(required.get(i).name())
+                    .append("' AND SETTING_VALUE <> '").append(required.get(i).value()).append("')");
+        }
+        return new DatabaseSettings(required, sql.append(" ORDER BY SETTING_NAME").toString());
+    }
 
 
     /** {@inheritDoc} The statement's own rows (the JSON pass, the user's ruling of 2026-11-11: "for h2 should we also
