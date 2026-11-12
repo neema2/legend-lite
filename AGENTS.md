@@ -211,7 +211,7 @@ exec's program runner with the judges as its callback), which reaches no plannin
 (`NotImplementedException: the program road does not plan this body`, with its kinds and the class rule's reason).
 The root package holds the public doors alone: `Compiler`, `TypedQuery`, `HeldModels` (the plan side, `//core:planner`),
 `Execution` (the product's door, `//core:execution`) and `TestExecution`, `ExecuteOptions` (the test body's door,
-`//core:test_execution`), and `ExecutionIds`, the doors' one mint of execution ids (C's final audit, 2026-11-12). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
+`//core:test_execution`); each door mints its run's one execution id, and nothing else mints one (C's final audit, 2026-11-12). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
 `JavaEvalLedgerTest.theDoorsHoldNoLogic`); only the test door sees both halves of a test (`onlyTheDoorSeesBothHalves`),
 and a class above the doors reaches each side through its public types alone (`onlyTheDoorsCompose`). The planner depends
 on no execution class (`plannerIsExecutionFree`).
