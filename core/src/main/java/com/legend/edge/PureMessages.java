@@ -65,7 +65,10 @@ public final class PureMessages {
             case RANGE_STEP_ZERO -> new SqlExpr.StringLit("range step must not be 0");
             // [the native's name]: lite's own sentence, kept for the compatibility road
             case LIST_LENGTHS_DIFFER -> new SqlExpr.StringLit(text(r, 0) + ": the two value lists differ in length");
-            case CONSTRAINT_UNEVALUABLE, MAP_KEYS_MISALIGNED, MAP_KEY_NULL,
+            // [the constraint's id]: the engine's milestoning/constraint sentence, in a checked graph's defect row
+            case CONSTRAINT_UNEVALUABLE -> new SqlExpr.StringLit("Unable to evaluate constraint [" + text(r, 0)
+                    + "]: data not available - check your mappings");
+            case MAP_KEYS_MISALIGNED, MAP_KEY_NULL,
                  MAP_KEYS_NOT_UNIQUE, TEXT_NOT_INTEGER, TEXT_NOT_DATE, VALUE_NOT_HELD, FRACTION_NOT_KEPT,
                  CSV_TOO_WIDE -> throw new UnsupportedOperationException("a raise of kind " + r.kind()
                     + " reached the edge: no site raises it yet (phase D's D1.1 moves its sites one family at a time)");

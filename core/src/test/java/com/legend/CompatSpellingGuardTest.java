@@ -114,7 +114,6 @@ class CompatSpellingGuardTest {
             "exec/PlanRunner.java | traceComment | 1 | D1.4",
             "executionplan/ExecutionPlan.java | executionTraceID | 1 | D1.4",
             "executionplan/ExecutionPlan.java | traceComment | 1 | D1.4",
-            "lowering/CheckedEnvelope.java | Unable to evaluate constraint | 1 | D1.1",
             "lowering/DateFormats.java | +0000 | 1 | STAYS",
             "lowering/LiteralSpelling.java | +0000 | 8 | D1.2",
             "lowering/LiteralSpelling.java | FLOAT_CANON | 1 | JUDGE",

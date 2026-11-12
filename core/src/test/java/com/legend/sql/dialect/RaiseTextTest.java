@@ -149,6 +149,9 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.CAST_IMPOSSIBLE, List.of(lit("Integer"), lit("Date"))),
                 lit("Cast exception: Integer cannot be cast to Date"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.RANGE_STEP_ZERO, List.of()), lit("range step must not be 0"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.CONSTRAINT_UNEVALUABLE, List.of(lit("posInt"))),
+                lit("Unable to evaluate constraint [posInt]: data not available - check your mappings"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.USER_FAIL, List.of(lit("my own words"))), lit("my own words"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.LIST_LENGTHS_DIFFER, List.of(lit("zip"))),
                 lit("zip: the two value lists differ in length"));
         for (DatabaseType type : Databases.implemented()) {

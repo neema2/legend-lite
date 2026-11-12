@@ -80,11 +80,10 @@ final class CheckedEnvelope {
             cases.add(new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, pred),
-                            defect(cc, new SqlExpr.StringLit(
-                                    "Unable to evaluate constraint ["
-                                            + cc.id() + "]: data not"
-                                            + " available - check your"
-                                            + " mappings"))),
+                            // CONSTRAINT_UNEVALUABLE, its constraint's id the operand: the product's defect names the
+                            // kind, the edge spells the engine's sentence (D1.1, the orchestrator's Q3 ruling)
+                            defect(cc, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.CONSTRAINT_UNEVALUABLE,
+                                    List.of(new SqlExpr.StringLit(cc.id()))))),
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.NOT, pred),
                             defect(cc, msg))),

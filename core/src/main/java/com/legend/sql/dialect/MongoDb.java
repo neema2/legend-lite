@@ -283,8 +283,7 @@ public class MongoDb extends AnsiSqlRenderer {
                     + " shape yet");
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
-            case SqlExpr.RaiseText r -> throw new IllegalStateException("a raise's message (" + r.kind()
-                    + ") reached the renderer outside its raise");
+            case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
                     + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
                     + " of it is not lowered");

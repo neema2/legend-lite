@@ -927,9 +927,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
-            // a raise's message is its raise's (raised): written where the raise is, never on its own
-            case SqlExpr.RaiseText r -> throw new IllegalStateException("a raise's message (" + r.kind()
-                    + ") reached the renderer outside its raise");
+            // a raise's message where a raise is not (a checked graph's defect row: CONSTRAINT_UNEVALUABLE), written as a
+            // raise's is (raiseMessage)
+            case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
