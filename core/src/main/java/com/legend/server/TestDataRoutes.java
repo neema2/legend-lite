@@ -65,30 +65,27 @@ final class TestDataRoutes {
 
     private static PureV1Api.Answer testData(String body, PureV1Api.Runner runner, PureV1Api.Models models,
             boolean defaultSeed) {
-        String[] unseeded = new String[1];
         PureV1Api.Answer a = PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (TestDataPlanner.route)
                 TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
-                TestDataPlanner.Planned planned;
-                try {
-                    planned = TestDataPlanner.route(ctx, r.query(), r.mapping(), ids, seed,
-                            r.json().getBoolOr("hashStrings", false));
-                } catch (TestDataPlanner.Unseeded e) {
-                    unseeded[0] = e.getMessage() + "Example:\n" + Json.toCompact(identifiersOf(e));
-                    return "";
-                }
+                // a root no identifier names and no seed starts: upstream's error node, answered by unseeded below
+                TestDataPlanner.Planned planned = TestDataPlanner.route(ctx, r.query(), r.mapping(), ids, seed,
+                        r.json().getBoolOr("hashStrings", false));
                 return run(ctx, planned.csv(), r.runtime(), runner);
             });
         });
-        if (unseeded[0] != null) {
-            // upstream's error node's answer: its message and example as the 500's text
-            // (TestDataGeneration.manageTestDataResult, :230-262)
-            return new PureV1Api.Answer(500, unseeded[0], "text/plain");
-        }
         return a.status() == 200 ? new PureV1Api.Answer(200, a.json(), "text/plain") : a;
+    }
+
+    /** A route's root no identifier names ({@link TestDataPlanner.Unseeded}, raised at planning): upstream's error
+     *  node's answer, its message, {@code Example:\n} and the table's identifiers -- none -- as the 500's text
+     *  ({@code TestDataGeneration.manageTestDataResult}, :230-262). {@link PureV1Api#answer} answers it so. */
+    static PureV1Api.Answer unseeded(TestDataPlanner.Unseeded e) {
+        return new PureV1Api.Answer(500, e.getMessage() + "Example:\n" + Json.toCompact(identifiersOf(e)),
+                "text/plain");
     }
 
     /** {@code pure/v1/testData/generation/DONOTUSE_generateTestData}: the census, upstream's embedded data
@@ -97,7 +94,7 @@ final class TestDataRoutes {
     static PureV1Api.Answer census(String body, PureV1Api.Models models) {
         return PureV1Api.answer(400, "COMPILATION", () -> {
             Json.Obj request = PureV1Api.request(body);
-            LambdaFunction query = ProtocolReader.lambda(request.getObj("query"));
+            LambdaFunction query = resolved(request.getObj("query"));
             String mapping = request.getString("mapping");
             return ModelInput.of(request.getObj("model")).with(models, ctx -> {
                 List<Map<String, Object>> tables = new ArrayList<>();
@@ -118,14 +115,14 @@ final class TestDataRoutes {
 
     /** A route's {@code ExecuteInput}: its query, mapping and runtime (a runtime named; one given inline refused by
      *  name), its parameters none. */
-    private record Request(Json.Obj json, LambdaFunction query, String mapping, String runtime) {
+    record Request(Json.Obj json, LambdaFunction query, String mapping, String runtime) {
         static Request of(Json.Obj json) {
             Json.Arr values = json.getArrOr("parameterValues", null);
             Json.Arr parameters = json.getArrOr("parameters", null);
             if (values != null && !values.items().isEmpty() || parameters != null && !parameters.items().isEmpty()) {
                 throw refused("the query's parameters bound");
             }
-            LambdaFunction query = ProtocolReader.lambda(json.getObj("function"));
+            LambdaFunction query = resolved(json.getObj("function"));
             if (!query.parameters().isEmpty()) {
                 throw refused("a query with parameters");
             }
@@ -135,6 +132,11 @@ final class TestDataRoutes {
             }
             return new Request(json, query, json.getString("mapping"), rt.getString("runtime"));
         }
+    }
+
+    /** A request's lambda, its names resolved (step D), as every planning entry takes a query. */
+    private static LambdaFunction resolved(Json.Obj lambda) {
+        return (LambdaFunction) com.legend.compiler.NameResolver.resolveQuery(ProtocolReader.lambda(lambda));
     }
 
     private static com.legend.error.NotImplementedException refused(String what) {
@@ -218,10 +220,10 @@ final class TestDataRoutes {
         return out.toString();
     }
 
-    /** The answer of a statement whose one row's one cell is a text: that text, written as it is. */
+    /** The answer of a statement whose one row's one cell is a text -- an aggregate with no grouping, one row by
+     *  construction: that text, written as it is. */
     private static final class OneText implements com.legend.result.ResultSink {
         private final java.io.Writer out;
-        private int rows;
 
         OneText(java.io.Writer out) {
             this.out = out;
@@ -237,9 +239,6 @@ final class TestDataRoutes {
         @Override
         public void batch(com.legend.result.Batch batch) throws java.io.IOException {
             for (int r = 0; r < batch.size(); r++) {
-                if (rows++ > 0) {
-                    throw new IllegalStateException("the generator's statement answers one row");
-                }
                 Object cell = batch.get(r, 0);
                 if (!(cell instanceof String text)) {
                     throw new IllegalStateException("the generator's statement answers a text, not " + cell);
@@ -250,9 +249,6 @@ final class TestDataRoutes {
 
         @Override
         public void end() {
-            if (rows != 1) {
-                throw new IllegalStateException("the generator's statement answers one row, not " + rows);
-            }
         }
     }
 }

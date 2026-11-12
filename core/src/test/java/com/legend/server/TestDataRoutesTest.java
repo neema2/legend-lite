@@ -110,13 +110,13 @@ class TestDataRoutesTest {
                         + " ['name', 'firm'])", ""));
         assertEquals(200, a.status(), a.json());
         assertEquals("default\nFIRM\nID,LEGAL_NAME\n10,Acme\n-----\n"
-                + "default\nPERSON\nFIRM_ID,ID,NAME\n---null---,4,Di\n10,1,Ann\n10,3,Cy\n-----\n", a.json());
+                + "default\nPERSON\nFIRM_ID,ID,NAME\n10,1,Ann\n10,3,Cy\n---null---,4,Di\n-----\n", a.json());
         PureV1Api.Answer none = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
                 input("|model::Person.all()->filter(p|$p.name == 'Zed')->project([p|$p.name, p|$p.firm.legalName],"
                         + " ['name', 'firm'])", ""));
         assertEquals(200, none.status(), none.json());
         assertEquals("default\nFIRM\nID,LEGAL_NAME\n10,Acme\n20,Bolt\n-----\n"
-                + "default\nPERSON\nFIRM_ID,ID,NAME\n---null---,4,Di\n10,1,Ann\n10,3,Cy\n20,2,Bob\n-----\n",
+                + "default\nPERSON\nFIRM_ID,ID,NAME\n10,1,Ann\n10,3,Cy\n20,2,Bob\n---null---,4,Di\n-----\n",
                 none.json());
     }
 
@@ -126,7 +126,7 @@ class TestDataRoutesTest {
         PureV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY, ""));
         assertEquals(500, a.status(), a.json());
         assertEquals("text/plain", a.contentType());
-        assertEquals("Row Identifers should be provided for the root table: store::DB.PERSON [ID:INTEGER]\nExample:\n"
+        assertEquals("Row Identifers should be provided for the root table: store::DB.PERSON [ID:INT]\nExample:\n"
                 + "{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
                 + "\"store::DB\"},\"rowIdentifiers\":[]}", a.json());
     }
@@ -154,10 +154,10 @@ class TestDataRoutesTest {
                     throw new AssertionError("the census runs nothing");
                 });
         assertEquals(200, a.status(), a.json());
-        assertTrue(a.json().startsWith("{\"data\":[{\"_type\":\"relationalCSVData\",\"tables\":[{\"schema\":"
-                + "\"default\",\"table\":\"PERSON\",\"values\":"), a.json());
-        assertTrue(a.json().contains("{\"schema\":\"default\",\"table\":\"FIRM\",\"values\":\"ID,LEGAL_NAME\"}"),
-                a.json());
+        // the tables by schema and table; a table's key, then its scanned columns, sorted (TDG:753-777)
+        assertEquals("{\"data\":[{\"_type\":\"relationalCSVData\",\"tables\":[{\"schema\":\"default\",\"table\":"
+                + "\"FIRM\",\"values\":\"ID,LEGAL_NAME\"},{\"schema\":\"default\",\"table\":\"PERSON\",\"values\":"
+                + "\"ID,FIRM_ID,NAME\"}]}]}", a.json());
     }
 
     /** A runtime given inline: refused by name. */

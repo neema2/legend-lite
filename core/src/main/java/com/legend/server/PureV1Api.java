@@ -1162,6 +1162,9 @@ public final class PureV1Api {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
+            if (e instanceof com.legend.testdatagen.TestDataPlanner.Unseeded u) {
+                return TestDataRoutes.unseeded(u);
+            }
             if (refusesTheText(e)) {
                 return error(status, errorType, String.valueOf(e.getMessage()));
             }

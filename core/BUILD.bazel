@@ -357,6 +357,7 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
+            "src/main/java/com/legend/server/TestDataRoutes.java",
         ],
     ),
     # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
