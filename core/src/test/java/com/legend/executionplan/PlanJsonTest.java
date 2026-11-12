@@ -220,6 +220,24 @@ class PlanJsonTest {
         assertTrue(refused.getMessage().contains("not a legend-lite-plan v49 plan"), refused.getMessage());
     }
 
+    /**
+     * A PRODUCT PLAN CARRIES NO BRANCH (the C final audit's J10, 2026-11-12): a product query's {@code if} stays the
+     * database's {@code CASE}. The type system makes a branch in a product plan impossible -- {@link ExecutionPlan.Node}
+     * is sealed and none of its types branches -- so no planted violator can compile; this pins the sealed list, so a
+     * branch node added to it fails here by name. A test plan's branch ({@code TestPlan.Branch}) is a test step, never a
+     * product node.
+     */
+    @Test
+    void aProductPlanCarriesNoBranch() {
+        assertEquals(java.util.Set.of(ExecutionPlan.Sequence.class, ExecutionPlan.TdsResult.class,
+                ExecutionPlan.Keyed.class, ExecutionPlan.Update.class, ExecutionPlan.Check.class,
+                ExecutionPlan.Effect.class, ExecutionPlan.Load.class, ExecutionPlan.Constant.class),
+                java.util.Set.of(ExecutionPlan.Node.class.getPermittedSubclasses()),
+                "a product plan's node types: a new one (a branch) is a decision, never an addition in passing");
+        org.junit.jupiter.api.Assertions.assertFalse(ExecutionPlan.Node.class.isAssignableFrom(
+                com.legend.testexecutionplan.TestPlan.Branch.class), "a test plan's branch is no product node");
+    }
+
     /** A key a target does not have is refused by name, never ignored (the C final audit's J4, 2026-11-12: a misspelled
      *  {@code settings} read as a target that declares none). */
     @Test

@@ -293,6 +293,9 @@ legend_java_library(
     name = "test_execution",
     srcs = [
         "src/main/java/com/legend/ExecuteOptions.java",
+        # the test door's mint: the run's id and one per execution the plan declares (the execution id as upstream,
+        # 2026-11-12)
+        "src/main/java/com/legend/ExecutionIds.java",
         "src/main/java/com/legend/TestExecution.java",
     ],
     deps = [

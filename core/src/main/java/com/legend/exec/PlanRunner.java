@@ -727,9 +727,17 @@ public final class PlanRunner {
     /** A constant answer's TEXT cells read back by its column's declared type: a String the text, a Boolean
      *  {@code true} or {@code false}; any other type refused by name (the planner writes no other constant). */
     static List<List<Object>> constantRows(ExecutionPlan.Constant c) {
-        String type = c.columns().get(0).type();
-        List<List<Object>> rows = new ArrayList<>(c.cells().size());
-        for (List<String> row : c.cells()) {
+        return constantRows(c.columns(), c.cells());
+    }
+
+    /** {@code cells}, a constant's one column of TEXT cells as the program wrote them, read back by its column's
+     *  declared type ({@code columns}' first): the one decode of a constant -- a product plan's answer, a test body's
+     *  branch condition (the C final audit's J10, 2026-11-12: until then the branch parsed "true" and "false" itself,
+     *  a kind decided from text). */
+    public static List<List<Object>> constantRows(List<ExecutionPlan.Column> columns, List<List<String>> cells) {
+        String type = columns.get(0).type();
+        List<List<Object>> rows = new ArrayList<>(cells.size());
+        for (List<String> row : cells) {
             String text = row.get(0);
             Object cell = text == null ? null : switch (type) {
                 case "String" -> text;
@@ -789,16 +797,22 @@ public final class PlanRunner {
     }
 
     /** {@code sql}'s execution id, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): legend-engine's
-     *  execution-trace comment of THIS execution -- one id per execution, every statement of it the same, as upstream's
-     *  {@code execID} is ({@link com.legend.base.RunScope#execution}; until 2026-11-12 a fresh id per statement) --
-     *  bound under its name (R17 C4):
+     *  execution-trace comment of the execution the stamp names -- a product plan's one execution, every statement of
+     *  it the same, as upstream's {@code execID} is; a test body's {@code execute()}'s own, as upstream's interpreted
+     *  execute mints one per query ({@link com.legend.base.RunScope#execution(String)}, the door's: the execution id as
+     *  upstream, 2026-11-12; until 2026-11-12 a fresh id per statement) -- bound under its name (R17 C4):
      *  the activity rows the plan's statements write read it as a bound value. The statement itself is sent as the plan
      *  wrote it, no comment in front of it (C1, 2026-11-12, the user's ruling of 2026-11-10, "Agree with all": the
      *  database receives exactly the plan's text; upstream writes the comment into the text at run, register S304). */
     private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values) {
-        if (sql.stamp() != null) {
-            values.put(sql.stamp(),
-                    new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution())));
+        // every execution the statement reads -- its own stamp and each one a slot reads (an activity row's comment) --
+        // bound to the id its door minted for it (the execution id as upstream, 2026-11-12: until then the statement's
+        // own stamp alone, a stamp another step bound read from the values that step left)
+        java.util.Set<String> read = new java.util.LinkedHashSet<>();
+        sql.stamps(read);
+        for (String execution : read) {
+            values.put(execution,
+                    new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution(execution))));
         }
     }
 
@@ -1033,10 +1047,8 @@ public final class PlanRunner {
             // every live source the run reads was admitted once, at its entry (admitSources): the path is bound here,
             // never admitted again (the checkpoint tenets audit's 7, 2026-11-10: until then per statement as well)
             Map<String, PlanParameters.Checked> bound = checked;
-            if (sql.stamp() != null) {
-                bound = new HashMap<>(bound);
-                stamp(sql, bound);
-            }
+            bound = new HashMap<>(bound);
+            stamp(sql, bound);
             List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
             for (int i = 0; i < sql.slots().size(); i++) {
                 values.add(value(bound, sql, sql.slots().get(i), i + 1));

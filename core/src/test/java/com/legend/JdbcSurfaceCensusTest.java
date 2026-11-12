@@ -236,8 +236,10 @@ class JdbcSurfaceCensusTest {
                     Act.SENDS, Act.DECODES, Act.TRANSACTS),
             row("core/src/main/mongodb/com/legend/exec/MongoDbStatements.java",
                     "the pipeline through the driver's cursor and a command run, each row's cells by the plan's"
-                    + " slots (D12); its bulk load's refusal went with the seam's method (A2, 2026-11-10)",
-                    Act.SENDS, Act.DECODES),
+                    + " slots (D12); its bulk load's refusal went with the seam's method (A2, 2026-11-10); closes the"
+                    + " plan's own cursor (2026-11-12, J3: its one send's answer, Replies, closed with it -- the"
+                    + " cursor's close was the try-with-resources' until then)",
+                    Act.SENDS, Act.DECODES, Act.CLOSES),
             names("core/src/main/java/com/legend/exec/RaisedErrors.java",
                     "rethrows a SQLException with the raised-message envelope removed (B7, the provenance seam):"
                     + " constructs the exception, opens no connection, sends nothing"),

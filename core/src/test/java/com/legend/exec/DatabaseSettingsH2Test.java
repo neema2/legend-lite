@@ -149,8 +149,8 @@ class DatabaseSettingsH2Test {
     }
 
     /** An H2 target that declares no settings is refused by name, where exec opens its database and where a session is
-     *  checked against it; so is a target declaring settings on a database that takes none (the C final audit's J4,
-     *  2026-11-12: until then H2 opened in its own defaults, other semantics). */
+     *  checked against it (the C final audit's J4, 2026-11-12: until then H2 opened in its own defaults, other
+     *  semantics). A target declaring settings on a database that takes none: {@code TargetSettingsTest}. */
     @Test
     void aTargetWithoutThemIsRefusedByName() throws Exception {
         com.legend.error.NotImplementedException opened = assertThrows(com.legend.error.NotImplementedException.class,
@@ -165,18 +165,6 @@ class DatabaseSettingsH2Test {
                     com.legend.error.NotImplementedException.class, () -> st.check(none));
             assertEquals("a plan's target on H2 declares the settings its database must have, and this one declares"
                     + " none: never run on other semantics", refused.getMessage());
-        }
-        ExecutionPlan.Target duck = com.legend.planner.Targets.of(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(DatabaseType.DuckDB), null), new com.legend.sql.dialect.DuckDb());
-        ExecutionPlan.Target duckWithSettings = new ExecutionPlan.Target(duck.database(), duck.session(), List.of(),
-                null, h2Target().settings());
-        try (Connection c = TestBackends.of(DatabaseType.DuckDB).open(); var run = com.legend.base.RunScope.enter()) {
-            JdbcStatements st = new JdbcStatements(c, new SessionState());
-            com.legend.error.NotImplementedException refused = assertThrows(
-                    com.legend.error.NotImplementedException.class, () -> st.check(duckWithSettings));
-            assertEquals("a plan's target on DuckDB declares no settings, and this one declares"
-                    + " [Setting[name=MODE, value=LEGACY], Setting[name=DEFAULT_NULL_ORDERING, value=HIGH]]: never run"
-                    + " on other semantics", refused.getMessage());
         }
     }
 

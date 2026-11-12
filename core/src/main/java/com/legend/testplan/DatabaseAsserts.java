@@ -8,7 +8,6 @@ import com.legend.testexecutionplan.HostJudgment;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.StatementEffects;
 import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
@@ -49,7 +48,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
 
     /** The steps at each statement-root assert's place (empty: absorbed into a later assert's). */
     private final Map<Integer, List<TestPlan.Verdicts>> byStatement;
-    /** The stamp parameter minted for each frame let, by the let's place: the comment of its segment's fused statement. */
+    /** The stamp parameter minted for each frame let, by the let's place: the execution of its {@code execute()} (the
+     *  execution id as upstream, 2026-11-12: each its own; until then its segment's fused statement's). */
     private final Map<Integer, String> frameStamps;
 
     /** The branches planned (the asserts-as-plan-nodes program, step 4), by the statement's place. */
@@ -139,8 +139,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 LetPlanner.Kind kind = LetPlanner.kind(let, body, i, specs, effectMemo, relationFrame);
                 if (kind == LetPlanner.Kind.FRAME) {
                     // the frame as the walk builds it under the batch: not run, its CTE defined when a reader splices
-                    // it; its activity comment the segment's fused statement's stamp
-                    String stamp = stampOfSegment(place, segment);
+                    // it; its activity comment its own execution's stamp, bound when the plan runs (the execution id as
+                    // upstream, 2026-11-12: until then the segment's fused statement's, shared by its frames)
+                    String stamp = stampOfFrameLet(place, i);
                     frameStamps.put(i, stamp);
                     frames.put(let.name(), BodyDriver.plannedFrame((TypedNativeCall) LetPlanner.rhs(let), letPrefix,
                             specs, benv, stamp));
@@ -300,13 +301,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 return null;
             }
         }
-        if (!everyReadStampBound(byStatement.values())) {
-            // a frame's activity comment read by a segment other than the one whose fused statement is its stamp (the
-            // frame's own segment closed with no assert): the walk's reserved comment is the first stamped statement's
-            // after the frame, which no step of this plan names -- the walk keeps the body (the static pass refuses
-            // the shape by name; kept as the guard behind it)
-            return null;
-        }
+        // (everyReadStampBound went with the segment's stamp, 2026-11-12: a frame's activity comment is its own
+        // execution's, which the run binds from its start wherever it is read -- in its segment or a later one)
         return new DatabaseAsserts(byStatement, frameStamps, branches);
     }
 
@@ -445,10 +441,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>(lets);
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
-        Map<String, Integer> frameSegment = new LinkedHashMap<>();
-        java.util.Set<Integer> segmentsWithAssert = new java.util.HashSet<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
-        Map<com.legend.model.FunctionId, Boolean> readMemo = new java.util.HashMap<>();
         int segment = 0;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
@@ -462,11 +455,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     if (kind == LetPlanner.Kind.FRAME) {
                         frames.put(let.name(), BodyDriver.buildFrame((TypedNativeCall) LetPlanner.rhs(let), letPrefix,
                                 false, specs, pre));
-                        frameSegment.put(let.name(), segment);
                     } else if (kind == LetPlanner.Kind.ALIAS) {
                         String of = java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame));
                         frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(of)));
-                        frameSegment.put(let.name(), java.util.Objects.requireNonNull(frameSegment.get(of)));
                     } else if (kind == LetPlanner.Kind.STAGED_GRID) {
                         // a raw grid staged across a later effect: read from the table the test door stages it
                         // into at its turn (PlanMaker.stagedGridLet; the walk deletion, 2026-11-06)
@@ -541,16 +532,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the gate's classification raised: not a route -- the arm raises the same at the assert's turn and
                 // the planning pass plans that raise at the root's place
             }
-            for (var f : frameSegment.entrySet()) {
-                if (f.getValue() < segment && !segmentsWithAssert.contains(f.getValue())
-                        && StatementEffects.reaches(statement, n -> readsActivitiesOf(n, f.getKey()), specs,
-                                readMemo)) {
-                    com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
-                            "a frame's activity read in a later segment than its own: " + f.getKey());
-                    return false;
-                }
-            }
-            segmentsWithAssert.add(segment);
+            // (a frame's activity read in a later segment than its own was refused here until 2026-11-12: its comment
+            // was its segment's fused statement's stamp, unbound where that segment held no assert; it is its own
+            // execution's now, bound from the run's start -- the execution id as upstream)
         }
         return true;
     }
@@ -683,42 +667,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         return out;
     }
 
-    /** {@code $frame.activities}, the read of {@code frame}'s activity rows. */
-    private static boolean readsActivitiesOf(TypedSpec n, String frame) {
-        return n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa && "activities".equals(pa.property())
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v && frame.equals(v.name());
-    }
-
-    /** Whether every stamp parameter a verdict step's statement reads is one a fused statement among {@code steps}
-     *  binds (a frame's activity comment: the fused statement of the frame's own segment). */
-    private static boolean everyReadStampBound(java.util.Collection<List<TestPlan.Verdicts>> steps) {
-        java.util.Set<String> bound = new java.util.HashSet<>();
-        List<ExecutionPlan.Sql> sqls = new ArrayList<>();
-        for (List<TestPlan.Verdicts> groups : steps) {
-            for (TestPlan.Verdicts group : groups) {
-                if (group.fused() != null) {
-                    sqls.add(group.fused().sql());
-                    if (group.fused().sql().stamp() != null) {
-                        bound.add(group.fused().sql().stamp());
-                    }
-                }
-                for (TestPlan.Verdict v : group.verdicts()) {
-                    if (v.wrapper() instanceof ExecutionPlan.TdsResult t) {
-                        sqls.add(t.sql());
-                    }
-                }
-            }
-        }
-        for (ExecutionPlan.Sql sql : sqls) {
-            for (ExecutionPlan.Slot slot : sql.slots()) {
-                if (slot.parameter().startsWith(ProgramFrames.STAMP) && !bound.contains(slot.parameter())) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
     /** Whether the program places {@code g} as a step: a group of fused verdicts (a keyed member's wrapper is the
      *  walk's) on the body's own session, or on the graph's system database beside it -- a verdict over the system
      *  store alone on a server engine, its statement naming that target, which the runner routes to the system
@@ -808,7 +756,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             if (!placed(g, env)) {
                 return false;
             }
-            steps.add(stamped(g.step(), stampOfSegment(place, segment)));
+            steps.add(g.step());
         }
         int last = steps.size() - 1;
         steps.set(last, steps.get(last).withRoots(planned.loop()));
@@ -816,22 +764,11 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         return true;
     }
 
-    /** {@code step}'s fused statement stamped with {@code stamp}: the comment it is sent under, which the segment's
-     *  frames' activity rows read as a parameter (the walk's reserved comment). */
-    private static TestPlan.Verdicts stamped(TestPlan.Verdicts step, String stamp) {
-        ExecutionPlan.TdsResult fused = step.fused();
-        if (fused == null) {
-            return step;
-        }
-        return new TestPlan.Verdicts(step.verdicts(),
-                new ExecutionPlan.TdsResult(fused.shape(), fused.columns(), fused.sql().stamped(stamp)),
-                step.savepoint(), step.rules(), step.roots());
-    }
-
-    /** The stamp parameter of the fused statement of segment {@code segment}: the stamp prefix (the program's, so the
-     *  test door adopts it and the runner binds it), then the segment's place. */
-    private static String stampOfSegment(String place, int segment) {
-        return ProgramFrames.STAMP + ".fused" + place + segment;
+    /** The stamp parameter of the frame let at {@code statement} of the body at {@code place}: the stamp prefix (the
+     *  program's, so the test door adopts it and the runner binds it), then the let's place -- its {@code execute()}'s
+     *  own execution (the execution id as upstream, 2026-11-12). */
+    private static String stampOfFrameLet(String place, int statement) {
+        return ProgramFrames.STAMP + ".let" + place + "." + statement;
     }
 
     @Override
