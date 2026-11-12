@@ -85,9 +85,24 @@ Reading the table:
   (no statement), or are refused at planning by name. The refusals were not checked against each dialect's
   expected-failure lists: H2's 616 are the largest group, most of them lists (H2 runs only the Relation suite in
   PCT).
-- **The relational corpus and core's own product queries** are not in this table yet. The corpus's bodies are
-  planned by the test road, not by `TypedQuery.executionPlan`. Core's product queries run on their lane's one
-  dialect. Both are named as a next measurement (§7, item 1), with the same tools.
+**Core's own product queries, on their lanes** (`//core:core_tests_integration{,_h2,_sqlite}` with
+`-Dlegend.diagnostics=dump-sql`, the statements sent under the unmarked origin `other` that read: queries, not
+seeds, session settings or the catalog's statements; no code change):
+
+| lane | statements | median chars | p90 | max | total chars | repeats |
+|---|---|---|---|---|---|---|
+| DuckDB | 2,603 | 138 | 490 | 18,893 | 653,394 | 7% |
+| H2 | 2,416 | 165 | 645 | 18,888 | 754,976 | 6% |
+| SQLite | 2,475 | 183 | 824 | 40,469 | 1,106,211 | 31% |
+
+Core's queries are mostly relational: a store's tables, projected, filtered and joined. They repeat little. The
+repeats are concentrated in expression-heavy queries (lets, objects, lists, JSON), which PCT exercises and which
+SQLite spells with correlated subqueries. The `other` origin is the census's residual mark, so a few non-query
+statements may be in it.
+
+- **The relational corpus** is not in either table yet. The corpus's bodies are
+  planned by the test road, not by `TypedQuery.executionPlan`. It is named as a next measurement (§7, item 1),
+  with the same tools.
 
 ## 4. The causes, measured
 
@@ -290,7 +305,7 @@ design: the keys, then the body.
 
 ## 7. The order of work, and the questions
 
-1. **Measure the other two sets (no product change):** core's product queries and the relational corpus's product
+1. **Measure the corpus (no product change; core's queries are measured, §3):** the relational corpus's product
    statements, per lane dialect, by the same tools: a `product-sql` diagnostic beside `sql-sizes` or a test-side
    capture. Then pin the baseline (§6) with the guard and its planted violator. The guard lands before any lowering
    change, so every change below moves its pins down.
