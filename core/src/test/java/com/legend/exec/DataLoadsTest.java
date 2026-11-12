@@ -123,10 +123,10 @@ class DataLoadsTest {
     void aLoadFitsADatabaseOfSmallMemory(@TempDir Path dir) throws Exception {
         byte[] bytes = CSV.getBytes(StandardCharsets.UTF_8);
         Files.write(dir.resolve("small.csv"), bytes);
-        TestBackend duckdb = loading().stream().filter(b -> b.name().equals("duckdb")).findFirst().orElseThrow();
-        ExecutionPlan.Load load = load(duckdb, file(duckdb.dialect(), "small.csv", bytes));
+        TestBackend reader = loading().stream().filter(b -> b.name().equals("duckdb")).findFirst().orElseThrow();
+        ExecutionPlan.Load load = load(reader, file(reader.dialect(), "small.csv", bytes));
         assertEquals(List.of(List.of("Joe", "Bloggs", 21), List.of("Jill", "Smith", 31)),
-                loaded(duckdb, DataStores.resources(dir), load, "SET memory_limit = '1GB'"));
+                loaded(reader, DataStores.resources(dir), load, "SET memory_limit = '1GB'"));
     }
 
     @Test
