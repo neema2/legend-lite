@@ -499,6 +499,42 @@ is a design target until built):
 4. The rows above landed with the user's batch.
 5. The guard's pins for the mixed families fall: a re-pin, dated.
 
+### 5.8 The cast-and-case rule's census (the user's heuristic, ruled 2026-11-12): first counts
+
+**The rule.** Every CAST, CASE and text function in product SQL traces to one of two sources:
+1. the user's own Pure call;
+2. a named product rule that keeps the answer typed and the same on every database.
+
+Anything else is a defect.
+
+**First measurement:** channel A after P1a, counted in the SQL text, string literals blanked. "Text" counts `||`,
+concat, replace, trim, pad, printf/format, strftime, substr, upper/lower, chr, json_quote.
+
+| database | statements | CAST | CASE | text | characters | commonest cast targets |
+|---|---|---|---|---|---|---|
+| DuckDB | 2,502 | 3,161 | 994 | 1,868 | 645,793 | DOUBLE 800, VARCHAR 793, BIGINT 574, JSON 395 |
+| H2 | 1,895 | 2,025 | 958 | 939 | 548,415 | VARCHAR 818, BIGINT 310 |
+| Postgres | 2,426 | 7,892 | 2,552 | 2,698 | 1,111,608 | VARCHAR 1,791, BIGINT 1,742, TIMESTAMPTZ 245 |
+| Snowflake | 2,502 | 7,576 | 1,362 | 2,489 | 993,604 | DOUBLE 1,840, VARCHAR 1,602, BIGINT 1,350 |
+| SQLite | 2,498 | 4,809 | 6,032 | 14,784 | 1,796,764 | REAL 1,933, INTEGER 1,710, TEXT 1,009 |
+| MySQL | 2,427 | 13,315 | 8,739 | 12,204 | 2,751,100 | JSON 6,285, SIGNED 2,362, DATETIME(6) 1,619 |
+
+**The method proposed for the classification.** Classifying from the text alone would be guessing. Each CAST and
+CASE should be counted where lowering MAKES it, by a typed reason the MIR node carries, and the census pins the
+counts per reason:
+- the user's call (`toString`, `cast`, `parse*`, `if`);
+- the declared type (a literal or a value the plan declares otherwise);
+- a raise's carrier (D's);
+- a Pure operator's semantics (a floored mod, an integer division);
+- the print form (D's).
+
+A node with no reason fails the guard by name. That is the second, shrink-only pin.
+
+Two things to settle first:
+- **Where the reason lives.** A field on `Cast` and `Case` needs every constructor site to name its reason (the MIR's
+  records are rebuilt in about 18 switch sites).
+- **D's share.** The print forms and the raise sentences are D's; they are counted, marked D and left to D.
+
 ## 6. The guard: a product-SQL size baseline, shrink-only (G3)
 
 > **BUILT (2026-11-12, ruled by the orchestrator: its own target in `//gates:local`, all 11 dialects).**
