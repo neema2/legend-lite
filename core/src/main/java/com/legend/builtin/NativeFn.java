@@ -1052,11 +1052,16 @@ public final class NativeFn {
 
         private static final Map<com.legend.model.FunctionId, OperatorRun> BY_ID = byId();
 
+        /** Every run by the identity of each of its overloads: an overload in two DIFFERENT runs is refused, a run
+         *  naming one overload twice is the same mapping -- {@link #indexById}'s rule, the one every by-id map follows
+         *  (2026-11-12, the owner's ruling on slice 1b's report: a repeat within one run was refused too, under a
+         *  message, "in two operator runs", that was then false). */
         private static Map<com.legend.model.FunctionId, OperatorRun> byId() {
             Map<com.legend.model.FunctionId, OperatorRun> out = new HashMap<>();
             for (OperatorRun r : values()) {
                 for (NativeFunctionDefinition o : r.overloads) {
-                    if (out.put(com.legend.model.FunctionId.of(o), r) != null) {
+                    OperatorRun prior = out.put(com.legend.model.FunctionId.of(o), r);
+                    if (prior != null && prior != r) {
                         throw new IllegalStateException(o.qualifiedName() + " in two operator runs");
                     }
                 }
