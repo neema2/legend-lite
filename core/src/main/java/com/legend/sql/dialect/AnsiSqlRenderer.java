@@ -896,7 +896,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.ArrayLit a -> arrayLit(writer, a.elements());
             case SqlExpr.StructLit s -> structLit(writer, s);
             case SqlExpr.StructGet g -> structGet(writer, g);
-            case SqlExpr.Call c -> call(writer, c, parentPrec);
+            case SqlExpr.Call c -> call(writer, raised(c), parentPrec);
             case SqlExpr.Case c -> caseExpr(writer, c);
             case SqlExpr.Exists ex -> {
                 writer.append("EXISTS (");
@@ -935,6 +935,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
+            // a raise's message is its raise's (raised): written where the raise is, never on its own
+            case SqlExpr.RaiseText r -> throw new IllegalStateException("a raise's message (" + r.kind()
+                    + ") reached the renderer outside its raise");
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
@@ -1063,6 +1066,32 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             writer.append(")");
         }
         return writer;
+    }
+
+    /**
+     * {@code c}, a raise's message ({@link SqlExpr.RaiseText}) made the text this dialect writes
+     * ({@link #raiseMessage}); any other call as it is. Every dialect's raise ({@code ERROR}) then writes that text
+     * through its own mechanism, unchanged (phase D's D1.1).
+     */
+    protected final SqlExpr.Call raised(SqlExpr.Call c) {
+        if (c.fn() != com.legend.sql.SqlFn.ERROR || !(c.args().get(0) instanceof SqlExpr.RaiseText r)) {
+            return c;
+        }
+        List<SqlExpr> args = new java.util.ArrayList<>(c.args());
+        args.set(0, raiseMessage(r));
+        return new SqlExpr.Call(c.fn(), args);
+    }
+
+    /**
+     * THE PRODUCT'S RAISE TEXT (phase D's D1.1; the user's ruling of 2026-11-10: "a product error is its kind plus where
+     * it happened ... never the value"): the kind's name, its operands never written -- no value cast to text, no
+     * concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s, the user's own
+     * message. exec types the raise by that name and words it ({@code exec.RaisedErrors}). The compatibility edge's
+     * dialects override this alone, writing legend-pure's sentence from the operands ({@code edge.PureMessages}).
+     */
+    protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
+        return r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? r.operands().get(0)
+                : new SqlExpr.StringLit(r.kind().name());
     }
 
     /**

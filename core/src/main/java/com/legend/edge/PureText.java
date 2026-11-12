@@ -51,49 +51,109 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** Databricks, spelled as upstream spells it. */
     public static final class Databricks extends com.legend.sql.dialect.Databricks {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** Snowflake, spelled as upstream spells it. */
     public static final class Snowflake extends com.legend.sql.dialect.Snowflake {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** BigQuery, spelled as upstream spells it. */
     public static final class BigQuery extends com.legend.sql.dialect.BigQuery {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** SQLite, spelled as upstream spells it. */
     public static final class SQLite extends com.legend.sql.dialect.SQLite {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** MariaDB, spelled as upstream spells it. */
     public static final class MariaDb extends com.legend.sql.dialect.MariaDb {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** MySQL, spelled as upstream spells it. */
     public static final class MySql extends com.legend.sql.dialect.MySql {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** Trino, spelled as upstream spells it. */
     public static final class Trino extends com.legend.sql.dialect.Trino {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** ClickHouse, spelled as upstream spells it. */
     public static final class ClickHouse extends com.legend.sql.dialect.ClickHouse {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 
     /** MongoDB, spelled as upstream spells it. */
     public static final class MongoDb extends com.legend.sql.dialect.MongoDb {
+        /** legend-pure's sentence of a raise ({@link PureMessages}). */
+        @Override
+        protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+            return PureMessages.sentence(r);
+        }
     }
 }

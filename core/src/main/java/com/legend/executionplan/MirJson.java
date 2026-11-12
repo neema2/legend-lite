@@ -48,7 +48,8 @@ public final class MirJson {
         decimalLit, boolLit, nullLit, dateLit, group, planParam, formatLit, datePartLit, jsonKindLit, typeNameLit,
         timestampLit, timeLit, orderedListAgg, arrayLit, structLit, structGet, call, caseExpr, exists, inSubquery,
         checkedDefects, checkedChildValue, quantified, scalarSubquery, checkedOne, compactList, deferredTdsString,
-        tempTableInSplice, jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, keyCell
+        tempTableInSplice, jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, keyCell,
+        raiseText
     }
 
     enum AggTag { reducer, rankingFn, valueFn }
@@ -375,6 +376,11 @@ public final class MirJson {
                 tag(o, ExprTag.orderedListAgg, a.type());
                 o.put("value", expr(a.value()));
                 o.put("orderBy", expr(a.orderBy()));
+            }
+            case SqlExpr.RaiseText r -> {
+                tag(o, ExprTag.raiseText, r.type());
+                o.put("kind", r.kind().name());
+                o.put("operands", exprs(r.operands()));
             }
             case SqlExpr.ArrayLit a -> {
                 tag(o, ExprTag.arrayLit, a.type());
@@ -973,6 +979,8 @@ public final class MirJson {
             case orderedListAgg -> new SqlExpr.OrderedListAgg(readExpr(o.getObj("value")),
                     readExpr(o.getObj("orderBy")), type);
             case arrayLit -> new SqlExpr.ArrayLit(readExprs(o.getArr("elements")), type);
+            case raiseText -> new SqlExpr.RaiseText(named(com.legend.sql.RaiseKind.class, o.getString("kind"),
+                    "raise kind"), readExprs(o.getArr("operands")), type);
             case structLit -> {
                 List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
                 for (Json.Node n : o.getArr("fields").items()) {

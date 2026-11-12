@@ -97,13 +97,16 @@ class EdgeSpellingHookTest {
         }
     }
 
-    /** The arms each edge dialect overrides, by class: today none (D1.0 adds the hook, no arm has moved yet). Each later
-     *  D step adds the arms it moves, dated; an arm that spells no upstream text is a defect. */
+    /** The arms each edge dialect overrides, by class. Each D step adds the arms it moves, dated; an arm that spells no
+     *  upstream text is a defect. {@code raiseMessage} (2026-11-12, D1.1): legend-pure's sentence of a raise
+     *  (edge.PureMessages), where the product writes the raise's kind. */
+    private static final Set<String> D1_1 = Set.of("raiseMessage");
+
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
-            Map.entry("BigQuery", Set.of()), Map.entry("ClickHouse", Set.of()), Map.entry("Databricks", Set.of()),
-            Map.entry("DuckDb", Set.of()), Map.entry("H2", Set.of()), Map.entry("MariaDb", Set.of()),
-            Map.entry("MongoDb", Set.of()), Map.entry("MySql", Set.of()), Map.entry("Postgres", Set.of()),
-            Map.entry("SQLite", Set.of()), Map.entry("Snowflake", Set.of()), Map.entry("Trino", Set.of())));
+            Map.entry("BigQuery", D1_1), Map.entry("ClickHouse", D1_1), Map.entry("Databricks", D1_1),
+            Map.entry("DuckDb", D1_1), Map.entry("H2", D1_1), Map.entry("MariaDb", D1_1),
+            Map.entry("MongoDb", D1_1), Map.entry("MySql", D1_1), Map.entry("Postgres", D1_1),
+            Map.entry("SQLite", D1_1), Map.entry("Snowflake", D1_1), Map.entry("Trino", D1_1)));
 
     @Test
     void theEdgesDialectsOverrideOnlyThePinnedArms() {

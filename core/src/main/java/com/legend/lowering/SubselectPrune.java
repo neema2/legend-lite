@@ -273,6 +273,7 @@ final class SubselectPrune {
             case SqlExpr.CheckedOne co -> collectExpr(co.list(), r);
             case SqlExpr.CompactList cl -> collectExpr(cl.list(), r);
             case SqlExpr.Tagged tg -> tg.children().forEach(x -> collectExpr(x, r));
+            case SqlExpr.RaiseText rt -> rt.operands().forEach(x -> collectExpr(x, r));
             case SqlExpr.TaggedList tl -> tl.children().forEach(x -> collectExpr(x, r));
             case SqlExpr.DeferredTdsString d -> collectQuery(d.inner(), r);
             case SqlExpr.JsonObject jo -> jo.kv().forEach(x -> collectExpr(x, r));

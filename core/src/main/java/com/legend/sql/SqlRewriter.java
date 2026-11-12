@@ -281,6 +281,16 @@ public abstract class SqlRewriter {
                 SqlExpr in = rewriteExpr(cl.list());
                 yield in == cl.list() ? cl : new SqlExpr.CompactList(in);
             }
+            case SqlExpr.RaiseText r -> {
+                java.util.List<SqlExpr> cs = new java.util.ArrayList<>();
+                boolean same = true;
+                for (SqlExpr c : r.operands()) {
+                    SqlExpr x = rewriteExpr(c);
+                    same &= x == c;
+                    cs.add(x);
+                }
+                yield same ? r : new SqlExpr.RaiseText(r.kind(), cs);
+            }
             case SqlExpr.Tagged t -> {
                 java.util.List<SqlExpr> cs = new java.util.ArrayList<>();
                 boolean same = true;

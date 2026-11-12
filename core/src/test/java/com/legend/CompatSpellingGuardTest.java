@@ -56,7 +56,10 @@ class CompatSpellingGuardTest {
             "Cannot divide ", "Division by zero", "Unsupported number of bits to shift", "^Cannot get $",
             "trying to get an element at offset", "Unable to compute sqrt of", "Cannot cast a collection of size",
             "can't be higher than the high bound", "Invalid day: ", "Cast exception: ", "range step must not be 0",
-            "Unable to evaluate constraint", "index out of bounds",
+            "Unable to evaluate constraint",
+            // narrowed 2026-11-12 (D1.1): the whole of lite's old insert sentence, so the product's own wording of an
+            // index's raise (exec.RaisedErrors, "index out of bounds") is no hit
+            "add(set, index, value): index out of bounds",
             // K3: the reference database's (DuckDB's) words raised on another database (D1.1)
             "The map key list does not align", "Map keys can not be NULL", "Map keys must be unique",
             "Could not convert string '", "Could not parse '",
@@ -134,7 +137,7 @@ class CompatSpellingGuardTest {
             "lowering/Scalars.java | Unable to compute sqrt of | 1 | D1.1",
             "lowering/Scalars.java | Unsupported number of bits to shift | 1 | D1.1",
             "lowering/Scalars.java | dateLiteralPrint | 3 | D1.2",
-            "lowering/Scalars.java | index out of bounds | 1 | D1.1",
+            "lowering/Scalars.java | add(set, index, value): index out of bounds | 1 | D1.1",
             "lowering/Scalars.java | signedZeroPad | 2 | D1.3",
             "lowering/Scalars.java | trying to get an element at offset | 1 | D1.1",
             "lowering/TaggedLists.java | trying to get an element at offset | 1 | D1.1",

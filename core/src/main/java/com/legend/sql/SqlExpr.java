@@ -19,7 +19,7 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
                 SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
-                SqlExpr.CompactList, SqlExpr.Tagged, SqlExpr.TaggedList,
+                SqlExpr.CompactList, SqlExpr.Tagged, SqlExpr.TaggedList, SqlExpr.RaiseText,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
@@ -78,6 +78,7 @@ public sealed interface SqlExpr
             case FormatLit ignored -> List.of();
             case DatePartLit ignored -> List.of();
             case JsonKindLit ignored -> List.of();
+            case RaiseText r -> r.operands();
             case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
             case KeyCell ignored -> List.of();
@@ -198,6 +199,7 @@ public sealed interface SqlExpr
             case FormatLit ignored -> this;
             case DatePartLit ignored -> this;
             case JsonKindLit ignored -> this;
+            case RaiseText r -> new RaiseText(r.kind(), cs);
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
             case KeyCell ignored -> this;
@@ -1079,6 +1081,25 @@ public sealed interface SqlExpr
 
         public CompactList(SqlExpr list) {
             this(list, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /**
+     * A RAISE'S MESSAGE (phase D's D1.1, 2026-11-12): the kind of what a guard refuses ({@link RaiseKind}) and its
+     * operands -- the values the refusal is about, typed SQL. The product's dialects write the kind's name alone, never
+     * an operand (a product error is its kind and where, never the value: no text built in SQL); the compatibility
+     * edge's dialects write legend-pure's sentence of the kind from its operands. Only {@link RaiseKind#USER_FAIL}'s one
+     * operand, the user's own message, is the product's to write. The message argument of {@code Call(ERROR, ...)}.
+     */
+    record RaiseText(RaiseKind kind, List<SqlExpr> operands, TypeFact type) implements SqlExpr {
+        public RaiseText {
+            java.util.Objects.requireNonNull(kind, "a raise's kind");
+            operands = List.copyOf(operands);
+            type = SqlTyping.T_VARCHAR;
+        }
+
+        public RaiseText(RaiseKind kind, List<SqlExpr> operands) {
+            this(kind, operands, SqlTyping.UNKNOWN);
         }
     }
 
