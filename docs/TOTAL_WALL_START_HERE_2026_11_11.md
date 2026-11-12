@@ -838,6 +838,20 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
     ruled by the orchestrator, and made a register row with scope "product"; the user sees the batch.
   - The compatibility road (PCT and the corpus through the edge door) keeps its pass counts: the edge plans its own SQL
     where a compatibility client needs upstream's answer.
+- **The cast-and-case rule** (the user, 2026-11-12: "if in the product we are doing any platform CAST (without using
+  asking) or CASE statements that are trying to reconstruct values or string from numbers or any formating of values
+  without user explicit ask is almost certainly WRONG for the Platform/Product 'clean' plan/sql").
+  - Every CAST, CASE and text-building function in product SQL traces to one of two things:
+    - the user's explicit Pure call (`if`, `toString`, `format`, `cast`/`to*`/`parse*`, a string function they
+      called);
+    - a named product rule that keeps the answer typed and the same on every database: a typed-error guard; a cast to
+      the plan's declared type where the database's natural type differs; Pure's operator semantics made uniform
+      across the databases.
+  - Anything else is a defect, deleted or moved to the edge: a value or string rebuilt from parts, a cast to a value's
+    own type, a number or date re-formatted, a CASE ladder that rebuilds upstream's text or quirk.
+  - How it is held:
+    - E3 counts these per family and dialect as a second shrink-only pin, where an unclassified pattern fails by name;
+    - D's shrink-only list marks the sites D owns.
 - **D starts with a refresh of its brief and inventory against the current head** (both were written before B and C),
   then the guards (D2's, and G5's ArchUnit rule, each with a planted violator, today's sites a shrink-only list), then
   D1.0-D1.7.
