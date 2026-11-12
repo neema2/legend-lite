@@ -1,0 +1,10 @@
+import csv,statistics,sys
+rows=list(csv.DictReader(open(sys.argv[1]),delimiter='\t'))
+for d in ['DuckDB','SQLite','H2']:
+    r=[x for x in rows if x['dialect']==d and x['verdict']=='same']
+    if not r: continue
+    bc=sum(int(x['before_chars']) for x in r); ac=sum(int(x['after_chars']) for x in r)
+    bt=sum(int(x['before_us']) for x in r); at=sum(int(x['after_us']) for x in r)
+    ratios=[int(x['after_us'])/max(int(x['before_us']),1) for x in r]
+    big=[x for x in r if int(x['before_chars'])>3000]
+    print(f"{d}: {len(r)} stmts, chars {bc:,}->{ac:,} ({100*(bc-ac)/bc:.0f}% less); time {bt/1000:.1f}->{at/1000:.1f} ms; median time ratio {statistics.median(ratios):.2f}; over 3,000 chars: {len(big)} stmts, {sum(int(x['before_us']) for x in big)/1000:.1f}->{sum(int(x['after_us']) for x in big)/1000:.1f} ms")

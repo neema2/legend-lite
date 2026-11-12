@@ -1,0 +1,26 @@
+import json, re, collections, sys
+import os
+src=open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'analyze.py.txt')).read()
+g={"collections":collections}
+exec(src[src.index("def factored"):src.index("top = int")], g)
+factored=g['factored']
+cases=[json.loads(l) for l in open(sys.argv[2])]
+def cause(e):
+    if re.search(r'\blet\b', e): return 'let'
+    fams=[('json', r'variant::|toVariant|fromJson|->get\(|parseJSON|toJSON'),
+          ('mixed-list', r"\[[^\]]*'[^\]]*,\s*\d|\[\s*\d[^\]]*,\s*'"),
+          ('list-ops', r'range\(|->map\(|->filter\(|->fold\(|percentile|->zip\(|->slice\(|->at\(|->sort\(|->removeDuplicates|maxBy|minBy|->tail|->head|->drop\(|->take\('),
+          ('date', r'%\d|date\(|adjust\(|dateDiff|DurationUnit'),
+          ('string', r"->(format|split|substring|indexOf|replace|joinStrings|toString|parseInteger|parseFloat|lpad|rpad)\("),
+          ('math', r'->(round|divide|rem|mod|sqrt|exp|log|pow|toDecimal|cbrt)'),
+          ('relation', r'#TDS|->extend\(|->groupBy|->pivot|->join\(|->over\(')]
+    for n,p in fams:
+        if re.search(p,e): return n
+    return 'other'
+for d in sys.argv[3:]:
+    tot=collections.Counter(); waste=collections.Counter()
+    for l in open(f'{sys.argv[1]}/sql-{d}.jsonl'):
+        s=json.loads(l); c=cause(cases[s['case']]['expression'])
+        f,_=factored(s['sql']); tot[c]+=len(s['sql']); waste[c]+=len(s['sql'])-f
+    T=sum(tot.values())
+    print(f"| {d} | " + " | ".join(f"{k} {tot[k]*100//T}% ({waste[k]*100//max(tot[k],1)}% repeated)" for k,_ in tot.most_common()) + " |")

@@ -1833,6 +1833,24 @@ legend_java_binary(
     runtime_deps = [":core_tests_lib"],
 )
 
+# PRODUCT SQL, MEASURED (E3 of the total-wall program, 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md): the
+# product's statements of a captured set of queries planned on every database (planning only), and a rewrite's
+# before/after timed on the in-process databases. A measuring tool, never a test.
+legend_java_binary(
+    name = "product_sql_measure",
+    testonly = True,
+    jvm_flags = [
+        "-Xmx3g",
+        "-Duser.timezone=GMT",
+    ],
+    main_class = "com.legend.integration.ProductSqlMeasure",
+    tags = ["manual"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
 # ── GENERATED FILES ─────────────────────────────────────────────────────────────
 # Committed files that are generator OUTPUTS (their generators: //spec, "THE
 # GENERATORS"). `bazel run //core:update_generated` (or //:update_generated)

@@ -31,11 +31,30 @@ final class PctPlanRoute {
     /** A case's answer: what the plan answers ({@code shape}), its typed rows, the query's result type, which a
      *  value's elements are built by, and for a relation the engine's JSON answer the server writes ({@code
      *  engineJson}; null for a value). */
+    /** The case's model and expression, one JSON line each, appended to the file {@code -Dlegend.capture.channela}
+     *  names (measurement only, E3 of the total-wall program, 2026-11-12: the product SQL's size measured by planning
+     *  the same cases on every dialect, which needs no database). Off unless named. */
+    private static void capture(String model, String expression) throws IOException {
+        String file = System.getProperty("legend.capture.channela");
+        if (file == null || file.isEmpty()) {
+            return;
+        }
+        java.util.Map<String, Object> each = new java.util.LinkedHashMap<>();
+        each.put("model", model);
+        each.put("expression", expression);
+        String line = com.legend.json.Json.toCompact(each) + "\n";
+        synchronized (PctPlanRoute.class) {
+            java.nio.file.Files.writeString(java.nio.file.Path.of(file), line, java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        }
+    }
+
     record Answer(ExecutionPlan.TdsResult.Shape shape, PlanRunner.Rows rows, ExprType resultType,
             @com.legend.base.Nullable String engineJson) {
     }
 
     static Answer execute(String model, String expression) throws IOException {
+        capture(model, expression);
         TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression);
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
