@@ -1289,7 +1289,11 @@ public final class NativeFn {
             BY_PROPERTY = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
         }
 
-        /** The accessor an APPLIED (bare) name spells, or empty. */
+        /** The accessor an APPLIED (bare) name spells, or empty. THE INVARIANT (2026-11-12, the owner's ruling on
+         *  slice 1b's report): an applied spelling, never a lifted FQN -- its callers (the typer's row-cell read,
+         *  JoinChecker's row read) pass an AppliedFunction's name, which never holds a lifted one (DerivedProps makes
+         *  those after parsing, and they reach the typer as typed calls); a lifted FQN is {@link #ofLifted}'s, and
+         *  here answers empty ({@code NativeRegistryGovernanceTest} pins both for every getter). */
         public static Optional<RowGetter> of(@com.legend.base.Nullable String appliedName) {
             if (appliedName == null) {
                 return Optional.empty();

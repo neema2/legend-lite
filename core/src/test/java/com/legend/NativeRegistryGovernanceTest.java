@@ -42,4 +42,20 @@ class NativeRegistryGovernanceTest {
                 BodyDriver.registeredRoutineKeys(),
                 "JAVA_ROUTINE rows and staged routines drifted");
     }
+
+    /** RowGetter.of reads an APPLIED spelling, ofLifted a lifted FQN, and neither answers the other's (2026-11-12, the
+     *  owner's ruling on slice 1b's report: of never resolving a lifted FQN is its contract, now pinned). */
+    @Test
+    @DisplayName("ROW_GETTER: of reads applied spellings, ofLifted lifted FQNs")
+    void rowGetterLookupsReadTheirOwnSpellings() {
+        for (com.legend.builtin.NativeFn.RowGetter g : com.legend.builtin.NativeFn.RowGetter.values()) {
+            assertEquals(java.util.Optional.of(g), com.legend.builtin.NativeFn.RowGetter.of(g.property()), g.name());
+            assertEquals(java.util.Optional.of(g),
+                    com.legend.builtin.NativeFn.RowGetter.of(g.owner() + "::" + g.property()), g.name());
+            assertEquals(java.util.Optional.of(g), com.legend.builtin.NativeFn.RowGetter.ofLifted(g.fqn()), g.name());
+            assertEquals(java.util.Optional.empty(), com.legend.builtin.NativeFn.RowGetter.of(g.fqn()), g.name());
+            assertEquals(java.util.Optional.empty(), com.legend.builtin.NativeFn.RowGetter.ofLifted(g.property()),
+                    g.name());
+        }
+    }
 }
