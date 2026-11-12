@@ -39,8 +39,8 @@ class CsvLoadRenderTest {
     void duckDbAndH2ReadTheFileThemselves() {
         assertEquals(new SqlDialect.CsvLoad(List.of("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT * FROM"
                 + " read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"', auto_detect = false,"
-                + " strict_mode = true, nullstr = '', max_line_size = 524288000, columns = {'c0': 'VARCHAR', 'c1':"
-                + " 'VARCHAR', 'c2': 'VARCHAR'})"), List.of()), new DuckDb().csvLoad(LOAD));
+                + " strict_mode = true, nullstr = '', max_line_size = 524288000, buffer_size = 524288000,"
+                + " columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR', 'c2': 'VARCHAR'})"), List.of()), new DuckDb().csvLoad(LOAD));
         SqlDialect.CsvLoad h2 = new H2().csvLoad(LOAD);
         assertEquals("SET @legend_csv = ?", h2.statements().get(0));
         String check = new H2().csvRecordCheck(3);

@@ -665,10 +665,20 @@ class DataDeliveryMatrixTest {
             // each reader's edges, that one included, are pinned by DataLoadsTest.eachReadersEdgesArePinned)
             Path malformed = Files.createDirectories(dir.resolve("malformed-" + db));
             Files.writeString(malformed.resolve("people.csv"), "ID,NAME\n1,a,extra\n", StandardCharsets.UTF_8);
+            // a control first, on a database that reads a file: the same body over a well-formed file loads, so the
+            // malformed one's refusal is the record's, not the machine's (PR #95's macOS CI, 2026-11-12: DuckDB's
+            // out-of-memory refusal named the file too, and this cell passed it as the record's)
+            Path wellFormed = Files.createDirectories(dir.resolve("wellformed-" + db));
+            Files.writeString(wellFormed.resolve("people.csv"), "ID,NAME\n1,a\n2,b\n", StandardCharsets.UTF_8);
+            boolean reads = db == DatabaseType.DuckDB || db == DatabaseType.H2;
             try (Connection c = session(db)) {
-                Outcome o = attempt(() -> body(c, peopleModel(db, TestBackends.of(db).specificationAndAuth() + ";"), LOAD_PEOPLE, malformed));
-                boolean named = refusesNaming(o, "people.csv");
-                put(named ? green : red, "MALFORMED_RECORD/" + db, verdict(named, describe(o)));
+                String model = peopleModel(db, TestBackends.of(db).specificationAndAuth() + ";");
+                Outcome control = reads ? attempt(() -> body(c, model, LOAD_PEOPLE, wellFormed)) : null;
+                boolean controlled = control == null || control instanceof Outcome.Rows;
+                Outcome o = attempt(() -> body(c, model, LOAD_PEOPLE, malformed));
+                boolean named = controlled && refusesNaming(o, "people.csv");
+                put(named ? green : red, "MALFORMED_RECORD/" + db, verdict(named,
+                        (controlled ? "" : "the well-formed control: " + describe(control) + "; ") + describe(o)));
             }
             // 3. A MISSING FILE: refused naming it
             Path empty = Files.createDirectories(dir.resolve("missing-" + db));
