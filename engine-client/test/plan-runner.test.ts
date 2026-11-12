@@ -510,3 +510,47 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     assert.deepEqual(sent, []);
   });
 });
+
+
+// ROWS THE DATABASE MAKES, A PLANNED LOAD (SYNTHESIZE's simple slice, the user's ruling of 2026-11-12, register S303):
+// the WASM planner answers a declared table and a count with one HOST_SESSION load -- the table made as the model
+// declares it, empty, then ONE INSERT ... SELECT over range(count) whose every value the database computes -- and the
+// hosts' runner runs it on DuckDB-WASM; the plan holds no row
+describe("a synthesized table, planned by the WASM planner and run on DuckDB-WASM", () => {
+  const SYNTH = `###Relational
+Database s::DB
+(
+    Schema demo
+    (
+        Table TRADES ( id INTEGER, region VARCHAR(8), book VARCHAR(16), notional DECIMAL(12,2), day DATE, live BIT )
+    )
+)
+`;
+  const KNOBS = { region: { values: ['EMEA', 'AMER', 'APAC'] }, notional: { range: [0, 9999.99], scale: 2 } };
+  const request = (count: number, databaseType = 'DuckDB'): string => JSON.stringify({
+    databaseType, model: SYNTH, database: 's::DB', schema: 'demo', table: 'TRADES', count, columns: KNOBS });
+  const one = (sql: string): Promise<unknown[]> => engine.exclusive(async (held) => (await held.rows(sql, []))[0]!);
+
+  it('fills the declared table with the rows the database made, the plan holding none of them', async () => {
+    const plan = ok(answer(m, { kind: 'synthesize', request: request(100_000) }));
+    // the plan's size is the count's digits: "100000" against "10"
+    assert.equal(plan.length, ok(answer(m, { kind: 'synthesize', request: request(10) })).length + 4);
+    const steps = (JSON.parse(plan) as { root: { cadence: string; steps: { _type: string }[] } }).root;
+    assert.equal(steps.cadence, 'HOST_SESSION');
+    assert.ok(steps.steps.every((s) => s._type === 'statement'), JSON.stringify(steps.steps.map((s) => s._type)));
+    await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
+    assert.deepEqual((await one('SELECT count(*), count(DISTINCT id), CAST(min(day) AS VARCHAR), CAST(max(day) AS VARCHAR) FROM demo.TRADES')).map(String),
+      ['100000', '10000', '2021-01-01', '2025-12-31']);
+    assert.deepEqual((await one("SELECT count(*) FILTER (WHERE region = 'EMEA'), count(*) FILTER (WHERE region = 'AMER'),"
+      + " count(*) FILTER (WHERE region = 'APAC'), count(DISTINCT book), count(*) FILTER (WHERE live),"
+      + ' min(notional) >= 0, max(notional) <= 9999.99, count(*) FILTER (WHERE id IS NULL OR book IS NULL) FROM demo.TRADES')).map(String),
+      ['33334', '33333', '33333', '5', '50000', 'true', 'true', '0']);
+    // planned again, run again: the table made afresh, its rows the same
+    await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
+    assert.equal(String((await one('SELECT count(*) FROM demo.TRADES'))[0]), '100000');
+  });
+
+  it('any other database is refused by name, planning nothing', () => {
+    assert.throws(() => ok(answer(m, { kind: 'synthesize', request: request(10, 'Postgres') })), /Synthesize on/);
+  });
+});

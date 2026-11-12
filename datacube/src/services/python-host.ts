@@ -198,6 +198,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   fileLoad: "a host's own file is read into the tab's own database",
   remoteMount: "a remote file is mounted on the tab's own database (Python mounts its own: remote.json)",
   snapStream: "a snap of a remote plane streams into the tab's own database (Python snaps its own: snap.json)",
+  synthesize: "rows made for a declared table are the tab's own database's (SYNTHESIZE, DuckDB alone)",
   sessionSetup: "a session's setup is the tab's own database's",
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",

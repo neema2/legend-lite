@@ -59,6 +59,7 @@ function fakeExports(
     fileLoadOrError: () => 'ERR\nfake\nnot in this fake',
     remoteMountOrError: () => 'ERR\nfake\nnot in this fake',
     snapStreamOrError: () => 'ERR\nfake\nnot in this fake',
+    synthesizeOrError: () => 'ERR\nfake\nnot in this fake',
     sessionSetupOrError: () => 'ERR\nfake\nnot in this fake',
     projectDataOrError: () => 'ERR\nfake\nnot in this fake',
     hostOperationsOrError: () => 'ERR\nfake\nnot in this fake',
