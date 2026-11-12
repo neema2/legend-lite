@@ -1,7 +1,17 @@
 # The test-data generator's SYNTHESIZE mode: design (2026-11-12)
 
-**Status:** a design for the user's rulings (D1-D8), each with a recommendation. Nothing is built. It is to be built
-after the rulings, in the slices of §8.
+**Status:** the ROADMAP. The user ruled the scope on 2026-11-12: "Why so complex? ... Let's do the most simple thing
+that will work on duckdb for now - can extend later", and then, on the orchestrator's plan, "Go ahead". The first build
+is that simple slice, on branch `claude/total-wall-synth`:
+- the input is a TABLE the model declares, a row count, and an optional per-column knob (a value list, or a numeric or
+  date range with its scale);
+- the output is ONE planned DuckDB statement (`INSERT INTO <table> SELECT <a formula of the row number per column> FROM
+  range(N)`), a planned load step;
+- there is no seed, no hash, no keys or joins, no constraints and no class root; any other database, and any column
+  type the slice cannot make, is refused by name.
+
+The rest of this document (D1-D8: the portable hash, keys and joins, constraints, class roots, the Pure face, the other
+dialects) is the roadmap for later slices, each built when the user asks.
 
 **The go:** the user, 2026-11-12: "Can we do this now instead of parquet", after "Isn't this very close to our test data
 generator?". It came by the orchestrator's brief to the B4 worker, which follows B2d.3 (branch `claude/total-wall-b2d3`).
