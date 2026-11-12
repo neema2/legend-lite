@@ -186,7 +186,7 @@ class PlanRunnerTest {
     @Test
     void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of(), null);
+                List.of(), List.of());
         ExecutionPlan bad = ExecutionPlan.reading(List.of(declared("n", "Integer", 0, 1)), cell(
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
@@ -261,7 +261,7 @@ class PlanRunnerTest {
     }
 
     static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.LoadStep... setup) {
-        return com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(database, List.of(), List.of(), null),
+        return com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(database, List.of(), List.of()),
                 List.of(setup));
     }
 
@@ -292,7 +292,7 @@ class PlanRunnerTest {
         for (var connection : inMemoryConnections()) {
             ExecutionPlan.Target target = com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                    List.of(), List.of(), null), com.legend.setup.LoadSteps.of(List.of(statement(
+                    List.of(), List.of()), com.legend.setup.LoadSteps.of(List.of(statement(
                             "CREATE TABLE K (A VARCHAR(10), B VARCHAR(10))"))).then(com.legend.setup.LoadSteps.blob(
                             List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "the data of the table K")));
             long before = setupStatements();
@@ -313,7 +313,7 @@ class PlanRunnerTest {
             try (java.sql.Connection c = b.open(); java.sql.Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE WHOLE_K (A VARCHAR(10))");
                 ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(b.planType(),
-                        null), List.of(), List.of(), null);
+                        null), List.of(), List.of());
                 com.legend.setup.LoadSteps steps = com.legend.setup.LoadSteps.blob(List.of(
                         "INSERT INTO WHOLE_K VALUES ('a')", "INSERT INTO NO_SUCH_TABLE VALUES ('b')"),
                         "the data of the table WHOLE_K");

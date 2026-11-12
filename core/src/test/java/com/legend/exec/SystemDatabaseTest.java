@@ -37,7 +37,7 @@ class SystemDatabaseTest {
         List<ExecutionPlan.Load> loads = new ArrayList<>(catalog.loads());
         loads.add(host);
         var refused = assertThrows(IllegalArgumentException.class,
-                () -> new ExecutionPlan.Target(catalog.database(), catalog.session(), loads, null));
+                () -> new ExecutionPlan.Target(catalog.database(), catalog.session(), loads));
         assertTrue(refused.getMessage().contains("HOST_SESSION"), refused.getMessage());
     }
 

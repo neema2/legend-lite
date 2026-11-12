@@ -32,7 +32,7 @@ class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
         return com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
-                spec, auth)), null), List.of(), List.of(), null),
+                spec, auth)), null), List.of(), List.of()),
                 List.of(new LoadStep.Statement("create table T(ID INT)")));
     }
 
@@ -76,7 +76,7 @@ class PlanJsonTest {
     void bothLoadStepKindsReadBack_theStatementsBlobInTheBundle() {
         Target t = com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
-                List.of("SET TimeZone='UTC'"), List.of(), null),
+                List.of("SET TimeZone='UTC'"), List.of()),
                 com.legend.setup.LoadSteps.of(List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)")))
                         .then(com.legend.setup.LoadSteps.blob(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"), "the data of the table T")));
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
@@ -95,7 +95,7 @@ class PlanJsonTest {
     @Test
     void aBoundPayloadIsTheStatementsContentByDigest() {
         Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of(), null);
+                List.of(), List.of());
         for (String json : List.of("[{\"t\":\"it's a \\\\ b\\nc\"},1.50,null]",
                 "[" + "\"x\",".repeat(PlanJson.INLINE_LIMIT_BYTES / 4) + "\"y\"]")) {
             String digest = com.legend.cache.Hash.ofUtf8(json).hex();
@@ -129,7 +129,7 @@ class PlanJsonTest {
 
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
-        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of("SET TimeZone='UTC'"), List.of(), null);
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of("SET TimeZone='UTC'"), List.of());
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.VALUE,
                 List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -140,7 +140,7 @@ class PlanJsonTest {
         // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system
         // database on its engine; the plan names it by type alone (the one who opens it holds the session)
         Target t = new Target(new Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
-                List.of(), List.of(), null);
+                List.of(), List.of());
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -224,7 +224,7 @@ class PlanJsonTest {
     @Test
     void theLoadSectionWritesEachLoadOnce_andRefusesWhatIsNotOneLoadPerIdentity() {
         Target bare = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM),
-                null), List.of(), List.of(), null);
+                null), List.of(), List.of());
         Target t = com.legend.planner.LoadPlanner.withLoads(bare, List.of(new LoadStep.Statement("create table T(ID INT)")));
         String identity = t.loads().get(0).identity();
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new Sequence(List.of(
@@ -250,7 +250,7 @@ class PlanJsonTest {
         ExecutionPlan clash = ExecutionPlan.reading(List.of(), new Sequence(List.of(
                 new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)),
                 new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 2", List.of(),
-                        new Target(bare.database(), bare.session(), List.of(other), null), null)))));
+                        new Target(bare.database(), bare.session(), List.of(other)), null)))));
         IllegalStateException differ = assertThrows(IllegalStateException.class, () -> PlanJson.write(clash));
         assertTrue(differ.getMessage().contains("two loads of one identity differ"), differ.getMessage());
     }

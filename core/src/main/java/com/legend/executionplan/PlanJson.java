@@ -706,13 +706,6 @@ public final class PlanJson {
         return Json.toCompact(t);
     }
 
-    /** {@code database}'s key text: a target of it alone written as a plan writes one -- no session statement, no
-     *  load, no error read-back, none of them what the database holds (exec's project key, {@code
-     *  PlanSessions.projectKey}: the C checkpoint's SHOULD-FIX 2, 2026-11-12, so exec builds no target). */
-    public static String writeDatabaseKey(ExecutionPlan.Database database) {
-        return writeTarget(new Target(database, List.of(), List.of(), null));
-    }
-
     /** {@code t} as a JSON object (the test plan's format writes an appeal's replay target so: step 8b). */
     public static Map<String, Object> targetJson(Target t) {
         return target(t);

@@ -444,7 +444,8 @@ public final class PlanSessions {
      * own, with the whole fill; the M1 correctness audit's C1 is kept by the project's key).
      */
     public static Hash projectKey(ExecutionPlan.Target target) {
-        StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeDatabaseKey(target.database()));
+        StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeTarget(
+                new ExecutionPlan.Target(target.database(), java.util.List.of(), java.util.List.of())));
         for (ExecutionPlan.Load load : target.loads()) {
             if (load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
                 PlanRunner.verifyIdentity(load);
