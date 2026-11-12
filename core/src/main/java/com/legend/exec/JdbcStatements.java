@@ -493,8 +493,11 @@ final class JdbcStatements implements Statements {
             try {
                 work.run();
                 c.commit();
-            } catch (IOException | RuntimeException e) {
-                // the work's own failure is the one told; the session is rolled back and set back as it can be
+            } catch (IOException | RuntimeException | Error e) {
+                // the work's own failure is the one told -- an Error too (the final audit, 2026-11-12: a
+                // RunScope.Refused or an OutOfMemoryError while a keyed snapshot streamed left a kept session in the open
+                // transaction, autocommit off and the isolation set, and every later request joined it; as
+                // Sessions.inTransaction catches it) -- the session rolled back and set back as it can be
                 try {
                     restore(snapshot, autoCommit, isolation, true);
                 } catch (SQLException restore) {
