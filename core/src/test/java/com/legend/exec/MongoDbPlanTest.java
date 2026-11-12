@@ -200,8 +200,8 @@ class MongoDbPlanTest {
         String body = plan.answerSql().statement();
         assertTrue(body.contains("\"$$lp1\"") && body.contains("\"$$lp2\"") && body.contains("$legendParam"),
                 "the parameters' variables and the keys' markers: " + body);
-        assertEquals("[{\"Oslo__|__s\":62}]", run(query, PlanCases.Written.JSON, Map.of("lo", 20L, "hi", 40L)));
-        assertEquals("[{\"Oslo__|__s\":34,\"Rome__|__s\":41}]",
+        assertEquals("[{\"'Oslo__|__s'\":62}]", run(query, PlanCases.Written.JSON, Map.of("lo", 20L, "hi", 40L)));
+        assertEquals("[{\"'Oslo__|__s'\":34,\"'Rome__|__s'\":41}]",
                 run(query, PlanCases.Written.JSON, Map.of("lo", 30L, "hi", 50L)));
     }
 
@@ -242,7 +242,7 @@ class MongoDbPlanTest {
         String statement = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT").answerSql()
                 .statement();
         int lookup = statement.indexOf("\"$lookup\"");
-        assertTrue(lookup >= 0 && statement.indexOf("\"$$p1\"", lookup) > lookup,
+        assertTrue(lookup >= 0 && statement.indexOf("\"$$lp1\"", lookup) > lookup,
                 "the parameter inside the lookup: " + statement);
         assertEquals("[{\"name\":\"Ann\"},{\"name\":\"Cy\"}]", run(query, PlanCases.Written.JSON, Map.of("n", 30L)));
     }
