@@ -1070,6 +1070,9 @@ public final class Databricks extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on Databricks, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached Databricks, whose binary collation is not measured");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             // Pure's divide is a Float division: both operands DOUBLE

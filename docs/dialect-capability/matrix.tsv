@@ -104,6 +104,7 @@ H2	H2	call	ASCII_CODE	spelled	ascii		10
 H2	H2	call	CHR	spelled	chr		9
 H2	H2	call	UC_FIRST	emulated	firstCharCased: upper		5
 H2	H2	call	LC_FIRST	emulated	firstCharCased: lower		5
+H2	H2	call	BINARY_COLLATE	emulated	composed		0
 H2	H2	call	ENCODE_BASE64	refused	encodeBase64 reached H2, which has no to_base64()		3
 H2	H2	call	LEVENSHTEIN	spelled	levenshtein		2
 H2	H2	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
@@ -327,6 +328,7 @@ Postgres	Postgres	call	ASCII_CODE	spelled	ascii		10
 Postgres	Postgres	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
 Postgres	Postgres	call	UC_FIRST	emulated	firstCharCased: upper		5
 Postgres	Postgres	call	LC_FIRST	emulated	firstCharCased: lower		5
+Postgres	Postgres	call	BINARY_COLLATE	emulated	(… COLLATE "C")		0
 Postgres	Postgres	call	ENCODE_BASE64	emulated	replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')		3
 Postgres	Postgres	call	LEVENSHTEIN	emulated	levenshtein		2
 Postgres	Postgres	call	GUID	emulated	CAST(gen_random_uuid() AS VARCHAR)		2
@@ -550,6 +552,7 @@ Snowflake	Snowflake	call	ASCII_CODE	spelled	ascii		10
 Snowflake	Snowflake	call	CHR	spelled	chr		9
 Snowflake	Snowflake	call	UC_FIRST	emulated	firstCharCased: upper		5
 Snowflake	Snowflake	call	LC_FIRST	emulated	firstCharCased: lower		5
+Snowflake	Snowflake	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached Snowflake, whose binary collation is not measured		0
 Snowflake	Snowflake	call	ENCODE_BASE64	spelled	base64_encode		3
 Snowflake	Snowflake	call	LEVENSHTEIN	spelled	editdistance		2
 Snowflake	Snowflake	call	GUID	spelled	UUID_STRING		2
@@ -773,6 +776,7 @@ Trino	Trino	call	ASCII_CODE	emulated	(CASE WHEN length(…) = 0 THEN 0 ELSE code
 Trino	Trino	call	CHR	spelled	chr		9
 Trino	Trino	call	UC_FIRST	emulated	firstCharCased: upper		5
 Trino	Trino	call	LC_FIRST	emulated	firstCharCased: lower		5
+Trino	Trino	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached Trino, whose binary collation is not measured		0
 Trino	Trino	call	ENCODE_BASE64	emulated	to_base64(to_utf8(…))		3
 Trino	Trino	call	LEVENSHTEIN	spelled	levenshtein_distance		2
 Trino	Trino	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
@@ -996,6 +1000,7 @@ BigQuery	BigQuery	call	ASCII_CODE	spelled	ASCII		10
 BigQuery	BigQuery	call	CHR	spelled	CHR		9
 BigQuery	BigQuery	call	UC_FIRST	emulated	firstCharCased: upper		5
 BigQuery	BigQuery	call	LC_FIRST	emulated	firstCharCased: lower		5
+BigQuery	BigQuery	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached BigQuery, whose binary collation is not measured		0
 BigQuery	BigQuery	call	ENCODE_BASE64	emulated	asText: TO_BASE64(CAST(… AS BYTES))		3
 BigQuery	BigQuery	call	LEVENSHTEIN	spelled	EDIT_DISTANCE		2
 BigQuery	BigQuery	call	GUID	spelled	GENERATE_UUID		2
@@ -1219,6 +1224,7 @@ Databricks	Databricks	call	ASCII_CODE	spelled	ascii		10
 Databricks	Databricks	call	CHR	spelled	chr		9
 Databricks	Databricks	call	UC_FIRST	emulated	firstCharCased: upper		5
 Databricks	Databricks	call	LC_FIRST	emulated	firstCharCased: lower		5
+Databricks	Databricks	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached Databricks, whose binary collation is not measured		0
 Databricks	Databricks	call	ENCODE_BASE64	emulated	replace(replace(base64(CAST(… AS BINARY)), chr(13), ''), chr(10), '')		3
 Databricks	Databricks	call	LEVENSHTEIN	spelled	levenshtein		2
 Databricks	Databricks	call	GUID	spelled	uuid		2
@@ -1442,6 +1448,7 @@ DuckDb	DuckDB	call	ASCII_CODE	spelled	ascii		10
 DuckDb	DuckDB	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
 DuckDb	DuckDB	call	UC_FIRST	emulated	firstCharCased: upper		5
 DuckDb	DuckDB	call	LC_FIRST	emulated	firstCharCased: lower		5
+DuckDb	DuckDB	call	BINARY_COLLATE	emulated	composed		0
 DuckDb	DuckDB	call	ENCODE_BASE64	emulated	encodeBase64		3
 DuckDb	DuckDB	call	LEVENSHTEIN	spelled	levenshtein		2
 DuckDb	DuckDB	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
@@ -1665,6 +1672,7 @@ ClickHouse	ClickHouse	call	ASCII_CODE	emulated	toInt64(ascii(…))		10
 ClickHouse	ClickHouse	call	CHR	spelled	char		9
 ClickHouse	ClickHouse	call	UC_FIRST	emulated	concat(upperUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))		5
 ClickHouse	ClickHouse	call	LC_FIRST	emulated	concat(lowerUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))		5
+ClickHouse	ClickHouse	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached ClickHouse, whose binary collation is not measured		0
 ClickHouse	ClickHouse	call	ENCODE_BASE64	spelled	base64Encode		3
 ClickHouse	ClickHouse	call	LEVENSHTEIN	emulated	toInt64(editDistanceUTF8(…))		2
 ClickHouse	ClickHouse	call	GUID	emulated	toString(generateUUIDv4())		2
@@ -1888,6 +1896,7 @@ SQLite	SQLite	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE coa
 SQLite	SQLite	call	CHR	spelled	char		9
 SQLite	SQLite	call	UC_FIRST	emulated	firstCharCased: upper		5
 SQLite	SQLite	call	LC_FIRST	emulated	firstCharCased: lower		5
+SQLite	SQLite	call	BINARY_COLLATE	emulated	(… COLLATE BINARY)		0
 SQLite	SQLite	call	ENCODE_BASE64	emulated	base64Encoded		3
 SQLite	SQLite	call	LEVENSHTEIN	emulated	levenshtein		2
 SQLite	SQLite	call	GUID	emulated	lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(r...		2
@@ -2111,6 +2120,7 @@ MariaDb	MariaDB	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL WHEN C
 MariaDb	MariaDB	call	CHR	emulated	CONVERT(CHAR(… USING utf32) USING utf8mb4)		9
 MariaDb	MariaDB	call	UC_FIRST	emulated	firstCharCased: upper		5
 MariaDb	MariaDB	call	LC_FIRST	emulated	firstCharCased: lower		5
+MariaDb	MariaDB	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured		0
 MariaDb	MariaDB	call	ENCODE_BASE64	emulated	REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')		3
 MariaDb	MariaDB	call	LEVENSHTEIN	emulated	levenshtein		2
 MariaDb	MariaDB	call	GUID	emulated	CAST(UUID() AS CHAR)		2
@@ -2334,6 +2344,7 @@ MySql	MySQL	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL WHEN CHAR_
 MySql	MySQL	call	CHR	emulated	CONVERT(CHAR(… USING utf32) USING utf8mb4)	as MariaDb	9
 MySql	MySQL	call	UC_FIRST	emulated	firstCharCased: upper	as MariaDb	5
 MySql	MySQL	call	LC_FIRST	emulated	firstCharCased: lower	as MariaDb	5
+MySql	MySQL	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured	as MariaDb	0
 MySql	MySQL	call	ENCODE_BASE64	emulated	REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')	as MariaDb	3
 MySql	MySQL	call	LEVENSHTEIN	emulated	levenshtein	as MariaDb	2
 MySql	MySQL	call	GUID	emulated	CAST(UUID() AS CHAR)	as MariaDb	2
@@ -2557,6 +2568,7 @@ MongoDb	MongoDB	call	ASCII_CODE	emulated	guarded: {"$let": {"vars": {"c":,  {"$i
 MongoDb	MongoDB	call	CHR	emulated	guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}		0
 MongoDb	MongoDB	call	UC_FIRST	emulated	firstCased: $toUpper		0
 MongoDb	MongoDB	call	LC_FIRST	emulated	firstCased: $toLower		0
+MongoDb	MongoDB	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached MongoDB, whose binary collation is not measured		0
 MongoDb	MongoDB	call	ENCODE_BASE64	emulated	guarded: {"$convert": {"input":,  {"$convert": {"input": , , "to": "binData", "format": "utf8"}},,  "to": "string", "format": "base64"}}		0
 MongoDb	MongoDB	call	LEVENSHTEIN	emulated	guarded		0
 MongoDb	MongoDB	call	GUID	emulated	{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...		0
@@ -2780,6 +2792,7 @@ EngineStyleH2	-	call	ASCII_CODE	spelled	ascii		-
 EngineStyleH2	-	call	CHR	spelled	char		-
 EngineStyleH2	-	call	UC_FIRST	emulated	firstCharCased: upper		-
 EngineStyleH2	-	call	LC_FIRST	emulated	firstCharCased: lower		-
+EngineStyleH2	-	call	BINARY_COLLATE	emulated	composed		-
 EngineStyleH2	-	call	ENCODE_BASE64	emulated	encodeBase64		-
 EngineStyleH2	-	call	LEVENSHTEIN	spelled	levenshtein		-
 EngineStyleH2	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)		-
@@ -3003,6 +3016,7 @@ EngineStyleDB2	-	call	ASCII_CODE	spelled	ascii	as EngineStyleH2	-
 EngineStyleDB2	-	call	CHR	spelled	char	as EngineStyleH2	-
 EngineStyleDB2	-	call	UC_FIRST	emulated	firstCharCased: upper	as EngineStyleH2	-
 EngineStyleDB2	-	call	LC_FIRST	emulated	firstCharCased: lower	as EngineStyleH2	-
+EngineStyleDB2	-	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured		-
 EngineStyleDB2	-	call	ENCODE_BASE64	emulated	encodeBase64	as EngineStyleH2	-
 EngineStyleDB2	-	call	LEVENSHTEIN	spelled	levenshtein	as EngineStyleH2	-
 EngineStyleDB2	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as EngineStyleH2	-
@@ -3226,6 +3240,7 @@ EngineStyleComposite	-	call	ASCII_CODE	spelled	ascii	as EngineStyleDB2, as Engin
 EngineStyleComposite	-	call	CHR	spelled	char	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	UC_FIRST	emulated	firstCharCased: upper	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LC_FIRST	emulated	firstCharCased: lower	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured	as EngineStyleDB2	-
 EngineStyleComposite	-	call	ENCODE_BASE64	emulated	encodeBase64	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LEVENSHTEIN	spelled	levenshtein	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as EngineStyleDB2, as EngineStyleH2	-

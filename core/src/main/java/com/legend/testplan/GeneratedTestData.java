@@ -73,15 +73,20 @@ final class GeneratedTestData {
     private static TypedQuery withSeedStrings(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn) {
         List<TypedSpec> body = new ArrayList<>(typed.body().size());
         boolean changed = false;
+        // each seed string's planned value, by identity: a database effect between its let and a read of it is
+        // refused by name (the B2d.3 audit's M5; read where read, S196)
+        java.util.Set<TypedSpec> planned = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         for (TypedSpec s : typed.body()) {
-            TypedSpec r = seedStrings(s, typed, runtimeFqn);
+            TypedSpec r = seedStrings(s, typed, runtimeFqn, planned);
             changed |= r != s;
             body.add(r);
         }
+        GeneratorSplice.refuseEffectsBeforeAReadOf(body, planned, typed.specs());
         return changed ? typed.withBody(body) : typed;
     }
 
-    private static TypedSpec seedStrings(TypedSpec n, TypedQuery typed, @com.legend.base.Nullable String runtimeFqn) {
+    private static TypedSpec seedStrings(TypedSpec n, TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            java.util.Set<TypedSpec> planned) {
         if (n instanceof TypedTestDataGen g && "seedString".equals(g.flavor())) {
             List<ValueSpecification> ps = g.params();
             theBodysRuntime(ps.get(2), typed.body(), runtimeFqn);
@@ -94,7 +99,9 @@ final class GeneratedTestData {
             String mapping = ((PackageableElementPtr) ps.get(1)).fullPath();
             TestDataPlanner.Seed seed = TestDataPlanner.seed(typed.context(), query, mapping, false,
                     queries(typed, mapping, runtimeFqn));
-            return GeneratorSplice.plannedValue(TestDataPlanner.seedString(typed.context(), seed), g.info());
+            TypedSpec value = GeneratorSplice.plannedValue(TestDataPlanner.seedString(typed.context(), seed), g.info());
+            planned.add(value);
+            return value;
         }
         List<TypedSpec> kids = n.children();
         if (kids.isEmpty()) {
@@ -103,24 +110,25 @@ final class GeneratedTestData {
         List<TypedSpec> next = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec r = seedStrings(k, typed, runtimeFqn);
+            TypedSpec r = seedStrings(k, typed, runtimeFqn, planned);
             changed |= r != k;
             next.add(r);
         }
         return changed ? n.withChildren(next) : n;
     }
 
-    /** The user's query lowered as a product query on the body's runtime, which must declare {@code mapping} (the
-     *  runtime's mappings resolve its classes, as the pure/v1 execute route lowers a query): typed, inlined, resolved
-     *  and lowered by the planner (the seed carries its keys through it). A runtime that does not declare a mapping
-     *  that maps anything is refused by name, never guessed. */
+    /** The user's query lowered as a product query on the body's runtime, read through {@code mapping} whatever
+     *  mappings that runtime declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function
+     *  with the given mapping): typed, inlined, resolved and lowered by the planner (the seed carries its keys through
+     *  it). */
     static TestDataPlanner.Queries queries(TypedQuery typed, String mapping,
             @com.legend.base.Nullable String runtimeFqn) {
         return q -> {
             String runtime = java.util.Objects.requireNonNull(runtimeFqn,
                     "the seed's query is planned on the body's runtime, and the body names none");
-            TestDataPlanner.declares(typed.context(), runtime, mapping);
-            return com.legend.Compiler.query(typed.context(), q).lower(runtime, false).plan();
+            return com.legend.Compiler.query(typed.context(), TestDataPlanner.underMapping(q, mapping, runtime,
+                    com.legend.Compiler::parseQuery))
+                    .lower(runtime, false).plan();
         };
     }
 

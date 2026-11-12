@@ -782,6 +782,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case RPAD -> padWithSpaceToInteger(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case BINARY_COLLATE -> writer.append("(").expr(c.args().get(0), 0).append(" COLLATE \"C\")");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);

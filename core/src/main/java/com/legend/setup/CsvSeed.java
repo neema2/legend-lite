@@ -173,13 +173,21 @@ public final class CsvSeed {
      *  still rows. */
     public static List<Step> steps(String csvBlocks, @com.legend.base.Nullable String dbFqn,
             ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
+        return steps(csvBlocks, dbFqn == null ? List.of() : List.of(dbFqn), ctx, dialect);
+    }
+
+    /** {@link #steps}, each block's schema and table looked up in {@code dbFqns} -- every database a connection
+     *  serves, in order, as upstream's {@code setUpDataSQLs(csv, [db1, db2])} looks them up in a database that includes
+     *  them all (the B2d.3 audit's M3) -- or, with none, the CSV's names as their text. */
+    public static List<Step> steps(String csvBlocks, List<String> dbFqns, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect) {
         List<Step> out = new ArrayList<>();
         // block separators: a line of dashes — '-' (the Alloy '\n-\n'
         // form) or '-----' (the testDataGeneration CSV form)
         StringBuilder block = new StringBuilder();
         for (String line : records(csvBlocks, true)) {
             if (line.strip().matches("-+")) {
-                blockSqls(block.toString(), dbFqn, ctx, dialect, out);
+                blockSqls(block.toString(), dbFqns, ctx, dialect, out);
                 block.setLength(0);
             } else {
                 if (block.length() > 0) {
@@ -188,11 +196,11 @@ public final class CsvSeed {
                 block.append(line);
             }
         }
-        blockSqls(block.toString(), dbFqn, ctx, dialect, out);
+        blockSqls(block.toString(), dbFqns, ctx, dialect, out);
         return out;
     }
 
-    private static void blockSqls(String csv, @com.legend.base.Nullable String dbFqn, ModelContext ctx,
+    private static void blockSqls(String csv, List<String> dbFqns, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect, List<Step> out) {
         String[] lines = records(csv, false).toArray(String[]::new);
         while (lines.length > 0 && lines[0].isEmpty()) {
@@ -206,11 +214,19 @@ public final class CsvSeed {
         String table = lines[1];
         boolean defaultSchema = "default".equals(schema);
         String[] cols = cells(lines[2]);
-        var def = dbFqn == null
-                ? java.util.Optional.<com.legend.model.DatabaseDefinition.TableDefinition>empty()
-                : ctx.findTableDefinition(dbFqn, defaultSchema ? table : schema + "." + table);
-        if (dbFqn != null) {
-            declared(ctx, dbFqn, schema, table, defaultSchema, def.isPresent());
+        // the table where its schema declares it, the default schema's by "default." too: a bare name would find a
+        // named schema's table of that name, which upstream's schema('default')->table(T) does not (the B2d.3 audit's
+        // L1); the first database that declares it, as upstream's lookup over a database including them all
+        var def = java.util.Optional.<com.legend.model.DatabaseDefinition.TableDefinition>empty();
+        for (String db : dbFqns) {
+            def = ctx.findTableDefinition(db, schema + "." + table);
+            if (def.isPresent()) {
+                break;
+            }
+        }
+        String dbNames = String.join(", ", dbFqns);
+        if (!dbFqns.isEmpty()) {
+            declared(ctx, dbFqns, schema, table, defaultSchema, def.isPresent());
         }
         if (def.isPresent()) {
             // schema-qualified CSV tables need their schema first (the
@@ -250,7 +266,7 @@ public final class CsvSeed {
         // a declared table's columns as the header names them, matched as upstream's loader matches them, written by
         // their declared names (quoted ones keep their case); with no declaration, the CSV's names spelled as bare names
         List<com.legend.model.DatabaseDefinition.ColumnDefinition> named = def.isPresent()
-                ? columnsOf(def.get(), table, String.valueOf(dbFqn), cols) : null;
+                ? columnsOf(def.get(), table, dbNames, cols) : null;
         String[] names = named == null ? cols
                 : named.stream().map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toArray(String[]::new);
         RowLoad load = rowLoad(defaultSchema ? null : schema, table,
@@ -262,18 +278,20 @@ public final class CsvSeed {
         }
     }
 
-    /** A block's schema and table, looked up as upstream's loader looks them up in {@code dbFqn} and its includes
-     *  ({@code loadCsvDataToDbTable}, databaseHelperFunctions.pure): a schema none declares, or a table its schema does
-     *  not declare, refused with upstream's words. */
-    private static void declared(ModelContext ctx, String dbFqn, String schema, String table, boolean defaultSchema,
-            boolean tableDeclared) {
-        if (!defaultSchema && !schemaDeclared(ctx, dbFqn, schema, new java.util.HashSet<>())) {
+    /** A block's schema and table, looked up as upstream's loader looks them up in {@code dbFqns} and their includes
+     *  ({@code loadCsvDataToDbTable}, databaseHelperFunctions.pure: a database including them all, its names joined by
+     *  {@code ", "}): a schema none declares, or a table its schema does not declare, refused with upstream's words. */
+    private static void declared(ModelContext ctx, List<String> dbFqns, String schema, String table,
+            boolean defaultSchema, boolean tableDeclared) {
+        String dbNames = String.join(", ", dbFqns);
+        if (!defaultSchema && dbFqns.stream().noneMatch(db -> schemaDeclared(ctx, db, schema,
+                new java.util.HashSet<>()))) {
             throw new com.legend.error.AssertFailed("There should be exactly 1 schema with name " + schema
-                    + " found in the provided runtime database(s) [" + dbFqn + "] at the given connection.");
+                    + " found in the provided runtime database(s) [" + dbNames + "] at the given connection.");
         }
         if (!tableDeclared) {
             throw new com.legend.error.AssertFailed("Table \"" + table + "\" not found in Schema \"" + schema
-                    + "\" in Database(s) " + dbFqn);
+                    + "\" in Database(s) " + dbNames);
         }
     }
 
@@ -596,25 +614,33 @@ public final class CsvSeed {
         if (rt.isEmpty()) {
             return out;
         }
+        // each connection ONCE, against every store it serves (the B2d.3 audit's M3: upstream's
+        // processRuntimeTestConnections, storeContract.pure ~119-141, loads each distinct connection's test data once
+        // with setUpDataSQLs(csv, its databases) -- until then lite loaded it per store binding, so a CSV holding the
+        // tables of two databases one connection serves was refused against each alone, and its SQL ran twice)
+        java.util.Map<String, List<String>> storesOf = new java.util.LinkedHashMap<>();
         for (var binding : rt.get().connectionBindings().entrySet()) {
-            String store = binding.getKey();
             for (String connFqn : binding.getValue()) {
-                ctx.findConnection(connFqn).ifPresent(cd -> {
-                    com.legend.model.ConnectionSpecification.TestData data = cd.specification().testData();
-                    if (data != null) {
-                        if (data.sqls() != null) {
-                            for (String sql : data.sqls()) {
-                                // written in the database the connection declares (D2)
-                                out.add(new Step.Sql(sql, cd.databaseType().name()));
-                            }
-                        }
-                        if (data.csv() != null) {
-                            String db = ctx.findDatabase(store).isPresent() ? store : null;
-                            out.addAll(steps(data.csv(), db, ctx, dialect));
+                storesOf.computeIfAbsent(connFqn, k -> new ArrayList<>()).add(binding.getKey());
+            }
+        }
+        for (var served : storesOf.entrySet()) {
+            ctx.findConnection(served.getKey()).ifPresent(cd -> {
+                com.legend.model.ConnectionSpecification.TestData data = cd.specification().testData();
+                if (data != null) {
+                    if (data.sqls() != null) {
+                        for (String sql : data.sqls()) {
+                            // written in the database the connection declares (D2)
+                            out.add(new Step.Sql(sql, cd.databaseType().name()));
                         }
                     }
-                });
-            }
+                    if (data.csv() != null) {
+                        List<String> dbs = served.getValue().stream().filter(s -> ctx.findDatabase(s).isPresent())
+                                .distinct().toList();
+                        out.addAll(steps(data.csv(), dbs, ctx, dialect));
+                    }
+                }
+            });
         }
         return out;
     }

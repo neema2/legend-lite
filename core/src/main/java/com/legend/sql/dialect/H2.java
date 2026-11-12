@@ -568,6 +568,9 @@ public class H2 extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation: this database compares texts by their code points already (measured 2026-11-12,
+            // the B2d.3 audit's M4), so the order key is the text as it is
+            case BINARY_COLLATE -> writer.expr(c.args().get(0), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
             case RANDOM -> writer.append("RAND()");

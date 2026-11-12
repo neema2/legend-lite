@@ -196,6 +196,25 @@ public final class TestDataPlanner {
         return cs;
     }
 
+    /** {@code cols} of {@code def} in the server routes' order (the B2d.3 audit's M1): upstream's plan form sorts a
+     *  table's columns by their model names ({@code sortBy(x | $x.name)}, TDG:885, :1043) -- Pure's string order,
+     *  case-sensitive, a quoted name with its quotes -- before it aliases each, and the route writes them in that
+     *  order. A planning constant: the model's names. */
+    private static List<String> routeOrder(DatabaseDefinition.TableDefinition def, List<String> cols) {
+        List<String> cs = new ArrayList<>(cols);
+        cs.sort(java.util.Comparator.comparing(c -> pureName(def, c)));
+        return cs;
+    }
+
+    /** A column's name in the server routes' header (the B2d.3 audit's M1): upstream aliases it
+     *  {@code $y.name->addQuotesIfNoQuotes()} (TDG:885) and its writer prints the label without its quotes, in double
+     *  quotes where it holds a space ({@code SQLResultColumn.getQuotedLabelIfContainSpace},
+     *  TestDataGeneration.java:306): the declared name, its case kept. */
+    private static String routeHeader(DatabaseDefinition.TableDefinition def, String c) {
+        String name = column(def, c).name();
+        return name.contains(" ") ? "\"" + name + "\"" : name;
+    }
+
     /** One table's fetches: its schema, name, definition, demanded columns and the clauses that fetch it. */
     private record Fetched(String schema, String table, DatabaseDefinition.TableDefinition def, List<String> cols,
             List<String> ctes) {
@@ -357,6 +376,12 @@ public final class TestDataPlanner {
             TestDataGenerator.TableRowIds ids = null;
             for (TestDataGenerator.TableRowIds t : rowIds) {
                 if (t.table().equals(table) && t.schema().equals(loc.schema())) {
+                    if (ids != null) {
+                        // two entries for one table: upstream's assert, before anything else (the B2d.3 audit's L2;
+                        // getRowIdentifiersForTable, TDG:487, and the plan form's, TDG:1208; getQualifiedTableName)
+                        throw new AssertFailed("Multiple table row identifiers passed for the table: "
+                                + physical(loc.schema(), table));
+                    }
                     ids = t;
                 }
             }
@@ -577,15 +602,23 @@ public final class TestDataPlanner {
         SqlSource from = null;
         int n = 0;
         for (Fetched f : order) {
-            List<String> cs = headerOrder(f.cols());
+            // the route's header is its writer's (the B2d.3 audit's M1, 2026-11-12): each column's declared name, in
+            // double quotes where it holds a space (getQuotedLabelIfContainSpace, TestDataGeneration.java:306), the
+            // columns sorted by their names case-sensitively (the plan form's sortBy(x | $x.name), TDG:1043, :885);
+            // the function's, its H2-folded header (upper case, sorted so)
+            List<String> cs = route ? routeOrder(f.def(), f.cols()) : headerOrder(f.cols());
             String header = f.schema() + "\n" + f.table() + "\n"
-                    + String.join(",", cs.stream().map(TestDataPlanner::headerCase).toList()) + "\n";
+                    + String.join(",", cs.stream().map(c -> route ? routeHeader(f.def(), c) : headerCase(c)).toList())
+                    + "\n";
             String alias = "_t" + n++;
             SqlSource lines = new SqlSource.Subselect(lines(walk, f, cs, hashStrings), alias, null);
             from = from == null ? lines : new SqlSource.Join(from, lines, SqlSource.Join.Kind.CROSS, null);
             blocks.add(new SqlExpr.StringLit(header));
+            // a table with no row is a blank line, as upstream writes it on both paths (the B2d.3 audit's M2,
+            // 2026-11-12): the route's Collectors.joining("\n", "", "\n") and the function's joinStrings('', '\n',
+            // '\n') answer their suffix for no row
             blocks.add(SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Column.derived(alias, LINES),
-                    new SqlExpr.StringLit("")));
+                    new SqlExpr.StringLit("\n")));
             blocks.add(new SqlExpr.StringLit("-----\n"));
         }
         SqlExpr text = new SqlExpr.Call(SqlFn.CONCAT, blocks, SqlTyping.UNKNOWN);
@@ -695,13 +728,25 @@ public final class TestDataPlanner {
                     : "Seed data generation currently supports queries with a single root (got: " + roots.size()
                             + ")");
         }
+        // a set operation at the query's root is two roots for upstream's relation tree (one per branch), whose
+        // lineage lite's relation tree does not split: refused with upstream's words, its count the branches' (the
+        // B2d.3 audit's L6, 2026-11-12 -- until then refused as keys that cannot be carried)
+        SqlQuery lowered = queries.lowered(query);
+        if (lowered instanceof com.legend.sql.SqlUnion u) {
+            throw new AssertFailed(viewRoot
+                    ? "Seed data generation currently supports queries with a single root table/view (unions are not"
+                            + " supported)"
+                    : "Seed data generation currently supports queries with a single root (got: " + branches(u) + ")");
+        }
         ScanRelations.Rel root = roots.get(0);
         String db = root.db();
         String table = java.util.Objects.requireNonNull(root.table(), "a root with no relation");
         if (ScanRelations.isView(ctx, db, table)) {
             if (!viewRoot) {
+                // upstream's words (the B2d.3 audit's L9): the root node's type()->makeString(), the relation tree
+                // node's class, whose name Pure's toString answers (TDG:222)
                 throw new AssertFailed("Seed data generation currently supports queries with a root table"
-                        + " (unions/views are not supported, got: the view " + table + ")");
+                        + " (unions/views are not supported, got: RelationTree)");
             }
             ScanRelations.Rel base = ScanRelations.viewExpansion(ctx, db, table).tree();
             db = base.db();
@@ -709,7 +754,7 @@ public final class TestDataPlanner {
         }
         TestDataGenerator.Located loc = locate(ctx, db, table);
         List<String> keys = seedKeys(loc.def(), table);
-        SqlSelect carried = carried(queries.lowered(query), physical(loc.schema(), table), loc.def(), keys);
+        SqlSelect carried = carried(lowered, physical(loc.schema(), table), loc.def(), keys);
         List<SqlSelect.Projection> distinct = new ArrayList<>(keys.size());
         List<String> labels = new ArrayList<>(keys.size());
         for (String k : keys) {
@@ -721,8 +766,11 @@ public final class TestDataPlanner {
                 List.of(), null, null, List.of(), null, null, List.of());
         List<SqlSelect.SortKey> byKeys = new ArrayList<>(labels.size());
         List<SqlSelect.Projection> ranked = new ArrayList<>(labels.size() + 2);
-        for (String l : labels) {
-            byKeys.add(SqlSelect.SortKey.asc(SqlExpr.Column.derived("_d", l)));
+        for (int i = 0; i < labels.size(); i++) {
+            String l = labels.get(i);
+            // a text key ordered by its code points, whatever the column's collation (the B2d.3 audit's M4)
+            byKeys.add(SqlSelect.SortKey.asc(byCodePoint(SqlExpr.Column.derived("_d", l),
+                    column(loc.def(), keys.get(i)))));
             ranked.add(new SqlSelect.Projection(SqlExpr.Column.derived("_d", l), l, null));
         }
         ranked.add(new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
@@ -742,9 +790,11 @@ public final class TestDataPlanner {
         }
         List<SqlSelect.Projection> out = new ArrayList<>(labels.size());
         List<SqlSelect.SortKey> order = new ArrayList<>(labels.size());
-        for (String l : labels) {
+        for (int i = 0; i < labels.size(); i++) {
+            String l = labels.get(i);
             out.add(new SqlSelect.Projection(SqlExpr.Column.derived("_s", l), l, null));
-            order.add(SqlSelect.SortKey.asc(SqlExpr.Column.derived("_s", l)));
+            order.add(SqlSelect.SortKey.asc(byCodePoint(SqlExpr.Column.derived("_s", l),
+                    column(loc.def(), keys.get(i)))));
         }
         SqlSelect rows = new SqlSelect(out, false, new SqlSource.Subselect(rankedKeys, "_s", null), chosen,
                 List.of(), null, null, order, null, null, List.of());
@@ -761,7 +811,10 @@ public final class TestDataPlanner {
      * up to U+FFFF (the user's ruling R4: register S198's note).
      */
     public static SqlQuery seedString(ModelContext ctx, Seed seed) {
-        String names = seed.keys().stream().map(k -> "'" + pureName(seed.loc().def(), k) + "'")
+        // the names are the table's PRIMARY KEY's, as upstream writes them ($mainTable.primaryKey, TDG:229) -- none
+        // for a table with no primary key, whose values are its non-null columns' (the B2d.3 audit's L4)
+        String names = seed.loc().def().columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                .map(c -> "'" + pureName(seed.loc().def(), c.name()) + "'")
                 .collect(java.util.stream.Collectors.joining(","));
         List<SqlExpr> parts = new ArrayList<>();
         parts.add(new SqlExpr.StringLit("       meta::relational::testDataGeneration::createRowIdentifier([" + names
@@ -776,8 +829,9 @@ public final class TestDataPlanner {
         }
         parts.add(new SqlExpr.StringLit("])"));
         SqlExpr line = new SqlExpr.Call(SqlFn.CONCAT, parts, SqlTyping.UNKNOWN);
+        // the lines in code-point order, whatever the database's collation (the B2d.3 audit's M4; R4's note, S198)
         SqlExpr lines = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(line, new SqlExpr.StringLit(",\n")), false,
-                List.of(SqlSelect.SortKey.asc(line)));
+                List.of(SqlSelect.SortKey.asc(SqlExpr.Call.of(SqlFn.BINARY_COLLATE, line))));
         String owner = owningDatabase(ctx, seed.db(), seed.loc().def());
         SqlExpr text = new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit(
                 "\nmeta::relational::testDataGeneration::createTableRowIdentifiers(" + owner + ", '"
@@ -806,7 +860,7 @@ public final class TestDataPlanner {
             SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
             pairs.add(new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("name"), new SqlExpr.StringLit(
                     name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), cell)));
-            order.add(new SqlExpr.JsonArrayAgg.Key(cell, false));
+            order.add(new SqlExpr.JsonArrayAgg.Key(byCodePoint(cell, column(def, k)), false));
         }
         SqlExpr identifier = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("columnValuePairs"),
                 new SqlExpr.JsonArray(pairs)));
@@ -822,20 +876,37 @@ public final class TestDataPlanner {
     }
 
     /**
-     * The seed's query is lowered on {@code runtime}, whose mappings resolve its classes: a runtime that does not declare
-     * {@code mapping} where it maps anything is refused by name, never guessed (a mapping that maps nothing, a TDS
-     * query's {@code EmptyMapping}, resolves nothing: any runtime runs the query).
+     * {@code query} read through {@code mapping} on {@code runtime}, whatever mappings the runtime declares: its last
+     * statement {@code ->from(mapping, runtime)}, as upstream executes the seed's function with the given mapping
+     * ({@code execute($seedGenerationFunction, $mapping, $runtime, ...)}, TDG:226, :812; the B2d.3 audit's L5 -- until
+     * then a runtime that did not declare the mapping was refused by name). A last statement that is already a
+     * {@code from(...)} keeps its own. The call is written by {@code parser} (the caller's: the product's query parser)
+     * and its first argument made the query's last statement by the one builder of calls after the resolver
+     * ({@code Calls.like}): no protocol node is spelled by hand below the parser.
      */
-    public static void declares(ModelContext ctx, String runtime, String mapping) {
-        List<String> mappings = ctx.findRuntime(runtime).map(r -> r.mappings()).orElse(List.of());
-        boolean mapsClasses = ctx.findMapping(mapping).map(m -> !m.classBindings().isEmpty()
-                || !m.associationBindings().isEmpty() || !m.includes().isEmpty()).orElse(true);
-        if (mapsClasses && !mappings.contains(mapping)) {
-            throw new NotImplementedException("the seed's query over the mapping " + mapping + " on the runtime "
-                    + runtime + ", which declares " + mappings + ": not planned (B2d.3 plans the seed on the runtime,"
-                    + " whose mappings resolve the query)");
+    public static LambdaFunction underMapping(LambdaFunction query, String mapping, String runtime,
+            java.util.function.Function<String, com.legend.protocol.spec.ValueSpecification> parser) {
+        List<com.legend.protocol.spec.ValueSpecification> body = new ArrayList<>(query.body());
+        com.legend.protocol.spec.ValueSpecification last = body.get(body.size() - 1);
+        if (last instanceof com.legend.protocol.spec.AppliedFunction af && (af.function().equals("from")
+                || af.function().equals(FROM))) {
+            return query;
         }
+        com.legend.protocol.spec.ValueSpecification written = parser.apply("|" + FROM + "([], " + mapping + ", "
+                + runtime + ")");
+        if (!(written instanceof LambdaFunction lf && lf.body().size() == 1
+                && lf.body().get(0) instanceof com.legend.protocol.spec.AppliedFunction from)) {
+            throw new IllegalStateException("testDataGen: the parser did not write " + FROM + "(...) as one call");
+        }
+        body.set(body.size() - 1, com.legend.compiler.spec.Calls.like(from, List.of(last, from.parameters().get(1),
+                from.parameters().get(2))));
+        return query.withBody(body);
     }
+
+    /** Pure's {@code from(t, mapping, packageableRuntime)}, by its full name (a call built after the name resolver):
+     *  the registry's overload a named mapping and runtime choose. */
+    private static final String FROM = com.legend.builtin.Pure.FROM__T_m__MAPPING_1__PACKAGEABLE_RUNTIME_1
+            .qualifiedName();
 
     /** A key value as Pure's {@code toRepresentation} writes it (legend-pure {@code toRepresentation.pure:40-51}), by
      *  its column's declared type: a text quoted, {@code \} {@code '} and line feed escaped; a whole number its
@@ -887,6 +958,14 @@ public final class TestDataPlanner {
                 || t instanceof RelationalDataType.Varbinary b && b.size() > 1000;
     }
 
+    /** {@code e}, a cell of column {@code c}, as the seed orders it: a text by its code points -- the dialect's
+     *  binary collation ({@link SqlFn#BINARY_COLLATE}; the design's §3.1, ruled with R4; the B2d.3 audit's M4), never
+     *  the column's or the database's own collation, refused by name on a dialect whose binary collation is not
+     *  measured -- any other value as it is. By the column's declared type, at planning. */
+    private static SqlExpr byCodePoint(SqlExpr e, DatabaseDefinition.ColumnDefinition c) {
+        return isText(c.dataType()) ? SqlExpr.Call.of(SqlFn.BINARY_COLLATE, e) : e;
+    }
+
     /** A carried key column's name: upstream's {@code gen_col_projection_<name>}, its quotes stripped, a space an
      *  underscore. */
     private static String carriedName(String key) {
@@ -926,7 +1005,12 @@ public final class TestDataPlanner {
                     + physical);
         }
         List<SqlSelect.Projection> ps = new ArrayList<>(s.projections());
-        for (int i = 0; i < keys.size(); i++) {
+        // a select that reads every column of the derived table it carries the keys up from ({@code t1.*}) carries
+        // them already: projected again they would be two columns of one name, which H2 refuses ("Duplicate column
+        // name"; found by the B2d.3 audit's L6 test, 2026-11-12)
+        boolean starOverSub = first instanceof SqlSource.Subselect sub && s.projections().stream().anyMatch(p ->
+                p.expr() instanceof SqlExpr.Star star && (star.table() == null || star.table().equals(sub.alias())));
+        for (int i = 0; i < keys.size() && !starOverSub; i++) {
             ps.add(new SqlSelect.Projection(read.get(i), carriedName(keys.get(i)), null));
         }
         List<SqlExpr> groupBy = s.groupBy();
@@ -936,6 +1020,15 @@ public final class TestDataPlanner {
         }
         return new SqlSelect(ps, s.distinct(), from, s.where(), groupBy, s.having(), s.qualify(), s.orderBy(),
                 s.limit(), s.offset(), List.of());
+    }
+
+    /** The branches of {@code u}, a nested union's flattened. */
+    private static int branches(com.legend.sql.SqlUnion u) {
+        int n = 0;
+        for (SqlQuery b : u.branches()) {
+            n += b instanceof com.legend.sql.SqlUnion inner ? branches(inner) : 1;
+        }
+        return n;
     }
 
     private static SqlSource leftmost(SqlSource s) {
@@ -1009,8 +1102,10 @@ public final class TestDataPlanner {
                 return fails(lead + "There should be exactly 1 schema with name " + e.schema() + " found in the"
                         + " provided runtime database(s) [" + dbFqn + "] at the given connection.");
             }
-            DatabaseDefinition.TableDefinition def = ctx.findTableDefinition(dbFqn,
-                    defaultSchema ? e.table() : e.schema() + "." + e.table()).orElse(null);
+            // the default schema's table by its schema too: a bare name would find a named schema's table of that name
+            // (upstream's schema('default')->table(T) does not; the B2d.3 audit's L1)
+            DatabaseDefinition.TableDefinition def = ctx.findTableDefinition(dbFqn, e.schema() + "." + e.table())
+                    .orElse(null);
             if (def == null) {
                 return fails(lead + "Table \"" + e.table() + "\" not found in Schema \"" + e.schema()
                         + "\" in Database(s) " + dbFqn);

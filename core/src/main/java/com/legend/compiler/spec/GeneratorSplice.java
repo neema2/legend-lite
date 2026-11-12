@@ -241,6 +241,69 @@ public final class GeneratorSplice {
         }
     }
 
+    /**
+     * A database effect -- a statement reaching one, through the user functions it calls -- standing between a let of
+     * one of {@code values} (each a planned seed string, {@code generateSeedDataString}: B2d.3) and a read of that let
+     * (or of a let carrying it): refused by name, as {@link #refuseEffectsBeforeARead} refuses one for a generator's
+     * result (the B2d.3 audit's M5, 2026-11-12). A read let is evaluated where it is read (lite's let rule), so the seed
+     * string's statement runs at the read, upstream's at its let: across the effect the two read different data (the
+     * user's ruling of 2026-11-11, "read where read", register S196).
+     */
+    public static void refuseEffectsBeforeAReadOf(List<TypedSpec> body, java.util.Set<TypedSpec> values,
+            SpecCompiler specs) {
+        if (values.isEmpty()) {
+            return;
+        }
+        // each let carrying a planned value, by name: the place after which an effect is refused before its read
+        Map<String, Integer> boundAt = new HashMap<>();
+        Map<com.legend.model.FunctionId, Boolean> memo = new HashMap<>();
+        List<Integer> effects = new ArrayList<>();
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec s = body.get(i);
+            Integer earliest = null;
+            for (String v : com.legend.compiler.spec.typed.FreeVars.of(s)) {
+                Integer at = boundAt.get(v);
+                if (at != null && (earliest == null || at < earliest)) {
+                    earliest = at;
+                }
+            }
+            if (earliest != null) {
+                for (int e : effects) {
+                    if (e > earliest) {
+                        throw new NotImplementedException("a database effect between the seed string's let"
+                                + " (generateSeedDataString) and a read of it: not planned (B2d.3: the seed string's"
+                                + " statement runs where it is read, upstream's at its let, and across the effect the"
+                                + " two read different data)");
+                    }
+                }
+            }
+            if (s instanceof TypedLet let) {
+                boolean holds = holdsAnyOf(let.value(), values);
+                if (holds || earliest != null) {
+                    boundAt.put(let.name(), holds ? (earliest == null ? i : Math.min(i, earliest)) : earliest);
+                } else {
+                    boundAt.remove(let.name());
+                }
+            }
+            if (StatementEffects.reaches(s, GeneratorSplice::writesTheDatabase, specs, memo)) {
+                effects.add(i);
+            }
+        }
+    }
+
+    /** Whether {@code n} holds one of {@code values}, by identity. */
+    private static boolean holdsAnyOf(TypedSpec n, java.util.Set<TypedSpec> values) {
+        if (values.contains(n)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (holdsAnyOf(c, values)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ===== the loads of a generated text, compared (B2d.2: assertTestData) =====
 
     /** {@code setUpDataSQLs(data: String[1], db: Database[*])}: a test-data text's load statements on a database
