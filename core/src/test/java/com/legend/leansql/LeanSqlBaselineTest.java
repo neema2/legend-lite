@@ -25,8 +25,9 @@ class LeanSqlBaselineTest {
     void theProductsSqlIsHeldToItsBaseline() throws Exception {
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pinned = LeanSqlBaseline.read(Files.readString(
                 com.legend.testing.Runfile.property("legend.lean_sql.baseline"), StandardCharsets.UTF_8));
-        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> measured = LeanSqlBaseline.measure(
-                Map.of("channel_a", com.legend.testing.Runfile.property("legend.lean_sql.channel_a")));
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> measured = new TreeMap<>(LeanSqlBaseline.measure(
+                Map.of("channel_a", com.legend.testing.Runfile.property("legend.lean_sql.channel_a"))));
+        measured.putAll(LeanSqlBaseline.measureOwn("core", com.legend.testing.Runfile.property("legend.lean_sql.core")));
         List<String> drift = LeanSqlBaseline.drift(pinned, measured);
         assertTrue(drift.isEmpty(), "the product's SQL left its baseline (lean-sql/baseline.tsv):\n  "
                 + String.join("\n  ", drift));

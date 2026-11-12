@@ -2382,6 +2382,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
+            // 2026-11-12 (E3, the orchestrator's ruling on the lean-SQL sets' capture): the source text of each model and
+            // query planned from text, weak and by identity, held only while -Dlegend.diagnostics=capture-queries is on
+            java.util.Map.entry("com.legend.diagnostics.QueryCapture.SOURCES", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.base.Attribution.LABEL", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.SQL_CENSUS", StaticKind.MEASUREMENT),

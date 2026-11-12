@@ -66,12 +66,18 @@ public final class LeanSqlBaseline {
     /** Every set planned on every database the platform implements whose storeless runtime is relational; a case a
      *  database refuses at planning counts as such ({@code refused}, its own family row), never as nothing. */
     public static Map<Key, Measure> measure(Map<String, Path> sets) throws IOException {
+        return measure(sets, type -> true);
+    }
+
+    /** {@link #measure(Map)} on the databases {@code which} admits. */
+    public static Map<Key, Measure> measure(Map<String, Path> sets,
+            java.util.function.Predicate<DatabaseType> which) throws IOException {
         Map<Key, Measure> out = new TreeMap<>();
         Map<Key, Long> worst = new TreeMap<>();
         for (var set : sets.entrySet()) {
             List<String> lines = Files.readAllLines(set.getValue(), StandardCharsets.UTF_8);
             for (DatabaseType type : com.legend.database.Databases.implemented()) {
-                if (!relational(type)) {
+                if (!relational(type) || !which.test(type)) {
                     continue;
                 }
                 for (String line : lines) {
@@ -108,6 +114,65 @@ public final class LeanSqlBaseline {
                         worst.put(k, ch);
                     }
                 }
+            }
+        }
+        return out;
+    }
+
+    /** A set of product queries each planned on its OWN runtime ({@code {"model", "query", "runtime"}}, captured by
+     *  {@code -Dlegend.diagnostics=capture-queries=FILE}: core's): measured on the database each plan targets, under
+     *  the set's name. */
+    public static Map<Key, Measure> measureOwn(String set, Path file) throws IOException {
+        Map<Key, Measure> out = new TreeMap<>();
+        Map<Key, Long> worst = new TreeMap<>();
+        // each model once ({"model_id", "model"}), then the queries over it ({"model_id", "query", "runtime"}); each
+        // model compiled once, as the run that captured them compiled it
+        Map<Long, String> models = new java.util.HashMap<>();
+        Map<Long, com.legend.compiler.element.ModelContext> compiled = new java.util.HashMap<>();
+        for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            if (line.isBlank()) {
+                continue;
+            }
+            Json.Obj c = Json.parseObject(line);
+            long id = ((Json.Num) c.get("model_id")).longValue();
+            if (c.has("model")) {
+                models.put(id, ((Json.Str) c.get("model")).value());
+                continue;
+            }
+            String query = ((Json.Str) c.get("query")).value();
+            String runtime = ((Json.Str) c.get("runtime")).value();
+            String family;
+            String database;
+            long s = 0;
+            long ch = 0;
+            long p = 0;
+            try {
+                com.legend.compiler.element.ModelContext ctx = compiled.get(id);
+                if (ctx == null) {
+                    ctx = Compiler.compileModel(models.get(id));
+                    compiled.put(id, ctx);
+                }
+                TypedQuery q = Compiler.query(ctx, query);
+                family = family(q);
+                ExecutionPlan plan = q.executionPlan(runtime.isEmpty() ? null : runtime);
+                List<String> statements = new ArrayList<>();
+                collect(plan.root(), statements);
+                s = statements.size();
+                for (String st : statements) {
+                    ch += st.length();
+                }
+                p = PlanJson.write(plan).length();
+                database = plan.answers() && plan.sendsTheAnswer()
+                        ? plan.answerSql().target().database().type().name() : "constant";
+            } catch (RuntimeException | StackOverflowError e) {
+                family = "refused";
+                database = "refused";
+            }
+            Key k = new Key(set, database, family);
+            long prior = worst.getOrDefault(k, -1L);
+            out.put(k, out.getOrDefault(k, new Measure(0, 0, 0, "")).plus(s, ch, p, query, ch, prior));
+            if (ch > prior) {
+                worst.put(k, ch);
             }
         }
         return out;
@@ -240,7 +305,8 @@ public final class LeanSqlBaseline {
             throw new IllegalStateException("run it with bazel run //core:update_lean_sql_baseline");
         }
         Path dir = Path.of(workspace, "core/src/test/resources/lean-sql");
-        Map<Key, Measure> pins = measure(Map.of("channel_a", dir.resolve("channel_a.jsonl")));
+        Map<Key, Measure> pins = new TreeMap<>(measure(Map.of("channel_a", dir.resolve("channel_a.jsonl"))));
+        pins.putAll(measureOwn("core", dir.resolve("core.jsonl")));
         Files.writeString(dir.resolve("baseline.tsv"), write(pins), StandardCharsets.UTF_8);
         Map<String, long[]> totals = new TreeMap<>();
         pins.forEach((k, m) -> {

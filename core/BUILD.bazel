@@ -267,8 +267,8 @@ legend_java_library(
     visibility = ["//datacube:__pkg__"],
     srcs = _PLANNER_SRCS,
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
-        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":door",
+        ":error", ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":validation", ":values",
     ],
 )
@@ -1880,14 +1880,43 @@ junit_test(
     data = [
         "src/test/resources/lean-sql/baseline.tsv",
         "src/test/resources/lean-sql/channel_a.jsonl",
+        "src/test/resources/lean-sql/core.jsonl",
     ],
     jvm_flags = [
         "-Dlegend.lean_sql.baseline=$(rlocationpath src/test/resources/lean-sql/baseline.tsv)",
         "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+        "-Dlegend.lean_sql.core=$(rlocationpath src/test/resources/lean-sql/core.jsonl)",
     ],
     select = ["--select-class=com.legend.leansql.LeanSqlBaselineTest"],
     deps = [
         ":lean_sql_baseline_lib",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the lean-SQL sets' capture (QueryCapture, -Dlegend.diagnostics=capture-queries=FILE; E3, 2026-11-12) run with the
+# switch ON: it records text and names only, and changes no plan (the pins a run with it off made)
+junit_test(
+    name = "query_capture_test",
+    memory_mb = 1024,
+    size = "small",
+    srcs = ["src/test/java/com/legend/leansql/QueryCaptureTest.java"],
+    data = [
+        "src/test/resources/lean-sql/baseline.tsv",
+        "src/test/resources/lean-sql/channel_a.jsonl",
+    ],
+    jvm_flags = [
+        "-Dlegend.diagnostics=capture-queries=query-capture-test.jsonl",
+        "-Dlegend.lean_sql.baseline=$(rlocationpath src/test/resources/lean-sql/baseline.tsv)",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+    ],
+    select = ["--select-class=com.legend.leansql.QueryCaptureTest"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        "//json",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

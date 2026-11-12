@@ -37,8 +37,9 @@
 
 ## 2. How it was measured (reproducible)
 
-- **The cases.** PCT channel A's queries on DuckDB, all five suites, were captured by
-  `-Dlegend.capture.channela=<file>` (`PctPlanRoute.capture`, measurement only, off unless named). That gave 2,708
+- **The cases.** PCT channel A's queries on DuckDB, all five suites, were captured (first by a capture since folded
+  into the switchboard's `pct-cases`, which records each (model, expression) pair the lane executes; the two were
+  not compared). That gave 2,708
   queries, 2,451 of them unique: each one's model and expression, 860 KB in all. The suites passed with the capture
   on (essential 38 s, grammar 31 s, relation 57 s, standard 38 s, unclassified 21 s).
 - **The plans.** `//core:product_sql_measure measure` (`com.legend.integration.ProductSqlMeasure`, a measuring
@@ -337,7 +338,18 @@ no row. "Sane" means:
 >   - a second statement fails on the count;
 >   - a shrink past 1% asks for a re-pin.
 > - Re-measuring reproduces every pin exactly: the plans are deterministic (G10).
-> - Core's and the corpus's sets join as soon as their capture is ruled (§7 item 1).
+> - **Core's set, added the same day:** `lean-sql/core.jsonl` holds 3,527 product queries over 872 models, each
+>   planned on its own runtime.
+>   - Captured by `-Dlegend.diagnostics=capture-queries=FILE` (`QueryCapture`, the switchboard's; ruled (a)) from
+>     `//core:core_tests_{integration,planner,server,root}`.
+>   - Left out: 22 queries naming a test's temporary file, and 3 queries carrying a 1.2 MB JSON payload (data size,
+>     not SQL shape).
+>   - `//core:query_capture_test` runs with the switch on. It shows the capture records the model's text, the query
+>     and the runtime's NAME only (a connection naming vault references is recorded as written). It also shows the
+>     capture changes no plan: replanning the recorded query gives the same plan byte for byte, and channel A's
+>     DuckDB plans with the switch on measure exactly the pins made with it off.
+> - The corpus's set is next: it is one module built from upstream's files, so its baseline lives in `spec`, planning
+>   each body there (§7 item 1).
 >
 > Totals at the pins (channel A, 2,451 cases):
 >
@@ -411,9 +423,12 @@ measurement's "same rows" check stands beside it. No register row is expected.
 ## 8. Commands
 
 ```
-# 1. capture channel A's cases (DuckDB, every suite)
-bazel test //pct:pct_duckdb_{essential,grammar,relation,standard,unclassified} --strategy=TestRunner=standalone \
-  --local_test_jobs=1 --jvmopt=-Dlegend.capture.channela=$PWD/channela.jsonl
+# 1. capture channel A's cases (DuckDB, every suite): the switchboard's pct-cases (pct-cases.tsv in each suite's
+#    test outputs), then each distinct case once as the set's JSON lines
+bazel test //pct:pct_duckdb_{essential,grammar,relation,standard,unclassified} --local_test_jobs=1 \
+  --jvmopt=-Dlegend.diagnostics=pct-cases
+python3 docs/lean-sql-homework/pct_cases_to_jsonl.py.txt channela.jsonl bazel-testlogs/pct/pct_duckdb_*/test.outputs/pct-cases.tsv
+#    core's product queries: -Dlegend.diagnostics=capture-queries=$PWD/core-capture.jsonl on core's suites
 # 2. plan them on every database the platform implements (planning only): sizes.tsv, sql-<database>.jsonl
 bazel run //core:product_sql_measure -- measure $PWD/channela.jsonl $PWD/m0
 # 3. analyse; the bind-once rewrite; time it on the in-process databases

@@ -279,6 +279,7 @@ public final class TypedQuery {
             java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
         try (var planning = com.legend.base.RunScope.plans("a query")) {
             com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase);
+            com.legend.diagnostics.QueryCapture.planned(ctx, this, runtime);   // measurement only: off, nothing (E3)
             if (Boolean.getBoolean("legend.plan.roundtrip")) {
                 com.legend.executionplan.PlanJson.requireRoundTrip(plan);
             }
