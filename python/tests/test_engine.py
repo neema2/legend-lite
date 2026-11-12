@@ -1232,6 +1232,8 @@ class WarehouseOnPython(unittest.TestCase):
         self.tampered, self.cut = False, False
         # a count the warehouse answers with no row (G7: never read as no rows to copy)
         self.uncounted = False
+        # a slow stream: said when its rows begin, held until let go (the final audit's item 3)
+        self.streaming, self.slow = threading.Event(), None
 
         class Reader:
             def __init__(self, session, catalog='main', clock=None):
@@ -1261,6 +1263,9 @@ class WarehouseOnPython(unittest.TestCase):
                 sink = pa.BufferOutputStream()
                 with pyarrow.ipc.new_stream(sink, rows.schema) as w:
                     w.write_table(rows)
+                if outer.slow is not None and not sql.startswith('SELECT count(*)'):
+                    outer.streaming.set()
+                    outer.slow.wait(60)
                 yield sink.getvalue().to_pybytes()
                 if outer.cut and not sql.startswith('SELECT count(*)'):
                     raise warehouse.WarehouseError('the connection was reset', 'RESET')
@@ -1548,6 +1553,43 @@ class WarehouseOnPython(unittest.TestCase):
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual((status, body.decode()), (422, '10,000,001 rows exceeds the 10,000,000 row snap limit. Narrow the '
                                                           'filter, or stay live.'))
+
+    def test_a_second_read_and_snap_are_served_while_a_slow_warehouse_snap_streams(self):
+        # the final audit's item 3 (2026-11-12): the warehouse snap streamed holding the frames' lock and DataCube's
+        # turn, so a slow warehouse held every read of the frames and every call into DataCube's code meanwhile
+        m = self.opened()
+        frame = self.frames.register('books', pa.table({'title': ['a', 'b'], 'pages': pa.array([10, 20], pa.int64())}))
+        self.slow = threading.Event()
+        snapped: dict = {}
+        streaming = threading.Thread(target=lambda: snapped.update(answer=self.call(
+            {'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')))
+        streaming.start()
+        try:
+            self.assertTrue(self.streaming.wait(60), 'the snap never began streaming')
+            served: dict = {}
+
+            def second():
+                pull = json.dumps(ll.parse('|' + frame.accessor + '->select(~[title, pages])'))
+                served['read'] = self.engine.answer('POST', '/plan-and-run.json', '', json.dumps(
+                    {'lambda': pull, 'model': frame.model, 'runtime': frame.runtime}))
+                served['snap'] = self.call({'op': 'snap', 'model': frame.model, 'runtime': frame.runtime, 'pull': pull},
+                                           '/snap.json')
+
+            reader = threading.Thread(target=second)
+            reader.start()
+            reader.join(60)
+            self.assertFalse(reader.is_alive(), 'a read of the frames waited on the warehouse snap streaming')
+            self.assertEqual(served['read'].status, 200, served['read'].body[:300])
+            status, body = served['snap']
+            self.assertEqual((status, json.loads(body)['rowCount']), (200, 2), body)
+            self.assertTrue(streaming.is_alive(), 'the warehouse snap was still streaming meanwhile')
+            # its name is reserved while it streams: the frame's copy took another
+            self.assertNotEqual(json.loads(body)['table'], 'snap')
+        finally:
+            self.slow.set()
+            streaming.join(60)
+        status, body = snapped['answer']
+        self.assertEqual((status, json.loads(body)['table'], json.loads(body)['rowCount']), (200, 'snap', 3), body)
 
     def test_a_count_the_warehouse_did_not_answer_copies_nothing(self):
         # G7 (the final audit's item 4, 2026-11-12): a count of no row was read as 0 rows -- under the limit, copied on

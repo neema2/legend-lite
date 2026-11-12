@@ -187,6 +187,14 @@ def _said(status: int, message: str) -> Answer:
     return Answer(status, 'text/plain; charset=utf-8', message.encode('utf-8'))
 
 
+def _copy_said(made: dict[str, Any], name: str, rows: int, receipt: dict[str, Any] | None) -> Answer:
+    """A snap's copy as the page reads it: DataCube's model of it (``made``, less what is not the page's), its table, its
+    rows and, a warehouse's, who pulled them (``receipt``)."""
+    said = {**{k: v for k, v in made.items() if k not in _NOT_THE_PAGES}, 'table': name, 'rowCount': rows,
+            **({'pulledBy': receipt} if receipt is not None else {})}
+    return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+
+
 def _snap_refused(headless: Any, rows: int) -> Answer:
     """A copy of ``rows`` rows past this machine's limit (N3: each host its own), refused in the tab's own sentence
     (headless snapRefused: snap.ts snapRefusal)."""
@@ -1397,35 +1405,53 @@ class Engine:
         self.keeper.gone(name)
         return Answer(200, 'application/json', b'{}')
 
-    def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], int | None], rows: int,
-                receipt: dict[str, Any] | None) -> Answer:
-        """A copy made: ``land`` puts the rows into the table named (on the frames' connection, held) -- answering the
-        rows it holds where it counted them (a stream's, its database's count), the count before it otherwise --
-        DataCube's code (``headless``, asked for before the frames were held: the session's lock first, then the
-        frames') models it, and it is served from then on; a copy that fails leaves nothing under its name. A warehouse
-        session that expired while its rows streamed is raised (401, by the route)."""
+    def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int) -> Answer:
+        """A copy of a grid this engine serves made: ``land`` puts the rows into the table named (on the frames'
+        connection, held still: a frame copied as it is now), DataCube's code (``headless``, asked for before the frames
+        were held: the session's lock first, then the frames') models it, and it is served from then on; a copy that
+        fails leaves nothing under its name. (A warehouse's copy streams with the frames let go: ``_streamed``.)"""
         with self._warehouse_lock:
             self._copies_made += 1
             asked = 'snap' if self._copies_made == 1 else f'snap_{self._copies_made}'
         try:
             # its turn first, then the frames held: no one holds the frames waiting for a turn (D15)
             with headless.turn(), self.frames.reading_file(asked) as name:
-                counted = land(self.frames.connection, _host.name(name, schema='main'))
-                if counted is not None:
-                    rows = counted
+                land(self.frames.connection, _host.name(name, schema='main'))
                 made = json.loads(headless.call('landed', json.dumps({'table': name})))
                 self.frames.keep_file(name, made)
                 # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
                 with self._warehouse_lock:
                     self._copies[name] = made
+        except Exception as failure:
+            return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
+                              f'{failure}')
+        return _copy_said(made, name, rows, None)
+
+    def _streamed(self, headless: Any, land: Callable[[Any, dict[str, Any]], int], receipt: dict[str, Any]) -> Answer:
+        """A warehouse snap's copy made with the frames let go (the final audit's item 3, 2026-11-12: its rows streamed
+        holding the frames' lock and the headless turn, so a slow warehouse held every other read): its name reserved
+        under the frames' lock, its rows streamed in by ``land`` on a session of its own outside the lock and the turn
+        (``Frames.streaming_file``) -- answering the rows the copy holds, as its database counted them -- then, its turn
+        first and the frames held (D15), DataCube's code models it and it is kept and served. A copy that fails leaves
+        nothing under its name; a session that expired while its rows streamed is raised (401, by the route)."""
+        with self._warehouse_lock:
+            self._copies_made += 1
+            asked = 'snap' if self._copies_made == 1 else f'snap_{self._copies_made}'
+        try:
+            with self.frames.streaming_file(asked) as (name, session):
+                rows = land(session, _host.name(name, schema='main'))
+                with headless.turn(), self.frames.holding():
+                    made = json.loads(headless.call('landed', json.dumps({'table': name})))
+                    self.frames.keep_file(name, made)
+                    # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
+                    with self._warehouse_lock:
+                        self._copies[name] = made
         except warehouse.SessionExpired:
             raise
         except Exception as failure:
             return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
                               f'{failure}')
-        said = {**{k: v for k, v in made.items() if k not in _NOT_THE_PAGES}, 'table': name, 'rowCount': rows,
-                **({'pulledBy': receipt} if receipt is not None else {})}
-        return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+        return _copy_said(made, name, rows, receipt)
 
     def _warehouse_snap(self, table: _WarehouseTable, asked: dict[str, Any]) -> Answer:
         """A warehouse grid's copy (C3): the pull planned with the table's live runtime, counted on the warehouse as the
@@ -1485,7 +1511,7 @@ class Engine:
                               **({'serverRows': said['serverRows']} if 'serverRows' in said else {})})
             return made.rows
 
-        return self._landed(headless, land, rows, pulled_by)
+        return self._streamed(headless, land, pulled_by)
 
     def _served_snap(self, asked: dict[str, Any]) -> Answer:
         """A grid's copy over a model this engine serves (a frame's, a page's file's): planned on the compiler's thread,
@@ -1527,7 +1553,7 @@ class Engine:
                 for sql in made:
                     send(connection, sql, params)
 
-            return self._landed(headless, land, rows, None)
+            return self._landed(headless, land, rows)
 
     def _warehouse_table_of(self, body: str) -> _WarehouseTable | None:
         """The warehouse table a plan-and-run's model is the model of, or None."""
