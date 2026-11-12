@@ -10,7 +10,8 @@ import duckdb
 
 from legend_lite import _host, compiler, projects, warehouse
 from legend_lite._library import library
-from legend_lite._planned import Answered, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan, from_plan, send
+from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
+                                  from_plan, send)
 from legend_lite._planner import answer
 from legend_lite.frames import execute_redacted
 
@@ -29,7 +30,7 @@ class _Recording:
 class OneSendTest(unittest.TestCase):
 
     def test_a_plans_statement_is_sent(self):
-        con = duckdb.connect()
+        con = Database(duckdb.connect())
         self.assertEqual(send(con, from_plan('SELECT 41 + 1')).fetchall(), [(42,)])
         # its `?`s bound in order (a plan's payloads)
         self.assertEqual(send(con, from_plan('SELECT ? || ?'), ['a', 'b']).fetchall(), [('ab',)])
@@ -37,7 +38,7 @@ class OneSendTest(unittest.TestCase):
     def test_text_no_plan_carries_is_refused_by_name_and_never_reaches_the_database(self):
         con = _Recording()
         with self.assertRaises(NotPlanned) as refused:
-            send(con, 'DROP TABLE trades')
+            send(Database(con), 'DROP TABLE trades')
         self.assertIn("not a plan's statement", str(refused.exception))
         self.assertIn('DROP TABLE trades', str(refused.exception))
         self.assertEqual(con.sent, [])
@@ -48,7 +49,7 @@ class OneSendTest(unittest.TestCase):
         con = _Recording()
         for edited in (planned + ' UNION ALL SELECT 2', f'{planned}', planned.strip(), planned.replace('1', '2')):
             with self.assertRaises(NotPlanned):
-                send(con, edited)
+                send(Database(con), edited)
         self.assertEqual(con.sent, [])
         self.assertIsInstance(from_plan(planned), PlannedSql)
 
@@ -60,12 +61,28 @@ class OneSendTest(unittest.TestCase):
         self.assertIsInstance(compiler.catalog_columns_sql('main', 't'), PlannedSql)
         con = duckdb.connect()
         con.execute('CREATE TABLE t AS SELECT 1 AS x')  # the test's own fixture, on its own connection
-        self.assertEqual(_host.count(con, {'op': 'count', 'from': {'relation': _host.name('t')}}), 1)
+        self.assertEqual(_host.count(Database(con), {'op': 'count', 'from': {'relation': _host.name('t')}}), 1)
+
+    def test_the_hosts_database_offers_no_other_way_to_run_text_or_load_data(self):
+        """The C checkpoint's second audit (2026-11-12): DuckDB's own ways to run text or load data are not reachable
+        through the Database a module holds, and the one send refuses a raw connection."""
+        db = Database(duckdb.connect())
+        for way in ('execute', 'executemany', 'sql', 'query', 'from_query', 'from_arrow', 'from_df', 'read_csv',
+                    'read_parquet', 'read_json', 'table', 'view', 'install_extension', 'load_extension'):
+            self.assertFalse(hasattr(db, way), f'a Database offers {way}')
+        result = send(db, from_plan('SELECT 1'))
+        for way in ('execute', 'sql', 'query', 'cursor', 'from_arrow'):
+            self.assertFalse(hasattr(result, way), f'a statement\'s answer offers {way}')
+        with self.assertRaises(NotPlanned) as refused:
+            send(duckdb.connect(), from_plan('SELECT 1'))
+        self.assertIn("runs on the host's Database", str(refused.exception))
+        with self.assertRaises(NotPlanned):
+            db.import_stream(None, None, 't; DROP TABLE x')
 
     def test_a_reads_send_refuses_text_no_plan_carries(self):
         con = _Recording()
         with self.assertRaises(NotPlanned):
-            execute_redacted(con, 'SELECT 1', ())
+            execute_redacted(Database(con), 'SELECT 1', ())
         self.assertEqual(con.sent, [])
 
     def test_a_loads_steps_are_the_plans(self):
@@ -121,7 +138,7 @@ class TheBridgeTest(unittest.TestCase):
         con = _Recording()
         for text in ('DROP TABLE trades', 'SELECT 1'):
             with self.assertRaises(NotPlanned) as refused:
-                send(con, across_the_bridge(text, "the hosted DataCube's query", answered))
+                send(Database(con), across_the_bridge(text, "the hosted DataCube's query", answered))
             self.assertIn("not a statement this session's planner answered", str(refused.exception))
             self.assertIn(text, str(refused.exception))
         self.assertEqual(con.sent, [])
@@ -174,9 +191,10 @@ class TheBridgeTest(unittest.TestCase):
         body = keyed['body']
         self.assertTrue(body['regions'], 'a dynamic pivot\'s body writes a region per key')
         self.assertNotIn(body['statement'], answered.statements(), 'a keyed body is kept as its regions, never whole')
-        con = duckdb.connect()
-        con.execute('CREATE TABLE T_TREES (CITY VARCHAR, YR INTEGER, TREES INTEGER)')
-        con.execute("INSERT INTO T_TREES VALUES ('NYC', 2000, 5), ('LDN', 2000, 3), ('NYC', 2011, 2)")
+        raw = duckdb.connect()
+        raw.execute('CREATE TABLE T_TREES (CITY VARCHAR, YR INTEGER, TREES INTEGER)')  # the test's own fixture
+        raw.execute("INSERT INTO T_TREES VALUES ('NYC', 2000, 5), ('LDN', 2000, 3), ('NYC', 2011, 2)")
+        con = Database(raw)
         keys = send(con, across_the_bridge(keyed['keys']['statement'], "the hosted DataCube's query", answered)).fetchall()
         self.assertEqual(len(keys), 2, keys)
         written = _keyed_text(body['statement'], tuple(body['regions']), len(keys))

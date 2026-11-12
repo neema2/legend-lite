@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _host
-from ._planned import Answered, across_the_bridge, send
+from ._planned import Answered, Database, across_the_bridge, connect, send
 from ._library import Library, library
 from ._pool import library_thread
 
@@ -112,7 +112,7 @@ class Headless:
     memory cap fails, and the engine is then ``broken``: its owner makes another. ``close()`` (or a ``with`` block)
     ends it."""
 
-    def __init__(self, bundle: str, *, connection: Any = None, folder: str | Path | None = None,
+    def __init__(self, bundle: str, *, connection: Database | None = None, folder: str | Path | None = None,
                  memory_limit: int = DEFAULT_MEMORY_LIMIT, lib: Library | None = None,
                  reading: Callable[[], Any] | None = None) -> None:
         """``bundle`` is a headless bundle's script. ``connection`` the duckdb connection its queries run on (a Frames'
@@ -122,13 +122,11 @@ class Headless:
         file registered meanwhile is in ``folder``, which that database does not search (no grid registers one).
         ``reading``: the read of the frames the calling thread is in, if any (``Frames.reading_now``): a call made in one
         queries through it."""
-        import duckdb  # the database: the datacube extra's, never the compiler's
-
         self._lib = lib or library()
         self._own_folder = tempfile.TemporaryDirectory(prefix='legend-lite-datacube-') if folder is None else None
         self._folder = Path(self._own_folder.name if self._own_folder else folder).resolve()
         self._own_db = connection is None
-        self._db = duckdb.connect() if connection is None else connection
+        self._db: Database = connect() if connection is None else connection
         if self._own_db:
             _host.run(self._db, {'op': 'fileSearchPath', 'folder': str(self._folder)})
         self._loop = asyncio.new_event_loop()
@@ -199,7 +197,8 @@ class Headless:
 
         # a call made in a read of the frames queries through it: the database as it was when the read began
         statement = across_the_bridge(sql, "the hosted DataCube's query", self._answered)
-        result = send(self._db if self._over is None else self._over, statement)
+        # in a read, the read's own send (frames.Reading.execute: its cursor, its failures' words redacted)
+        result = send(self._db, statement) if self._over is None else self._over.execute(statement)
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:

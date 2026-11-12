@@ -28,20 +28,26 @@ FILES = runfiles.Create()
 # (compiler.py), the load runners (projects.py) and execute's plan half (engine.py); the rest take the type, the one
 # send, the bridge's check or the type's check (require).
 IMPORTS = {
-    '_headless.py': {'Answered', 'across_the_bridge', 'send'},
+    # 2026-11-12 (the second audit): the host's Database (connect, Database, Result) where a database is made or held
+    '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect', 'send'},
     '_host.py': {'PlannedSql', 'send'},
     'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan'},
-    'engine.py': {'PlannedSql', 'across_the_bridge', 'from_plan', 'send'},
-    'frames.py': {'PlannedSql', 'send'},
+    'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan', 'send'},
+    'frames.py': {'Database', 'PlannedSql', 'Result', 'connect', 'send'},
     'projects.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'send'},
     'warehouse.py': {'PlannedSql', 'require'},
 }
 
-# Each send by module, method and receiver. 2026-11-12: the one send (_planned.send's `target.execute`), and a frame's
-# read whose own method runs the plan's statement through it (frames.py, Reading's `self.execute`).
+# Each send by module, method and receiver. 2026-11-12: the one send (_planned.Database's run), and a frame's read
+# whose own method runs the plan's statement through it (frames.py, Reading's `self.execute`).
 SENDS = {
-    ('_planned.py', 'execute', 'target'),
+    # 2026-11-12 (the second audit): the Database's own -- the one send's run and a planned stream step's Arrow import
+    ('_planned.py', 'execute', 'self._con'),
+    ('_planned.py', 'from_arrow', 'self._con'),
     ('frames.py', 'execute', 'self'),
+    # 2026-11-12 (the second audit): the hosted DataCube's query in a read of the frames, by the read's own send
+    # (frames.Reading.execute: the one send on its cursor), the read being no Database of its own
+    ('_headless.py', 'execute', 'self._over'),
 }
 
 # The bridge's crossings by module. 2026-11-12 (C3): the hosted DataCube's query and statement (_headless.py), and a
@@ -52,7 +58,10 @@ BRIDGE = {'_headless.py': 2, 'engine.py': 1}
 # its own type with a held value taken out of its words (frames.py redacted), never a statement.
 TYPE_CALLS = {('frames.py', 'type(failure)(out)')}
 
-SEND_METHODS = {'execute', 'executemany', 'sql', 'query', 'from_query'}
+# DuckDB's ways to run text or load data, on any receiver (2026-11-12, the second audit: from_arrow(...).create landed a
+# planned stream step outside the one send): each pinned by module and receiver (SENDS), or refused
+SEND_METHODS = {'execute', 'executemany', 'sql', 'query', 'from_query', 'from_arrow', 'from_df', 'from_parquet',
+                'from_csv_auto', 'read_csv', 'read_parquet', 'read_json', 'install_extension', 'load_extension'}
 MINT_NAMES = {'from_plan', 'all_from_plan'}
 
 
@@ -81,6 +90,8 @@ def census(name: str, source: str) -> dict:
             for alias in node.names:
                 if alias.name.split('.')[-1] == '_planned':
                     refused.append(f'line {node.lineno}: _planned imported as a module ({ast.unparse(node)!r})')
+        elif isinstance(node, ast.Attribute) and node.attr == '_con' and not own:
+            refused.append(f'line {node.lineno}: {ast.unparse(node)}: the Database\'s own connection reached around it')
         elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == '_planned':
             # a module's attribute (engine.py's own function named _planned is no module, and is never reached into)
             refused.append(f'line {node.lineno}: _planned.{node.attr}: _planned reached as a module')
@@ -100,6 +111,9 @@ def census(name: str, source: str) -> dict:
                 refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a value\'s own type called')
             if not own and isinstance(f, ast.Attribute) and f.attr in ('__class__', '__new__'):
                 refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a class reached through a value')
+            if not own and isinstance(f, ast.Attribute) and f.attr == 'connect' and isinstance(f.value, ast.Name) \
+                    and f.value.id == 'duckdb':
+                refused.append(f'line {node.lineno}: duckdb.connect(): a database is the host\'s Database (_planned.connect)')
             if isinstance(f, ast.Attribute) and f.attr in SEND_METHODS:
                 sends.add((name, f.attr, ast.unparse(f.value)))
             if isinstance(f, ast.Name) and f.id == 'across_the_bridge':
@@ -122,12 +136,16 @@ class PlannedGuardTest(unittest.TestCase):
             'planned.__class__(text)',
             'str.__new__(PlannedSql, text)',
             'PlannedSql("SELECT 1")',
+            'duckdb.connect()',
+            'frames.connection._con.execute(q)',
         ]:
             self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
         self.assertEqual({'from_plan', 'send'}, census('m.py', 'from ._planned import from_plan, send')['imported'])
         self.assertEqual({('m.py', 'sql', 'con'), ('m.py', 'from_query', 'duckdb')},
                          census('m.py', 'con.sql(q)\nduckdb.from_query(q)')['sends'])
         self.assertEqual({('m.py', 'query', 'self._db')}, census('m.py', 'self._db.query(q)')['sends'])
+        self.assertEqual({('m.py', 'from_arrow', 'con'), ('m.py', 'read_csv', 'duckdb')},
+                         census('m.py', 'con.from_arrow(r).create(t)\nduckdb.read_csv(p)')['sends'])
         # a docstring's example is prose: no node of the tree
         self.assertEqual(set(), census('m.py', '"""trades.execute(q)"""')['sends'])
 

@@ -3788,7 +3788,7 @@ class Flows(Paged):
         big.output_table('big_trades')
         box = next(b for b in self.boxes(page, flow) if b['tile'] == big.id)
         self.assertEqual(box['output'], {'format': 'table', 'name': 'big_trades', 'mode': 'create'})
-        con = page._session.frames.connection
+        con = page._session.frames.connection._con
         table = lambda: sorted(con.execute('SELECT notional FROM big_trades').fetchall())
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(flow.run(folder), ['table big_trades'])
