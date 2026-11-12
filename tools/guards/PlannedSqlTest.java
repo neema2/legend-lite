@@ -52,6 +52,14 @@ class PlannedSqlTest {
             "studio/src/backend/run.ts", "the SQL playground",
             "query/demo/main.ts", "the demo warehouse fixture");
 
+    /**
+     * THE PLAYGROUND'S ONE PATH (the orchestrator's ruling of 2026-11-12: Studio's SQL playground stays named -- a person's
+     * own SQL run as typed is the author's statement -- and nothing but the playground reaches it). Its send sits in the
+     * run backend's {@code sql} method, and the product's one caller of that method is the editor's SQL playground.
+     */
+    static final String PLAYGROUND = "studio/src/backend/run.ts";
+    static final Set<String> PLAYGROUND_CALLERS = Set.of("studio/src/ui/editor.ts");
+
     /** The tests' folders, read beside the product's (host_sql.txt's): where a cast would hide a host's own SQL. */
     static final List<String> TESTS = List.of("engine-client/test", "datacube/test", "query/test", "studio/test");
 
@@ -91,6 +99,7 @@ class PlannedSqlTest {
     private static final Pattern RE_EXPORT = Pattern.compile("export\\s*\\{[^}]*\\b(?:fromPlan|allFromPlan|notPlanned)\\b");
     private static final Pattern CAST = Pattern.compile("\\bas\\s+PlannedSql\\b|(?<![\\w$])<PlannedSql>");
     private static final Pattern NOT_PLANNED_CALL = Pattern.compile("\\bnotPlanned\\(\\s*'([^']*)'");
+    private static final Pattern RUN_SQL = Pattern.compile("\\brun\\s*\\.\\s*sql\\(");
     private static final Pattern UNPLANNED_IMPORT = Pattern.compile("from\\s*'[^']*test/unplanned\\.ts'");
     private static final Pattern PY_MINT = Pattern.compile("(?<![\\w.])(?:from_plan|all_from_plan)\\(");
     private static final Pattern PY_BRIDGE = Pattern.compile("(?<![\\w.])across_the_bridge\\(");
@@ -168,6 +177,30 @@ class PlannedSqlTest {
         assertEquals(List.of(), reExports, "the mints are planned-sql.ts's alone: re-exported, they are anyone's");
         assertEquals(new TreeMap<>(NOT_PLANNED), named, "a statement no plan carries is sent only by a name the guard"
                 + " pins (PlannedSqlTest.NOT_PLANNED): a new one is reported, never added in passing");
+    }
+
+    @Test
+    void thePlaygroundsUnplannedSendIsReachedFromThePlaygroundAlone() throws IOException {
+        String backend = read(PLAYGROUND);
+        int method = backend.indexOf("    async sql(statement, modelText) {");
+        assertTrue(method >= 0, "the run backend's sql method moved: " + PLAYGROUND);
+        int end = backend.indexOf("\n    },", method);
+        int send = backend.indexOf("notPlanned('the SQL playground'");
+        assertTrue(send > method && send < end, "the playground's send is the run backend's sql method's, and no other's");
+        List<String> product = folders().get("typescript");
+        Set<String> callers = new TreeSet<>();
+        for (String file : inventory()) {
+            if (file.endsWith(".ts") && under(file, product) && RUN_SQL.matcher(read(file)).find()) {
+                callers.add(file);
+            }
+        }
+        assertEquals(new TreeSet<>(PLAYGROUND_CALLERS), callers, "the run backend's sql method -- a person's own SQL,"
+                + " sent unplanned -- is the SQL playground's alone (PlannedSqlTest.PLAYGROUND_CALLERS)");
+        String editor = read("studio/src/ui/editor.ts");
+        Matcher call = RUN_SQL.matcher(editor);
+        assertTrue(call.find() && editor.substring(call.start(), Math.min(editor.length(), call.start() + 80))
+                .contains("sqlText.value"), "the editor's one call sends the playground's own text");
+        assertTrue(!call.find(), "the editor calls the run backend's sql method once: the playground's run");
     }
 
     @Test
