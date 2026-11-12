@@ -117,7 +117,11 @@ js_library(
 # zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
 filegroup(
     name = "census_src",
-    srcs = glob(["src/**/*.ts"]),
+    # the app's sources and the demo's page code it ships (the demo's sample is read as a person's file: 2026-11-12)
+    srcs = glob([
+        "src/**/*.ts",
+        "demo/**/*.ts",
+    ]),
     visibility = ["//core:__pkg__"],
 )
 
@@ -210,6 +214,7 @@ _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 
 _EXTRA_ENV = {
     "warehouse-session-http": {"SQLAPI_PAGE": "$(rlocationpath //warehouse:sqlapi_page_dir)"},
+    "sample-trades": {"SAMPLE_TRADES_PARQUET": "$(rlocationpath :sample_trades_parquet)"},
     # the markets project as the site serves it (:markets_project, config.json `projects[]`): the one trading model and
     # the markets sample's days as its Data -- the timeseries over its classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
     # §11, Phase 6)
@@ -295,6 +300,8 @@ _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
+    # the demo's sample as the site ships it, held to the generator's rows and types (2026-11-12)
+    "sample-trades": [":sample_trades_parquet"],
     "stress-markets": [
         "demo/config.json",
         ":markets_project",
@@ -1705,6 +1712,36 @@ js_run_binary(
     visibility = ["//python:__pkg__"],
 )
 
+# THE DEMO'S SAMPLE TRADES AS A PARQUET FILE (the user's ruling of 2026-11-12, "Demo has to go through platform"): the
+# generator's rows (src/sample-trades.ts) written at build time by DuckDB's own Parquet writer (tools/sample-trades), a
+# demo asset in :site beside the page -- not in a bundle -- that the demo fetches when it opens and reads as a person's
+# file is read: the planned load of a host's file (demo/boot.ts loadSample). test/sample-trades.test.ts holds it to the
+# generator's rows and types.
+js_binary(
+    name = "emit_sample_trades_parquet",
+    data = [
+        ":src",
+        "//engine-client:duckdb_extensions",
+        "//tools/js:runfiles",
+    ],
+    entry_point = "tools/sample-trades/emit-parquet.ts",
+    env = {"DUCKDB_EXTENSIONS": "$(rlocationpaths //engine-client:duckdb_extensions)"},
+    node_options = [
+        "--experimental-strip-types",
+        "--experimental-wasm-exnref",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "sample_trades_parquet",
+    srcs = ["tools/sample-trades/emit-parquet.ts"],
+    outs = ["demo/sample-trades.parquet"],
+    args = ["demo/sample-trades.parquet"],
+    chdir = package_name(),
+    tool = ":emit_sample_trades_parquet",
+)
+
 # The example over the project as a saved page (tools/markets-data/page.ts), for Python's test of it
 js_binary(
     name = "emit_markets_page",
@@ -1765,6 +1802,8 @@ filegroup(
         ":markets_project",
         ":planner_worker",
         ":projects",
+        # the demo's sample trades, a Parquet file made at build time (:sample_trades_parquet): an asset, never a bundle
+        ":sample_trades_parquet",
         ":vendor",
         ":widget",
         ":widget_loader",

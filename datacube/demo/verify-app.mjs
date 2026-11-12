@@ -124,13 +124,14 @@ try {
     && /the warehouse/.test(document.querySelector('.dc-status-receipt')?.textContent ?? ''), undefined,
   { timeout: 120_000 });
 
-  // 1. THE TABLE ASKED FOR, opened Live, and nothing generated first
+  // 1. THE TABLE ASKED FOR, opened Live, and no sample read first
   await page.goto(`${address}&table=${TABLE}`);
   await live();
   const title = await page.evaluate(() => window.__dataCube?.configuration.reportTitle);
   if (title !== TABLE) bad(`the cube is ${title}, not ${TABLE}`); else ok(`opened ${TABLE} Live`);
-  if (statuses.some((t) => /generating/.test(t))) bad('the sample was generated before the table opened');
-  else ok('no sample was generated');
+  // the demo's sample, read in as a person's file is (boot.ts loadSample: "reading the sample's ... rows")
+  if (statuses.some((t) => /reading the sample/.test(t))) bad('the sample was read before the table opened');
+  else ok('no sample was read');
 
   // 2. GROUPED in Postgres: one row per value, no error
   const cols = await page.$$eval('.dc-th[data-column]', (els) => els.map((e) => e.dataset.column));

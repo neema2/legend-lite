@@ -32,7 +32,8 @@ await rm(DIST, { recursive: true, force: true });
 await mkdir(join(DIST, 'vendor'), { recursive: true });
 
 // The planner's worker, the page's model, and the two WebAssembly runtimes.
-for (const f of ['planner-worker.js', 'trades.pure']) {
+// the demo's model, and its sample: a Parquet file made at build time, read as a person's file is (boot.ts loadSample)
+for (const f of ['planner-worker.js', 'trades.pure', 'sample-trades.parquet']) {
   await cp(join(ROOT, 'demo', f), join(DIST, f));
 }
 for (const f of ['classes.wasm', 'wasm-gc-module-runtime.js',

@@ -334,22 +334,7 @@ export async function readFileInto(
   // it; the file read by its format -- a CSV sniffed with a header, Parquet, JSON with each record's keys its columns
   // (anything nested below them a STRUCT or a LIST, kept: a Variant).
   const target = { name: table };
-  const plan = await models.fileLoad({
-    databaseType: engine.databaseType,
-    file: { name: file.name, digest: file.digest, size: file.size, format },
-    into: { table },
-  });
-  // this host's store of its own files: the one this read names, by what its database reads it by
-  const files = {
-    located: async (ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string> => {
-      if (ref.name !== file.name || ref.digest !== file.digest || ref.size !== file.size) {
-        throw new Error(`the file '${ref.name}' is not the one this read holds (${file.name}, ${file.size} bytes of digest ${file.digest})`);
-      }
-      return file.at;
-    },
-  };
-  const { runLoad } = await planRunner();
-  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params), { files }));
+  await loadFileInto(engine, { ...file, format }, table, models);
 
   const inferred = await modelLanded(engine, models, table);
 
@@ -363,6 +348,44 @@ export async function readFileInto(
     rowCount,
     fileName: file.fileName,
   };
+}
+
+/**
+ * A HOST'S OWN FILE, ALREADY WHERE ITS DATABASE READS IT, READ INTO `table` BY ITS PLANNED LOAD -- the one way a file
+ * reaches a table, a person's upload (readFileInto) and the demo's sample (demo/boot.ts) alike (B3, 2026-11-11; the
+ * demo's, the user's ruling of 2026-11-12, "Demo has to go through platform"): the planner's plan names the file by
+ * `name`, its SHA-256 and size (fileLoad: a HOST_SESSION load, a table of its own read by its format's reader), and the
+ * hosts' runner runs it on the held connection, binding the statement's ? to `at` once this host's store has said the
+ * file is the one named (runLoad) -- the path never in a statement's text, the load never outside a plan.
+ */
+export async function loadFileInto(
+  engine: DuckDbEngine,
+  file: {
+    readonly at: string;
+    readonly name: string;
+    readonly digest: string;
+    readonly size: number;
+    readonly format: UploadFormat;
+  },
+  table: string,
+  planner: Pick<TableModels, 'fileLoad'>,
+): Promise<void> {
+  const plan = await planner.fileLoad({
+    databaseType: engine.databaseType,
+    file: { name: file.name, digest: file.digest, size: file.size, format: file.format },
+    into: { table },
+  });
+  // this host's store of its own files: the one this read names, by what its database reads it by
+  const files = {
+    located: async (ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string> => {
+      if (ref.name !== file.name || ref.digest !== file.digest || ref.size !== file.size) {
+        throw new Error(`the file '${ref.name}' is not the one this read holds (${file.name}, ${file.size} bytes of digest ${file.digest})`);
+      }
+      return file.at;
+    },
+  };
+  const { runLoad } = await planRunner();
+  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params), { files }));
 }
 
 /**

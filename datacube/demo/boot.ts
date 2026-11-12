@@ -13,8 +13,8 @@ import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
-import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTrades } from '../src/sample-trades.ts';
-import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
+import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES } from '../src/sample-trades.ts';
+import { loadFileInto } from '../src/upload.ts';
 import type { ProjectDataSource } from '../../engine-client/src/project-data.ts';
 import { mountRemote, shownAddress } from '../src/remote.ts';
 import { isPageFragment } from '../src/share/link.ts';
@@ -241,14 +241,33 @@ export async function loadModel(): Promise<string> {
 
 // -- sample data ----------------------------------------------------
 
+/** Where the demo's sample is, beside the page: a Parquet file made at build time (BUILD.bazel :sample_trades_parquet). */
+export const SAMPLE_FILE = 'sample-trades.parquet';
+
+/** The demo's sample's bytes, fetched from beside the page: started as the page starts, beside DuckDB's and the
+ *  planner's start, so its download is no wait of its own (loadSample reads it once both are ready). */
+export async function fetchSample(): Promise<Uint8Array> {
+  const answer = await fetch(`./${SAMPLE_FILE}`);
+  if (!answer.ok) throw new Error(`the demo's sample (${SAMPLE_FILE}) did not load: ${answer.status} ${answer.statusText}`);
+  return new Uint8Array(await answer.arrayBuffer());
+}
+
 /**
- * The demo's trades, generated in this tab as the table the model reads (src/sample-trades.ts: Arrow data, put in by
- * DuckDB's Arrow reader -- the page spells no SQL), a table of that name dropped first (the planner's operation).
+ * THE DEMO'S SAMPLE TRADES, read into the table the model reads EXACTLY AS A PERSON'S FILE IS (the user's ruling of
+ * 2026-11-12, "Demo has to go through platform"): the generator's rows (src/sample-trades.ts) as a Parquet file made at
+ * build time (tools/sample-trades; the same rows and types, test/sample-trades.test.ts) and shipped beside the page --
+ * not in a bundle -- fetched now, named by its SHA-256 and size, registered with the tab's DuckDB, and read by the one
+ * function a person's upload is read by (upload.ts loadFileInto: the planner's planned load, read_parquet(?), run by the
+ * hosts' runner). Until then the rows were made in the tab and put in by DuckDbEngine.loadArrow, outside any plan.
  */
-export async function generateTrades(engine: DuckDbEngine, host: HostOperationsSource): Promise<void> {
-  const stream = sampleTrades();
-  const [drop] = await host.hostOperations(engine.databaseType, [{ op: 'drop', kind: 'table', target: { name: 'trades' } }]);
-  await engine.loadArrow({ table: 'trades' }, (async function* () { yield stream; })(), drop);
+export async function loadSample(engine: DuckDbEngine, files: { registerFileBuffer(name: string, bytes: Uint8Array): Promise<void> },
+  planner: Pick<TableModels, 'fileLoad'>, fetched: Promise<Uint8Array>): Promise<void> {
+  const bytes = await fetched;
+  // named by its bytes before DuckDB takes them (registering hands the buffer to its worker)
+  const { sha256Hex } = await import('../../engine-client/src/plan-runner.ts');
+  const file = { at: SAMPLE_FILE, name: SAMPLE_FILE, digest: await sha256Hex(bytes), size: bytes.length, format: 'parquet' as const };
+  await files.registerFileBuffer(SAMPLE_FILE, bytes);
+  await loadFileInto(engine, file, 'trades', planner);
 }
 
 /**
@@ -286,6 +305,9 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   engineReady.catch(() => {});
 
   const start = await startOf(location);
+  // the demo's sample, fetched now beside DuckDB's and the planner's start (a `?remote=` file is mounted instead)
+  const sampleBytes = start.kind === 'sample' && !new URLSearchParams(location.search).get('remote') ? fetchSample() : undefined;
+  sampleBytes?.catch(() => {});
   // the deployment's settings (config.json, the address's overrides), read once: the services hold what they say
   const configured = pageConfig();
   configured.catch(() => {});
@@ -302,6 +324,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       engineReady.then((p) => p.tables.hostOperations(databaseType, operations)),
     // a remote file's mount, as a planned load (B3's Q3)
     remoteMount: (request: Parameters<TableModels['remoteMount']>[0]) => engineReady.then((p) => p.tables.remoteMount(request)),
+    // a host's own file read in, as a planned load: the demo's sample, as a person's file is (B3)
+    fileLoad: (request: Parameters<TableModels['fileLoad']>[0]) => engineReady.then((p) => p.tables.fileLoad(request)),
   };
   const duck = await startDuckDbInTab((await configured).vendor, planned);
   performance.mark('dc:database-ready');
@@ -342,9 +366,10 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     status.textContent = `reading ${shownAddress(remote)}`;
   } else if (start.kind === 'sample') {
 
-  status.textContent = `generating ${SAMPLE_TRADES.toLocaleString(UI_LOCALE)} rows…`;
-  await generateTrades(duck.engine, planned);
-  generated = { label: 'trades (generated in this tab)', takenAt: new Date(), rowCount: SAMPLE_TRADES };
+  status.textContent = `reading the sample's ${SAMPLE_TRADES.toLocaleString(UI_LOCALE)} rows…`;
+  if (sampleBytes === undefined) throw new Error('the demo\u2019s sample was not fetched for a start that reads it');
+  await loadSample(duck.engine, duck.data, planned, sampleBytes);
+  generated = { label: 'trades (the demo\u2019s sample, read into this tab)', takenAt: new Date(), rowCount: SAMPLE_TRADES };
   }
 
   // -- the cube ------------------------------------------------------
