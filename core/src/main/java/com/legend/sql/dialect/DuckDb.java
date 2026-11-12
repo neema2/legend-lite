@@ -69,6 +69,13 @@ public class DuckDb extends AnsiSqlRenderer {
         }
     }
 
+    /** The Float canon's parts staged (E-5a, 2026-11-12): DuckDB's derived tables read the row around them; the
+     *  staged canon answered 301,001 doubles as the inline one did, 3.2x faster over 200,000 rows. */
+    @Override
+    protected boolean stagesFloatText() {
+        return true;
+    }
+
     /** {@inheritDoc} 9: a literal with a nonzero digit past the microsecond is a {@code TIMESTAMP_NS} ({@link #timestampLit}) (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {

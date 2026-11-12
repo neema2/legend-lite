@@ -246,6 +246,12 @@ public class SQLite extends AnsiSqlRenderer {
         return true;
     }
 
+    /** The Float canon's parts staged (E-5a, 2026-11-12): SQLite's derived tables read the row around them. */
+    @Override
+    protected boolean stagesFloatText() {
+        return true;
+    }
+
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),

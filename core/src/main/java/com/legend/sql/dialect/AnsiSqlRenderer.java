@@ -231,7 +231,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         // a Float's literal spelling, expanded before every other pass unless this dialect spells it itself
         if (!spellsFloatCanon()) {
-            ps.add(new FloatCanonText.Expansion(bindsFloatText()));
+            ps.add(new FloatCanonText.Expansion(bindsFloatText(), stagesFloatText()));
         }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
@@ -264,6 +264,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** Whether that expansion reads the double's text from a one-row derived table, written once (a dialect whose
      *  double text is a long expression and whose derived tables read the row around them). */
     protected boolean bindsFloatText() {
+        return false;
+    }
+
+    /** Whether the Float canon's expansion STAGES its parts -- the text, the mantissa's digits and the point's position
+     *  each a column of a one-row derived table, written once (E-5a, 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md
+     *  §5.9): a dialect whose derived tables read the row around them, each turned on as its database is shown to
+     *  answer every double the same. Base: no -- H2 refuses an outer column inside a derived table. */
+    protected boolean stagesFloatText() {
         return false;
     }
 

@@ -675,6 +675,32 @@ So BOTH does every side's work twice: once for the host and once inside the data
   smaller and faster on every dialect that binds. The server dialects are probed on `//core:data_source_servers_test`
   and the lanes.
 
+> **E-5a BUILT (2026-11-12, the orchestrator's go):**
+> - **What changed.** `FloatCanonText.Expansion` has a staged mode, set by each dialect's `stagesFloatText()`. It is
+>   on for DuckDB and SQLite and off by default; H2 refuses the shape.
+>   - The staged form is one scalar subquery with three nested one-row layers. The text `t` comes first, then the
+>     mantissa `m` and the exponent `x`, then the digits `d` and the point `p`. The spelling is written over `t`, `d`
+>     and `p`.
+>   - `FloatCanonText` was split into named parts (`mantissa`, `digits`, `intLen`, `exponent`, `unfold`, `spelling`).
+>     The inline form is built from the same parts and is unchanged.
+>   - Still one statement. No testplan, testexec or plan-format change.
+> - **Where it lands: the judge's SQL, not the product's.**
+>   - `FLOAT_CANON` is reached only through `LiteralSpelling.leaf`, the verdict SQL's canon.
+>   - Channel A's and core's product pins did not move: `lean_sql_baseline_test` and `cast_case_census_test` passed
+>     unchanged, so there was nothing to re-pin.
+>   - The product's Float printing is `FLOAT_PRINT` (`FloatPrintText`), a separate expression, and the next candidate.
+> - **Measured, PCT channel B essential on DuckDB, same 343 tests:**
+>
+>   | Judge | Characters before | Characters after | Change |
+>   |---|---|---|---|
+>   | DATABASE | 2,483,655 | 1,994,616 | -19.7% |
+>   | BOTH | 2,814,871 | 2,294,218 | -18.5% |
+>
+>   - Statement counts are unchanged.
+>   - Every `[verdict]` line is identical to before, under both judges: 845 verdicts, 176 of them with decimal values.
+> - **Not yet measured:** BigQuery, which binds the text only today, and the other cloud and server dialects (inline).
+>   Each is turned on only after its lane shows the same answers.
+
 **E-5b, a value's printed text once per verdict** (testplan/VerdictSql; after the merge):
 - A side's CTE writes its canon three times: `__text`, `__nulls`, and `__trees`.
 - It becomes one inner select computing `__c`, with the three read off `__c`. This is P1a's bind-once, applied at the
