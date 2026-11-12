@@ -72,8 +72,9 @@ class FixtureWriteCensusTest {
      *  the third re-audit's MUST-FIX 2): a DECLARED H2 database is the user's, made by its user -- its table and rows
      *  written by the test as the user would, which no plan may do (DatabaseSettingsH2Test, 2: the point is that lite
      *  leaves it as it found it); and H2's own keywords as columns on a bare session, which no model can declare and no
-     *  plan's load may write bare (H2KeywordsTest, 3). */
-    private static final int CEILING = 917;
+     *  plan's load may write bare (H2KeywordsTest, 3). 917 -> 918 (2026-11-12, the same item's Cypher store, located by the
+     *  D worker): its property tables' row, written by the dialect's own spelling on a bare session (H2KeywordsTest, 1). */
+    private static final int CEILING = 918;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -190,7 +191,7 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2FirstInGroupTest.java", 2),
             // 2026-11-12, the third re-audit's MUST-FIX 2(c): H2's keywords as columns on a bare session (the ceiling's
             // note)
-            Map.entry("core/src/test/java/com/legend/sql/dialect/H2KeywordsTest.java", 3),
+            Map.entry("core/src/test/java/com/legend/sql/dialect/H2KeywordsTest.java", 4),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2SplitPartTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/HostOperationsTest.java", 3),
             Map.entry("core/src/test/java/com/legend/sql/dialect/SqlWriterTest.java", 2),
