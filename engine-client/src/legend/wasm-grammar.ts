@@ -283,4 +283,13 @@ export class WasmGrammar implements Grammar {
   async synthesize(request: SynthesizeRequest): Promise<string> {
     return unfold(await this.#port.ask({ kind: 'synthesize', request: JSON.stringify(request) }));
   }
+
+  /**
+   * A statement a person wrote, as a plan (Boundary.authored: Studio's SQL playground, the user's ruling of 2026-11-12):
+   * the person's one text on a database of `databaseType`, carried as written -- never parsed, rewritten or split --
+   * PlanJson's text, its answer the relation the database reports (plan-runner.ts runAuthored).
+   */
+  async authored(databaseType: string, text: string): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'authored', request: JSON.stringify({ databaseType, text }) }));
+  }
 }

@@ -11,7 +11,7 @@ import type { PureChange } from '../../../sdlc-client/src/wire.ts';
 import type { Compiler } from '../backend/planner.ts';
 import type { QueryBuilder } from '../backend/query-builder.ts';
 import type { EditorHandle } from '../../../query/src/embed.ts';
-import type { Runner, TableState } from '../backend/run.ts';
+import type { Playground, Runner, TableState } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
 import { renamePath } from '../model/rename.ts';
@@ -35,6 +35,9 @@ export interface EditorContext {
   readonly compiler: Compiler;
   /** Runs a function on the session's engine (plan A3). */
   readonly run: Runner;
+  /** Upstream's SQL playground: a person's own SQL on the tab's DuckDB, the one statement no plan carries (run.ts
+   *  Playground). Handed to the editor alone, and used by its SQL playground alone (PlannedSqlTest). */
+  readonly playground: Playground;
   /** Query's builder on a service's query or a class (plan A5). */
   readonly builder: QueryBuilder;
   readonly monaco: typeof Monaco;
@@ -98,7 +101,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     sqlOut.append(h('div', { class: 'panel-group__empty' }, 'Running…'));
     const started = performance.now();
     try {
-      const t = await ctx.run.sql(sqlText.value, ws.model().text);
+      const t = await ctx.playground.sql(sqlText.value, ws.model().text);
       clear(sqlOut);
       sqlOut.append(rawView(t, Math.round(performance.now() - started)));
     } catch (e) {

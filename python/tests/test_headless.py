@@ -21,7 +21,7 @@ import legend_lite as ll
 from legend_lite import datacube
 from legend_lite import _pool
 from legend_lite._headless import Headless, bundle
-from legend_lite._planned import PlannedSql, answered_texts
+from legend_lite._planned import PlannedSql
 from legend_lite.engine import Engine
 from legend_lite.frames import Frames
 
@@ -415,7 +415,7 @@ class Files(unittest.TestCase):
         return said
 
     def tables(self, name):
-        return self.frames.connection.execute(
+        return self.frames.connection._con.execute(
             'SELECT count(*) FROM duckdb_tables() WHERE lower(table_name) = lower(?)', [name]).fetchone()[0]
 
     def test_the_engine_says_it_takes_files(self):
@@ -427,7 +427,7 @@ class Files(unittest.TestCase):
         self.assertEqual(answer.status, 200, answer.body[:300])
         said = json.loads(answer.body)
         self.assertEqual((said['table'], said['rowCount'], said['fileName']), ('files_books', 2, 'books.csv'))
-        rows = self.frames.connection.execute('SELECT title, pages FROM files_books ORDER BY pages').fetchall()
+        rows = self.frames.connection._con.execute('SELECT title, pages FROM files_books ORDER BY pages').fetchall()
         self.assertEqual(rows, [('Dune', 412), ('Emma', 474)])
         with self.frames.serving() as models:
             self.assertEqual(models['files_books'], said['model'])
@@ -443,7 +443,7 @@ class Files(unittest.TestCase):
         self.assertEqual((first['table'], second['table']), ('files_data', 'files_data_2'))
         # the first page letting its file go drops its own table, never the other page's
         self.assertEqual(self.send('/forget.json', {'name': 'data.csv', 'table': 'files_data'}).status, 204)
-        self.assertEqual(self.frames.connection.execute('SELECT count(*) FROM files_data_2').fetchone()[0], 2)
+        self.assertEqual(self.frames.connection._con.execute('SELECT count(*) FROM files_data_2').fetchone()[0], 2)
         with self.frames.serving() as models:
             self.assertIn('files_data_2', models)
 
@@ -469,7 +469,7 @@ class Files(unittest.TestCase):
                                          'table': 'files_parts'})
         self.assertEqual(small.status, 200, small.body[:300])
         self.addCleanup(self.send, '/forget.json', {'name': 'w.csv', 'table': 'files_parts'})
-        self.assertEqual(self.frames.connection.execute('SELECT w FROM files_parts ORDER BY w').fetchall(),
+        self.assertEqual(self.frames.connection._con.execute('SELECT w FROM files_parts ORDER BY w').fetchall(),
                          [('José',), ('Zoë',)])
 
     def test_a_part_out_of_order_or_of_no_upload_is_refused_never_written(self):
@@ -488,17 +488,17 @@ class Files(unittest.TestCase):
         answer = self.send('/file.json', {'upload': upload, 'name': 'p.csv', 'table': 'files_once'})
         self.assertEqual(answer.status, 200, answer.body[:300])
         self.addCleanup(self.send, '/forget.json', {'name': 'p.csv', 'table': 'files_once'})
-        self.assertEqual(self.frames.connection.execute('SELECT a FROM files_once ORDER BY a').fetchall(), [(1,), (2,)])
+        self.assertEqual(self.frames.connection._con.execute('SELECT a FROM files_once ORDER BY a').fetchall(), [(1,), (2,)])
         self.assertEqual(self.send('/file.json', {'upload': upload, 'name': 'p.csv', 'table': 'files_again'}).status, 404)
         self.assertEqual(self.send('/file-part.json', {'upload': upload, 'at': 6, 'bytes': ''}).status, 404)
 
     def test_a_name_held_by_a_frame_or_another_table_is_not_taken(self):
         self.frames.register('files_frame', pd.DataFrame({'a': [1]}))
         self.addCleanup(self.frames.unregister, 'files_frame')
-        self.frames.connection.execute('CREATE TABLE files_mine AS SELECT 1 AS a')
-        self.addCleanup(self.frames.connection.execute, 'DROP TABLE IF EXISTS files_mine')
-        self.frames.connection.execute('CREATE TEMP TABLE files_temp AS SELECT 1 AS a')
-        self.addCleanup(self.frames.connection.execute, 'DROP TABLE IF EXISTS temp.files_temp')
+        self.frames.connection._con.execute('CREATE TABLE files_mine AS SELECT 1 AS a')
+        self.addCleanup(self.frames.connection._con.execute, 'DROP TABLE IF EXISTS files_mine')
+        self.frames.connection._con.execute('CREATE TEMP TABLE files_temp AS SELECT 1 AS a')
+        self.addCleanup(self.frames.connection._con.execute, 'DROP TABLE IF EXISTS temp.files_temp')
         for asked in ('files_frame', 'files_mine', 'files_temp'):
             with self.subTest(asked=asked):
                 self.assertEqual(self.read('x.csv', 'a\n1\n', asked)['table'], f'{asked}_2')
@@ -520,7 +520,7 @@ class Files(unittest.TestCase):
     def test_a_header_a_person_wrote_is_read_into_a_model_the_compiler_takes(self):
         header = '"a ""quoted"" one",b}c,"line\nbreak",plain'
         said = self.read('odd.csv', f'{header}\n1,2,3,4\n', 'files_odd')
-        names = [r[0] for r in self.frames.connection.execute(
+        names = [r[0] for r in self.frames.connection._con.execute(
             "SELECT column_name FROM duckdb_columns() WHERE table_name = 'files_odd' ORDER BY column_index").fetchall()]
         self.assertEqual(names, ['a "quoted" one', 'b}c', 'line\nbreak', 'plain'])
         # the model the writer wrote for those names compiles, and types the source with them (it is served, and only
@@ -581,7 +581,7 @@ class Files(unittest.TestCase):
         # unchanged, it is read and kept as before
         said = self.engine.read_file(path, 'moving.csv')
         self.addCleanup(self.engine.forget_read, said)
-        self.assertEqual(self.frames.connection.execute(f'SELECT count(*) FROM {said["table"]}').fetchone()[0], 2)
+        self.assertEqual(self.frames.connection._con.execute(f'SELECT count(*) FROM {said["table"]}').fetchone()[0], 2)
 
     def test_without_its_bundle_reading_a_file_says_so_never_hides_it(self):
         import os
@@ -654,11 +654,11 @@ class Remote(unittest.TestCase):
                 answer = self.mount(url, name)
                 self.assertEqual(answer.status, 200, answer.body[:300])
                 model = json.loads(answer.body)['model']
-                self.assertEqual(self.frames.connection.execute(f'SELECT count(*) FROM {name}').fetchone()[0], count)
+                self.assertEqual(self.frames.connection._con.execute(f'SELECT count(*) FROM {name}').fetchone()[0], count)
                 with self.frames.serving() as models:
                     self.assertEqual(models[name], model)
         # read with the extension the wheel carries, from its folder: none was downloaded
-        httpfs = self.frames.connection.execute(
+        httpfs = self.frames.connection._con.execute(
             "SELECT loaded, install_path FROM duckdb_extensions() WHERE extension_name = 'httpfs'").fetchone()
         self.assertTrue(httpfs[0])
         # as the system compares paths (Windows: whatever the case of the drive letter, either slash), links not
@@ -676,9 +676,9 @@ class Remote(unittest.TestCase):
             'accessKeyId': sentinel + '-key', 'secretAccessKey': sentinel + '-secret', 'region': 'eu-west-1'}}))
         self.assertEqual(answer.status, 200, answer.body[:300])
         self.assertNotIn(sentinel.encode('utf-8'), answer.body)
-        self.assertEqual(self.frames.connection.execute('SELECT count(*) FROM remote_keyed').fetchone()[0], 2)
+        self.assertEqual(self.frames.connection._con.execute('SELECT count(*) FROM remote_keyed').fetchone()[0], 2)
         # the database's own listing redacts the secret (an access key's id it shows, as AWS does)
-        name, persistent, scope, written = self.frames.connection.execute(
+        name, persistent, scope, written = self.frames.connection._con.execute(
             "SELECT name, persistent, scope, secret_string LIKE ? FROM duckdb_secrets() WHERE name = 'datacube_s3_remote_keyed'",
             ['%' + sentinel + '-secret%']).fetchone()
         self.assertEqual((name, persistent, scope, written), ('datacube_s3_remote_keyed', False, [url], False))
@@ -692,7 +692,7 @@ class Remote(unittest.TestCase):
         url = f'{self.base}/trades.parquet?X-Amz-Signature={sentinel}'
         answer = self.mount(url, 'remote_signed')
         self.assertEqual(answer.status, 200, answer.body[:300])
-        text = self.frames.connection.execute("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_signed'").fetchone()[0]
+        text = self.frames.connection._con.execute("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_signed'").fetchone()[0]
         self.assertNotIn(sentinel, text)
         self.assertIn('getvariable', text)
         # two reads, two cursors: each reads the file through the setting replayed on it
@@ -701,7 +701,7 @@ class Remote(unittest.TestCase):
                 # the test's own question, no plan's: typed by name as a plan's statement (_planned.py)
                 self.assertEqual(read.execute(PlannedSql('SELECT count(*) FROM remote_signed')).fetchone()[0], 3)
         # a cursor the setting was not replayed on reads nothing
-        bare = self.frames.connection.cursor()
+        bare = self.frames.connection._con.cursor()
         try:
             with self.assertRaises(duckdb.Error):
                 bare.execute('SELECT count(*) FROM remote_signed').fetchone()
@@ -760,14 +760,14 @@ class Remote(unittest.TestCase):
     def test_a_remote_iceberg_table_is_read_through_a_view_with_the_extensions_carried(self):
         answer = self.mount(self.iceberg, 'remote_iceberg')
         self.assertEqual(answer.status, 200, answer.body[-600:])
-        rows = self.frames.connection.execute('SELECT desk, qty FROM remote_iceberg ORDER BY qty').fetchall()
+        rows = self.frames.connection._con.execute('SELECT desk, qty FROM remote_iceberg ORDER BY qty').fetchall()
         self.assertEqual(rows, [('FX', 1), ('EQ', 2), ('FX', 3)])
         with self.frames.serving() as models:
             self.assertEqual(models['remote_iceberg'], json.loads(answer.body)['model'])
         carried = os.path.normcase(os.path.abspath(os.environ['LEGEND_LITE_DUCKDB_EXTENSIONS']))
         for extension in ('iceberg', 'avro'):
             with self.subTest(extension=extension):
-                loaded, path = self.frames.connection.execute(
+                loaded, path = self.frames.connection._con.execute(
                     'SELECT loaded, install_path FROM duckdb_extensions() WHERE extension_name = ?', [extension]).fetchone()
                 self.assertTrue(loaded)
                 self.assertTrue(os.path.normcase(os.path.abspath(path)).startswith(carried + os.sep), path)
@@ -818,7 +818,7 @@ class Remote(unittest.TestCase):
         self.assertEqual(self.mount(f'{self.base}/desks.csv', 'remote_kept').status, 200)
         answer = self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'desks.csv', 'table': 'remote_kept'}))
         self.assertEqual(answer.status, 404)
-        self.assertEqual(self.frames.connection.execute('SELECT count(*) FROM remote_kept').fetchone()[0], 2)
+        self.assertEqual(self.frames.connection._con.execute('SELECT count(*) FROM remote_kept').fetchone()[0], 2)
 
     def test_without_the_extensions_the_engine_reads_no_remote_file(self):
         from unittest import mock
@@ -1001,7 +1001,7 @@ class OneRead(unittest.TestCase):
         """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64. The test
         stands in for DataCube's planner: its own question is declared answered first, as the bridge sends only what the
         session's planner answered (the orchestrator's ruling of 2026-11-12, _planned.py across_the_bridge)."""
-        answered_texts('OK\n' + sql, self.headless._answered)
+        self.headless._answered.record('plan', 'OK\n' + json.dumps({'sql': sql}))
         said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
         return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
 

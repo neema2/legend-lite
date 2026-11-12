@@ -300,8 +300,12 @@ class DataMechanismCensusTest {
                     "is not provisioned by this runner",
                     "if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv))"),
                     "EmbeddedDataKindsTest")),
-            new Row("M7-authored", "executeInDb: SQL the user wrote",
-                    new Staying("P9: an effect's statements are the author's text, folded")),
+            // 2026-11-12 (the C checkpoint's second audit; the user's ruling of that day, "Yes do 5 and 6"): Studio's SQL
+            // playground is the author's text too -- a person's INSERT puts rows in a table -- now a plan's one statement,
+            // carried by the planner as written (com.legend.planner.Authored, Boundary.authored), STAYING as executeInDb's
+            new Row("M7-authored", "executeInDb, and Studio's SQL playground: SQL the user wrote",
+                    new Staying("P9: an effect's statements are the author's text, folded; the playground's, one plan's"
+                            + " statement as written")),
             // BOUNDED (2026-11-11, the user's ruling: "we need to make json work everywhere"; the orchestrator's brief
             // of that day, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): a data: payload is a session table the plan's
             // load makes wherever the database holds one, and the payload in the statement only where measured: its own

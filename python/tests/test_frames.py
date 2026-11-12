@@ -179,7 +179,7 @@ class NamedAndAttached(unittest.TestCase):
             projects.run_host_load(plan, frames.connection, values=lambda held: None)
         self.assertEqual(str(refused.exception), "'ghost' is not a value this host holds: nothing is attached as "
                                                  '__legend_lite_ghost')
-        self.assertEqual(frames.connection.execute(
+        self.assertEqual(frames.connection._con.execute(
             "SELECT count(*) FROM duckdb_views() WHERE view_name = 'ghost'").fetchone()[0], 0, 'nothing ran after it')
         # a key that could carry the frame's rows is refused by the planner by name
         with self.assertRaisesRegex(ll.LegendError, 'has no key rows'):
@@ -208,10 +208,10 @@ class Names(unittest.TestCase):
 
     def test_a_table_frames_did_not_make_is_never_replaced(self):
         frames = ll.Frames()
-        frames.connection.execute('CREATE TABLE ledger (id INTEGER)')
+        frames.connection._con.execute('CREATE TABLE ledger (id INTEGER)')
         with self.assertRaises(ValueError):
             frames.register('Ledger', trades())
-        self.assertEqual(frames.connection.execute('SELECT count(*) FROM ledger').fetchone(), (0,))
+        self.assertEqual(frames.connection._con.execute('SELECT count(*) FROM ledger').fetchone(), (0,))
 
     def test_a_frame_that_cannot_be_served_leaves_its_name_free(self):
         # a column of nothing but nulls (no type a Pure column can have), a frame of no columns, a stream of none:
@@ -231,8 +231,8 @@ class Names(unittest.TestCase):
         with self.assertRaises(ValueError):
             one.execute('->select(~[id])')
         frames.close()
-        left = frames.connection.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name IN ('one', 'two')").fetchone()
-        views = frames.connection.execute("SELECT count(*) FROM duckdb_views() WHERE view_name IN ('one', 'two')").fetchone()
+        left = frames.connection._con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name IN ('one', 'two')").fetchone()
+        views = frames.connection._con.execute("SELECT count(*) FROM duckdb_views() WHERE view_name IN ('one', 'two')").fetchone()
         self.assertEqual((left, views), ((0,), (0,)))
 
     def test_a_pure_literal_cannot_name_a_frame(self):
@@ -267,7 +267,7 @@ class Names(unittest.TestCase):
 class Session(unittest.TestCase):
     def test_the_session_answers_in_utc_on_any_machine(self):
         frames = ll.Frames()
-        self.assertEqual(frames.connection.execute("SELECT current_setting('TimeZone')").fetchone(), ('UTC',))
+        self.assertEqual(frames.connection._con.execute("SELECT current_setting('TimeZone')").fetchone(), ('UTC',))
 
     def test_a_given_connection_is_set_the_same_way(self):
         import duckdb

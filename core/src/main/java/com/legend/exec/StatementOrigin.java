@@ -81,7 +81,10 @@ public enum StatementOrigin {
         count(origin);
         Census.add(Census.Key.SQL_CHARS, sql.length());
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
-            System.err.println("[sql:" + origin.name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
+            // the trace: each statement under its execution's id (RunScope.execution), as upstream's span is tagged with it
+            java.util.UUID execution = com.legend.base.RunScope.currentExecution();
+            System.err.println("[sql:" + origin.name().toLowerCase(java.util.Locale.ROOT)
+                    + (execution == null ? "" : " execution=" + execution) + "] " + sql);
         }
         if (com.legend.diagnostics.Diagnostics.on("sql-sizes")) {
             System.err.println("[sql-size] " + sql.length() + " " + System.getProperty("legend.test.current", "?") + " "

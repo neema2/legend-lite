@@ -90,6 +90,8 @@ public final class PlanRunner {
 
     private static void streamRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             ResultSink sink, int capacity) throws IOException {
+        // the execution's id, to the run's listener before anything else (RunScope.execution: the writers' activity reports it)
+        sink.execution(com.legend.base.RunScope.execution());
         Map<String, PlanParameters.Checked> checked = admitSources(PlanParameters.check(plan.parameters(), values),
                 List.of(plan.root()), sessions.admitted());
         switch (plan.root()) {
@@ -511,7 +513,7 @@ public final class PlanRunner {
     /** A change's statement on {@code st}, its count bound under its name for the slots after it. */
     static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
-        unstamped(u.sql());   // a write is sent with no trace comment (JdbcStatements.update): it binds none
+        unstamped(u.sql());   // a write binds no execution id: only a query or a check reads one
         String statement = u.sql().statement();
         StatementOrigin.sent(st.mark(), statement);
         long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
@@ -774,8 +776,9 @@ public final class PlanRunner {
         }
     }
 
-    /** A statement whose own stamp the runner does not bind (a keyed plan's, a write's, an effect's: none is sent
-     *  under a comment the runner mints): one that binds it is a planner defect, refused by name. */
+    /** A statement whose stamp the runner does not bind (a keyed plan's, a write's, an effect's: none reads the
+     *  execution's id; since C1, 2026-11-12, no statement is sent under a comment at all): one that binds it is a
+     *  planner defect, refused by name. */
     private static void unstamped(ExecutionPlan.Sql sql) {
         if (sql.stamp() != null) {
             throw new IllegalStateException("a keyed, write or effect statement binds its own execution-trace stamp ('"
@@ -783,14 +786,17 @@ public final class PlanRunner {
         }
     }
 
-    /** {@code sql}'s own execution id, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): legend-engine's
-     *  execution-trace comment, minted per execution as its executor mints one, and bound under its name (R17 C4) -- the
-     *  activity rows the plan's statements write read it as a bound value. The statement itself is sent as the plan
+    /** {@code sql}'s execution id, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): legend-engine's
+     *  execution-trace comment of THIS execution -- one id per execution, every statement of it the same, as upstream's
+     *  {@code execID} is ({@link com.legend.base.RunScope#execution}; until 2026-11-12 a fresh id per statement) --
+     *  bound under its name (R17 C4):
+     *  the activity rows the plan's statements write read it as a bound value. The statement itself is sent as the plan
      *  wrote it, no comment in front of it (C1, 2026-11-12, the user's ruling of 2026-11-10, "Agree with all": the
      *  database receives exactly the plan's text; upstream writes the comment into the text at run, register S304). */
     private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values) {
         if (sql.stamp() != null) {
-            values.put(sql.stamp(), new PlanParameters.One(ExecutionPlan.traceComment(java.util.UUID.randomUUID())));
+            values.put(sql.stamp(),
+                    new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution())));
         }
     }
 

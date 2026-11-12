@@ -129,8 +129,9 @@ public final class Synthesize {
             filled.statement(sql);
         }
         List<ExecutionPlan.LoadStep> steps = made.then(filled.build()).steps();
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null),
-                dialect.sessionSetup(), List.of());
+        // the target as the dialect writes it: its session's statements and its read-back (C2; the C checkpoint's code
+        // audit, SHOULD-FIX 3, 2026-11-12: until then a target with no read-back, whatever the database)
+        ExecutionPlan.Target target = Targets.of(new ExecutionPlan.Database.Platform(type, null), dialect);
         return ExecutionPlan.writing(List.of(), LoadPlanner.load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps,
                 target));
     }

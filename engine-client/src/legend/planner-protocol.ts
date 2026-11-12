@@ -24,6 +24,7 @@ export const REQUEST_KINDS = [
   'remoteMount',
   'snapStream',
   'synthesize',
+  'authored',
   'sessionSetup',
   'projectData',
   'hostOperations',
@@ -64,6 +65,9 @@ export type RequestBody =
   // rows the database generates into a declared table, as a plan (SYNTHESIZE, the user's ruling of 2026-11-12): the
   // request's JSON, the table and its knobs, never a row (Boundary.synthesize)
   | { readonly kind: 'synthesize'; readonly request: string }
+  // a statement a person wrote, as a plan (Studio's SQL playground, the user's ruling of 2026-11-12): the request's JSON,
+  // the database and the person's one text, carried as written (Boundary.authored)
+  | { readonly kind: 'authored'; readonly request: string }
   // what a session of a database runs before it is queried, so that it answers as the planner's SQL expects
   | { readonly kind: 'sessionSetup'; readonly databaseType: string }
   // a project's own database on a host's database of that type (C5), named by what it holds

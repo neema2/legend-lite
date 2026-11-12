@@ -345,6 +345,20 @@ py_test(
     deps = ["@rules_python//python/runfiles"],
 )
 
+# the planned-SQL guard's Python half (the total wall's C3; 2026-11-12, the C checkpoint's code audit SHOULD-FIX 2): every
+# module of the host read by Python's own parser -- where a PlannedSql is made, how _planned is imported, every send on
+# any receiver, the bridge's crossings (tests/test_planned_guard.py). Its TypeScript half is
+# //tools/guards:planned_sql_test.
+py_test(
+    name = "planned_guard_test",
+    size = "small",
+    srcs = ["tests/test_planned_guard.py"],
+    data = glob(["legend_lite/*.py"]),
+    env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
+    main = "tests/test_planned_guard.py",
+    deps = ["@rules_python//python/runfiles"],
+)
+
 # a small Iceberg table written for the tests (G5), its files named by the URLs a test serves them at
 py_library(
     name = "iceberg_table",

@@ -207,7 +207,7 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
                 yield from pyarrow.ipc.open_stream(chunk)
 
         # the database's own Arrow import: the chunks read as one stream as the table is made, no statement spelled
-        connection.from_arrow(pa.RecordBatchReader.from_batches(head.schema, batches())).create(into)
+        connection.import_stream(pa.RecordBatchReader.from_batches(head.schema, batches()), schema, table)
         if not receipt:
             raise LoadRefused(f"the stream from '{step['plane']}' ended before its plane said it was done: nothing of it "
                               f'is kept in {into}')

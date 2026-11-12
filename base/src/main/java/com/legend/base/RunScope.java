@@ -33,6 +33,12 @@ package com.legend.base;
 public final class RunScope implements AutoCloseable {
 
     private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
+    /** The running execution's id (C1's second half, the user's ruling of 2026-11-10, "Agree with all": "the execution
+     *  id lives in lite's own trace"; built 2026-11-12, the C checkpoint's code audit SHOULD-FIX 4): one minted per run
+     *  as it enters ({@link #enter}), as legend-engine's {@code ExecutionState} mints its {@code execID} once per
+     *  execution ({@code ExecutionState.java:149}) and tags its relational span with it
+     *  ({@code RelationalExecutionNodeExecutor.java:467}); this scope is lite's span of a run. */
+    private static final ThreadLocal<Execution> EXECUTION = ThreadLocal.withInitial(Execution::new);
     private static final ThreadLocal<Slot> PLANNING = ThreadLocal.withInitial(Slot::new);
     private static final RunScope SCOPE = new RunScope();
 
@@ -42,6 +48,11 @@ public final class RunScope implements AutoCloseable {
     /** A thread's named scope: what it plans; null for none. */
     private static final class Slot {
         @Nullable String name;
+    }
+
+    /** A thread's running execution: its id; null where none runs. */
+    private static final class Execution {
+        java.util.@Nullable UUID id;
     }
 
     /**
@@ -59,12 +70,30 @@ public final class RunScope implements AutoCloseable {
                     + " plan) <- " + callers(12));
         }
         DEPTH.get()[0]++;
+        EXECUTION.get().id = java.util.UUID.randomUUID();
         return SCOPE;
     }
 
     @Override
     public void close() {
         DEPTH.get()[0]--;
+        EXECUTION.get().id = null;
+    }
+
+    /** The id of the execution running on this thread: what its statements' stamps bind, what the run names to its
+     *  listener, what the SQL dump prints. Refused by name where none runs: an id read outside a run is a defect of
+     *  exec's, never a fresh id. */
+    public static java.util.UUID execution() {
+        java.util.UUID id = EXECUTION.get().id;
+        if (id == null) {
+            throw new IllegalStateException("no execution runs on this thread: an execution's id is its run's");
+        }
+        return id;
+    }
+
+    /** The id of the execution running on this thread, or null where none runs. */
+    public static java.util.@Nullable UUID currentExecution() {
+        return EXECUTION.get().id;
     }
 
     /** The wall's refusal, by type: an {@link Error}, so no {@code catch (RuntimeException)} or {@code catch (Exception)}

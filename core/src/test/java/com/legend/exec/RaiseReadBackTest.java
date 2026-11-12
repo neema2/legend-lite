@@ -138,6 +138,27 @@ class RaiseReadBackTest {
         }
     }
 
+    /** The reset is sent whatever the read did, so a raise held now never attaches to a later failure; and the read-back
+     *  is counted as a session's statement (the C checkpoint's code audit, 2026-11-12: until then a failed read skipped
+     *  the reset, and neither was counted). */
+    @Test
+    void theResetIsSentWhenTheReadFails_andTheReadBackIsCountedAsTheSessions() throws SQLException {
+        ExecutionPlan.RaiseReadBack unreadable = new ExecutionPlan.RaiseReadBack("SELECT * FROM NO_SUCH_TABLE",
+                MARIADB.reset());
+        List<String> sent = new ArrayList<>();
+        try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent);
+                var run = com.legend.base.RunScope.enter()) {
+            long before = StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()];
+            assertThrows(SQLException.class, () -> JdbcStatements.held(c, unreadable));
+            assertEquals(List.of(unreadable.read(), unreadable.reset()), sent, "the reset follows the failed read");
+            assertEquals(2, StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()] - before,
+                    "the read and the reset, each a session's statement");
+            sent.clear();
+            assertNull(JdbcStatements.held(c, MARIADB));
+            assertEquals(List.of(MARIADB.read(), MARIADB.reset()), sent, "and after a read that answers");
+        }
+    }
+
     @Test
     void aReadTheSessionRefusesIsNoText_theStatementsOwnErrorStands() throws SQLException {
         Connection c = TestBackends.of(DatabaseType.H2).open();
@@ -154,6 +175,17 @@ class RaiseReadBackTest {
             assertNull(JdbcStatements.held(c, state, statements));
         }
         assertEquals(1, statements.getSuppressed().length, "the read's failure kept beside the statement's");
+    }
+
+    /** No target is made without saying its read-back (the C checkpoint's code audit, SHOULD-FIX 3, 2026-11-12, invariant
+     *  4): the constructor that defaulted it to none -- and so lost a MariaDB target's raise text silently, as
+     *  Synthesize's did -- is gone, and stays gone. */
+    @Test
+    void aTargetIsMadeOnlyBySayingItsReadBack() {
+        java.lang.reflect.Constructor<?>[] made = ExecutionPlan.Target.class.getDeclaredConstructors();
+        assertEquals(1, made.length, "one constructor: the record's own");
+        assertEquals(List.of(ExecutionPlan.Database.class, List.class, List.class, ExecutionPlan.RaiseReadBack.class),
+                List.of(made[0].getParameterTypes()), "the read-back is said, never defaulted");
     }
 
     @Test

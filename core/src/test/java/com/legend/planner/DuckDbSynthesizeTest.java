@@ -86,6 +86,15 @@ class DuckDbSynthesizeTest {
         return ((ExecutionPlan.LoadStep.Statement) steps.get(steps.size() - 1)).sql();
     }
 
+    /** The load's target is the dialect's (Targets.of: its session's statements and its read-back), never one made without
+     *  a read-back (the C checkpoint's code audit, SHOULD-FIX 3, 2026-11-12). */
+    @Test
+    void theTargetIsTheDialects() {
+        DuckDb dialect = new DuckDb();
+        assertEquals(Targets.of(new ExecutionPlan.Database.Platform(DatabaseType.DuckDB, null), dialect),
+                load(plan(MODEL, "x::DB", "ALL_TYPES", 10, Map.of())).target());
+    }
+
     @Test
     void eachTypeHasItsFormula() {
         // AT is a reserved word: DuckDB's own spelling of the declared name quotes it

@@ -58,7 +58,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
-from ._planned import PlannedSql, across_the_bridge, from_plan, send
+from ._planned import PlannedSql, across_the_bridge, connect, from_plan, send
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
@@ -319,7 +319,7 @@ def remote_url(url: str) -> bool:
 @functools.cache
 def _duckdb_platform() -> str:
     """The platform DuckDB names its extensions by here (``osx_arm64``, ``linux_amd64``, ``windows_amd64``, ...)."""
-    return _host.ask(duckdb.connect(), {'op': 'platform'})[0][0]
+    return _host.ask(connect(), {'op': 'platform'})[0][0]
 
 
 def private(path: str) -> bool:

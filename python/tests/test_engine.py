@@ -13,6 +13,8 @@ import tempfile
 import threading
 import time
 import unittest
+
+from legend_lite._planned import Database
 import unittest.mock
 from unittest import mock
 from pathlib import Path
@@ -319,7 +321,7 @@ class ProjectQueries(Served):
         self.assertEqual(sorted(step), ['_type', 'count', 'plane', 'prepare', 'schema', 'sql', 'table', 'transaction'],
                          'the plan names the plane, its statement and the table: never a row')
         source = Plane([chunk(1, 4), chunk(5, 3)])
-        (made,) = projects.run_host_load(plan('snap', 'copies'), con, planes={'warehouse': source}).landed
+        (made,) = projects.run_host_load(plan('snap', 'copies'), Database(con), planes={'warehouse': source}).landed
         self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', ['SELECT * FROM t']))
         self.assertEqual(con.execute("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'snap' "
                                      'ORDER BY column_index').fetchall(),
@@ -328,24 +330,24 @@ class ProjectQueries(Served):
                          [(i, f'D{i}', i / 4) for i in range(1, 8)])
         # cut short: nothing left, and a table of that name there before as it was (its drop rolled back with it)
         with self.assertRaisesRegex(Exception, 'the connection was reset'):
-            projects.run_host_load(plan('cut'), con, planes={'warehouse': Plane([chunk(1, 4), chunk(5, 3)], cut_after=1)})
+            projects.run_host_load(plan('cut'), Database(con), planes={'warehouse': Plane([chunk(1, 4), chunk(5, 3)], cut_after=1)})
         self.assertEqual(exists('cut'), 0)
         con.execute("CREATE TABLE kept AS SELECT 1 AS id, 'D1' AS desk, 0.25 AS qty")
         with self.assertRaisesRegex(Exception, 'the connection was reset'):
-            projects.run_host_load(plan('kept'), con, planes={'warehouse': Plane([chunk(1, 4), chunk(5, 3)], cut_after=1)})
+            projects.run_host_load(plan('kept'), Database(con), planes={'warehouse': Plane([chunk(1, 4), chunk(5, 3)], cut_after=1)})
         self.assertEqual(con.execute('SELECT id, desk FROM kept').fetchall(), [(1, 'D1')])
         # tampered: fewer rows than the plane counted; a plane that never said it was done
         with self.assertRaises(projects.LoadRefused) as refused:
-            projects.run_host_load(plan('tampered'), con, planes={'warehouse': Plane([chunk(1, 4), chunk(5, 2)])})
+            projects.run_host_load(plan('tampered'), Database(con), planes={'warehouse': Plane([chunk(1, 4), chunk(5, 2)])})
         self.assertEqual(str(refused.exception), "the stream from 'warehouse' landed 6 rows in main.tampered, where its "
                                                  'plane counted 7: nothing of it is kept')
         self.assertEqual(exists('tampered'), 0)
         with self.assertRaisesRegex(projects.LoadRefused, 'ended before its plane said it was done'):
-            projects.run_host_load(plan('unsaid'), con, planes={'warehouse': Plane([chunk(1, 7)], silent=True)})
+            projects.run_host_load(plan('unsaid'), Database(con), planes={'warehouse': Plane([chunk(1, 7)], silent=True)})
         self.assertEqual(exists('unsaid'), 0)
         # a plane this host does not hold, refused by name, nothing run
         with self.assertRaisesRegex(projects.LoadRefused, "'warehouse' is not a remote plane this host holds"):
-            projects.run_host_load(plan('t'), con, planes={})
+            projects.run_host_load(plan('t'), Database(con), planes={})
         self.assertEqual(exists('t'), 0)
 
     def test_a_projects_query_answers_its_own_rows(self):
@@ -361,7 +363,7 @@ class ProjectQueries(Served):
         _, rows = self.arrow('->select(~[desk])->distinct()->sort(~desk->ascending())')
         self.assertEqual(rows.column('desk').to_pylist(), ['EQ', 'FX', 'RATES'])
         # nothing of the project's beside the frames: its table is in its own database alone
-        main = self.frames.connection.execute(
+        main = self.frames.connection._con.execute(
             "SELECT count(*) FROM duckdb_tables() WHERE database_name = current_database() AND table_name = 'PARTY'")
         self.assertEqual(main.fetchone()[0], 0)
 
@@ -529,8 +531,8 @@ class PlanAndRunRoutes(Served):
 
     def test_a_model_that_declares_a_table_it_does_not_serve_is_refused_and_nothing_runs(self):
         # a table of this database Python never showed the page (a person's own): never read, whatever the model says
-        self.frames.connection.execute("CREATE TABLE salaries AS SELECT 'Ada' AS name, 100 AS amount")
-        self.addCleanup(self.frames.connection.execute, 'DROP TABLE IF EXISTS salaries')
+        self.frames.connection._con.execute("CREATE TABLE salaries AS SELECT 'Ada' AS name, 100 AS amount")
+        self.addCleanup(self.frames.connection._con.execute, 'DROP TABLE IF EXISTS salaries')
         model = self.table.model.replace('    Table trades', '    Table salaries\n    (\n        name VARCHAR(10),\n'
                                          '        amount BIGINT\n    )\n    Table trades', 1)
         self.assertIn('Table salaries', model)
@@ -1334,14 +1336,14 @@ class WarehouseOnPython(unittest.TestCase):
         m = self.opened()
         copy = self.snapped(m)
         self.assertEqual((copy['table'], copy['rowCount'], copy['pulledBy']['serverRows']), ('snap', 3, 3))
-        con = self.frames.connection
+        con = self.frames.connection._con
         self.assertEqual(con.execute("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'snap' "
                                      'ORDER BY column_index').fetchall(), [('desk', 'VARCHAR'), ('qty', 'INTEGER')])
         self.assertEqual(sorted(con.execute('SELECT desk, qty FROM main.snap').fetchall()), [('EQ', 5), ('FX', 3), ('FX', 10)])
 
     def test_a_tampered_or_cut_warehouse_stream_rolls_back_and_leaves_no_copy(self):
         m = self.opened()
-        exists = lambda t: self.frames.connection.execute(
+        exists = lambda t: self.frames.connection._con.execute(
             'SELECT count(*) FROM duckdb_tables() WHERE table_name = ?', [t]).fetchone()[0]
         self.tampered = True
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
@@ -1380,7 +1382,7 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertEqual(self.call({'op': 'held', 'table': 'snap'}, '/snap.json')[0], 404, 'let go: held no more')
         self.assertEqual(self.call({'op': 'held', 'table': 'POSITIONS'}, '/snap.json')[0], 404, 'no copy a snap made')
         self.assertEqual(self.copy_rows(second)[0], 200, 'the other grid still reads its own')
-        self.assertEqual(self.frames.connection.execute(
+        self.assertEqual(self.frames.connection._con.execute(
             "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'the copy is dropped')
         self.assertIsNone(self.frames.file_table('snap'), 'and served no more')
         # only a copy a snap made is let go of this way; one let go already is gone (a late release, a tab's closing
@@ -1481,7 +1483,7 @@ class WarehouseOnPython(unittest.TestCase):
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual(status, 422, body)
         self.assertIn('could not be copied', body.decode())
-        self.assertEqual(self.frames.connection.execute(
+        self.assertEqual(self.frames.connection._con.execute(
             "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'no copy left')
         self.assertIsNone(self.frames.file_table('snap'))
 

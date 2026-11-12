@@ -347,6 +347,22 @@ public final class Boundary {
     }
 
     /**
+     * A STATEMENT A PERSON WROTE, as a plan (the user's ruling of 2026-11-12: Studio's SQL playground goes through the
+     * planner): {@code request} is {@code {"databaseType", "text"}}, the database the playground points at and the
+     * person's one statement. The answer is the plan (PlanJson's): the text carried as written -- never parsed,
+     * rewritten or split -- as the author's SQL, its answer the relation the database reports
+     * ({@code com.legend.planner.Authored}).
+     */
+    public static String authored(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "an authored statement", "databaseType", "text");
+        String databaseType = in.getString("databaseType");
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.Authored.plan(dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                in.getString("text")));
+    }
+
+    /**
      * ROWS THE DATABASE GENERATES INTO A DECLARED TABLE, AS A PLAN (the test-data generator's SYNTHESIZE, its simple slice:
      * the user's ruling of 2026-11-12; register S303): {@code request} is {@code {"databaseType", "model", "database",
      * "schema", "table", "count", "columns"?}} -- the host's database's type (DuckDB alone in this slice), the model's

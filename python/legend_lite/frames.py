@@ -45,7 +45,7 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, compiler
-from ._planned import PlannedSql, send
+from ._planned import Database, PlannedSql, Result, connect, send
 from .projects import LoadRefused, run_host_load
 from ._types import UnknownType, is_integer
 
@@ -378,7 +378,7 @@ class Reading:
     and asks what it asks of Python's engine over it, on its own thread, waiting on no thread. One thread uses it at a
     time (its read's: the caller, then DataCube's thread while the call runs)."""
 
-    def __init__(self, cursor: duckdb.DuckDBPyConnection, hosted: dict[str, Any], models: dict[str, str],
+    def __init__(self, cursor: Database, hosted: dict[str, Any], models: dict[str, str],
                  held: tuple[str, ...] = ()) -> None:
         self.cursor = cursor
         self.hosted = hosted
@@ -386,7 +386,7 @@ class Reading:
         # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
         self.held_values = held
 
-    def execute(self, sql: str, params: tuple[str, ...] = ()) -> duckdb.DuckDBPyConnection:
+    def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
         overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
         database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was.
@@ -413,7 +413,7 @@ class Reading:
         return typed_by_plan(self.execute(plan.sql, plan.params).to_arrow_table(), plan)
 
 
-def _pin(cursor: duckdb.DuckDBPyConnection) -> None:
+def _pin(cursor: Database) -> None:
     """The transaction just begun on ``cursor`` pinned: DuckDB begins one on a database when it is first read, so this
     database's catalog is read now (one of Frames' own names asked for: never a table)."""
     _host.count(cursor, {'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
@@ -429,7 +429,9 @@ class Frames:
     they hold one lock."""
 
     def __init__(self, connection: duckdb.DuckDBPyConnection | None = None) -> None:
-        self.connection = connection if connection is not None else duckdb.connect()
+        # the host's view of the database: the one send and the acts that are no statement (_planned.Database); a
+        # connection a person handed in stays theirs, to use as they will
+        self.connection = connect() if connection is None else Database(connection)
         # a database Frames made itself, which legend-lite may set up for its own reading (an engine's remote files),
         # where the person's own is left as they keep it
         self.owns_connection = connection is None

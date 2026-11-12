@@ -9,7 +9,7 @@ import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
 import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
-import { notPlanned } from '../../../engine-client/src/planned-sql.ts';
+import { runAuthored } from '../../../engine-client/src/plan-runner.ts';
 
 export type { TableState };
 
@@ -28,8 +28,6 @@ export interface Runner {
    * `values`: each parameter's value as Pure text (`'GB'`, `42`, `%2024-06-01`), parsed by the compiler.
    */
   run(fileText: string, modelText: string, values?: ReadonlyMap<string, string>): Promise<ExecutionResult>;
-  /** SQL on the tab's DuckDB, with the model's own test data loaded (upstream's SQL playground); refused on a server. */
-  sql(statement: string, modelText: string): Promise<RawTable>;
   /** Every table the model's Databases declare: where its rows in the tab are from, and how many (plan A2). */
   tables(modelText: string): Promise<TableState[]>;
   /** A table filled from a person's file (.csv or .parquet), kept over the model's test data until reset. */
@@ -47,6 +45,9 @@ export interface RunSession {
   engine(): Promise<Engine>;
   /** The tab's DuckDB itself, for the SQL playground (upstream's: SQL on a connection); a server's has none here. */
   sqlEngine?(): Promise<QueryEngine>;
+  /** The person's one statement as the planner carries it on the playground's database, a plan (Boundary.authored: the
+   *  playground's, 2026-11-12). */
+  authored?(text: string): Promise<string>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
   loadData?(model: PureModelContextData, text: string): Promise<void>;
   /** The tab's tables and where their rows are from (plan A2); a server has its own data. */
@@ -83,6 +84,33 @@ function lambdaOf(own: PureModelContextData): Lambda {
   throw new Error('this element is neither a function nor a service: Run runs those');
 }
 
+/**
+ * UPSTREAM'S SQL PLAYGROUND: a person's own SQL on the tab's DuckDB, the model's own test data loaded first; refused on a
+ * server. Through the planner (the user's ruling of 2026-11-12, "Yes do 5 and 6"): the person's text is a plan's one
+ * statement -- carried as written, as the author's SQL (the census's M7-authored), never parsed, rewritten or split
+ * (Boundary.authored) -- run by the hosts' plan runner (runAuthored), so the playground sends a plan's statement like
+ * every other send. (Until then the one statement no plan carried, named by notPlanned, deleted with it.) An object of
+ * its own, apart from the Runner every run is handed: the app makes it and hands it to the editor's SQL playground.
+ */
+export interface Playground {
+  /** `statement`, as the person typed it, over `modelText`'s own test data. */
+  sql(statement: string, modelText: string): Promise<RawTable>;
+}
+
+export function playground(session: RunSession): Playground {
+  return {
+    async sql(statement, modelText) {
+      if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
+      if (!session.authored) throw new Error('the SQL playground plans the person\'s statement in this tab: this session has no planner of its own');
+      const engine = await session.sqlEngine();
+      if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
+      // the person's own SQL, carried by the planner as written: the plan's one statement, run as the plan says
+      const plan = await session.authored(statement);
+      return runAuthored(plan, (sql) => engine.run(sql, 0));
+    },
+  };
+}
+
 export function runner(session: RunSession): Runner {
   return {
     async parameters(fileText) {
@@ -107,13 +135,6 @@ export function runner(session: RunSession): Runner {
       const engine = await session.engine();
       if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
       return engine.execute({ function: lambda, model: { _type: 'text', code: modelText }, parameterValues });
-    },
-    async sql(statement, modelText) {
-      if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
-      const engine = await session.sqlEngine();
-      if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
-      // a person's own SQL, run as typed: no plan carries it (planned-sql.ts, NOT_PLANNED)
-      return engine.run(notPlanned('the SQL playground', statement), 0);
     },
     async tables(modelText) {
       const { tabs, model } = await tablesOf(modelText);

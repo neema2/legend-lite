@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _host
-from ._planned import across_the_bridge, answered_texts, send
+from ._planned import Answered, Database, across_the_bridge, connect, send
 from ._library import Library, library
 from ._pool import library_thread
 
@@ -112,23 +112,22 @@ class Headless:
     memory cap fails, and the engine is then ``broken``: its owner makes another. ``close()`` (or a ``with`` block)
     ends it."""
 
-    def __init__(self, bundle: str, *, connection: Any = None, folder: str | Path | None = None,
+    def __init__(self, bundle: str, *, connection: Database | None = None, folder: str | Path | None = None,
                  memory_limit: int = DEFAULT_MEMORY_LIMIT, lib: Library | None = None,
                  reading: Callable[[], Any] | None = None) -> None:
         """``bundle`` is a headless bundle's script. ``connection`` the duckdb connection its queries run on (a Frames'
         one, whose tables a page's grids read; a new database of the engine's own when not given, closed with it).
-        ``folder`` where the files DataCube registers are written (a temporary folder of the engine's own when not
-        given); a database of the engine's own reads relative names from it. A connection given is left as it is: a
-        file registered meanwhile is in ``folder``, which that database does not search (no grid registers one).
+        ``folder`` where the host writes a file for DataCube's code to read (a temporary folder of the engine's own
+        when not given; a test's registered files, the headless lane's TestHost); a database of the engine's own reads
+        relative names from it. A connection given is left as it is: a file written meanwhile is in ``folder``, which
+        that database does not search (no grid reads one by a relative name).
         ``reading``: the read of the frames the calling thread is in, if any (``Frames.reading_now``): a call made in one
         queries through it."""
-        import duckdb  # the database: the datacube extra's, never the compiler's
-
         self._lib = lib or library()
         self._own_folder = tempfile.TemporaryDirectory(prefix='legend-lite-datacube-') if folder is None else None
         self._folder = Path(self._own_folder.name if self._own_folder else folder).resolve()
         self._own_db = connection is None
-        self._db = duckdb.connect() if connection is None else connection
+        self._db: Database = connect() if connection is None else connection
         if self._own_db:
             _host.run(self._db, {'op': 'fileSearchPath', 'folder': str(self._folder)})
         self._loop = asyncio.new_event_loop()
@@ -143,8 +142,8 @@ class Headless:
         # the read the call in its turn was made in (Frames.reading), if any: what its queries and its asks of the engine
         # read through
         self._over: Any = None
-        # every text this session's planner answered: what DataCube's code may hand the database (_planned.py)
-        self._answered: set[str] = set()
+        # the statements this session's planner answered: what DataCube's code may hand the database (_planned.py)
+        self._answered = Answered()
         # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
         # a warehouse table opened under the session it holds), over the call's read, given by the engine's owner as a
         # weak reference to them (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone:
@@ -173,23 +172,25 @@ class Headless:
 
     @property
     def folder(self) -> Path:
-        """The engine's own folder: where the files DataCube registers are written, and where its host writes a file
-        for DataCube's code to read (a page's file: the engine's file.json)."""
+        """The engine's own folder: where its host writes a file for DataCube's code to read (a page's file: the
+        engine's file.json)."""
         return self._folder
 
     # ---- the calls out of V8, each on the engine's loop
 
     async def _planner(self, request: str) -> str:
-        answered = answer(self._lib, json.loads(request))
-        # what DataCube's code may hand the database from now on: every text the planner answered (_planned.py)
+        asked = json.loads(request)
+        answered = answer(self._lib, asked)
+        # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
+        # request's kind (_planned.Answered)
         if answered.get('ok'):
-            answered_texts(answered['answer'], self._answered)
+            self._answered.record(asked['kind'], answered['answer'])
         return json.dumps(answered)
 
     @property
     def answered(self) -> Container[str]:
-        """Every text this session's planner answered: the statements DataCube's hosted code may hand Python's
-        database (across_the_bridge)."""
+        """The statements this session's planner answered: what DataCube's hosted code may hand Python's database
+        (across_the_bridge)."""
         return self._answered
 
     async def _query(self, sql: str) -> str:
@@ -197,7 +198,8 @@ class Headless:
 
         # a call made in a read of the frames queries through it: the database as it was when the read began
         statement = across_the_bridge(sql, "the hosted DataCube's query", self._answered)
-        result = send(self._db if self._over is None else self._over, statement)
+        # in a read, the read's own send (frames.Reading.execute: its cursor, its failures' words redacted)
+        result = send(self._db, statement) if self._over is None else self._over.execute(statement)
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
@@ -218,14 +220,6 @@ class Headless:
         with pa.ipc.new_stream(sink, table.schema) as writer:
             writer.write_table(table)
         return base64.b64encode(sink.getvalue()).decode('ascii')
-
-    async def _register_file(self, name: str, data: str) -> None:
-        root = self._folder
-        target = (root / name).resolve()
-        if root not in target.parents:
-            raise ValueError(f'a registered file stays in the engine\'s folder: {name!r} does not')
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(base64.b64decode(data))
 
     async def _fetch(self, method: str, url: str, body: str | None) -> str:
         status, text = answer_fetch(method, url, body)
@@ -252,6 +246,13 @@ class Headless:
             raise ValueError(f'crypto.subtle.digest: {algorithm!r} is not a digest WebCrypto names ({sorted(_DIGESTS)})')
         return base64.b64encode(hashlib.new(name, base64.b64decode(data)).digest()).decode('ascii')
 
+    def _calls(self) -> dict[str, Callable[..., Coroutine[Any, Any, Any]]]:
+        """The host's calls by the name DataCube's code makes each (calls.ts ``HostCalls``), defined as the global
+        ``legendLiteHost`` before the bundle loads. A test's own database is no call of the product's (2026-11-12: the
+        headless lane's tests' setup SQL is its own host's, datacube/test/headless/run.py TestHost)."""
+        return {'planner': self._planner, 'query': self._query, 'statement': self._statement, 'digest': self._digest,
+                'fetch': self._fetch, 'engine': self._engine}
+
     # ---- the engine's life
 
     async def _open(self, bundle: str, memory_limit: int) -> None:
@@ -270,12 +271,11 @@ class Headless:
         self._mr.eval('{ const engines = setTimeout;'
                       ' globalThis.setTimeout = (f, ms, ...args) => engines(f, Math.max(1, Number(ms) || 0), ...args); }')
         # the host's calls first, as a browser's globals are there before a page's scripts: a module may plan as it loads
-        calls = [await self._stack.enter_async_context(self._mr.wrap_py_function(f))
-                 for f in (self._planner, self._query, self._statement, self._register_file, self._digest, self._fetch,
-                           self._engine)]
-        define = self._mr.eval('(planner, query, statement, registerFile, digest, fetch, engine) => {'
-                               ' globalThis.legendLiteHost = { planner, query, statement, registerFile, digest, fetch, engine }; }')
-        define(*calls)
+        calls = self._calls()
+        wrapped = [await self._stack.enter_async_context(self._mr.wrap_py_function(f)) for f in calls.values()]
+        define = self._mr.eval(f'(...calls) => {{ const names = {json.dumps(list(calls))};'
+                               ' globalThis.legendLiteHost = Object.fromEntries(names.map((n, i) => [n, calls[i]])); }')
+        define(*wrapped)
         self._mr.eval(bundle)
         # a bundle whose modules await as they load (a test bundle's fixtures) says when it has: legendLiteReady
         await self._mr.eval('Promise.resolve(globalThis.legendLiteReady)')

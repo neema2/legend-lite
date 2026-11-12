@@ -110,11 +110,11 @@ final class SeamBenchmark {
                 () -> productDrain(c, ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                         ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(),
                                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
-                                        com.legend.database.Databases.dialect(type).sessionSetup(), List.of()),
+                                        com.legend.database.Databases.dialect(type).sessionSetup(), List.of(), null),
                                 null))), null, null));
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
-                List.of());
+                List.of(), null);
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(), target,
                         null)));
@@ -133,7 +133,7 @@ final class SeamBenchmark {
         measure(db, "10 product runner + PureV1Writer (the server's engine-format answer)", rows, mustDrain, () -> {
             CountingWriter w = new CountingWriter();
             return productDrain(c, plan, com.legend.result.PureV1Writer.relation(w, columns ->
-                    new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "[]",
+                    new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
                             columns.stream().map(ExecutionPlan.Column::name).toList())), w::count);
         });
         measure(db, "9 product runner + ArrowWriter (bytes)", rows, mustDrain, () -> {
@@ -192,7 +192,7 @@ final class SeamBenchmark {
         long measureNs = Long.getLong("seam.small.measureMs", 2000L) * 1_000_000L;
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
-                List.of());
+                List.of(), null);
         for (int n : smallSizes()) {
             String sql = "SELECT id, name, CAST(amount AS DECIMAL(18,2)) AS amount, ts, bucket FROM bench WHERE id < "
                     + n;
@@ -219,7 +219,7 @@ final class SeamBenchmark {
             paths.put("10 + PureV1Writer", crc -> () -> {
                 CountingWriter w = new CountingWriter();
                 return productDrain(c, plan, com.legend.result.PureV1Writer.relation(w, columns ->
-                        new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "[]",
+                        new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
                                 columns.stream().map(ExecutionPlan.Column::name).toList())), crc ? w::count : null);
             });
             paths.put("9 + ArrowWriter", crc -> () -> {

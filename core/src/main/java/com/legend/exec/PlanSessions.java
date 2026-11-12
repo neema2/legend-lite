@@ -445,7 +445,8 @@ public final class PlanSessions {
      */
     public static Hash projectKey(ExecutionPlan.Target target) {
         StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeTarget(
-                new ExecutionPlan.Target(target.database(), java.util.List.of(), java.util.List.of())));
+                // the database alone: no session statement, no load and no read-back is what it holds
+                new ExecutionPlan.Target(target.database(), java.util.List.of(), java.util.List.of(), null)));
         for (ExecutionPlan.Load load : target.loads()) {
             if (load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
                 PlanRunner.verifyIdentity(load);

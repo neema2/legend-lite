@@ -13,8 +13,6 @@ export interface HostCalls {
   /** One SQL statement run with its `?`s bound (`params`: their values, a JSON list) -- a write's step (an Output into a
    *  table: table-output.ts), run in no read of the host's: its result as `query`'s. */
   statement(sql: PlannedSql, params: string): Promise<string>;
-  /** A file the database can read by `name` (DuckDB-WASM's registerFileBuffer): its bytes, base64. */
-  registerFile(name: string, bytes: string): Promise<void>;
   /** A digest (crypto.subtle.digest): the algorithm's name ('SHA-256', ...) and the data, base64; the digest, base64. */
   digest(algorithm: string, data: string): Promise<string>;
   /**
