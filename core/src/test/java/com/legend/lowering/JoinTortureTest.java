@@ -195,8 +195,9 @@ class JoinTortureTest {
         String sql = sqlOf(P
                 + "->join(" + F + ", JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME})"
                 + "->join(" + C + ", JoinKind.INNER, {pf, c | $pf.CITY == $c.C_NAME})");
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT *
+                SELECT t0.NAME AS NAME, t0.AGE AS AGE, t0.FIRM AS FIRM, t1.F_NAME AS F_NAME, t1.CITY AS CITY, t2.C_NAME AS C_NAME, t2.POP AS POP
                 FROM T_PERSON AS t0
                 JOIN T_FIRM AS t1 ON t0.FIRM = t1.F_NAME
                 JOIN T_CITY AS t2 ON t1.CITY = t2.C_NAME""", sql);

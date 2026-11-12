@@ -124,8 +124,9 @@ describe('the model for a table', () => {
     assert.deepEqual(m.excluded, ['photo']);
     const sql = (await plannerFor(m.model, m.runtime).plan(from(m.source).lambda())).sql;
     // the store's bare names folded on Postgres (decision D8), each read labelled as it is referenced
-    assert.match(sql, /CAST\("t0"\.ia AS VARCHAR\) AS ia/);
-    assert.match(sql, /CAST\("t0"\.doc AS JSONB\) AS doc/);
+    // 2026-11-12 (the total wall's B): the root's columns labeled with their Pure names (AnsiSqlRenderer#labeled)
+    assert.match(sql, /CAST\("t0"\.ia AS VARCHAR\) AS "ia"/);
+    assert.match(sql, /CAST\("t0"\.doc AS JSONB\) AS "doc"/);
   });
 
   it('declares the database type it is given: a warehouse Postgres catalog plans Postgres SQL', async () => {

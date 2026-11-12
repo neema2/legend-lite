@@ -89,10 +89,109 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
     }
 
-    /** The query after this dialect's passes, written. */
+    /** The query after this dialect's passes, its result's columns labeled, written. */
     private SqlWriter write(SqlQuery query) {
         com.legend.base.RunScope.planning("render a query");
-        return query(newWriter(), passed(query), 0);
+        return query(newWriter(), labeled(passed(query)), 0);
+    }
+
+    /**
+     * THE RESULT'S NAMES ARE ITS COLUMNS' PURE NAMES (2026-11-12, the total wall's B: the orchestrator's ruling (a) on the
+     * demo's start, whose table the planner made). Each column the statement answers is labeled, so the name a
+     * database reports never depends on how it stores an identifier's case:
+     * <ul>
+     *   <li>a column projected under its own name, unlabeled until now, carries that name as its label;</li>
+     *   <li>a star at the root is spelled as the columns it passes through, each labeled.</li>
+     * </ul>
+     *
+     * <p>A table lite's DDL makes from a model declaring lower-case names stores them folded upper (DuckDb.ddlIdentifier,
+     * H2: the standard's identity). An unlabeled column then answered that stored spelling ({@code YEAR} for
+     * {@code year}), and a host that types its rows by name refused them: engine-client's typedByPlan, Python's
+     * typed_by_plan, and the demo's start pivoting on year.
+     *
+     * <p>Upstream labels every projected column: {@code select "trades_0".region as "region"} in its recorded answer
+     * (core/src/test/resources/upstream-api/e9-groupby-sort.json). That is pureToSQLQuery.pure's
+     * processRelationStoreAccessor, an Alias per column, printed by dbExtension.pure as {@code <term> as <identifier>}.
+     *
+     * <p>The label is spelled by this dialect's alias rule ({@link #aliasIdent}): a bare name keeps its case on DuckDB,
+     * and H2 quotes every alias.
+     *
+     * <p>Only the root is labeled: an inner select's labels are read by the query around it, which names them as the
+     * database matches them, without regard to case. A star over a source that declares no columns (a person's raw
+     * SQL) answers that SQL's own names, and is left as it is.
+     */
+    private SqlQuery labeled(SqlQuery q) {
+        if (!labelsResults()) {
+            return q;
+        }
+        return switch (q) {
+            case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(w.ctes(), labeled(w.body()), w.recursive());
+            case SqlUnion u -> new SqlUnion(u.branches().stream().map(this::labeled).toList(), u.all(), u.outputs());
+            case SqlSelect s -> labeledSelect(s);
+        };
+    }
+
+    /** Whether this printer labels its result's columns ({@link #labeled}): every SQL dialect does. An engine-text printer
+     *  writes legend-engine's own text, whose labels are its own, and MongoDB's text is a pipeline, whose fields are its
+     *  projections' names. */
+    protected boolean labelsResults() {
+        return true;
+    }
+
+    /** {@code s}, each column it answers labeled ({@link #labeled}); itself when every one already is. */
+    private static SqlSelect labeledSelect(SqlSelect s) {
+        List<SqlSelect.Projection> ps = s.projections().isEmpty()
+                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null, null)) : s.projections();
+        List<SqlSelect.Projection> out = new java.util.ArrayList<>(ps.size());
+        boolean changed = false;
+        for (SqlSelect.Projection p : ps) {
+            if (p.expr() instanceof SqlExpr.Star st) {
+                List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
+                starred(s.from(), st.table(), List.of(), false, spelled);
+                if (spelled.isEmpty()) {
+                    return s;
+                }
+                out.addAll(spelled);
+                changed = true;
+            } else if (p.expr() instanceof SqlExpr.StarExcept se) {
+                List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
+                starred(s.from(), se.table(), se.except(), false, spelled);
+                if (spelled.isEmpty()) {
+                    return s;
+                }
+                out.addAll(spelled);
+                changed = true;
+            } else if (p.alias() == null && !perKey(p) && p.outputName() != null) {
+                out.add(new SqlSelect.Projection(p.expr(), p.outputName(), p.out()));
+                changed = true;
+            } else {
+                out.add(p);
+            }
+        }
+        return changed ? s.withProjections(out) : s;
+    }
+
+    /** The columns a star over {@code table} (null: every source) passes through from {@code src}, each a labeled
+     *  projection, but those named in {@code except}: a join's sides in turn, a padded side's columns nullable (as the
+     *  select's own outputs expand a star: SqlSelect.expandStar). */
+    private static void starred(SqlSource src, @com.legend.base.Nullable String table, List<String> except,
+            boolean padded, List<SqlSelect.Projection> into) {
+        if (src instanceof SqlSource.Join j) {
+            starred(j.left(), table, except, padded || j.kind().padsLeft(), into);
+            starred(j.right(), table, except, padded || j.kind().padsRight(), into);
+            return;
+        }
+        if (src instanceof SqlSource.Dual || (table != null && !table.equals(src.alias()))) {
+            return;
+        }
+        for (com.legend.sql.OutputCol c : src.outputs()) {
+            if (except.contains(c.name())) {
+                continue;
+            }
+            com.legend.sql.OutputCol slot = padded && !c.nullable()
+                    ? new com.legend.sql.OutputCol(c.name(), c.type(), true, c.origin()) : c;
+            into.add(new SqlSelect.Projection(SqlExpr.Column.of(src.alias(), slot), c.name(), slot));
+        }
     }
 
     /** The query after this dialect's passes. */
