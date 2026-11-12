@@ -132,6 +132,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.snapStream(request));
     }
 
+    /** {@link Boundary#synthesize}: rows the database generates into a declared table, as a plan (SYNTHESIZE). */
+    @JSExport
+    public static String synthesizeOrError(String request) {
+        return Folded.of(() -> Boundary.synthesize(request));
+    }
+
     /** {@link Boundary#databaseFromCatalog}. */
     @JSExport
     public static String databaseFromCatalogOrError(String catalogJson) {
