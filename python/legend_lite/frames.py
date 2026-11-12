@@ -45,6 +45,7 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, compiler
+from .projects import LoadRefused, run_host_load
 from ._types import UnknownType, is_integer
 
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
@@ -156,22 +157,47 @@ class Table:
         self.columns: tuple[compiler.Column, ...] = ()
         # its model, compiled once and held while the table is registered (each plan then pays for its query alone)
         self.held: compiler.HeldModel | None = None
-        # read at each query: the Arrow table its view reads now, which a read (Frames.reading) registers on its own
-        # cursor, so it reads the frame as it was when it began, whatever the frame is made since
+        # read at each query: the Arrow table its view reads now, held under the frame's name -- what its plan names it by,
+        # attached by that name on every read's own cursor (Frames.reading), so a read reads the frame as it was when it
+        # began, whatever the frame is made since
         self._arrow: pa.Table | None = None
+        # what its load attached for the connection, ``(held, as)``: attached again with the frame as it is now on the
+        # frames' connection (``_refresh``) and on every read's cursor (``_attach``)
+        self._attached: tuple[tuple[str, str], ...] = ()
+
+    def _value(self, held: str) -> pa.Table | None:
+        """The value this table holds under ``held`` -- the frame as it was last read, under its name -- or None."""
+        return self._arrow if held == self.name else None
+
+    def _attach(self, target: Any) -> None:
+        """Each value its load attached for the connection, attached on ``target`` -- the frames' connection again, the
+        frame as it is now, or a read's own cursor (``Frames.reading``) -- by the name the plan holds it under; one this
+        table no longer holds refused by name."""
+        for held, as_ in self._attached:
+            value = self._value(held)
+            if value is None:
+                raise LoadRefused(f"'{held}' is not a value this host holds: nothing is attached as {as_}")
+            target.register(as_, value)
 
     def _load(self, arrow: pa.Table) -> None:
-        """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model."""
+        """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model. A PLANNED LOAD
+        (the user's ruling of 2026-11-11, "This is the right plan": ``compiler.frame_load``, run by
+        ``projects.run_host_load``): the plan names the frame -- held here under its name, never its bytes in the plan --
+        attached by that name, kept for the connection while it is read at each query (a view over it) or for the load
+        alone while it is read once (a table copied from it); the relation there before dropped first (a view whose
+        columns changed is dropped, not replaced: the copy below may change its kind of select). Until then the frame's
+        Arrow was registered on the connection outside any plan (census M14-frames)."""
         con = self._frames.connection
-        con.register(self._registered, arrow)
-        self._arrow = arrow if self.live else None
         kind = 'view' if self.live else 'table'
-        # a view whose columns changed is dropped, not replaced: the copy below may change its kind of select
-        _host.run(con, {'op': 'drop', 'kind': kind, 'target': self._target},
-                  {'op': 'relation', 'kind': kind, 'target': self._target,
-                   'from': {'relation': _host.name(self._registered)}})
-        if not self.live:
-            con.unregister(self._registered)
+        self._arrow = arrow
+        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': self.name, 'as': self._registered,
+                                    'live': self.live, 'schema': 'main', 'relation': self.name})
+        try:
+            self._attached = run_host_load(plan, con, values=self._value).attached
+        finally:
+            # a frame read once is the database's from now on: its rows are let go
+            if not self.live:
+                self._arrow = None
         rows = con.execute(compiler.catalog_columns_sql('main', self.name)).fetchall()
         written = compiler.table_model({
             'table': self.name,
@@ -202,8 +228,10 @@ class Table:
         """Takes the frame out of DuckDB, and makes this handle unusable."""
         con = self._frames.connection
         _host.run(con, {'op': 'drop', 'kind': 'view' if self.live else 'table', 'target': self._target})
-        if self.live:
-            con.unregister(self._registered)
+        # what its load attached for the connection, let go
+        for _held, as_ in self._attached:
+            con.unregister(as_)
+        self._attached = ()
         if self.held is not None:
             self.held.close()
         self._closed = True
@@ -212,8 +240,9 @@ class Table:
         """The frame as it is now. Its rows are read again; if its columns changed, so is its model."""
         arrow = _arrow(self._read())
         if arrow.schema == self._schema:
-            self._frames.connection.register(self._registered, arrow)
+            # held under its name as it is now, and attached again by that name, as its load attached it
             self._arrow = arrow
+            self._attach(self._frames.connection)
         else:
             self._load(arrow)
 
@@ -732,9 +761,10 @@ class Frames:
                 for kept in self._files.values():
                     for statement, params in kept.settings:
                         cursor.execute(statement, list(params))
+                # each frame's attachment of the connection, by the name its plan holds it under (a cursor is a
+                # connection of its own): every query reads the frame as it was when this read began
                 for table in self._tables.values():
-                    if table.live:
-                        cursor.register(table._registered, table._arrow)
+                    table._attach(cursor)
                 cursor.begin()
                 # pinned while the lock is held: this read sees the database as it is now
                 _pin(cursor)

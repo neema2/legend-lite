@@ -278,6 +278,24 @@ def host_operations(database_type: str, operations: list[dict[str, Any]]) -> lis
     return _json.loads(_answer(library().call('lite_host_operations', database_type, _json.dumps(operations))))
 
 
+def snap_stream(request: dict[str, Any]) -> dict[str, Any]:
+    """A SNAPSHOT FROM A REMOTE PLANE, as a plan (the native library's Boundary.snapStream; the user's ruling of
+    2026-11-11, "This is the right plan"): ``request`` is ``{"databaseType", "plane", "sql", "schema"?, "table"}`` -- the
+    name this host holds the remote plane under, the statement it runs (the planner's, for the plane's own database), the
+    table of this database it lands in; never a row (any other key is refused by name). The plan: one HOST_SESSION load
+    whose stream step ``projects.run_host_load`` runs in one transaction."""
+    return _json.loads(_answer(library().call('lite_snap_stream', _json.dumps(request))))
+
+
+def frame_load(request: dict[str, Any]) -> dict[str, Any]:
+    """A HOST'S VALUE READ AS A RELATION, as a plan (the native library's Boundary.frameLoad; the user's ruling of
+    2026-11-11: a frame named, attached at run): ``request`` is ``{"databaseType", "held", "as", "live", "schema"?,
+    "relation"}`` -- the name this host holds the frame under, the relation it is attached as, whether it is read at each
+    query (a view) or once (a table), and the relation it is read through; never its bytes. The plan: one HOST_SESSION
+    load whose attach step ``projects.run_host_load`` runs, binding the value this host holds by that name."""
+    return _json.loads(_answer(library().call('lite_frame_load', _json.dumps(request))))
+
+
 def project_data(model: str, database_type: str) -> dict[str, Any]:
     """A project's own database on a database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5): where
     ``model``'s Data rows live on this host, named by what it holds (the model's Databases and Data rows: an edited row

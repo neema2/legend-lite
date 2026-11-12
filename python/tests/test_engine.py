@@ -281,6 +281,73 @@ class ProjectQueries(Served):
         self.assertEqual(str(refused.exception), words)
         self.assertEqual(sent, [])
 
+    def test_a_snaps_stream_lands_exactly_in_one_transaction_and_a_cut_or_tampered_one_rolls_back(self):
+        # the user's ruling of 2026-11-11: a snapshot from a remote plane is a planned load whose source is a stream --
+        # the plan names the plane, its statement and the table; the chunks are read as one Arrow stream by the
+        # database's own import, kept only when the stream completed and the table holds the rows the plane counted
+        import duckdb
+        from legend_lite import compiler, projects
+
+        def chunk(start, n):
+            rows = pa.table({'id': pa.array(range(start, start + n), pa.int32()), 'desk': [f'D{i}' for i in range(start, start + n)],
+                             'qty': pa.array([i / 4 for i in range(start, start + n)], pa.float64())})
+            sink = pa.BufferOutputStream()
+            with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+                w.write_table(rows)
+            return sink.getvalue().to_pybytes()
+
+        class Plane:
+            def __init__(self, chunks, counted=7, cut_after=None, silent=False):
+                self.chunks, self.counted, self.cut_after, self.silent, self.asked = chunks, counted, cut_after, silent, []
+
+            def arrow_chunks(self, sql, on_receipt=None):
+                self.asked.append(sql)
+                if on_receipt is not None and not self.silent:
+                    on_receipt({'statementId': 's1', 'serverRows': self.counted, 'as': 'rita', 'where': 'a stand-in'})
+                for i, c in enumerate(self.chunks):
+                    if self.cut_after is not None and i >= self.cut_after:
+                        raise ConnectionResetError('the connection was reset')
+                    yield c
+
+        def plan(table, schema='main'):
+            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': 'SELECT * FROM t',
+                                         'schema': schema, 'table': table})
+
+        con = duckdb.connect()
+        exists = lambda t: con.execute('SELECT count(*) FROM duckdb_tables() WHERE table_name = ?', [t]).fetchone()[0]
+        step = plan('snap')['root']['steps'][0]
+        self.assertEqual(sorted(step), ['_type', 'count', 'plane', 'prepare', 'schema', 'sql', 'table', 'transaction'],
+                         'the plan names the plane, its statement and the table: never a row')
+        source = Plane([chunk(1, 4), chunk(5, 3)])
+        (made,) = projects.run_host_load(plan('snap', 'copies'), con, planes={'warehouse': source}).landed
+        self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', ['SELECT * FROM t']))
+        self.assertEqual(con.execute("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'snap' "
+                                     'ORDER BY column_index').fetchall(),
+                         [('id', 'INTEGER'), ('desk', 'VARCHAR'), ('qty', 'DOUBLE')])
+        self.assertEqual(con.execute('SELECT * FROM copies.snap ORDER BY id').fetchall(),
+                         [(i, f'D{i}', i / 4) for i in range(1, 8)])
+        # cut short: nothing left, and a table of that name there before as it was (its drop rolled back with it)
+        with self.assertRaisesRegex(Exception, 'the connection was reset'):
+            projects.run_host_load(plan('cut'), con, planes={'warehouse': Plane([chunk(1, 4), chunk(5, 3)], cut_after=1)})
+        self.assertEqual(exists('cut'), 0)
+        con.execute("CREATE TABLE kept AS SELECT 1 AS id, 'D1' AS desk, 0.25 AS qty")
+        with self.assertRaisesRegex(Exception, 'the connection was reset'):
+            projects.run_host_load(plan('kept'), con, planes={'warehouse': Plane([chunk(1, 4), chunk(5, 3)], cut_after=1)})
+        self.assertEqual(con.execute('SELECT id, desk FROM kept').fetchall(), [(1, 'D1')])
+        # tampered: fewer rows than the plane counted; a plane that never said it was done
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_host_load(plan('tampered'), con, planes={'warehouse': Plane([chunk(1, 4), chunk(5, 2)])})
+        self.assertEqual(str(refused.exception), "the stream from 'warehouse' landed 6 rows in main.tampered, where its "
+                                                 'plane counted 7: nothing of it is kept')
+        self.assertEqual(exists('tampered'), 0)
+        with self.assertRaisesRegex(projects.LoadRefused, 'ended before its plane said it was done'):
+            projects.run_host_load(plan('unsaid'), con, planes={'warehouse': Plane([chunk(1, 7)], silent=True)})
+        self.assertEqual(exists('unsaid'), 0)
+        # a plane this host does not hold, refused by name, nothing run
+        with self.assertRaisesRegex(projects.LoadRefused, "'warehouse' is not a remote plane this host holds"):
+            projects.run_host_load(plan('t'), con, planes={})
+        self.assertEqual(exists('t'), 0)
+
     def test_a_projects_query_answers_its_own_rows(self):
         status, _, body = self.post('/api/pure/v1/execution/execute', self.project_input())
         self.assertEqual(status, 200, body)
@@ -1137,6 +1204,8 @@ class WarehouseOnPython(unittest.TestCase):
         self.warehouse = warehouse
         outer = self
         self.count, self.expired, self.principal, self.pulls = 3, False, 'rita', 0
+        # a stream tampered (the warehouse counts a row more than it sends) or cut short (its read fails after a chunk)
+        self.tampered, self.cut = False, False
 
         class Reader:
             def __init__(self, session, catalog='main', clock=None):
@@ -1157,7 +1226,8 @@ class WarehouseOnPython(unittest.TestCase):
                 if outer.expired:
                     raise warehouse.SessionExpired(outer.URL, self.principal)
                 if on_receipt is not None:
-                    on_receipt({'statementId': 's1', 'serverRows': 3, 'as': self.principal, 'where': 'the warehouse at wh'})
+                    on_receipt({'statementId': 's1', 'serverRows': 4 if outer.tampered else 3, 'as': self.principal,
+                                'where': 'the warehouse at wh'})
                 outer.pulls += 1
                 rows = (pa.table({'n': pa.array([outer.count], pa.int64())}) if sql.startswith('SELECT count(*)')
                         else pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': pa.array([10, 5, 3], pa.int32())}))
@@ -1165,6 +1235,8 @@ class WarehouseOnPython(unittest.TestCase):
                 with pyarrow.ipc.new_stream(sink, rows.schema) as w:
                     w.write_table(rows)
                 yield sink.getvalue().to_pybytes()
+                if outer.cut and not sql.startswith('SELECT count(*)'):
+                    raise warehouse.WarehouseError('the connection was reset', 'RESET')
 
         def connect(url, user, password):
             if password != 'pw':
@@ -1255,6 +1327,35 @@ class WarehouseOnPython(unittest.TestCase):
         a = self.engine.answer('POST', '/plan-and-run.json', '', json.dumps(
             {'lambda': lam, 'model': copy['model'], 'runtime': copy['runtime']}))
         return a.status, a.body
+
+    def test_a_warehouse_snap_lands_exactly_through_its_planned_stream(self):
+        # the user's ruling of 2026-11-11: the copy is a planned load whose source is the warehouse's stream, its rows
+        # and types exactly the warehouse's, its count the copy's own as its database counted it
+        m = self.opened()
+        copy = self.snapped(m)
+        self.assertEqual((copy['table'], copy['rowCount'], copy['pulledBy']['serverRows']), ('snap', 3, 3))
+        con = self.frames.connection
+        self.assertEqual(con.execute("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'snap' "
+                                     'ORDER BY column_index').fetchall(), [('desk', 'VARCHAR'), ('qty', 'INTEGER')])
+        self.assertEqual(sorted(con.execute('SELECT desk, qty FROM main.snap').fetchall()), [('EQ', 5), ('FX', 3), ('FX', 10)])
+
+    def test_a_tampered_or_cut_warehouse_stream_rolls_back_and_leaves_no_copy(self):
+        m = self.opened()
+        exists = lambda t: self.frames.connection.execute(
+            'SELECT count(*) FROM duckdb_tables() WHERE table_name = ?', [t]).fetchone()[0]
+        self.tampered = True
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
+        self.assertEqual(status, 422, body)
+        self.assertIn("the stream from 'warehouse' landed 3 rows in main.snap, where its plane counted 4: nothing of it is "
+                      'kept', body.decode())
+        self.assertEqual(exists('snap'), 0)
+        self.tampered, self.cut = False, True
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
+        self.assertEqual(status, 422, body)
+        self.assertIn('the connection was reset', body.decode())
+        self.assertEqual(exists('snap_2'), 0)
+        self.cut = False
+        self.assertEqual(self.snapped(m)['rowCount'], 3, 'a whole stream lands again')
 
     def test_each_snap_a_copy_of_its_own_read_through_its_own_model_and_released_by_its_table(self):
         # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3: the warehouse table's own name was every grid's copy, so a

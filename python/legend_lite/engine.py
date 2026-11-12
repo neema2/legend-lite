@@ -63,7 +63,7 @@ from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
 from .keeper import PageKeeper, Refused
-from .projects import ProjectDatabases
+from .projects import ProjectDatabases, run_host_load
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 _API = '/api/pure/v1/'
@@ -1388,23 +1388,29 @@ class Engine:
         self.keeper.gone(name)
         return Answer(200, 'application/json', b'{}')
 
-    def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int,
+    def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], int | None], rows: int,
                 receipt: dict[str, Any] | None) -> Answer:
-        """A copy made: ``land`` puts the rows into the table named (on the frames' connection, held), DataCube's code
-        (``headless``, asked for before the frames were held: the session's lock first, then the frames') models it,
-        and it is served from then on; a copy that fails leaves nothing under its name."""
+        """A copy made: ``land`` puts the rows into the table named (on the frames' connection, held) -- answering the
+        rows it holds where it counted them (a stream's, its database's count), the count before it otherwise --
+        DataCube's code (``headless``, asked for before the frames were held: the session's lock first, then the
+        frames') models it, and it is served from then on; a copy that fails leaves nothing under its name. A warehouse
+        session that expired while its rows streamed is raised (401, by the route)."""
         with self._warehouse_lock:
             self._copies_made += 1
             asked = 'snap' if self._copies_made == 1 else f'snap_{self._copies_made}'
         try:
             # its turn first, then the frames held: no one holds the frames waiting for a turn (D15)
             with headless.turn(), self.frames.reading_file(asked) as name:
-                land(self.frames.connection, _host.name(name, schema='main'))
+                counted = land(self.frames.connection, _host.name(name, schema='main'))
+                if counted is not None:
+                    rows = counted
                 made = json.loads(headless.call('landed', json.dumps({'table': name})))
                 self.frames.keep_file(name, made)
                 # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
                 with self._warehouse_lock:
                     self._copies[name] = made
+        except warehouse.SessionExpired:
+            raise
         except Exception as failure:
             return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
                               f'{failure}')
@@ -1413,8 +1419,12 @@ class Engine:
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
 
     def _warehouse_snap(self, table: _WarehouseTable, asked: dict[str, Any]) -> Answer:
-        """A warehouse grid's copy (C3): the pull planned with the table's live runtime, counted and pulled on the
-        warehouse as the signed-in person, its Arrow chunks landed in the copy."""
+        """A warehouse grid's copy (C3): the pull planned with the table's live runtime, counted on the warehouse as the
+        signed-in person, and its answer streamed into the copy by a PLANNED LOAD (the user's ruling of 2026-11-11: the
+        plan names the warehouse, its statement and the copy's table, never a row; ``projects.run_host_load`` streams the
+        Arrow chunks in one transaction, kept only when the stream completed and the copy holds the rows the warehouse
+        counted). Until then the whole answer was pulled into memory and landed through a registered table outside any
+        plan (census M14-snap)."""
         if asked['runtime'] != table.runtime:
             return _said(422, table.refused_runtime(asked['runtime']) or '')
         on = _on_planner_threads()
@@ -1440,27 +1450,25 @@ class Engine:
             rows = int(counted.column(0)[0].as_py()) if counted.num_rows else 0
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
-            receipt: dict[str, Any] = {}
-            pulled = _arrow_of(table.warehouse.arrow_chunks(plan.sql, receipt.update))
         except warehouse.SessionExpired:
             # said as one (401: the page offers to sign in again), by the route
             raise
         except (warehouse.WarehouseError, pa.ArrowInvalid) as refused:
-            return _said(422, f'the snap could not be pulled: {refused}')
-        landing = '__legend_lite_snap'
+            return _said(422, f'the snap could not be counted: {refused}')
+        pulled_by: dict[str, Any] = {'plane': 'warehouse'}
 
-        def land(connection: Any, target: dict[str, Any]) -> None:
-            connection.register(landing, pulled)
-            try:
-                _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
-                                       'from': {'relation': _host.name(landing)}})
-            finally:
-                connection.unregister(landing)
+        def land(connection: Any, target: dict[str, Any]) -> int:
+            snap = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': plan.sql,
+                                         **({'schema': target['schema']} if 'schema' in target else {}),
+                                         'table': target['name']})
+            (made,) = run_host_load(snap, connection, planes={'warehouse': table.warehouse}).landed
+            said = made.receipt
+            pulled_by.update({'where': said.get('where', ''), 'as': said.get('as', ''),
+                              **({'statementId': said['statementId']} if 'statementId' in said else {}),
+                              **({'serverRows': said['serverRows']} if 'serverRows' in said else {})})
+            return made.rows
 
-        return self._landed(headless, land, rows, {
-            'plane': 'warehouse', 'where': receipt.get('where', ''), 'as': receipt.get('as', ''),
-            **({'statementId': receipt['statementId']} if 'statementId' in receipt else {}),
-            **({'serverRows': receipt['serverRows']} if 'serverRows' in receipt else {})})
+        return self._landed(headless, land, rows, pulled_by)
 
     def _served_snap(self, asked: dict[str, Any]) -> Answer:
         """A grid's copy over a model this engine serves (a frame's, a page's file's): planned on the compiler's thread,

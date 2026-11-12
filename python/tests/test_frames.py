@@ -125,6 +125,66 @@ class ReadAtEachQuery(unittest.TestCase):
         self.assertEqual(table.execute('->select(~[id])').to_pylist(), [{'id': 1}, {'id': 2}])
 
 
+class NamedAndAttached(unittest.TestCase):
+    """A frame is a PLANNED LOAD naming it, attached at run (the user's ruling of 2026-11-11, "This is the right plan"):
+    the plan names the frame -- held by the host under its name -- never its bytes; the host attaches it by that name on
+    the connection and on every read's cursor, so every query reads the frame live; a plan naming a frame the host does
+    not hold is refused by name."""
+
+    def test_the_plan_names_the_frame_never_its_bytes(self):
+        from unittest import mock
+        from legend_lite import frames as module
+        ran = []
+        real = module.run_host_load
+
+        def recording(plan, connection, **kw):
+            ran.append(plan)
+            return real(plan, connection, **kw)
+
+        df = trades()
+        df.loc[0, 'desk'] = 'SENTINEL_7f3a'
+        with mock.patch.object(module, 'run_host_load', recording):
+            live = ll.Frames().register('trades', df)
+            once = ll.Frames().register('streamed', streamed(df))
+        self.assertEqual(len(ran), 2)
+        for plan in ran:
+            self.assertNotIn('SENTINEL_7f3a', json.dumps(plan), 'no row of the frame is in its plan')
+        attach = [s for s in ran[0]['root']['steps'] if s['_type'] == 'attach']
+        self.assertEqual(attach, [{'_type': 'attach', 'held': 'trades', 'as': '__legend_lite_trades', 'reach': 'CONNECTION'}])
+        self.assertEqual([s['_type'] for s in ran[1]['root']['steps']], ['attach', 'statement', 'statement'])
+        self.assertEqual(ran[1]['root']['steps'][0]['reach'], 'DATABASE', 'a stream read once is attached for the load alone')
+        self.assertEqual(live.execute('->filter(x|$x.id == 1)->select(~[desk])').to_pylist(), [{'desk': 'SENTINEL_7f3a'}])
+        self.assertEqual(once.execute('->filter(x|$x.id == 1)->select(~[desk])').to_pylist(), [{'desk': 'SENTINEL_7f3a'}])
+
+    def test_a_frame_queried_twice_sees_its_change_between_the_queries_on_each_reads_cursor(self):
+        df = trades()
+        frames = ll.Frames()
+        frames.register('trades', df)
+        total = 'SELECT sum(qty) FROM main.trades'
+        with frames.reading() as read:
+            before = read.execute(total).fetchone()[0]
+        df.loc[0, 'qty'] = 1000.0
+        with frames.reading() as read:
+            after = read.execute(total).fetchone()[0]
+        self.assertEqual((before, after), (69.25, 1058.75), 'each read attaches the frame by its name, as it is then')
+
+    def test_a_plan_naming_a_frame_the_host_does_not_hold_is_refused_by_name(self):
+        from legend_lite import compiler, projects
+        frames = ll.Frames()
+        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': 'ghost', 'as': '__legend_lite_ghost', 'live': True,
+                                    'schema': 'main', 'relation': 'ghost'})
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_host_load(plan, frames.connection, values=lambda held: None)
+        self.assertEqual(str(refused.exception), "'ghost' is not a value this host holds: nothing is attached as "
+                                                 '__legend_lite_ghost')
+        self.assertEqual(frames.connection.execute(
+            "SELECT count(*) FROM duckdb_views() WHERE view_name = 'ghost'").fetchone()[0], 0, 'nothing ran after it')
+        # a key that could carry the frame's rows is refused by the planner by name
+        with self.assertRaisesRegex(ll.LegendError, 'has no key rows'):
+            compiler.frame_load({'databaseType': 'DuckDB', 'held': 'f', 'as': 'x', 'live': True, 'relation': 'f',
+                                 'rows': [[1]]})
+
+
 class Names(unittest.TestCase):
     def test_registering_a_name_again_replaces_its_table_a_view_or_a_streams_table(self):
         frames = ll.Frames()

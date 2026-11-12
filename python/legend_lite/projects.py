@@ -12,10 +12,12 @@ none."""
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import re
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass, field
 from typing import Any
@@ -39,13 +41,9 @@ class LoadRefused(ValueError):
     database refused (its words, the data named): refused by name."""
 
 
-def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
-    """A plan whose root is the ONCE load a project's database is made with (the native library's ``load``: the platform's
-    LoadPlanner.projectData, the load a server's project plan carries), run by ``execute`` on the database Python made
-    for it: its steps in order -- a statement as it is; a content blob of statements, its bytes checked against the
-    digest and size its reference names, each statement as written, a refusal naming its data; a file's load refused by
-    name (no store a host's plan names). The rule is engine-client's plan-runner.ts ``runLoad`` (the tab's), the same plan
-    format (B3, 2026-11-11)."""
+def _load_of(plan: Any) -> dict[str, Any]:
+    """``plan``'s root load, refused by name unless it is a legend-lite plan of the version this host runs with a load at
+    its root."""
     if not isinstance(plan, dict) or plan.get('format') != 'legend-lite-plan' or plan.get('version') != PLAN_VERSION:
         # the tab's runner's words (plan-runner.ts read), the shared fixture's (the tenets audit's LOW 1, 2026-11-11)
         said = {'format': plan.get('format'), 'version': plan.get('version')} if isinstance(plan, dict) else {}
@@ -54,6 +52,17 @@ def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
     root = plan.get('root')
     if not isinstance(root, dict) or root.get('_type') != 'load':
         raise LoadRefused('a load\'s plan is a legend-lite plan with a load at its root')
+    return root
+
+
+def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
+    """A plan whose root is the ONCE load a project's database is made with (the native library's ``load``: the platform's
+    LoadPlanner.projectData, the load a server's project plan carries), run by ``execute`` on the database Python made
+    for it: its steps in order -- a statement as it is; a content blob of statements, its bytes checked against the
+    digest and size its reference names, each statement as written, a refusal naming its data; a file's load refused by
+    name (no store a host's plan names). The rule is engine-client's plan-runner.ts ``runLoad`` (the tab's), the same plan
+    format (B3, 2026-11-11)."""
+    root = _load_of(plan)
     if root.get('cadence') != 'ONCE':
         raise LoadRefused(f"a load's plan made with a database is ONCE, not {root.get('cadence')}")
     content = root.get('content') or {}
@@ -85,6 +94,143 @@ def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
                               'store a plan names yet')
         else:
             raise LoadRefused(f"a load's step is a statement, a statements blob or a file, not a {kind}")
+
+
+# a name the database's Arrow import is given as it is written (duckdb-python's relation ``create``): a plain one alone,
+# so this host spells no quoting
+_PLAIN = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\Z')
+
+
+@dataclass(frozen=True)
+class Landed:
+    """What a stream step landed: its table, the rows the database counted there, and the plane's receipt."""
+
+    plane: str
+    schema: str | None
+    table: str
+    rows: int
+    receipt: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class HostLoad:
+    """What a host's load left: each value it attached for the connection, ``(held, as)`` -- kept, and attached again on
+    every cursor the host opens (``Frames.reading``) -- and what each stream landed."""
+
+    attached: tuple[tuple[str, str], ...]
+    landed: tuple[Landed, ...]
+
+
+def run_host_load(plan: Any, connection: Any, *, values: Callable[[str], Any] | None = None,
+                  planes: Mapping[str, Any] | None = None) -> HostLoad:
+    """A HOST_SESSION load run on ``connection`` (duckdb-python's) -- the user's ruling of 2026-11-11, "This is the right
+    plan": a statement as it is; a value this host holds ATTACHED BY NAME (``values``: a Python frame by its name; one it
+    does not hold refused by name), kept for the connection (CONNECTION: answered in ``attached``, which the host attaches
+    again on every cursor it opens) or for the load alone (DATABASE: let go when the load ends); and a remote plane's
+    answer STREAMED into a table (``planes``: the remote planes this host holds by name, each with ``arrow_chunks``) in
+    one transaction, kept only when the stream completed and the table holds the rows the plane counted. A load that
+    fails leaves nothing attached. Never a row and never a value's bytes in the plan: each is named. The rule is
+    engine-client's plan-runner.ts ``runLoad`` (the tab's), the same plan format."""
+    root = _load_of(plan)
+    if root.get('cadence') != 'HOST_SESSION':
+        raise LoadRefused(f"a host's load is HOST_SESSION, not {root.get('cadence')}")
+    attached: list[tuple[str, str]] = []
+    once: list[str] = []
+    landed: list[Landed] = []
+    ok = False
+    try:
+        for step in root['steps']:
+            kind = step.get('_type')
+            if kind == 'statement':
+                connection.execute(step['sql'])
+            elif kind == 'attach':
+                held, as_, reach = step['held'], step['as'], step['reach']
+                if reach not in ('CONNECTION', 'DATABASE'):
+                    raise LoadRefused(f'an attached value\'s reach is CONNECTION or DATABASE, not {reach}')
+                value = None if values is None else values(held)
+                if value is None:
+                    raise LoadRefused(f"'{held}' is not a value this host holds: nothing is attached as {as_}")
+                connection.register(as_, value)
+                if reach == 'CONNECTION':
+                    attached.append((held, as_))
+                else:
+                    once.append(as_)
+            elif kind == 'stream':
+                landed.append(_stream(root, step, connection, planes))
+            else:
+                raise LoadRefused(f"a host's load step is a statement, an attached value or a stream, not a {kind}")
+        ok = True
+    finally:
+        # a value attached for the load alone is let go when it ends; a load that failed leaves nothing attached
+        for as_ in [*once, *([] if ok else [a for _, a in attached])]:
+            connection.unregister(as_)
+    return HostLoad(tuple(attached), tuple(landed))
+
+
+def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes: Mapping[str, Any] | None) -> Landed:
+    """One stream step (PlanJson's ``stream``): in ONE transaction, its statements the plan's -- its ``prepare`` (the
+    schema made, the table there before dropped), the plane's answer read into the table by the database's own Arrow
+    import (its chunks one Arrow stream, read once, never held whole), then the database's ``count`` of what landed --
+    committed only when the stream completed (the plane's done step heard, every chunk it names read) and the count is
+    the plane's own for its answer; else rolled back, nothing left, and refused by name. No hash (the orchestrator,
+    2026-11-12): a snap has no content known at planning; a stream cut short is the count's and the done step's to tell."""
+    import pyarrow as pa
+    import pyarrow.ipc
+
+    schema, table = step['schema'], step['table']
+    into = table if schema is None else f'{schema}.{table}'
+    if planes is None:
+        raise LoadRefused(f"the load {root['identity']} streams the remote plane '{step['plane']}' into {into}, and this "
+                          "host streams no plane's rows into its database")
+    plane = planes.get(step['plane'])
+    if plane is None:
+        raise LoadRefused(f"'{step['plane']}' is not a remote plane this host holds: nothing is streamed into {into}")
+    if not all(_PLAIN.match(n) for n in (table, *(() if schema is None else (schema,)))):
+        raise LoadRefused(f"a stream lands in a table this host names plainly (letters, digits, '_'), not {into}")
+    receipt: dict[str, Any] = {}
+    for sql in step['transaction']['begin']:
+        connection.execute(sql)
+    chunks = iter(plane.arrow_chunks(step['sql'], receipt.update))
+    try:
+        for sql in step['prepare']:
+            connection.execute(sql)
+        first = next(chunks, None)
+        if first is None:
+            raise LoadRefused(f"no data came back from '{step['plane']}' to load into {into}, not even its columns")
+        head = pyarrow.ipc.open_stream(first)
+
+        def batches() -> Iterator[Any]:
+            yield from head
+            for chunk in chunks:
+                yield from pyarrow.ipc.open_stream(chunk)
+
+        # the database's own Arrow import: the chunks read as one stream as the table is made, no statement spelled
+        connection.from_arrow(pa.RecordBatchReader.from_batches(head.schema, batches())).create(into)
+        if not receipt:
+            raise LoadRefused(f"the stream from '{step['plane']}' ended before its plane said it was done: nothing of it "
+                              f'is kept in {into}')
+        expected = receipt.get('serverRows')
+        if expected is None:
+            raise LoadRefused(f"'{step['plane']}' did not count its answer, so a stream cut short could not be told: "
+                              f'nothing of it is kept in {into}')
+        counted = int(connection.execute(step['count']).fetchone()[0])
+        if counted != expected:
+            raise LoadRefused(f"the stream from '{step['plane']}' landed {counted} rows in {into}, where its plane counted "
+                              f'{expected}: nothing of it is kept')
+        for sql in step['transaction']['commit']:
+            connection.execute(sql)
+        return Landed(step['plane'], schema, table, counted, dict(receipt))
+    except BaseException:
+        # the database's own undo: the table made in the transaction goes with it, one there before is as it was
+        for sql in step['transaction']['rollback']:
+            with contextlib.suppress(Exception):
+                connection.execute(sql)
+        raise
+    finally:
+        # a read that ended early lets its plane free the statement (the warehouse's: closed or cancelled)
+        close = getattr(chunks, 'close', None)
+        if close is not None:
+            close()
 
 
 @dataclass(frozen=True)
