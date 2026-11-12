@@ -33,7 +33,8 @@
 // its cube behaviour on top): the manager, the stamp it carries, the refusals and the preflight. Where a snap's
 // queries are planned is the app's (DataCube's SnapTarget adds its planner).
 
-import type { HostName, HostOperation, HostOperationsSource } from './host-operations.ts';
+import type { HostName, HostOperation, HostOperationsSource, SnapStreamSource } from './host-operations.ts';
+import type { HostStreams } from './plan-runner.ts';
 import { UI_LOCALE } from './locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from './engine.ts';
@@ -53,13 +54,13 @@ export interface RemoteSource {
   arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array>;
 }
 
-/** A local store that can take Arrow chunks (DuckDbEngine). */
-interface ArrowLoader {
-  loadArrow(
-    target: { readonly schema?: string; readonly table: string },
-    chunks: AsyncIterable<Uint8Array>,
-    prepare?: readonly string[],
-  ): Promise<void>;
+/** The name a snap's plan names the remote live plane by (LoadPlanner.snapStream's `plane`): the warehouse a grid reads. */
+export const REMOTE_PLANE = 'warehouse';
+
+/** A local store a remote plane's rows stream into: its connection held for the plan (DuckDbEngine.exclusive), with
+ *  its database's Arrow import. */
+interface StreamStore {
+  exclusive<T>(work: (held: HostStreams['held']) => Promise<T>): Promise<T>;
 }
 
 /**
@@ -163,12 +164,13 @@ export class SnapManager implements Snaps {
   readonly #engine: (QueryEngine & { readonly databaseType: string }) | null;
   /** The live plane, when it is remote; absent when live is the local store. */
   readonly #remote: RemoteSource | null;
-  /** What writes the copy's statements (the tab's planner: D5); none, a snap is refused by name. */
-  readonly #host: HostOperationsSource | undefined;
+  /** What writes the copy's statements (the tab's planner: D5) and plans a remote plane's stream; none, a snap is
+   *  refused by name. */
+  readonly #host: (HostOperationsSource & Partial<SnapStreamSource>) | undefined;
   #state: PlaneState = { mode: 'live' };
 
   constructor(engine: (QueryEngine & { readonly databaseType: string }) | null, remote: RemoteSource | null = null,
-    host?: HostOperationsSource) {
+    host?: HostOperationsSource & Partial<SnapStreamSource>) {
     this.#engine = engine;
     this.#remote = remote;
     this.#host = host;
@@ -271,25 +273,37 @@ export class SnapManager implements Snaps {
     }
 
     let pulledBy: Receipt | undefined;
+    let rowCount = estimate.rowCount;
     const schema = options.target.schema;
     const bare = options.target.table;
     const table = named(schema, bare);
     const engine = this.#localStore();
     if (this.#remote) {
-      // The rows live on the server: the live plan runs there, and its Arrow
-      // chunks stream into the copy's own table here -- exactly the rows the
-      // server let this user read.
-      const loader = engine as unknown as Partial<ArrowLoader>;
-      if (typeof loader.loadArrow !== 'function') {
-        throw new SnapRefusal('the local store cannot load Arrow data, so a remote live plane cannot be snapped');
+      // The rows live on the server: the live plan runs there, and its Arrow chunks stream into the copy's own table
+      // here -- exactly the rows the server let this user read -- as a PLANNED LOAD (the user's ruling of 2026-11-11):
+      // the plan names the plane, its statement and the table, never a row; the hosts' runner streams the chunks in
+      // one transaction, kept only when the stream completed and the table holds the rows the plane counted
+      const host = this.#host;
+      if (host === undefined) throw new SnapRefusal('this cube has no planner to write its copy\u2019s statements: it cannot be snapped');
+      if (typeof host.snapStream !== 'function') {
+        throw new SnapRefusal('this cube\u2019s planner plans no stream from a remote plane, so a remote live plane cannot be snapped');
       }
-      // its schema made and the table there before dropped, by the planner's statements, before the rows load
-      const prepare = await this.#statements(engine.databaseType, [
-        ...(schema ? [{ op: 'schema' as const, name: schema }] : []),
-        { op: 'drop', kind: 'table', target: table },
-      ]);
-      await loader.loadArrow({ ...(schema ? { schema } : {}), table: bare },
-        this.#remote.arrowChunks(sourceSql, undefined, (r) => { pulledBy = r; }), prepare);
+      const store = engine as unknown as Partial<StreamStore>;
+      if (typeof store.exclusive !== 'function') {
+        throw new SnapRefusal('the local store holds no connection a remote plane\u2019s rows stream into, so a remote live plane cannot be snapped');
+      }
+      const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, sql: sourceSql,
+        ...(schema ? { schema } : {}), table: bare });
+      // the hosts' plan runner, fetched with the first snap of a remote plane (a grid-only page carries none of it)
+      const { runLoad } = await import('./plan-runner.ts');
+      const remote = this.#remote;
+      const { landed } = await store.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
+        { streams: { planes: { [REMOTE_PLANE]: remote }, held } }));
+      const [made] = landed;
+      if (made === undefined) throw new SnapRefusal('the snap\u2019s plan streamed nothing into the copy');
+      pulledBy = made.receipt;
+      // the rows the copy holds, as its database counted them once they landed (the plane's own count)
+      rowCount = made.rows;
     } else {
       const made = await this.#statements(engine.databaseType, [
         { op: 'relation', kind: 'table', target: table, replace: true, from: { query: sourceSql } },
@@ -316,7 +330,7 @@ export class SnapManager implements Snaps {
       ...(pulledBy ? { pulledBy } : {}),
       label: options.label ?? defaultLabel(takenAt),
       takenAt,
-      rowCount: estimate.rowCount,
+      rowCount,
       table: bare,
       ...(schema ? { schema } : {}),
       source,

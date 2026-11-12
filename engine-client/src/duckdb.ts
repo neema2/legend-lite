@@ -70,6 +70,12 @@ export interface HeldConnection {
   rows(sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
   /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
   table(sql: string): Promise<RawTable>;
+  /**
+   * One Arrow IPC stream's rows into `target` by the connection's own Arrow import, no statement spelled: `create` makes
+   * the table, else the rows are appended -- a planned stream step's chunks (plan-runner.ts runLoad: a snapshot from a
+   * remote plane, in the step's transaction). A connection without the import refuses it by name.
+   */
+  insertArrow(bytes: Uint8Array, target: { readonly schema?: string; readonly table: string }, create: boolean): Promise<void>;
 }
 
 /** A prepared statement, as DuckDB-WASM's connections give one. */
@@ -435,6 +441,15 @@ export class DuckDbEngine implements QueryEngine {
         }
       },
       table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
+      insertArrow: async (bytes, target, create) => {
+        const insert = conn.insertArrowFromIPCStream;
+        if (typeof insert !== 'function') throw new Error("this tab's database has no Arrow import: a remote plane's rows cannot stream into it");
+        try {
+          await insert.call(conn, bytes, { name: target.table, ...(target.schema ? { schema: target.schema } : {}), create });
+        } catch (cause) {
+          throw this.#failed(cause, `the rows streamed into ${target.schema ? `${target.schema}.` : ''}${target.table}`);
+        }
+      },
     }));
   }
 
@@ -511,9 +526,11 @@ export class DuckDbEngine implements QueryEngine {
   }
 
   /**
-   * Replace `target` with the rows of `chunks`, each a whole Arrow IPC stream
-   * (the warehouse's chunks): the first creates the table, the rest append.
-   * On the query queue, so no query reads a half-loaded table.
+   * Replace `target` with the rows of `chunks`, each a whole Arrow IPC stream: the first creates the table, the rest
+   * append. On the query queue, so no query reads a half-loaded table. Its one product caller is the demo's sample,
+   * rows generated in this tab (datacube/demo/boot.ts): a snapshot of a remote plane is a planned stream load, run in
+   * one transaction by the hosts' runner (plan-runner.ts runLoad, the held connection's insertArrow; the user's ruling
+   * of 2026-11-11, census M14-snap), never this.
    */
   async loadArrow(
     target: { readonly schema?: string; readonly table: string },

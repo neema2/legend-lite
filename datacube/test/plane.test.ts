@@ -20,6 +20,8 @@ import type { SnapTarget } from '../src/cube.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import type { HostFrozen } from '../../engine-client/src/snap.ts';
+import type { HostStreams } from '../../engine-client/src/plan-runner.ts';
+import type { Receipt } from '../../engine-client/src/receipt.ts';
 import { TreeState } from '../src/tree.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
@@ -109,13 +111,19 @@ const snapInto = (planner: Planner = new RecordingPlanner(), made: Copies = { ta
 class RecordingEngine extends FakeEngine {
   readonly name = 'recording';
   readonly sql: string[] = [];
-  /** The tables Arrow was loaded into (DuckDbEngine.loadArrow). */
+  /** The tables a planned stream made (plan-runner.ts runLoad's stream step: the held connection's Arrow import). */
   readonly loaded: string[] = [];
-  async loadArrow(target: { readonly schema?: string; readonly table: string }, chunks: AsyncIterable<Uint8Array>,
-    prepare: readonly string[] = []): Promise<void> {
-    this.sql.push(...prepare);
-    for await (const _ of chunks) void _;
-    this.loaded.push(target.table);
+  /** The connection held for a plan (DuckDbEngine.exclusive): its statements answered as every query is. */
+  async exclusive<T>(work: (held: HostStreams['held']) => Promise<T>): Promise<T> {
+    return work({
+      rows: async (sql) => {
+        const t = await this.answer(sql, 0);
+        return Array.from({ length: t.rowCount }, (_, r) => t.columns.map((c) => c.values[r]));
+      },
+      insertArrow: async (_bytes, target, create) => {
+        if (create) this.loaded.push(target.table);
+      },
+    });
   }
   async answer(sql: string, epoch: number): Promise<ResultTable> {
     this.sql.push(sql);
@@ -132,11 +140,13 @@ class RecordingEngine extends FakeEngine {
   }
 }
 
-/** A warehouse: counts, and streams the rows of whatever SQL it is asked to pull. */
+/** A warehouse: counts, and streams the rows of whatever SQL it is asked to pull -- its done step's count the two rows
+ *  the tab's stand-in counts in the copy (RecordingEngine.answer). */
 class PullingEngine extends RecordingEngine {
   readonly pulled: string[] = [];
-  async *arrowChunks(sql: string): AsyncIterable<Uint8Array> {
+  async *arrowChunks(sql: string, _signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array> {
     this.pulled.push(sql);
+    onReceipt?.({ plane: 'warehouse', where: 'a stand-in warehouse', serverRows: 2 });
     yield new Uint8Array([1]);
   }
 }

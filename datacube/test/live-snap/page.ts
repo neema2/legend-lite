@@ -25,6 +25,7 @@ import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { SnapManager } from '../../../engine-client/src/snap.ts';
+import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import {
   listObjects,
   loadWarehouseBinding,
@@ -222,6 +223,57 @@ async function run(): Promise<void> {
     equal(shape(localOut.rows, true), shape(liveOut.rows, true), 'live and snapped:');
     equal(liveOut.rows.rowCount, 4, 'groups:');
     await snaps.release();
+  });
+
+  await check('a snap lands exactly through its planned stream; a tampered or cut stream from the warehouse rolls back', async () => {
+    // the user's ruling of 2026-11-11: a snapshot from a remote plane is a planned load whose source is a stream, kept
+    // only when the stream completed and the table holds the rows the warehouse counted
+    const sourceSql = (await planner.plan(from(SOURCE).select(COLUMNS).lambda())).sql;
+    const snaps = new SnapManager(local, live, planner);
+    const info = await snaps.snap(sourceSql, 0, { target: { table: 'EXACT', landed: async () => SOURCE } });
+    equal(info.rowCount, 10, 'the rows the copy holds, as its database counted them:');
+    equal(info.pulledBy?.serverRows, 10, 'the warehouse\'s own count:');
+    // every column's type as the warehouse's table declares it, every row as the warehouse answered it
+    const types = await local.run("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'EXACT' ORDER BY column_index", 0);
+    deepEqual(types.columns.map((c) => c.values), [COLUMNS,
+      ['VARCHAR', 'VARCHAR', 'VARCHAR', 'INTEGER', 'VARCHAR', 'DOUBLE', 'DOUBLE', 'INTEGER']], 'the copy\'s columns:');
+    const rowsOf = (t: { readonly columns: readonly { readonly values: readonly unknown[] }[]; readonly rowCount: number }): string[] =>
+      Array.from({ length: t.rowCount }, (_, i) => JSON.stringify(t.columns.map((c) => {
+        const v = c.values[i];
+        return typeof v === 'bigint' ? v.toString() : v;
+      }))).sort();
+    deepEqual(rowsOf(await local.run(`SELECT ${COLUMNS.join(', ')} FROM "EXACT"`, 0)), rowsOf(await live.run(sourceSql, 0)),
+      'the copy\'s rows and the warehouse\'s:');
+    await snaps.release();
+    // a stream from the real warehouse, tampered (each chunk sent twice) or cut short (the read fails after its first
+    // chunk): rolled back, refused by name, no table left
+    const tampered = {
+      databaseType: live.databaseType,
+      run: live.run.bind(live),
+      async *arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (r: Receipt) => void): AsyncIterable<Uint8Array> {
+        for await (const bytes of live.arrowChunks(sql, signal, onReceipt)) {
+          // a copy first: DuckDB-WASM takes a chunk's buffer into its worker as it puts the rows in
+          yield bytes.slice();
+          yield bytes;
+        }
+      },
+    };
+    await rejects(new SnapManager(local, tampered, planner).snap(sourceSql, 0, { target: { table: 'TAMPERED', landed: async () => SOURCE } }),
+      /landed 20 rows in TAMPERED, where its plane counted 10: nothing of it is kept/);
+    const cut = {
+      databaseType: live.databaseType,
+      run: live.run.bind(live),
+      async *arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (r: Receipt) => void): AsyncIterable<Uint8Array> {
+        for await (const bytes of live.arrowChunks(sql, signal, onReceipt)) {
+          yield bytes;
+          throw new Error('the connection was reset');
+        }
+      },
+    };
+    await rejects(new SnapManager(local, cut, planner).snap(sourceSql, 0, { target: { table: 'CUT', landed: async () => SOURCE } }),
+      /the connection was reset/);
+    const left = await local.run("SELECT count(*) AS n FROM duckdb_tables() WHERE table_name IN ('TAMPERED', 'CUT')", 0);
+    equal(Number(left.columns[0]!.values[0]), 0, 'no table left by a stream rolled back:');
   });
 
   await check('a table the reader was not granted is refused, live', async () => {

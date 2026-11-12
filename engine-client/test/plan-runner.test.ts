@@ -22,6 +22,8 @@ import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { loadPlanner, loadPlannerModule } from './planner.ts';
 import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
+import { arrowIpcStream } from '../src/arrow-ipc.ts';
+import type { Receipt } from '../src/receipt.ts';
 
 const MODEL = `###Relational
 Database w::DB
@@ -429,3 +431,82 @@ describe("the load runners' shared conformance fixture", () => {
   });
 });
 
+
+// A SNAPSHOT FROM A REMOTE PLANE, A PLANNED LOAD WHOSE SOURCE IS A STREAM (the user's ruling of 2026-11-11, "This is the
+// right plan"; no hash, the orchestrator's simplification of 2026-11-12): the planner names the plane, its statement and
+// the table; the runner streams the plane's Arrow chunks in by DuckDB-WASM's own Arrow import in ONE transaction, kept
+// only when the stream completed and the table holds the rows the plane counted -- else rolled back, nothing left
+describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction", () => {
+  const SQL = 'SELECT * FROM "main"."TRADES"';
+  const chunkOf = (from: number, rows: number): Uint8Array => arrowIpcStream(rows, {
+    id: { integers: (i) => from + i },
+    notional: { doubles: (i) => (from + i) / 4 },
+    region: { text: ['EMEA', 'AMER', 'APAC'], pick: (i) => (from + i) % 3 },
+  });
+  /** A stand-in remote plane: its done step's receipt (the plane's count) before its chunks, as the warehouse's is. */
+  const plane = (chunks: readonly Uint8Array[], options: { readonly counted?: number; readonly cutAfter?: number; readonly silent?: boolean } = {}) => ({
+    asked: [] as string[],
+    async *arrowChunks(sql: string, _signal?: AbortSignal, onReceipt?: (r: Receipt) => void): AsyncIterable<Uint8Array> {
+      this.asked.push(sql);
+      if (!options.silent) onReceipt?.({ plane: 'warehouse', where: 'a stand-in warehouse', statementId: 's-1', serverRows: options.counted ?? 7 });
+      for (const [i, chunk] of chunks.entries()) {
+        if (options.cutAfter !== undefined && i >= options.cutAfter) throw new Error('the connection was reset');
+        yield chunk;
+      }
+    },
+  });
+  const planOf = (table: string, schema?: string): string => ok(answer(m, { kind: 'snapStream', request: JSON.stringify({
+    databaseType: 'DuckDB', plane: 'warehouse', sql: SQL, ...(schema ? { schema } : {}), table }) }));
+  const tableRows = (t: string): Promise<string> => engine.exclusive(async (held) =>
+    (await held.rows(`SELECT id, notional, region FROM ${t} ORDER BY id`, [])).map((r) => r.map(String).join(':')).join(' '));
+  const columns = (t: string): Promise<string> => engine.exclusive(async (held) =>
+    (await held.rows(`SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = '${t}' ORDER BY column_index`, []))
+      .map((r) => r.join(' ')).join(', '));
+  const exists = (t: string): Promise<number> => engine.exclusive(async (held) =>
+    Number((await held.rows(`SELECT count(*) FROM duckdb_tables() WHERE table_name = '${t}'`, []))[0]![0]));
+  const snap = (plan: string, p: ReturnType<typeof plane>) => engine.exclusive((held) =>
+    runLoad(plan, (sql, params) => held.rows(sql, params), { streams: { planes: { warehouse: p }, held } }));
+
+  it('lands every chunk exactly, rows and types, the table counted by the database, the receipt the plane\'s', async () => {
+    const plan = planOf('snapped', 'copies');
+    // the plan names the plane, its statement and the table: never a row
+    const step = (JSON.parse(plan) as { root: { steps: Record<string, unknown>[] } }).root.steps[0]!;
+    assert.deepEqual(Object.keys(step).sort(), ['_type', 'count', 'plane', 'prepare', 'schema', 'sql', 'table', 'transaction']);
+    const source = plane([chunkOf(1, 4), chunkOf(5, 3)]);
+    const { landed } = await snap(plan, source);
+    assert.deepEqual(source.asked, [SQL], 'the plane ran the plan\'s statement');
+    assert.equal(landed.length, 1);
+    assert.equal(landed[0]!.rows, 7);
+    assert.equal(landed[0]!.receipt.statementId, 's-1');
+    assert.equal(await columns('snapped'), 'id BIGINT, notional DOUBLE, region VARCHAR');
+    assert.equal(await tableRows('copies.snapped'), '1:0.25:AMER 2:0.5:APAC 3:0.75:EMEA 4:1:AMER 5:1.25:APAC 6:1.5:EMEA 7:1.75:AMER');
+  });
+
+  it('a stream cut short rolls back: no table is left, and one there before is as it was', async () => {
+    // a fresh name: nothing of the stream is left
+    await assert.rejects(() => snap(planOf('cut'), plane([chunkOf(1, 4), chunkOf(5, 3)], { cutAfter: 1 })), /the connection was reset/);
+    assert.equal(await exists('cut'), 0);
+    // a table of that name there before: its drop is the stream's transaction's, rolled back with it
+    await engine.run("CREATE TABLE kept AS SELECT 1 AS id, CAST(0.5 AS DOUBLE) AS notional, 'EMEA' AS region", 0);
+    await assert.rejects(() => snap(planOf('kept'), plane([chunkOf(1, 4), chunkOf(5, 3)], { cutAfter: 1 })), /reset/);
+    assert.equal(await tableRows('kept'), '1:0.5:EMEA');
+  });
+
+  it('a tampered stream -- fewer rows than the plane counted -- rolls back, refused by name', async () => {
+    await assert.rejects(() => snap(planOf('tampered'), plane([chunkOf(1, 4), chunkOf(5, 2)])),
+      (e: unknown) => e instanceof PlanRefusal && /landed 6 rows in tampered, where its plane counted 7: nothing of it is kept/.test(e.message));
+    assert.equal(await exists('tampered'), 0);
+    // a stream whose plane never said it was done is not kept either
+    await assert.rejects(() => snap(planOf('unsaid'), plane([chunkOf(1, 7)], { silent: true })), /ended before its plane said it was done/);
+    assert.equal(await exists('unsaid'), 0);
+  });
+
+  it('a plane this host does not hold, and a host that streams none, are refused by name, nothing run', async () => {
+    const sent: string[] = [];
+    const record = async (sql: string): Promise<unknown[][]> => { sent.push(sql); return []; };
+    await assert.rejects(() => runLoad(planOf('t'), record, { streams: { planes: {}, held: { rows: record, insertArrow: async () => {} } } }),
+      /'warehouse' is not a remote plane this host holds: nothing is streamed into t/);
+    await assert.rejects(() => runLoad(planOf('t'), record), /streams the remote plane 'warehouse' into t, and this host streams no plane's rows/);
+    assert.deepEqual(sent, []);
+  });
+});

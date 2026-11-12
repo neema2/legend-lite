@@ -65,8 +65,8 @@ try {
     console.log(`FAIL the setup: ${verdict.setupError}`);
     failed = true;
   }
-  if (verdict.outcomes.length !== 6) {
-    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 6`);
+  if (verdict.outcomes.length !== 7) {
+    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 7`);
     failed = true;
   }
 } finally {
