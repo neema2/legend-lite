@@ -4,7 +4,7 @@
 // HostOperations in Java, by the database's type) as the statements the database runs. The page spells no SQL; a
 // database without an operation refuses it by name. Python's host writes the same JSON (compiler.host_operations).
 
-import type { PlannedSql } from './planned-sql.ts';
+import type { PlannedSql, PlanText } from './planned-sql.ts';
 
 /** A relation's name. `declared`: a model's own table, spelled as its seed made it; any other name is quoted. */
 export interface HostName {
@@ -100,7 +100,7 @@ export interface RemoteMountRequest {
 /** Where a remote file's mount's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface RemoteMountSource {
   /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad), binding what it names. */
-  remoteMount(request: RemoteMountRequest): Promise<string>;
+  remoteMount(request: RemoteMountRequest): Promise<PlanText>;
 }
 
 /**
@@ -122,7 +122,7 @@ export interface SnapStreamRequest {
 /** Where a snapshot's stream's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface SnapStreamSource {
   /** The plan, PlanJson's text: one HOST_SESSION load whose stream step the hosts' runner runs (runLoad). */
-  snapStream(request: SnapStreamRequest): Promise<string>;
+  snapStream(request: SnapStreamRequest): Promise<PlanText>;
 }
 
 /**
@@ -149,7 +149,7 @@ export type SynthesizeKnob =
 /** Where a synthesized table's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface SynthesizeSource {
   /** The plan, PlanJson's text: one HOST_SESSION load (the table made as declared, then one statement filling it). */
-  synthesize(request: SynthesizeRequest): Promise<string>;
+  synthesize(request: SynthesizeRequest): Promise<PlanText>;
 }
 
 /** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */

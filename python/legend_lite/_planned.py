@@ -36,6 +36,31 @@ class NotPlanned(TypeError):
     """A text sent to a database that no plan carries: refused, never run."""
 
 
+class PlanText(str):
+    """A PLAN, AS THE PLANNER ANSWERED IT (PlanJson's text; the re-audit's M1, 2026-11-12: the runners took any dict, so a
+    plan a host wrote ran, its statements typed as planned by the runner that read them). The hosts' runners
+    (projects.run_load, run_host_load) take this and no other; it is made where the compiler reads the planner's answer
+    (:func:`plan_from_answer`, compiler.py), and it is text, so editing it makes a plain string again."""
+
+    __slots__ = ()
+
+
+def plan_from_answer(text: str) -> PlanText:
+    """``text``, the plan the planner answered, as its answer was READ -- called by the compiler's readers alone (the
+    guard, python/tests/test_planned_guard.py, holds it so)."""
+    if type(text) is not str:
+        raise TypeError(f"a planner's answer is text, not {type(text).__name__}")
+    return PlanText(text)
+
+
+def read_plan(plan: Any, where: str) -> dict:
+    """``plan``'s JSON, if it is a plan the planner answered; else refused by name, ``where`` naming what was to run it."""
+    if type(plan) is not PlanText:
+        raise NotPlanned(f"not a plan the planner answered, so not run by {where}: a {type(plan).__name__} (a host runs only"
+                         ' what the planner answered: _planned.py)')
+    return json.loads(plan)
+
+
 def from_plan(text: str) -> PlannedSql:
     """``text`` as the plan or the planner's answer it was READ from carries it: called by the plan readers alone (the
     guard, tools/guards/PlannedSqlTest.java, holds it so). The text is never edited, only typed."""

@@ -11,7 +11,7 @@ import duckdb
 from legend_lite import _host, compiler, projects, warehouse
 from legend_lite._library import library
 from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
-                                  from_plan, send)
+                                  from_plan, plan_from_answer, send)
 from legend_lite._planner import answer
 from legend_lite.frames import execute_redacted
 
@@ -92,7 +92,8 @@ class OneSendTest(unittest.TestCase):
                 'root': {'_type': 'load', 'identity': 'L', 'cadence': 'ONCE', 'connection': 'c',
                          'steps': [{'_type': 'statement', 'sql': 'CREATE TABLE a (x INT)'}]}}
         try:
-            projects.run_load(plan, seen.append)
+            # a plan the test wrote, typed as the planner's answer is (the re-audit's M1: a runner takes no other)
+            projects.run_load(plan_from_answer(json.dumps(plan)), seen.append)
         except projects.LoadRefused as refused:  # a plan shape this runner reads differently: say so
             self.fail(f'the load was refused: {refused}')
         self.assertEqual([type(s) for s in seen], [PlannedSql])
@@ -125,6 +126,27 @@ class TheReAuditsSendTest(unittest.TestCase):
         self.assertIsInstance(spoof, PlannedSql, 'isinstance is fooled: the check must not be isinstance')
         with self.assertRaises(NotPlanned):
             send(Database(_Recording()), spoof)
+
+
+class APlanThePlannerAnsweredTest(unittest.TestCase):
+    """The re-audit's M1 (2026-11-12): the runners take a plan the planner answered (PlanText) and no other -- a plan a
+    host wrote, as a dict or as text, is refused by name before anything runs."""
+
+    def test_a_hand_written_plan_runs_nothing(self):
+        written = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION,
+                   'root': {'_type': 'load', 'identity': 'L', 'cadence': 'ONCE', 'connection': 'c',
+                            'steps': [{'_type': 'statement', 'sql': 'DELETE FROM trades'}]}}
+        for plan in (written, json.dumps(written)):
+            sent = []
+            with self.assertRaisesRegex(NotPlanned, 'not a plan the planner answered'):
+                projects.run_load(plan, sent.append)
+            with self.assertRaisesRegex(NotPlanned, 'not a plan the planner answered'):
+                projects.run_host_load(plan, Database(_Recording()))
+            self.assertEqual(sent, [])
+
+    def test_the_compiler_answers_plan_text(self):
+        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': 'f', 'as': 'x', 'live': True, 'relation': 'f'})
+        self.assertIs(type(plan), projects.PlanText)
 
 
 class _Witness:
@@ -182,7 +204,7 @@ class WitnessTest(unittest.TestCase):
         witness.received.clear()
         projects.run_load(project['load'], lambda statement: send(db, statement))
         self.assertGreater(len(witness.received), 1)
-        self.assertEqual(witness.received, _statements_of(project['load']['root']))
+        self.assertEqual(witness.received, _statements_of(json.loads(project['load'])['root']))
 
     def test_a_stream_hands_the_database_its_statements_and_its_import_alone(self):
         import pyarrow as pa
@@ -200,7 +222,7 @@ class WitnessTest(unittest.TestCase):
 
         plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': from_plan('SELECT * FROM t'),
                                      'table': 'witnessed'})
-        step = plan['root']['steps'][0]
+        step = json.loads(plan)['root']['steps'][0]
         witness = _Witness(duckdb.connect())
         projects.run_host_load(plan, Database(witness), planes={'warehouse': Plane()})
         self.assertEqual(witness.received, [*step['transaction']['begin'], *step['prepare'], '<from_arrow>', step['count'],
@@ -309,8 +331,8 @@ class TheBridgeTest(unittest.TestCase):
         sent = from_plan('SELECT * FROM remote_t')
         plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': sent, 'table': 'snap_t'})
         answered = Answered()
-        answered.record('snapStream', 'OK\n' + json.dumps(plan))
-        stream = plan['root']['steps'][0]
+        answered.record('snapStream', 'OK\n' + plan)
+        stream = json.loads(plan)['root']['steps'][0]
         self.assertEqual(stream['_type'], 'stream')
         self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
         for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import compiler
-from ._planned import PlannedSql, all_from_plan, from_plan, send
+from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, read_plan, send
 
 # the kinds the compiler names a model's failure to read as a model by (planner.Folded, PureV1Api.refusal): such a
 # model is no project's, and is refused where a model is; any other refusal of a project's database (a Data element
@@ -42,9 +42,11 @@ class LoadRefused(ValueError):
     database refused (its words, the data named): refused by name."""
 
 
-def _load_of(plan: Any) -> dict[str, Any]:
-    """``plan``'s root load, refused by name unless it is a legend-lite plan of the version this host runs with a load at
-    its root."""
+def _load_of(given: PlanText) -> dict[str, Any]:
+    """``given``'s root load, refused by name unless it is a plan the planner answered (the re-audit's M1, 2026-11-12: a
+    PlanText; a dict or a string a host wrote is no plan) and a legend-lite plan of the version this host runs with a
+    load at its root."""
+    plan = read_plan(given, "the hosts' runner")
     if not isinstance(plan, dict) or plan.get('format') != 'legend-lite-plan' or plan.get('version') != PLAN_VERSION:
         # the tab's runner's words (plan-runner.ts read), the shared fixture's (the tenets audit's LOW 1, 2026-11-11)
         said = {'format': plan.get('format'), 'version': plan.get('version')} if isinstance(plan, dict) else {}
@@ -56,7 +58,7 @@ def _load_of(plan: Any) -> dict[str, Any]:
     return root
 
 
-def run_load(plan: Any, execute: Callable[[PlannedSql], Any]) -> None:
+def run_load(plan: PlanText, execute: Callable[[PlannedSql], Any]) -> None:
     """A plan whose root is the ONCE load a project's database is made with (the native library's ``load``: the platform's
     LoadPlanner.projectData, the load a server's project plan carries), run by ``execute`` on the database Python made
     for it: its steps in order -- a statement as it is; a content blob of statements, its bytes checked against the
@@ -123,7 +125,7 @@ class HostLoad:
     landed: tuple[Landed, ...]
 
 
-def run_host_load(plan: Any, connection: Any, *, values: Callable[[str], Any] | None = None,
+def run_host_load(plan: PlanText, connection: Any, *, values: Callable[[str], Any] | None = None,
                   planes: Mapping[str, Any] | None = None) -> HostLoad:
     """A HOST_SESSION load run on ``connection`` (duckdb-python's) -- the user's ruling of 2026-11-11, "This is the right
     plan": a statement as it is; a value this host holds ATTACHED BY NAME (``values``: a Python frame by its name; one it

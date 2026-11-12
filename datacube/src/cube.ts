@@ -9,6 +9,7 @@
 // the guard, and the plane (engine-client's snap.ts).
 
 import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
+import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
@@ -128,7 +129,7 @@ export interface Planner {
   parse(text: string, signal?: AbortSignal): Promise<Lambda>;
   /** A program that writes planned as an execution plan, PlanJson's text (an Output into a table: table-output.ts);
    *  absent where the planner plans none (a host that runs a grid's rows itself). */
-  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<string>;
+  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<PlanText>;
   /** A query as Pure text, for a person to read: E4, the compiler's print (PRETTY unless asked). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
   /**

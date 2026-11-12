@@ -6,7 +6,7 @@
 
 import type { HostOperationsSource } from './host-operations.ts';
 import { runLoad, sha256Hex, type PlanValue } from './plan-runner.ts';
-import type { PlannedSql } from './planned-sql.ts';
+import type { PlannedSql, PlanText } from './planned-sql.ts';
 
 /** The model JSON parts read here (grammarToJson/model). */
 interface ModelElement {
@@ -52,7 +52,7 @@ export interface FileLoadRequest {
 /** Where a host's file's plan comes from: legend-lite's planner (WasmGrammar.fileLoad, DataCube's LitePlanner). */
 export interface FileLoadSource {
   /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad). */
-  fileLoad(request: FileLoadRequest): Promise<string>;
+  fileLoad(request: FileLoadRequest): Promise<PlanText>;
 }
 
 /** Every table the model's Databases declare (its JSON's elements), in the order declared. */

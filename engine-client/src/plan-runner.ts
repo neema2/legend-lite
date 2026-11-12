@@ -32,7 +32,7 @@ import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './co
 import { familyOf, isBoolean } from './types.ts';
 import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
-import { fromPlan, type PlannedSql } from './planned-sql.ts';
+import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -217,7 +217,7 @@ function loadsOf(plan: ReadPlan, target: Target): Load[] {
  * Java's shared sessions key theirs (PlanJson.writeTarget). Null for a plan whose target loads nothing (the host's own
  * session serves it).
  */
-export function targetKey(plan: string): string | null {
+export function targetKey(plan: PlanText): string | null {
   const target = targetOf(read(plan));
   if (target === undefined || required(target.loads, "its target's loads").length === 0) return null;
   return JSON.stringify({ database: target.database, session: required(target.session, "its target's session"), loads: target.loads });
@@ -399,7 +399,7 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
  * A load of any other cadence is refused by name; the host undoes a failure its own way (a project's database dropped
  * whole, a file put in one transaction, a stream rolled back).
  */
-export async function runLoad(plan: string, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
+export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
   host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams } = {}):
   Promise<{ readonly settings: readonly KeptSetting[]; readonly landed: readonly Landed[] }> {
   const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
@@ -419,7 +419,7 @@ export async function runLoad(plan: string, run: (sql: PlannedSql, params: reado
  * in one transaction -- a failure rolls every load back and is thrown, naming
  * its data. Run once per database the host makes (`targetKey`); runPlan then runs the plan there (`established`).
  */
-export async function establish(plan: string, session: PlanSession): Promise<void> {
+export async function establish(plan: PlanText, session: PlanSession): Promise<void> {
   const p = read(plan);
   const target = targetOf(p);
   if (target === undefined) return;
@@ -467,7 +467,7 @@ export class PlanRefusal extends Error {
  * is open already (a table made before it is written, one change: an Output's create), so the plan runs inside it and
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
-export async function runPlan(plan: string, session: PlanSession,
+export async function runPlan(plan: PlanText, session: PlanSession,
   o: { readonly joined?: boolean; readonly established?: boolean } = {}): Promise<string> {
   const read = JSON.parse(plan) as ReadPlan;
   if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
@@ -565,7 +565,7 @@ export async function runPlan(plan: string, session: PlanSession,
  * loads data refused, its columns read as the plan states them (none: the relation the database reports). Any other
  * plan is refused by name.
  */
-export async function runAuthored<T>(plan: string, on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T> },
+export async function runAuthored<T>(plan: PlanText, on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T> },
   o: { readonly established?: boolean } = {}): Promise<T> {
   const root = read(plan).root;
   const result = root as { readonly _type?: string; readonly shape?: string; readonly columns?: readonly Column[]; readonly sql?: Sql } | undefined;

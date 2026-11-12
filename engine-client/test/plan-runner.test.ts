@@ -24,8 +24,8 @@ import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSp
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { arrowIpcStream } from '../src/arrow-ipc.ts';
 import type { Receipt } from '../src/receipt.ts';
-import { unplanned } from './unplanned.ts';
-import type { PlannedSql } from '../src/planned-sql.ts';
+import { unplanned, unplannedPlan } from './unplanned.ts';
+import type { PlannedSql, PlanText } from '../src/planned-sql.ts';
 
 /** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
  *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
@@ -68,13 +68,13 @@ const ok = (tagged: string): string => {
   return rest.join('\n');
 };
 /** A program planned as an execution plan (the planner protocol's executionPlan kind): its statements in order. */
-const planned = (...body: ValueSpecification[]): string =>
-  ok(answer(m, { kind: 'executionPlan', handle, lambda: toJson(lambda([], ...body)), runtime: 'w::RT' }));
+const planned = (...body: ValueSpecification[]): PlanText =>
+  unplannedPlan(ok(answer(m, { kind: 'executionPlan', handle, lambda: toJson(lambda([], ...body)), runtime: 'w::RT' })));
 const src = (): ValueSpecification => accessor('w::DB', 'SRC');
 const target = (): ValueSpecification => accessor('w::DB', 'T');
 /** The program run on the tab's engine, held for it, its transaction the planner's. */
 const run = (plan: string): Promise<string> => engine.exclusive(async (held) =>
-  runPlan(plan, await hostSession(engine.databaseType, held.rows, grammar)));
+  runPlan(unplannedPlan(plan), await hostSession(engine.databaseType, held.rows, grammar)));
 const rows = async (): Promise<string> => {
   const t = await engine.exclusive((held) => held.rows(unplanned('SELECT id, name, amount FROM T ORDER BY id'), []));
   return t.map((r) => r.map(String).join(':')).join(' ');
@@ -221,40 +221,40 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     };
     const sent: string[] = [];
     const session: PlanSession = { databaseType: 'DuckDB', run: async (sql) => { sent.push(sql); return []; }, transaction: async () => {} };
-    await assert.rejects(() => runPlan(without('session'), session),
+    await assert.rejects(() => runPlan(unplannedPlan(without('session')), session),
       (e: unknown) => e instanceof PlanRefusal && /carries its target's session, and this one has none/.test(e.message));
     assert.deepEqual(sent, [], 'nothing run');
-    assert.throws(() => targetKey(without('loads')),
+    assert.throws(() => targetKey(unplannedPlan(without('loads'))),
       (e: unknown) => e instanceof PlanRefusal && /carries its target's loads, and this one has none/.test(e.message));
   });
 
   it('refuses by name what a host never plans, nothing run', async () => {
     const plan = looseJson(planned(fn('write', src(), target()))) as Record<string, unknown>;
     const session: PlanSession = { databaseType: 'Postgres', run: async () => { throw new Error('ran'); }, transaction: async () => { throw new Error('ran'); } };
-    await assert.rejects(() => runPlan(JSON.stringify(plan), session), (e: unknown) => e instanceof PlanRefusal && /not run on this Postgres one/.test(e.message));
-    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] }), session), /takes parameters/);
-    await assert.rejects(() => runPlan('{"format":"other"}', session), /not a legend-lite execution plan/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(plan)), session), (e: unknown) => e instanceof PlanRefusal && /not run on this Postgres one/.test(e.message));
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] })), session), /takes parameters/);
+    await assert.rejects(() => runPlan(unplannedPlan('{"format":"other"}'), session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run (the version the runner reads, PLAN_VERSION: the A checkpoint's audit made it 42, 2026-11-10)
-    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 49/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 49/);
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
-    await assert.rejects(() => runPlan(JSON.stringify(regioned), here), /per-key regions/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(regioned)), here), /per-key regions/);
     // a relation of no declared column (a raw grid's: the columns its result reports): refused, never run as rows of
     // no cell (the seam program's S3c, 2026-10-30)
     const reported = { ...plan, root: { ...root, steps: root.steps.map((step) => ((step as { _type?: string })._type === 'tdsResult'
       ? { ...step, shape: 'RELATION', columns: [] } : step)) } };
-    await assert.rejects(() => runPlan(JSON.stringify(reported), here), /the columns its result reports/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(reported)), here), /the columns its result reports/);
     // a program's seed step and a statement binding its own execution-trace stamp: a test's program's alone (the
     // test-is-the-product plan's M3), refused by name, never run
     const steps = root.steps as unknown as { _type: string; sql: { target: unknown } }[];
     const seeded = { ...plan, root: { ...root, steps: [{ _type: 'setup', key: 'k', steps: [], target: steps[0]!.sql.target }, ...steps] } };
-    await assert.rejects(() => runPlan(JSON.stringify(seeded), here), /not a setup/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(seeded)), here), /not a setup/);
     // a target that loads data first (its declared test data, a project's Data: the plan's load section, L2/L3)
     const loading = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, target: { ...(step.sql.target as object), loads: ['load:k'] } } })) } };
-    await assert.rejects(() => runPlan(JSON.stringify(loading), here), /loads data into its database first/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(loading)), here), /loads data into its database first/);
     const stamped = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, stamp: '#stamp0' } })) } };
-    await assert.rejects(() => runPlan(JSON.stringify(stamped), here), /its own execution-trace stamp/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(stamped)), here), /its own execution-trace stamp/);
   });
 });
 
@@ -276,18 +276,18 @@ Runtime x::BareRT { mappings: []; connections: [ x::DB: [ c: x::Bare ] ]; }
 describe("a plan's loads, established on a database the host made for its target", () => {
   let loaded: number;
   /** A text query planned over the held model: the execution plan its text renders from (Boundary.planned's `plan`). */
-  const executionPlanOf = (query: string, runtime: string): string => {
+  const executionPlanOf = (query: string, runtime: string): PlanText => {
     const planned = looseJson(ok(answer(m, { kind: 'plan', handle: loaded, query, runtime }))) as { plan?: unknown };
     assert.ok(planned.plan !== undefined, 'a text that does not run alone carries its execution plan');
-    return JSON.stringify(planned.plan);
+    return unplannedPlan(JSON.stringify(planned.plan));
   };
   /** A text query's execution plan, asked as the planner's executionPlan kind (its lambda read from the text). */
-  const executionPlanOfLambda = (query: string, runtime: string): string => {
+  const executionPlanOfLambda = (query: string, runtime: string): PlanText => {
     // the http answer: its status, its media type, then the body
     const [status, , ...body] = ok(answer(m, { kind: 'pureV1', path: '/api/pure/v1/grammar/grammarToJson/lambda', query: '', body: query })).split('\n');
     assert.equal(status, '200', body.join('\n'));
     const lambdaJson = body.join('\n');
-    return ok(answer(m, { kind: 'executionPlan', handle: loaded, lambda: lambdaJson, runtime }));
+    return unplannedPlan(ok(answer(m, { kind: 'executionPlan', handle: loaded, lambda: lambdaJson, runtime })));
   };
   /** A database of its own, as a host makes one for a target: a fresh DuckDB-WASM. */
   const fresh = async (): Promise<{ readonly engine: DuckDbEngine; readonly on: <T>(work: (s: PlanSession) => Promise<T>) => Promise<T> }> => {
@@ -318,7 +318,7 @@ describe("a plan's loads, established on a database the host made for its target
     const [digest] = Object.keys(load!.content);
     load!.content[digest!] = load!.content[digest!]!.replace("'a'", "'z'");
     const db = await fresh();
-    await assert.rejects(() => db.on((s) => establish(JSON.stringify(plan), s)),
+    await assert.rejects(() => db.on((s) => establish(unplannedPlan(JSON.stringify(plan)), s)),
       (e: unknown) => e instanceof PlanRefusal && /the data of the table T is not the data it was planned against/.test(e.message));
     assert.equal(await tables(db.engine), 'null', 'the load rolled back: no table made');
   });
@@ -339,7 +339,7 @@ describe("a plan's loads, established on a database the host made for its target
     // a payload that is not its digest is refused by name, nothing run
     const tampered = plan.replace('"NAME\\":\\"b\\"', '"NAME\\":\\"B\\"');
     assert.notEqual(tampered, plan);
-    await assert.rejects(() => db.on((s) => runPlan(tampered, s)), /the data: source's payload is not the data it was planned against/);
+    await assert.rejects(() => db.on((s) => runPlan(unplannedPlan(tampered), s)), /the data: source's payload is not the data it was planned against/);
   });
 
   it('a pivot whose columns the data names: its keys read first, its body written per key and run', async () => {
@@ -384,7 +384,7 @@ describe("a remote file's mount, a planned load whose bearer URL the host binds 
     store.hold('datacube_url_t', new Map([['URL', 'held.csv']]));
     const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown> =>
       (params.length === 0 ? e.run(unplanned(sql), 0) : e.exclusive((held) => held.rows(unplanned(sql), params)));
-    const { settings } = await runLoad(plan, route(first), { secrets: store });
+    const { settings } = await runLoad(unplannedPlan(plan), route(first), { secrets: store });
     const count = (e: DuckDbEngine): Promise<string> => e.exclusive(async (held) => String((await held.rows(unplanned('SELECT count(*) FROM remote_t'), []))[0]![0]));
     assert.equal(await count(first), '2');
     const viewText = await first.exclusive(async (held) => String((await held.rows(unplanned("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_t'"), []))[0]![0]));
@@ -398,7 +398,7 @@ describe("a remote file's mount, a planned load whose bearer URL the host binds 
     await kept.replay(route(second));
     assert.equal(await count(second), '2');
     // a bound statement this run was given no store for is refused by name
-    await assert.rejects(() => runLoad(plan, route(first)), /binds what a host holds, and this run was given no host's store/);
+    await assert.rejects(() => runLoad(unplannedPlan(plan), route(first)), /binds what a host holds, and this run was given no host's store/);
   });
 });
 
@@ -539,7 +539,7 @@ describe("the load runners' shared conformance fixture", () => {
     const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
     const own = new DuckDbEngine(db.connect() as ArrowishConnection);
     for (const sql of [...project.open, ...project.use]) await own.run(unplanned(sql), 0);
-    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+    await runLoad(unplannedPlan(JSON.stringify(project.load)), (sql) => own.run(sql, 0));
     const rows = await own.exclusive((held) => held.rows(unplanned(fixture.check), []));
     assert.deepEqual(rows.map((r) => r.map((v) => (typeof v === 'bigint' ? Number(v) : v))), fixture.rows);
   });
@@ -551,7 +551,7 @@ describe("the load runners' shared conformance fixture", () => {
     const { engine: own, received } = witnessed(db.connect() as ArrowishConnection);
     for (const sql of [...project.open, ...project.use]) await own.run(unplanned(sql), 0);
     received.length = 0;
-    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+    await runLoad(unplannedPlan(JSON.stringify(project.load)), (sql) => own.run(sql, 0));
     assert.ok(received.length > 1, received.join('; '));
     assert.deepEqual(received, statementsOf(project.load.root));
   });
@@ -562,7 +562,7 @@ describe("the load runners' shared conformance fixture", () => {
     const [digest] = Object.keys(content);
     content[digest!] = content[digest!]!.replace(fixture.tamper.from, fixture.tamper.to);
     const sent: string[] = [];
-    await assert.rejects(() => runLoad(JSON.stringify(project.load), async (sql) => { sent.push(sql); }),
+    await assert.rejects(() => runLoad(unplannedPlan(JSON.stringify(project.load)), async (sql) => { sent.push(sql); }),
       (e: unknown) => e instanceof PlanRefusal && e.message === fixture.refused || assert.fail(String(e instanceof Error ? e.message : e)));
     assert.ok(!sent.some((s) => /INSERT/i.test(s)), sent.join('; '));
   });
@@ -572,7 +572,7 @@ describe("the load runners' shared conformance fixture", () => {
     const words = fixture.version.refused.replace('{VERSION}', String(load.version));
     load.version = fixture.version.given;
     const sent: string[] = [];
-    await assert.rejects(() => runLoad(JSON.stringify(load), async (sql) => { sent.push(sql); }),
+    await assert.rejects(() => runLoad(unplannedPlan(JSON.stringify(load)), async (sql) => { sent.push(sql); }),
       (e: unknown) => e instanceof PlanRefusal && e.message === words || assert.fail(String(e instanceof Error ? e.message : e)));
     assert.deepEqual(sent, []);
   });
@@ -602,8 +602,8 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
       }
     },
   });
-  const planOf = (table: string, schema?: string): string => ok(answer(m, { kind: 'snapStream', request: JSON.stringify({
-    databaseType: 'DuckDB', plane: 'warehouse', sql: SQL, ...(schema ? { schema } : {}), table }) }));
+  const planOf = (table: string, schema?: string): PlanText => unplannedPlan(ok(answer(m, { kind: 'snapStream', request: JSON.stringify({
+    databaseType: 'DuckDB', plane: 'warehouse', sql: SQL, ...(schema ? { schema } : {}), table }) })));
   const tableRows = (t: string): Promise<string> => engine.exclusive(async (held) =>
     (await held.rows(unplanned(`SELECT id, notional, region FROM ${t} ORDER BY id`), [])).map((r) => r.map(String).join(':')).join(' '));
   const columns = (t: string): Promise<string> => engine.exclusive(async (held) =>
@@ -612,7 +612,7 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
   const exists = (t: string): Promise<number> => engine.exclusive(async (held) =>
     Number((await held.rows(unplanned(`SELECT count(*) FROM duckdb_tables() WHERE table_name = '${t}'`), []))[0]![0]));
   const snap = (plan: string, p: ReturnType<typeof plane>) => engine.exclusive((held) =>
-    runLoad(plan, (sql, params) => held.rows(sql, params), { streams: { planes: { warehouse: p }, held } }));
+    runLoad(unplannedPlan(plan), (sql, params) => held.rows(sql, params), { streams: { planes: { warehouse: p }, held } }));
 
   it('lands every chunk exactly, rows and types, the table counted by the database, the receipt the plane\'s', async () => {
     const plan = planOf('snapped', 'copies');
@@ -698,7 +698,7 @@ Database s::DB
     const steps = (looseJson(plan) as { root: { cadence: string; steps: { _type: string }[] } }).root;
     assert.equal(steps.cadence, 'HOST_SESSION');
     assert.ok(steps.steps.every((s) => s._type === 'statement'), JSON.stringify(steps.steps.map((s) => s._type)));
-    await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
+    await engine.exclusive((held) => runLoad(unplannedPlan(plan), (sql, params) => held.rows(sql, params)));
     assert.deepEqual((await one('SELECT count(*), count(DISTINCT id), CAST(min(day) AS VARCHAR), CAST(max(day) AS VARCHAR) FROM demo.TRADES')).map(String),
       ['100000', '10000', '2021-01-01', '2025-12-31']);
     assert.deepEqual((await one("SELECT count(*) FILTER (WHERE region = 'EMEA'), count(*) FILTER (WHERE region = 'AMER'),"
@@ -706,7 +706,7 @@ Database s::DB
       + ' min(notional) >= 0, max(notional) <= 9999.99, count(*) FILTER (WHERE id IS NULL OR book IS NULL) FROM demo.TRADES')).map(String),
       ['33334', '33333', '33333', '5', '50005', 'true', 'true', '0']);
     // planned again, run again: the table made afresh, its rows the same
-    await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
+    await engine.exclusive((held) => runLoad(unplannedPlan(plan), (sql, params) => held.rows(sql, params)));
     assert.equal(String((await one('SELECT count(*) FROM demo.TRADES'))[0]), '100000');
   });
 
@@ -727,7 +727,7 @@ Database s::DB
 // the WASM planner carries the person's one text as written -- never parsed, rewritten or split -- as a plan's one
 // statement, and the hosts' runner sends exactly that statement on DuckDB-WASM
 describe("a person's own statement, carried by the WASM planner as written and run on DuckDB-WASM", () => {
-  const authored = (text: string): string => ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text }) }));
+  const authored = (text: string): PlanText => unplannedPlan(ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text }) })));
 
   it('the plan carries the text exactly, and the runner sends that one statement, its answer the database\'s', async () => {
     const text = "CREATE OR REPLACE TABLE playground_t AS SELECT 1 AS n  -- a person's own; as typed\n";
@@ -759,7 +759,7 @@ describe("a person's own statement, carried by the WASM planner as written and r
       (e: unknown) => e instanceof PlanRefusal && /a plan of a DuckDB database is not run on this Postgres one/.test(e.message));
     const unstated = looseJson(plan) as { root: { columns?: unknown } };
     delete unstated.root.columns;
-    await assert.rejects(() => runAuthored(JSON.stringify(unstated), { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { none.push(sql); } }),
+    await assert.rejects(() => runAuthored(unplannedPlan(JSON.stringify(unstated)), { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { none.push(sql); } }),
       (e: unknown) => e instanceof PlanRefusal && /carries its result's columns, and this one has none/.test(e.message));
     assert.deepEqual(none, [], 'nothing sent for a plan refused');
   });
@@ -768,7 +768,7 @@ describe("a person's own statement, carried by the WASM planner as written and r
     const sent: string[] = [];
     const load = ok(answer(m, { kind: 'snapStream', request: JSON.stringify({ databaseType: 'DuckDB', plane: 'warehouse',
       sql: 'SELECT 1', table: 't' }) }));
-    await assert.rejects(() => runAuthored(load, { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { sent.push(sql); } }), /an authored statement's plan answers the relation its database reports, not a load/);
+    await assert.rejects(() => runAuthored(unplannedPlan(load), { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { sent.push(sql); } }), /an authored statement's plan answers the relation its database reports, not a load/);
     assert.deepEqual(sent, []);
   });
 });

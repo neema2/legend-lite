@@ -69,7 +69,7 @@ const filled = async (m: Model): Promise<{ readonly own: DuckDbEngine; drop(): P
   for (const sql of project.open) await engine.run(sql, 0);
   const own = new DuckDbEngine(db.connect() as ArrowishConnection);
   for (const sql of project.use) await own.run(sql, 0);
-  await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+  await runLoad(project.load!, (sql) => own.run(sql, 0));
   return {
     own,
     drop: async () => {
@@ -483,7 +483,7 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
     for (const sql of project.use) await own.run(sql, 0);
     // its rows: the plan's ONCE load, run by the hosts' runner (B3: the load a server's project plan carries)
     assert.ok(project.load !== undefined, 'a project with Data rows carries their load');
-    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+    await runLoad(project.load!, (sql) => own.run(sql, 0));
     assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
     assert.deepEqual(await rowsOf('PARTY'), [[9, "the tab's own", 'XX']]);
     await own.close();

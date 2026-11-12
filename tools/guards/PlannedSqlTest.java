@@ -73,13 +73,18 @@ class PlannedSqlTest {
             // (the C final audit's H9): an authored plan's target's session statements, typed as they are read
             "engine-client/src/plan-runner.ts", 18,
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
-            "engine-client/src/legend/wasm-grammar.ts", 8,
+            // 2026-11-12, 8 -> 14 (the re-audit's M1): its five plan answers (fileLoad, remoteMount, snapStream,
+            // synthesize, authored) typed as read, and the mint's import
+            "engine-client/src/legend/wasm-grammar.ts", 14,
             // 2026-11-12, 8 -> 9 (the C final audit's H2): DataCube's table model's copy select list, typed as its answer
             // is read, since a host operation's selectList takes a PlannedSql alone
-            "datacube/src/lite-planner.ts", 9,
+            // 2026-11-12, 9 -> 15 (M1): its five plan answers (executionPlan, fileLoad, remoteMount, snapStream, synthesize)
+            // typed as read, and the mint's import
+            "datacube/src/lite-planner.ts", 15,
             "datacube/src/planner.ts", 2,
             // the definitions themselves, and the mints' own test
-            "engine-client/src/planned-sql.ts", 7,
+            // 2026-11-12, 7 -> 9 (M1): planFromAnswer defined, and the project database's load typed by it
+            "engine-client/src/planned-sql.ts", 9,
             "engine-client/test/planned-sql.test.ts", 5);
             // (studio/src/backend/run.ts, the SQL playground's notPlanned and its import: gone 2026-11-12 with
             // notPlanned; the plan runner's runAuthored types the playground's statement, its count one more)
@@ -288,7 +293,8 @@ class PlannedSqlTest {
     // expression passed)
 
     /** What a mint file may import from planned-sql.ts: the functions that type a plan's text or a planner's answer. */
-    static final Set<String> MINT_NAMES = Set.of("fromPlan", "allFromPlan", "plannedProjectData");
+    // 2026-11-12 (the re-audit's M1): and planFromAnswer, the plan the planner answered, typed as its answer is read
+    static final Set<String> MINT_NAMES = Set.of("fromPlan", "allFromPlan", "plannedProjectData", "planFromAnswer");
 
     /**
      * The test files that import a value of planned-sql.ts, each with what it imports. 2026-11-12 (the C checkpoint's
@@ -306,11 +312,13 @@ class PlannedSqlTest {
             "\\b(import|export)\\b((?:[^;'\"`(]|\\([^)]*\\))*?)\\bfrom\\s*(['\"`])([^'\"`]+)\\3"
                     + "|\\bimport\\s*(['\"`])([^'\"`]+)\\5"
                     + "|\\bimport\\s*\\(\\s*(['\"`])([^'\"`]+)\\7");
-    private static final Pattern CAST = Pattern.compile("\\bas\\s+PlannedSql\\b|(?<![\\w$])<PlannedSql>|\\bis\\s+PlannedSql\\b");
+    // 2026-11-12 (the re-audit's M1): PlanText, the plan the planner answered, as the statement is
+    private static final Pattern CAST = Pattern.compile(
+            "\\bas\\s+(?:PlannedSql|PlanText)\\b|(?<![\\w$])<(?:PlannedSql|PlanText)>|\\bis\\s+(?:PlannedSql|PlanText)\\b");
     private static final Pattern NOT_PLANNED_CALL = Pattern.compile("\\bnotPlanned\\s*\\(");
     private static final Pattern STRING_LITERAL = Pattern.compile("(['\"`])((?:(?!\\1)[^\\\\]|\\\\.)*)\\1");
     private static final Pattern MINT_IDENTIFIER = Pattern.compile(
-            "(?<![\\w$])(?:fromPlan|allFromPlan|notPlanned|plannedProjectData)(?![\\w$])");
+            "(?<![\\w$])(?:fromPlan|allFromPlan|notPlanned|plannedProjectData|planFromAnswer)(?![\\w$])");
     private static final Pattern ESCAPE = Pattern.compile("\\bas\\s+(?:never|any)\\b");
     /** A reference to the authored door, in code: its runner, a member or key named for it, or its export. */
     private static final Pattern AUTHORED_IDENTIFIER = Pattern.compile("(?<![\\w$])(?:runAuthored|authored|authoredOrError)(?![\\w$])");
@@ -338,11 +346,18 @@ class PlannedSqlTest {
     private static final Pattern SUBMIT_CALL = Pattern.compile("\\bcall\\s*(?:<[^>()]*>)?\\s*\\(\\s*(['\"`])submit\\1");
     /** S6 (the re-audit, 2026-11-12): `any`, cast or not, satisfies every type -- the brand's among them. */
     private static final Pattern ANY = Pattern.compile("(?<![\\w$.])any(?![\\w$])(?!\\s*[:(?])");
+    /** M1 (the re-audit, 2026-11-12): a call of one of the hosts' plan runners, and any reference to one. */
+    private static final Pattern RUNNER_CALL = Pattern.compile("(?<![\\w$.])(?:runPlan|runLoad|establish|runAuthored|targetKey)\\s*\\(");
+    private static final Pattern RUNNER_NAME = Pattern.compile("(?<![\\w$.])(?:runPlan|runLoad|establish|runAuthored|targetKey)(?![\\w$])");
+    /** M1: a destructuring pattern ({@code const { runLoad } = await import(...)}): a lazy import's binding, no hand-on. */
+    private static final Pattern DESTRUCTURED = Pattern.compile("\\{([^{}]*)\\}[\\s\\]]*=(?![=>])");
+    /** M1: the plan format's name, in code with its strings kept: where a plan is read, never where one is written. */
+    private static final Pattern PLAN_FORMAT = Pattern.compile("legend-lite-plan");
     /** H5: a cast through unknown, which satisfies any type. */
     private static final Pattern UNKNOWN_CAST = Pattern.compile("\\bas\\s+unknown\\s+as\\b");
     /** H5: the brand under another name -- a renamed import or export of it, or a type alias of it. */
     private static final Pattern BRAND_ALIAS = Pattern.compile(
-            "\\bPlannedSql\\s+as\\s+[\\w$]|\\btype\\s+[\\w$]+\\s*(?:<[^=;]*>)?\\s*=\\s*PlannedSql\\s*;");
+            "\\b(?:PlannedSql|PlanText)\\s+as\\s+[\\w$]|\\btype\\s+[\\w$]+\\s*(?:<[^=;]*>)?\\s*=\\s*(?:PlannedSql|PlanText)\\s*;");
     /** A declaration of a type: an interface or class (its body braced), or a type alias (its body to its ';'). */
     private static final Pattern DECLARATION = Pattern.compile(
             "\\b(?:interface|class)\\s+([\\w$]+)[^{;]*\\{|\\btype\\s+([\\w$]+)\\s*(?:<[^=;]*>)?\\s*=");
@@ -766,7 +781,9 @@ class PlannedSqlTest {
         int planned = backend.indexOf("const plan = await session.authored(statement);");
         assertTrue(planned > factory && planned < send, "the playground sends the plan's one statement: the person's"
                 + " text as the planner carried it (Boundary.authored), never the text itself");
-        assertTrue(!backend.contains("planned-sql.ts"), "the playground mints nothing: the plan runner types the plan's"
+        // a type of planned-sql.ts names the plan it is handed (PlanText, the re-audit's M1); no value of it is imported
+        assertTrue(imports(backend).values().isEmpty() && imports(backend).refused().isEmpty(), "the playground mints"
+                + " nothing: the plan runner types the plan's"
                 + " statement");
         String runnerType = backend.substring(backend.indexOf("export interface Runner {"),
                 backend.indexOf("}", backend.indexOf("export interface Runner {")));
@@ -1105,6 +1122,60 @@ class PlannedSqlTest {
     }
 
     /**
+     * THE PLAN RUNNERS' CALLERS (the re-audit's M1, 2026-11-12): runPlan, runLoad, establish, runAuthored and targetKey
+     * take a PlanText alone -- a plan the planner answered -- and each place the product calls one is pinned by call site;
+     * a runner handed on rather than called is refused (its every reference outside its imports is a call). And the plan
+     * format's name appears only where a plan is read (PLAN_FORMAT_READERS): a product source spelling a plan is red.
+     */
+    static final Map<String, List<String>> RUNNER_CALLS = Map.ofEntries(
+            // 2026-11-12 (M1, measured): each with the plan its planner client answered -- a write's (table-output.ts),
+            // a load's: a person's file (model-data.ts, upload.ts), a remote mount (remote.ts), a snapshot's stream
+            // (snap.ts), a project's database (project-data.ts; the demos' seeds, boot.ts and query/demo/main.ts), and
+            // the playground's authored statement (run.ts)
+            Map.entry("datacube/demo/boot.ts", List.of("runLoad(")),
+            Map.entry("datacube/src/remote.ts", List.of("runLoad(")),
+            Map.entry("datacube/src/table-output.ts", List.of("runPlan(")),
+            Map.entry("datacube/src/upload.ts", List.of("runLoad(")),
+            Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
+            Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),
+            Map.entry("engine-client/src/snap.ts", List.of("runLoad(")),
+            Map.entry("query/demo/main.ts", List.of("runLoad(")),
+            Map.entry("studio/src/backend/run.ts", List.of("runAuthored(")));
+    // 2026-11-12 (M1, measured): the runner's own read of a plan's format (planned-sql.ts names it in prose alone)
+    static final Set<String> PLAN_FORMAT_READERS = Set.of("engine-client/src/plan-runner.ts");
+
+    @Test
+    void thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered() throws IOException {
+        List<String> product = folders().get("typescript");
+        Map<String, List<String>> calls = new TreeMap<>();
+        List<String> handedOn = new ArrayList<>();
+        Set<String> formats = new TreeSet<>();
+        for (String file : inventory()) {
+            if (!file.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$") || file.endsWith(".d.ts") || !under(file, product)) {
+                continue;
+            }
+            String src = read(file);
+            if (PLAN_FORMAT.matcher(code(src, true)).find()) {
+                formats.add(file);
+            }
+            if (file.equals("engine-client/src/plan-runner.ts")) {
+                continue;
+            }
+            String body = MODULE_STATEMENT.matcher(code(src)).replaceAll(r -> " ".repeat(r.group().length()));
+            List<String> found = sites(RUNNER_CALL, body);
+            put(calls, file, found);
+            if (runnerReferences(body) != found.size()) {
+                handedOn.add(file);
+            }
+        }
+        assertEquals(new TreeMap<>(RUNNER_CALLS), calls, "THE PLAN RUNNERS' CALLERS (the re-audit's M1): each call of a"
+                + " runner is pinned by call site (PlannedSqlTest.RUNNER_CALLS), its plan the planner's answer (PlanText)");
+        assertEquals(List.of(), handedOn, "a plan runner is called where it is named, never handed on");
+        assertEquals(new TreeSet<>(PLAN_FORMAT_READERS), formats, "the plan format's name is spelled where a plan is read"
+                + " (PlannedSqlTest.PLAN_FORMAT_READERS): a product source that spells it writes a plan");
+    }
+
+    /**
      * NO `any` IN THE PRODUCT'S TYPESCRIPT (the re-audit's S6, 2026-11-12): a type of `any` -- declared, cast to, or a
      * type argument -- satisfies every type, PlannedSql's brand among them, with no cast to see. The product's code holds
      * none (comments and strings aside); JSON.parse, a response's json() and Array.isArray's narrowing give `unknown`
@@ -1131,6 +1202,31 @@ class PlannedSqlTest {
         // a name is no type: a key, a method, a member
         assertEquals(0, count(ANY, code("// any comment\nconst s = 'any text'; const anyEmpty = company;"
                 + " const o = { any: 'x' }; static any(s: Signal[]): Signal {} AbortSignal.any([a]);")));
+    }
+
+    /** {@code body}'s references to a runner (M1), less the names a destructuring pattern binds (a lazy import's). */
+    static int runnerReferences(String body) {
+        int bound = 0;
+        Matcher d = DESTRUCTURED.matcher(body);
+        while (d.find()) {
+            bound += count(RUNNER_NAME, d.group(1));
+        }
+        return count(RUNNER_NAME, body) - bound;
+    }
+
+    /** M1's forms, planted: a runner called and handed on, and a plan's format spelled. */
+    @Test
+    void theRunnerCensusSeesEveryForm() {
+        String src = "import { runPlan, runLoad } from './plan-runner.ts';\nawait runPlan(plan, s); const go = runLoad; go(p, r);";
+        String body = MODULE_STATEMENT.matcher(code(src)).replaceAll(r -> " ".repeat(r.group().length()));
+        assertEquals(List.of("runPlan("), sites(RUNNER_CALL, body));
+        assertEquals(2, runnerReferences(body), "a runner handed on is a reference that is no call");
+        String lazy = "const { runLoad } = await import('./plan-runner.ts');\nawait runLoad(plan, run);";
+        assertEquals(List.of("runLoad("), sites(RUNNER_CALL, code(lazy)));
+        assertEquals(1, runnerReferences(code(lazy)), "a lazy import's binding is no hand-on");
+        assertEquals(1, runnerReferences(code("const [plan, { runLoad }] = await Promise.all([a, b]);\nrunLoad(plan, r);")));
+        assertTrue(PLAN_FORMAT.matcher(code("const p = `{\"format\":\"legend-lite-plan\",\"root\":{}}`;", true)).find());
+        assertEquals(0, count(RUNNER_NAME, code("// runPlan in prose\nconst s = 'runPlan(x)'; o.runPlan;")));
     }
 
     /** H13's forms, planted: a census that stops seeing one is red. */

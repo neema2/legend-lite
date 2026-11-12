@@ -18,7 +18,7 @@ import type { Plan } from '../../engine-client/src/relation-type.ts';
 import type { TableOutput } from './layout/flow.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { catalogColumnsOf } from './upload.ts';
-import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
+import type { PlannedSql, PlanText } from '../../engine-client/src/planned-sql.ts';
 
 /** The schema a host's own tables are in (a page's files, a snap's copies): DuckDB's own. */
 const SCHEMA = 'main';
@@ -37,7 +37,7 @@ export interface TableWriteHost {
   /** A query over the box's own model planned: its SQL and the values it binds (the create's columns, its rows none). */
   planOf(query: Lambda): Promise<Plan>;
   /** A program planned over `model` as an execution plan (PlanJson's text). */
-  executionPlan(model: string, runtime: string, program: Lambda): Promise<string>;
+  executionPlan(model: string, runtime: string, program: Lambda): Promise<PlanText>;
 }
 
 /**

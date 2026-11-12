@@ -38,10 +38,13 @@ IMPORTS = {
     '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect', 'send'},
     '_host.py': {'PlannedSql', 'send'},
     # 2026-11-12 (the C final audit's H2): require, a host operation's planner text and a snapshot's stream checked
-    'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'require'},
+    'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'require',
+                    # 2026-11-12 (the re-audit's M1): the plan the planner answered, typed as read
+                    'PlanText', 'plan_from_answer'},
     'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan', 'send'},
     'frames.py': {'Database', 'PlannedSql', 'Result', 'connect', 'send'},
-    'projects.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'send'},
+    # 2026-11-12 (M1): the runners read only a plan the planner answered (read_plan)
+    'projects.py': {'PlannedSql', 'PlanText', 'all_from_plan', 'from_plan', 'read_plan', 'send'},
     'warehouse.py': {'PlannedSql', 'require'},
 }
 
@@ -77,12 +80,14 @@ SEND_METHODS = {'execute', 'executemany', 'sql', 'query', 'from_query', 'from_ar
                 # view, inserted, written out
                 'create', 'create_view', 'insert_into', 'insert', 'to_table', 'to_view', 'write_csv', 'write_parquet',
                 'to_csv', 'to_parquet'}
-MINT_NAMES = {'from_plan', 'all_from_plan'}
+MINT_NAMES = {'from_plan', 'all_from_plan', 'plan_from_answer'}
 
 # Each mint's uses by module (2026-11-12, the C final audit's H4, measured: an import is pinned by IMPORTS, a new call
 # of a mint in a pinned module was not): the compiler's readers (its plans, catalog, host operations, table model's copy
 # select list -- H2's), the load runners, execute's plan half. A use added or gone moves its count, dated.
-MINT_REFERENCES = {'compiler.py': 6, 'engine.py': 2, 'projects.py': 9}
+MINT_REFERENCES = {
+    # 2026-11-12, 6 -> 9 (M1): the compiler's three plan answers (snap_stream, frame_load, project_data's load) typed
+    'compiler.py': 9, 'engine.py': 2, 'projects.py': 9}
 
 # A send method's name reached and not called, by module, name and receiver (H4, measured 2026-11-12): each a field of a
 # plan (its sql), a URL (its query) or a view (page.py's), none a method handed on. A method handed on -- `run =
@@ -142,6 +147,12 @@ _NETWORK_ROOTS = {'urllib', 'http', 'requests', 'urllib3', 'socket', 'httpx', 'a
 # request kind ('authored' -> the native library's 'lite_authored') and its library declares the export, and no module
 # asks it (DataCube's python-host.ts refuses the kind unasked). Its spellings -- the kind's text, the export's, a name or
 # an attribute named authored -- each counted.
+# THE PLAN RUNNERS' CALLERS (the re-audit's M1, 2026-11-12): run_load and run_host_load take a plan the planner
+# answered alone (PlanText, read_plan); each call is pinned by module, its plan the compiler's: a project's database's
+# load (projects.py), a snapshot's stream (engine.py), a frame's attach (frames.py)
+RUNNERS = {'projects.py': 1, 'engine.py': 1, 'frames.py': 1}
+RUNNER_NAMES = {'run_load', 'run_host_load'}
+
 AUTHORED_NAMES = {'authored', 'lite_authored'}
 AUTHORED = {'_planner.py': 2, '_library.py': 1}
 
@@ -161,12 +172,17 @@ def census(name: str, source: str) -> dict:
     sends: set[tuple[str, str, str]] = set()
     references: set[tuple[str, str, str]] = set()
     attaches: set[tuple[str, str, str]] = set()
-    crossings = mints = authored = submits = 0
+    crossings = mints = authored = submits = runner_calls = runner_names = 0
     network: set[str] = set()
     own = name == '_planned.py'
     called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
     parents = {id(c): p for p in ast.walk(tree) for c in ast.iter_child_nodes(p)}
     for node in ast.walk(tree):
+        # M1 (the re-audit): a runner's calls, and every reference to it (a runner handed on is a reference no call)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in RUNNER_NAMES:
+            runner_calls += 1
+        if isinstance(node, ast.Name) and node.id in RUNNER_NAMES:
+            runner_names += 1
         # S4 (the re-audit, 2026-11-12): a class reached through a value, called or not
         if isinstance(node, ast.Attribute) and node.attr == '__class__' and not own:
             refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a class reached through a value')
@@ -230,15 +246,16 @@ def census(name: str, source: str) -> dict:
             refused.append(f'line {node.lineno}: _planned.{node.attr}: _planned reached as a module')
         elif isinstance(node, ast.ClassDef) and not own:
             for base in node.bases:
-                if isinstance(base, ast.Name) and base.id == 'PlannedSql' or 'PlannedSql' in ast.unparse(base):
+                if isinstance(base, ast.Name) and base.id in ('PlannedSql', 'PlanText') or 'PlannedSql' in ast.unparse(base) \
+                        or 'PlanText' in ast.unparse(base):
                     refused.append(f'line {node.lineno}: class {node.name} subclasses PlannedSql')
         elif isinstance(node, ast.Attribute) and not own and isinstance(node.value, ast.Name) \
-                and node.value.id == 'PlannedSql':
+                and node.value.id in ('PlannedSql', 'PlanText'):
             refused.append(f'line {node.lineno}: PlannedSql.{node.attr}: the type is used as itself, never reached into')
         elif isinstance(node, ast.Call):
             f = node.func
-            if not own and isinstance(f, ast.Name) and f.id == 'PlannedSql':
-                refused.append(f'line {node.lineno}: PlannedSql constructed outside _planned.py')
+            if not own and isinstance(f, ast.Name) and f.id in ('PlannedSql', 'PlanText'):
+                refused.append(f'line {node.lineno}: {f.id} constructed outside _planned.py')
             if not own and isinstance(f, ast.Name) and f.id == 'type' and len(node.args) == 1 and not _named_or_compared(node, parents):
                 refused.append(f'line {node.lineno}: {ast.unparse(parents.get(id(node), node))[:60]!r}: a value\'s type is'
                                ' named or compared outside _planned.py, never called, bound or handed on')
@@ -254,7 +271,7 @@ def census(name: str, source: str) -> dict:
                 crossings += 1
     return {'imported': imported, 'refused': refused, 'sends': sends, 'crossings': crossings, 'mints': mints,
             'references': references, 'attaches': attaches, 'authored': authored, 'submits': submits,
-            'network': network}
+            'network': network, 'runner_calls': runner_calls, 'runner_names': runner_names}
 
 
 class PlannedGuardTest(unittest.TestCase):
@@ -308,6 +325,13 @@ class PlannedGuardTest(unittest.TestCase):
         for source in ["f'{type(e).__name__}: {e}'", 'type(x) is int', 'type(a) == type(b)']:
             self.assertEqual([], census('m.py', source)['refused'], source)
 
+    def test_the_census_sees_the_plan_runners_forms(self):
+        """M1 (the re-audit, 2026-11-12): a PlanText made outside _planned.py refused; a runner called, and handed on."""
+        for source in ['PlanText(text)', 'class Mine(PlanText):\n    pass', 'PlanText.__new__(PlanText, t)']:
+            self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
+        c = census('m.py', 'run_load(plan, send)\ngo = run_host_load\ngo(plan, db)')
+        self.assertEqual((c['runner_calls'], c['runner_names']), (1, 2))
+
     def test_the_census_sees_every_transports_forms(self):
         """H13 (2026-11-12): each way past the one choke point, planted, and seen."""
         for source in ["duckdb.sql('DROP TABLE t')", 'duckdb.execute(q)', 'duckdb.append(t, df)', "duckdb.read_csv('x')",
@@ -335,6 +359,8 @@ class PlannedGuardTest(unittest.TestCase):
         authored: dict[str, int] = {}
         submits: dict[str, int] = {}
         network: dict[str, set[str]] = {}
+        runners: dict[str, int] = {}
+        handed_on: list[str] = []
         for m in modules:
             c = census(m.name, m.read_text(encoding='utf-8'))
             refused += [f'{m.name}: {r}' for r in c['refused']]
@@ -353,6 +379,10 @@ class PlannedGuardTest(unittest.TestCase):
                 submits[m.name] = c['submits']
             if c['network']:
                 network[m.name] = c['network']
+            if c['runner_calls']:
+                runners[m.name] = c['runner_calls']
+            if c['runner_names'] != c['runner_calls']:
+                handed_on.append(m.name)
         self.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
         self.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
                                           ' or the planner\'s answer is read, the one send, the bridge\'s check')
@@ -373,6 +403,9 @@ class PlannedGuardTest(unittest.TestCase):
                                            ' alone, a PlannedSql (SUBMITS)')
         self.assertEqual(NETWORK, network, 'ONE CHOKE POINT (H13): each module that opens a network client is pinned'
                                            ' (NETWORK): a new one could carry a statement to a SQL API')
+        self.assertEqual(RUNNERS, runners, "THE PLAN RUNNERS' CALLERS (M1): each call of run_load or run_host_load is"
+                                           " pinned by module (RUNNERS), its plan the planner's answer")
+        self.assertEqual([], handed_on, 'a plan runner is called where it is named, never handed on')
 
 
 if __name__ == '__main__':

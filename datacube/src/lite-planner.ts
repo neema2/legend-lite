@@ -40,7 +40,7 @@ import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
-import { allFromPlan, fromPlan, plannedProjectData, type PlannedSql } from '../../engine-client/src/planned-sql.ts';
+import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../../engine-client/src/planned-sql.ts';
 
 interface TeavmRuntime {
   load(
@@ -526,14 +526,14 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * rows (engine-client/src/plan-runner.ts; a plan names no output format since the result boundary program's phase
    * 4). Never cached: a write is planned for the one run that asks it.
    */
-  async executionPlan(program: Lambda, signal?: AbortSignal): Promise<string> {
+  async executionPlan(program: Lambda, signal?: AbortSignal): Promise<PlanText> {
     // a program calling DataCube's Pure library planned over it, as a query is (plan)
     const over = await this.#over(program);
     if (over !== this) return over.executionPlan(program, signal);
     const { lambda: json, runtime } = await this.planRequest(program);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     const handle = await this.#handle();
-    return decode(await this.#call({ kind: 'executionPlan', handle, lambda: json, runtime }), program);
+    return planFromAnswer(decode(await this.#call({ kind: 'executionPlan', handle, lambda: json, runtime }), program));
   }
 
   /**
@@ -668,24 +668,24 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * planned loads): one HOST_SESSION load the hosts' runner runs (runLoad), the file a reference the host's store binds
    * -- PlanJson's text. A declared table's model is the one given, not this planner's own.
    */
-  async fileLoad(request: FileLoadRequest): Promise<string> {
-    return decode(await this.#call({ kind: 'fileLoad', request: JSON.stringify(request) }), `the load of ${request.file.name}`);
+  async fileLoad(request: FileLoadRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'fileLoad', request: JSON.stringify(request) }), `the load of ${request.file.name}`));
   }
 
   /**
    * A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): one HOST_SESSION load the hosts' runner runs,
    * binding by name what this host holds (its keys, a bearer URL) -- PlanJson's text, holding no value.
    */
-  async remoteMount(request: RemoteMountRequest): Promise<string> {
-    return decode(await this.#call({ kind: 'remoteMount', request: JSON.stringify(request) }), `the mount of ${request.view ?? 'a remote file'}`);
+  async remoteMount(request: RemoteMountRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'remoteMount', request: JSON.stringify(request) }), `the mount of ${request.view ?? 'a remote file'}`));
   }
 
   /**
    * A snapshot from a remote plane, as a plan (Boundary.snapStream, the user's ruling of 2026-11-11): one HOST_SESSION
    * load whose stream step the hosts' runner runs in one transaction -- PlanJson's text, the plane by name, never a row.
    */
-  async snapStream(request: SnapStreamRequest): Promise<string> {
-    return decode(await this.#call({ kind: 'snapStream', request: JSON.stringify(request) }), `the snap into ${request.table}`);
+  async snapStream(request: SnapStreamRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'snapStream', request: JSON.stringify(request) }), `the snap into ${request.table}`));
   }
 
   /**
@@ -693,8 +693,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * 2026-11-12, DuckDB alone): one HOST_SESSION load the hosts' runner runs -- the table made as declared, then one
    * statement filling it, each column a formula of the row's number -- PlanJson's text, never a row.
    */
-  async synthesize(request: SynthesizeRequest): Promise<string> {
-    return decode(await this.#call({ kind: 'synthesize', request: JSON.stringify(request) }), `the rows made for ${request.table}`);
+  async synthesize(request: SynthesizeRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'synthesize', request: JSON.stringify(request) }), `the rows made for ${request.table}`));
   }
 
   /**
