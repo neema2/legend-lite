@@ -57,8 +57,11 @@ class FixtureWriteCensusTest {
      *  quote-aware), and GeneratedTestDataProgramTest seeds one text cell holding the empty text (1), which no CSV can
      *  seed (the reader loads an empty cell as NULL), for the reload's empty-text-as-NULL case. 911 -> 907 (2026-11-11,
      *  the JSON pass merged: no session table remains, so its drop-safety tests went -- DataTableSessionTest deleted,
-     *  DataDeliveryMatrixPostgresTest's user's table of the name with it, 4). */
-    private static final int CEILING = 907;
+     *  DataDeliveryMatrixPostgresTest's user's table of the name with it, 4). 907 -> 908 (2026-11-12, the B checkpoint's
+     *  G4, the orchestrator's go): the reload keeps a keyless table's ('', 1) and (NULL, 1) as two rows, as upstream
+     *  inserts each text row -- TestDataPlannerTest seeds the empty text (1), which no CSV can seed (the reader loads an
+     *  empty cell as NULL); the table and its NULL row are its CSV. */
+    private static final int CEILING = 908;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -180,6 +183,9 @@ class FixtureWriteCensusTest {
             // text, which no CSV can seed (the test-data reader loads an empty cell as NULL). TestDataPlannerTest's two
             // (B2d, ruling 3) are its CSV now, the reader quote-aware (H2): their pin went
             Map.entry("core/src/test/java/com/legend/testdatagen/GeneratedTestDataProgramTest.java", 1),
+            // 2026-11-12, the B checkpoint's G4: the reload keeps a keyless table's ('', 1) and (NULL, 1) as two rows;
+            // its empty text, which no CSV can seed, written as it is (the table and its NULL row are its CSV)
+            Map.entry("core/src/test/java/com/legend/testdatagen/TestDataPlannerTest.java", 1),
             Map.entry("core/src/test/java/com/legend/testplan/RenderedTextTest.java", 2),
             Map.entry("spec/src/test/java/com/legend/harness/ReplayReferee.java", 7),
             Map.entry("testing/src/main/java/com/legend/testing/EmbeddedPostgres.java", 1),

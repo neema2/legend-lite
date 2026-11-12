@@ -101,14 +101,381 @@ class TestDataPlannerTest {
             assertSame(c, ctx, dialect, join, fiveAndSix, false, 2,
                     "default\nPERSON\nID,NAME\n5,\"o'neil, \"\"jr\"\"\nthe 2nd\"\n6,---null---\n-----\n"
                             + "default\nBICYCLE\nID,PERSONID\n14,5\n-----\n");
+            // an identifier list holding none is no filter: the table's rows by key, at most 20 (upstream's
+            // orFilters([]); B2d.3e -- until then a planning error, "no row identifiers")
+            assertSame(c, ctx, dialect, join, List.of(new TestDataGenerator.TableRowIds("default", "PERSON",
+                    List.of())), false, 2, "default\nPERSON\nID,NAME\n1,boss\n2,ann\n3,\"o'neil, jr\"\n4,dan\n"
+                            + "5,\"o'neil, \"\"jr\"\"\nthe 2nd\"\n6,---null---\n-----\n"
+                            + "default\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,4\n14,5\n-----\n");
         }
+    }
+
+    /** A view in the query's tree (B2d.3, upstream's orderPnlView shape: a filter, distinct, a column through two
+     *  joins), as upstream's interpreted generator fetches it: its main table's rows by their identifiers, its own join
+     *  web, then its own fetch -- the view's relation over those clauses, one more fetch text -- whose rows the query's
+     *  joins from the view start from; the text writes the tables only. */
+    private static final String VIEW_MODEL = """
+            ###Relational
+            Database t::DB
+            (
+              Table ORDERS (ID INTEGER PRIMARY KEY, ACCOUNTID INTEGER)
+              Table PNL (ORDER_ID INTEGER PRIMARY KEY, PNL DOUBLE)
+              Table ACCOUNT (ID INTEGER PRIMARY KEY, NAME VARCHAR(40))
+              Join Pnl_Order(PNL.ORDER_ID = ORDERS.ID)
+              Join Order_Account(ORDERS.ACCOUNTID = ACCOUNT.ID)
+              Join PnlView_Order(PNLVIEW.ORDER_ID = ORDERS.ID)
+              Filter NonNegative(PNL.PNL > 0)
+              View PNLVIEW
+              (
+                ~filter NonNegative
+                ~distinct
+                ORDER_ID: PNL.ORDER_ID PRIMARY KEY,
+                pnl: PNL.PNL,
+                accountName: @Pnl_Order > @Order_Account | ACCOUNT.NAME
+              )
+            )
+            ###Pure
+            Class t::OrderPnl { pnl: Float[1]; accountName: String[0..1]; order: t::Order[0..1]; }
+            Class t::Order { id: Integer[1]; pnl: t::OrderPnl[0..1]; }
+            ###Mapping
+            Mapping t::M
+            (
+              t::OrderPnl: Relational { ~mainTable [t::DB]PNLVIEW pnl: [t::DB]PNLVIEW.pnl,
+                accountName: [t::DB]PNLVIEW.accountName, order: [t::DB]@PnlView_Order }
+              t::Order: Relational { ~mainTable [t::DB]ORDERS id: [t::DB]ORDERS.ID, pnl: [t::DB]@PnlView_Order }
+            )
+            """;
+
+    private static final String VIEW_CSV = "default\nORDERS\nID,ACCOUNTID\n1,10\n2,20\n3,10\n4,20\n-----\n"
+            + "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,200.0\n3,-5.0\n4,150.0\n-----\n"
+            + "default\nACCOUNT\nID,NAME\n10,acme\n20,zeta\n";
+
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aViewIsFetchedAsUpstreamFetchesIt(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel(viewModel(type));
+        List<TestDataGenerator.TableRowIds> pnl123 = List.of(ids("PNL", "ORDER_ID", 1L, 2L, 3L));
+        String tables = "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,200.0\n3,-5.0\n-----\n"
+                + "default\nORDERS\nACCOUNTID,ID\n10,1\n10,3\n20,2\n-----\n"
+                + "default\nACCOUNT\nID,NAME\n10,acme\n20,zeta\n-----\n";
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls(VIEW_CSV, "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            // the view as the root: its main table by its identifiers (a row its filter drops included: the main
+            // table's fetch is by identifier), its join web, its own fetch -- 4 fetch texts, the tables only written
+            assertSame(c, ctx, VIEW_MODEL, dialect, "|t::OrderPnl.all()->project([o|$o.pnl], ['p'])", pnl123, 4,
+                    tables);
+            // the query's join from the view starts from the view's own rows: order 3's pnl is negative, so the view
+            // drops it and the query's ORDERS fetch reads orders 1 and 2 (their rows already fetched by the web)
+            assertSame(c, ctx, VIEW_MODEL, dialect,
+                    "|t::OrderPnl.all()->project([o|$o.pnl, o|$o.order.id], ['p', 'o'])", pnl123, 5, tables);
+            // a child view: its main table's given identifiers start its tree, whatever the parent's rows (TDG:429)
+            assertSame(c, ctx, VIEW_MODEL, dialect, "|t::Order.all()->project([o|$o.id, o|$o.pnl.pnl], ['i', 'p'])",
+                    List.of(ids("ORDERS", "ID", 4L), ids("PNL", "ORDER_ID", 1L)), 5,
+                    "default\nORDERS\nACCOUNTID,ID\n10,1\n20,4\n-----\n"
+                            + "default\nPNL\nORDER_ID,PNL\n1,100.0\n-----\n"
+                            + "default\nACCOUNT\nID,NAME\n10,acme\n-----\n");
+        }
+    }
+
+    /** A view over a table whose columns are declared in lower case (the B checkpoint's G4, 2026-11-12): the view's
+     *  own fetch reads its table from the generator's clause under the declared names, as the reload's slice labels
+     *  them, so its re-stamped reads meet their labels on every database -- under the fetch's upper-cased labels H2
+     *  answers "Column not found". */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aViewOverLowerCaseColumnsReadsItsClauseByTheirNames(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = """
+                ###Relational
+                Database t::DB
+                (
+                  Table PNL (order_id INTEGER PRIMARY KEY, pnl DOUBLE)
+                  Filter NonNegative(PNL.pnl > 0)
+                  View PNLVIEW ( ~filter NonNegative order_id: PNL.order_id PRIMARY KEY, pnl: PNL.pnl )
+                )
+                ###Pure
+                Class t::OrderPnl { pnl: Float[1]; }
+                ###Mapping
+                Mapping t::M ( t::OrderPnl: Relational { ~mainTable [t::DB]PNLVIEW pnl: [t::DB]PNLVIEW.pnl } )
+                ###Connection
+                RelationalDatabaseConnection t::C { store: t::DB; %s }
+                ###Runtime
+                Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }
+                """.formatted(com.legend.testbackend.TestBackends.of(type).connectionBody());
+        ModelContext ctx = Compiler.compileModel(model);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls("default\nPNL\norder_id,pnl\n1,100.0\n2,-5.0\n", "t::DB", ctx,
+                        dialect)) {
+                    s.execute(sql);
+                }
+            }
+            assertSame(c, ctx, model, dialect, "|t::OrderPnl.all()->project([o|$o.pnl], ['p'])",
+                    List.of(ids("PNL", "order_id", 1L, 2L)), 2, "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,-5.0\n-----\n");
+        }
+    }
+
+    /** The census ({@code getRelationalCSVDataFromQuery}, B2d.3) is a model fact: per table reached, its primary key,
+     *  then the columns read of it (a value, both sides of a join), each sorted by name; the tables by schema and
+     *  name. Upstream's order, no database. */
+    @org.junit.jupiter.api.Test
+    void theCensusIsAModelFact() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        List<TestDataCensus.Table> census = TestDataCensus.of(ctx,
+                query("|t::Person.all()->project([p|$p.name, p|$p.bicycles.id], ['n', 'b'])"), "t::M");
+        assertEquals(List.of(new TestDataCensus.Table("default", "BICYCLE", List.of("ID", "PERSONID")),
+                new TestDataCensus.Table("default", "PERSON", List.of("ID", "NAME"))), census);
+    }
+
+    /** The reload's tables by schema (the B checkpoint audit's G2, 2026-11-11): a database's flat table list holds a
+     *  named schema's tables too, by their bare name, so the reload read them twice -- two schemas' tables of one name,
+     *  or a default table beside a schema's of its name, refused as "declared twice"; a schema's lone table read as a
+     *  phantom default one. Upstream reloads each table where its schema declares it. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theReloadReadsEachTableInItsSchema(DatabaseType type) {
+        String store = """
+                ###Relational
+                Database t::DB
+                (
+                  Table T (ID INTEGER PRIMARY KEY, N INTEGER)
+                  Schema S1 ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) )
+                  Schema S2 ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) )
+                )
+                Database t::Other ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) )
+                Database t::One ( Schema S ( Table T (ID INTEGER PRIMARY KEY, N INTEGER) ) )
+                ###Pure
+                Class t::X { id: Integer[1]; n: Integer[0..1]; }
+                ###Mapping
+                Mapping t::M ( t::X: Relational { ~mainTable [t::DB]S1.T id: [t::DB]S1.T.ID, n: [t::DB]S1.T.N } )
+                """;
+        ModelContext ctx = Compiler.compileModel(store);
+        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query("|t::X.all()->project([x|$x.n], ['n'])"),
+                "t::M", List.of(new TestDataGenerator.TableRowIds("S1", "T", List.of(
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))), null, false, PlannerViews.of(ctx));
+        // two schemas' T and the default T: each its own table, none refused as declared twice
+        assertEquals(java.util.Set.of("T", "S1.T", "S2.T"), TestDataPlanner.slice(planned, ctx, "t::DB").keySet());
+        assertEquals(java.util.Set.of("t::DB|T", "t::DB|S1.T", "t::DB|S2.T"), TestDataPlanner.reads(ctx, "t::DB"));
+        // a schema's lone T is no default T: the reload reads S.T alone, so another database's default T is not
+        // taken for one it replaces
+        assertEquals(java.util.Set.of("t::One|S.T"), TestDataPlanner.reads(ctx, "t::One"));
+    }
+
+    /** The reload's rows as upstream's table holds them (the B checkpoint audit's G4, 2026-11-11; built 2026-11-12): the slice's rows are
+     *  its fetches' distinct rows, each empty or ---null--- text cell then NULL -- upstream inserts each row, so a
+     *  keyless table's ('', 1) and (NULL, 1) are two rows, not one. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel("""
+                ###Relational
+                Database t::DB ( Table K (NAME VARCHAR(10), N INTEGER) )
+                ###Pure
+                Class t::K { name: String[0..1]; n: Integer[0..1]; }
+                ###Mapping
+                Mapping t::M ( t::K: Relational { ~mainTable [t::DB]K name: [t::DB]K.NAME, n: [t::DB]K.N } )
+                """);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                // the table and its NULL row through the test-data reader; the empty text, which the reader reads as
+                // NULL, written as it is
+                for (String sql : CsvSeed.sqls("default\nK\nNAME,N\n---null---,1\n", "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+                s.execute("INSERT INTO K VALUES ('', 1)");
+            }
+            TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx,
+                    query("|t::K.all()->project([k|$k.name, k|$k.n], ['a', 'b'])"), "t::M",
+                    List.of(new TestDataGenerator.TableRowIds("default", "K", List.of(
+                            new TestDataGenerator.RowId(List.of("N"), List.of(1L))))), null, false, PlannerViews.of(ctx));
+            com.legend.sql.SqlQuery k = TestDataPlanner.slice(planned, ctx, "t::DB").get("K");
+            int rows = 0;
+            try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(k))) {
+                while (r.next()) {
+                    rows++;
+                }
+            }
+            assertEquals(2, rows, dialect.render(k));
+        }
+    }
+
+    /** The seed (B2d.3): the starting table's keys carried through the query, distinct, sorted by key, and -- the user's
+     *  ruling R2, register S198 -- all of them where there are 10 or fewer, else the 10 at rows 1 + floor(i*(n-1)/9):
+     *  the first, the last and 8 evenly between; the seed string writes them as upstream's Pure code, a text key's
+     *  quote, backslash and line feed escaped as toRepresentation escapes them. */
+    private static final String SEED_MODEL = """
+            ###Relational
+            Database t::DB
+            (
+              Table KEYS (ID INTEGER PRIMARY KEY, NAME VARCHAR(40))
+              Table CODES (CODE VARCHAR(20) PRIMARY KEY, N INTEGER)
+            )
+            ###Pure
+            Class t::K { id: Integer[1]; name: String[0..1]; }
+            Class t::C { code: String[1]; n: Integer[0..1]; }
+            ###Mapping
+            Mapping t::M
+            (
+              t::K: Relational { ~mainTable [t::DB]KEYS id: [t::DB]KEYS.ID, name: [t::DB]KEYS.NAME }
+              t::C: Relational { ~mainTable [t::DB]CODES code: [t::DB]CODES.CODE, n: [t::DB]CODES.N }
+            )
+            """;
+
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theSeedSpreadsItsTenKeys(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = SEED_MODEL + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "
+                + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
+                + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+        ModelContext ctx = Compiler.compileModel(model);
+        StringBuilder csv = new StringBuilder("default\nKEYS\nID,NAME\n");
+        for (int i = 25; i >= 1; i--) {
+            csv.append(i).append(",k").append(i).append('\n');
+        }
+        csv.append("-----\ndefault\nCODES\nCODE,N\n\"a'b\",1\n\"c\\d\",2\n\"e\nf\",3\n");
+        TestDataPlanner.Queries queries = PlannerViews.queries(ctx, "t::M", "t::RT");
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls(csv.toString(), "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            // 25 keys: the 10 at rows 1, 3, 6, 9, 11, 14, 17, 19, 22, 25 of the sorted keys
+            assertEquals(List.of(1L, 3L, 6L, 9L, 11L, 14L, 17L, 19L, 22L, 25L), keys(c, dialect, TestDataPlanner.seed(
+                    ctx, query("|t::K.all()->project([k|$k.name], ['n'])"), "t::M", false, queries)));
+            // the keys the query reaches, not the table's: 13 of them, over 10, spread from 13 to 25
+            assertEquals(List.of(13L, 14L, 15L, 17L, 18L, 19L, 21L, 22L, 23L, 25L), keys(c, dialect,
+                    TestDataPlanner.seed(ctx, query("|t::K.all()->filter(k|$k.id > 12)->project([k|$k.name], ['n'])"),
+                            "t::M", false, queries)));
+            // 10 or fewer: all of them, as the seed string writes them
+            TestDataPlanner.Seed three = TestDataPlanner.seed(ctx,
+                    query("|t::K.all()->filter(k|$k.id <= 3)->project([k|$k.name], ['n'])"), "t::M", false, queries);
+            assertEquals("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'KEYS', [\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['ID'], [1]),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['ID'], [2]),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['ID'], [3])\n  ])\n",
+                    text(c, dialect, TestDataPlanner.seedString(ctx, three)));
+            // a text key: quoted, its quote, backslash and line feed escaped (Pure's toRepresentation)
+            TestDataPlanner.Seed codes = TestDataPlanner.seed(ctx, query("|t::C.all()->project([x|$x.n], ['n'])"),
+                    "t::M", false, queries);
+            assertEquals("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'CODES', [\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['a\\'b']),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['c\\\\d']),\n"
+                    + "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['e\\nf'])\n  ])\n",
+                    text(c, dialect, TestDataPlanner.seedString(ctx, codes)));
+            // the seed route's answer (B2d.3e): upstream's JSON, the database's, by key
+            String table = "{\"table\":{\"_type\":\"table\",\"table\":\"%s\",\"schema\":\"default\",\"database\":"
+                    + "\"t::DB\"},\"rowIdentifiers\":[";
+            assertEquals(table.formatted("KEYS") + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":2}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]}]}",
+                    text(c, dialect, TestDataPlanner.seedJson(ctx, three)));
+            assertEquals(table.formatted("CODES") + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a'b\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"c\\\\d\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"e\\nf\"}]}]}",
+                    text(c, dialect, TestDataPlanner.seedJson(ctx, codes)));
+            // no key: an empty list
+            assertEquals(table.formatted("KEYS") + "]}", text(c, dialect, TestDataPlanner.seedJson(ctx,
+                    TestDataPlanner.seed(ctx, query("|t::K.all()->filter(k|$k.id > 99)->project([k|$k.name], ['n'])"),
+                            "t::M", false, queries))));
+        }
+    }
+
+    /** The seed's keys, as the database answers its rows statement. */
+    private static List<Long> keys(Connection c, SqlDialect dialect, TestDataPlanner.Seed seed) throws Exception {
+        List<Long> out = new java.util.ArrayList<>();
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(seed.rows()))) {
+            while (r.next()) {
+                out.add(r.getLong(1));
+            }
+        }
+        return out;
+    }
+
+    /** A one-cell statement's text. */
+    private static String text(Connection c, SqlDialect dialect, com.legend.sql.SqlQuery q) throws Exception {
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(q))) {
+            assertTrue(r.next());
+            return r.getString(1);
+        }
+    }
+
+    /** No identifiers for a starting table -- the root, a view's main table: upstream's error, its example's keys not
+     *  read (the user's ruling R3, 2026-11-11; register S300). */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void noStartingRowsIsUpstreamsError(DatabaseType type) {
+        ModelContext ctx = Compiler.compileModel(viewModel(type));
+        com.legend.error.AssertFailed root = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+                        query("|t::Order.all()->project([o|$o.id], ['i'])"), "t::M", List.of(), null, false,
+                        PlannerViews.of(ctx, "t::RT", Databases.dialect(type))));
+        assertEquals("Row Identifers should be provided for the root table: t::DB.ORDERS [ID:INT]\nExample:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'ORDERS', [\n\n"
+                + "  ])\n", root.getMessage());
+        com.legend.error.AssertFailed view = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+                        query("|t::Order.all()->project([o|$o.pnl.pnl], ['p'])"), "t::M",
+                        List.of(ids("ORDERS", "ID", 1L)), null, false, PlannerViews.of(ctx, "t::RT", Databases.dialect(type))));
+        assertEquals("Row Identifers should be provided for the root table of the view (PNLVIEW): t::DB.PNL"
+                + " [ORDER_ID:INT]\nExample:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'PNL', [\n\n"
+                + "  ])\n", view.getMessage());
+    }
+
+    /** A column resolved by its exact name, as upstream resolves one (the orchestrator's go, 2026-11-12: no case
+     *  leniency): a row identifier's column spelled in another case names no column (upstream's plan form filters the
+     *  table's columns by {@code $x.name == $cv.first}), refused by name -- until then lite matched it in any case. */
+    @org.junit.jupiter.api.Test
+    void aColumnIsResolvedByItsExactName() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> TestDataPlanner.plan(ctx,
+                        query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
+                        List.of(ids("PERSON", "id", 2L)), null, false, PlannerViews.of(ctx)));
+        assertEquals("testDataGen: column 'id' not on table 'PERSON'", e.getMessage());
+    }
+
+    /** {@link #VIEW_MODEL} with a runtime on {@code type}'s in-memory database: a view's fetch plans on it. */
+    private static String viewModel(DatabaseType type) {
+        return VIEW_MODEL + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "
+                + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
+                + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+    }
+
+    private static TestDataGenerator.TableRowIds ids(String table, String column, Long... values) {
+        List<TestDataGenerator.RowId> rows = new java.util.ArrayList<>();
+        for (Long v : values) {
+            rows.add(new TestDataGenerator.RowId(List.of(column), List.of(v)));
+        }
+        return new TestDataGenerator.TableRowIds("default", table, rows);
+    }
+
+    /** {@link #assertSame(Connection, ModelContext, SqlDialect, String, List, boolean, int, String)} over a model
+     *  of its own, unhashed. */
+    private static void assertSame(Connection c, ModelContext ctx, String model, SqlDialect dialect, String query,
+            List<TestDataGenerator.TableRowIds> ids, int fetches, String expected) throws Exception {
+        assertSame(c, ctx, dialect, query, ids, false, fetches, expected, PlannerViews.of(ctx, "t::RT", dialect));
     }
 
     /** The planned statement's text, run, equals {@code expected}; {@code fetches} fetch texts, each of which runs
      *  read-only; no table made. */
     private static void assertSame(Connection c, ModelContext ctx, SqlDialect dialect, String query,
             List<TestDataGenerator.TableRowIds> ids, boolean hash, int fetches, String expected) throws Exception {
-        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query(query), "t::M", ids, null, hash);
+        assertSame(c, ctx, dialect, query, ids, hash, fetches, expected, PlannerViews.of(ctx));
+    }
+
+    private static void assertSame(Connection c, ModelContext ctx, SqlDialect dialect, String query,
+            List<TestDataGenerator.TableRowIds> ids, boolean hash, int fetches, String expected,
+            TestDataPlanner.Views views) throws Exception {
+        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query(query), "t::M", ids, null, hash, views);
         String sql = dialect.render(planned.csv());
         assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("CREATE"), sql);
         String text;

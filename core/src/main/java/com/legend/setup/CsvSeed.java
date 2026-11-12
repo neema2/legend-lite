@@ -195,19 +195,23 @@ public final class CsvSeed {
     private static void blockSqls(String csv, @com.legend.base.Nullable String dbFqn, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect, List<Step> out) {
         String[] lines = records(csv, false).toArray(String[]::new);
-        while (lines.length > 0 && lines[0].strip().isEmpty()) {
+        while (lines.length > 0 && lines[0].isEmpty()) {
             lines = java.util.Arrays.copyOfRange(lines, 1, lines.length);
         }
         if (lines.length < 3) {
             return;
         }
-        String schema = lines[0].strip();
-        String table = lines[1].strip();
+        // the schema and table lines read as written, as upstream reads them (the user's G7 ruling, register S302)
+        String schema = lines[0];
+        String table = lines[1];
         boolean defaultSchema = "default".equals(schema);
         String[] cols = cells(lines[2]);
         var def = dbFqn == null
                 ? java.util.Optional.<com.legend.model.DatabaseDefinition.TableDefinition>empty()
                 : ctx.findTableDefinition(dbFqn, defaultSchema ? table : schema + "." + table);
+        if (dbFqn != null) {
+            declared(ctx, dbFqn, schema, table, defaultSchema, def.isPresent());
+        }
         if (def.isPresent()) {
             // schema-qualified CSV tables need their schema first (the
             // inline-CSV lane's creation half, FULL_RESIDUE_CENSUS §9a:
@@ -229,7 +233,8 @@ public final class CsvSeed {
             // declares — its setUpDataSQLs reads the metamodel's types)
             out.add(new Step.Schema(Ddl.createTable(def.get(), defaultSchema ? null : schema)));
         } else {
-            // no declaration: the CSV's names are its text, spelled as bare names
+            // no database named: the CSV's names are its text, spelled as bare names (with one named, a schema or table
+            // it does not declare is refused above, as upstream's loader refuses it)
             out.add(new Step.Clear(new com.legend.sql.SqlDml.DeleteAll(defaultSchema ? null : schema, table,
                     com.legend.sql.NameQuoting.BARE)));
         }
@@ -238,19 +243,59 @@ public final class CsvSeed {
         // both H2 (mirror replay) and DuckDB accept multi-row VALUES
         List<String[]> rows = new ArrayList<>();
         for (int i = 3; i < lines.length; i++) {
-            if (!lines[i].strip().isEmpty()) {
+            if (!lines[i].isEmpty()) {
                 rows.add(cells(lines[i]));
             }
         }
-        // a declared table's names as its store declared them (quoted ones keep their case); with no declaration,
-        // the CSV's names spelled as bare names
+        // a declared table's columns as the header names them, matched as upstream's loader matches them, written by
+        // their declared names (quoted ones keep their case); with no declaration, the CSV's names spelled as bare names
+        List<com.legend.model.DatabaseDefinition.ColumnDefinition> named = def.isPresent()
+                ? columnsOf(def.get(), table, String.valueOf(dbFqn), cols) : null;
+        String[] names = named == null ? cols
+                : named.stream().map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toArray(String[]::new);
         RowLoad load = rowLoad(defaultSchema ? null : schema, table,
                 def.map(d -> Ddl.quoting(d, defaultSchema ? null : schema)).orElse(com.legend.sql.NameQuoting.BARE),
-                cols, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows,
-                def.map(d -> types(d, schema, cols)).orElse(List.of()));
+                names, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows,
+                named == null ? List.of() : types(named));
         if (load != null) {
             out.add(new Step.Rows(load));
         }
+    }
+
+    /** A block's schema and table, looked up as upstream's loader looks them up in {@code dbFqn} and its includes
+     *  ({@code loadCsvDataToDbTable}, databaseHelperFunctions.pure): a schema none declares, or a table its schema does
+     *  not declare, refused with upstream's words. */
+    private static void declared(ModelContext ctx, String dbFqn, String schema, String table, boolean defaultSchema,
+            boolean tableDeclared) {
+        if (!defaultSchema && !schemaDeclared(ctx, dbFqn, schema, new java.util.HashSet<>())) {
+            throw new com.legend.error.AssertFailed("There should be exactly 1 schema with name " + schema
+                    + " found in the provided runtime database(s) [" + dbFqn + "] at the given connection.");
+        }
+        if (!tableDeclared) {
+            throw new com.legend.error.AssertFailed("Table \"" + table + "\" not found in Schema \"" + schema
+                    + "\" in Database(s) " + dbFqn);
+        }
+    }
+
+    private static boolean schemaDeclared(ModelContext ctx, String dbFqn, String name, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return false;
+        }
+        com.legend.model.DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return false;
+        }
+        for (com.legend.model.DatabaseDefinition.SchemaDefinition sc : db.schemas()) {
+            if (sc.name().equals(name)) {
+                return true;
+            }
+        }
+        for (String include : db.includes()) {
+            if (schemaDeclared(ctx, include, name, seen)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -265,7 +310,11 @@ public final class CsvSeed {
      * {@code trailing}: whether a trailing empty record is kept ({@code split("\n", -1)}) or dropped
      * ({@code split("\n")}); a text with no quote splits on every line break, as it always did.
      */
-    static List<String> records(String text, boolean trailing) {
+    static List<String> records(String given, boolean trailing) {
+        // a CRLF line ending is a line break (the user's G7 ruling, 2026-11-12, "Def want windows files accepted";
+        // register S302): its '\r' belongs to the line ending, never to a value or a name -- upstream splits on '\n'
+        // alone, so a CRLF text fails at its first block's schema lookup there
+        String text = given.replace("\r\n", "\n");
         List<String> out = new ArrayList<>();
         if (text.indexOf('"') < 0) {
             out.addAll(java.util.Arrays.asList(trailing ? text.split("\n", -1) : text.split("\n")));
@@ -374,18 +423,19 @@ public final class CsvSeed {
                 continue;
             }
             int first = 0;
-            while (first < block.size() && block.get(first).strip().isEmpty()) {
+            while (first < block.size() && block.get(first).isEmpty()) {
                 first++;
             }
             List<String> lines = block.subList(first, block.size());
             if (lines.size() >= 3) {
                 List<List<String>> rows = new ArrayList<>();
                 for (String r : lines.subList(3, lines.size())) {
-                    if (!r.strip().isEmpty()) {
+                    if (!r.isEmpty()) {
                         rows.add(List.of(cells(r)));
                     }
                 }
-                out.add(new Block(lines.get(0).strip(), lines.get(1).strip(), List.of(cells(lines.get(2))), rows));
+                // the schema and table lines as written (register S302)
+                out.add(new Block(lines.get(0), lines.get(1), List.of(cells(lines.get(2))), rows));
             }
             block = new ArrayList<>();
         }
@@ -466,7 +516,9 @@ public final class CsvSeed {
         for (String[] vals : rows) {
             List<String> row = new ArrayList<>(cols.length);
             for (int c = 0; c < cols.length; c++) {
-                String tok = c < vals.length ? vals[c].strip() : "";
+                // a cell as written: its spaces kept, as upstream loads it (register S302); an empty or ---null---
+                // cell NULL (convertValuesToCsv)
+                String tok = c < vals.length ? vals[c] : "";
                 row.add(tok.isEmpty() || tok.equals("---null---") ? null : tok);
             }
             out.add(row);
@@ -474,27 +526,44 @@ public final class CsvSeed {
         return new RowLoad(schema, table, quoting, names, quoted, cols.length, out, types);
     }
 
-    /** The declared type of each of the CSV's columns {@code cols} in {@code def}, in the CSV's order: a column the
-     *  store declared quoted matched by its exact name, any other by its name in any case (the database folds it). A
-     *  column the table does not declare is refused by name: its rows would be a guess. */
-    static List<com.legend.sql.SqlDdl.ColumnType> types(com.legend.model.DatabaseDefinition.TableDefinition def,
-            String schema, String[] cols) {
-        List<com.legend.sql.SqlDdl.ColumnType> out = new ArrayList<>(cols.length);
+    /** The column of {@code def} each of the CSV's header cells {@code cols} names, in the CSV's order, matched as
+     *  upstream's loader matches it ({@code loadCsvDataToDbTable}: the header trimmed, both names' matching quotes
+     *  stripped, any case, the first column that matches): a header no column matches refused with upstream's words.
+     *  The header is the user's text naming a declared column, which upstream resolves so, so lite does (the
+     *  orchestrator's go, 2026-11-12: exactness, no ruling needed). */
+    static List<com.legend.model.DatabaseDefinition.ColumnDefinition> columnsOf(
+            com.legend.model.DatabaseDefinition.TableDefinition def, String table, String dbFqn, String[] cols) {
+        List<com.legend.model.DatabaseDefinition.ColumnDefinition> out = new ArrayList<>(cols.length);
         for (String c : cols) {
-            String name = c.strip();
+            String name = stripMatchingQuotes(c.strip());
             com.legend.model.DatabaseDefinition.ColumnDefinition found = null;
             for (var col : def.columns()) {
-                if (col.quoted() ? col.name().equals(name) : col.name().equalsIgnoreCase(name)) {
+                if (stripMatchingQuotes(col.name()).equalsIgnoreCase(name)) {
                     found = col;
                     break;
                 }
             }
             if (found == null) {
-                throw new com.legend.error.DataError("the data for the table " + ("default".equals(schema) ? ""
-                        : schema + ".") + def.name() + " names the column " + name + ", which the table does not"
-                        + " declare");
+                throw new com.legend.error.AssertFailed("Column \"" + c + "\" not found in Table \"" + table
+                        + "\" in Database(s) " + dbFqn);
             }
-            out.add(com.legend.compiler.element.StoreCompiler.declaredType(found.dataType()));
+            out.add(found);
+        }
+        return out;
+    }
+
+    /** {@code name} without its enclosing double quotes, where it has both (upstream's {@code stripMatchingQuotes}). */
+    private static String stripMatchingQuotes(String name) {
+        return name.length() > 1 && name.startsWith("\"") && name.endsWith("\"")
+                ? name.substring(1, name.length() - 1) : name;
+    }
+
+    /** The declared type of each of {@code columns}, in order. */
+    static List<com.legend.sql.SqlDdl.ColumnType> types(
+            List<com.legend.model.DatabaseDefinition.ColumnDefinition> columns) {
+        List<com.legend.sql.SqlDdl.ColumnType> out = new ArrayList<>(columns.size());
+        for (var col : columns) {
+            out.add(com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
         }
         return out;
     }

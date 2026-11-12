@@ -75,11 +75,11 @@ class ReservedNamesGenerationTest {
             List<TestDataGenerator.TableRowIds> one = List.of(new TestDataGenerator.TableRowIds("default", "order",
                     List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L)))));
             assertEquals("default\norder\nID,NAME\n1,a\n-----\n", text(c, dialect, TestDataPlanner.plan(ctx,
-                    query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M", one, null, false)), type.name());
+                    query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M", one, null, false, PlannerViews.of(ctx))), type.name());
             List<TestDataGenerator.TableRowIds> seven = List.of(new TestDataGenerator.TableRowIds("select", "T",
                     List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L)))));
             assertEquals("select\nT\nID\n7\n-----\n", text(c, dialect, TestDataPlanner.plan(ctx,
-                    query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M", seven, null, false)), type.name());
+                    query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M", seven, null, false, PlannerViews.of(ctx))), type.name());
         }
     }
 

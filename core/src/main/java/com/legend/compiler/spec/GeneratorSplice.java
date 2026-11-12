@@ -103,6 +103,42 @@ public final class GeneratorSplice {
         SqlQuery csv();
     }
 
+    /** {@code source} read over a slice: each table it reads by a typed reference whose identity is one of
+     *  {@code reads} ({@code store|physical name}) read from {@code tables} instead (the generator's view fetch, B2d.3:
+     *  a view's relation over the clauses that fetched its tables, as the reload reads a slice). */
+    public static TypedSpec overSlice(TypedSpec source, java.util.Set<String> reads, Map<String, SqlQuery> tables) {
+        return new com.legend.compiler.spec.typed.TypedTableSwap(source, reads, tables, source.info());
+    }
+
+    /** A value the database answers: {@code statement}'s one cell, typed {@code info} (a seed string's text, B2d.3c),
+     *  minted here (only the compiler layers mint typed nodes, invariant 7). */
+    public static TypedSpec plannedValue(SqlQuery statement, ExprType info) {
+        return new TypedPlannedValue(statement, info);
+    }
+
+    /** The test-data census's instance (B2d.3b, 2026-11-12): a {@code RelationalCSVData} literal whose {@code tables}
+     *  are {@code tables}, each {@code [schema, table, values]} -- a planning constant the census computed from the
+     *  model, typed here (only the compiler layers mint typed nodes, invariant 7). */
+    public static TypedSpec relationalCsvData(List<List<String>> tables) {
+        String data = "meta::relational::metamodel::data::RelationalCSVData";
+        String table = "meta::relational::metamodel::data::RelationalCSVTable";
+        ExprType string = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
+        List<TypedSpec> rows = new ArrayList<>(tables.size());
+        for (List<String> t : tables) {
+            Map<String, TypedSpec> ps = new java.util.LinkedHashMap<>();
+            ps.put("schema", new TypedCString(t.get(0), string));
+            ps.put("table", new TypedCString(t.get(1), string));
+            ps.put("values", new TypedCString(t.get(2), string));
+            rows.add(new com.legend.compiler.spec.typed.TypedNewInstance(table, ps,
+                    new ExprType(new Type.ClassType(table), Multiplicity.Bounded.ONE)));
+        }
+        Map<String, TypedSpec> ps = new java.util.LinkedHashMap<>();
+        ps.put("tables", new TypedCollection(rows, new ExprType(new Type.ClassType(table),
+                new Multiplicity.Bounded(rows.size(), rows.size()))));
+        return new com.legend.compiler.spec.typed.TypedNewInstance(data, ps,
+                new ExprType(new Type.ClassType(data), Multiplicity.Bounded.ONE));
+    }
+
     /** Whether {@code body} holds a generator this splice plans ({@code generateTestData}). */
     public static boolean holdsAGenerator(List<TypedSpec> body) {
         for (TypedSpec s : body) {

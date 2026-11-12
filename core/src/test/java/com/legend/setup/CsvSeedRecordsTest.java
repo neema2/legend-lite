@@ -16,6 +16,21 @@ import org.junit.jupiter.api.Test;
  */
 class CsvSeedRecordsTest {
 
+    /** The user's G7 ruling (2026-11-12, "Def want windows files accepted"; register S302): a text's values exactly as
+     *  written -- the schema and table lines verbatim, a padded cell's spaces kept -- and a CRLF line ending a line
+     *  break, the '\r' never part of a value or a name, in a quoted cell too; a lone '\r' a character. */
+    @Test
+    void aBlockIsReadAsWrittenACrlfALineBreak() {
+        String lf = "default\nK\nID,NAME\n1, ann \n2,\"two\nlines\"\n-----\nS\nT\nID\n7\n";
+        assertEquals(CsvSeed.blocks(lf), CsvSeed.blocks(lf.replace("\n", "\r\n")));
+        List<CsvSeed.Block> blocks = CsvSeed.blocks(lf);
+        assertEquals(new CsvSeed.Block("default", "K", List.of("ID", "NAME"),
+                List.of(List.of("1", " ann "), List.of("2", "two\nlines"))), blocks.get(0));
+        assertEquals(" default", CsvSeed.blocks(" default\nK\nID\n1\n").get(0).schema());
+        assertEquals("K ", CsvSeed.blocks("default\nK \nID\n1\n").get(0).table());
+        assertEquals(List.of(List.of("1", "a\rb")), CsvSeed.blocks("default\nK\nID,NAME\n1,a\rb\n").get(0).rows());
+    }
+
     @Test
     void aQuoteInsideACellIsACharacter() {
         // 5'11": the quote does not start the cell, so it opens nothing (the old reader toggled on it and joined the

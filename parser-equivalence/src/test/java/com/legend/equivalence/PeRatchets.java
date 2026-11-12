@@ -51,7 +51,15 @@ public final class PeRatchets {
                     + " remote mount's and host file's tests)",
             "own_corpus.matched 3137 -> 3140 (2026-11-11, the B checkpoint's audit fixes on claude/total-wall: M1, C1/C9,"
                     + " C3, LOW 8): their tests' models (a Databricks runtime with a declared parameter, the catalog's"
-                    + " staged reads, the text plan's catalog read)");
+                    + " staged reads, the text plan's catalog read)",
+            "own_corpus.matched 3140 -> 3159 (2026-11-12, B2d.3a-e on claude/total-wall-b2d3): the generator's slices'"
+                    + " tests' models (TestDataPlannerTest's view, seed, schema and reload models, TestDataRoutesTest's"
+                    + " store, mapping and runtime)",
+            "own_corpus.matched 3159 -> 3163 (2026-11-12, the B checkpoint's G4 and the routes' parameters on"
+                    + " claude/total-wall-b2d3): their tests' models (TestDataPlannerTest's keyless table and lower-case"
+                    + " view, GeneratedTestDataProgramTest's lower-case table, TestDataRoutesTest's parameterised query)",
+            "own_corpus.matched 3163 -> 3164 (2026-11-12, G7 built as ruled, S302, on claude/total-wall-b2d3):"
+                    + " TestDataTextAsWrittenTest's store");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

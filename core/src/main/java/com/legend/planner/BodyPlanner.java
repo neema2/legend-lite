@@ -484,24 +484,24 @@ public final class BodyPlanner {
         return new Bare(lowerAndPrepare(p.body(), p.env(), p.env().ctx(), p.env().writtenIn(), true), p.root());
     }
 
-    /** The test-data generator's VIEW fetch SQL: the view's lifted function (E.5, reached through the include closure
-     *  like a table) as the compiler's relation -- the same node a user's accessor inlines to -- planned like any
-     *  query with no session (the resolver materializes its joins), the fetched base tables renamed to their
-     *  temporary tables (the replaceTables pass, the engine's {@code fixTables}), rendered in the lane's own dialect
-     *  (the text runs on this connection). The generator's package never reaches the lowering: the driver hands it
-     *  this (the seam program's S2j, 2026-10-31: planned here; the body driver's {@code planBare} until then). */
-    public static String viewSql(String db, String view, Map<String, String> tableToTemp,
+    /** The test-data generator's VIEW fetch (B2d.3 of the total-wall program, 2026-11-11; the design's §2.3): the view's
+     *  lifted function (E.5, reached through the include closure like a table) as the compiler's relation -- the same
+     *  node a user's read of the view inlines to -- each table it reads, by physical name, read from {@code tables}
+     *  (the generator's clause that fetched it) for each identity of {@code reads}: the reload's swap
+     *  ({@link com.legend.compiler.spec.typed.TypedTableSwap}, upstream's {@code fixTables} over its temporary tables),
+     *  planned like any query with no session. Planning only: the statement is the generator's to send. */
+    public static SqlQuery viewFetch(String db, String view, java.util.Set<String> reads, Map<String, SqlQuery> tables,
             SpecCompiler specs, PlanEnv env) {
         TypedFunction fn = env.ctx().findViewFunction(db, view)
                 .orElseThrow(() -> new NotImplementedException(
                         "testDataGen: view '" + view + "' is not a view of '" + db + "'"));
-        Bare b = bare(specs.viewRelation(fn), List.of(), specs, env);
+        TypedSpec relation = specs.viewRelation(fn);
+        Bare b = bare(com.legend.compiler.spec.GeneratorSplice.overSlice(relation, reads, tables), List.of(), specs,
+                env);
         if (b == null) {
             throw new NotImplementedException(
                     "testDataGen: view '" + view + "' planned to a host answer, not a query");
         }
-        SqlQuery plan = SqlPostProcessors.apply(
-                b.plan(), t -> tableToTemp.getOrDefault(t, t));
-        return env.writtenIn().render(plan);
+        return b.plan();
     }
 }

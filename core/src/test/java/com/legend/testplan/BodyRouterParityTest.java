@@ -1225,12 +1225,12 @@ class BodyRouterParityTest {
                 + " assertEquals(1, $d.tables->size()); assertEquals('FIRM', $d.tables->at(0).table);}";
         assertFalse(BodyClass.systemRouted(typed(ctx, censusBody), "x::RT"), "a binding consumed: " + censusBody);
         assertNull(BodyClass.of(typed(ctx, censusBody), "x::RT", true), "the census carrier: no class admits it");
-        // the test-data generator's census carrier was folded in Java by the walk; with the walk deleted (2026-11-06)
-        // the body is refused by name (the census carrier is not planned yet: S143, narrowed by B2d.2 on 2026-11-11, which
-        // plans generateTestData on the test road)
-        assertTrue(run(backend, ctx, "x::RT", censusBody, "select count(*) from FIRM", FIRM_ROWS,
-                com.legend.testplan.PlanningOptions.JudgeMode.HOST).outcome.startsWith(
-                        "NotImplementedException: the program road does not plan this body"), "the census body refused");
+        // the census carrier is a planning constant since B2d.3b (2026-11-12): the test planner replaces it with the
+        // instance it is before the body is classed (GeneratedTestData.withCensus), so the body runs and its asserts
+        // read constants (until then it was refused by name, S143)
+        Run census = run(backend, ctx, "x::RT", censusBody, "select count(*) from FIRM", FIRM_ROWS,
+                com.legend.testplan.PlanningOptions.JudgeMode.HOST);
+        assertEquals("ok", census.outcome, "the census body runs: " + census.outcome);
     }
 
     /** M10b: the ENGINE-TEXT asserts on the program road -- the two texts a verdict step's constant sides, a byte-equal

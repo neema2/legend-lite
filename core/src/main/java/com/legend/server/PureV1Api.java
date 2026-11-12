@@ -166,6 +166,14 @@ public final class PureV1Api {
             case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
             case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
                     ? executeArrow(body, runner, models) : execute(body, runner, models);
+            // the test-data generator's doors (B2d.3e, 2026-11-12): TestDataRoutes
+            case "/api/pure/v1/execution/testDataGeneration/generateSeedData" ->
+                    TestDataRoutes.seedData(body, runner, models);
+            case "/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed" ->
+                    TestDataRoutes.withSeed(body, runner, models);
+            case "/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed" ->
+                    TestDataRoutes.withDefaultSeed(body, runner, models);
+            case "/api/pure/v1/testData/generation/DONOTUSE_generateTestData" -> TestDataRoutes.census(body, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
@@ -190,7 +198,7 @@ public final class PureV1Api {
         return null;
     }
 
-    private static Json.Obj request(String body) {
+    static Json.Obj request(String body) {
         Json.Node n = Json.parse(body, REQUEST);
         if (n instanceof Json.Obj o) {
             return o;
@@ -1150,10 +1158,13 @@ public final class PureV1Api {
      *       dropped connection.</li>
      * </ul>
      */
-    private static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
+    static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
+            if (e instanceof com.legend.testdatagen.TestDataPlanner.Unseeded u) {
+                return TestDataRoutes.unseeded(u);
+            }
             if (refusesTheText(e)) {
                 return error(status, errorType, String.valueOf(e.getMessage()));
             }
