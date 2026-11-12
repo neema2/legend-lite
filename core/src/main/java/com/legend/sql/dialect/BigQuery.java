@@ -880,7 +880,7 @@ public class BigQuery extends AnsiSqlRenderer {
             String type = bqType(p.out().type());
             boolean datetime = type.equals("DATETIME");
             writer.append(datetime ? "CAST(IF(TRUE, " : "IF(TRUE, ");
-            raiseEnvelope(writer, call.args(), "ERROR");
+            raiseEnvelope(writer, raised(call).args(), "ERROR");
             return writer.append(datetime ? ", CAST(NULL AS STRING)) AS DATETIME)" : ", CAST(NULL AS " + type + "))");
         }
         return super.projectionValue(writer, p);

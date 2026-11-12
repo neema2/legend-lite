@@ -2221,7 +2221,7 @@ public class MariaDb extends AnsiSqlRenderer {
 
     private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot) {
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
-            return raise(c.args(), slot != null ? slot : typeOf(c));
+            return raise(raised(c).args(), slot != null ? slot : typeOf(c));
         }
         return w -> w.expr(e, 0);
     }

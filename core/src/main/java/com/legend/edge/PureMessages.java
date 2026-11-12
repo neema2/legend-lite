@@ -23,7 +23,13 @@ public final class PureMessages {
         return switch (r.kind()) {
             // the user's own message, as the product writes it
             case USER_FAIL -> r.operands().get(0);
-            case DIVIDE_BY_ZERO, SHIFT_OUT_OF_RANGE, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, INSERT_OUT_OF_BOUNDS,
+            // rem's and quotient's, the dividend its operand: 'Cannot divide 5 by zero' (legend-pure's
+            // CompiledSupport:1485); Integer / Integer's, no operand: the interpreter's BigDecimal 'Division by zero'
+            // (its NumericAccumulator; the D0 inventory's 1.2)
+            case DIVIDE_BY_ZERO -> r.operands().isEmpty() ? new SqlExpr.StringLit("Division by zero")
+                    : cat(new SqlExpr.StringLit("Cannot divide "), str(r.operands().get(0)),
+                            new SqlExpr.StringLit(" by zero"));
+            case SHIFT_OUT_OF_RANGE, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, INSERT_OUT_OF_BOUNDS,
                  SQRT_OF_NEGATIVE, SIZE_NOT_MULTIPLICITY, SLICE_BOUNDS_INVERTED, DATE_COMPONENT_INVALID, CAST_IMPOSSIBLE,
                  RANGE_STEP_ZERO, CONSTRAINT_UNEVALUABLE, LIST_LENGTHS_DIFFER, MAP_KEYS_MISALIGNED, MAP_KEY_NULL,
                  MAP_KEYS_NOT_UNIQUE, TEXT_NOT_INTEGER, TEXT_NOT_DATE, VALUE_NOT_HELD, FRACTION_NOT_KEPT,

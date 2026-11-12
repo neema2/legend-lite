@@ -1977,7 +1977,7 @@ public class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
         if (p.out() != null && p.expr() instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR) {
-            return writer.piece(raise(call.args(), p.out().type()));
+            return writer.piece(raise(raised(call).args(), p.out().type()));
         }
         return super.projectionValue(writer, p);
     }
@@ -1998,7 +1998,7 @@ public class Snowflake extends AnsiSqlRenderer {
 
     private SqlWriter.Piece branch(SqlExpr value, @com.legend.base.Nullable SqlType slot) {
         return value instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
-                ? raise(call.args(), slot) : w -> w.expr(value, 0);
+                ? raise(raised(call).args(), slot) : w -> w.expr(value, 0);
     }
 
     // ---- format

@@ -80,10 +80,26 @@ class RaiseTextTest {
                 .map(java.lang.reflect.RecordComponent::getName).toList());
     }
 
+    /** The edge writes TODAY's message of each moved family, byte for byte, on every database: its SQL is what the
+     *  product wrote before the move (PCT's assertErrors compare legend-pure's text). */
+    @Test
+    void theEdgeWritesLegendPuresSentence() {
+        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT);
+        SqlExpr before = SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(
+                "Cannot divide "), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR)), new SqlExpr.StringLit(" by zero"));
+        for (DatabaseType type : Databases.implemented()) {
+            assertEquals(text(Databases.dialect(type), select(before)), text(com.legend.edge.PureText.dialect(type),
+                    select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a)))), type + ": rem's");
+            assertEquals(text(Databases.dialect(type), select(new SqlExpr.StringLit("Division by zero"))),
+                    text(com.legend.edge.PureText.dialect(type), select(new SqlExpr.RaiseText(
+                            RaiseKind.DIVIDE_BY_ZERO, List.of()))), type + ": Integer / Integer's");
+        }
+    }
+
     @Test
     void aKindNoSiteRaisesYetIsRefusedAtTheEdge() {
         var refused = assertThrows(UnsupportedOperationException.class, () -> com.legend.edge.PureMessages.sentence(
-                new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of())));
-        assertTrue(refused.getMessage().contains("DIVIDE_BY_ZERO"), refused.getMessage());
+                new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of())));
+        assertTrue(refused.getMessage().contains("CSV_TOO_WIDE"), refused.getMessage());
     }
 }

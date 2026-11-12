@@ -1335,7 +1335,7 @@ public class Postgres extends AnsiSqlRenderer {
         // slot's readers (to_char of a Date slot: "function to_char(character varying, unknown) does not exist",
         // the planner refusing before the raise could; step 9, 2026-10-19)
         if (p.out() != null && p.expr() instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
-            writer.piece(raise(c.args(), p.out().type()));
+            writer.piece(raise(raised(c).args(), p.out().type()));
             String label = p.alias() != null ? aliasIdent(p.alias()) : implicitLabel(p);
             return label == null ? writer : writer.append(" AS ").append(label);
         }
@@ -1864,7 +1864,7 @@ public class Postgres extends AnsiSqlRenderer {
 
     private SqlWriter.Piece branch(SqlExpr value, @com.legend.base.Nullable SqlType slot) {
         return value instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
-                ? raise(call.args(), slot) : w -> w.expr(value, 0);
+                ? raise(raised(call).args(), slot) : w -> w.expr(value, 0);
     }
 
     private static DialectCapability wall(SqlFn fn, String why) {

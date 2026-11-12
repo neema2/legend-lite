@@ -446,10 +446,11 @@ final class Scalars {
                     // remainder's integer)
                     return new SqlExpr.Call(SqlFn.REM, args);
                 }
+                // a zero divisor raises DIVIDE_BY_ZERO, the dividend its operand (legend-pure's sentence, 'Cannot
+                // divide 5 by zero', the edge's: D1.1)
                 return guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
-                        cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)),
-                                new SqlExpr.StringLit(" by zero")),
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
                         new SqlExpr.Call(SqlFn.REM, args));
             });
         }
@@ -2440,10 +2441,10 @@ final class Scalars {
         // an integer quotient cut toward zero: the database's integer division (every dialect's INT_DIVIDE
         // truncates; 2026-10-17, the IQ island's scale)
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_QUOTIENT) {
-            // a zero divisor raises as rem's does ('Cannot divide 5 by zero'): DuckDB's // gives NULL
+            // a zero divisor raises as rem's does (DIVIDE_BY_ZERO, the dividend its operand): DuckDB's // gives NULL
             RULES.put(f, (n, args) -> guarded(
                     SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
-                    cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)), new SqlExpr.StringLit(" by zero")),
+                    new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
                     SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))));
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {

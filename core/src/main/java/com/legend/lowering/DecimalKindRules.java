@@ -53,7 +53,8 @@ final class DecimalKindRules {
                 return Scalars.guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1),
                                 new SqlExpr.IntLit(0)),
-                        new SqlExpr.StringLit("Division by zero"),
+                        // DIVIDE_BY_ZERO, no operand (the interpreter's 'Division by zero', the edge's: D1.1)
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of()),
                         new SqlExpr.Call(SqlFn.DIVIDE, args));
             }
             return new SqlExpr.Call(SqlFn.DIVIDE, args);
