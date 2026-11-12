@@ -612,9 +612,10 @@ and the briefs' "RULED" items.
   - **The execution id minted by the door, no caller ids** (the user: "Does it simplify if we don't let caller IDs?",
     then "Do the exec id as part of C"): `Execution`'s run methods and `TestExecution`'s `runProgram`, `runBody`,
     `runFixture` mint the ids, passed into exec; exec mints nothing (`execMakesNoValueOfItsOwn`); an answer's writer is
-    made for its execution (8ed2114fd, ed7bce10e). Then, as upstream does it (C's final audit, read in 4.145.0,
-    e743dadad): a product run is one id; a test body's plan declares one execution per `execute()`, the door mints one id
-    each (`ExecutionIds`), exec binds each where the plan reads it, and no id is written at planning. S304 amended.
+    made for its execution (8ed2114fd, ed7bce10e). Then, the simple version (the user, C's final audit: "why is exec id
+    hard? can we make it dumber/easier?", then "lets do dumb version"): ONE id per plan run, product and test body alike,
+    every stamp bound to it, no id written at planning; upstream's one-per-`execute()` in an interpreted body is a
+    divergence no test observes (S304).
   - **H2's settings as plan data**: `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` are the target's `settings` (plan
     version 49, test plan 18), written on the URL of a database lite creates and compared by the database on a borrowed
     session, a mismatch refused by name; a database the user declares (a file, a server) is never modified (C's final
