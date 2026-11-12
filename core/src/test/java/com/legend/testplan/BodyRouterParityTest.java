@@ -503,6 +503,32 @@ class BodyRouterParityTest {
     private static final String EXECUTE_CLASS = "meta::pure::router::execute(|x::Firm.all(), x::M, x::RT.runtimeValue,"
             + " [])";
 
+    /**
+     * THE SAME BODY PLANNED TWICE IS THE SAME PLAN, byte for byte (G10, the C checkpoint's follow-up, 2026-11-12):
+     * planning makes no value of its own. Until then an inline execute's activity comment under the database judge's
+     * batch was a UUID minted at planning ({@code ActivityComments}), so each planning of the body wrote another plan.
+     * Under every judge: the host's, the database's and the agreement's.
+     */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aBodyPlannedTwiceIsTheSamePlan(TestBackend backend) {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            for (String body : List.of(
+                    "{| assertSize(" + EXECUTE + ".activities, 1);}",
+                    "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
+                            + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));}",
+                    "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}")) {
+                ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
+                String first = com.legend.testexecutionplan.TestPlanJson.write(
+                        TestExecution.planBody(typed(ctx, body), "x::RT", options));
+                String second = com.legend.testexecutionplan.TestPlanJson.write(
+                        TestExecution.planBody(typed(ctx, body), "x::RT", options));
+                assertEquals(first, second, backend + " " + mode + ": " + body);
+            }
+        }
+    }
+
     /** The frame programs (M9a): {@code let r = execute(...)} read by the asserts after it -- the corpus's idiom --
      *  run both ways: every statement (the frame's eager run under LET, the asserts' sides), the census, the verdicts,
      *  the answer. */

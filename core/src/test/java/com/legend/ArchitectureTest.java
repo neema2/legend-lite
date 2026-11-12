@@ -2065,6 +2065,57 @@ final class ArchitectureTest {
         EXEC_MAKES_NO_VALUE.check(CORE_PROD_CLASSES);
     }
 
+    /** The planning side for {@link #planningMakesNoValueOfItsOwn} (G10): the planning libraries (R4's
+     *  {@link #PLANNING_PACKAGES}) and the records a plan is made of (the MIR, the plan's and the test plan's records,
+     *  the model), each with its subpackages. */
+    private static final String[] VALUE_FREE_PLANNING = java.util.stream.Stream.concat(PLANNING_PACKAGES.stream(),
+            java.util.stream.Stream.of("com.legend.sql", "com.legend.executionplan", "com.legend.testexecutionplan",
+                    "com.legend.model")).map(p -> p + "..").toArray(String[]::new);
+
+    /** PLANNING MAKES NO VALUE OF ITS OWN (the rule of {@link #planningMakesNoValueOfItsOwn}). */
+    static final com.tngtech.archunit.lang.ArchRule PLANNING_MAKES_NO_VALUE = noClasses()
+            .that().resideInAnyPackage(VALUE_FREE_PLANNING)
+            .should().callMethod(java.util.UUID.class, "randomUUID")
+            .orShould().callMethod(Math.class, "random")
+            .orShould().callMethod(StrictMath.class, "random")
+            .orShould().callMethod(System.class, "nanoTime")
+            .orShould().callMethod(System.class, "currentTimeMillis")
+            .orShould().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaMethodCall>("a java.time now()") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    return call.getName().equals("now") && call.getTargetOwner().getPackageName().equals("java.time");
+                }
+            })
+            // SecureRandom and ThreadLocalRandom are Randoms
+            .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
+            .as("planning makes no value of its own: the same model and query plan to the same plan, byte for byte");
+
+    /**
+     * PLANNING MAKES NO VALUE OF ITS OWN (G10 determinism; the C checkpoint's follow-up, 2026-11-12): the same model and
+     * query plan to the same plan, so no planning-side class ({@link #VALUE_FREE_PLANNING}) calls
+     * {@code UUID.randomUUID}, {@code Math.random}, {@code System.nanoTime} or {@code currentTimeMillis}, or a
+     * {@code java.time} {@code now()}, or reaches a {@code Random} -- a value planning would make is a value the plan
+     * would carry. Until then the test planner minted the activity comment of a body's fused statement
+     * ({@code testplan.ActivityComments}), so a body planned twice wrote two plans
+     * ({@code BodyRouterParityTest.aBodyPlannedTwiceIsTheSamePlan}). An execution's id is the run's door's
+     * ({@link #execMakesNoValueOfItsOwn}). {@link #theNoValueRuleBitesAPlantedPlanningClock} shows it bites.
+     */
+    @Test
+    void planningMakesNoValueOfItsOwn() {
+        PLANNING_MAKES_NO_VALUE.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #planningMakesNoValueOfItsOwn} fails on a planning class that mints an id, and on one that reads the
+     *  clock ({@code planner.PlantedPlanningValue}, a test class planted for this alone). */
+    @Test
+    void theNoValueRuleBitesAPlantedPlanningClock() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PLANNING_MAKES_NO_VALUE.check(
+                new ClassFileImporter().importClasses(com.legend.planner.PlantedPlanningValue.class)));
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PLANNING_MAKES_NO_VALUE.check(
+                new ClassFileImporter().importClasses(com.legend.planner.PlantedPlanningValue.Clock.class)));
+    }
+
     /** {@link #execMakesNoValueOfItsOwn} fails on a class of exec's package that mints an id
      *  ({@code exec.PlantedRandomUuid}, a test class planted for this alone). */
     @Test

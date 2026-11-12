@@ -144,9 +144,8 @@ class CodeShapeGuardrailTest {
             // the program's step mark for the reads a callback makes (slice 5: the thread-scoped statement origin made
             // explicit) -- one program's run, set before each callback and restored after it
             "ProgramRunner.stepMark",
-            // the activity comment reserved for a body's fused statement, minted once per body at planning (slice 5:
-            // planning's own, exec's execution trace until then)
-            "ActivityComments.reserved",
+            // (ActivityComments.reserved left 2026-11-12, G10, the C checkpoint's follow-up: the reserved comment is
+            // derived from a fixed name, a constant, never minted at planning)
             // the text collector's origin in force while an arm reads its texts (slice 5: the planning-time statement
             // mark made explicit on the collector the planning environment carries)
             "SqlTextVerdicts.originInForce",
