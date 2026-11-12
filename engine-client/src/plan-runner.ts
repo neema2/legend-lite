@@ -377,7 +377,10 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
     return { plane: step.plane, ...target, rows: counted, receipt };
   } catch (e) {
     // the database's own undo: the table it made in the transaction is gone with it (measured, DuckDB-WASM)
-    await run(step.transaction.rollback).catch(() => {});
+    // a rollback that fails too is said with the failure, never swallowed (G7; the final audit, 2026-11-12)
+    await run(step.transaction.rollback).catch((r: unknown) => {
+      throw new Error(`${e instanceof Error ? e.message : String(e)} -- and rolling its transaction back failed: ${r instanceof Error ? r.message : String(r)}`, { cause: e });
+    });
     throw e;
   }
 }

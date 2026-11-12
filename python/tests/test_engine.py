@@ -1230,6 +1230,8 @@ class WarehouseOnPython(unittest.TestCase):
         self.count, self.expired, self.principal, self.pulls = 3, False, 'rita', 0
         # a stream tampered (the warehouse counts a row more than it sends) or cut short (its read fails after a chunk)
         self.tampered, self.cut = False, False
+        # a count the warehouse answers with no row (G7: never read as no rows to copy)
+        self.uncounted = False
 
         class Reader:
             def __init__(self, session, catalog='main', clock=None):
@@ -1253,7 +1255,8 @@ class WarehouseOnPython(unittest.TestCase):
                     on_receipt({'statementId': 's1', 'serverRows': 4 if outer.tampered else 3, 'as': self.principal,
                                 'where': 'the warehouse at wh'})
                 outer.pulls += 1
-                rows = (pa.table({'n': pa.array([outer.count], pa.int64())}) if sql.startswith('SELECT count(*)')
+                rows = (pa.table({'n': pa.array([] if outer.uncounted else [outer.count], pa.int64())})
+                        if sql.startswith('SELECT count(*)')
                         else pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': pa.array([10, 5, 3], pa.int32())}))
                 sink = pa.BufferOutputStream()
                 with pyarrow.ipc.new_stream(sink, rows.schema) as w:
@@ -1545,6 +1548,15 @@ class WarehouseOnPython(unittest.TestCase):
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual((status, body.decode()), (422, '10,000,001 rows exceeds the 10,000,000 row snap limit. Narrow the '
                                                           'filter, or stay live.'))
+
+    def test_a_count_the_warehouse_did_not_answer_copies_nothing(self):
+        # G7 (the final audit's item 4, 2026-11-12): a count of no row was read as 0 rows -- under the limit, copied on
+        m = self.opened()
+        self.uncounted = True
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
+        self.assertEqual((status, body.decode()), (422, "the snap could not be counted: the warehouse answered 0 row(s), "
+                                                          "not its rows' count"))
+        self.assertEqual(self.pulls, 1, 'the count alone was read: nothing streamed')
 
     def test_an_expired_session_said_as_one(self):
         m = self.opened()
