@@ -80,9 +80,6 @@ public final class NativeFn {
         return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(out));
     }
 
-    /** Every family, by name — THE registration the claim registry reads. A
-     *  new enum in this file that is not listed here is unclaimed, and the
-     *  ledger says so. */
     /** Is the FQN a member of ANY family — a native this platform CLAIMS (the
      * claim registry's own question, asked at compile time: a typed native in no
      * family has no body here and is loud at evaluation). */
@@ -97,13 +94,16 @@ public final class NativeFn {
         return false;
     }
 
+    /** Every family, by name — THE registration the claim registry reads. A
+     *  new enum in this file that is not listed here is unclaimed, and the
+     *  ledger says so. Each family once (2026-11-12, the owner's ruling on
+     *  slice 1b's report: RowGetter was put twice, the second put a no-op). */
     public static Map<String, List<? extends Member>> families() {
         Map<String, List<? extends Member>> out = new LinkedHashMap<>();
         out.put("Calendar", List.of(Calendar.values()));
         out.put("Verdict", List.of(Verdict.values()));
         out.put("RowGetter", List.of(RowGetter.values()));
         out.put("Frame", List.of(Frame.values()));
-        out.put("RowGetter", List.of(RowGetter.values()));
         out.put("LowererForm", List.of(LowererForm.values()));
         out.put("LiteralForm", List.of(LiteralForm.values()));
         out.put("ContextOption", List.of(ContextOption.values()));
