@@ -782,16 +782,18 @@ public final class NativeFn {
         private final @com.legend.base.Nullable String implementedDerived;
 
         JavaRoutine(String fqn, NativeFunctionDefinition... overloads) {
-            this(fqn, null, overloads);
+            this(fqn, null, null, overloads);
         }
 
-        JavaRoutine(String fqn, @com.legend.base.Nullable String derivedOwner,
-                NativeFunctionDefinition... overloads) {
-            this(fqn, derivedOwner, null, overloads);
-        }
-
+        /** THE INVARIANT (2026-11-12, the owner's ruling on slice 1b's report): the implemented class member is an
+         *  owner AND a property, given together or not at all. A constructor that took an owner alone (no member
+         *  used it) set neither field, dropping the owner silently; it is gone, and a half-given member is refused. */
         JavaRoutine(String fqn, @com.legend.base.Nullable String derivedOwner,
                 @com.legend.base.Nullable String derivedProperty, NativeFunctionDefinition... overloads) {
+            if ((derivedOwner == null) != (derivedProperty == null)) {
+                throw new IllegalArgumentException(fqn + ": a routine implements a class member by its owner and its"
+                        + " property together (owner " + derivedOwner + ", property " + derivedProperty + ")");
+            }
             this.fqn = fqn;
             this.overloads = List.of(overloads);
             this.implementedDerived = derivedOwner == null || derivedProperty == null ? null
