@@ -34,8 +34,9 @@ class SideOrdinalTest {
     void aLiteralsRowsCarryTheirIndex() {
         SqlQuery q = SideOrdinal.withOrdinal(SqlSelect.starOf(literal()).withOutputs(List.of(A)));
         assertEquals(List.of("a", SideOrdinal.ORD), q.outputs().stream().map(OutputCol::name).toList());
+        // 2026-11-12 (the total wall's B): alone, the side is a root, labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT *
+                SELECT t.a AS a, t.__ord AS __ord
                 FROM (VALUES (2, 1), (1, 2)) AS t(a, __ord)""", PLATFORM.render(q));
     }
 
@@ -45,7 +46,8 @@ class SideOrdinalTest {
         SqlSelect sorted = SqlSelect.starOf(literal()).withOutputs(List.of(A))
                 .withOrderBy(List.of(new SqlSelect.SortKey(SqlExpr.Column.of("t", A), false, null, null)));
         String sql = PLATFORM.render(SideOrdinal.withOrdinal(sorted));
-        assertEquals(true, sql.startsWith("SELECT t.*, ROW_NUMBER() OVER (ORDER BY t.a DESC"), sql);
+        // 2026-11-12 (the total wall's B): alone, the side is a root, labeled (AnsiSqlRenderer#labeled)
+        assertEquals(true, sql.startsWith("SELECT t.a AS a, ROW_NUMBER() OVER (ORDER BY t.a DESC"), sql);
         assertEquals(false, sql.contains("__o."), sql);
     }
 
@@ -66,7 +68,8 @@ class SideOrdinalTest {
         SqlSelect sorted = SqlSelect.starOf(t).withOutputs(List.of(A))
                 .withOrderBy(List.of(new SqlSelect.SortKey(new SqlExpr.RowOrder("t"), true, null, null)));
         String sql = PLATFORM.render(SideOrdinal.withOrdinal(sorted));
-        assertEquals(true, sql.startsWith("SELECT t.*, ROW_NUMBER() OVER (ORDER BY t.rowid"), sql);
+        // 2026-11-12 (the total wall's B): alone, the side is a root, labeled (AnsiSqlRenderer#labeled)
+        assertEquals(true, sql.startsWith("SELECT t.a AS a, ROW_NUMBER() OVER (ORDER BY t.rowid"), sql);
     }
 
     @Test
