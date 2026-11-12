@@ -68,8 +68,11 @@ class FixtureWriteCensusTest {
      *  database's own binary); the table and its rows are its CSV. 909 -> 912 (2026-11-12, the C checkpoint's MUST-FIX
      *  1): a session's statements take a PlannedSql, a test's own text typed by {@code Unplanned.sql}, which this census
      *  counts as a send (CatalogTurnFailureTest's 6 kept); ProgramRunnerTest's savepoint stand-ins, three INSERTs a
-     *  {@code Savepoint} record held as strings this census did not see, are counted now (3). */
-    private static final int CEILING = 912;
+     *  {@code Savepoint} record held as strings this census did not see, are counted now (3). 912 -> 913 (2026-11-12,
+     *  E1 item 3, the orchestrator's ask): a read-only catalog source's zoned column is read through the product door
+     *  from a user's own table holding a zoned value (CatalogModelTest, 1: one CREATE TABLE AS, as a catalog source
+     *  finds a table; no plan's load makes a user's table). */
+    private static final int CEILING = 913;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -179,7 +182,10 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/sql/DuckDbValidityTest.java", 6),
             Map.entry("core/src/test/java/com/legend/sql/dialect/CarrierDifferentialTest.java", 14),
             Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogGridTest.java", 3),
-            Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogModelTest.java", 2),
+            // 2 -> 3 (2026-11-12, E1 item 3, the orchestrator's ask: a read-only catalog source's zoned column read
+            // through the product door needs a user's own table holding a zoned value, as a catalog source finds it:
+            // one CREATE TABLE AS; aReadOnlySourcesZonedColumnAnswersItsUtcInstant; the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogModelTest.java", 3),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2FirstInGroupTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2SplitPartTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/HostOperationsTest.java", 3),

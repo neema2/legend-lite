@@ -222,9 +222,17 @@ renders it in its best form, decided by measurement before it lands:
   is re-applied with `json()` at its reference, or not bound.
 - **Trivial operands** (a column, a literal under ~16 characters) are never bound: the binding costs more than it
   saves.
-- **Order and determinism:** a binding changes no ORDER BY. A non-deterministic function (`random()`, `now()`) bound
-  once is evaluated once instead of once per reference; whether any product statement reads one twice today is not
-  measured (to check before P1 lands).
+- **Order and determinism:** a binding changes no ORDER BY. A Pure `let` and a function's argument are call by
+  value, evaluated once: binding once IS Pure's semantics, and inlining was the deviation. Measured (2026-11-12):
+  - `|let t = now(); $t == $t;` plans today as two reads of the clock on every dialect (DuckDB `CAST(now() AS
+    TIMESTAMP) = CAST(now() AS TIMESTAMP)`, SQLite `strftime(..., 'now') = strftime(..., 'now')`, MySQL
+    `UTC_TIMESTAMP(6) = UTC_TIMESTAMP(6)`, ...).
+  - It is NOT observable today: each of these databases holds its clock fixed within one statement. `random()` is
+    refused by name on the product path, so it cannot be read twice.
+  - In channel A's 2,708 queries, no statement reads a user-visible non-deterministic value twice. The hits are a
+    planned raise's anti-folding `random()` (Postgres), `generateGuid`'s intended independent draws (SQLite), and one
+    false match (`toDayOfMonth`).
+  - So P1a fixes a latent deviation, not an observed bug. Its test pins `now()` written ONCE for the let.
 
 **P1c, an exploded list read through a column (the mixed-list lead).**
 - Today `TaggedLists.sort` and `root` explode a list expression. Snowflake, BigQuery, MariaDB, MySQL and SQLite then
@@ -277,7 +285,75 @@ test: the queries a test makes (several `execute`s per test) plus the suite's on
 plan's extra statements. No product change is proposed. The keyed (dynamic pivot) plan's two statements are its
 design: the keys, then the body.
 
+### 5.6 Answer or SQL: what each item changes
+
+The orchestrator's rule (2026-11-12, the user's words: "we are allowed to change error message and change sql and
+change results even change types ... as long as they are typed and sane"): a change to the product's ANSWER is
+written up here first and ruled, then becomes a register row with scope "product". A change to the SQL alone needs
+no row. "Sane" means:
+- typed;
+- principled;
+- the same answer on every database;
+- no silent loss;
+- deterministic.
+
+| item | changes | why |
+|---|---|---|
+| P1a, root binding | **SQL only** | a let and an argument are call by value: binding once is Pure's own semantics (the `now()` read once is a latent deviation fixed, not observable today, §5.1) |
+| P1b, `SqlExpr.Let` | **SQL only** | the same; the laziness rule keeps a raise where it was |
+| P1c, explosion read through a column | **SQL only** | the same list, read once |
+| P2, no self-cast | **SQL only** | a cast to the operand's own type is the identity |
+| P2, one cast on a raise | **SQL only** | the raise's message and kind are unchanged |
+| P3, text round trips | **SQL only where the value is typed**; to check where a JSON member is read as text, cast to an integer, then cast back to text (`CAST(CAST(x ->> 'k' AS BIGINT) AS VARCHAR)`): the round trip normalises `"007"` to `7`, so dropping it could change an answer | measured per site before it lands; any answer change comes back here first |
+| P4, dialect multipliers bound | **SQL only** | the same expression, written once |
+
+**Answer changes that would shrink the SQL, both already ruled for D (DATA_DELIVERY_DESIGN §6.1, the start-here
+§5.4).** E builds neither; it coordinates with D.
+
+- **Errors are their kind plus where they happened, never the value.**
+  - Today a guard's message re-reads its operand to print it ("offset 5 where the collection is of size 3"): `str(x)`
+    in the message, so the operand is written once more.
+  - Measured: the raises are 4% of DuckDB's product characters (35,120 of 808,551).
+  - Under D's error form the message is a fixed planning-time text, and the operand's extra copy goes. On Snowflake,
+    a Float operand's text is the ~3-4 KB shortest-digits printer per message.
+- **A Float's text is "6 decimals, trailing zeros and `.` trimmed".**
+  - Today `toString` and `format` of a Float build the shortest round-trip digits in SQL. On Snowflake that is the
+    ~3-4 KB printer per use; `FloatPrintText` reads its operand about 9 times on the other dialects.
+  - D's print form is a fixed-scale render that each database spells in one call. The shortest digits move to the
+    edge, as the orchestrator's example says.
+
 ## 6. The guard: a product-SQL size baseline, shrink-only (G3)
+
+> **BUILT (2026-11-12, ruled by the orchestrator: its own target in `//gates:local`, all 11 dialects).**
+> - Target: `//core:lean_sql_baseline_test` (`com.legend.leansql.LeanSqlBaseline`), in the gate's `checks` suite.
+>   It takes 99 s.
+> - Fixed set: `core/src/test/resources/lean-sql/channel_a.jsonl`, 2,451 unique cases.
+> - Pins: `core/src/test/resources/lean-sql/baseline.tsv`, 3,352 rows (set x database x family). A family is the
+>   typed root's function id, "let", "refused", or the root's kind. Typed, never matched in the text.
+> - Re-pin with `bazel run //core:update_lean_sql_baseline`.
+> - The planted violators are `LeanSqlBaselineTest.theRuleCatchesGrowthAndBytesMovedIntoThePlan`:
+>   - growth in one family fails, though another shrank;
+>   - text moved into the plan fails on the plan's JSON;
+>   - a second statement fails on the count;
+>   - a shrink past 1% asks for a re-pin.
+> - Re-measuring reproduces every pin exactly: the plans are deterministic (G10).
+> - Core's and the corpus's sets join as soon as their capture is ruled (§7 item 1).
+>
+> Totals at the pins (channel A, 2,451 cases):
+>
+> | database | statements | chars | plan JSON chars |
+> |---|---|---|---|
+> | DuckDB | 2,309 | 655,187 | 10,521,488 |
+> | H2 | 1,754 | 550,036 | 8,348,129 |
+> | SQLite | 2,305 | 1,778,534 | 11,651,948 |
+> | Postgres | 2,233 | 1,160,996 | 10,983,992 |
+> | MariaDB | 2,233 | 2,060,278 | 12,984,728 |
+> | MySQL | 2,234 | 2,779,588 | 13,631,967 |
+> | Trino | 2,309 | 1,098,766 | 11,141,683 |
+> | ClickHouse | 2,301 | 1,819,026 | 11,810,341 |
+> | Snowflake | 2,309 | 995,481 | 11,522,108 |
+> | BigQuery | 2,224 | 1,235,651 | 10,806,797 |
+> | Databricks | 2,236 | 777,755 | 10,661,332 |
 
 - **The fixed set:**
   - PCT channel A's 2,451 unique cases (`core/src/test/resources/leansql/channel_a.jsonl`, 0.8 MB), planned on the

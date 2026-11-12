@@ -556,6 +556,8 @@ legend_java_library(
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             # a data: source on every server database is :data_source_servers_test's alone (2026-11-11)
             "src/test/java/com/legend/exec/DataSourceServersTest.java",
+            # the product-SQL size baseline is :lean_sql_baseline_test's alone (E3, 2026-11-12): 110 s of planning
+            "src/test/java/com/legend/leansql/*.java",
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
@@ -608,6 +610,8 @@ legend_java_library(
             # the #IQ{...}# island's cases, schema, snapped answers and ledger: :iq_parity_test's and
             # :iq_parity_postgres_test's data, read as files
             "src/test/resources/iq-parity/**",
+            # the product-SQL size baseline's fixed sets and pins: :lean_sql_baseline_test's data, read as files
+            "src/test/resources/lean-sql/**",
             # the #Cypher{...}# island's cases, the TCK, the snapped answers and the ledger: :cypher_parity_test's and
             # :cypher_parity_postgres_test's data, read as files
             "src/test/resources/cypher-parity/**",
@@ -1849,6 +1853,54 @@ legend_java_binary(
         ":core_tests_lib",
         ":drivers",
     ],
+)
+
+# THE PRODUCT-SQL SIZE BASELINE (G3's guard; E3 of the total-wall program, ruled 2026-11-12,
+# docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §6): fixed query sets planned on every database (planning only), held to
+# shrink-only pins per set, database and family over the statements, their characters and the plans' JSON. In
+# //gates:local; re-pin with bazel run //core:update_lean_sql_baseline, dated in the commit.
+legend_java_library(
+    name = "lean_sql_baseline_lib",
+    # test code, as core_tests_lib, not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = ["src/test/java/com/legend/leansql/LeanSqlBaseline.java"],
+    deps = [
+        ":core",
+        ":test_backends",
+        "//json",
+    ],
+)
+
+junit_test(
+    name = "lean_sql_baseline_test",
+    memory_mb = 3072,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/leansql/LeanSqlBaselineTest.java"],
+    data = [
+        "src/test/resources/lean-sql/baseline.tsv",
+        "src/test/resources/lean-sql/channel_a.jsonl",
+    ],
+    jvm_flags = [
+        "-Dlegend.lean_sql.baseline=$(rlocationpath src/test/resources/lean-sql/baseline.tsv)",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+    ],
+    select = ["--select-class=com.legend.leansql.LeanSqlBaselineTest"],
+    deps = [
+        ":lean_sql_baseline_lib",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+legend_java_binary(
+    name = "update_lean_sql_baseline",
+    testonly = True,
+    jvm_flags = ["-Xmx3g"],
+    main_class = "com.legend.leansql.LeanSqlBaseline",
+    tags = ["manual"],
+    runtime_deps = [":lean_sql_baseline_lib"],
 )
 
 # ── GENERATED FILES ─────────────────────────────────────────────────────────────
