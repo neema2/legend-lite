@@ -35,12 +35,12 @@ and a runner as data (G11), but always inside one engine; they never come back f
 |---|---|---|---|
 | `capabilities()` | -- | the calls and options this engine supports, the contract version | DataCube adapts its menus; anything not listed is refused by name if asked |
 | `session.open()` / `close()` | -- | a session | handles live in a session; `close` drops what it made |
-| `addSource(source)` | bytes (an upload), a URL, or a remote reference (a warehouse table, an S3 object) | an opaque **handle**, its name, digest and size | the engine issues and resolves handles; DataCube never sends a path back |
+| `addSource(source, how)` | bytes (an upload), a URL, or a remote reference (a warehouse table, an S3 object); `how` is **live** (a mount, read in place) or **snap** (a planned copy into the engine's database), DataCube's two kinds today | an opaque **handle**, its name, digest and size | the engine issues and resolves handles; DataCube never sends a path back |
 | `describe(handle)` | a handle | its columns and types | the engine's catalog, by the engine's planner |
 | `drop(handle)` | a handle | done | |
 | `typeOf(query)` | Pure, a runtime | the result type (columns, types) without running | DataCube's builder and typeahead |
-| `query(query, window?)` | Pure, a runtime, parameters; an optional window (offset, limit) | typed rows streamed as Arrow, their schema, the execution id | a dynamic pivot's two phases, retries and the error read-back are the engine's |
-| `write(box, target, mode)` | a box's query, a target table, a mode (create, replace, append, merge by keys) | rows written, the execution id | ONE call: the engine runs create, catalog, write and commit as one transaction |
+| `query(query, cap)` | Pure, a runtime, parameters; DataCube's row cap (the person's `maxRows`, General panel; asked as cap + 1 to see a cut) | typed rows streamed as Arrow, their schema, the execution id; the flat total when the cap cut it (asked only then, as today) | a dynamic pivot's two phases, retries and the error read-back are the engine's |
+| `write(box, target, mode)` | DataCube's table output: a box's query, a target table of the host's database, its mode -- **create**, **overwrite**, **append**, **merge** by keys (table-output.ts, today's four) | rows written, the execution id | ONE call: the engine runs create, catalog, write and commit as one transaction |
 | `cancel(request)` | a request id | -- | best effort; an answer already streamed stays valid |
 
 **Errors are typed:** `compile` (the query does not type), `run` (the database refused it: its own words, secrets
@@ -117,16 +117,18 @@ DataCube's direct database handles (`heldDataHost`, the held connection in the U
 (`browserServices`, `pythonServices`' route calls) as DataCube-facing APIs, the table-output dialogue across a boundary,
 paths handed back and forth, and the SQL a client sends to the warehouse's SQL API from DataCube's side.
 
-## 9. Questions for the user
+## 9. Settled by what DataCube does today (2026-11-12, the user's review)
 
-1. **Windowed queries:** the grid asks for the rows on screen (`window`), or always the whole answer streamed? (Recommended:
-   windowed, with streaming for exports.)
-2. **`addSource` materializes?** A remote source copied into the engine (a snapshot) or read live; one call with an
-   option, or two calls? (Recommended: one call, `live | copy`, the engine refusing what it cannot do.)
-3. **Write modes:** create, replace, append, merge by keys -- the full set from day one? (Recommended: yes; today's
-   table output already has them.)
-4. **Timing:** this as its own program right after A/B/C merge, before D and E, or alongside them? (Recommended: its
-   own focused program first; it is mostly DataCube and engine-client work and does not touch the product's core.)
+The contract carries DataCube's existing behaviour, unchanged; nothing here is new product behaviour.
+
+- **Rows:** the person's row cap (`maxRows`, user-configurable, `DEFAULT_MAX_ROWS`), asked as cap + 1, the flat total
+  asked only when the cap cut it -- as `query.ts` does today. No new windowing.
+- **Remote sources:** **live** (a remote mount, read in place) and **snap** (a planned copy, B3's planned snapshot) --
+  both exist; `addSource` names which.
+- **Writes:** DataCube's table output and its four modes (create, overwrite, append, merge by keys).
+- **Timing:** its own workstream, in parallel with D and E (the user, 2026-11-12); mostly DataCube and engine-client,
+  not core.
+- **Consolidated with the intent bridge** (`claude/total-wall-bridge`): the bridge's Python implementation is step 1.
 
 ## 10. Not in scope
 
