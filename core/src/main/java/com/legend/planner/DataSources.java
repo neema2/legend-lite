@@ -247,6 +247,7 @@ public final class DataSources {
                     d.storedTypes(), d.where() == null ? null : r.expression(d.where()));
             case SqlDml.CreateTempTableAs c -> new SqlDml.CreateTempTableAs(c.table(), r.rewrite(c.query()),
                     c.columns(), c.staged());
+            case SqlDml.CreateTableAs c -> new SqlDml.CreateTableAs(c.schema(), c.table(), r.rewrite(c.query()));
             // rows written as literals, a staged table's name, a file's path: no query source in them
             case SqlDml.InsertValues v -> v;
             case SqlDml.InsertFromTable t -> t;
@@ -352,6 +353,7 @@ public final class DataSources {
                     }
                 }
                 case SqlDml.CreateTempTableAs c -> scan.rewrite(c.query());
+                case SqlDml.CreateTableAs c -> scan.rewrite(c.query());
                 // rows written as literals, a staged table's name, a file's path: no query source in them
                 case SqlDml.InsertValues v -> {
                 }

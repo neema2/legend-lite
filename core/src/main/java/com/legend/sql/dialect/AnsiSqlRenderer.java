@@ -2138,6 +2138,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> tableAs(ct).text();
             case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).text();
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
@@ -2200,6 +2201,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.InsertFromTable it -> new RenderedStatement(render(it), List.of());
             case com.legend.sql.SqlDml.DeleteAll da -> new RenderedStatement(render(da), List.of());
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).statement();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> tableAs(ct).statement();
             case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).statement();
             case com.legend.sql.SqlDml.Update u -> update(u).statement();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).statement();
@@ -2365,6 +2367,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .append(")");
         }
         return query(head.append(options).append(" AS "), passed(ct.query()), 0).append(";");
+    }
+
+    /** A host's table holding a query's rows (a snapshot's copy, the final audit's 1(b), 2026-11-12): refused unless the
+     *  dialect's database is measured to run {@link #createTableAs} -- every host copies into its own DuckDB. */
+    protected SqlWriter tableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        throw new DialectCapability("a snapshot's copy (CREATE TABLE ... AS) on " + getClass().getSimpleName()
+                + ": no spelling measured on its database (every host copies into its own DuckDB)");
+    }
+
+    /** The standard {@code CREATE TABLE [schema.]table AS <query>}, for a dialect whose database runs it: each name
+     *  delimited, the query written as this dialect writes a query, its passes applied, each plan parameter bound where
+     *  it is written -- so the statement binds what the query alone binds, in its order. */
+    protected final SqlWriter createTableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        SqlWriter head = newWriter().append("CREATE TABLE ")
+                .append(ct.schema() == null ? "" : delimited(ct.schema()) + ".").append(delimited(ct.table()));
+        return query(head.append(" AS "), passed(ct.query()), 0);
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

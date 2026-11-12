@@ -364,6 +364,31 @@ public final class Boundary {
     }
 
     /**
+     * A SNAPSHOT'S COPY, AS A PLAN (the final audit's 1(b), 2026-11-12, the user's ruling; B3's contract): {@code request}
+     * is {@code {"databaseType", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type, the
+     * pull (the model's text, the runtime it runs through -- the host's own store's -- and the grid's base query as a
+     * lambda's protocol JSON, a text), and the table of the host's database it is copied into. The pull is planned HERE,
+     * in this call (the model held by its text: compiled once). Any other key -- a statement ({@code sql}) above all -- is
+     * refused by name. The answer is the plan (PlanJson's): one writing {@code Sequence} on the host's database, its
+     * target carrying the database's transaction -- the schema made where one is named, the table dropped, and the
+     * table made AS the pull's own statement, its {@code data:} payloads bound as the pull binds them
+     * ({@code com.legend.planner.SnapCopy}). Until then the host made the copy as host operations around a query it handed
+     * back as text ({@code HostOperation.Source.Query}, deleted).
+     */
+    public static String snapCopy(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a snapshot's copy", "databaseType", "model", "runtime", "lambda", "schema", "table");
+        String databaseType = in.getString("databaseType");
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(in.getString("model"), ctx ->
+                com.legend.planner.SnapCopy.plan(com.legend.Compiler.query(ctx,
+                        com.legend.protocol.ProtocolReader.lambda(in.getString("lambda"))), in.getString("runtime"),
+                        dialect, type, in.getStringOr("schema", null), in.getString("table"))));
+    }
+
+    /**
      * A STATEMENT A PERSON WROTE, as a plan (the user's ruling of 2026-11-12: Studio's SQL playground goes through the
      * planner): {@code request} is {@code {"databaseType", "text"}}, the database the playground points at and the
      * person's one statement. The answer is the plan (PlanJson's): the text carried as written -- never parsed,
@@ -507,9 +532,10 @@ public final class Boundary {
      * runtime the planner compiles.
      * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
      * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
-     * [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
-     * {@code copySelectList}: the select list the source applies when it is rewritten in place ({@code convertible}),
-     * written by its own database; a read-only source is never rewritten, and has none.
+     * [{"column","sql"}], "excluded": [name], "bitColumns": [name]}} out. A source rewritten in place
+     * ({@code convertible}) is a host operation's copy that names these catalog columns ({@code "convert"}), its select
+     * list written by the platform (the final audit's 1(d), 2026-11-12: until then this answered the select list,
+     * {@code copySelectList}, which the host handed back as text).
      * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
      *
      * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
@@ -545,9 +571,6 @@ public final class Boundary {
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        if (in.getBool("convertible")) {
-            out.put("copySelectList", dialect.copySelectList(db.conversions()));
-        }
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);

@@ -1194,10 +1194,10 @@ class JavaEvalLedgerTest {
                     // session and a callback at a step it does not know; no value is computed or compared
                     "ProgramRunner.java",
                     // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L1: a file's load, its data -- the plan's reference
-                    // read through the run's stores, its digest checked, the verified bytes split into text cells by
-                    // the reference's declared format, which the runner streams (carriage: the database casts every
-                    // cell; L2, 2026-11-09, the one delivery); no value is computed or compared, and no session is
-                    // touched (PlanRunner sends)
+                    // read through the run's stores, its size and digest checked, the verified bytes written to a copy
+                    // of the runner's own, which the DATABASE reads with its own reader (text corrected 2026-11-12, the
+                    // final audit: until A3 the bytes were split into text cells here and streamed; since then nothing
+                    // here reads a cell); no value is computed or compared, and no session is touched (PlanRunner sends)
                     "DataLoads.java",
                     // a live source's admission (L6a, 2026-11-10, the user's ruling: a file: source is a pointer):
                     // the run's configured directories, a location's real path compared with them and its path
@@ -1497,6 +1497,11 @@ class JavaEvalLedgerTest {
                     // person's one statement as a plan, carried as written -- never parsed, rewritten or split; the
                     // planner computes nothing, the database answers the relation it reports
                     "Authored.java",
+                    // 2026-11-12, the final audit's 1(b) (the user's ruling; B3's contract): a snapshot's copy as one
+                    // writing plan -- the pull planned as the product plans its one statement, the copy its statement's
+                    // tree written by the dialect (CREATE TABLE ... AS), its payloads the pull's; schema, drop and copy
+                    // the host's operations, on a target carrying the database's transaction; nothing evaluated
+                    "SnapCopy.java",
                     // 2026-11-10, docs/DATA_IN_THE_PLAN_2026_11_09.md L6b: a query's data: sources as one load into
                     // session tables named by their content's digest, the payload split into its elements verbatim
                     // (build-time model text, compared never computed) and the source read as its table

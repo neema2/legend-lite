@@ -1830,18 +1830,31 @@ final class ArchitectureTest {
      * <strong>No exec class parses data</strong> (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5; the A checkpoint's tenets
      * audit's 4b, 2026-11-10: the guard the design named was not built). A load's data reaches the database as the
      * plan's statements or as a file its database reads; exec delivers bytes and statements and reads none of the data's
-     * cells: no exec class depends on the CSV parser ({@code base.CsvCells}, named here, never referenced: no load reads
-     * it since B2b, 2026-11-11, and its file is deleted by its creator's commit, so the rule holds whether or not it is
-     * there). Its one reach until then, the size check ({@code DataLoads.stage}), moved to {@code base.DataSize}, which
-     * parses nothing.
+     * cells: no exec class depends on a reader of a load's data -- today's, the CSV reader ({@code setup.CsvSeed}: its
+     * blocks, records and cells) and the data payloads' reader ({@code planner.DataSources}), each with its nested
+     * classes. Moved 2026-11-12 (the final audit: the rule named {@code base.CsvCells}, deleted in B2b, 2026-11-11, so it
+     * could not fail); the wall ({@link #execReachesNoPlanning}) keeps exec from both packages as well, and this names
+     * the data readers whatever package they move to. Its one reach until B2b, the size check
+     * ({@code DataLoads.stage}), moved to {@code base.DataSize}, which parses nothing.
+     * {@link #theDataRuleBitesAPlantedRead} shows it bites.
      */
     @Test
     void execParsesNoData() {
-        noClasses()
+        EXEC_PARSES_NO_DATA.check(CORE_PROD_CLASSES);
+    }
+
+    /** No exec class parses data (the rule of {@link #execParsesNoData}). */
+    static final com.tngtech.archunit.lang.ArchRule EXEC_PARSES_NO_DATA = noClasses()
             .that().resideInAPackage("com.legend.exec..")
-            .should().dependOnClassesThat().haveFullyQualifiedName("com.legend.base.CsvCells")
-            .as("exec parses no data: a load's cells are the database's to read (design §5)")
-            .check(CORE_PROD_CLASSES);
+            .should().dependOnClassesThat().haveNameMatching(
+                    "com\\.legend\\.(setup\\.CsvSeed|planner\\.DataSources)(\\$.*)?")
+            .as("exec parses no data: a load's cells are the database's to read (design §5)");
+
+    /** {@link #execParsesNoData} fails on a class of exec's package that reads a CSV's blocks
+     *  ({@code exec.PlantedDataRead}, a test class planted for this alone; the final audit, 2026-11-12). */
+    @Test
+    void theDataRuleBitesAPlantedRead() {
+        bites(EXEC_PARSES_NO_DATA, com.legend.exec.PlantedDataRead.class);
     }
 
     /**
@@ -3166,43 +3179,91 @@ final class ArchitectureTest {
      */
     @Test
     void onlyTheLoadPlannerMakesALoad() {
-        noClasses()
+        ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD.check(CORE_PROD_CLASSES);
+    }
+
+    /** The classes that make a plan's {@code Load}: the load planner, and the JSON reader that rebuilds one. Each makes
+     *  one ({@link #everyLoadMakerOnTheListMakesOne}). */
+    private static final java.util.List<String> LOAD_MAKERS = java.util.List.of("com.legend.planner.LoadPlanner",
+            "com.legend.executionplan.PlanJson");
+
+    /** The classes that make a load's {@code LoadStep}: every table's rows a blob of statements ({@code setup.LoadSteps},
+     *  A2, 2026-11-10), a test body's effects ({@code testplan.EffectPlanner}), and the JSON reader that rebuilds one.
+     *  Shrunk 2026-11-12 (the final audit) from nine names, six of which made none; each makes one
+     *  ({@link #everyLoadMakerOnTheListMakesOne}). */
+    private static final java.util.List<String> LOAD_STEP_MAKERS = java.util.List.of("com.legend.setup.LoadSteps",
+            "com.legend.testplan.EffectPlanner", "com.legend.executionplan.PlanJson");
+
+    /** P2, a load (the rule of {@link #onlyTheLoadPlannerMakesALoad}). */
+    static final com.tngtech.archunit.lang.ArchRule ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD = noClasses()
             .that().resideInAPackage("com.legend..")
-            .and().doNotHaveFullyQualifiedName("com.legend.planner.LoadPlanner")
-            .and().doNotHaveFullyQualifiedName("com.legend.executionplan.PlanJson")
+            .and().haveNameNotMatching(makers(LOAD_MAKERS))
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
                                     .name("com.legend.executionplan.ExecutionPlan$Load"))))
-            .as("P2: a plan's load is made by the load planner alone (one identity scheme); the JSON reader rebuilds")
-            .check(CORE_PROD_CLASSES);
+            .as("P2: a plan's load is made by the load planner alone (one identity scheme); the JSON reader rebuilds");
+
+    /** A pattern matching each of {@code classes} and the classes nested in it. */
+    private static String makers(java.util.List<String> classes) {
+        return "(" + String.join("|", classes.stream().map(java.util.regex.Pattern::quote).toList()) + ")(\\$.*)?";
+    }
+
+    /** No name on the makers' lists is dead (the final audit, 2026-11-12: the step makers' list named six classes that
+     *  made no step, any of which a new maker could have hidden in): each listed class, or one nested in it, calls a
+     *  constructor of what its list makes. */
+    @Test
+    void everyLoadMakerOnTheListMakesOne() {
+        java.util.Map<java.util.List<String>, String> lists = java.util.Map.of(
+                LOAD_MAKERS, "com\\.legend\\.executionplan\\.ExecutionPlan\\$Load",
+                LOAD_STEP_MAKERS, "com\\.legend\\.executionplan\\.ExecutionPlan\\$LoadStep\\$.*");
+        lists.forEach((names, made) -> {
+            for (String name : names) {
+                boolean makes = false;
+                for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+                    if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
+                        makes |= c.getConstructorCallsFromSelf().stream()
+                                .anyMatch(call -> call.getTargetOwner().getName().matches(made));
+                    }
+                }
+                org.junit.jupiter.api.Assertions.assertTrue(makes, name + " is on the makers' list of " + made
+                        + " and makes none");
+            }
+        });
+    }
+
+    /** {@link #onlyTheLoadPlannerMakesALoad} and {@link #onlyThePlannersMakersMakeALoadStep} fail on a planner class
+     *  that makes a load and one of its steps ({@code planner.PlantedLoadMaker}, a test class planted for this alone; the
+     *  final audit, 2026-11-12: until then neither rule had one). */
+    @Test
+    void theLoadMakersRulesBiteAPlantedMaker() {
+        bites(ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD, com.legend.planner.PlantedLoadMaker.class);
+        bites(ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP, com.legend.planner.PlantedLoadMaker.class);
     }
 
     /**
      * <strong>P2, a load's steps (the tenets re-audit's A-5, 2026-11-09: until then named in a javadoc, guarded only
      * inside exec).</strong> A plan's {@code LoadStep} -- a statement, rows, a file and its delivery -- is made by the
-     * planner's makers of statements and rows alone: {@code setup.CsvSeed}, {@code setup.Ddl}, {@code setup.RowLoad},
-     * {@code setup.LoadSteps} (2026-11-10, A2), {@code planner.PlanMaker}, {@code planner.SystemCatalog},
-     * {@code planner.DataSources} (2026-11-10, L6b),
-     * {@code testplan.EffectPlanner}; the plan's JSON reader rebuilds what a writer wrote.
+     * planner's makers alone: {@code setup.LoadSteps} (2026-11-10, A2: every table's rows a content blob of statements,
+     * made in one place) and {@code testplan.EffectPlanner}; the plan's JSON reader rebuilds what a writer wrote. Shrunk
+     * 2026-11-12 (the final audit): the allowlist still named {@code setup.CsvSeed}, {@code Ddl}, {@code RowLoad},
+     * {@code planner.PlanMaker}, {@code SystemCatalog} and {@code DataSources}, none of which makes a step since A2 --
+     * entries that would have let a new maker in unseen. {@link #theLoadMakersRulesBiteAPlantedMaker} shows it bites.
      */
     @Test
     void onlyThePlannersMakersMakeALoadStep() {
-        noClasses()
+        ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP.check(CORE_PROD_CLASSES);
+    }
+
+    /** P2, a load's steps (the rule of {@link #onlyThePlannersMakersMakeALoadStep}). */
+    static final com.tngtech.archunit.lang.ArchRule ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP = noClasses()
             .that().resideInAPackage("com.legend..")
-            // planner.DataSources since 2026-11-10 (L6b: a query's data: sources as one load into session tables);
-            // planner.ContentRows the same day (L6c: the model's rows inline or from the load's bundle), replaced the
-            // same day by setup.LoadSteps (A2, docs/DATA_DELIVERY_DESIGN_2026_11_10.md: every table's rows a content
-            // blob of statements, made in one place)
-            .and().haveNameNotMatching("com\\.legend\\.(setup\\.(CsvSeed|Ddl|RowLoad|LoadSteps)|planner\\.(PlanMaker|SystemCatalog|DataSources)"
-                    + "|testplan\\.EffectPlanner|executionplan\\.PlanJson)(\\$.*)?")
+            .and().haveNameNotMatching(makers(LOAD_STEP_MAKERS))
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
                                     .nameMatching("com\\.legend\\.executionplan\\.ExecutionPlan\\$LoadStep\\$.*"))))
-            .as("P2: a load's steps are made by the planner's makers of statements and rows; the JSON reader rebuilds")
-            .check(CORE_PROD_CLASSES);
-    }
+            .as("P2: a load's steps are made by the planner's makers (LoadSteps, EffectPlanner); the JSON reader rebuilds");
 
     /** Exec makes no load and no load step: it runs the plan's (the wall's data half; P2, 2026-11-09). */
     @Test

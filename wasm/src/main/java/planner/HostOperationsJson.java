@@ -31,11 +31,21 @@ final class HostOperationsJson {
         return out;
     }
 
+    /** The keys an operation once carried SQL in, each refused by name (the final audit, 2026-11-12, the user's ruling:
+     *  a host operation takes no SQL; a source's {@code query} is refused where a source is read). */
+    private static final List<String> SQL_KEYS = List.of("selectList", "replacing");
+
     private static HostOperation operation(Json.Obj o) {
+        for (String key : SQL_KEYS) {
+            if (o.has(key)) {
+                throw new IllegalArgumentException("a host operation takes no SQL, and " + key + " is SQL: a copy's"
+                        + " conversions are written by the platform from its columns' catalog (convert)");
+            }
+        }
         String op = string(o, "op");
         return switch (op) {
             case "relation" -> new HostOperation.MakeRelation(kind(string(o, "kind")), name(object(o, "target")),
-                    bool(o, "replace"), stringOrNull(o, "selectList"), conversions(o), source(object(o, "from")));
+                    bool(o, "replace"), convert(o), source(object(o, "from")));
             // rows put into a declared table come from a person's file: a planned load's (B3: Boundary.fileLoad)
             case "insert" -> throw new IllegalArgumentException("rows put into a declared table are a planned load's"
                     + " (fileLoad), not an operation");
@@ -102,24 +112,41 @@ final class HostOperationsJson {
                     + " operation");
         }
         if (o.has("query")) {
-            return new HostOperation.Source.Query(string(o, "query"));
+            // a host hands an operation no SQL (the final audit, 2026-11-12, the user's ruling): a pull is planned
+            throw new IllegalArgumentException("a query is planned from its pull (snapCopy, or a Pure query's plan),"
+                    + " never handed to a host operation");
         }
-        throw new IllegalArgumentException("a source is a relation or a query");
+        throw new IllegalArgumentException("a source is a relation");
     }
 
-    private static List<HostOperation.Conversion> conversions(Json.Obj o) {
-        List<HostOperation.Conversion> out = new ArrayList<>();
-        if (!o.has("replacing")) {
+    /** A copy's columns as its source's catalog answers them -- {@code {"name", "dataType", "logicalType"?,
+     *  "precision"?, "scale"?, "notNull"?}}, the rows {@code Boundary.tableModel} takes -- whose conversions the platform
+     *  writes ({@link HostOperation.MakeRelation#convert}); none when absent. */
+    private static List<com.legend.sql.dialect.CatalogModel.Column> convert(Json.Obj o) {
+        List<com.legend.sql.dialect.CatalogModel.Column> out = new ArrayList<>();
+        if (!o.has("convert")) {
             return out;
         }
-        if (!(o.get("replacing") instanceof Json.Arr arr)) {
-            throw new IllegalArgumentException("a relation's replacing is an array");
+        if (!(o.get("convert") instanceof Json.Arr arr)) {
+            throw new IllegalArgumentException("a relation's convert is an array of catalog columns");
         }
         for (Json.Node n : arr.items()) {
-            Json.Obj c = object(n, "a conversion");
-            out.add(new HostOperation.Conversion(string(c, "column"), string(c, "sql")));
+            Json.Obj c = object(n, "a catalog column");
+            out.add(new com.legend.sql.dialect.CatalogModel.Column(string(c, "name"), string(c, "dataType"),
+                    stringOrNull(c, "logicalType"), intOrNull(c, "precision"), intOrNull(c, "scale"),
+                    bool(c, "notNull")));
         }
         return out;
+    }
+
+    private static @com.legend.base.Nullable Integer intOrNull(Json.Obj o, String field) {
+        if (!o.has(field) || o.get(field) instanceof Json.Null) {
+            return null;
+        }
+        if (!(o.get(field) instanceof Json.Num n) || !n.isInteger()) {
+            throw new IllegalArgumentException("an operation's " + field + " is a whole number");
+        }
+        return Integer.valueOf(Math.toIntExact(n.longValue()));
     }
 
     private static List<String> stringList(Json.Obj o, String field) {
