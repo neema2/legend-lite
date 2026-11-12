@@ -2068,6 +2068,17 @@ final class ArchitectureTest {
         EXEC_MAKES_NO_VALUE.check(CORE_PROD_CLASSES);
     }
 
+    /** {@code rule} BITES {@code planted}: it fails on it BY A VIOLATION, never because no class of the import matched
+     *  its {@code that()} -- ArchUnit fails an empty rule too, so an {@code AssertionError} alone proves nothing (the C
+     *  final audit's J5 revert check, 2026-11-12: the no-value rule narrowed back to exec and base still "bit" the
+     *  planted classes of the test's run and of the result library, by its empty-rule failure). */
+    private static void bites(com.tngtech.archunit.lang.ArchRule rule, Class<?> planted) {
+        AssertionError failed = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> rule.check(new ClassFileImporter().importClasses(planted)), planted.getName());
+        org.junit.jupiter.api.Assertions.assertTrue(failed.getMessage().contains("was violated"),
+                planted.getName() + " is not a violation of the rule: " + failed.getMessage());
+    }
+
     /** The planning side for {@link #planningMakesNoValueOfItsOwn} (G10): the planning libraries (R4's
      *  {@link #PLANNING_PACKAGES}) and the records a plan is made of (the MIR, the plan's and the test plan's records,
      *  the model), each with its subpackages. */
@@ -2113,10 +2124,8 @@ final class ArchitectureTest {
      *  clock ({@code planner.PlantedPlanningValue}, a test class planted for this alone). */
     @Test
     void theNoValueRuleBitesAPlantedPlanningClock() {
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PLANNING_MAKES_NO_VALUE.check(
-                new ClassFileImporter().importClasses(com.legend.planner.PlantedPlanningValue.class)));
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PLANNING_MAKES_NO_VALUE.check(
-                new ClassFileImporter().importClasses(com.legend.planner.PlantedPlanningValue.Clock.class)));
+        bites(PLANNING_MAKES_NO_VALUE, com.legend.planner.PlantedPlanningValue.class);
+        bites(PLANNING_MAKES_NO_VALUE, com.legend.planner.PlantedPlanningValue.Clock.class);
     }
 
     /** {@link #execMakesNoValueOfItsOwn} fails on a class of exec's package that mints an id
@@ -2126,8 +2135,7 @@ final class ArchitectureTest {
     void theNoValueRuleBitesAPlantedRandomUuid() {
         for (Class<?> planted : java.util.List.of(com.legend.exec.PlantedRandomUuid.class,
                 com.legend.testexec.PlantedRunValue.class, com.legend.result.PlantedWriterValue.class)) {
-            org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
-                    () -> EXEC_MAKES_NO_VALUE.check(new ClassFileImporter().importClasses(planted)), planted.getName());
+            bites(EXEC_MAKES_NO_VALUE, planted);
         }
     }
 
@@ -2183,8 +2191,7 @@ final class ArchitectureTest {
      *  ({@code server.PlantedServerMint}, a test class planted for this alone). */
     @Test
     void theServerMintRuleBitesAPlantedMint() {
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> SERVER_MINTS_AT_ITS_HOST_DOORS.check(
-                new ClassFileImporter().importClasses(com.legend.server.PlantedServerMint.class)));
+        bites(SERVER_MINTS_AT_ITS_HOST_DOORS, com.legend.server.PlantedServerMint.class);
     }
 
     /**
@@ -2231,10 +2238,8 @@ final class ArchitectureTest {
      *  audit's J2, 2026-11-12: until then the rule had no planted violator). */
     @Test
     void theMintRuleBitesAPlantedMint() {
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> ONLY_THE_PLANS_READERS_MINT.check(
-                new ClassFileImporter().importClasses(com.legend.exec.PlantedPlanText.Mints.class)));
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> ONLY_THE_PLANS_READERS_MINT.check(
-                new ClassFileImporter().importClasses(com.legend.exec.PlantedPlanText.MintsByReference.class)));
+        bites(ONLY_THE_PLANS_READERS_MINT, com.legend.exec.PlantedPlanText.Mints.class);
+        bites(ONLY_THE_PLANS_READERS_MINT, com.legend.exec.PlantedPlanText.MintsByReference.class);
     }
 
     /**
@@ -2915,9 +2920,7 @@ final class ArchitectureTest {
     void theRunSideRuleBitesAPlantedPlanText() {
         for (Class<?> planted : java.util.List.of(com.legend.exec.PlantedPlanText.Factory.class,
                 com.legend.exec.PlantedPlanText.Constructs.class, com.legend.exec.PlantedPlanText.ByReference.class)) {
-            org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
-                    () -> RUN_SIDE_MAKES_NO_PLAN_TEXT.check(new ClassFileImporter().importClasses(planted)),
-                    planted.getName());
+            bites(RUN_SIDE_MAKES_NO_PLAN_TEXT, planted);
         }
     }
 
