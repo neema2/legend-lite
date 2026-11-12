@@ -466,6 +466,43 @@ one.
 | E-R4 | `['b', 1, 'a']->sort()`, `->min()`, `->max()`, `greatest`, `least` across kinds | ordered by upstream's cross-kind comparison | refused by name ("a list of mixed kinds has no order: sort a list of one kind") | no principled order across kinds; refusal is never a silent answer |
 | E-R5 | a date inside a truly mixed list read back (`[1, %2025-02-10]->at(1)`) | the StrictDate | the StrictDate, carried in the Variant as `{"date": "..."}` | typed, never a string; listed because the CARRIER changes (a JSON array, not tag+slots), the answer does not |
 
+> **Upstream's answers, READ from the pinned legend-pure sources (2026-11-12, the orchestrator's E-2 ruling: each
+> upstream answer read before its row lands).** Paths are relative to `legend-pure` (`@legend_pure_src`).
+> - **E-R1, `[1, 1.0]->removeDuplicates()`: upstream answers two elements.**
+>   - `CompiledSupport.eq(Object, Object)` returns false when `left.getClass() != right.getClass()`, so `Long` 1 and
+>     `Double` 1.0 are not equal (`legend-pure-runtime/legend-pure-runtime-java-engine-compiled/.../support/CompiledSupport.java`).
+>   - `eq(Number, Number)` also never equates a `BigDecimal` with a `Double`.
+>   - The row stands as drafted: a divergence, ledgered.
+> - **E-R2, `[1, 2.0]->at(0)`: upstream answers the Integer.**
+>   - The compiled list holds a `Long` and a `Double`, each keeping its class. `eq` and `compareInt` dispatch on the
+>     element's own class.
+>   - The row stands as drafted: a divergence, ledgered.
+> - **E-R3, a StrictDate and its midnight DateTime: upstream answers two elements, the StrictDate ordered first.**
+>   - They are unequal: `testEqualDateStrictYear` asserts `%2014 != %2014-01-01` (`.../grammar/functions/boolean/equality/equal.pure`).
+>   - `DateFunctions.compare` (`legend-pure-m4/.../primitive/date/DateFunctions.java`) compares component by
+>     component, and the date without the finer component sorts FIRST (`!date1.hasDay() -> date2.hasDay() ? -1 : 0`).
+>   - The row stands as drafted: a divergence, ledgered.
+> - **E-R4, sorting across kinds: upstream answers an ORDER; it does not refuse.** The drafted row changes.
+>   - `CompiledSupport.compareInt` (the `compare` native's compiled body, and `DEFAULT_COMPARATOR`):
+>     - numbers of different classes compare by value (`compareUnmatchedNumbers`: `BigDecimal`, or `Double.compare`
+>       when one is NaN or infinite);
+>     - dates compare by `DateFunctions.compare`;
+>     - otherwise the kinds rank `Long < Double < PureDate < Boolean < String`
+>       (`PRIMITIVE_CLASS_COMPARISON_ORDER`), with any other class after them, by class name.
+>   - The interpreted `Compare` native has the same order: numbers, then dates, then booleans, then strings.
+>   - Upstream's own PCT test depends on it. `testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes`
+>     (`.../essential/collection/transformation/removeDuplicates.pure`) asserts
+>     `[1, 2, 3, '1', '3'] == [1, 2, '1', '3', 1, 3, '3', 2]->removeDuplicates()->sort()`.
+>   - **Revised E-R4: no divergence.** The Variant list sorts exactly as upstream: a kind rank (number 0, date 1,
+>     boolean 2, string 3) read off each JSON element's type and the date tag, then the value within its kind.
+>     That is two sort keys the database computes.
+>   - `min`, `max`, `greatest` and `least` across kinds follow the same order.
+>   - The refusal is withdrawn, so no register row is needed for E-R4.
+> - **E-R5, a date inside a mixed list read back: upstream answers the StrictDate.** Same as lite's: no answer
+>   changes, only the carrier.
+>
+> So three rows remain divergences (E-R1, E-R2, E-R3), E-R4 becomes upstream's order, and E-R5 changes no answer.
+
 Every channel-A PCT test that reads a changed answer moves to the compatibility road (which keeps today's tagged
 lists), or becomes an expected failure on the product door with its row. Never a test made green by ledgering it.
 The count is to be measured at the build: a query whose answer moves shows up in channel A's diff.
