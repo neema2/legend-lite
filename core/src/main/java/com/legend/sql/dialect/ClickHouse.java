@@ -381,6 +381,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
      * names them after its star, each labeled with its own name: an enclosing select reads {@code "_pct0"."key"}. (Within
      * the select an exploded column is {@code "t1.key"}, which {@code "t1"."key"} reads, {@link #source}: two
      * explosions in one select may name their columns alike.)
+     *
+     * <p>The star itself is spelled as what ClickHouse's {@code *} reads: a star over each source beside the explosions,
+     * in the join's order (round 37, 2026-11-12). A star over the whole FROM means every source's columns, the
+     * explosions' included, once the root's columns are labeled ({@code AnsiSqlRenderer#labeled}, 0276a473e), which
+     * named an exploded column twice ({@code testVariantMapColumn_values_LateralFlatten}: 4 columns for 3).
      */
     static final class ArrayJoinColumnsNamed extends com.legend.sql.SqlRewriter {
         @Override
@@ -394,16 +399,18 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     SqlExpr.Column.derived(alias, ExplosionMarkers.markerColumn(p)), ExplosionMarkers.markerColumn(p),
                     p.out())).toList());
             List<SqlSelect.Projection> all = named.values().stream().flatMap(List::stream).toList();
+            List<SqlSelect.Projection> stars = new ArrayList<>();
+            besideTheExplosions(s.from(), stars);
             List<SqlSelect.Projection> ps = new ArrayList<>();
             if (s.projections().isEmpty()) {
-                ps.add(new SqlSelect.Projection(new SqlExpr.Star(null), null, null));
+                ps.addAll(stars);
                 ps.addAll(all);
             }
             for (SqlSelect.Projection p : s.projections()) {
                 if (p.expr() instanceof SqlExpr.Star st && st.table() != null && named.containsKey(st.table())) {
                     ps.addAll(named.get(st.table()));
                 } else if (p.expr() instanceof SqlExpr.Star st && st.table() == null) {
-                    ps.add(p);
+                    ps.addAll(stars);
                     ps.addAll(all);
                 } else if (p.expr() instanceof SqlExpr.StarExcept se) {
                     throw new DialectCapability("a star exclusion over a lateral explosion reached ClickHouse: " + se);
@@ -418,14 +425,37 @@ public final class ClickHouse extends AnsiSqlRenderer {
         private static void markerAliases(SqlSource src, java.util.Map<String, List<SqlSelect.Projection>> into) {
             if (src instanceof SqlSource.Join j) {
                 markerAliases(j.left(), into);
-                if (j.right() instanceof SqlSource.Subselect sub && ExplosionMarkers.isMarker(sub.inner())
-                        && (j.kind() == SqlSource.Join.Kind.CROSS_LATERAL
-                                || j.kind() == SqlSource.Join.Kind.LEFT_LATERAL)) {
-                    into.put(sub.alias(), ((SqlSelect) sub.inner()).projections());
+                if (explodes(j)) {
+                    into.put(j.right().alias(), ((SqlSelect) ((SqlSource.Subselect) j.right()).inner()).projections());
                 } else {
                     markerAliases(j.right(), into);
                 }
             }
+        }
+
+        /** A star over each source of {@code src} but its explosions, in the join's order: what ClickHouse's {@code *}
+         *  reads there. */
+        private static void besideTheExplosions(SqlSource src, List<SqlSelect.Projection> into) {
+            if (src instanceof SqlSource.Join j) {
+                besideTheExplosions(j.left(), into);
+                if (!explodes(j)) {
+                    besideTheExplosions(j.right(), into);
+                }
+                return;
+            }
+            if (src instanceof SqlSource.Dual) {
+                return;
+            }
+            if (src.alias() == null) {
+                throw new DialectCapability("a source with no alias beside a lateral explosion reached ClickHouse: " + src);
+            }
+            into.add(new SqlSelect.Projection(new SqlExpr.Star(src.alias()), null, null));
+        }
+
+        /** Whether {@code j}'s right side is a lateral explosion marker, written as an ARRAY JOIN. */
+        private static boolean explodes(SqlSource.Join j) {
+            return j.right() instanceof SqlSource.Subselect sub && ExplosionMarkers.isMarker(sub.inner())
+                    && (j.kind() == SqlSource.Join.Kind.CROSS_LATERAL || j.kind() == SqlSource.Join.Kind.LEFT_LATERAL);
         }
     }
 

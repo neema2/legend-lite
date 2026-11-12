@@ -133,4 +133,29 @@ class ClickHouseDialectTest {
         assertTrue(sql.contains("WHERE NOT ((SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\")"
                 + " = (SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\"))\n"), sql);
     }
+
+    /** ClickHouse's {@code *} reads no ARRAY JOIN column, so a star over a lateral explosion names the exploded column
+     *  after it; with the root's columns labeled (0276a473e) the star is each source but the explosion, so every column
+     *  is named once (round 37, 2026-11-12: {@code testVariantMapColumn_values_LateralFlatten} answered 4 columns for
+     *  its 3, the exploded one twice). */
+    @Test
+    void aStarOverAnArrayJoinNamesEachColumnOnce() {
+        SqlType ints = new SqlType.Array(SqlType.Scalar.BIGINT);
+        SqlSource.Table people = new SqlSource.Table("people", "t0", List.of(new OutputCol("id", SqlType.Scalar.BIGINT,
+                true), new OutputCol("xs", ints, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE);
+        SqlSelect marker = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Call(SqlFn.UNNEST,
+                List.of(col("t0", "xs", ints))), "x", null)), false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        for (SqlSource.Join.Kind kind : List.of(SqlSource.Join.Kind.CROSS_LATERAL, SqlSource.Join.Kind.LEFT_LATERAL)) {
+            SqlSource from = new SqlSource.Join(people, new SqlSource.Subselect(marker, "t1", null), kind, null);
+            String sql = render(new SqlSelect(List.of(), false, from, null, List.of(), null, null, List.of(), null, null,
+                    List.of()));
+            String head = sql.substring(0, sql.indexOf("FROM"));
+            assertTrue(sql.contains("ARRAY JOIN"), sql);
+            assertTrue(head.contains("AS \"id\""), sql);
+            assertTrue(head.contains("AS \"xs\""), sql);
+            assertTrue(head.indexOf("AS \"x\"") >= 0 && head.indexOf("AS \"x\"") == head.lastIndexOf("AS \"x\""), sql);
+            assertFalse(head.contains("*"), sql);
+        }
+    }
 }
