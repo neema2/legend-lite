@@ -573,7 +573,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
       release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }, true); },
       // a copy Python made for its page (grid.snap(), §18.8): what the page follows the snap command with
       held: async (table: string) =>
-        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as InferredModel & { readonly table: string },
+        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as PythonModel & { readonly table: string },
     } : {}),
     ...(offers.files ? {
       ingestFile: async (file: File, options: { readonly table: string }) => {
@@ -599,7 +599,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
     // remote URL, never from its own machine's files
     ...(offers.remote ? {
       mountRemote: async (url: string, s3: S3Credentials | undefined, name: string) =>
-        JSON.parse(await posted(link, 'remote.json', { url, name, ...(s3 ? { s3 } : {}) })) as InferredModel,
+        JSON.parse(await posted(link, 'remote.json', { url, name, ...(s3 ? { s3 } : {}) })) as PythonModel,
     } : {}),
   };
 }
@@ -620,9 +620,17 @@ function pythonWarehouse(link: PythonLink): WarehouseService {
     signInWithKey: () => Promise.reject(new Error('a page on Python signs in to a warehouse by its user and password')),
     table: async (session, object) => JSON.parse(await posted(link, 'warehouse.json', {
       op: 'table', url: session.baseUrl, catalog: object.catalog, schema: object.schema, name: object.name,
-    })) as InferredModel,
+    })) as PythonModel,
   };
 }
+
+/**
+ * A table's model as Python's page answers it: the model Python wrote and holds, without its copy select list -- the
+ * planner's instruction Python applied as it made the table, a statement the page never sends (Python leaves it out:
+ * engine.py _NOT_THE_PAGES). Read by a cast of the answer's JSON, so it holds no plan's statement (the C final audit's
+ * H5, 2026-11-12: InferredModel's copySelectList is a PlannedSql, which a cast must never make).
+ */
+type PythonModel = Omit<InferredModel, 'copySelectList'>;
 
 /** A fetch of Python's that carries the engine's token, for the clients of what it serves. */
 function tokened(link: PythonLink): typeof fetch {

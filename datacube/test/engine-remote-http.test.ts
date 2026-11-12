@@ -13,6 +13,10 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 import { element, fn, fromElement, lambda, toJson } from '../../pure-protocol/src/index.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('trades::h2::DB', 'TRADES_SCHEMA', 'TRADES') },
   columns: [
@@ -114,14 +118,14 @@ describe('the engine executor', () => {
     assert.equal(calls[0]?.type, 'application/json');
     // The model travels as text, which every server accepts on every
     // call: nothing to parse first, nothing to cache.
-    const sent = JSON.parse(calls[0]?.body ?? '{}');
+    const sent = looseJson(calls[0]?.body ?? '{}');
     assert.deepEqual(sent.model, {
       _type: 'text',
       code: '###Relational\nDatabase trades::h2::DB()',
     });
     // The query carries its runtime: our own planners take it
     // out-of-band, the engine does not.
-    assert.deepEqual(sent.function, JSON.parse(toJson(
+    assert.deepEqual(sent.function, looseJson(toJson(
       lambda([], fn('from', QUERY.body[0]!, element('trades::h2::RT'))))));
     // And the execute call carries the context the engine requires.
     assert.equal(sent.context._type, 'BaseExecutionContext');
@@ -160,7 +164,7 @@ describe('the engine executor', () => {
 
 describe('what a person typed, parsed by the server (E1)', () => {
   it('sends the text, without source positions, and reads the lambda', async () => {
-    const { calls, fetchStub } = stub([JSON.parse(toJson(QUERY))]);
+    const { calls, fetchStub } = stub([looseJson(toJson(QUERY))]);
     const parsed = await new LegendEngineExecutor({
       baseUrl: 'http://engine:6300/', model: '', runtime: 'trades::h2::RT', fetch: fetchStub,
     }).parse("|trades::T->select(~[region])");

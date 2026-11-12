@@ -31,6 +31,10 @@ import type { ColumnSpec, CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 const SOURCE: FileSource = {
   _type: 'file', name: 'trades.csv', format: 'csv', size: 120, sha256: 'ab'.repeat(32),
   columns: [
@@ -108,7 +112,7 @@ describe('writing and reading a cube', () => {
   it('reads back every field of the cube, exactly, through JSON text', () => {
     const back = readCube(cubeToJson(doc()));
     const { source: _s, epoch: _e, window: _w, ...query } = EVERY;
-    assert.deepEqual(JSON.parse(cubeToJson(back)).query, JSON.parse(cubeToJson(doc())).query);
+    assert.deepEqual(looseJson(cubeToJson(back)).query, looseJson(cubeToJson(doc())).query);
     assert.deepEqual(Object.keys(back.query).sort(), Object.keys(query).sort());
     // the decimal literal keeps its digits
     assert.match(cubeToJson(back), /"12\.30"|12\.30/);
@@ -130,7 +134,7 @@ describe('writing and reading a cube', () => {
     assert.equal(c['maxRows'], 777);
     assert.equal(c['showTitleBar'], undefined, 'a default is not written down');
     assert.equal(c['pivotStatisticColumnPlacement'], null, 'an unset default is written as null');
-    assert.deepEqual(merge(DEFAULT_CONFIGURATION, c), JSON.parse(JSON.stringify(CONFIG)));
+    assert.deepEqual(merge(DEFAULT_CONFIGURATION, c), looseJson(JSON.stringify(CONFIG)));
   });
 
   it('keeps fields it does not know, and writes them back', () => {
@@ -145,7 +149,7 @@ describe('writing and reading a cube', () => {
     assert.throws(() => readCube('{"kind":"other"}'), /not a saved cube/);
     assert.throws(() => readCube('{"query":"select(~[a])","source":{}}'), /legacy DataCube specification/);
     assert.throws(() => readCube(cubeToJson({ ...doc(), version: CUBE_VERSION + 1 })), /newer version/);
-    const noSource = JSON.parse(cubeToJson(doc()));
+    const noSource = looseJson(cubeToJson(doc()));
     noSource.source = { _type: 'pointer' };
     assert.throws(() => readCube(noSource), CubeDocumentError);
     assert.equal(doc().kind, CUBE_KIND);
@@ -172,14 +176,14 @@ describe('a cube over a saved query', () => {
   it('writes the query as its source, and reads it back exactly', () => {
     const back = readCube(cubeToJson(over()));
     assert.deepEqual(back.source, QUERY_SOURCE);
-    assert.doesNotMatch(JSON.stringify(JSON.parse(cubeToJson(over())).source), /"id"|"owner"|"lastUpdatedAt"|"version"/, 'the store identity is not the query');
+    assert.doesNotMatch(JSON.stringify(looseJson(cubeToJson(over())).source), /"id"|"owner"|"lastUpdatedAt"|"version"/, 'the store identity is not the query');
   });
 
   it('refuses an incomplete saved query source, naming what is missing', () => {
-    const noContent = JSON.parse(cubeToJson(over()));
+    const noContent = looseJson(cubeToJson(over()));
     delete noContent.source.query.content;
     assert.throws(() => readCube(noContent), /the saved query source has no content/);
-    const noColumns = JSON.parse(cubeToJson(over()));
+    const noColumns = looseJson(cubeToJson(over()));
     delete noColumns.source.columns;
     assert.throws(() => readCube(noColumns), /saved query source is incomplete/);
   });
@@ -203,25 +207,25 @@ describe('a cube over a warehouse table, or a remote file: where it is, never ho
   });
 
   it('refuses a warehouse table with no catalog: every cube of this version names it', () => {
-    const none = JSON.parse(cubeToJson(over(TABLE)));
+    const none = looseJson(cubeToJson(over(TABLE)));
     delete none.source.catalog;
     assert.throws(() => readCube(none), /has no catalog/);
-    const empty = JSON.parse(cubeToJson(over(TABLE)));
+    const empty = looseJson(cubeToJson(over(TABLE)));
     empty.source.catalog = '';
     assert.throws(() => readCube(empty), /has no catalog/);
   });
 
   it('refuses one missing a part, or one carrying a credential', () => {
-    const noTable = JSON.parse(cubeToJson(over(TABLE)));
+    const noTable = looseJson(cubeToJson(over(TABLE)));
     delete noTable.source.table;
     assert.throws(() => readCube(noTable), /the warehouse table source has no table/);
-    const withToken = JSON.parse(cubeToJson(over(TABLE)));
+    const withToken = looseJson(cubeToJson(over(TABLE)));
     withToken.source.token = 'abc';
     assert.throws(() => readCube(withToken), /carries a credential/);
-    const withSecret = JSON.parse(cubeToJson(over(REMOTE)));
+    const withSecret = looseJson(cubeToJson(over(REMOTE)));
     withSecret.source.secretAccessKey = 'shh';
     assert.throws(() => readCube(withSecret), /carries a credential/);
-    const noUrl = JSON.parse(cubeToJson(over(REMOTE)));
+    const noUrl = looseJson(cubeToJson(over(REMOTE)));
     delete noUrl.source.url;
     assert.throws(() => readCube(noUrl), /the remote file source has no url/);
   });
@@ -238,13 +242,13 @@ describe('a cube over a dataframe: by its name on the engine that serves it, nev
   });
 
   it('refuses one whose name is not a frame\'s (a plain identifier), or with no columns', () => {
-    const named = JSON.parse(cubeToJson(over(FRAME)));
+    const named = looseJson(cubeToJson(over(FRAME)));
     named.source.name = 'trades; drop';
     assert.throws(() => readCube(named), /the frame source has no name/);
     // nor a literal's word: Python's frames refuse it as a name (frames._NAME), as the grammar reads it as a literal
     named.source.name = 'true';
     assert.throws(() => readCube(named), /the frame source has no name/);
-    const noColumns = JSON.parse(cubeToJson(over(FRAME)));
+    const noColumns = looseJson(cubeToJson(over(FRAME)));
     delete noColumns.source.columns;
     assert.throws(() => readCube(noColumns), /the frame source has no columns/);
   });
@@ -266,15 +270,15 @@ describe('a cube over a class: by what it is -- the class, its project and the r
 
   it('refuses one missing what reopens it, and a column that is no property\'s name', () => {
     for (const f of ['class', 'project', 'workspace', 'revision', 'mapping', 'runtime']) {
-      const raw = JSON.parse(cubeToJson(over(CLASS)));
+      const raw = looseJson(cubeToJson(over(CLASS)));
       delete raw.source[f];
       assert.throws(() => readCube(raw), new RegExp(`the class source has no ${f}`));
     }
-    const noColumns = JSON.parse(cubeToJson(over(CLASS)));
+    const noColumns = looseJson(cubeToJson(over(CLASS)));
     delete noColumns.source.columns;
     assert.throws(() => readCube(noColumns), /the class source has no columns/);
     // a column is read as `$x.p`: a name the grammar reads bare, so a pivot's name or a literal's word is none
-    const quoted = JSON.parse(cubeToJson(over(CLASS)));
+    const quoted = looseJson(cubeToJson(over(CLASS)));
     quoted.source.columns[0].name = 'true';
     assert.throws(() => readCube(quoted), /the class source's column 'true' is no property's name/);
   });
@@ -347,7 +351,7 @@ describe('opening a cube over its file as it is now', () => {
   });
 
   it('refuses a saved expand level or closed groups it cannot read, in words', () => {
-    const text = (tree: unknown): string => JSON.stringify({ ...JSON.parse(cubeToJson(doc())), tree });
+    const text = (tree: unknown): string => JSON.stringify({ ...looseJson(cubeToJson(doc())), tree });
     assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: -1 })), /expand level is a whole number/);
     assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: 1, closed: 'EMEA' })), /closed groups are row paths/);
     // closed under a level it has not: refused, never dropped (the S2 audit's 10)
@@ -365,7 +369,7 @@ describe('opening a cube over its file as it is now', () => {
   // its columns' Aggregation (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md) -- is refused by its version, and a
   // measures list in a cube of this one by name: never converted, never opened showing other numbers than it showed
   it('refuses a calculated column whose lambda the protocol cannot read, as the document it is in', () => {
-    const broken = JSON.parse(cubeToJson(doc()));
+    const broken = looseJson(cubeToJson(doc()));
     broken.query.derived[0].lambda.body = 'oops';
     assert.throws(() => readCube(broken), (e: unknown) => e instanceof CubeDocumentError
       && /calculated column "scaled"'s lambda: .*body/.test(e.message));
@@ -373,7 +377,7 @@ describe('opening a cube over its file as it is now', () => {
 
   it('refuses a cube saved before a grid\'s aggregates were its columns\' Aggregation, and a measures list', () => {
     assert.throws(() => readCube(cubeToJson({ ...doc(), version: 1 })), /an older version \(1 < 2\).*no longer read/);
-    const listed = JSON.parse(cubeToJson(doc()));
+    const listed = looseJson(cubeToJson(doc()));
     listed.query.measures = [{ name: 'notional', column: 'notional', fn: 'sum' }];
     assert.throws(() => readCube(listed), /'query\.measures': a grid carries no measures list/);
     assert.equal('measures' in doc().query, false, 'a cube written carries none');

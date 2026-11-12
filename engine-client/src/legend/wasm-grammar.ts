@@ -185,7 +185,7 @@ export class WasmGrammar implements Grammar {
     const model = input.model as { readonly _type?: string; readonly code?: string };
     const models = model._type === 'text' && typeof model.code === 'string' ? [model.code] : [];
     const text = answered(await this.#port.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
-    const read = JSON.parse(text) as ExecutePlan;
+    const read = JSON.parse(text) as Omit<ExecutePlan, 'run'> & { readonly run: string };
     // the statement the host runs, as the planner's answer carries it (planned-sql.ts)
     return { plan: { ...read, run: fromPlan(read.run) }, text };
   }

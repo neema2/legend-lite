@@ -11,6 +11,10 @@ import {
 
 import { element, fn, fromElement, lambda, toJson } from '../../pure-protocol/src/index.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 /** A plan as legend-engine's generatePlan shapes it: the SQL in a nested sql node. */
 const PLAN = {
   _type: 'simple',
@@ -39,7 +43,7 @@ function fakeServer(seen: Seen[], answer: (path: string) => { status?: number; j
   }) as unknown as typeof fetch;
 }
 
-const ok = (path: string) => ({ json: path.endsWith('/lambda') ? JSON.parse(toJson(Q)) : PLAN });
+const ok = (path: string) => ({ json: path.endsWith('/lambda') ? looseJson(toJson(Q)) : PLAN });
 
 /** A cube query, as DataCube builds one. */
 const Q = fromElement('demo::T').select(['a']).lambda();
@@ -64,9 +68,9 @@ describe('UpstreamPlanner: legend-engine\'s own API, the same client for lite an
     assert.equal(seen.length, 1);
     assert.equal(seen[0]!.url, 'http://localhost:9999/api/pure/v1/execution/generatePlan');
     assert.equal(seen[0]!.type, 'application/json');
-    const input = JSON.parse(seen[0]!.body);
+    const input = looseJson(seen[0]!.body);
     assert.deepEqual(input.model, { _type: 'text', code: 'Class demo::Person {}' });
-    assert.deepEqual(input.function, JSON.parse(toJson(lambda([], fn('from', Q.body[0]!, element('demo::RT'))))));
+    assert.deepEqual(input.function, looseJson(toJson(lambda([], fn('from', Q.body[0]!, element('demo::RT'))))));
   });
 
   it('caches, because planning the same query is pure', async () => {
@@ -113,7 +117,7 @@ describe('UpstreamPlanner: legend-engine\'s own API, the same client for lite an
     });
     assert.deepEqual(await p.relationType(Q), [{ name: 'amount', type: 'Decimal' }]);
     assert.equal(new URL(seen[0]!.url).pathname, '/api/pure/v1/compilation/lambdaRelationType');
-    assert.deepEqual(JSON.parse(seen[0]!.body).model, { _type: 'text', code: 'm' });
+    assert.deepEqual(looseJson(seen[0]!.body).model, { _type: 'text', code: 'm' });
   });
 
   it('parses what a person typed through grammarToJson (E1), and prints a query through jsonToGrammar (E4)', async () => {
@@ -135,7 +139,7 @@ describe('UpstreamPlanner: legend-engine\'s own API, the same client for lite an
     const printed = new URL(seen[1]!.url);
     assert.equal(printed.pathname, '/api/pure/v1/grammar/jsonToGrammar/lambda');
     assert.equal(printed.searchParams.get('renderStyle'), 'PRETTY');
-    assert.deepEqual(JSON.parse(seen[1]!.body), JSON.parse(toJson(Q)));
+    assert.deepEqual(looseJson(seen[1]!.body), looseJson(toJson(Q)));
   });
 });
 
@@ -146,7 +150,7 @@ describe('UpstreamPlanner.withModel: another source on the page, the same server
     const second = first.withModel('model B', 'b::RT');
     await second.plan(Q);
     await first.plan(Q);
-    const bodies = seen.filter((s) => s.url.endsWith('/generatePlan')).map((s) => JSON.parse(s.body) as { model: { code: string } });
+    const bodies = seen.filter((s) => s.url.endsWith('/generatePlan')).map((s) => looseJson(s.body) as { model: { code: string } });
     assert.deepEqual(bodies.map((b) => b.model.code), ['model B', 'model A']);
   });
 });

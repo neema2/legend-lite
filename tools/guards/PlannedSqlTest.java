@@ -102,6 +102,67 @@ class PlannedSqlTest {
             "studio/src/backend/query-builder.ts", 4);
 
     /**
+     * {@code as unknown as} in the product's TypeScript, by file (the C final audit's H5, 2026-11-12: it satisfies any
+     * type, a record holding the brand among them, and ESCAPE did not see it): shrink-only -- a new one fails, one gone
+     * lowers its file's count here, dated. A cast whose type names the brand or a record holding it is refused apart
+     * (CAST, HOLDER_CASTS); these are each to a type that holds no statement.
+     */
+    static final Map<String, Integer> UNKNOWN_CASTS = Map.ofEntries(
+            // 2026-11-12, measured (H5): 101 in 40 files, each a value read from JSON, a protocol or a library
+            // as a type of its own (none a record holding the brand: HOLDER_CASTS is empty)
+            Map.entry("datacube/src/app.ts", 6),
+            Map.entry("datacube/src/app/datacube-app.ts", 3),
+            Map.entry("datacube/src/chart-spec.ts", 1),
+            Map.entry("datacube/src/cube-document.ts", 7),
+            Map.entry("datacube/src/flow-boxes.ts", 1),
+            Map.entry("datacube/src/grid-commands.ts", 1),
+            Map.entry("datacube/src/grid/grid.ts", 4),
+            Map.entry("datacube/src/headless/calls.ts", 1),
+            Map.entry("datacube/src/headless/grid.ts", 8),
+            Map.entry("datacube/src/headless/host.ts", 2),
+            Map.entry("datacube/src/headless/join.ts", 2),
+            Map.entry("datacube/src/headless/page.ts", 1),
+            Map.entry("datacube/src/headless/timeseries.ts", 5),
+            Map.entry("datacube/src/headless/url.ts", 1),
+            Map.entry("datacube/src/headless/web.ts", 1),
+            Map.entry("datacube/src/lite-planner.ts", 1),
+            Map.entry("datacube/src/model-measure-commands.ts", 3),
+            Map.entry("datacube/src/page-commands.ts", 5),
+            Map.entry("datacube/src/page-gestures.ts", 1),
+            Map.entry("datacube/src/page-parameters.ts", 1),
+            Map.entry("datacube/src/timeseries-edit.ts", 2),
+            Map.entry("datacube/src/timeseries-option.ts", 2),
+            Map.entry("datacube/src/timeseries-render.ts", 3),
+            Map.entry("datacube/src/ui/sheet-tabs.ts", 1),
+            Map.entry("datacube/src/upload.ts", 2),
+            Map.entry("engine-client/src/arrow-ipc.ts", 2),
+            Map.entry("engine-client/src/duckdb-tab.ts", 1),
+            Map.entry("engine-client/src/duckdb.ts", 1),
+            Map.entry("engine-client/src/engine-remote.ts", 1),
+            Map.entry("engine-client/src/legend/planner-worker.ts", 1),
+            Map.entry("engine-client/src/plan-runner.ts", 1),
+            Map.entry("engine-client/src/snap.ts", 1),
+            Map.entry("engine-client/src/warehouse.ts", 2),
+            Map.entry("pure-protocol/src/validate.ts", 1),
+            Map.entry("query-store/src/share.ts", 2),
+            Map.entry("query/src/app/run.ts", 1),
+            Map.entry("query/src/builder/build.ts", 1),
+            Map.entry("query/src/builder/load.ts", 18),
+            Map.entry("query/src/ui/dom.ts", 2),
+            Map.entry("studio/src/app/app.ts", 1));
+
+    /**
+     * A CAST TO A RECORD HOLDING THE BRAND in the product's TypeScript, by file (H5, 2026-11-12: {@code JSON.parse(text)
+     * as Plan} makes a plan's statement of any text with no cast to PlannedSql to see). A record holds the brand when a
+     * property's type names PlannedSql or another record that does (never a method's parameter or a function's, never
+     * through an Omit), measured over the product and the tests: casts to one are refused but those pinned here.
+     */
+    static final Map<String, Integer> HOLDER_CASTS = Map.of();
+    // 2026-11-12 (H5, measured): none, once python-host.ts's three model reads (Python's page answers, cast to
+    // InferredModel, whose copySelectList is a PlannedSql) and wasm-grammar.ts's executePlan read (cast to ExecutePlan,
+    // its run then minted) were typed without the brand
+
+    /**
      * THE AUTHORED DOOR (the C final audit's H1, 2026-11-12: "any product file can write
      * {@code runAuthored(await grammar.authored('DuckDB', text), ...)} and every guard stays green"): a person's own
      * statement, carried by the planner as written (Boundary.authored) and run by the hosts' runner (runAuthored), is the
@@ -183,6 +244,21 @@ class PlannedSqlTest {
     private static final Pattern AUTHORED_JAVA_REFERENCE = Pattern.compile(
             "\\bAuthored\\s*\\.\\s*plan\\b|\\bBoundary\\s*\\.\\s*authored\\b|(?<![\\w$])authoredOrError(?![\\w$])");
     private static final Pattern SUPPRESSION = Pattern.compile("@ts-(?:ignore|expect-error|nocheck)");
+    /** H5: a cast through unknown, which satisfies any type. */
+    private static final Pattern UNKNOWN_CAST = Pattern.compile("\\bas\\s+unknown\\s+as\\b");
+    /** H5: the brand under another name -- a renamed import or export of it, or a type alias of it. */
+    private static final Pattern BRAND_ALIAS = Pattern.compile(
+            "\\bPlannedSql\\s+as\\s+[\\w$]|\\btype\\s+[\\w$]+\\s*(?:<[^=;]*>)?\\s*=\\s*PlannedSql\\s*;");
+    /** A declaration of a type: an interface or class (its body braced), or a type alias (its body to its ';'). */
+    private static final Pattern DECLARATION = Pattern.compile(
+            "\\b(?:interface|class)\\s+([\\w$]+)[^{;]*\\{|\\btype\\s+([\\w$]+)\\s*(?:<[^=;]*>)?\\s*=");
+    /** A property's name and its colon, a method's being followed by its parameters (marked, so never matched). */
+    private static final Pattern PROPERTY = Pattern.compile("(?<![\\w$.])(?:readonly\\s+)?[\\w$]+\\??\\s*:\\s*");
+    /** An Omit of a type (one level of nested generics): what it names is not all it holds. */
+    private static final Pattern OMIT = Pattern.compile("\\bOmit\\s*<[^<>]*(?:<[^<>]*>[^<>]*)*>");
+    /** A cast's start (never {@code as const}), and the angle-bracket assertion of a named type. */
+    private static final Pattern AS = Pattern.compile("\\bas\\s+(?!const\\b)");
+    private static final Pattern ANGLE_ASSERTION = Pattern.compile("(?<![\\w$])<([\\w$]+)>");
     private static final Pattern RUN_TS_IMPORT = Pattern.compile(
             "\\bimport\\s*(type\\s+)?\\{([^}]*)\\}\\s*from\\s*['\"`][^'\"`]*backend/run(?:\\.ts)?['\"`]");
     private static final Pattern PLAYGROUND_READ = Pattern.compile("\\.\\s*playground\\b|\\[\\s*['\"`]playground['\"`]\\s*\\]"
@@ -629,6 +705,252 @@ class PlannedSqlTest {
                         + " destructured or passed on");
         assertTrue(read("studio/src/app/app.ts").split("\\bplayground\\(session\\)", -1).length == 2,
                 "the app makes the playground once");
+    }
+
+    /** Each type the TypeScript declares that holds the brand in a property, by name (H5): a fixed point over every
+     *  declaration in {@code codes}, from PlannedSql. */
+    static Set<String> brandHolders(List<String> codes) {
+        Map<String, List<String>> braced = new TreeMap<>();
+        Map<String, List<String>> aliased = new TreeMap<>();
+        for (String s : codes) {
+            Matcher m = DECLARATION.matcher(s);
+            while (m.find()) {
+                boolean isBraced = m.group(1) != null;
+                int depth = isBraced ? 1 : 0;
+                int j = m.end();
+                for (; j < s.length(); j++) {
+                    char c = s.charAt(j);
+                    if (c == '{' || c == '(' || c == '[') {
+                        depth++;
+                    } else if (c == '}' || c == ')' || c == ']') {
+                        depth--;
+                        if (depth == 0 && isBraced) {
+                            break;
+                        }
+                    } else if (c == ';' && depth == 0 && !isBraced) {
+                        break;
+                    }
+                }
+                (isBraced ? braced : aliased).computeIfAbsent(isBraced ? m.group(1) : m.group(2), k -> new ArrayList<>())
+                        .add(s.substring(m.end(), Math.min(j, s.length())));
+            }
+        }
+        Set<String> holders = new TreeSet<>(Set.of("PlannedSql"));
+        for (boolean changed = true; changed; ) {
+            changed = false;
+            Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", holders) + ")(?![\\w$])");
+            for (Map<String, List<String>> kind : List.of(braced, aliased)) {
+                for (Map.Entry<String, List<String>> e : kind.entrySet()) {
+                    if (!holders.contains(e.getKey())
+                            && e.getValue().stream().anyMatch(b -> holds(b, kind == aliased, token))) {
+                        holders.add(e.getKey());
+                        changed = true;
+                    }
+                }
+            }
+        }
+        return holders;
+    }
+
+    /** A body holds the brand when a property's type names a holder (never a method's, never a function's, never a
+     *  local's in a method's body: an interface's or class's properties are at its own top level), or -- a type alias --
+     *  its own top level does, outside an Omit. */
+    private static boolean holds(String body, boolean alias, Pattern token) {
+        String flat = parametersMarked(body);
+        int[] depth = new int[flat.length() + 1];
+        for (int i = 0, d = 0; i < flat.length(); i++) {
+            depth[i] = d;
+            char c = flat.charAt(i);
+            d += c == '{' || c == '[' ? 1 : c == '}' || c == ']' ? -1 : 0;
+        }
+        Matcher p = PROPERTY.matcher(flat);
+        while (p.find()) {
+            if (!alias && depth[p.start()] > 0) {
+                continue;
+            }
+            String type = typeAt(flat, p.end(), ";,\n");
+            if (!type.contains("=>") && token.matcher(OMIT.matcher(type).replaceAll(" ")).find()) {
+                return true;
+            }
+        }
+        if (alias) {
+            String top = topLevel(OMIT.matcher(flat).replaceAll(" "));
+            return !top.contains("=>") && token.matcher(top).find();
+        }
+        return false;
+    }
+
+    /** {@code body} with each top-level parameter list replaced by a mark: a method is then no property. */
+    private static String parametersMarked(String body) {
+        StringBuilder out = new StringBuilder();
+        int depth = 0;
+        for (char c : body.toCharArray()) {
+            if (c == '(') {
+                if (depth++ == 0) {
+                    out.append('\u00a7');
+                }
+            } else if (c == ')') {
+                depth--;
+            } else if (depth == 0) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    private static String topLevel(String body) {
+        StringBuilder out = new StringBuilder();
+        int depth = 0;
+        for (char c : body.toCharArray()) {
+            if (c == '{' || c == '[' || c == '(') {
+                depth++;
+            } else if (c == '}' || c == ']' || c == ')') {
+                depth--;
+            } else if (depth == 0) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /** The type text from {@code at} to the first of {@code ends} outside its brackets, or a bracket it did not open. */
+    private static String typeAt(String s, int at, String ends) {
+        int depth = 0;
+        int j = at;
+        for (; j < s.length(); j++) {
+            char c = s.charAt(j);
+            if ("{[(<".indexOf(c) >= 0) {
+                depth++;
+            } else if ("}])>".indexOf(c) >= 0) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            } else if (depth == 0 && ends.indexOf(c) >= 0) {
+                break;
+            }
+        }
+        return s.substring(at, j);
+    }
+
+    /** {@code code}'s casts to a holder (H5): each {@code as T} whose type names one outside an Omit (a cast through
+     *  unknown, any or never counted once, at its last step), and each {@code <T>} assertion of one; its import and
+     *  export statements' renames are no casts. */
+    static int holderCasts(String code, Set<String> holders) {
+        return holderCastTexts(code, holders).size();
+    }
+
+    /** {@code code}'s casts to a holder, each as its text (what a failure names). */
+    static List<String> holderCastTexts(String code, Set<String> holders) {
+        Set<String> records = new TreeSet<>(holders);
+        records.remove("PlannedSql");
+        List<String> found = new ArrayList<>();
+        if (records.isEmpty()) {
+            return found;
+        }
+        Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", records) + ")(?![\\w$])");
+        String s = MODULE_STATEMENT.matcher(code).replaceAll(r -> " ".repeat(r.group().length()));
+        Matcher m = AS.matcher(s);
+        while (m.find()) {
+            String type = typeAt(s, m.end(), ";,=\n?:");
+            Matcher named = token.matcher(OMIT.matcher(type).replaceAll(" "));
+            if (!type.matches("(?s)\\s*(?:unknown|any|never)\\s+as\\b.*") && named.find()) {
+                found.add("as " + type.strip().replaceAll("\\s+", " ") + " (" + named.group() + ")");
+            }
+        }
+        Matcher a = ANGLE_ASSERTION.matcher(s);
+        while (a.find()) {
+            if (records.contains(a.group(1))) {
+                found.add(a.group());
+            }
+        }
+        return found;
+    }
+
+    @Test
+    void theBrandIsNeverSatisfiedByAnotherName() throws IOException {
+        List<String> product = folders().get("typescript");
+        List<String> read = new ArrayList<>(product);
+        read.addAll(TESTS);
+        Map<String, String> codes = new TreeMap<>();
+        for (String file : inventory()) {
+            if (file.matches(".*\\.(?:[cm]?ts|tsx)$") && under(file, read)) {
+                codes.put(file, code(read(file)));
+            }
+        }
+        Set<String> holders = brandHolders(new ArrayList<>(codes.values()));
+        for (String record : List.of("Plan", "HostOperation", "HostSource", "SnapStreamRequest", "InferredModel",
+                "ExecutePlan")) {
+            assertTrue(holders.contains(record), record + " holds a plan's statement, and the census does not see it");
+        }
+        Map<String, Integer> unknownCasts = new TreeMap<>();
+        Map<String, Integer> holderCasts = new TreeMap<>();
+        Map<String, List<String>> holderCastTexts = new TreeMap<>();
+        List<String> aliases = new ArrayList<>();
+        for (Map.Entry<String, String> e : codes.entrySet()) {
+            String file = e.getKey();
+            if (!file.equals("engine-client/src/planned-sql.ts") && BRAND_ALIAS.matcher(e.getValue()).find()) {
+                aliases.add(file);
+            }
+            if (under(file, product)) {
+                int u = count(UNKNOWN_CAST, e.getValue());
+                if (u > 0) {
+                    unknownCasts.put(file, u);
+                }
+                List<String> h = holderCastTexts(e.getValue(), holders);
+                if (!h.isEmpty()) {
+                    holderCasts.put(file, h.size());
+                    holderCastTexts.put(file, h);
+                }
+            }
+        }
+        assertEquals(List.of(), aliases, "PlannedSql is named PlannedSql: a renamed import or export of it, or a type"
+                + " alias of it, is a brand the cast census cannot see (the C final audit's H5)");
+        assertEquals(new TreeMap<>(HOLDER_CASTS), holderCasts, "a cast to a record holding the brand makes a plan's"
+                + " statement of any text: each is pinned by file (PlannedSqlTest.HOLDER_CASTS); read a planner's answer"
+                + " into a type without the brand and mint its statement with fromPlan; seen: " + holderCastTexts);
+        List<String> grew = new ArrayList<>();
+        List<String> shrank = new ArrayList<>();
+        for (Map.Entry<String, Integer> e : unknownCasts.entrySet()) {
+            if (e.getValue() > UNKNOWN_CASTS.getOrDefault(e.getKey(), 0)) {
+                grew.add(e.getKey() + ": " + e.getValue() + " > " + UNKNOWN_CASTS.getOrDefault(e.getKey(), 0));
+            }
+        }
+        for (Map.Entry<String, Integer> e : UNKNOWN_CASTS.entrySet()) {
+            if (unknownCasts.getOrDefault(e.getKey(), 0) < e.getValue()) {
+                shrank.add(e.getKey() + ": " + unknownCasts.getOrDefault(e.getKey(), 0) + " < " + e.getValue());
+            }
+        }
+        assertEquals(List.of(), grew, "a new `as unknown as` in the product's TypeScript (PlannedSqlTest.UNKNOWN_CASTS,"
+                + " shrink-only); measured: " + unknownCasts);
+        assertEquals(List.of(), shrank, "an `as unknown as` gone: lower its file's count in"
+                + " PlannedSqlTest.UNKNOWN_CASTS, dated; measured: " + unknownCasts);
+    }
+
+    /** Each form H5 named, planted: a census that stops seeing one is red. */
+    @Test
+    void theBrandCensusSeesEveryForm() {
+        Set<String> holders = brandHolders(List.of(code(
+                "export interface Plan { readonly sql: PlannedSql; readonly columns: readonly string[] }\n"
+                + "interface Outer { readonly plans: readonly Plan[]; run(sql: PlannedSql): void }\n"
+                + "interface Runner { run(sql: PlannedSql): Promise<Plan>; readonly go: (s: PlannedSql) => void }\n"
+                + "type Rows = readonly Plan[];\ntype Without = Omit<Plan, 'sql'>;\n"
+                + "type Op = { readonly op: 'count' } | { readonly query: PlannedSql };\n"
+                + "class View { readonly cube: string; render(): void { const plan: Plan = read(); show(plan); } }")));
+        assertEquals(Set.of("PlannedSql", "Plan", "Outer", "Rows", "Op"), holders);
+        for (String planted : List.of("const p = JSON.parse(t) as Plan;", "const p = JSON.parse(t) as unknown as Plan;",
+                "const ps = x as readonly Plan[];", "const ps = x as Array<Plan>;", "const p = <Plan>x;",
+                "const o = x as { readonly inner: Op };", "const r = x as Rows | undefined;")) {
+            assertEquals(1, holderCasts(code(planted), holders), "the census does not see: " + planted);
+        }
+        assertEquals(0, holderCasts(code("import { Plan as P } from './p.ts'; const w = x as Without;"
+                + " const s = x as Omit<Plan, 'sql'> & { sql: string }; const r = x as Runner; const c = [1] as const;"),
+                holders));
+        for (String planted : List.of("import type { PlannedSql as Sql } from './planned-sql.ts';",
+                "export type { PlannedSql as Sql } from './planned-sql.ts';", "type Sql = PlannedSql;")) {
+            assertTrue(BRAND_ALIAS.matcher(code(planted)).find(), "the census does not refuse: " + planted);
+        }
+        assertEquals(1, count(UNKNOWN_CAST, code("const a = x as unknown as Foo; // as unknown as Bar")));
     }
 
     @Test

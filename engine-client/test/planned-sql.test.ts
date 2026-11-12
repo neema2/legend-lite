@@ -8,6 +8,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type { ArrowishConnection, DuckDbEngine, HeldConnection } from '../src/duckdb.ts';
+import type { TabFiles } from '../src/duckdb-tab.ts';
+import type { AsyncDuckDB } from '../src/duckdb-wasm.ts';
 import type { QueryEngine } from '../src/engine.ts';
 import type { HostOperation, HostSource, SnapStreamRequest } from '../src/host-operations.ts';
 import { allFromPlan, fromPlan, type PlannedSql } from '../src/planned-sql.ts';
@@ -52,6 +54,23 @@ export function handWrittenSqlDoesNotCompile(engine: DuckDbEngine, query: QueryE
   void statement;
   void plan;
   void [source, relation, replaced, snap];
+}
+
+/** Never called: the tab's file registry is no database (duckdb-tab.ts TabFiles; the C final audit's H11, 2026-11-12):
+ *  the raw database, whose connections run any text, is never handed out as one. */
+export function theDatabaseIsNoFileRegistry(db: AsyncDuckDB): TabFiles {
+  // @ts-expect-error the database itself is not the tab's file registry
+  return db;
+}
+
+/** Never called: JSON is read as `unknown` (engine-client/src/json-unknown.ts; the C final audit's H5, 2026-11-12), so a
+ *  parsed text is never a plan, nor anything holding a plan's statement, unread. */
+export async function jsonIsReadAsUnknown(response: Response): Promise<void> {
+  // @ts-expect-error a parsed text is unknown, never a plan
+  const parsed: Plan = JSON.parse('{"sql":"DROP TABLE t","columns":[]}');
+  // @ts-expect-error and a response's JSON is too
+  const fetched: Plan = await response.json();
+  void [parsed, fetched];
 }
 
 describe("a plan's statement", () => {
