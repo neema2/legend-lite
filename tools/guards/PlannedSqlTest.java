@@ -393,8 +393,13 @@ class PlannedSqlTest {
         return sections;
     }
 
+    /** The checker census's planted violators (datacube/test/brand-casts.test.ts, the re-audit's S5, 2026-11-12): casts
+     *  written to be read as violators by TypeScript's own checker, which reads them; never read as text here. */
+    static final String PLANTED_CASTS = "datacube/test/fixtures/brand-casts/";
+
     private static List<String> inventory() throws IOException {
-        return Files.readAllLines(Runfile.property("inventory.files"));
+        return Files.readAllLines(Runfile.property("inventory.files")).stream()
+                .filter(f -> !f.startsWith(PLANTED_CASTS)).toList();
     }
 
     private static String read(String file) throws IOException {

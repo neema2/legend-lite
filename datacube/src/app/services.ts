@@ -157,8 +157,9 @@ export interface LocalEngine {
  */
 export interface DatabaseService {
   /** A file read into a table of its own (`table`), its model written from what the catalog found (upload.ts). Given
-   *  with `forgetFile`. */
-  readonly ingestFile?: (file: File, options: { readonly table: string }) => Promise<UploadResult>;
+   *  with `forgetFile`. Its answer holds no copy's select list: a host's answer is no planner's (a page's Python's is its
+   *  JSON), so no PlannedSql is made of it (the re-audit's S5, 2026-11-12). */
+  readonly ingestFile?: (file: File, options: { readonly table: string }) => Promise<Omit<UploadResult, 'copySelectList'>>;
   /** A file's table dropped, its name free again. */
   readonly forgetFile?: (fileName: string, table: string) => Promise<void>;
   /** A remote file mounted as a view named `name`, its model written from its catalog (read-only: no conversion). */
@@ -416,8 +417,10 @@ export interface WarehouseService {
   table?(session: WarehouseSession, object: CatalogObject): Promise<InferredModel>;
 }
 
-/** A copy its host made of a grid's base query (DatabaseService.snap): its own table, and the host's model of it. */
-export interface HostCopy extends InferredModel {
+/** A copy its host made of a grid's base query (DatabaseService.snap): its own table, and the host's model of it -- with
+ *  no copy's select list, which is a planner's text: a host's answer (Python's JSON) makes no PlannedSql (the re-audit's
+ *  S5, 2026-11-12). */
+export interface HostCopy extends Omit<InferredModel, 'copySelectList'> {
   readonly rowCount: number;
   readonly pulledBy?: Receipt;
   readonly table: string;
