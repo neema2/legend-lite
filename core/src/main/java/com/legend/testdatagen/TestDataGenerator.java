@@ -76,6 +76,15 @@ public final class TestDataGenerator {
             ScanRelations.Rel rel, Map<String, List<String>> colMap,
             @com.legend.base.Nullable String parentDb) {
         rel = expandIfView(ctx, rel, parentDb);
+        mergeCols(ctx, rel, colMap);
+        for (ScanRelations.Rel child : rel.children()) {
+            collectColMap(ctx, child, colMap, rel.db());
+        }
+    }
+
+    /** {@code rel}'s table's demanded columns merged into {@code colMap} (the node half of the engine's
+     *  generateRelationColumnMap; its children not walked). */
+    static void mergeCols(ModelContext ctx, ScanRelations.Rel rel, Map<String, List<String>> colMap) {
         Located loc = locate(ctx, rel.db(), rel.table());
         String key = loc.schema() + "\n" + rel.table();
         // engine sortBy(name) is the plain pure string sort — ASCII
@@ -92,9 +101,6 @@ public final class TestDataGenerator {
                     .findFirst().orElse(c));
         }
         colMap.put(key, List.copyOf(merged));
-        for (ScanRelations.Rel child : rel.children()) {
-            collectColMap(ctx, child, colMap, rel.db());
-        }
     }
 
     record Located(String schema,

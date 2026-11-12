@@ -142,7 +142,8 @@ class GeneratedTestDataProgramTest {
         for (com.legend.sql.SqlQuery f : TestDataPlanner.plan(ctx, query(QUERY), "t::M", List.of(
                 new TestDataGenerator.TableRowIds("default", "PERSON", List.of(
                         new TestDataGenerator.RowId(List.of("ID"), List.of(2L)),
-                        new TestDataGenerator.RowId(List.of("ID"), List.of(3L))))), null, false).fetches()) {
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(3L))))), null, false,
+                PlannerViews.of(ctx)).fetches()) {
             texts.add(backend.dialect().render(f));
         }
         assertEquals(2, texts.size(), "one text per fetch");

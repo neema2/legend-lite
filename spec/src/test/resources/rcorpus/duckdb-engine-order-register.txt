@@ -59,8 +59,11 @@ engine-order meta::relational::testDataGeneration::tests::testQualifier
 engine-order meta::relational::testDataGeneration::tests::testSelfJoin
 engine-order meta::relational::testDataGeneration::tests::testSimpleSingleTable
 engine-order meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert
+engine-order meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin
 engine-order meta::relational::testDataGeneration::tests::testSimpleTwoTable
 engine-order meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows
+engine-order meta::relational::testDataGeneration::tests::testSimpleViewRoot
+engine-order meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin
 engine-order meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins
 engine-order meta::relational::testDataGeneration::tests::testTableToTDSSimple
 engine-order meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions
@@ -73,6 +76,8 @@ engine-order meta::relational::testDataGeneration::tests::testUnion
 engine-order meta::relational::testDataGeneration::tests::testUnionToUnion
 engine-order meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels
 engine-order meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing
+engine-order meta::relational::testDataGeneration::tests::testUnionViewOnView
+engine-order meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin
 engine-order meta::relational::tests::advanced::contractmoneyscenario::test1
 engine-order meta::relational::tests::advanced::contractmoneyscenario::test2
 engine-order meta::relational::tests::advanced::failures::moveFilterInOnClause::failMoveFilterInOnClauseJoin

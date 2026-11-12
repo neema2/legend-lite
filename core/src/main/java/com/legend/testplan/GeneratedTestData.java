@@ -46,7 +46,7 @@ final class GeneratedTestData {
         return typed.withBody(GeneratorSplice.spliced(body, ctx, typed.specs(), new GeneratorSplice.Generator() {
             @Override
             public GeneratorSplice.Generated plan(TypedTestDataGen g) {
-                return generated(g, ctx, dialect, body, runtimeFqn);
+                return generated(g, typed, dialect, body, runtimeFqn);
             }
 
             @Override
@@ -92,8 +92,9 @@ final class GeneratedTestData {
     /** {@code g} planned by {@link TestDataPlanner}: its runtime argument the body's ({@link #theBodysRuntime}), its
      *  arguments after the query, the mapping and the runtime classified (the row identifiers, the milestoning dates,
      *  the hash flag; each a literal, a non-literal refused by name), its fetches' texts written in {@code dialect}. */
-    private static Generated generated(TypedTestDataGen g, ModelContext ctx, SqlDialect dialect, List<TypedSpec> body,
+    private static Generated generated(TypedTestDataGen g, TypedQuery typed, SqlDialect dialect, List<TypedSpec> body,
             @com.legend.base.Nullable String runtimeFqn) {
+        ModelContext ctx = typed.context();
         List<ValueSpecification> ps = g.params();
         theBodysRuntime(ps.get(2), body, runtimeFqn);
         LambdaFunction query = (LambdaFunction) ps.get(0);
@@ -104,12 +105,24 @@ final class GeneratedTestData {
         for (int i = 3; i < ps.size(); i++) {
             TestDataGenerationNatives.classifyArg(ps.get(i), rowIds, dates, hash);
         }
-        TestDataPlanner.Planned p = TestDataPlanner.plan(ctx, query, mapping, rowIds, dates[0], hash[0]);
+        TestDataPlanner.Planned p = TestDataPlanner.plan(ctx, query, mapping, rowIds, dates[0], hash[0],
+                views(typed, runtimeFqn, dialect));
         List<String> texts = new ArrayList<>(p.fetches().size());
         for (SqlQuery f : p.fetches()) {
             texts.add(dialect.render(f));
         }
         return new Generated(List.copyOf(texts), p.csv(), p);
+    }
+
+    /** A view's own fetch, planned by the planner over the generator's clauses
+     *  ({@link com.legend.planner.BodyPlanner#viewFetch}): the body's model and compiler, its runtime, written in the
+     *  body's dialect, no session. */
+    static TestDataPlanner.Views views(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SqlDialect dialect) {
+        com.legend.planner.PlanEnv env = com.legend.planner.PlanEnv.of(typed.context(), runtimeFqn, dialect,
+                java.util.Set.of(), com.legend.planner.ProductStatements::noGenerator);
+        return (db, view, reads, tables) -> com.legend.planner.BodyPlanner.viewFetch(db, view, reads, tables,
+                typed.specs(), env);
     }
 
     /**

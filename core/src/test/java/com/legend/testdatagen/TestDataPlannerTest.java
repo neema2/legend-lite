@@ -104,11 +104,134 @@ class TestDataPlannerTest {
         }
     }
 
+    /** A view in the query's tree (B2d.3, upstream's orderPnlView shape: a filter, distinct, a column through two
+     *  joins), as upstream's interpreted generator fetches it: its main table's rows by their identifiers, its own join
+     *  web, then its own fetch -- the view's relation over those clauses, one more fetch text -- whose rows the query's
+     *  joins from the view start from; the text writes the tables only. */
+    private static final String VIEW_MODEL = """
+            ###Relational
+            Database t::DB
+            (
+              Table ORDERS (ID INTEGER PRIMARY KEY, ACCOUNTID INTEGER)
+              Table PNL (ORDER_ID INTEGER PRIMARY KEY, PNL DOUBLE)
+              Table ACCOUNT (ID INTEGER PRIMARY KEY, NAME VARCHAR(40))
+              Join Pnl_Order(PNL.ORDER_ID = ORDERS.ID)
+              Join Order_Account(ORDERS.ACCOUNTID = ACCOUNT.ID)
+              Join PnlView_Order(PNLVIEW.ORDER_ID = ORDERS.ID)
+              Filter NonNegative(PNL.PNL > 0)
+              View PNLVIEW
+              (
+                ~filter NonNegative
+                ~distinct
+                ORDER_ID: PNL.ORDER_ID PRIMARY KEY,
+                pnl: PNL.PNL,
+                accountName: @Pnl_Order > @Order_Account | ACCOUNT.NAME
+              )
+            )
+            ###Pure
+            Class t::OrderPnl { pnl: Float[1]; accountName: String[0..1]; order: t::Order[0..1]; }
+            Class t::Order { id: Integer[1]; pnl: t::OrderPnl[0..1]; }
+            ###Mapping
+            Mapping t::M
+            (
+              t::OrderPnl: Relational { ~mainTable [t::DB]PNLVIEW pnl: [t::DB]PNLVIEW.pnl,
+                accountName: [t::DB]PNLVIEW.accountName, order: [t::DB]@PnlView_Order }
+              t::Order: Relational { ~mainTable [t::DB]ORDERS id: [t::DB]ORDERS.ID, pnl: [t::DB]@PnlView_Order }
+            )
+            """;
+
+    private static final String VIEW_CSV = "default\nORDERS\nID,ACCOUNTID\n1,10\n2,20\n3,10\n4,20\n-----\n"
+            + "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,200.0\n3,-5.0\n4,150.0\n-----\n"
+            + "default\nACCOUNT\nID,NAME\n10,acme\n20,zeta\n";
+
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aViewIsFetchedAsUpstreamFetchesIt(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel(viewModel(type));
+        List<TestDataGenerator.TableRowIds> pnl123 = List.of(ids("PNL", "ORDER_ID", 1L, 2L, 3L));
+        String tables = "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,200.0\n3,-5.0\n-----\n"
+                + "default\nORDERS\nACCOUNTID,ID\n10,1\n10,3\n20,2\n-----\n"
+                + "default\nACCOUNT\nID,NAME\n10,acme\n20,zeta\n-----\n";
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls(VIEW_CSV, "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            // the view as the root: its main table by its identifiers (a row its filter drops included: the main
+            // table's fetch is by identifier), its join web, its own fetch -- 4 fetch texts, the tables only written
+            assertSame(c, ctx, VIEW_MODEL, dialect, "|t::OrderPnl.all()->project([o|$o.pnl], ['p'])", pnl123, 4,
+                    tables);
+            // the query's join from the view starts from the view's own rows: order 3's pnl is negative, so the view
+            // drops it and the query's ORDERS fetch reads orders 1 and 2 (their rows already fetched by the web)
+            assertSame(c, ctx, VIEW_MODEL, dialect,
+                    "|t::OrderPnl.all()->project([o|$o.pnl, o|$o.order.id], ['p', 'o'])", pnl123, 5, tables);
+            // a child view: its main table's given identifiers start its tree, whatever the parent's rows (TDG:429)
+            assertSame(c, ctx, VIEW_MODEL, dialect, "|t::Order.all()->project([o|$o.id, o|$o.pnl.pnl], ['i', 'p'])",
+                    List.of(ids("ORDERS", "ID", 4L), ids("PNL", "ORDER_ID", 1L)), 5,
+                    "default\nORDERS\nACCOUNTID,ID\n10,1\n20,4\n-----\n"
+                            + "default\nPNL\nORDER_ID,PNL\n1,100.0\n-----\n"
+                            + "default\nACCOUNT\nID,NAME\n10,acme\n-----\n");
+        }
+    }
+
+    /** No identifiers for a starting table -- the root, a view's main table: upstream's error, its example's keys not
+     *  read (the user's ruling R3, 2026-11-11; register S300). */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void noStartingRowsIsUpstreamsError(DatabaseType type) {
+        ModelContext ctx = Compiler.compileModel(viewModel(type));
+        com.legend.error.AssertFailed root = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+                        query("|t::Order.all()->project([o|$o.id], ['i'])"), "t::M", List.of(), null, false,
+                        PlannerViews.of(ctx, "t::RT", Databases.dialect(type))));
+        assertEquals("Row Identifers should be provided for the root table: t::DB.ORDERS [ID:INT]\nExample:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'ORDERS', [\n\n"
+                + "  ])\n", root.getMessage());
+        com.legend.error.AssertFailed view = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+                        query("|t::Order.all()->project([o|$o.pnl.pnl], ['p'])"), "t::M",
+                        List.of(ids("ORDERS", "ID", 1L)), null, false, PlannerViews.of(ctx, "t::RT", Databases.dialect(type))));
+        assertEquals("Row Identifers should be provided for the root table of the view (PNLVIEW): t::DB.PNL"
+                + " [ORDER_ID:INT]\nExample:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'PNL', [\n\n"
+                + "  ])\n", view.getMessage());
+    }
+
+    /** {@link #VIEW_MODEL} with a runtime on {@code type}'s in-memory database: a view's fetch plans on it. */
+    private static String viewModel(DatabaseType type) {
+        return VIEW_MODEL + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "
+                + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
+                + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+    }
+
+    private static TestDataGenerator.TableRowIds ids(String table, String column, Long... values) {
+        List<TestDataGenerator.RowId> rows = new java.util.ArrayList<>();
+        for (Long v : values) {
+            rows.add(new TestDataGenerator.RowId(List.of(column), List.of(v)));
+        }
+        return new TestDataGenerator.TableRowIds("default", table, rows);
+    }
+
+    /** {@link #assertSame(Connection, ModelContext, SqlDialect, String, List, boolean, int, String)} over a model
+     *  of its own, unhashed. */
+    private static void assertSame(Connection c, ModelContext ctx, String model, SqlDialect dialect, String query,
+            List<TestDataGenerator.TableRowIds> ids, int fetches, String expected) throws Exception {
+        assertSame(c, ctx, dialect, query, ids, false, fetches, expected, PlannerViews.of(ctx, "t::RT", dialect));
+    }
+
     /** The planned statement's text, run, equals {@code expected}; {@code fetches} fetch texts, each of which runs
      *  read-only; no table made. */
     private static void assertSame(Connection c, ModelContext ctx, SqlDialect dialect, String query,
             List<TestDataGenerator.TableRowIds> ids, boolean hash, int fetches, String expected) throws Exception {
-        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query(query), "t::M", ids, null, hash);
+        assertSame(c, ctx, dialect, query, ids, hash, fetches, expected, PlannerViews.of(ctx));
+    }
+
+    private static void assertSame(Connection c, ModelContext ctx, SqlDialect dialect, String query,
+            List<TestDataGenerator.TableRowIds> ids, boolean hash, int fetches, String expected,
+            TestDataPlanner.Views views) throws Exception {
+        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query(query), "t::M", ids, null, hash, views);
         String sql = dialect.render(planned.csv());
         assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("CREATE"), sql);
         String text;

@@ -4,6 +4,7 @@
 package com.legend.testdatagen;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.error.AssertFailed;
 import com.legend.error.NotImplementedException;
 import com.legend.lineage.ScanRelations;
 import com.legend.model.DatabaseDefinition;
@@ -30,7 +31,6 @@ import static com.legend.testdatagen.TestDataGenerator.PARENT;
 import static com.legend.testdatagen.TestDataGenerator.ROOT;
 import static com.legend.testdatagen.TestDataGenerator.and;
 import static com.legend.testdatagen.TestDataGenerator.bare;
-import static com.legend.testdatagen.TestDataGenerator.collectColMap;
 import static com.legend.testdatagen.TestDataGenerator.column;
 import static com.legend.testdatagen.TestDataGenerator.findJoin;
 import static com.legend.testdatagen.TestDataGenerator.locate;
@@ -89,18 +89,31 @@ public final class TestDataPlanner {
         }
     }
 
+    /**
+     * A view's own fetch (B2d.3, the design's §2.3): the view {@code view} of {@code db} as the compiler plans a read of
+     * it -- its lifted relation, its filter, distinct, grouping and joins -- each table it reads, by physical name, read
+     * from {@code tables} (the clause that fetched it) for each identity of {@code reads} ({@code store|physical}), as
+     * the reload's swap reads a slice. The planner's, not the generator's: the generator's package never lowers.
+     */
+    @FunctionalInterface
+    public interface Views {
+        SqlQuery fetch(String db, String view, java.util.Set<String> reads, Map<String, SqlQuery> tables);
+    }
+
     /** The test data {@code query} over {@code mappingFqn} needs, starting from {@code rowIds}, the milestoned tables
-     *  read on {@code dates}, text cells hashed where {@code hashStrings} says. */
+     *  read on {@code dates}, text cells hashed where {@code hashStrings} says, a view's own fetch planned by
+     *  {@code views}. */
     public static Planned plan(ModelContext ctx, LambdaFunction query, String mappingFqn,
             List<TestDataGenerator.TableRowIds> rowIds, TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings) {
+            boolean hashStrings, Views views) {
         List<ScanRelations.Rel> roots = ScanRelations.relTree(ctx, query, mappingFqn);
         // the engine's generateRelationColumnMap: a table's demanded columns merged across every node that fetches it
+        // (a view's: its own tables', and its children's, TDG:567-583)
         Map<String, List<String>> colMap = new LinkedHashMap<>();
         for (ScanRelations.Rel r : roots) {
-            collectColMap(ctx, r, colMap, null);
+            columns(ctx, r, colMap);
         }
-        Walk walk = new Walk(ctx, colMap, rowIds, dates);
+        Walk walk = new Walk(ctx, colMap, rowIds, dates, views);
         for (ScanRelations.Rel r : roots) {
             walk.root(r);
         }
@@ -115,6 +128,21 @@ public final class TestDataPlanner {
             tables.add(new Table(f.schema(), f.table(), f.def(), headerOrder(f.cols()), f.ctes()));
         }
         return new Planned(fetches, csv(walk, hashStrings), walk.ctes, tables, hashStrings);
+    }
+
+    /** The demanded columns of every table {@code rel}'s tree fetches: a table's as {@link TestDataGenerator#mergeCols}
+     *  merges them; a view's, the tables of its own tree (its seed table and its join web, {@code nestedViewTree}),
+     *  then its children's -- the children join the view's own fetch, so nothing of theirs reaches the view's
+     *  tables. */
+    private static void columns(ModelContext ctx, ScanRelations.Rel rel, Map<String, List<String>> colMap) {
+        if (ScanRelations.isView(ctx, rel.db(), rel.table())) {
+            columns(ctx, ScanRelations.viewExpansion(ctx, rel.db(), rel.table()).tree(), colMap);
+        } else {
+            TestDataGenerator.mergeCols(ctx, rel, colMap);
+        }
+        for (ScanRelations.Rel child : rel.children()) {
+            columns(ctx, child, colMap);
+        }
     }
 
     /** {@code cols} in the test-data text's order: sorted on the display (upper-cased) name, as upstream's goldens
@@ -136,48 +164,54 @@ public final class TestDataPlanner {
         private final Map<String, List<String>> colMap;
         private final List<TestDataGenerator.TableRowIds> rowIds;
         private final TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates;
+        private final Views views;
         private final List<SqlWith.Cte> ctes = new ArrayList<>();
         private final Map<String, Fetched> fetched = new LinkedHashMap<>();
+        /** Each table clause's table, by physical name: what a view's own fetch reads it from. */
+        private final Map<String, String> clauseTables = new LinkedHashMap<>();
 
         Walk(ModelContext ctx, Map<String, List<String>> colMap, List<TestDataGenerator.TableRowIds> rowIds,
-                TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates) {
+                TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates, Views views) {
             this.ctx = ctx;
             this.colMap = colMap;
             this.rowIds = rowIds;
             this.dates = dates;
+            this.views = views;
         }
 
         void root(ScanRelations.Rel rel) {
-            refuseView(rel);
+            if (ScanRelations.isView(ctx, rel.db(), rel.table())) {
+                String v = view(rel);
+                for (ScanRelations.Rel child : rel.children()) {
+                    child(rel, v, child);
+                }
+                return;
+            }
             TestDataGenerator.Located loc = locate(ctx, rel.db(), rel.table());
             String table = java.util.Objects.requireNonNull(rel.table(), "rel.table()");
-            List<String> cols = cols(loc, table);
-            TestDataGenerator.TableRowIds ids = null;
-            for (TestDataGenerator.TableRowIds t : rowIds) {
-                if (t.table().equals(table) && t.schema().equals(loc.schema())) {
-                    ids = t;
-                }
-            }
-            if (ids == null) {
-                throw new NotImplementedException("testDataGen: no row identifiers for root table '" + loc.schema()
-                        + "." + table + "' (the default starting rows: B2d's next slice)");
-            }
-            String cte = add(loc, table, cols, idFetch(ids, loc, table, cols));
+            String cte = startingRows(rel.db(), loc, table, null);
             for (ScanRelations.Rel child : rel.children()) {
                 child(rel, cte, child);
             }
         }
 
         void child(ScanRelations.Rel parent, String parentCte, ScanRelations.Rel child) {
-            refuseView(child);
+            if (ScanRelations.isView(ctx, child.db(), child.table())) {
+                // a child view: its own tree from its main table's given identifiers, whatever the parent's rows
+                // (the interpreted path, TDG:425-438, :429), then its own fetch; its children join that fetch
+                String v = view(child);
+                for (ScanRelations.Rel sub : child.children()) {
+                    child(child, v, sub);
+                }
+                return;
+            }
             TestDataGenerator.Located loc = locate(ctx, child.db(), child.table());
             String table = java.util.Objects.requireNonNull(child.table(), "child.table()");
             List<String> cols = cols(loc, table);
             RelationalOperation op = child.cond() != null ? child.cond()
                     : findJoin(ctx, child.joinName(), child.db(), parent.db()).operation();
             String alias = table.equals(parent.table()) ? "t_" + table : table;
-            TestDataGenerator.Located parentLoc = locate(ctx, parent.db(), parent.table());
-            SqlExpr cond = condition(op, parent.table(), parentLoc.def(), table, alias, loc.def(),
+            SqlExpr cond = condition(op, parent.table(), parentColumns(parent), table, alias, loc.def(),
                     String.valueOf(child.joinName()));
             SqlSource from = new SqlSource.Join(new SqlSource.Cte(parentCte, PARENT, List.of()),
                     storeTable(loc, table, alias), SqlSource.Join.Kind.INNER, cond);
@@ -188,16 +222,87 @@ public final class TestDataPlanner {
             }
         }
 
+        /** How a child's join reads a column of its parent's clause: a table's fetched column by its clause's label,
+         *  a view's column by the view's own name for it (its own fetch's column, as the view's relation names it). */
+        private java.util.function.Function<String, SqlExpr> parentColumns(ScanRelations.Rel parent) {
+            String name = java.util.Objects.requireNonNull(parent.table(), "a parent with no relation");
+            if (ScanRelations.isView(ctx, parent.db(), name)) {
+                DatabaseDefinition.ViewDefinition vd = ScanRelations.viewDef(ctx, parent.db(), name);
+                return c -> {
+                    for (DatabaseDefinition.ViewDefinition.ViewColumnMapping m : vd.columnMappings()) {
+                        if (m.name().equals(c) || bareName(m.name()).equalsIgnoreCase(bareName(c))) {
+                            return SqlExpr.Column.derived(PARENT, m.name());
+                        }
+                    }
+                    throw new NotImplementedException("testDataGen: a join reads the column '" + c + "' of the view '"
+                            + parent.table() + "', which the view does not declare");
+                };
+            }
+            TestDataGenerator.Located parentLoc = locate(ctx, parent.db(), parent.table());
+            return c -> SqlExpr.Column.derived(PARENT, tempColumn(parentLoc.def(), c));
+        }
+
+        /**
+         * A view {@code v} of the query's tree (B2d.3, the design's §2; upstream's interpreted path, TDG:339-418): its
+         * main table's rows by their given identifiers, then the tables of its own join web
+         * ({@code nestedViewTree}), each joined to its parent as any child; then its own fetch, one per view layer,
+         * inner first, each the view's relation over those clauses -- each table it reads from the FIRST clause that
+         * fetched it (upstream's {@code oldToNew}, TDG:388-405), no limit (TDG:406-409: the interpreted fetch takes
+         * none). Returns the outer layer's clause, which the view's children join. The view's own rows are never
+         * written: the text holds tables only (TDG:193).
+         */
+        private String view(ScanRelations.Rel v) {
+            ScanRelations.ViewExpansion ve = ScanRelations.viewExpansion(ctx, v.db(), v.table());
+            ScanRelations.Rel base = ve.tree();
+            TestDataGenerator.Located loc = locate(ctx, base.db(), base.table());
+            String table = java.util.Objects.requireNonNull(base.table(), "a view with no main table");
+            int first = ctes.size();
+            String seed = startingRows(base.db(), loc, table, v.table());
+            for (ScanRelations.Rel c : base.children()) {
+                child(base, seed, c);
+            }
+            Map<String, SqlQuery> tables = new LinkedHashMap<>();
+            for (int i = first; i < ctes.size(); i++) {
+                String clause = ctes.get(i).name();
+                String physical = clauseTables.get(clause);
+                if (physical != null) {
+                    tables.putIfAbsent(physical, SqlSelect.starOf(new SqlSource.Cte(clause, clause, List.of())));
+                }
+            }
+            java.util.Set<String> reads = new java.util.LinkedHashSet<>();
+            for (String identity : TestDataPlanner.reads(ctx, v.db())) {
+                if (tables.containsKey(identity.substring(identity.indexOf('|') + 1))) {
+                    reads.add(identity);
+                }
+            }
+            String outer = null;
+            for (int i = ve.viewChain().size() - 1; i >= 0; i--) {
+                outer = "tdg_" + ctes.size();
+                ctes.add(new SqlWith.Cte(outer, views.fetch(v.db(), ve.viewChain().get(i), reads, tables)));
+            }
+            return java.util.Objects.requireNonNull(outer, "a view with no layer");
+        }
+
+        /** The starting rows of {@code table}: its given identifiers' rows (by key, at most 20), as the next clause; no
+         *  identifiers is upstream's error ({@link #noIdentifiers}). */
+        private String startingRows(String db, TestDataGenerator.Located loc, String table,
+                @com.legend.base.Nullable String view) {
+            TestDataGenerator.TableRowIds ids = null;
+            for (TestDataGenerator.TableRowIds t : rowIds) {
+                if (t.table().equals(table) && t.schema().equals(loc.schema())) {
+                    ids = t;
+                }
+            }
+            if (ids == null) {
+                throw noIdentifiers(ctx, db, loc, table, view);
+            }
+            List<String> cols = cols(loc, table);
+            return add(loc, table, cols, idFetch(ids, loc, table, cols));
+        }
+
         private List<String> cols(TestDataGenerator.Located loc, String table) {
             return java.util.Objects.requireNonNull(colMap.get(loc.schema() + "\n" + table),
                     () -> "no column map for " + table);
-        }
-
-        private void refuseView(ScanRelations.Rel rel) {
-            if (ScanRelations.isView(ctx, rel.db(), rel.table())) {
-                throw new NotImplementedException("testDataGen: the view '" + rel.table() + "' in the query's"
-                        + " relation tree (its fetch over the planned clauses: B2d's next slice)");
-            }
         }
 
         /** The fetch {@code q} of {@code table} as the next clause, recorded among the table's fetches. */
@@ -211,6 +316,7 @@ public final class TestDataPlanner {
                         + " column sets " + f.cols() + " vs " + cols);
             }
             f.ctes().add(name);
+            clauseTables.put(name, physical(loc.schema(), table));
             return name;
         }
 
@@ -233,6 +339,55 @@ public final class TestDataPlanner {
             return fetch(cols, loc.def(), ROOT, storeTable(loc, table, ROOT), mf == null ? rows
                     : SqlExpr.Call.of(SqlFn.AND, new SqlExpr.Group(rows), mf));
         }
+    }
+
+    /**
+     * No identifiers for a starting table -- the query's root, or a view's main table: upstream's error, raised where
+     * {@code generateTestData} is planned (the user's ruling R3, 2026-11-11, "yes fine"; register S300). Upstream's
+     * interpreted generator reads the table's first 5 keys and fails its own assert ({@code getRowIdentifiersForTable},
+     * TDG:482-518; a view's, TDG:510, :558) with {@code Row Identifers should be provided for the root table[ of the
+     * view (V)]: <db>.<[schema.]table> [<key>:<type>,...]\nExample:\n} and those keys written as
+     * {@code createTableRowIdentifiers(...)} code. Planning reads no row, so the example is written with no keys: the
+     * message is upstream's, its example's list empty.
+     */
+    static AssertFailed noIdentifiers(ModelContext ctx, String db, TestDataGenerator.Located loc, String table,
+            @com.legend.base.Nullable String view) {
+        String owner = owningDatabase(ctx, db, loc.def());
+        String keys = loc.def().columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                .map(c -> c.name() + ":" + com.legend.plan.PlanText.spell(c.dataType()))
+                .collect(java.util.stream.Collectors.joining(","));
+        return new AssertFailed("Row Identifers should be provided for the root table"
+                + (view == null ? "" : " of the view (" + view + ")") + ": " + owner + "."
+                + physical(loc.schema(), table) + " [" + keys + "]\nExample:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(" + owner + ", '" + loc.schema()
+                + "', '" + table + "', [\n\n  ])\n");
+    }
+
+    /** The database that declares {@code def}, searched from {@code db} through its includes (upstream's
+     *  {@code $table.schema.database}). */
+    private static String owningDatabase(ModelContext ctx, String db, DatabaseDefinition.TableDefinition def) {
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>(List.of(db));
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!work.isEmpty()) {
+            String fqn = work.poll();
+            if (!seen.add(fqn)) {
+                continue;
+            }
+            DatabaseDefinition d = ctx.findDatabase(fqn).orElse(null);
+            if (d == null) {
+                continue;
+            }
+            if (d.tables().contains(def) || d.schemas().stream().anyMatch(s -> s.tables().contains(def))) {
+                return fqn;
+            }
+            work.addAll(d.includes());
+        }
+        throw new IllegalStateException("testDataGen: no database of " + db + "'s includes declares " + def.name());
+    }
+
+    /** {@code name} without the double quotes a quoted name carries. */
+    private static String bareName(String name) {
+        return unquoted(name);
     }
 
     /** {@code select <alias>.c as "C", ... from <from> [where <where>] order by <key> limit 20}: the demanded columns
@@ -908,13 +1063,13 @@ public final class TestDataPlanner {
      *  ({@code childAlias}): a self-join's plain spelling the PARENT side, its {@code {target}} spelling the child
      *  (the engine's reprocessAliases). */
     private static SqlExpr condition(RelationalOperation op, @com.legend.base.Nullable String parentTable,
-            DatabaseDefinition.TableDefinition parentDef, String childTable, String childAlias,
+            java.util.function.Function<String, SqlExpr> parentDef, String childTable, String childAlias,
             DatabaseDefinition.TableDefinition childDef, String joinName) {
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
                 String t = bare(cr.table());
                 if (t.equals(parentTable)) {
-                    yield SqlExpr.Column.derived(PARENT, tempColumn(parentDef, cr.column()));
+                    yield parentDef.apply(cr.column());
                 }
                 if (t.equals(childTable)) {
                     yield stored(childAlias, childDef, cr.column());

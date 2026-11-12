@@ -103,6 +103,13 @@ public final class GeneratorSplice {
         SqlQuery csv();
     }
 
+    /** {@code source} read over a slice: each table it reads by a typed reference whose identity is one of
+     *  {@code reads} ({@code store|physical name}) read from {@code tables} instead (the generator's view fetch, B2d.3:
+     *  a view's relation over the clauses that fetched its tables, as the reload reads a slice). */
+    public static TypedSpec overSlice(TypedSpec source, java.util.Set<String> reads, Map<String, SqlQuery> tables) {
+        return new com.legend.compiler.spec.typed.TypedTableSwap(source, reads, tables, source.info());
+    }
+
     /** Whether {@code body} holds a generator this splice plans ({@code generateTestData}). */
     public static boolean holdsAGenerator(List<TypedSpec> body) {
         for (TypedSpec s : body) {

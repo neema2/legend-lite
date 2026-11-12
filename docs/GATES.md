@@ -21309,3 +21309,44 @@ The corpus lanes, measured (both judges, both lanes alike):
   text check again (it reloads `dbInc` and reads its tables through `db`, which includes it: the swap's typed identity);
   `testUnionToUnionMultipleLevelsWithStringHashing` keeps passing (its runtime a constructed `^Runtime`).
 - **Unchanged:** both fail rosters (DuckDB 108, H2 273), H2's registers, the skipped and unordered registers.
+
+## 2026-11-11 — B2d.3a: a view in the generator's relation tree, fetched as upstream fetches it (S143 narrowed)
+
+The user's rulings R1-R5 on docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md (2026-11-11), and
+its first slice (§2): `TestDataPlanner` plans a view as upstream's interpreted generator fetches it
+(`testDataGeneration.pure:339-438`).
+- **The fetches:**
+  - the view's main table by its given identifiers;
+  - then the tables of its own join web (`nestedViewTree`), each joined to its parent;
+  - then the view's own fetch, one per view layer, inner first. Each is the view's lifted relation as the compiler plans
+    a read of it (`BodyPlanner.viewFetch`), each table it reads swapped for the first clause that fetched it (the
+    reload's swap, `TypedTableSwap`; upstream's `oldToNew`). It takes no limit.
+- **The view's children:** the query's joins from the view join the view's own fetch, on the view's columns. This
+  replaces `substituteViewRefs`' rewrite to base columns.
+- **The texts:** the view's fetch is one more text per layer, as upstream counts it. The test-data text writes tables
+  only.
+- **A child view** starts from its main table's given identifiers, whatever the parent's rows (TDG:429).
+- **No identifiers** for a root, or for a view's main table, is upstream's error, its example's list empty (R3, register S300).
+
+Tests: `TestDataPlannerTest.aViewIsFetchedAsUpstreamFetchesIt` (DuckDB, H2, SQLite):
+- a view root, its filtered row kept in the main table's fetch, 4 texts;
+- the query's join from the view, which reads the view's rows only, 5 texts;
+- a child view, 5 texts;
+
+and `noStartingRowsIsUpstreamsError`: the root's message and the view's.
+
+The corpus lanes, measured (both judges, both lanes alike):
+- **Pass now (5 of the 6 the view refusal held):** `testSimpleViewRoot`, `testSimpleViewRootToJoin`,
+  `testSimpleTableToViewJoin`, `testUnionViewOnView`, `testViewEmbeddedInChainedJoin`. Their counts, data and reloads
+  are as upstream's. They leave both accepted rosters. Their `loadAndTestExecution` tail is a statement of its own, as
+  B2d.2's passes' is, so both `*-database-outside-body-register.txt` gain them, `statement=1` each.
+- **Refused now:** `TestDatGenForNestedViews`. Its views now plan, and it reloads twice: the second
+  `loadAndTestExecution` after the first's query is S192's "reloading again", refused by name (state tracking is on
+  the later list). Both accepted rosters relabel it `by-design:read-only-reload(S192)`, witness `after the test-data
+  generator's slice was reloaded`.
+- **Engine order:** the DuckDB engine-order registers (host and database) gain the five, as they gained B2d.2's passes
+  (the scan-order emulation changes their statements); H2's are unchanged.
+- **Unchanged:** both fail rosters (`testAlloyTestDatGenWithQuotedColumnsForViews` still fails on the host, as
+  rostered), the skipped and unordered registers, the strength floors.
+- **Guards:** none moved. The view fetch's typed swap is minted in the compiler layer (`GeneratorSplice.overSlice`),
+  per invariant 7; the planner only lowers it (`BodyPlanner.viewFetch`, which replaces the dead `viewSql`).
