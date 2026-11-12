@@ -9,6 +9,7 @@ import { afterEach, before, describe, it } from 'node:test';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { runLoad } from '../src/plan-runner.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
+import type { HostOperation } from '../src/host-operations.ts';
 import { loadPlanner } from './planner.ts';
 import { dataTables } from '../src/model-data.ts';
 import { ProjectDatabases, ProjectRunner } from '../src/project-data.ts';
@@ -69,7 +70,7 @@ const filled = async (m: Model): Promise<{ readonly own: DuckDbEngine; drop(): P
   for (const sql of project.open) await engine.run(sql, 0);
   const own = new DuckDbEngine(db.connect() as ArrowishConnection);
   for (const sql of project.use) await own.run(sql, 0);
-  await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+  await runLoad(project.load!, (sql) => own.run(sql, 0));
   return {
     own,
     drop: async () => {
@@ -392,11 +393,29 @@ describe("a table's rows from a person's file (plan A2)", () => {
 
   it('a refused file leaves the table as it was: its rows, and where they are from', async () => {
     const v1 = await version(V1);
-    const tabs = tables();
+    // the planner as the put sees it, every host operation it is asked recorded: the put's transaction is its plan's
+    // (the re-audit's S8, 2026-11-12), never asked of the planner at run
+    const asked: string[] = [];
+    const recording = new Proxy(planner, {
+      get(t, key) {
+        if (key === 'hostOperations') {
+          return (databaseType: string, operations: readonly HostOperation[]) => {
+            asked.push(...operations.map((o) => o.op));
+            return t.hostOperations(databaseType, operations);
+          };
+        }
+        const value: unknown = Reflect.get(t, key, t);
+        return typeof value === 'function' ? value.bind(t) : value;
+      },
+    });
+    const made = tabTables();
+    runner = made.runner;
+    const tabs = new TabTables(made.projects, made.runner, engine, asTheBrowserTakesThem, recording);
     await tabs.load(v1);
     await assert.rejects(tabs.put(v1, 'PARTY', 'PARTY', { name: 'bad.csv', bytes: enc('ID,NAME,COUNTRY\nseven,Osprey Fund,NZ\n') }), /seven/);
     assert.deepEqual((await rows()).map((r) => r[0]), [1, 2]);
     assert.deepEqual((await tabs.tables(v1)).map((t) => [t.source.kind, t.rows]), [['test', 2]]);
+    assert.ok(!asked.includes('transaction'), `the put asked the planner for its transaction at run: ${asked.join(', ')}`);
   });
 
   it('refuses a file for a table two Databases declare: which one would be a guess', async () => {
@@ -483,7 +502,7 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
     for (const sql of project.use) await own.run(sql, 0);
     // its rows: the plan's ONCE load, run by the hosts' runner (B3: the load a server's project plan carries)
     assert.ok(project.load !== undefined, 'a project with Data rows carries their load');
-    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+    await runLoad(project.load!, (sql) => own.run(sql, 0));
     assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
     assert.deepEqual(await rowsOf('PARTY'), [[9, "the tab's own", 'XX']]);
     await own.close();

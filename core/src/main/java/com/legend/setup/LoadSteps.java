@@ -87,7 +87,7 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
     public static LoadSteps stream(String plane, String sql, @com.legend.base.Nullable String schema, String table,
             List<String> prepare, String count, List<String> begin, List<String> commit, List<String> rollback) {
         return of(List.of(new ExecutionPlan.LoadStep.Stream(plane, sql, schema, table, prepare, count,
-                new ExecutionPlan.LoadStep.Stream.Transaction(begin, commit, rollback))));
+                new ExecutionPlan.Transaction(begin, commit, rollback))));
     }
 
     /** A value the host holds under {@code held} -- a Python frame -- attached as the relation {@code as}, kept for the

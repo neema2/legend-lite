@@ -328,22 +328,39 @@ public final class Boundary {
     }
 
     /**
-     * A SNAPSHOT FROM A REMOTE PLANE, AS A PLAN (the user's ruling of 2026-11-11, "This is the right plan"):
-     * {@code request} is {@code {"databaseType", "plane", "sql", "schema"?, "table"}} -- the host's database's type, the
-     * name the host holds the remote plane under, the statement that plane runs (the snap's source query, as the planner
-     * wrote it for the plane's own database), and the table of the host's database it lands in. Any other key is refused
-     * by name, so no row can ride in one. The answer is the plan (PlanJson's): one HOST_SESSION load whose stream step
-     * the host's runner runs in one transaction ({@code LoadPlanner.snapStream}).
+     * A SNAPSHOT FROM A REMOTE PLANE, AS A PLAN (the user's ruling of 2026-11-11, "This is the right plan"; and of
+     * 2026-11-12, "that is a real off platform problem": the request carries the PULL, never SQL): {@code request} is
+     * {@code {"databaseType", "plane", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type,
+     * the name the host holds the remote plane under, the pull (the model's text, the runtime it runs through, and the
+     * grid's base query as a lambda's protocol JSON, a text), and the table of the host's database it lands in. The pull
+     * is planned HERE, in this call, for the plane's own database (the model held by its text: compiled once), and its
+     * statement is the one the plane runs. Any other key -- a statement ({@code sql}) above all -- is refused by name:
+     * no host hands the planner the text a plane runs, and no row rides in. A pull whose plan does not run as its text
+     * alone (one binding a value) is refused by name: a plane runs its statement as text. The answer is the plan
+     * (PlanJson's): one HOST_SESSION load whose stream step the host's runner runs in one transaction
+     * ({@code LoadPlanner.snapStream}).
      */
     public static String snapStream(String request) {
         com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
-        only(in, "a snapshot's stream", "databaseType", "plane", "sql", "schema", "table");
+        only(in, "a snapshot's stream", "databaseType", "plane", "model", "runtime", "lambda", "schema", "table");
         String databaseType = in.getString("databaseType");
+        String table = in.getString("table");
+        String statement = MODELS.withText(in.getString("model"), ctx -> {
+            com.legend.plan.QueryPlan pulled = com.legend.Compiler.query(ctx,
+                    com.legend.protocol.ProtocolReader.lambda(in.getString("lambda"))).plan(in.getString("runtime"));
+            String beyond = pulled.beyondItsText();
+            if (beyond != null || !pulled.textAlone()) {
+                throw new com.legend.error.NotImplementedException("a remote plane runs its statement as text, and the"
+                        + " pull snapped into " + table + " does not run as its text alone"
+                        + (beyond != null ? ": " + beyond : ": its plan binds values"));
+            }
+            return pulled.sql();
+        });
         return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.snapStream(
                 dialectOf(databaseType),
                 com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
-                new com.legend.planner.LoadPlanner.SnapStream(in.getString("plane"), in.getString("sql"),
-                        in.getStringOr("schema", null), in.getString("table"))));
+                new com.legend.planner.LoadPlanner.SnapStream(in.getString("plane"), statement,
+                        in.getStringOr("schema", null), table)));
     }
 
     /**

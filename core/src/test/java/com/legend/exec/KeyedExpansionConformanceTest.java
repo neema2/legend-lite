@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 class KeyedExpansionConformanceTest {
 
     private static final ExecutionPlan.Target TARGET = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-            com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null);
+            com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
 
     @Test
     void eachCaseIsWrittenAsTheOtherRunnersWriteIt() throws IOException {

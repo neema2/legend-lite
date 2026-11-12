@@ -1304,8 +1304,9 @@ function readSetUp(given: unknown): GridSetUp | string {
   const pairs = (key: 'measures' | 'sorts', what: string): readonly (readonly [string, string])[] | string => {
     const v = o[key];
     if (!Array.isArray(v)) return `its ${key} are a list of pairs`;
-    const odd = v.find((x) => !Array.isArray(x) || x.length !== 2 || !x.every((y) => typeof y === 'string'));
-    return odd === undefined ? v : `a ${what}, not ${JSON.stringify(odd)}`;
+    const isPair = (x: unknown): x is readonly [string, string] =>
+      Array.isArray(x) && x.length === 2 && x.every((y) => typeof y === 'string');
+    return v.every(isPair) ? v : `a ${what}, not ${JSON.stringify(v.find((x) => !isPair(x)))}`;
   };
   const dimensions = names('dimensions');
   const rows = names('rows');

@@ -11,6 +11,11 @@ declare global {
   interface Body {
     json(): Promise<unknown>;
   }
+  // and a value found to be an array is an array of unknowns, never of `any` (the re-audit's S6, 2026-11-12: the lib's
+  // `arg is any[]` made each element any, with no cast to see)
+  interface ArrayConstructor {
+    isArray(arg: unknown): arg is unknown[];
+  }
 }
 
 export {};

@@ -42,4 +42,10 @@ final class PostgresHostOperations implements HostOperations {
         }
         throw HostOperations.refusal(operation, "Postgres");
     }
+
+    @Override
+    public @com.legend.base.Nullable TransactionStatements transaction() {
+        // a host counts on Postgres and runs no plan there: its targets carry no transaction
+        return null;
+    }
 }

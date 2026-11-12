@@ -7,7 +7,7 @@
 // Test code only: no product source (src/, a demo page) imports this file, and the guard
 // (tools/guards/PlannedSqlTest.java) holds it so.
 
-import type { PlannedSql } from '../src/planned-sql.ts';
+import type { PlannedSql, PlanText } from '../src/planned-sql.ts';
 
 /** Every text a test typed as its own, so a host that runs both a test's statements and the product's can tell them
  *  apart (the C final audit's H7, 2026-11-12: the headless lane's database sends a test's own to the lane's test calls,
@@ -28,4 +28,10 @@ export function isTestsOwn(text: string): boolean {
 /** Several of them. */
 export function allUnplanned(texts: readonly string[]): PlannedSql[] {
   return texts.map(unplanned);
+}
+
+/** A plan the test supplies itself -- one it tampered with, or the planner module's raw answer it read directly -- typed
+ *  as the planner's (the re-audit's M1, 2026-11-12: the runners take a PlanText alone). Test code only, as `unplanned`. */
+export function unplannedPlan(text: string): PlanText {
+  return text as PlanText;
 }

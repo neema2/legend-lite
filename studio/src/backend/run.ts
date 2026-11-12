@@ -10,6 +10,7 @@ import type { PFunction, PService, PureModelContextData } from '../../../engine-
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
 import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
 import { runAuthored } from '../../../engine-client/src/plan-runner.ts';
+import type { PlanText } from '../../../engine-client/src/planned-sql.ts';
 
 export type { TableState };
 
@@ -49,7 +50,7 @@ export interface RunSession {
   sqlEngine?(): Promise<{ readonly engine: QueryEngine; readonly databaseType: string }>;
   /** The person's one statement as the planner carries it on the playground's database, a plan (Boundary.authored: the
    *  playground's, 2026-11-12). */
-  authored?(text: string): Promise<string>;
+  authored?(text: string): Promise<PlanText>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
   loadData?(model: PureModelContextData, text: string): Promise<void>;
   /** The tab's tables and where their rows are from (plan A2); a server has its own data. */

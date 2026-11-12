@@ -218,7 +218,8 @@ public final class Compiler {
     }
 
     /** A snapshot from a remote plane, as a plan ({@code Boundary.snapStream}, the user's ruling of 2026-11-11): the tab's
-     *  {@code snapStreamOrError}, Python's warehouse snap. */
+     *  {@code snapStreamOrError}, Python's warehouse snap -- the request the pull (model, runtime, lambda), planned in
+     *  this call, never a statement (the user's ruling of 2026-11-12). */
     @CEntryPoint(name = "lite_snap_stream")
     static CCharPointer snapStream(IsolateThread thread, CCharPointer request) {
         String a;

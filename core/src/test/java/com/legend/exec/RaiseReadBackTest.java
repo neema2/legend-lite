@@ -105,7 +105,7 @@ class RaiseReadBackTest {
         try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent)) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
                     com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack,
-                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2));
+                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2), null);
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
                     PlanSessions.of(Sessions.borrowed(c))));
@@ -218,7 +218,7 @@ class RaiseReadBackTest {
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
                     com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), unresettable,
-                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2));
+                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2), null);
             PlanSessions.Source borrowed = PlanSessions.of(Sessions.borrowed(c));
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
@@ -258,10 +258,12 @@ class RaiseReadBackTest {
         java.lang.reflect.Constructor<?>[] made = ExecutionPlan.Target.class.getDeclaredConstructors();
         assertEquals(1, made.length, "one constructor: the record's own");
         // moved 2026-11-12 (the C checkpoint's SHOULD-FIX 3): the target says its database's settings too, as it says
-        // its read-back, never defaulted
+        // its read-back, never defaulted; and again the same day (the re-audit's S8): its transaction's statements,
+        // which a host's runner opens one with, never asking the planner at run
         assertEquals(List.of(ExecutionPlan.Database.class, List.class, List.class, ExecutionPlan.RaiseReadBack.class,
-                ExecutionPlan.DatabaseSettings.class), List.of(made[0].getParameterTypes()),
-                "the read-back and the settings are said, never defaulted");
+                ExecutionPlan.DatabaseSettings.class, ExecutionPlan.Transaction.class),
+                List.of(made[0].getParameterTypes()),
+                "the read-back, the settings and the transaction are said, never defaulted");
     }
 
     @Test

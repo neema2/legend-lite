@@ -591,7 +591,8 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
         for await (const part of fileParts(file)) await send(part);
         // an empty file is an upload too: Python reads it, and says what an empty file is
         if (upload === undefined) await send(new Uint8Array(0));
-        return JSON.parse(await posted(link, 'file.json', { upload, name: file.name, table: options.table })) as UploadResult;
+        return JSON.parse(await posted(link, 'file.json', { upload, name: file.name, table: options.table })) as
+          Omit<UploadResult, 'copySelectList'>;
       },
       forgetFile: async (fileName: string, table: string) => { await posted(link, 'forget.json', { name: fileName, table }); },
     } : {}),

@@ -63,7 +63,7 @@ public final class PlantedPlanText {
 
         public static List<PlannedSql> written(ExecutionPlan.Target target) {
             return new ExecutionPlan.Target(target.database(), List.of("SET exec_wrote_this = 1"), List.of(), null,
-                    target.settings()).plannedSession();
+                    target.settings(), null).plannedSession();
         }
     }
 

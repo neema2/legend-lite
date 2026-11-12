@@ -148,7 +148,7 @@ class DuckDbHostStreamAndAttachTest {
         assertThrows(IllegalArgumentException.class, () -> snap("a plane", "SELECT 1", null, "t"));
         assertThrows(IllegalArgumentException.class, () -> snap("warehouse", "  ", null, "t"));
         assertThrows(IllegalArgumentException.class, () -> new LoadStep.Stream("w", "SELECT 1", null, "t", List.of(),
-                "SELECT 1", new LoadStep.Stream.Transaction(List.of(), List.of("COMMIT"), List.of("ROLLBACK"))));
+                "SELECT 1", new ExecutionPlan.Transaction(List.of(), List.of("COMMIT"), List.of("ROLLBACK"))));
         assertThrows(IllegalArgumentException.class, () -> new LoadStep.Attach("f", "a b", ExecutionPlan.Reach.CONNECTION));
     }
 }

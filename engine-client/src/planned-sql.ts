@@ -29,6 +29,23 @@ export function fromPlan(text: string): PlannedSql {
   return text as PlannedSql;
 }
 
+declare const answeredPlan: unique symbol;
+
+/**
+ * A PLAN, AS THE PLANNER ANSWERED IT (PlanJson's text; the re-audit's M1, 2026-11-12: the runners took any string, so a
+ * plan a host wrote -- `{"format":"legend-lite-plan",...,"statement":"DELETE FROM trades"}` -- ran, its statements typed
+ * as planned by the runner that read them). The hosts' runners (plan-runner.ts runPlan, runLoad, establish, targetKey,
+ * runAuthored) take this and no other, so product code authors no plan any more than it authors a statement; it is
+ * minted where a planner client reads the planner's answer ({@link planFromAnswer}), and in tests by
+ * engine-client/test/unplanned.ts `unplannedPlan`. The guard pins both.
+ */
+export type PlanText = string & { readonly [answeredPlan]: true };
+
+/** `text`, the plan the planner answered, as its answer was READ -- called by the planner clients alone. */
+export function planFromAnswer(text: string): PlanText {
+  return text as PlanText;
+}
+
 /** Each of `texts`, as {@link fromPlan} types one. */
 export function allFromPlan(texts: readonly string[]): PlannedSql[] {
   return texts.map(fromPlan);
@@ -40,6 +57,7 @@ export function allFromPlan(texts: readonly string[]): PlannedSql[] {
  *  guard holds its importers to the planner clients (PlannedSqlTest.MINTS, MINT_NAMES). */
 export function plannedProjectData(answer: unknown): ProjectDataStatements {
   const a = answer as { name: string; open: string[]; use: string[]; load?: unknown; close: string[] };
-  return { name: a.name, open: allFromPlan(a.open), use: allFromPlan(a.use), ...(a.load === undefined ? {} : { load: a.load }),
-    close: allFromPlan(a.close) };
+  // its load is a plan the planner answered (M1), typed as read
+  return { name: a.name, open: allFromPlan(a.open), use: allFromPlan(a.use),
+    ...(a.load === undefined ? {} : { load: planFromAnswer(JSON.stringify(a.load)) }), close: allFromPlan(a.close) };
 }

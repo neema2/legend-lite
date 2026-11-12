@@ -29,8 +29,9 @@ exports_files(
 js_library(
     name = "src",
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
-    # Studio embeds the query builder (src/embed.ts, plan A5), as upstream Studio embeds legend-query-builder
-    visibility = ["//studio:__pkg__"],
+    # Studio embeds the query builder (src/embed.ts, plan A5), as upstream Studio embeds legend-query-builder; DataCube's
+    # census of the brand's casts reads Query's program (datacube/test/brand-casts.test.ts, the re-audit's S5)
+    visibility = ["//datacube:__pkg__", "//studio:__pkg__"],
     deps = [
         # projects opened by name: the model home (the page's SDLC and Depot, or servers) and its Depot (by-name.ts)
         "//depot-client:depot_client",

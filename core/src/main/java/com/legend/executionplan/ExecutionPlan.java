@@ -947,9 +947,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * {@code MODE} and {@code DEFAULT_NULL_ORDERING}: the database's, whose {@code SET} commits an open transaction; the
      * C checkpoint's SHOULD-FIX 3, 2026-11-12; null where the database needs none) -- written by exec where it opens the
      * database, verified on a session it did not open; declared by the dialect, until then the connector's URL.
+     * {@code transaction}: the statements that open, commit and roll back a transaction on the database, as a host
+     * sends them -- its runner opens one around a plan's writes, a target's loads and a keyed snapshot (the re-audit's
+     * S8, 2026-11-12: until then a host's session asked the planner for them at run, and a run never plans, G4; null
+     * where no host spells them: a host's runner refuses such a plan's transaction by name; Java's exec opens its own on
+     * the connection, as JDBC does).
      */
     public record Target(Database database, List<String> session, List<Load> loads,
-            @com.legend.base.Nullable RaiseReadBack raiseReadBack, @com.legend.base.Nullable DatabaseSettings settings) {
+            @com.legend.base.Nullable RaiseReadBack raiseReadBack, @com.legend.base.Nullable DatabaseSettings settings,
+            @com.legend.base.Nullable Transaction transaction) {
         public Target {
             Objects.requireNonNull(database, "database");
             session = List.copyOf(session);
@@ -968,7 +974,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
                         || !load.target().session().equals(session)
                         || !Objects.equals(load.target().raiseReadBack(), raiseReadBack)
-                        || !Objects.equals(load.target().settings(), settings)) {
+                        || !Objects.equals(load.target().settings(), settings)
+                        || !Objects.equals(load.target().transaction(), transaction)) {
                     throw new IllegalArgumentException("a target's load loads into the target's own database and"
                             + " session, and names no load of its own: " + load.identity());
                 }
@@ -980,12 +987,29 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This target with no load: where its loads load. */
         public Target bare() {
-            return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack, settings);
+            return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack, settings, transaction);
         }
 
         /** The session statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
         public List<PlannedSql> plannedSession() {
             return PlannedSql.allFromPlan(session);
+        }
+    }
+
+    /**
+     * A database's transaction, as its own statements: each step's, in order -- what a host sends to open one, commit it
+     * and roll it back (a target's, {@link Target#transaction}; a stream's, {@link LoadStep.Stream}). Each step has one
+     * at least: a transaction no statement opens is none.
+     */
+    public record Transaction(List<String> begin, List<String> commit, List<String> rollback) {
+        public Transaction {
+            begin = List.copyOf(begin);
+            commit = List.copyOf(commit);
+            rollback = List.copyOf(rollback);
+            if (begin.isEmpty() || commit.isEmpty() || rollback.isEmpty()) {
+                throw new IllegalArgumentException("a transaction is its database's statements that open, commit and"
+                        + " roll one back: each step has one at least");
+            }
         }
     }
 
@@ -1260,7 +1284,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          * answer; else it rolls back and nothing is left. A host's step alone ({@link Load.Cadence#HOST_SESSION}).
          */
         record Stream(String plane, String sql, @com.legend.base.Nullable String schema, String table,
-                List<String> prepare, String count, Transaction transaction) implements LoadStep {
+                List<String> prepare, String count, ExecutionPlan.Transaction transaction) implements LoadStep {
             public Stream {
                 Objects.requireNonNull(plane, "plane");
                 Objects.requireNonNull(sql, "sql");
@@ -1277,18 +1301,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 }
             }
 
-            /** A database's transaction, as its own statements: each step's, in order (none where it needs none). */
-            public record Transaction(List<String> begin, List<String> commit, List<String> rollback) {
-                public Transaction {
-                    begin = List.copyOf(begin);
-                    commit = List.copyOf(commit);
-                    rollback = List.copyOf(rollback);
-                    if (begin.isEmpty() || commit.isEmpty() || rollback.isEmpty()) {
-                        throw new IllegalArgumentException("a stream lands in one transaction: its database opens,"
-                                + " commits and rolls one back");
-                    }
-                }
-            }
         }
 
         /**

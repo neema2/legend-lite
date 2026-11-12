@@ -14,7 +14,7 @@ from typing import Any
 
 from . import _json
 from ._library import library
-from ._planned import PlannedSql, all_from_plan, from_plan, require
+from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer, require
 
 Tree = dict[str, Any]
 
@@ -301,24 +301,25 @@ def _planned_texts(op: dict[str, Any]) -> None:
         require(replaced.get('sql'), f"a host operation's ({op.get('op')}) replacement of {replaced.get('column')}")
 
 
-def snap_stream(request: dict[str, Any]) -> dict[str, Any]:
+def snap_stream(request: dict[str, Any]) -> PlanText:
     """A SNAPSHOT FROM A REMOTE PLANE, as a plan (the native library's Boundary.snapStream; the user's ruling of
-    2026-11-11, "This is the right plan"): ``request`` is ``{"databaseType", "plane", "sql", "schema"?, "table"}`` -- the
-    name this host holds the remote plane under, the statement it runs (the planner's, for the plane's own database), the
-    table of this database it lands in; never a row (any other key is refused by name). The plan: one HOST_SESSION load
-    whose stream step ``projects.run_host_load`` runs in one transaction. ``sql`` is the plane's planner's statement, a
-    PlannedSql made where its plan was read (the C final audit's H3, 2026-11-12): any other text is refused by name."""
-    require(request.get('sql'), "a snapshot's stream (the remote plane's statement)")
-    return _json.loads(_answer(library().call('lite_snap_stream', _json.dumps(request))))
+    2026-11-11, "This is the right plan"): ``request`` is ``{"databaseType", "plane", "model", "runtime", "lambda",
+    "schema"?, "table"}`` -- the name this host holds the remote plane under, the PULL (the model's text, its runtime and
+    the query as a lambda's protocol JSON, which the planner plans in this call for the plane's own database: the user's
+    ruling of 2026-11-12, "that is a real off platform problem" -- a request carries no statement), and the table of this
+    database it lands in; never a row, never SQL (any other key is refused by name). The plan: one HOST_SESSION load
+    whose stream step ``projects.run_host_load`` runs in one transaction."""
+    # the plan as the planner answered it (the re-audit's M1): what run_host_load takes, and nothing else does
+    return plan_from_answer(_answer(library().call('lite_snap_stream', _json.dumps(request))))
 
 
-def frame_load(request: dict[str, Any]) -> dict[str, Any]:
+def frame_load(request: dict[str, Any]) -> PlanText:
     """A HOST'S VALUE READ AS A RELATION, as a plan (the native library's Boundary.frameLoad; the user's ruling of
     2026-11-11: a frame named, attached at run): ``request`` is ``{"databaseType", "held", "as", "live", "schema"?,
     "relation"}`` -- the name this host holds the frame under, the relation it is attached as, whether it is read at each
     query (a view) or once (a table), and the relation it is read through; never its bytes. The plan: one HOST_SESSION
     load whose attach step ``projects.run_host_load`` runs, binding the value this host holds by that name."""
-    return _json.loads(_answer(library().call('lite_frame_load', _json.dumps(request))))
+    return plan_from_answer(_answer(library().call('lite_frame_load', _json.dumps(request))))
 
 
 def project_data(model: str, database_type: str) -> dict[str, Any]:
@@ -330,8 +331,10 @@ def project_data(model: str, database_type: str) -> dict[str, Any]:
     with no Data rows (B3, 2026-11-11: until then ``fill``, its statements as text). A database without the operations
     is refused by name."""
     answered = _json.loads(_answer(library().call('lite_project_data', model, database_type)))
-    # each step's statements as the planner wrote them (_planned.py); the load is a plan, its steps typed as it runs
-    return {**answered, **{step: all_from_plan(answered[step]) for step in ('open', 'use', 'close')}}
+    # each step's statements as the planner wrote them (_planned.py); the load, the plan the planner answered (M1),
+    # its steps typed as it runs
+    load = {} if answered.get('load') is None else {'load': plan_from_answer(_json.dumps(answered['load']))}
+    return {**answered, **load, **{step: all_from_plan(answered[step]) for step in ('open', 'use', 'close')}}
 
 
 

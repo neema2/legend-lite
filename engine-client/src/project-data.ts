@@ -9,7 +9,7 @@
 import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
 import { runLoad } from './plan-runner.ts';
-import type { PlannedSql } from './planned-sql.ts';
+import type { PlannedSql, PlanText } from './planned-sql.ts';
 
 /** The planner's answer for one project's database: its name, and the statements of each step, in order. */
 export interface ProjectDataStatements {
@@ -20,8 +20,8 @@ export interface ProjectDataStatements {
   /** Point a connection of its own at it. */
   readonly use: readonly PlannedSql[];
   /** The plan whose root is the ONCE load that makes and fills every table a relational Data element fills (on that
-   *  connection), PlanJson's text; absent for a model with no Data rows. */
-  readonly load?: unknown;
+   *  connection), PlanJson's text as the planner answered it; absent for a model with no Data rows. */
+  readonly load?: PlanText;
   /** Drop it, with everything in it (on any connection). */
   readonly close: readonly PlannedSql[];
 }
@@ -143,7 +143,7 @@ export class ProjectDatabases {
       for (const sql of statements.use) await engine.run(sql, 0);
       // its rows: the plan's load, run on its own connection
       const on = engine;
-      if (statements.load !== undefined) await runLoad(JSON.stringify(statements.load), (sql) => on.run(sql, 0));
+      if (statements.load !== undefined) await runLoad(statements.load, (sql) => on.run(sql, 0));
       users = kept(engine);
       if (made) await made(users, statements.name);
     } catch (e) {
