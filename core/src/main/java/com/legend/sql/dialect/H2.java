@@ -31,6 +31,23 @@ import java.util.Set;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    /** The tokens an H2 session reads as plain identifiers: legend-engine's own list (H2Defaults, its 2.1.214 execution),
+     *  which this dialect spells bare. */
+    public static final String NON_KEYWORDS = "ANY,ASYMMETRIC,AUTHORIZATION,CAST,CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,ELSE,END,"
+            + "HOUR,KEY,MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,USER,VALUE,WHEN,YEAR,"
+            + "OVER";
+
+    /** {@inheritDoc} H2's: the session legend-engine's runs (H2Defaults, its 2.1.214 execution) -- its NON_KEYWORDS
+     *  (per session), {@code MODE LEGACY} and {@code DEFAULT_NULL_ORDERING HIGH} (null the largest: ascending nulls
+     *  last, descending first, so a golden orders as the engine's run did). Plan statements the target carries (the C
+     *  checkpoint's SHOULD-FIX 3, 2026-11-12): until then exec's connector put them on every H2 URL, outside every plan.
+     *  Measured on 2.5.252: each works as a statement, inside a transaction too, survives a rollback, in any order; the
+     *  mode and the null ordering are the database's (a second connection sees them), the non-keywords the session's. */
+    @Override
+    public java.util.List<String> sessionSetup() {
+        return java.util.List.of("SET NON_KEYWORDS " + NON_KEYWORDS, "SET MODE LEGACY", "SET DEFAULT_NULL_ORDERING HIGH");
+    }
+
     /** {@inheritDoc} The statement's own rows (the JSON pass, the user's ruling of 2026-11-11: "for h2 should we also
      *  inline so we can get rid of all the temp table code completely?"): H2 refuses an array parameter of more than
      *  65,536 elements, so a payload is not bound here; its rows took 460 ms for 100,000 records (measured). */

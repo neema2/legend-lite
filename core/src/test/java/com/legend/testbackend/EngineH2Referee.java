@@ -3,7 +3,6 @@
 
 package com.legend.testbackend;
 
-import com.legend.exec.H2Connector;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
 import java.net.MalformedURLException;
@@ -65,7 +64,11 @@ final class EngineH2Referee implements RefereeBackend {
         Properties credentials = new Properties();
         credentials.setProperty("user", "sa");
         credentials.setProperty("password", "");
-        Connection referee = driver().connect("jdbc:h2:mem:" + name + H2Connector.SETTINGS, credentials);
+        // the engine's own connection settings on its URL, as its H2Manager opens its test database (H2Defaults): the
+        // referee IS legend-engine's H2, so it is opened as the engine opens it (lite's sessions take the same three as
+        // their plan's session statements, H2.sessionSetup, since the C checkpoint's SHOULD-FIX 3, 2026-11-12)
+        Connection referee = driver().connect("jdbc:h2:mem:" + name + ";NON_KEYWORDS="
+                + com.legend.sql.dialect.H2.NON_KEYWORDS + ";MODE=LEGACY;DEFAULT_NULL_ORDERING=HIGH", credentials);
         if (referee == null) {
             throw new SQLException("the engine's H2 driver refused its own in-memory URL");
         }
