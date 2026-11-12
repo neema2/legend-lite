@@ -249,6 +249,8 @@ class DataMechanismCensusTest {
             // from its store by name, the view reading the URL through a session variable (B3's Q3,
             // LoadPlanner.remoteMount; docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md). Gone: the
             // fill's text, the seed text, a file and a remote file named in a host's operation, a secret's operation
+            // (2026-11-12: two more of the hosts' ways were found after M14 closed -- a snapshot's rows from a remote
+            // plane, and a Python frame's -- each its own row below, M14-snap and M14-frames, DELETED by the same slice)
             new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Deleted("B3", List.of(
                     // B3.4: a project's database filled from the fill's statement text
                     "out.put(\"fill\"", "p.fill()", "List<String> fill",
@@ -256,6 +258,23 @@ class DataMechanismCensusTest {
                     "testDataSql(", "lite_test_data_sql", "record File(String at", "Source.File(",
                     // B3's Q3: a remote file's URL written into an operation's view, and a secret made by an operation
                     "record Remote(String url", "new HostOperation.Source.Remote(string(", "HostOperation.Secret(string(o"))),
+            // DELETED by B3, 2026-11-12 (the user's ruling of 2026-11-11, "This is the right plan"; the orchestrator's
+            // simplification of 2026-11-12, no hash): a SNAPSHOT FROM A REMOTE PLANE is a planned load whose source is a
+            // stream (LoadStep.Stream, LoadPlanner.snapStream) -- the plan names the plane, its statement and the table,
+            // never a row; the hosts' runners (engine-client's runLoad, Python's projects.run_host_load) stream the Arrow
+            // chunks in by the database's own Arrow import in ONE transaction, committed only when the stream completed
+            // and the copy holds the rows the plane counted, else rolled back. Gone: the tab's direct Arrow load of a
+            // snap (snap.ts's ArrowLoader) and Python's landing table (the whole answer pulled, registered and copied
+            // outside any plan). It lived in the hosts alone: its spellings are HOST_SYMBOLS'
+            new Row("M14-snap", "a snapshot from a remote plane landed outside any plan", new Deleted("B3", List.of())),
+            // DELETED by B3, 2026-11-12 (the same ruling: "name it, attach it at run"): a PYTHON FRAME is a planned load
+            // naming it (LoadStep.Attach, LoadPlanner.frameLoad) -- the value the host holds by name, never its bytes,
+            // attached for the connection (a frame read at each query: the host attaches it again by that name on every
+            // read's cursor) or for the load alone (a stream read once into a table); a plan naming a frame the host does
+            // not hold is refused by name. Gone: the frame's Arrow registered on the connection and on each read's cursor
+            // outside any plan. Its spellings are HOST_SYMBOLS'
+            new Row("M14-frames", "Python frames registered on the connection outside any plan",
+                    new Deleted("B3", List.of())),
             // M15 in its two halves, as M7 is (B2c, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6's B2c, the
             // user's yes): the Java test fixtures' own JDBC writes BOUNDED by their guard, not converted -- each file's
             // literal write sends pinned, a total ceiling that only falls; the referee's replay of seed texts moved
@@ -320,7 +339,13 @@ class DataMechanismCensusTest {
             "testDataSql(", "viewOperation(", "mountOperations(", "accessOperations(", "credentialOperations(",
             "credentialScope(", "secretBinds(", "op: 'secret'", "op: 'insert'", "TableSeed", "loadDataTables(",
             // Python (legend_lite)
-            "lite_test_data_sql", "statements['fill']"));
+            "lite_test_data_sql", "statements['fill']"),
+            // 2026-11-12: the tab's direct Arrow load of a snap; Python's landing table
+            "M14-snap", List.of("interface ArrowLoader", "loader.loadArrow(", "__legend_lite_snap",
+                    "connection.register(landing, pulled)"),
+            // 2026-11-12: a frame's Arrow registered on the connection, again on a refresh, and on each read's cursor
+            "M14-frames", List.of("con.register(self._registered", "connection.register(self._registered",
+                    "cursor.register(table._registered"));
 
     /** The hosts' sources the census reads (M4): DataCube's and engine-client's TypeScript, Python's package. */
     private static List<Path> hostSources() {
@@ -381,9 +406,11 @@ class DataMechanismCensusTest {
         assertEquals(ROWS.size(), ids.size(), "a mechanism has two rows: " + ROWS);
         // the inventory's 17: M7 counted once, in its two halves (the seed forms a load, the author's statements not);
         // M15 likewise since B2c, 2026-11-11 (the fixtures' own writes bounded, the referee's replay B2b's)
+        // and M14 since 2026-11-12, in three: the two hosts' ways found after it closed, M14-snap (a snapshot's rows from a
+        // remote plane) and M14-frames (a Python frame's), each its own row (the user's ruling of 2026-11-11)
         Set<String> want = new TreeSet<>(Arrays.asList("M1", "M2", "M3", "M4", "M5", "M6", "M7-seed", "M7-authored",
-                "M8", "M9", "M10", "M11", "M12", "M13-output", "M14", "M15-fixtures", "M15-referee", "M16", "M17",
-                "M18"));
+                "M8", "M9", "M10", "M11", "M12", "M13-output", "M14", "M14-snap", "M14-frames", "M15-fixtures",
+                "M15-referee", "M16", "M17", "M18"));
         assertEquals(want, ids, "the census's rows are the inventory's mechanisms");
     }
 
@@ -430,7 +457,9 @@ class DataMechanismCensusTest {
         // and the TDG appeal gone); 7 -> 9 (2026-11-11, the merge of B4 into the generator's branch: M5 and M6 deleted,
         // every statement reading the system store on the in-process catalog, the server's forms gone); 9 -> 10
         // (2026-11-11, B3 merged: M14 deleted, every host's data a planned load -- a project's Data, a person's file, a
-        // remote file's mount -- its symbols in its row)
-        assertEquals(10, deleted, "the deleted rows changed: move this count with the slice that deletes one");
+        // remote file's mount -- its symbols in its row); 10 -> 12 (2026-11-12, B3's planned snapshots and frames, the
+        // user's ruling of 2026-11-11: M14-snap and M14-frames deleted, a snapshot a planned stream load, a frame a
+        // planned load naming it -- their spellings the hosts', HOST_SYMBOLS)
+        assertEquals(12, deleted, "the deleted rows changed: move this count with the slice that deletes one");
     }
 }

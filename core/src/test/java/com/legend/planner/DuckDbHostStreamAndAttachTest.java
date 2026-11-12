@@ -22,13 +22,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A SNAPSHOT'S STREAM AND A HOST VALUE'S ATTACH, AS PLANNED LOADS (the user's ruling of 2026-11-11, "This is the right
- * plan"; the orchestrator's simplification of 2026-11-12, no hash): a snapshot from a remote plane is one HOST_SESSION
- * load whose stream step names the plane, its statement and the table -- the database's own statements around it, the
- * transaction's among them -- and a Python frame is one whose attach step names the value the host holds. Neither plan
- * carries a row or a value's bytes; the JSON reads back exactly the writer's keys, so none can ride in one.
+ * A SNAPSHOT'S STREAM AND A HOST VALUE'S ATTACH, AS PLANNED LOADS, ON DUCKDB (the user's ruling of 2026-11-11, "This
+ * is the right plan"; the orchestrator's simplification of 2026-11-12, no hash): a snapshot from a remote plane is one
+ * HOST_SESSION load whose stream step names the plane, its statement and the table -- the database's own statements
+ * around it, the transaction's among them -- and a Python frame is one whose attach step names the value the host
+ * holds. Neither plan carries a row or a value's bytes; the JSON reads back exactly the writer's keys, so none can ride
+ * in one.
  */
-class HostStreamAndAttachTest {
+class DuckDbHostStreamAndAttachTest {
 
     private static final HostOperations DUCK = HostOperations.of(new DuckDb());
 
