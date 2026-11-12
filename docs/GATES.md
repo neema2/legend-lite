@@ -21515,3 +21515,9 @@ Tests:
   before the root PERSON); the default seed from the query's keys and from an empty seed; the route's error node; the
   seed's JSON; the census; an inline runtime refused.
 - `TestDataPlannerTest.thePlannedStatementAnswersTheTestData` (DuckDB, H2, SQLite): an empty identifier list.
+
+Measured on 3e's tree (2026-11-12):
+- Both corpus lanes are green, with no roster or register movement.
+- `//gates:local` is green. Its ten Postgres tests (the nine `*_postgres_test` and `//datacube:verify_app_test`) were
+  run as `ubuntu` through `tools/postgres/as_unprivileged.sh`: as root, `initdb` refuses them.
+- parser-equivalence's `own_corpus.matched` moved 3140 -> 3159 (the B2d.3 tests' models; `PeRatchets`, dated).
