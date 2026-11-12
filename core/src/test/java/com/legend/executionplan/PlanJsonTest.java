@@ -220,6 +220,19 @@ class PlanJsonTest {
         assertTrue(refused.getMessage().contains("not a legend-lite-plan v49 plan"), refused.getMessage());
     }
 
+    /** A key a target does not have is refused by name, never ignored (the C final audit's J4, 2026-11-12: a misspelled
+     *  {@code settings} read as a target that declares none). */
+    @Test
+    void aTargetsUnknownKeyIsRefusedByName() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+                new Sql("select 1", List.of(), t, null))));
+        assertTrue(json.contains("\"session\":["), json);
+        var refused = assertThrows(IllegalArgumentException.class,
+                () -> PlanJson.read(json.replace("\"session\":[", "\"setings\":{},\"session\":[")));
+        assertEquals("a target has no key setings", refused.getMessage());
+    }
+
     @Test
     void aParameterWithoutItsEnumValuesIsRefused_neverReadAsNone() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());

@@ -205,7 +205,8 @@ final class MongoDbStatements implements Statements {
      * The aggregate command's cursor, run through the driver: the plan's pipeline as the plan holds it, each plan
      * parameter's slot bound to its variable through the command's {@code let} ({@code lp1}, {@code lp2}, ... in slot
      * order, as the MongoDb dialect names them: {@code MongoJson.parameterVariable}), each key cell's slot -- the
-     * runner's, for a copy of a per-key region: no parameter's name -- at its marker, in document order.
+     * plan's {@code Binding.Key}, once per copy of a per-key region, its value the key's text -- at its marker, in
+     * document order.
      */
     private MongoCursor<BsonDocument> cursor(PlannedSql statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
@@ -214,7 +215,8 @@ final class MongoDbStatements implements Statements {
         List<PlanParameters.Checked> keys = new ArrayList<>();
         for (int i = 0; i < slots.size(); i++) {
             ExecutionPlan.Slot slot = slots.get(i);
-            if (slot.parameter().isEmpty() && slot.binding() instanceof ExecutionPlan.Binding.One) {
+            // a key slot by its type (J7, 2026-11-12: until then by an empty name and a One binding, the runner's own)
+            if (slot.binding() instanceof ExecutionPlan.Binding.Key) {
                 keySlots.add(slot);
                 keys.add(values.get(i));
             } else {
@@ -283,6 +285,14 @@ final class MongoDbStatements implements Statements {
         return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
     }
 
+    /** A key slot's value: the key's text, as the runner's expansion gives it (J7, 2026-11-12). */
+    private static BsonValue keyText(PlanParameters.Checked checked, int index) {
+        if (!(checked instanceof PlanParameters.One one && one.value() instanceof String text)) {
+            throw new IllegalStateException("key " + index + " binds a key's cell given no key's text");
+        }
+        return new BsonString(text);
+    }
+
     /** {@code v} with each key marker replaced, in place and in document order, by the key of the slot at its place
      *  among the markers, as JDBC binds a key's {@code ?}; {@code next} the place of the next marker. */
     private static BsonValue keyed(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
@@ -296,7 +306,7 @@ final class MongoDbStatements implements Statements {
                     throw new IllegalStateException("the plan's statement holds more key markers than its regions'"
                             + " " + slots.size() + " keys");
                 }
-                return literal(value(slots.get(n), values.get(n), n + 1));
+                return literal(keyText(values.get(n), n + 1));
             }
             BsonDocument out = new BsonDocument();
             for (Map.Entry<String, BsonValue> e : d.entrySet()) {

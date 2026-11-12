@@ -19,7 +19,7 @@ import java.sql.SQLException;
  *
  * <p>THE ONE WAY IN (D70, 2026-10-30, the seam's step A): a session is made here and nowhere else. A connection the
  * caller opened enters as {@link #owned} (closed with the session) or {@link #borrowed} (never closed here); a session
- * is shared as a {@link #view} (closing the view closes nothing); the openers ({@link #open(Opening.Url)},
+ * is shared as a {@link #view} (closing the view closes nothing); the openers ({@code open} of a URL,
  * {@link #openPrivate} and the rest) return owned sessions. {@link Session} is an abstract class whose constructor and
  * whose one door to the driver's connection are package-private: no class outside this package can be a session, and
  * nothing outside it reaches a connection through one (the pass-along hole the D69 audit named, closed by the Java
@@ -419,6 +419,8 @@ public final class Sessions {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
         T out;
+        // the seam's own transaction: the session statements are remembered inside it (J6), its rollback clears them
+        state.ownTransactionBegan();
         try {
             out = work.get();
             session.commit();
@@ -429,6 +431,8 @@ public final class Sessions {
             com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> JdbcStatements.held(session, state, e));
             unwind(session, state, failure);
             throw failure;
+        } finally {
+            state.ownTransactionEnded();
         }
         try {
             session.setAutoCommit(true);
@@ -524,12 +528,17 @@ public final class Sessions {
         return Connectors.of(def.databaseType()).opening(def);
     }
 
-    /** Opens {@code url}: an owned session (a failure of the open is a {@link com.legend.error.DataError}, as every
-     *  opener's is since D70). */
-    public static Session open(Opening.Url url) {
+    /** Opens {@code url}, the URL {@code connector}'s opening built, with {@code settings} written where the database
+     *  is opened ({@link DatabaseConnector#urlWith}; the plan's target's, null for none): an owned session holding
+     *  them, as {@link #openNamed}'s is (the C final audit's J1, 2026-11-12: until then the URL carried none, and an H2
+     *  file's or server's session was read back as H2's defaults and refused). A failure of the open is a
+     *  {@link com.legend.error.DataError}, as every opener's is since D70. */
+    public static Session open(Opening.Url url, DatabaseConnector connector,
+            com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
+        String withSettings = connector.urlWith(url.url(), settings);
         try {
-            return owned(DriverManager.getConnection(url.url()));
+            return opened(DriverManager.getConnection(withSettings), settings);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }

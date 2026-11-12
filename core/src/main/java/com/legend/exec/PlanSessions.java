@@ -328,7 +328,7 @@ public final class PlanSessions {
                     }
                     case Sessions.Opening.Url u -> {
                         refuseLoads(target, d, "a database reached by a URL");
-                        yield Sessions.open(u);
+                        yield Sessions.open(u, connector, target.settings());
                     }
                 };
             }
@@ -411,7 +411,7 @@ public final class PlanSessions {
                 yield switch (Sessions.openingFor(d.connection())) {
                     case Sessions.Opening.Url u -> {
                         refuseFill(target, d, "a database reached by a URL");
-                        yield Sessions.open(u);
+                        yield Sessions.open(u, connector, target.settings());
                     }
                     // a named in-memory database is kept alive by its name: the user's, else one per project and
                     // connection (D5), made once with the project's Data; its maker is the kept session, served one
@@ -444,11 +444,9 @@ public final class PlanSessions {
      * own, with the whole fill; the M1 correctness audit's C1 is kept by the project's key).
      */
     public static Hash projectKey(ExecutionPlan.Target target) {
-        StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeTarget(
-                // the database and the settings it is made with: no session statement, no load and no read-back is
-                // what it holds
-                new ExecutionPlan.Target(target.database(), java.util.List.of(), java.util.List.of(), null,
-                        target.settings())));
+        // the database and the settings it is made with: no session statement, no load and no read-back is what it
+        // holds (the plan's writer's, J2: exec builds no plan record)
+        StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeHeldDatabase(target));
         for (ExecutionPlan.Load load : target.loads()) {
             if (load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
                 PlanRunner.verifyIdentity(load);

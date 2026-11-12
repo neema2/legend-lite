@@ -934,8 +934,9 @@ public final class PlanRunner {
         return s;
     }
 
-    /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order. */
-    private record Expanded(PlannedSql statement, List<ExecutionPlan.Slot> slots,
+    /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order (a key
+     *  cell's slot the plan's own {@link ExecutionPlan.Binding.Key}, its value the key's text). */
+    record Expanded(PlannedSql statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
     }
 
@@ -945,7 +946,7 @@ public final class PlanRunner {
      * counter; with no key, {@code empty}, or the statement refused where it has no form without one); each slot
      * outside a region bound once, each inside one bound in every copy, a key's cell to that key's text.
      */
-    private static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
+    static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
             Map<String, PlanParameters.Checked> checked) {
         String text = sql.statement();
         StringBuilder out = new StringBuilder(text.length() + keys.size() * 64);
@@ -979,7 +980,10 @@ public final class PlanRunner {
                     for (int s = r.firstSlot(); s < r.firstSlot() + r.slotCount(); s++) {
                         ExecutionPlan.Slot each = sql.slots().get(s);
                         if (each.binding() instanceof ExecutionPlan.Binding.Key key) {
-                            slots.add(new ExecutionPlan.Slot("", new ExecutionPlan.Binding.One("VARCHAR", null)));
+                            // the plan's own key slot, its value this copy's key's text: a key slot is told apart by
+                            // its type, bound as text by the sender (the C final audit's J7, 2026-11-12: until then exec
+                            // made a slot of its own, typed VARCHAR, told apart by its empty name)
+                            slots.add(each);
                             values.add(new PlanParameters.One(cellText(keys.get(k), key.cell())));
                         } else {
                             slots.add(each);
@@ -1048,9 +1052,12 @@ public final class PlanRunner {
     /** {@code session}'s statements for {@code target}: checked against it (the database, the server versions the
      *  statements are written for), the target's session statements run -- once per connection (the session's memo,
      *  {@link SessionState#needsSessionStatements}; D66, 2026-10-30: until then they ran before every statement), and
-     *  again after a rollback the seam made. Inside a transaction the CALLER holds (autocommit off before the session
-     *  was handed in) they run before every statement, as before: a caller's rollback undoes what a session statement
-     *  set there (Postgres's {@code SET} is transactional) and the memo cannot see it. The one place a session's
+     *  again after a rollback the seam made, inside a transaction the seam opened as outside one
+     *  ({@link SessionState#inOwnTransaction}; the C final audit's J6, 2026-11-12: until then autocommit off read as the
+     *  caller's, and a program's own transaction sent them before every statement). Inside a transaction the CALLER
+     *  holds (autocommit off before the session was handed in) they run before every statement, as before: a caller's
+     *  rollback undoes what a session statement set there (Postgres's {@code SET} is transactional) and the memo cannot
+     *  see it. The one place a session's
      *  statements are taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}),
      *  on every path: a statement, a schema read, a setup step, a sequence, a keyed plan. */
     static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
@@ -1062,7 +1069,7 @@ public final class PlanRunner {
         Statements st = Statements.marked(session.statements(), mark);
         st.check(target);
         if (!target.session().isEmpty()) {
-            boolean memo = st.ownsTransaction();
+            boolean memo = st.ownsTransaction() || session.state().inOwnTransaction();
             if (!memo || session.state().needsSessionStatements(target.session())) {
                 for (PlannedSql s : target.plannedSession()) {
                     StatementOrigin.sent(StatementOrigin.SESSION, s.text());
@@ -1142,6 +1149,10 @@ public final class PlanRunner {
                         + " by a query's statement, whose run admits it: this statement's run admits no source");
             }
             return admitted;
+        }
+        if (slot.binding() instanceof ExecutionPlan.Binding.Key) {
+            throw new IllegalStateException("slot " + index + " binds a key's cell unexpanded: the runner writes a keyed"
+                    + " body for its keys before it is sent");
         }
         PlanParameters.Checked value = checked.get(slot.parameter());
         if (value == null) {

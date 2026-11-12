@@ -137,13 +137,15 @@ class MongoDbPlanTest {
                 "a slot for each parameter, in document order");
         assertTrue(sql.statement().contains("\"$$lp1\"") && sql.statement().contains("\"$$lp2\""), sql.statement());
         assertTrue(!sql.statement().contains("$legendParam"), "no marker in the plan: " + sql.statement());
-        List<org.bson.BsonDocument> sent = new java.util.ArrayList<>();
+        // EVERY command the driver sends is recorded (the C final audit's J3, 2026-11-12: until then the aggregate alone,
+        // so a command exec wrote itself went unseen)
+        List<String> names = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        List<org.bson.BsonDocument> commands = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         com.mongodb.event.CommandListener listener = new com.mongodb.event.CommandListener() {
             @Override
             public void commandStarted(com.mongodb.event.CommandStartedEvent e) {
-                if (e.getCommandName().equals("aggregate")) {
-                    sent.add(e.getCommand().clone());
-                }
+                names.add(e.getCommandName());
+                commands.add(e.getCommand().clone());
             }
         };
         EmbeddedMongoDb db = EmbeddedMongoDb.shared();
@@ -156,19 +158,27 @@ class MongoDbPlanTest {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(),
                 Map.of("n", 30L, "s", "Ann"));
         List<List<Object>> rows = new java.util.ArrayList<>();
+        List<String> sentByTheRun;
         try (MongoClient client = com.mongodb.client.MongoClients.create(settings);
                 var run = com.legend.base.RunScope.enter()) {
             Statements st = new MongoDbStatements(client.getDatabase(EmbeddedMongoDb.DATABASE));
+            // checked as the runner checks every session first (J3: until then this witness skipped it)
+            st.check(sql.target());
             st.rows(sql.planned(), sql.slots(), List.of(checked.get("n"), checked.get("s")),
                     ((ExecutionPlan.TdsResult) plan.root()).columns(), rows::add);
+            // what the run sent, before the client's own close
+            sentByTheRun = List.copyOf(names);
         }
         assertEquals(List.of(List.of("Cy")), rows);
-        assertEquals(1, sent.size(), "one aggregate command");
+        // the session's check reads the server's version (buildInfo: a command the session writes, HELD for the user's
+        // ruling, J3), then the plan's aggregate: nothing else
+        assertEquals(List.of("buildInfo", "aggregate"), sentByTheRun, "every command the run sent");
+        org.bson.BsonDocument aggregate = commands.get(sentByTheRun.indexOf("aggregate"));
         org.bson.BsonDocument planned = org.bson.BsonDocument.parse(sql.statement());
-        assertEquals(planned.get("aggregate"), sent.get(0).get("aggregate"));
-        assertEquals(planned.get("pipeline"), sent.get(0).get("pipeline"), "the plan's pipeline, untouched");
+        assertEquals(planned.get("aggregate"), aggregate.get("aggregate"));
+        assertEquals(planned.get("pipeline"), aggregate.get("pipeline"), "the plan's pipeline, untouched");
         assertEquals(org.bson.BsonDocument.parse("{\"lp1\": {\"$literal\": {\"$numberLong\": \"30\"}},"
-                + " \"lp2\": {\"$literal\": \"Ann\"}}"), sent.get(0).get("let"), "the values, in the let alone");
+                + " \"lp2\": {\"$literal\": \"Ann\"}}"), aggregate.get("let"), "the values, in the let alone");
     }
 
     /** An aggregate's {@code let} is MongoDB's from 5.0: an older server is refused by name where the session is

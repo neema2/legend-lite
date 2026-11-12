@@ -710,6 +710,14 @@ public final class PlanJson {
         return Json.toCompact(t);
     }
 
+    /** What {@code target}'s database IS, as {@link #writeTarget} writes it: its database and the settings it is made
+     *  with -- no session statement, no load and no read-back, which are not what it holds (exec keeps a project's
+     *  database by it, {@code exec.PlanSessions.projectKey}; the C final audit's J2, 2026-11-12: until then exec built
+     *  a target of its own to write it, and the run side builds no plan record that carries text). */
+    public static String writeHeldDatabase(Target target) {
+        return writeTarget(new Target(target.database(), List.of(), List.of(), null, target.settings()));
+    }
+
     /** {@code t} as a JSON object (the test plan's format writes an appeal's replay target so: step 8b). */
     public static Map<String, Object> targetJson(Target t) {
         return target(t);
@@ -1205,6 +1213,9 @@ public final class PlanJson {
     }
 
     private static Target readTarget(Json.Obj t) {
+        // a key the target does not have is refused by name, as its read-back's and settings' are (the C final audit's
+        // J4, 2026-11-12: until then one was ignored, so a misspelled "settings" read as a target that declares none)
+        only(t, "a target", "database", "session", "loads", "raiseReadBack", "settings");
         // the loads inline: the plan's reader gave each back from its load section (inlineLoads)
         List<ExecutionPlan.Load> loads = new ArrayList<>();
         for (Json.Node n : t.getArr("loads").items()) {
