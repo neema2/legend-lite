@@ -1117,7 +1117,14 @@ public final class PureV1Api {
      *  until then this door kept the first from()'s and ran the rest on it). */
     private static String runtimeOf(Json.Obj request, com.legend.TypedQuery query) {
         Json.Obj rt = request.getObjOr("runtime", null);
-        String runtime = query.runtime(rt != null && rt.has("runtime") ? rt.getString("runtime") : null);
+        if (rt != null && !rt.has("runtime")) {
+            // a runtime written out in full (upstream's ExecuteInput.runtime: an engineRuntime, a legacyRuntime) is
+            // refused by name, never dropped for the query's own ->from runtime (register S301, the user's ruling of
+            // 2026-11-12: "It can also go to follow up"; until then this door read it as no runtime at all)
+            throw new com.legend.error.NotImplementedException("a runtime written out in the request ("
+                    + rt.getStringOr("_type", "?") + "): not planned; name a runtime (runtimePointer), register S301");
+        }
+        String runtime = query.runtime(rt != null ? rt.getString("runtime") : null);
         if (runtime == null) {
             throw new IllegalArgumentException(
                     "no runtime: the request names none and the query has no ->from(runtime)");
