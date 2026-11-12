@@ -6,6 +6,7 @@ package com.legend.exec;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.PlannedSql;
 import com.mongodb.MongoException;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import org.bson.BsonArray;
@@ -31,18 +32,22 @@ import java.util.Map;
 
 /**
  * A MongoDB session's {@link Statements} (docs/MONGODB_PLAN_2026_10_16.md §5.1 and §5.2): the plan's statement is a
- * command in Extended JSON, as the MongoDb dialect writes it; a plan parameter is the marker document
- * {@code {"$legendParam": "?"}} at its place, replaced in place by the bound value of the slot at its place among the
- * markers, in document order, as SQL's {@code ?} is (decision D5, the driver's own encoding of each value; a dynamic
- * pivot's per-key region is copied as text, 2026-10-20); an {@code aggregate} command runs through the driver's cursor, and each row's one
- * field is the text the pipeline wrote (D10): carried, never read as a value. A raise the pipeline wrote (a
+ * command in Extended JSON, as the MongoDb dialect writes it; an {@code aggregate} command runs through the driver's
+ * cursor, and each row's one field is the text the pipeline wrote (D10): carried, never read as a value. A plan
+ * parameter is the pipeline variable {@code "$$pN"}, bound through the command's {@code let}: {@code pN} the N-th of
+ * the statement's parameter slots, each value in the driver's own encoding (decision D5), and the pipeline sent as
+ * the plan holds it (the C checkpoint's NOTE, 2026-11-12: until then each parameter was a marker document this session
+ * replaced in place). A dynamic pivot's key cell is the one marker left ({@code {"$legendParam": "?"}}): the runner
+ * writes the per-key region once per key (the charter's A3(a)) and this session binds each copy's key at its marker,
+ * as JDBC binds a key's {@code ?}. A raise the pipeline wrote (a
  * conversion of a message between the platform's sentinels) comes back as the platform's own text, as a SQL raise
  * does through the executor's funnel. Since the plan path program's step 7 (2026-10-18) the session answers typed
  * rows too ({@link #rows}: each document's fields read by the plan's columns, {@link MongoDbDecode}).
  */
 final class MongoDbStatements implements Statements {
 
-    private static final String PARAMETER_MARKER = "$legendParam";
+    /** A dynamic pivot's key cell, as the MongoDb dialect writes it in each copy of the per-key region. */
+    private static final String KEY_MARKER = "$legendParam";
 
     private final MongoDatabase database;
 
@@ -163,14 +168,34 @@ final class MongoDbStatements implements Statements {
         }
     }
 
-    /** The aggregate command's cursor: the plan's command with its markers bound, run through the driver. */
+    /**
+     * The aggregate command's cursor, run through the driver: the plan's pipeline as the plan holds it, each plan
+     * parameter's slot bound to its variable through the command's {@code let} ({@code p1}, {@code p2}, ... in slot
+     * order, as the MongoDb dialect names them: {@code MongoJson.parameterVariable}), each key cell's slot -- the
+     * runner's, for a copy of a per-key region: no parameter's name -- at its marker, in document order.
+     */
     private MongoCursor<BsonDocument> cursor(PlannedSql statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
-        int[] next = {0};
-        BsonDocument command = bound(command(statement), slots, values, next).asDocument();
-        if (next[0] != slots.size()) {
-            throw new IllegalStateException("the plan's statement holds " + next[0] + " parameter markers, and the plan"
-                    + " has " + slots.size() + " slots");
+        BsonDocument let = new BsonDocument();
+        List<ExecutionPlan.Slot> keySlots = new ArrayList<>();
+        List<PlanParameters.Checked> keys = new ArrayList<>();
+        for (int i = 0; i < slots.size(); i++) {
+            ExecutionPlan.Slot slot = slots.get(i);
+            if (slot.parameter().isEmpty() && slot.binding() instanceof ExecutionPlan.Binding.One) {
+                keySlots.add(slot);
+                keys.add(values.get(i));
+            } else {
+                let.append("p" + (let.size() + 1), literal(value(slot, values.get(i), i + 1)));
+            }
+        }
+        BsonDocument command = command(statement);
+        if (!keySlots.isEmpty()) {
+            int[] next = {0};
+            command = keyed(command, keySlots, keys, next).asDocument();
+            if (next[0] != keySlots.size()) {
+                throw new IllegalStateException("the plan's statement holds " + next[0] + " key markers, and its"
+                        + " regions bind " + keySlots.size() + " keys");
+            }
         }
         BsonValue aggregate = command.get("aggregate");
         BsonValue pipeline = command.get("pipeline");
@@ -181,9 +206,10 @@ final class MongoDbStatements implements Statements {
         for (BsonValue stage : pipeline.asArray()) {
             stages.add(stage.asDocument());
         }
-        return (aggregate.isString()
+        AggregateIterable<BsonDocument> run = aggregate.isString()
                 ? database.getCollection(aggregate.asString().getValue(), BsonDocument.class).aggregate(stages)
-                : database.aggregate(stages, BsonDocument.class)).iterator();
+                : database.aggregate(stages, BsonDocument.class);
+        return (let.isEmpty() ? run : run.let(let)).iterator();
     }
 
     /** The row's one text: its one field, a string or null; anything else is not text, refused by name. */
@@ -224,35 +250,44 @@ final class MongoDbStatements implements Statements {
         return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
     }
 
-    /** {@code v} with each parameter marker replaced, in place and in document order, by the bound value of the slot
-     *  at its place among the markers; {@code next} the place of the next marker. */
-    private static BsonValue bound(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    /** {@code v} with each key marker replaced, in place and in document order, by the key of the slot at its place
+     *  among the markers, as JDBC binds a key's {@code ?}; {@code next} the place of the next marker. */
+    private static BsonValue keyed(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             int[] next) {
         if (v.isDocument()) {
             BsonDocument d = v.asDocument();
-            BsonValue marker = d.get(PARAMETER_MARKER);
+            BsonValue marker = d.get(KEY_MARKER);
             if (marker != null && d.size() == 1) {
                 int n = next[0]++;
                 if (n >= slots.size()) {
-                    throw new IllegalStateException("the plan's statement holds more parameter markers than the plan's "
-                            + slots.size() + " slots");
+                    throw new IllegalStateException("the plan's statement holds more key markers than its regions'"
+                            + " " + slots.size() + " keys");
                 }
-                return value(slots.get(n), values.get(n), n + 1);
+                return literal(value(slots.get(n), values.get(n), n + 1));
             }
             BsonDocument out = new BsonDocument();
             for (Map.Entry<String, BsonValue> e : d.entrySet()) {
-                out.append(e.getKey(), bound(e.getValue(), slots, values, next));
+                out.append(e.getKey(), keyed(e.getValue(), slots, values, next));
             }
             return out;
         }
         if (v.isArray()) {
             BsonArray out = new BsonArray();
             for (BsonValue e : v.asArray()) {
-                out.add(bound(e, slots, values, next));
+                out.add(keyed(e, slots, values, next));
             }
             return out;
         }
         return v;
+    }
+
+    /** {@code v} as the expression that answers it: MongoDB evaluates a {@code let}'s values and a marker's place as
+     *  expressions, so a bound value is a {@code $literal} -- a text {@code "$name"} is that text, never a field path,
+     *  a variable or an operator's document (measured 2026-11-12 on 8.0: bare, a {@code let}'s {@code "$name"} is
+     *  refused, Location4890500, a command's let reading no field; until then a marker was replaced by the bare
+     *  value in an expression's place, which reads a {@code $}-led text as a path). */
+    private static BsonDocument literal(BsonValue v) {
+        return new BsonDocument("$literal", v);
     }
 
     /** A slot's value as BSON, as the slot says: one value (an absent one a null), or a list as one array (an absent

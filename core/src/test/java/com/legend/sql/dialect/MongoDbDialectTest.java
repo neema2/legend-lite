@@ -85,14 +85,15 @@ class MongoDbDialectTest {
     }
 
     @Test
-    void aParameterIsAMarkerTheConnectorReplaces() {
+    void aParameterIsAPipelineVariableTheCommandsLetBinds() {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(MODEL),
                 "{n: Integer[1] | #>{test::Store.people}#->filter(x | $x.age > $n)->select(~[name])}")
                 .executionPlan("test::RT");
         ExecutionPlan.Sql sql = plan.answerSql();
         assertEquals(1, sql.slots().size(), sql.statement());
         assertEquals("n", sql.slots().get(0).parameter());
-        assertTrue(sql.statement().contains("{\"$legendParam\": \"?\"}"), sql.statement());
+        assertTrue(sql.statement().contains("\"$$p1\""), sql.statement());
+        assertTrue(!sql.statement().contains("$legendParam"), sql.statement());
     }
 
     @Test

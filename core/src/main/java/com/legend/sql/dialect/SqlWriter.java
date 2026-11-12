@@ -139,9 +139,9 @@ final class SqlWriter {
     }
 
     /** Writes {@code placeholder} as this parameter's place and records the bind, as {@link #bind} does with {@code ?}:
-     *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's marker document;
-     *  2026-10-16, docs/MONGODB_PLAN_2026_10_16.md D5), bound by its place among the placeholders, as {@code ?} is: a
-     *  per-key region's copies are copies of its text (2026-10-20). */
+     *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's pipeline variable
+     *  {@code "$$pN"}, bound by the aggregate command's {@code let}: the C checkpoint's NOTE, 2026-11-12; until then
+     *  a marker document the session replaced, docs/MONGODB_PLAN_2026_10_16.md D5), in placeholder order. */
     SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
         sql.append(placeholder);
         binds.add(bind);
@@ -151,6 +151,17 @@ final class SqlWriter {
     /** How many parameters are bound so far: the index the next placeholder takes. */
     int bound() {
         return binds.size();
+    }
+
+    /** How many of the parameters bound so far are the plan's own, a key's cell not counted: the place, among them, the
+     *  next one takes (MongoDb names its pipeline variable by it). */
+    int boundParameters() {
+        return (int) binds.stream().filter(b -> !(b.binding() instanceof RenderedStatement.Binding.Key)).count();
+    }
+
+    /** Whether a per-key region is being written: its text is copied once per key at run. */
+    boolean inRegion() {
+        return !open.isEmpty();
     }
 
     /**
@@ -189,7 +200,7 @@ final class SqlWriter {
     }
 
     /** {@link #bindKey(int)} with the placeholder spelled in the target's own language, as {@link #bind(String,
-     *  RenderedStatement.Bind)} (MongoDb's marker document). */
+     *  RenderedStatement.Bind)} (MongoDb's key marker document, which its session replaces by the copy's key). */
     SqlWriter bindKey(String placeholder, int cell) {
         if (open.isEmpty()) {
             throw new IllegalStateException("a key's cell outside a per-key region: no key to bind");

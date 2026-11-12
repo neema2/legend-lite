@@ -74,6 +74,17 @@ final class MongoJson {
         return sb.toString();
     }
 
+    /** The pipeline variable of the statement's {@code place}-th plan parameter (from 1): {@code p1}, {@code p2}, ...
+     *  -- a lowercase ASCII letter first, MongoDB's rule for a user variable, and never a {@code $let} variable's
+     *  ({@link #variable}'s {@code v_}, the guards' {@code g}). The session names its {@code let} entries the same way
+     *  (the connector's {@code MongoDbStatements}, which no dialect class reaches). */
+    static String parameterVariable(int place) {
+        if (place < 1) {
+            throw new IllegalStateException("a plan parameter's place is counted from 1, not " + place);
+        }
+        return "p" + place;
+    }
+
     /** {@code {"$literal": "<text>"}}: a string value, never a path. */
     static SqlWriter literal(SqlWriter w, String text) {
         return w.append("{\"$literal\": ").append(string(text)).append("}");

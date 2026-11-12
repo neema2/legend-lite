@@ -214,6 +214,8 @@ final class MongoDbPipeline {
             }
             w.append("]}");
         }
+        // a count, the select's own Long: never a parameter, which MongoDB would not read here (a $skip or $limit
+        // takes a number, not an expression)
         if (s.offset() != null) {
             st.begin(w).append("{\"$skip\": ").append(s.offset()).append("}");
         }
