@@ -57,6 +57,9 @@ final class PctPlanRoute {
             // (2026-11-09: a tee the run called back until then)
             com.legend.result.ResultSink engine = new com.legend.result.Output.Engine(json,
                     com.legend.server.PureV1Api.facts(query)).writerFor(plan);
+            // the execution that ran the SQL, as the run named it to the collector: the engine's activity names it
+            // (ResultSink.execution, 2026-11-12; unsaid, the writer refused every relation by name)
+            engine.execution(java.util.Objects.requireNonNull(collector.execution(), "the run named no execution"));
             com.legend.result.Batcher batcher = new com.legend.result.Batcher(c.columns(), engine,
                     com.legend.result.Batcher.DEFAULT_CAPACITY);
             batcher.start();
