@@ -21765,3 +21765,53 @@ simple SYNTHESIZE step, the demo made by it, and the result labels merged onto `
   data in the plan's text. NOTEs: the formulas' comments, a range past (2^31-1)/2, the bounds off the scale's grid,
   the demo's TypeScript twin of the formulas for a saved page (held equal by its test), `ResultLabelsTest`'s shapes,
   a guard reason rewritten without a date (`datacube/BUILD.bazel` `_HEADLESS_LEFT_OUT`).
+
+## 2026-11-12 — C: exec sends only the plan's statements, proven on every road; the C checkpoint; rounds 38 and 39; one gate
+
+The total wall's C (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §5.5, §6), merged onto `claude/total-wall` in four
+merges: 5afc4de7c (C1-C3 from `claude/total-wall-b3` @ d2b92ae80), 5429e6aab (the hosts' audit fixes, b3 @ 7e273300a),
+970f0a992 (the Java side, `claude/total-wall-c4` @ 2a116936a), 2d8e991ee (G10, c4 @ cf56a1e25); then PR #95's CI fixes
+(427f6e513, da55507b0, b1ddf9a68, 3a20560f9).
+
+- **C1** (5592d2c86): the database receives exactly the plan's text; the per-execution trace comment is out of the sent
+  statement, the id a bound value (S304).
+- **C2** (e45f603ea): MariaDB's and MySQL's error read-back is the plan's -- declared by `SqlDialect.raiseReadBack()`,
+  carried by the target, sent as written, counted as the session's, its reset always sent; `RaiseRecovery` and the
+  connector overrides deleted.
+- **C3** (76590e57f, 2f05905b4): a host sends only a plan's statement -- TypeScript by a type made only by reading a
+  plan, Python by a checked send. Follow-ups: the V8 bridge's check (e0a90d7c5), Studio's playground named
+  (31e7e008e), Query's demo warehouse by its project's planned Data load (3a3fd4d3f).
+- **The C checkpoint's two audits.** The code audit: one MUST-FIX (the TS guard's import holes) and five SHOULD-FIX, all
+  fixed (4e63be027 no defaulted read-back and every execution reports its id; 42e33640d Python's guard by Python's own
+  parser; eebbbe9b2 the bridge admits only what a session's planner answered; 4da1e9d6b the NOTEs; the second round,
+  f08ffb89c, da9240edf, 4ea13c0a4: every mint counted by identifier, the tab hands out its file registry, Python's
+  modules hold the host's Database). The wall audit's verdict, "true today, not yet provable on the Java side", closed by
+  C4: Java's senders take a `PlannedSql` minted only where a plan is read (6ffc269f1,
+  `onlyThePlansReadersMintPlannedSql`, `aSessionsStatementsTakeNoText`) and the sent-text proof covers every road
+  (a7798b074, `SentStatementsAreThePlansTest`).
+- **The user's rulings, built** (§5.5): the playground through the planner (85669a3be, `Authored`, `notPlanned`
+  deleted); MongoDB's parameters bound by the command's `let` (93e318dbf, 041f2f05b; a 5.0 floor; `mongodb_plan_test`
+  9 -> 20 cases); the execution id minted by the door, no caller ids (8ed2114fd, ed7bce10e,
+  `execMakesNoValueOfItsOwn`, a writer made for its execution); H2's settings as plan data (947008159, plan version 49,
+  test plan 18; as session statements measured and reverted, 9a1bf98c4); G10 (cf56a1e25,
+  `planningMakesNoValueOfItsOwn`, `aBodyPlannedTwiceIsTheSamePlan`). The bridge on intent (#6) is on
+  `claude/total-wall-bridge` (77c084e8a), for the next PR.
+- **Found on the way and fixed:** the B3 execution-id change left PCT's plan route writing rows with no execution (about
+  429 PCT H2 failures on the worker's branch): fixed (378ec4f1b), then made impossible by type (ed7bce10e);
+  `//datacube:headless_test` refused the tests' own SQL through the bridge's check and ran in no session's gate: the
+  tests get a test host's database, and the lane joined `//gates:local` (7e273300a).
+- **The gate** at 970f0a992 (after `bazel clean`): `//gates:local` with `//spec:corpus_duckdb` and `//spec:corpus_h2`,
+  515 tests: 504 pass, 1 skipped, 10 refused as root (nine Postgres targets and `//datacube:verify_app_test`), 10 of 10
+  pass unprivileged; 55 min. On the delta since (2d8e991ee, 3a20560f9): `//core:core_tests_architecture`,
+  `core_tests_exec`, `//core:guardrails`, `//datacube:headless_test`, `//datacube:typecheck_test`, `//engine-client`'s
+  eight, `//python:planned_test`, `planned_guard_test`, `//studio:typecheck_test`, `//tools/guards`' eight: 25 PASS, 1
+  skipped; the G10 worker's own run at cf56a1e25: `core_tests_testplan`, `core_tests_testexec`, `//core:census` PASS.
+- **Round 38 at 5afc4de7c and round 39 at 970f0a992** (measure only, each against the round before): every database
+  green both times, every census and error set unchanged test for test -- MariaDB, MySQL, ClickHouse 45 of 45;
+  Postgres, SQLite, MongoDB 46 of 46 (the ten core Postgres targets unprivileged); Trino and H2 18 of 18 (H2's 37
+  channel B errors identical in name and text, no settings message); Databricks 15 of 15 (the 27 error names
+  unchanged); BigQuery 15 of 15; Snowflake 15 of 15. Snowflake's round: 71 min (38), 66 min (39; channel A 730 s,
+  channel B under BOTH 2,098 s, under DATABASE 1,018 s).
+- **CI** at 2d8e991ee (run 43269720233): green but linux-arm's warehouse lane, where `//datacube:headless_test_bundles`
+  had never declared `engine-client/test/unplanned.ts`, which C3's tests import (a local sandbox found it anyway):
+  declared, 3a20560f9.

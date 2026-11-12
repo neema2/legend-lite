@@ -589,6 +589,37 @@ and the briefs' "RULED" items.
   - MariaDB/MySQL's read-back pair is declared by the plan's target, as `RaiseReadBack` from `SqlDialect.raiseReadBack()`
     (every dialect answers, no default), and sent through a counted, scoped path.
   - `RaiseRecovery` and the connector overrides are deleted.
+- **C3, the hosts (the user, 2026-11-12):** in TypeScript the statement type a host's engine accepts is made only by
+  reading a plan (`planned-sql.ts`, every mint counted by `PlannedSqlTest`); in Python the host's `_planned.Database`
+  sends only a plan's statement (`//python:planned_guard_test`, Python's own parser).
+- **The C checkpoint's findings, as the user ruled them (2026-11-12, "Yes do 5 and 6", "Do the exec id as part of C"):**
+  - **#5 the playground through the planner**: a person's typed SQL is a plan's statement (`com.legend.planner.Authored`:
+    the text as written, never parsed or rewritten, marked as one that may write), run by `runAuthored`; `notPlanned`
+    deleted (85669a3be).
+  - **#6 the bridge on intent**: built on the stacked branch `claude/total-wall-bridge` (77c084e8a: `DataHost` holds
+    load, operations, catalog, forget and the write; file handles), NOT in this PR. Until it lands the bridge admits only
+    the statements a session's planner answered (`_planned.Answered`, eebbbe9b2), and DataCube's headless tests get a
+    database of their own test host (7e273300a). Consolidated with the DataCube engine contract
+    (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`, branch `claude/datacube-engine-contract`, PROPOSED) into the next PR,
+    in parallel with D and E (the user: "we should do this in parallel with D and E").
+  - **MongoDB's parameters bound by the command's `let`** (the probe answered on MongoDB 8.0): a plan parameter is the
+    pipeline variable `$$lpN`, its value `{"$literal": v}`; a server before 5.0, a parameter in a per-key region and a
+    parameter in an insert are refused by name; the session writes nothing into the pipeline (93e318dbf, 041f2f05b).
+  - **The execution id minted by the door, no caller ids** (the user: "Does it simplify if we don't let caller IDs?",
+    then "Do the exec id as part of C"): `Execution`'s run methods and `TestExecution`'s `runProgram`, `runBody`,
+    `runFixture` mint one id per plan run, passed into exec; exec mints nothing (`execMakesNoValueOfItsOwn`); an answer's
+    writer is made for its execution (8ed2114fd, ed7bce10e). S304 amended.
+  - **H2's settings as plan data**: `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` are the target's `settings` (plan
+    version 49, test plan 18), written on an in-memory URL and compared by the database on a borrowed session, a
+    mismatch refused by name; `NON_KEYWORDS` a planned SET. As session statements they were measured and reverted: two of
+    the three commit an open transaction (9a1bf98c4, 947008159).
+  - **G10, found in the hand-back and fixed as part of C**: a test body's plan is the same for the same input
+    (`ActivityComments` derived; `planningMakesNoValueOfItsOwn`; `aBodyPlannedTwiceIsTheSamePlan`, cf56a1e25).
+- **The sanctioned run-time forms after C, and no others** (the user asked "What are all the sanctioned exceptions and
+  why?"): (a) the keyed region, written once per key, each copy's key bound (`PlanRunner.expand`, the hosts'
+  `expandKeyed`); (b) MariaDB's and MySQL's error read-back, plan text sent after a failure, its reset always sent; (c)
+  H2's settings comparison on a borrowed session, plan text. A bound parameter is not an exception: it is a value the
+  plan names, bound at its placeholder.
 
 ### 5.6 pure/v1 and the native protocol (2026-11-11)
 
@@ -778,7 +809,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 | C1 | the trace comment out of the sent text | `JdbcStatements.stamped` and kin deleted | `C_E_BRIEF` §C1 |
 | C2 | MariaDB's read-back declared by the plan | exec's SQL edits at run read 0 besides the keyed region | `C_E_BRIEF` §C2 |
 | C3 | the hosts' separation proven structurally (the user, 2026-11-12): in TypeScript the statement type the engine accepts is made only by reading a plan; in Python the runner checks each statement it sends came from a plan | a host's hand-written SQL does not compile (TS) or is refused by name (Python); tests | §5.11 |
-| ✔ C | **checkpoint**, then the PR updated and MERGED (the user's final word asked at that moment, CI green on the final head) | | |
+| ✔ C | **checkpoint**, then the PR updated and MERGED (the user's final word asked at that moment, CI green on the final head) | built and checked 2026-11-12 (`docs/GATES.md`'s C entry): C1-C3, the two checkpoint audits' fixes, the user's rulings (§5.5); the gate at 970f0a992; rounds 38 and 39 green on every database; the final audit; CI on the final head; then the merge | §5.5 |
 | D1.0-D1.7, D2 | the edge, in this order: the spelling hook first; Raise/RaiseKind (after C2); the text nodes; lists, maps, format; the writers; the decorator; the compile messages; engine text, RawSqlBoundary, the referee and appeals; pure/v1's upstream routes to the edge; then D2's guard | no product SQL or MIR carries a compatibility spelling (D2's guard); PCT green through the hook; `D_BRIEF` §5's register rows | `D_BRIEF`, `COMPAT_IN_PRODUCT_INVENTORY`, `PRINT_FORM_PROBE` |
 | ✔ D | **checkpoint** (print forms checked on every database) | | |
 | E1, E2 | the eight E items | `C_E_BRIEF` §E's pins; register P3-R1 to R5 | `C_E_BRIEF` §E, `LEAN_PRODUCT_P3` §12 |
@@ -1068,6 +1099,16 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
   backwards compatibility mode the lowerer may render the native dynamic pivot where the dialect can (DuckDB's `PIVOT`,
   as legend-engine's plan shows it). Lite's planning needs a result's columns known before it runs, which a native
   dynamic pivot leaves to the database; today generatePlan shows the keyed plan lite runs (S110).
+- **C's follow-ups (2026-11-12):**
+  - an inline `execute(...)`'s activity frame bound to its segment's stamp, so it names the run's id, not the derived
+    planning handle (C4's G10 hand-back: it reaches the agreement judge's per-assert path);
+  - a TypeScript lint rule against unsafe arguments (`no-unsafe-argument`), so an `any` cannot carry text into a send;
+  - short-lived credentials for the presigned links;
+  - MariaDB's and MySQL's binary collation.
+- **Speed (E's lean SQL, the user's order of 2026-11-06, §7.6 of `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`):**
+  Snowflake's round is about 66 minutes (rounds 38, 39): ~0.2-0.5 s per statement, channel B under BOTH about 8
+  statements a test, bodies about 12K characters. The baseline at 970f0a992 is measured by the Snowflake lane
+  (2026-11-12).
 - **Programs:** P5 (judge parity on H2); P6 (no fallbacks, honest appeals); the corpus and stress burn-down.
 - **PR #81** (timeseries), in its own session.
 
