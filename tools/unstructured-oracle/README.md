@@ -101,3 +101,90 @@ spelling yet. `summary.tsv` is the counts per route, arm and backend, generated 
 Search is over all of `CO_PASSAGE`, not scoped to the case's corpus. The vector arm has no floor, so a vector search always
 returns neighbours: a negative on it cannot be `EMPTY_OK`. The floors were read from the same 50 cases they are judged on,
 four negatives among them, so a floor passing the gate says little; `DECISIONS.md` entry 5 says what would reverse them.
+
+## Licences
+
+Read on 2026-11-11 from each distribution's own metadata in the pinned venv: its `License-Expression`, else its `License` field, else its
+licence classifier, as the "read from" column says. The repository holds none of these packages, nor the model: it names them and their
+versions (`tools/unstructured-corpus/requirements.txt`, `pins.env`), and everything is fetched locally.
+
+**The venv.** `requirements.txt` resolves to 51 distributions, and each is reachable from it:
+
+| Distribution | Version | Licence, as declared | Read from | Pulled in by |
+|---|---|---|---|---|
+| `duckdb` | 1.4.5 | MIT License | classifier | requirements.txt |
+| `huggingface_hub` | 2.4.0 | Apache-2.0 | License | requirements.txt |
+| `numpy` | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | License-Expression | requirements.txt |
+| `pg8000` | 1.31.6 | BSD 3-Clause License | License | requirements.txt |
+| `PyYAML` | 6.0.3 | MIT | License | requirements.txt |
+| `requests` | 2.34.2 | Apache-2.0 | License | requirements.txt |
+| `safetensors` | 0.8.0 | Apache Software License | classifier | requirements.txt |
+| `sentence-transformers` | 6.2.0 | Apache-2.0 | License-Expression | requirements.txt |
+| `tokenizers` | 0.23.3 | Apache Software License | classifier | requirements.txt |
+| `torch` | 2.15.0 | Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND ISC AND MIT AND Zlib | License-Expression | requirements.txt |
+| `transformers` | 5.22.2 | Apache 2.0 License | License | requirements.txt |
+| `annotated-doc` | 0.0.5 | MIT | License-Expression | typer |
+| `anyio` | 4.16.0 | MIT | License-Expression | httpx2 |
+| `asn1crypto` | 1.5.1 | MIT | License | scramp |
+| `certifi` | 2026.10.23 | MPL-2.0 | License | requests |
+| `charset-normalizer` | 3.5.2 | MIT | License | requests |
+| `click` | 8.5.1 | BSD-3-Clause | License-Expression | huggingface_hub |
+| `cloudpickle` | 3.1.2 | BSD-3-Clause | License | joblib |
+| `filelock` | 4.2.9 | MIT | License-Expression | huggingface_hub, torch |
+| `fsspec` | 2026.9.0 | BSD-3-Clause | License-Expression | huggingface_hub, torch |
+| `h11` | 0.16.0 | MIT | License | httpcore2 |
+| `hf-xet` | 1.8.0 | Apache-2.0 | License-Expression | huggingface_hub |
+| `httpcore2` | 2.16.0 | BSD-3-Clause | License-Expression | httpx2 |
+| `httpx2` | 2.16.0 | BSD-3-Clause | License-Expression | huggingface_hub |
+| `idna` | 3.20 | BSD-3-Clause | License-Expression | anyio, httpx2, requests |
+| `Jinja2` | 3.1.6 | BSD License | classifier | torch |
+| `joblib` | 1.6.0 | BSD-3-Clause | License-Expression | scikit-learn |
+| `markdown-it-py` | 4.2.0 | MIT License | classifier | rich |
+| `MarkupSafe` | 3.0.4 | BSD-3-Clause | License-Expression | Jinja2 |
+| `mdurl` | 0.1.2 | MIT License | classifier | markdown-it-py |
+| `mpmath` | 1.3.0 | BSD | License | sympy |
+| `narwhals` | 2.28.0 | MIT | License-Expression | scikit-learn |
+| `networkx` | 3.7 | BSD-3-Clause | License-Expression | torch |
+| `packaging` | 26.3 | Apache-2.0 OR BSD-2-Clause | License-Expression | huggingface_hub, transformers |
+| `Pygments` | 2.21.0 | BSD-2-Clause | License-Expression | rich |
+| `python-dateutil` | 4.0.0 | BSD-3-Clause | License-Expression | pg8000 |
+| `regex` | 2026.11.9 | Apache-2.0 AND CNRI-Python | License-Expression | transformers |
+| `rich` | 15.0.0 | MIT | License | typer |
+| `scikit-learn` | 1.9.1 | BSD-3-Clause | License-Expression | sentence-transformers |
+| `scipy` | 1.18.1 | BSD License | classifier | scikit-learn, sentence-transformers |
+| `scramp` | 1.5.0 | MIT-0 | License-Expression | pg8000 |
+| `setuptools` | 84.2.1 | MIT | License-Expression | torch |
+| `shellingham` | 1.5.4 | ISC License | License | typer |
+| `sympy` | 1.14.0 | BSD | License | torch |
+| `threadpoolctl` | 3.8.0 | BSD-3-Clause | License-Expression | scikit-learn |
+| `tqdm` | 4.70.1 | MPL-2.0 AND MIT | License | huggingface_hub, sentence-transformers, transformers |
+| `truststore` | 0.10.5 | MIT | License-Expression | httpcore2, httpx2 |
+| `typer` | 0.28.0 | MIT | License-Expression | transformers |
+| `typing_extensions` | 4.16.0 | PSF-2.0 | License-Expression | anyio, httpx2, huggingface_hub, sentence-transformers, torch |
+| `tzdata` | 2026.6 | Apache-2.0 | License | python-dateutil |
+| `urllib3` | 2.8.0 | MIT | License-Expression | requests |
+
+**Not Apache-2.0, MIT or BSD:**
+
+- `psycopg` and `psycopg-binary` 3.3.8, LGPL-3.0-only, were the Postgres driver until 2026-11-11. They are replaced by `pg8000` 1.31.6,
+  BSD-3-Clause (`projects/unstructured/evals/DECISIONS.md`, entry 7).
+- `certifi`, MPL-2.0, pulled in by `requests` alone. **Kept, and it needs a ruling.** It would go only with `requests`: `tools/edgar-corpus/fetch.py`
+  on the standard library's `urllib`, and the EDGAR corpus fetched again to check it against its manifest.
+- `tqdm`, MPL-2.0 AND MIT, pulled in by `huggingface_hub`, `sentence-transformers` and `transformers`. **Kept, and it needs a ruling:** no swap
+  exists short of replacing the embedder.
+- Permissive, though none of the three: `regex` (Apache-2.0 AND CNRI-Python), `typing_extensions` (PSF-2.0), `shellingham` (ISC), `scramp`
+  (MIT-0), and parts of `torch` and `numpy` (Zlib, BSL-1.0, ISC, CC0-1.0, 0BSD, Apache-2.0 WITH LLVM-exception).
+
+**The generators.** `tools/synth-corpus/gen_emails.py` and `tools/edgar-corpus/extract.py` use the standard library and this repository's
+own modules; `tools/edgar-corpus/fetch.py` uses `requests`, above. `tools/synth-corpus/gen_loan_docs.py` needs `reportlab` 4.2.5, the release
+it enforces, which declares a BSD licence ("BSD license (see license.txt for details)" and its classifier, read from PyPI). reportlab requires
+`pillow>=9.0.0` and `chardet` with no version. A fresh resolve on 2026-11-11 takes pillow 13.0.0 (MIT-CMU) and chardet 7.7.0 (0BSD). **chardet
+before 7.0.0 is LGPL** (5.2.0 "LGPL", 6.0.0 LGPL-2.1-or-later, read from PyPI), and nothing here refuses one, so an environment that
+already holds an old chardet would satisfy reportlab with it. Only regenerating the loan documents needs any of this; the judge does not.
+
+**The model.** `BAAI/bge-small-en-v1.5` at revision `5c38ec7c405ec4b44b94cc5a9bb96e735b38267a` (`pins.env`): MIT, in its model card's front
+matter (`license: mit`) and in Hugging Face's API for that revision.
+
+**The databases.** DuckDB 1.4.5 is MIT, and so is its `fts` extension (the licence of `duckdb/duckdb-fts`, read from GitHub). Postgres 16.15
+is the repository's `@embedded_postgres`: zonky's embedded-postgres binaries (Apache-2.0, read from GitHub), downloaded from Maven Central by
+`tools/postgres/postgres.bzl`, which predates this study (2026-10-04). PostgreSQL itself is under the PostgreSQL Licence, its `COPYRIGHT` file.

@@ -4,7 +4,7 @@
     python tools/unstructured-corpus/load.py
     PG_URL=postgresql://host/database python tools/unstructured-corpus/load.py
 
-Needs duckdb, psycopg when PG_URL is set, the EDGAR corpus on disk (projects/unstructured/corpus/edgar/README.md), and the
+Needs duckdb, pg8000 (through postgres.py) when PG_URL is set, the EDGAR corpus on disk (projects/unstructured/corpus/edgar/README.md), and the
 synthetic corpora, which are committed (tools/synth-corpus rebuilds them).
 
 The tables, their keys, the stored value of every enum and the DuckDB file's path are all read from
@@ -354,12 +354,15 @@ def load_duckdb(model: Model, tables: dict[str, list[dict]]) -> None:
 
 
 def load_postgres(url: str, model: Model, tables: dict[str, list[dict]]) -> None:
-    import psycopg
+    import postgres
 
-    with psycopg.connect(url) as connection:  # one transaction: a failure leaves the tables as they were
+    connection = postgres.connect(url, autocommit=False)
+    try:  # one transaction: a failure leaves the tables as they were
         load(connection, model, tables, "%s")
         connection.commit()
         report("postgres: PG_URL", connection, model)
+    finally:
+        connection.close()
 
 
 def main() -> int:

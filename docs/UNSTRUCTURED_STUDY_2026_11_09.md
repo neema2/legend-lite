@@ -119,11 +119,11 @@ the statements are in `sql/`.
 
 **The exact refusal** (`ledger.tsv`, every vector row on Postgres):
 
-> `pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; vector_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist`
+> `pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; vector_postgres.sql, run: 42P01: relation "co_passage_embedding" does not exist`
 
 And on hybrid:
 
-> `pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; hybrid_postgres.sql, run: UndefinedTable 42P01: relation "co_passage_embedding" does not exist`
+> `pgvector: extension 'vector' is not among the 63 extensions PostgreSQL 16.15 has available; hybrid_postgres.sql, run: 42P01: relation "co_passage_embedding" does not exist`
 
 Both statements parse and stop at name resolution, because the table's column needs the type pgvector provides. Creating that table
 answers `UndefinedObject 42704, type "vector" does not exist` (`DECISIONS.md`, entry 4). Nothing was installed. Neither statement has
@@ -176,7 +176,7 @@ moved C08 from DROPPED to PASS on 4 arms (`DECISIONS.md`, entry 3; the ledger be
 
 ### 5.1 The summary
 
-`summary.tsv`, generated from `ledger.tsv` and diff-tested (ledger sha256 `20afd1c9…`, `DECISIONS.md`, entry 5):
+`summary.tsv`, generated from `ledger.tsv` and diff-tested (ledger sha256 `aa930c05…`, `DECISIONS.md`, entry 7):
 
 | route | arm | backend | road | rows | PASS | DROPPED | STALE_HIT | EMPTY_OK | FALSE_HIT | REFUSED | ERROR | UNRESOLVED |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -188,7 +188,7 @@ moved C08 from DROPPED to PASS on 4 arms (`DECISIONS.md`, entry 3; the ledger be
 | text | vector | duckdb | direct-sql | 44 | 12 | 24 | 4 | 0 | 4 | 0 | 0 | 0 |
 | text | vector | postgres | direct-sql | 44 | 0 | 0 | 0 | 0 | 0 | 44 | 0 | 0 |
 
-Three fresh runs wrote byte-identical ledgers (`DECISIONS.md`, entries 5 and 6). That is a measurement of runs, with no artifact of its own; with the corpus, `run.sh --write` and then `git diff --exit-code` on the ledger reproduces it.
+Three fresh runs wrote byte-identical ledgers (`DECISIONS.md`, entries 5, 6 and 7). That is a measurement of runs, with no artifact of its own; with the corpus, `run.sh --write` and then `git diff --exit-code` on the ledger reproduces it.
 
 ### 5.2 The structured route: 24 of 24, through lite's server
 

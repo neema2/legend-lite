@@ -209,6 +209,27 @@ said "37 missed accepted pointers"; there are 37 accepted pointers on hybrid's D
 key to it. A test may not read this file (guard G17: prose must not change a verdict), which is why the record is a data file; `judge.py` refuses a run unless the key,
 that file and this file's last entry agree.
 
+## Entry 7, 2026-11-11
+
+the Postgres driver: psycopg, LGPL-3.0-only, replaced by pg8000, BSD-3-Clause; no label, verdict, rank or score changed
+
+answer_key.yaml sha256: a4dcdc340a4aa10911a123ff15cb81e28c93ffb36252bebd1dba8a59c0945e7e
+
+ledger.tsv sha256: aa930c058c19855bd8ca9cd89dee47a82107c0c5d65b080d8848b9e5872a44a2
+
+**Why.** The study's Python dependencies are to be Apache-2.0, MIT or BSD wherever a choice exists (`tools/unstructured-oracle/README.md`,
+"Licences"). psycopg and psycopg-binary 3.3.8 declare LGPL-3.0-only. pg8000 1.31.6 declares BSD-3-Clause, and it is pinned in `pins.env`
+in their place. Every statement to Postgres now goes through `tools/unstructured-corpus/postgres.py`.
+
+**What moved.** Three fresh runs wrote byte-identical files, and against entry 6's ledger `judge.py --compare` finds 0 regressions over 288
+rows. The ledger's body differs in one column of 88 rows, the REFUSED rows of vector and hybrid on Postgres. Their detail named the driver's
+exception class, `UndefinedTable 42P01: relation "co_passage_embedding" does not exist`, and now carries what the server sent, its SQLSTATE
+and message: `42P01: relation "co_passage_embedding" does not exist`. The class name was psycopg's spelling, not the database's. The
+headers of `ledger.tsv` and `evidence/ranks.tsv` name pg8000's pin in place of psycopg's two. `evidence/ranks.tsv` (sha256 44eb98144d819b75629f24c2e9b7eb35cc6072e6347c609cc0533889fe1aae99)
+differs from entry 6's only in that header; `evidence/passages.tsv` (sha256 51117dce369928f672c7e2920132fad8bf2fb5919a902dc8e11c5c03043b9664) and `summary.tsv` are unchanged.
+
+Entry 4 quotes the store step as `UndefinedObject 42704`: that is psycopg's spelling at the time, and it stays as recorded.
+
 ## Not tuned, candidates
 
 None of these has been run. Counts are from the ledger; ranks and scores are from `tools/unstructured-oracle/evidence/ranks.tsv`, the
