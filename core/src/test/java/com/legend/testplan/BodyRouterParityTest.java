@@ -549,33 +549,28 @@ class BodyRouterParityTest {
     }
 
     /**
-     * EACH {@code execute()} IS AN EXECUTION OF ITS OWN (the execution id as upstream, the user's ruling of 2026-11-12:
-     * "this needs to go in C that was the whole point of C"). Upstream's interpreted execute mints a GUID per query it
-     * runs ({@code relationalMappingExecution.pure:475-492}), so a body's two executes report two ids; the door mints
-     * one per execution the plan declares and the run binds it where the plan reads it -- the frame's eager run's stamp
-     * and its activity rows alike. Under every judge: two frame lets, and two inline executes in one assert (under the
-     * database judge's batch until then one constant comment, ActivityComments'; on the program road one per
-     * statement). Run twice, the same plans run under new ids.
+     * ONE EXECUTION ID PER RUN (the user's ruling of 2026-11-12, the simple execution id): every stamp a body's plan reads
+     * -- each frame let's, each inline execute's -- binds the run's one id, its door's, as a product query's do; a second
+     * run of the same plan has a new id, and the plan itself is byte for byte the same (no id is in it). Under every
+     * judge: the host's, the database's and the agreement's.
      */
     @ParameterizedTest
     @MethodSource("backends")
-    void eachExecuteIsAnExecutionOfItsOwn(TestBackend backend) throws Exception {
+    void aRunsExecutesShareItsId_aSecondRunHasAnotherAndTheSamePlan(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
         for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
             for (String body : List.of(
                     "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
-                            + " != $b.activities->at(0)" + COMMENT + ");}",
-                    "{| assert(" + EXECUTE + ".activities->at(0)" + COMMENT + " != " + EXECUTE + ".activities->at(0)"
+                            + " == $b.activities->at(0)" + COMMENT + ");}",
+                    "{| assert(" + EXECUTE + ".activities->at(0)" + COMMENT + " == " + EXECUTE + ".activities->at(0)"
                             + COMMENT + ");}")) {
                 Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
                 assertEquals("ok", r.outcome(), backend + " " + mode + ": " + body);
                 assertEquals(1, r.verdicts().size(), backend + " " + mode + ": " + body + " -> " + r.verdicts());
-                assertTrue(r.verdicts().get(0).contains(" true "), backend + " " + mode + ": two executes, two ids: "
-                        + body + " -> " + r.verdicts());
-                assertEquals(2, TestExecution.planBody(typed(ctx, body), "x::RT", ExecuteOptions.NONE
-                        .withJudgeMode(mode)).executions().size(), "two executions declared: " + mode + ": " + body);
+                assertTrue(r.verdicts().get(0).contains(" true "), backend + " " + mode + ": two executes, one run, one"
+                        + " id: " + body + " -> " + r.verdicts());
             }
-            // the ids themselves: each a fresh UUID, two per run, new in each run of the same plan
+            // the ids themselves: the run's one, in each execute's comment; another in a second run of the same plan
             String answer = "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; $a.activities->at(0)" + COMMENT
                     + " + '|' + $b.activities->at(0)" + COMMENT + ";}";
             List<String> first = traceIds(run(backend, ctx, "x::RT", answer, "select count(*) from FIRM", FIRM_ROWS,
@@ -583,10 +578,15 @@ class BodyRouterParityTest {
             List<String> second = traceIds(run(backend, ctx, "x::RT", answer, "select count(*) from FIRM", FIRM_ROWS,
                     mode).answer());
             assertEquals(2, first.size(), mode + ": " + first);
-            assertEquals(2, new java.util.HashSet<>(first).size(), mode + ": two executes, two ids: " + first);
+            assertEquals(1, new java.util.HashSet<>(first).size(), mode + ": two executes, one run, one id: " + first);
             assertEquals(2, second.size(), mode + ": " + second);
-            assertTrue(java.util.Collections.disjoint(first, second), mode + ": the same plan run again, new ids: "
-                    + first + " / " + second);
+            assertEquals(1, new java.util.HashSet<>(second).size(), mode + ": " + second);
+            assertTrue(!first.get(0).equals(second.get(0)), mode + ": the same plan run again, a new id: " + first
+                    + " / " + second);
+            ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
+            assertEquals(com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(typed(ctx, answer),
+                    "x::RT", options)), com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                    typed(ctx, answer), "x::RT", options)), mode + ": the same plan, byte for byte");
         }
     }
 

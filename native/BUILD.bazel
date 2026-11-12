@@ -45,6 +45,8 @@ legend_java_library(
         "//warehouse:sqlapi",
         "//wasm:boundary",
     ],
+    # //core: the guard of who reaches the authored door, by class (the third re-audit's SHOULD-FIX 5, 2026-11-12)
+    visibility = ["//core:__pkg__"],
 )
 
 # libcompiler.dylib (macOS) / libcompiler.so (Linux) / libcompiler.dll (Windows). Everything links when the image is

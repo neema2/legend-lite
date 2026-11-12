@@ -992,19 +992,37 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     /** The settings a target's database must have ({@link Target#settings}): each a name and its value as the database
      *  reports them ({@code required}), and {@code readBack}, the statement answering one text for each of them the
      *  database has otherwise (none where it has them all: the database compares). Plan data: the dialect writes them;
-     *  exec writes the values where it opens the database and, on a session it did not open, sends exactly
-     *  {@code readBack} and refuses the session where it answers any row. */
-    public record DatabaseSettings(List<Setting> required, String readBack) {
+     *  exec writes the values where it opens a database the platform MAKES and, on a session it did not open, sends
+     *  exactly {@code readBack} and refuses the session where it answers any row.
+     *
+     *  <p>Or {@link #THE_DATABASES_OWN}: none written and none read back -- a DECLARED database the platform does not make
+     *  (an H2 file's or server's) is run as it is (the third re-audit's MUST-FIX 2, 2026-11-12: until then exec wrote its
+     *  settings on the declared database's URL, and H2 applies them to the whole open database -- measured on 2.5.252:
+     *  every other client's null order changed while lite's session was open, and a server database kept open held them
+     *  across the server's restart). The product's answers do not depend on them: it writes every null's order. */
+    public record DatabaseSettings(List<Setting> required, @com.legend.base.Nullable String readBack) {
         public DatabaseSettings {
             required = List.copyOf(required);
-            Objects.requireNonNull(readBack, "readBack");
-            if (required.isEmpty()) {
-                throw new IllegalArgumentException("a database's settings name at least one setting");
+            if (required.isEmpty() != (readBack == null)) {
+                throw new IllegalArgumentException("a database's settings are some, read back by one statement, or none"
+                        + " and no read-back (the database's own): " + required + ", " + readBack);
             }
         }
 
-        /** The read-back, as the plan holds it: what a session sends ({@link PlannedSql}). */
+        /** A declared database's own settings, as they are: none written, none read back. */
+        public static final DatabaseSettings THE_DATABASES_OWN = new DatabaseSettings(List.of(), null);
+
+        /** Whether these are {@link #THE_DATABASES_OWN}. */
+        public boolean theDatabasesOwn() {
+            return required.isEmpty();
+        }
+
+        /** The read-back, as the plan holds it: what a session sends ({@link PlannedSql}); a database run as it is
+         *  is read back for nothing, refused by name. */
         public PlannedSql plannedReadBack() {
+            if (readBack == null) {
+                throw new IllegalStateException("a declared database run as it is declares no settings to read back");
+            }
             return PlannedSql.fromPlan(readBack);
         }
     }

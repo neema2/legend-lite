@@ -600,15 +600,24 @@ final class ArchitectureTest {
      */
     @Test
     void plannerIsExecutionFree() {
-        noClasses()
+        PLANNER_IS_EXECUTION_FREE.check(CORE_PROD_CLASSES);
+    }
+
+    /** STEP C (the rule of {@link #plannerIsExecutionFree}). */
+    static final com.tngtech.archunit.lang.ArchRule PLANNER_IS_EXECUTION_FREE = noClasses()
             .that().resideInAPackage("com.legend.planner")
             .or().haveFullyQualifiedName("com.legend.Compiler")
             .or().haveFullyQualifiedName("com.legend.TypedQuery")
             .or().haveFullyQualifiedName("com.legend.HeldModels")
             .should().dependOnClassesThat().resideInAnyPackage("com.legend.testplan", "com.legend.exec..",
                     "com.legend.testexec")
-            .as("step C: planning never touches the test's planner, the runtime or the test's run")
-            .check(CORE_PROD_CLASSES);
+            .as("step C: planning never touches the test's planner, the runtime or the test's run");
+
+    /** {@link #plannerIsExecutionFree} fails on a planner class that runs a plan ({@code planner.PlantedPlanRun}, a test
+     *  class planted for this alone; C's self-audit, check 6, 2026-11-12: until then the rule had none). */
+    @Test
+    void thePlannerRuleBitesAPlantedRun() {
+        bites(PLANNER_IS_EXECUTION_FREE, com.legend.planner.PlantedPlanRun.class);
     }
 
     /**
@@ -1437,11 +1446,9 @@ final class ArchitectureTest {
     /** The one value a door makes (2026-11-12, the user's ruling "Do the exec id as part of C"; the C4 exec-id item):
      *  its execution's id, minted once per method and passed into the run -- exec makes none
      *  ({@link #execMakesNoValueOfItsOwn}). */
-    /** A door's one mint: a run's id, or (2026-11-12, the execution id as upstream: a test body declares one execution
-     *  per execute(), and a door's one statement holds no loop) the test door's mint of the run's id and one per
-     *  declared execution, {@code com.legend.ExecutionIds.minted}. */
-    private static final java.util.Set<String> DOOR_MINT_CALLS = java.util.Set.of("java.util.UUID#randomUUID",
-            "com.legend.ExecutionIds#minted");
+    /** A door's one mint: its run's id (2026-11-12, the user's ruling: one execution id per plan run, a test body's as
+     *  a product query's -- the test door's mint of one id per execute(), ExecutionIds.minted, went with it). */
+    private static final java.util.Set<String> DOOR_MINT_CALLS = java.util.Set.of("java.util.UUID#randomUUID");
 
     private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
             "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",
@@ -1455,9 +1462,8 @@ final class ArchitectureTest {
      * overload. It reads no field but an enum's constant. Its source is one statement per method, with no branch, loop,
      * lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}: the bytecode shows neither a branch nor
      * which call comes first in one expression) -- so the run is the statement's outermost call, its plan an argument. A line cap would only measure it; this says what it may do.
-     * Since 2026-11-12 (the exec-id item, C4) a method may also mint ONCE ({@link #DOOR_MINT_CALLS}): the run's id,
-     * or the test door's ids of its run and of each execution its plan declares -- the door is where an execution
-     * starts, so its id is made there and nowhere in exec.
+     * Since 2026-11-12 (the exec-id item, C4) a method may also mint ONCE ({@link #DOOR_MINT_CALLS}): the run's id --
+     * the door is where an execution starts, so its id is made there and nowhere in exec.
      */
     @Test
     void theDoorsOnlyCompose() {
@@ -1785,8 +1791,27 @@ final class ArchitectureTest {
 
     @Test
     void execReachesNoPlanning() {
+        java.util.Map<String, java.util.Set<String>> reached = planningReachedFromExec(CORE_PROD_CLASSES);
+        org.junit.jupiter.api.Assertions.assertTrue(reached.isEmpty(), "the runtime reaches planning (the wall, D72):"
+                + " move the work to the plan side or the driver, or carry the fact in the plan records -- " + reached);
+    }
+
+    /** {@link #execReachesNoPlanning} finds a class of exec's package that reaches the planner
+     *  ({@code exec.PlantedPlanningReach}, a test class planted for this alone; the third re-audit, 2026-11-12: until
+     *  then the rule had none). */
+    @Test
+    void theWallRuleFindsAPlantedReach() {
+        java.util.Map<String, java.util.Set<String>> reached = planningReachedFromExec(new ClassFileImporter()
+                .importClasses(com.legend.exec.PlantedPlanningReach.class));
+        org.junit.jupiter.api.Assertions.assertTrue(reached.getOrDefault("PlantedPlanningReach", java.util.Set.of())
+                .contains("com.legend.planner.Targets"), "the planner reached: " + reached);
+    }
+
+    /** Each class of exec's package (by its simple top-level name) and the classes of a package exec may not reach
+     *  ({@link #EXEC_MAY_REACH}) it depends on. */
+    private static java.util.Map<String, java.util.Set<String>> planningReachedFromExec(JavaClasses classes) {
         java.util.Map<String, java.util.Set<String>> reached = new java.util.TreeMap<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
             if (!c.getPackageName().equals("com.legend.exec")) {
                 continue;
             }
@@ -1798,8 +1823,7 @@ final class ArchitectureTest {
                 }
             }
         }
-        org.junit.jupiter.api.Assertions.assertTrue(reached.isEmpty(), "the runtime reaches planning (the wall, D72):"
-                + " move the work to the plan side or the driver, or carry the fact in the plan records -- " + reached);
+        return reached;
     }
 
     /**
@@ -2019,11 +2043,18 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsTheOneCallerOfTheSessionsStatements() {
-        // ProgramRunner since 2026-11-08 (the plan-as-data design's step 3, the user's ruling): the runner's program half, its
-        // own target -- the program's transaction bracket and snapshot, as the runner took them before the split
-        String seam = "com\\.legend\\.exec\\.(PlanRunner|ProgramRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements|Statements)(\\$.*)?";
-        noClasses()
-            .that().haveNameNotMatching(seam)
+        RUNNER_IS_THE_ONE_CALLER.check(CORE_PROD_CLASSES);
+    }
+
+    /** The seam: the runners, the session owners and the implementations (ProgramRunner since 2026-11-08, the
+     *  plan-as-data design's step 3, the user's ruling: the runner's program half, its own target -- the program's
+     *  transaction bracket and snapshot, as the runner took them before the split). */
+    private static final String SESSION_SEAM = "com\\.legend\\.exec\\.(PlanRunner|ProgramRunner|PlanSessions|Sessions"
+            + "|JdbcStatements|MongoDbStatements|Statements)(\\$.*)?";
+
+    /** THE DOORS (the rule of {@link #theRunnerIsTheOneCallerOfTheSessionsStatements}). */
+    static final com.tngtech.archunit.lang.ArchRule RUNNER_IS_THE_ONE_CALLER = noClasses()
+            .that().haveNameNotMatching(SESSION_SEAM)
             .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo(
@@ -2041,8 +2072,15 @@ final class ArchitectureTest {
                 }
             })
             .as("the doors: the plan runner is the one caller of a session's statements (Statements, "
-                    + "Sessions.Session.statements)")
-            .check(CORE_PROD_CLASSES);
+                    + "Sessions.Session.statements)");
+
+    /** {@link #theRunnerIsTheOneCallerOfTheSessionsStatements} fails on a class of exec's package, outside the seam,
+     *  that sends through a session's statements and one that takes them from a session ({@code exec.PlantedSessionCaller},
+     *  test classes planted for this alone; the third re-audit, 2026-11-12: until then the rule had none). */
+    @Test
+    void theDoorsRuleBitesAPlantedCaller() {
+        bites(RUNNER_IS_THE_ONE_CALLER, com.legend.exec.PlantedSessionCaller.Sends.class);
+        bites(RUNNER_IS_THE_ONE_CALLER, com.legend.exec.PlantedSessionCaller.Takes.class);
     }
 
     /** EXEC MAKES NO VALUE OF ITS OWN (the rule of {@link #execMakesNoValueOfItsOwn}). */
@@ -2052,12 +2090,18 @@ final class ArchitectureTest {
             .that().resideInAnyPackage("com.legend.exec..", "com.legend.base..", "com.legend.testexec..",
                     "com.legend.result..")
             .should().callMethod(java.util.UUID.class, "randomUUID")
+            // an id made any other way (the re-audit's note 6, 2026-11-12: the rule caught randomness alone, so an id
+            // built from two longs, parsed from text or named from bytes passed it)
+            .orShould().callConstructor(java.util.UUID.class, long.class, long.class)
+            .orShould().callMethod(java.util.UUID.class, "fromString", String.class)
+            .orShould().callMethod(java.util.UUID.class, "nameUUIDFromBytes", byte[].class)
             .orShould().callMethod(Math.class, "random")
             .orShould().callMethod(StrictMath.class, "random")
             // SecureRandom and ThreadLocalRandom are Randoms
             .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
             .as("exec makes no value of its own: an execution's id is its door's (Execution, TestExecution), passed in"
-                    + " and bound, never minted by exec, the test's run, the result library or the run's scope");
+                    + " and bound, never made by exec, the test's run, the result library or the run's scope -- not"
+                    + " drawn at random, built, parsed nor named");
 
     /**
      * EXEC MAKES NO VALUE OF ITS OWN (the user's ruling of 2026-11-12, "Do the exec id as part of C"; earlier, no
@@ -2091,9 +2135,44 @@ final class ArchitectureTest {
             java.util.stream.Stream.of("com.legend.sql", "com.legend.executionplan", "com.legend.testexecutionplan",
                     "com.legend.model")).map(p -> p + "..").toArray(String[]::new);
 
+    /** The plan side's classes in the root package (AGENTS.md: the planner's doors, {@code //core:planner}), each with
+     *  its nested classes: the planning no-value rule reads them as it reads the planning packages (the re-audit's note
+     *  6, 2026-11-12: until then the root's planning doors were outside it). {@link #theRootsPlanSideClassesExist} pins
+     *  that each names a product class. */
+    private static final java.util.List<String> PLAN_SIDE_ROOT = java.util.List.of("com.legend.Compiler",
+            "com.legend.TypedQuery", "com.legend.HeldModels");
+
+    /** A class of the planning side: in a planning package, or one of {@code roots} or nested in one. */
+    private static com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaClass>
+            planningSide(java.util.List<String> roots) {
+        return new com.tngtech.archunit.base.DescribedPredicate<>("a planning-side class (the planning packages, "
+                + roots + ")") {
+            @Override
+            public boolean test(com.tngtech.archunit.core.domain.JavaClass c) {
+                for (String p : VALUE_FREE_PLANNING) {
+                    String pkg = p.substring(0, p.length() - 2);
+                    if (c.getPackageName().equals(pkg) || c.getPackageName().startsWith(pkg + ".")) {
+                        return true;
+                    }
+                }
+                for (String root : roots) {
+                    if (c.getName().equals(root) || c.getName().startsWith(root + "$")) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        };
+    }
+
     /** PLANNING MAKES NO VALUE OF ITS OWN (the rule of {@link #planningMakesNoValueOfItsOwn}). */
-    static final com.tngtech.archunit.lang.ArchRule PLANNING_MAKES_NO_VALUE = noClasses()
-            .that().resideInAnyPackage(VALUE_FREE_PLANNING)
+    static final com.tngtech.archunit.lang.ArchRule PLANNING_MAKES_NO_VALUE = planningMakesNoValue(PLAN_SIDE_ROOT);
+
+    /** The rule over the planning packages and the root classes {@code roots}: the product's are
+     *  {@link #PLAN_SIDE_ROOT}; {@link #theNoValueRuleBitesAPlantedPlanningClock} adds a planted root class. */
+    private static com.tngtech.archunit.lang.ArchRule planningMakesNoValue(java.util.List<String> roots) {
+        return noClasses()
+            .that(planningSide(roots))
             .should().callMethod(java.util.UUID.class, "randomUUID")
             .orShould().callMethod(Math.class, "random")
             .orShould().callMethod(StrictMath.class, "random")
@@ -2109,6 +2188,7 @@ final class ArchitectureTest {
             // SecureRandom and ThreadLocalRandom are Randoms
             .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
             .as("planning makes no value of its own: the same model and query plan to the same plan, byte for byte");
+    }
 
     /**
      * PLANNING MAKES NO VALUE OF ITS OWN (G10 determinism; the C checkpoint's follow-up, 2026-11-12): the same model and
@@ -2131,6 +2211,21 @@ final class ArchitectureTest {
     void theNoValueRuleBitesAPlantedPlanningClock() {
         bites(PLANNING_MAKES_NO_VALUE, com.legend.planner.PlantedPlanningValue.class);
         bites(PLANNING_MAKES_NO_VALUE, com.legend.planner.PlantedPlanningValue.Clock.class);
+        // the root's arm (the re-audit's note 6, 2026-11-12): the rule as built for the product's root classes, with a
+        // planted root class named beside them -- it and its nested class bitten
+        java.util.List<String> roots = new java.util.ArrayList<>(PLAN_SIDE_ROOT);
+        roots.add(com.legend.PlantedRootPlanningValue.class.getName());
+        bites(planningMakesNoValue(roots), com.legend.PlantedRootPlanningValue.class);
+        bites(planningMakesNoValue(roots), com.legend.PlantedRootPlanningValue.Nested.class);
+    }
+
+    /** Each of {@link #PLAN_SIDE_ROOT} names a product class: a door renamed or moved is a red build here, never a
+     *  class the planning no-value rule silently stops reading. */
+    @Test
+    void theRootsPlanSideClassesExist() {
+        for (String root : PLAN_SIDE_ROOT) {
+            org.junit.jupiter.api.Assertions.assertTrue(CORE_PROD_CLASSES.contain(root), root);
+        }
     }
 
     /** {@link #execMakesNoValueOfItsOwn} fails on a class of exec's package that mints an id
@@ -2139,7 +2234,10 @@ final class ArchitectureTest {
     @Test
     void theNoValueRuleBitesAPlantedRandomUuid() {
         for (Class<?> planted : java.util.List.of(com.legend.exec.PlantedRandomUuid.class,
-                com.legend.testexec.PlantedRunValue.class, com.legend.result.PlantedWriterValue.class)) {
+                com.legend.testexec.PlantedRunValue.class, com.legend.result.PlantedWriterValue.class,
+                // an id built, parsed or named (the re-audit's note 6, 2026-11-12)
+                com.legend.exec.PlantedRandomUuid.Built.class, com.legend.exec.PlantedRandomUuid.Parsed.class,
+                com.legend.exec.PlantedRandomUuid.Named.class)) {
             bites(EXEC_MAKES_NO_VALUE, planted);
         }
     }
@@ -2245,6 +2343,138 @@ final class ArchitectureTest {
     void theMintRuleBitesAPlantedMint() {
         bites(ONLY_THE_PLANS_READERS_MINT, com.legend.exec.PlantedPlanText.Mints.class);
         bites(ONLY_THE_PLANS_READERS_MINT, com.legend.exec.PlantedPlanText.MintsByReference.class);
+    }
+
+    /** A JDBC member that sends a statement: one made, prepared or called ({@code Connection.createStatement},
+     *  {@code prepareStatement}, {@code prepareCall}), or one executed in any form or batched ({@code Statement}'s and its
+     *  subtypes' {@code execute*}, {@code addBatch}). */
+    private static boolean jdbcSend(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+        com.tngtech.archunit.core.domain.JavaClass owner = access.getTargetOwner();
+        String name = access.getName();
+        if (owner.isAssignableTo(java.sql.Connection.class)) {
+            return name.equals("createStatement") || name.startsWith("prepare");
+        }
+        return owner.isAssignableTo(java.sql.Statement.class) && (name.startsWith("execute") || name.equals("addBatch"));
+    }
+
+    /** THE JDBC CHOKE POINT (the rule of {@link #jdbcSendsAtOneChokePoint}). */
+    static final com.tngtech.archunit.lang.ArchRule JDBC_SENDS_AT_ONE_POINT = noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a JDBC statement made, prepared, executed or"
+                    + " batched outside JdbcStatements.send") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    return jdbcSend(access)
+                            && !(access.getOriginOwner().getName().equals("com.legend.exec.JdbcStatements")
+                                    && access.getOrigin().getName().equals("send"));
+                }
+            })
+            .as("JDBC sends from JdbcStatements.send alone, which takes the plan's statement");
+
+    /**
+     * JDBC SENDS AT ONE CHOKE POINT (the third re-audit's MUST-FIX 1, 2026-11-12, as MongoDB's
+     * {@link #theMongoDbDriverSendsAtOneChokePoint}): every statement made, prepared or called on a JDBC connection, and
+     * every execution or batch of one ({@code jdbcSend}), is in {@code JdbcStatements.send} and nowhere else of the
+     * product, by a call or a reference; and {@code send} takes the plan's statement ({@code PlannedSql}). Until then
+     * each act of {@code JdbcStatements} prepared and executed for itself, so a private helper beside them could run
+     * {@code c.createStatement().execute("SET search_path TO x")} -- the version check's shape, on JDBC -- with every
+     * guard green: {@link #aSessionsStatementsTakeNoText} reflected over the interface alone, and the census's SENDS
+     * act is per file. {@link #theJdbcRuleBitesAPlantedSend} shows it bites.
+     */
+    @Test
+    void jdbcSendsAtOneChokePoint() {
+        JDBC_SENDS_AT_ONE_POINT.check(CORE_PROD_CLASSES);
+        java.util.List<String> sends = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaMethod m : CORE_PROD_CLASSES.get("com.legend.exec.JdbcStatements")
+                .getMethods()) {
+            if (m.getName().equals("send")) {
+                sends.add(m.getRawParameterTypes().get(1).getName());
+                for (com.tngtech.archunit.core.domain.JavaClass p : m.getRawParameterTypes()) {
+                    org.junit.jupiter.api.Assertions.assertFalse(p.isAssignableTo(CharSequence.class),
+                            "send takes no text: " + m.getFullName());
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("com.legend.executionplan.PlannedSql"), sends,
+                "one send, its statement the plan's");
+    }
+
+    /** {@link #jdbcSendsAtOneChokePoint} fails on a class of exec's package that sends a statement of its own -- made
+     *  and executed, prepared, and by a method reference ({@code exec.PlantedJdbcSend}, test classes planted for this
+     *  alone). */
+    @Test
+    void theJdbcRuleBitesAPlantedSend() {
+        for (Class<?> planted : java.util.List.of(com.legend.exec.PlantedJdbcSend.Executes.class,
+                com.legend.exec.PlantedJdbcSend.Prepares.class, com.legend.exec.PlantedJdbcSend.ByReference.class)) {
+            bites(JDBC_SENDS_AT_ONE_POINT, planted);
+        }
+    }
+
+    /** Whether {@code access} is made from {@code owner}'s method {@code method}, or from a lambda javac made of its
+     *  body. */
+    private static boolean madeFrom(com.tngtech.archunit.core.domain.JavaAccess<?> access, String owner, String method) {
+        return access.getOriginOwner().getName().equals(owner)
+                && access.getOrigin().getName().matches(method + "|lambda\\$" + method + "\\$\\d+");
+    }
+
+    /** THE AUTHORED DOOR'S REACH (the rule of {@link #theAuthoredDoorIsReachedFromTheBoundaryAlone}): the planner's
+     *  {@code Authored.plan} from {@code planner.Boundary.authored} alone, and that from the tab's export
+     *  ({@code TabExports.authoredOrError}) and the native entry ({@code nativelib.Compiler.authored}) alone. */
+    static final com.tngtech.archunit.lang.ArchRule AUTHORED_DOOR = noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("the authored door reached past the boundary") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    String target = access.getTargetOwner().getName() + "#" + access.getName();
+                    if (target.equals("com.legend.planner.Authored#plan")) {
+                        return !madeFrom(access, "planner.Boundary", "authored");
+                    }
+                    if (target.equals("planner.Boundary#authored")) {
+                        // the native entry until the hosts worker deletes it (the orchestrator, 2026-11-12)
+                        return !(madeFrom(access, "planner.TabExports", "authoredOrError")
+                                || madeFrom(access, "com.legend.nativelib.Compiler", "authored"));
+                    }
+                    return false;
+                }
+            })
+            .as("a person's own statement is planned through the boundary alone: Authored.plan from Boundary.authored,"
+                    + " that from the tab's export and the native entry");
+
+    /**
+     * THE AUTHORED DOOR IS REACHED FROM THE BOUNDARY ALONE (the third re-audit's SHOULD-FIX 5, 2026-11-12): a statement
+     * a person wrote (Studio's SQL playground) is planned by {@code Authored.plan}, which only
+     * {@code planner.Boundary.authored} calls, which only the tab's {@code authoredOrError} and the native entry call --
+     * by a call or a reference, read from the classes of core, the boundary, the tab's adapter and the native entry
+     * ({@code //core:authored_door_jars}). Until then the pin was a source regex
+     * ({@code PlannedSqlTest.AUTHORED_JAVA_REFERENCE}), which {@code Authored::plan} or a static import passed.
+     * {@link #theAuthoredDoorRuleBitesAPlantedCaller} shows it bites.
+     */
+    @Test
+    void theAuthoredDoorIsReachedFromTheBoundaryAlone() {
+        java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
+        try {
+            for (String property : java.util.List.of("legend.product.jars", "legend.authored.jars")) {
+                for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
+                    jars.add(new java.util.jar.JarFile(jar.toFile()));
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        JavaClasses classes = new ClassFileImporter().importJars(jars);
+        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.nativelib.Compiler")) {
+            org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
+        }
+        AUTHORED_DOOR.check(classes);
+    }
+
+    /** {@link #theAuthoredDoorIsReachedFromTheBoundaryAlone} fails on a class that plans a person's statement past the
+     *  boundary, by a call and by a reference ({@code planner.PlantedAuthoredCaller}, test classes planted for this
+     *  alone). */
+    @Test
+    void theAuthoredDoorRuleBitesAPlantedCaller() {
+        bites(AUTHORED_DOOR, com.legend.planner.PlantedAuthoredCaller.Calls.class);
+        bites(AUTHORED_DOOR, com.legend.planner.PlantedAuthoredCaller.ByReference.class);
     }
 
     /** The MongoDB driver's types whose methods reach the server (a command, a cursor's opening, a session): the
@@ -2362,17 +2592,35 @@ final class ArchitectureTest {
      */
     @Test
     void aSessionsStatementsTakeNoText() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), textParameters(com.legend.exec.Statements.class),
+                "a session's statements take a PlannedSql, never text");
+    }
+
+    /** {@link #aSessionsStatementsTakeNoText} finds a seam whose method takes a {@code String}, and one whose method
+     *  takes another text ({@code exec.PlantedTextStatements}, a test interface planted for this alone; the third
+     *  re-audit, 2026-11-12: until then the check had none, and read {@code String} alone). The implementations' own
+     *  sends are {@link #jdbcSendsAtOneChokePoint}'s and {@link #theMongoDbDriverSendsAtOneChokePoint}'s. */
+    @Test
+    void theNoTextCheckFindsAPlantedTextParameter() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("execute#0", "executeText#0"),
+                textParameters(com.legend.exec.PlantedTextStatements.class));
+    }
+
+    /** Each method of {@code seam} and the index of each parameter that is text (a {@code CharSequence}), sorted --
+     *  but {@code readsFile}'s second, the runner's verified copy's path, which the statement's one {@code ?} binds (a
+     *  value, never text sent). */
+    private static java.util.List<String> textParameters(Class<?> seam) {
         java.util.List<String> textual = new java.util.ArrayList<>();
-        for (java.lang.reflect.Method m : com.legend.exec.Statements.class.getMethods()) {
+        for (java.lang.reflect.Method m : seam.getMethods()) {
             Class<?>[] ps = m.getParameterTypes();
             for (int i = 0; i < ps.length; i++) {
-                if (ps[i] == String.class && !(m.getName().equals("readsFile") && i == 1)) {
+                if (CharSequence.class.isAssignableFrom(ps[i]) && !(m.getName().equals("readsFile") && i == 1)) {
                     textual.add(m.getName() + "#" + i);
                 }
             }
         }
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), textual,
-                "a session's statements take a PlannedSql, never a String");
+        java.util.Collections.sort(textual);
+        return textual;
     }
 
     /** Grammar cursors and section parsers are parse-time machinery. */
@@ -2959,14 +3207,23 @@ final class ArchitectureTest {
     /** Exec makes no load and no load step: it runs the plan's (the wall's data half; P2, 2026-11-09). */
     @Test
     void execMakesNoLoad() {
-        noClasses()
+        EXEC_MAKES_NO_LOAD.check(CORE_PROD_CLASSES);
+    }
+
+    /** P2 (the rule of {@link #execMakesNoLoad}). */
+    static final com.tngtech.archunit.lang.ArchRule EXEC_MAKES_NO_LOAD = noClasses()
             .that().resideInAnyPackage("com.legend.exec..", "com.legend.testexec..")
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
                                     .nameMatching("com\\.legend\\.executionplan\\.ExecutionPlan\\$(Load|LoadStep\\$.*)"))))
-            .as("P2: exec runs a plan's loads and makes none")
-            .check(CORE_PROD_CLASSES);
+            .as("P2: exec runs a plan's loads and makes none");
+
+    /** {@link #execMakesNoLoad} fails on a class of exec's package that makes a load's step ({@code exec.PlantedLoad},
+     *  a test class planted for this alone; C's self-audit, check 6, 2026-11-12: until then the rule had none). */
+    @Test
+    void theLoadRuleBitesAPlantedLoad() {
+        bites(EXEC_MAKES_NO_LOAD, com.legend.exec.PlantedLoad.class);
     }
 
     /** The run side (core-layers' run-side libraries: exec, the test's run, the result library, and the base and
@@ -2982,32 +3239,93 @@ final class ArchitectureTest {
             + "|DatabaseSettings|Setting|RaiseReadBack|Keyed|Region|Effect\\$Script|Load|LoadStep(\\$.*)?)"
             + "|testexecutionplan\\.TestPlan\\$Verdicts\\$Savepoint)";
 
+    /** The plan's text readers: a plan, or one of its records, made from JSON text. */
+    private static final String PLAN_TEXT_READER = "com\\.legend\\.(executionplan\\.PlanJson"
+            + "|testexecutionplan\\.TestPlanJson)";
+
+    /** What a plan reader makes that carries statement text: a plan, a test plan, or one of their text records. */
+    private static final String READ_PLAN_TEXT = "com\\.legend\\.(executionplan\\.ExecutionPlan"
+            + "|testexecutionplan\\.TestPlan)|" + TEXT_CARRYING_RECORD;
+
+    /** A plan, a test plan, or one of a plan's nodes: what a static that makes one returns. */
+    private static final String PLAN_OR_NODE = "com\\.legend\\.(executionplan\\.ExecutionPlan(\\$(Node|Sequence|TdsResult"
+            + "|Keyed|Update|Check|Effect|Load|Constant))?|testexecutionplan\\.TestPlan)";
+
+    /** The statics that make a plan or a node that the run side may call, each with why (the third re-audit's
+     *  SHOULD-FIX 3, 2026-11-12). */
+    private static final java.util.Map<String, String> PLAN_MAKERS_THE_RUN_SIDE_CALLS = java.util.Map.of(
+            "com.legend.executionplan.ExecutionPlan#reading",
+            "wraps a node the plan holds -- an appeal's side, read again after the body's run (Appeals.reader) -- as a"
+                    + " plan of its own to stream it: no statement made, the node the plan's");
+
+    /** Whether {@code c} is a class of the run side ({@link #RUN_SIDE}): its statics hand back the nodes they were
+     *  handed (a side's statement, a run's plan), never make one. */
+    private static boolean onTheRunSide(com.tngtech.archunit.core.domain.JavaClass c) {
+        for (String p : RUN_SIDE) {
+            String pkg = p.substring(0, p.length() - 2);
+            if (c.getPackageName().equals(pkg) || c.getPackageName().startsWith(pkg + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code m} is its record's accessor of its own component: no parameter, and a field of its name and type. */
+    private static boolean isComponentAccessor(com.tngtech.archunit.core.domain.JavaCodeUnit m) {
+        return m instanceof com.tngtech.archunit.core.domain.JavaMethod && m.getParameters().isEmpty()
+                && m.getOwner().tryGetField(m.getName()).map(f -> f.getRawType().equals(m.getRawReturnType()))
+                        .orElse(false);
+    }
+
     /** THE RUN SIDE WRITES NO PLAN TEXT (the rule of {@link #theRunSideMakesNoPlanRecordThatCarriesText}). */
     static final com.tngtech.archunit.lang.ArchRule RUN_SIDE_MAKES_NO_PLAN_TEXT = noClasses()
             .that().resideInAnyPackage(RUN_SIDE)
             .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a constructor or a static factory of a plan"
-                    + " record that carries statement text") {
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a constructor or a method of a plan record that"
+                    + " carries statement text making another, or a plan read from its JSON") {
                 @Override
                 public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
-                    if (!access.getTargetOwner().getName().matches(TEXT_CARRYING_RECORD)
-                            || !(access.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget
+                    if (!(access.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget
                                     .CodeUnitAccessTarget unit)) {
+                        return false;
+                    }
+                    String owner = access.getTargetOwner().getName();
+                    // a plan, a test plan or a node made by a static (the third re-audit's SHOULD-FIX 3, 2026-11-12: a
+                    // plan the run side made would carry statements it chose) -- a static of the plan's side, but those
+                    // the run side may call, named with why; one that cannot be resolved is refused, never passed
+                    if (unit.getRawReturnType().getName().matches(PLAN_OR_NODE)
+                            && !onTheRunSide(access.getTargetOwner())
+                            && unit.resolveMember().map(m -> m.getModifiers().contains(
+                                    com.tngtech.archunit.core.domain.JavaModifier.STATIC)).orElse(true)
+                            && !PLAN_MAKERS_THE_RUN_SIDE_CALLS.containsKey(owner + "#" + unit.getName())) {
+                        return true;
+                    }
+                    if (owner.matches(PLAN_TEXT_READER)) {
+                        // a plan READ from text on the run side (the re-audit's note 7, 2026-11-12): its statements are
+                        // text the run made into a plan, the brand minted by the reader; the run side is handed its plan
+                        // (a door reads one, the server's), and reads none
+                        return unit.getName().startsWith("read") && unit.getRawReturnType().getName()
+                                .matches(READ_PLAN_TEXT);
+                    }
+                    if (!owner.matches(TEXT_CARRYING_RECORD)) {
                         return false;
                     }
                     if (unit.getName().equals(com.tngtech.archunit.core.domain.JavaConstructor.CONSTRUCTOR_NAME)) {
                         return true;
                     }
-                    // a static method that returns such a record: a factory (Load.canonical, the text a load's identity
-                    // digests, returns a String no session is sent: exec verifies an identity with it); one that cannot
-                    // be resolved is refused, never passed
+                    // a method that returns such a record, static or not: a factory (Sql.of), or a record derived from
+                    // the plan's (Sql.stamped, Sql.unstamped, Target.bare: none rewrites text today, and the run side
+                    // calls none; the re-audit's note 7, 2026-11-12: until then a static factory alone) -- never the
+                    // record's accessor of its own component (Keyed.keys, Sql.target), which reads the plan's. One
+                    // that cannot be resolved is refused, never passed. (Load.canonical, the text a load's identity
+                    // digests, returns a String no session is sent: exec verifies an identity with it.)
                     return unit.getRawReturnType().getName().matches(TEXT_CARRYING_RECORD)
-                            && unit.resolveMember().map(m -> m.getModifiers().contains(
-                                    com.tngtech.archunit.core.domain.JavaModifier.STATIC)).orElse(true);
+                            && !unit.resolveMember().map(ArchitectureTest::isComponentAccessor).orElse(false);
                 }
             })
             .as("the run side makes no plan record that carries statement text: a statement, a target, its settings and"
-                    + " read-back, a keyed node, a region, a script, a load and a savepoint are the plan's, read from it");
+                    + " read-back, a keyed node, a region, a script, a load and a savepoint are the plan's, read from it"
+                    + " -- never built, derived, nor read from the plan's JSON on the run side");
 
     /**
      * THE RUN SIDE MAKES NO PLAN RECORD THAT CARRIES TEXT (the C final audit's J2, 2026-11-12): the brand
@@ -3030,9 +3348,18 @@ final class ArchitectureTest {
     @Test
     void theRunSideRuleBitesAPlantedPlanText() {
         for (Class<?> planted : java.util.List.of(com.legend.exec.PlantedPlanText.Factory.class,
-                com.legend.exec.PlantedPlanText.Constructs.class, com.legend.exec.PlantedPlanText.ByReference.class)) {
+                com.legend.exec.PlantedPlanText.Constructs.class, com.legend.exec.PlantedPlanText.ByReference.class,
+                // the re-audit's note 7, 2026-11-12: a record derived by an instance method, by call and by reference,
+                // and a plan and a test plan read from JSON
+                com.legend.exec.PlantedPlanText.Derives.class, com.legend.exec.PlantedPlanText.DerivesByReference.class,
+                com.legend.exec.PlantedPlanText.ReadsAPlan.class, com.legend.exec.PlantedPlanText.ReadsATestPlan.class,
+                // the third re-audit's SHOULD-FIX 3, 2026-11-12: a node read from JSON, and a plan made by a static
+                com.legend.exec.PlantedPlanText.ReadsANode.class, com.legend.exec.PlantedPlanText.MakesAPlan.class)) {
             bites(RUN_SIDE_MAKES_NO_PLAN_TEXT, planted);
         }
+        // and passes a class that reads the plan's records by their accessors alone
+        RUN_SIDE_MAKES_NO_PLAN_TEXT.check(new ClassFileImporter().importClasses(
+                com.legend.exec.PlantedPlanText.ReadsOnly.class));
     }
 
     /**

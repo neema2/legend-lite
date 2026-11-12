@@ -191,6 +191,32 @@ public class H2 extends AnsiSqlRenderer {
                     java.util.stream.Stream.of("right"))
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet)));
 
+    /** H2 2.5.252's OWN keywords that the engine's list ({@link #ENGINE_LEXICON}) leaves bare: exactly the engine's
+     *  {@link #NON_KEYWORDS} but {@code OVER}, which that list quotes. H2's keywords are its driver's
+     *  ({@code org.h2.command.Token}, 89 of them; {@code H2KeywordsTest} reads them there and holds every one quoted). A
+     *  bare name that is one of these is quoted IN UPPER CASE -- the identifier H2 makes of the bare name, which it
+     *  folds to upper case -- so it names the same column as before and a session without the engine's non-keywords
+     *  parses it too (the third re-audit's MUST-FIX 2(c), 2026-11-12: a store's column {@code key} was written bare,
+     *  which such a session refuses). */
+    static final Set<String> FREED_BY_THE_ENGINE = java.util.Arrays.stream(NON_KEYWORDS.split(","))
+            .map(w -> w.toLowerCase(java.util.Locale.ROOT))
+            .filter(w -> !ENGINE_LEXICON.reservedWords().contains(w))
+            .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(
+                    java.util.TreeSet::new), java.util.Collections::unmodifiableSet));
+
+    /** {@code name} is a plain name H2 reserves and the engine's session frees ({@link #FREED_BY_THE_ENGINE}). */
+    private static boolean freedByTheEngine(String name) {
+        return name.matches("[A-Za-z_][A-Za-z0-9_$]*")
+                && FREED_BY_THE_ENGINE.contains(name.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** {@inheritDoc} A name H2 reserves that the engine's session frees, quoted as the upper-case identifier H2 makes
+     *  of it bare ({@link #FREED_BY_THE_ENGINE}). */
+    @Override
+    protected String ident(String name) {
+        return freedByTheEngine(name) ? delimited(name.toUpperCase(java.util.Locale.ROOT)) : super.ident(name);
+    }
+
     /** H2: no native lists, no correlated explosion (the ONLY probed
      * backend without it), JSON constructors only. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
@@ -409,6 +435,10 @@ public class H2 extends AnsiSqlRenderer {
         if (part.length() > 1 && part.charAt(0) == '"'
                 && part.endsWith("\"")) {
             return part;
+        }
+        if (freedByTheEngine(part)) {
+            // H2's own keyword the engine's session frees: the upper-case identifier H2 makes of it bare
+            return delimited(part.toUpperCase(java.util.Locale.ROOT));
         }
         if (!part.matches("[A-Za-z_][A-Za-z0-9_$]*")
                 || reservedWords()
