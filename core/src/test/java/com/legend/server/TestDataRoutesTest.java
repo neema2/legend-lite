@@ -204,6 +204,71 @@ class TestDataRoutesTest {
                 + "\"2020-01-03T00:00:00.000000000+0000\"}]}]}", seed.json());
     }
 
+    /** A temporal key's value is the request's text: in its ISO shape it is cast to the column's type as an escaped
+     *  string; any other text -- a quote's injection, a date in another shape -- is refused by name, never written into
+     *  a statement (the final audit, 2026-11-12: until then the text went straight into {@code DATE '<text>'}, so
+     *  {@code 2024-01-01' OR '1'='1} answered every row). A timestamp key the seed route printed reads back its row. */
+    @Test
+    void aTemporalKeysValueIsCastWhereItIsIsoAndRefusedByNameOtherwise() throws Exception {
+        Path file = Files.createTempFile("tdg-days-", ".duckdb");
+        Files.delete(file);
+        String days = """
+                ###Pure
+                Class model::D { n: Integer[0..1]; }
+                Class model::S { n: Integer[0..1]; }
+
+                ###Relational
+                Database store::DAYS ( Table DAY ( D DATE PRIMARY KEY, N INTEGER ) Table STAMP ( S TIMESTAMP PRIMARY KEY, N INTEGER ) )
+
+                ###Mapping
+                Mapping model::DM (
+                    model::D: Relational { ~mainTable [store::DAYS] DAY n: [store::DAYS] DAY.N }
+                    model::S: Relational { ~mainTable [store::DAYS] STAMP n: [store::DAYS] STAMP.N }
+                )
+
+                ###Connection
+                RelationalDatabaseConnection store::DaysConn {
+                    type: DuckDB;
+                    specification: DuckDB { path: '%s'; };
+                    auth: Test;
+                }
+
+                ###Runtime
+                Runtime model::DRT {
+                    mappings: [ model::DM ];
+                    connections: [ store::DAYS: [ c: store::DaysConn ] ];
+                }
+                """.formatted(file.toString().replace("\\", "/"));
+        Seed.sql(days, "CREATE TABLE DAY (D DATE PRIMARY KEY, N INTEGER)", "model::DRT");
+        Seed.sql(days, "INSERT INTO DAY VALUES (DATE '2024-01-01', 1), (DATE '2024-01-02', 2)", "model::DRT");
+        Seed.sql(days, "CREATE TABLE STAMP (S TIMESTAMP PRIMARY KEY, N INTEGER)", "model::DRT");
+        Seed.sql(days, "INSERT INTO STAMP VALUES (TIMESTAMP '2020-01-02 03:04:05.123', 1),"
+                + " (TIMESTAMP '2020-01-03 00:00:00', 2)", "model::DRT");
+        java.util.function.BiFunction<String, String, PureV1Api.Answer> withKey = (table, value) -> route(
+                "execution/testDataGeneration/generateTestData_WithSeed", "{\"clientVersion\":\"vX_X_X\",\"function\":"
+                + PureV1Api.grammarToJsonLambda("|model::" + table.charAt(0) + ".all()->project([d|$d.n], ['n'])",
+                        false).json()
+                + ",\"model\":" + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", days))
+                + ",\"mapping\":\"model::DM\",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"model::DRT\"},"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"},\"tableRowIdentifiers\":[{\"table\":{\"_type\":"
+                + "\"table\",\"table\":\"" + table + "\",\"schema\":\"default\",\"database\":\"store::DAYS\"},"
+                + "\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"" + (table.equals("DAY") ? "D" : "S")
+                + "\",\"value\":" + com.legend.json.Json.toCompact(value) + "}]}]}]}");
+        PureV1Api.Answer one = withKey.apply("DAY", "2024-01-02");
+        assertEquals(200, one.status(), one.json());
+        assertEquals("default\nDAY\nD,N\n2024-01-02,2\n-----\n", one.json(), "the valid date's row alone");
+        for (String value : java.util.List.of("2024-01-01' OR '1'='1", "01/02/2024")) {
+            PureV1Api.Answer refused = withKey.apply("DAY", value);
+            assertTrue(refused.status() != 200, value + ": " + refused.json());
+            assertTrue(refused.json().contains("testDataGen: the value '" + value.replace("'", "\\u0027")
+                    + "' for the column D is no ISO date") || refused.json().contains("testDataGen: the value '"
+                    + value + "' for the column D is no ISO date"), value + ": " + refused.json());
+        }
+        PureV1Api.Answer stamp = withKey.apply("STAMP", "2020-01-02T03:04:05.123000000+0000");
+        assertEquals(200, stamp.status(), stamp.json());
+        assertEquals("default\nSTAMP\nN,S\n1,2020-01-02 03:04:05\n-----\n", stamp.json(), "the seed's printed key");
+    }
+
     /** The census: upstream's embedded data, a model fact (no run). */
     @Test
     void theCensusIsUpstreamsEmbeddedData() {
