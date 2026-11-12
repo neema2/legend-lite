@@ -21652,10 +21652,14 @@ synthesizer -- its DataCube samples are shipped CSVs).
   load: the table made as declared, empty (`CsvSeed`'s header-only steps), then ONE statement
   `INSERT INTO <table> (<columns>) SELECT <formula per column> FROM range(N) AS t(i)` -- `HostOperation.Synthesize`,
   written by `DuckDbHostOperations`; every other database's host operations refuse it by name ("a host's Synthesize on
-  <database> is not built"). Each formula is the dialect's, a function of the row's number the database computes: a
-  value list cycles (`[..][(i % k) + 1]`), a text without one is `<column>_1`..`<column>_5`, a number is spread over its
-  range by the prime 2^31 - 1 at its scale, a date or timestamp over the five years ending 2025-12-31, a BIT alternates.
-  No NULL in this slice. A column of another type (binary, JSON, an array, a time), a knob for an undeclared column, a
+  <database> is not built"). Each formula is the dialect's, a function of the row's number the database computes. The
+  columns taken in turn -- a value list, a text without one (`<column>_1`..`<column>_5`), a BIT -- are the row number's
+  digits in mixed radix in declaration order (`[..][((i // every) % k) + 1]`, `every` the product of the earlier ones'
+  sizes), so every combination occurs; a number or a date (a timestamp to the second; the five years ending 2025-12-31
+  by default) is spread over its range as `((i * m_j) % (2^31 - 1)) % n`, each spread column its own multiplier `m_j`
+  (742938285^(j+1) mod 2^31 - 1), so no two columns move together (the orchestrator's fix, the B3 worker's finding:
+  one shared index made the demo's year-by-desk and quarter-by-book pivots diagonals). No NULL in this slice; over
+  2^32 rows and a range of more than 2^31 - 1 values are refused by name. A column of another type (binary, JSON, an array, a time), a knob for an undeclared column, a
   range on a text column and a value a number column cannot take are refused by name.
 - **The doors:** the WASM planner's `TabExports.synthesizeOrError(request)` (`Boundary.synthesize`; the request
   `{"databaseType","model","database","schema","table","count","columns"?}`, each column `{"values":[..]}` or
@@ -21663,7 +21667,9 @@ synthesizer -- its DataCube samples are shipped CSVs).
   `synthesize` planner kind, the TS `LitePlanner.synthesize(SynthesizeRequest)` and `WasmGrammar.synthesize`. The
   server route and the Pure face are later.
 - **Tests:** `DuckDbSynthesizeTest` (each type's and each knob's statement pinned; the demo's TRADES table filled with
-  200,000 rows on DuckDB and its aggregates exact -- sums, distinct counts, min and max, each region's count; the plan's
+  200,000 rows on DuckDB and its aggregates exact -- sums, distinct counts, min and max, each region's count, every
+  pair's product covered (region by desk 15, desk by year 25, quarter by book 16, the four lists' 240, each 833 or 834
+  times), the spread columns' correlations near 0 over all the rows and over the first 1,000; the plan's
   size the count's digits and every step a statement; every other database refused by name, and each refusal above);
   `plan-runner.test.ts` (the WASM planner's plan run on DuckDB-WASM by the hosts' runner: 100,000 rows, their counts
   exact; Postgres refused).
@@ -21671,4 +21677,5 @@ synthesizer -- its DataCube samples are shipped CSVs).
   rows planned by the WASM planner and run on DuckDB-WASM in 0.13 s; the plan of 200,000 rows is the plan of 10 plus
   4 bytes (the count's digits).
 - **Guards moved, each with its note:** `JavaEvalLedgerTest` PLANNER_CLASSES registers `Synthesize.java` (S303: it
-  computes no value, it names formulas).
+  computes no value, it names formulas); parser-equivalence `own_corpus.matched` 3140 -> 3142 (`DuckDbSynthesizeTest`'s
+  two models).
