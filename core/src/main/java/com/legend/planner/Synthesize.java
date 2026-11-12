@@ -58,6 +58,11 @@ public final class Synthesize {
             }
         }
 
+        /** The most values one column's list may hold: a knob describes a column, it does not carry its data (the B
+         *  close's audit, SHOULD-FIX 4, 2026-11-12: a list of a million values would be rows in the plan's text, where
+         *  data enters only by a load; DataCube's knobs hold ten at most). */
+        int MOST_VALUES = 1_000;
+
         /** A range {@code [lo, hi]}: numbers at {@code scale} places (none: the column's), or ISO dates. */
         record Range(String lo, String hi, @com.legend.base.Nullable Integer scale) implements Knob {
         }
@@ -149,10 +154,25 @@ public final class Synthesize {
         RelationalDataType t = c.dataType();
         Kind kind = kind(t, name, table);
         if (knob instanceof Knob.Values v) {
+            if (v.values().isEmpty() || v.values().size() > Knob.MOST_VALUES) {
+                throw new IllegalArgumentException("synthesize: the column " + name + "'s values number "
+                        + v.values().size() + "; a list holds 1 to " + Knob.MOST_VALUES);
+            }
             List<HostOperation.Literal> values = new ArrayList<>(v.values().size());
             for (String value : v.values()) {
-                if (kind == Kind.NUMBER) {
-                    number(value, name);
+                // each value read as its column's type here, at planning, never first by the database at run (the B
+                // close's audit, SHOULD-FIX 3, 2026-11-12: only a number column's values were checked)
+                switch (kind) {
+                    case NUMBER -> number(value, name);
+                    case DATE -> date(value, name);
+                    case TIMESTAMP -> timestamp(value, name);
+                    case BOOLEAN -> {
+                        if (!value.equals("true") && !value.equals("false")) {
+                            throw new IllegalArgumentException("synthesize: the boolean column " + name
+                                    + "'s values are true and false, not '" + value + "'");
+                        }
+                    }
+                    case TEXT -> { }
                 }
                 values.add(new HostOperation.Literal(value, kind == Kind.NUMBER));
             }
@@ -176,6 +196,10 @@ public final class Synthesize {
                     yield new HostOperation.Formula.Spread(name, lo, hi, scale, multiplier);
                 }
                 case DATE, TIMESTAMP -> {
+                    if (r.scale() != null) {
+                        throw new IllegalArgumentException("synthesize: a scale for the " + kind.name()
+                                .toLowerCase(java.util.Locale.ROOT) + " column " + name + ": a scale is a number's");
+                    }
                     java.time.LocalDate from = date(r.lo(), name);
                     java.time.LocalDate to = date(r.hi(), name);
                     if (from.isAfter(to)) {
@@ -285,8 +309,22 @@ public final class Synthesize {
         try {
             return java.time.LocalDate.parse(text);
         } catch (java.time.format.DateTimeParseException e) {
-            throw new IllegalArgumentException("synthesize: the date column " + column + "'s range takes ISO dates,"
+            throw new IllegalArgumentException("synthesize: the date column " + column + " takes ISO dates,"
                     + " not '" + text + "'");
+        }
+    }
+
+    /** A timestamp column's value: an ISO date, or an ISO date and time (a space or a T between). */
+    private static void timestamp(String text, String column) {
+        try {
+            if (text.length() <= 10) {
+                java.time.LocalDate.parse(text);
+            } else {
+                java.time.LocalDateTime.parse(text.replaceFirst(" ", "T"));
+            }
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException("synthesize: the timestamp column " + column + " takes ISO dates and"
+                    + " times, not '" + text + "'");
         }
     }
 }

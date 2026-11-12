@@ -553,4 +553,11 @@ Database s::DB
   it('any other database is refused by name, planning nothing', () => {
     assert.throws(() => ok(answer(m, { kind: 'synthesize', request: request(10, 'Postgres') })), /Synthesize on/);
   });
+
+  it('a count that is not a whole number, and a scale beside values, are refused by name, never read past', () => {
+    assert.throws(() => ok(answer(m, { kind: 'synthesize', request: request(2.9) })), /a whole number of rows, not 2.9/);
+    const scaled = JSON.stringify({ databaseType: 'DuckDB', model: SYNTH, database: 's::DB', schema: 'demo',
+      table: 'TRADES', count: 10, columns: { region: { values: ['EMEA'], scale: 2 } } });
+    assert.throws(() => ok(answer(m, { kind: 'synthesize', request: scaled })), /scale is its range's, and region gives values/);
+  });
 });

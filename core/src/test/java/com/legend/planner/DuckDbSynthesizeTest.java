@@ -225,6 +225,30 @@ class DuckDbSynthesizeTest {
         IllegalArgumentException notANumber = assertThrows(IllegalArgumentException.class,
                 () -> plan(MODEL, "x::DB", "ALL_TYPES", 10, Map.of("ID", new Synthesize.Knob.Values(List.of("one")))));
         assertTrue(notANumber.getMessage().contains("takes no value 'one'"), notANumber.getMessage());
+        // each value read as its column's type at planning, a list bounded, a scale a number's alone (the B close's
+        // audit, SHOULD-FIX 3 and 4, 2026-11-12: these reached DuckDB at run, or rode in the plan's text)
+        Map<String, Map<String, Synthesize.Knob>> refused = new java.util.LinkedHashMap<>();
+        refused.put("the date column DAY takes ISO dates, not '2024-02-30'",
+                Map.of("DAY", new Synthesize.Knob.Values(List.of("2024-01-31", "2024-02-30"))));
+        refused.put("the timestamp column AT takes ISO dates and times, not 'noon'",
+                Map.of("AT", new Synthesize.Knob.Values(List.of("noon"))));
+        refused.put("the boolean column FLAG's values are true and false, not 'yes'",
+                Map.of("FLAG", new Synthesize.Knob.Values(List.of("true", "yes"))));
+        refused.put("a scale for the date column DAY",
+                Map.of("DAY", new Synthesize.Knob.Range("2024-01-01", "2024-12-31", 2)));
+        refused.put("the column NAME's values number 1001; a list holds 1 to 1000",
+                Map.of("NAME", new Synthesize.Knob.Values(java.util.stream.IntStream.rangeClosed(1, 1001)
+                        .mapToObj(i -> "n" + i).toList())));
+        refused.put("the column NAME's values number 0", Map.of("NAME", new Synthesize.Knob.Values(List.of())));
+        refused.forEach((message, knobs) -> {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> plan(MODEL, "x::DB", "ALL_TYPES", 10, knobs), message);
+            assertTrue(e.getMessage().contains(message), e.getMessage());
+        });
+        // and their well-formed values plan
+        plan(MODEL, "x::DB", "ALL_TYPES", 10, Map.of("DAY", new Synthesize.Knob.Values(List.of("2024-02-29")),
+                "AT", new Synthesize.Knob.Values(List.of("2024-01-01", "2024-01-02 10:30:00", "2024-01-03T11:00:00.5")),
+                "FLAG", new Synthesize.Knob.Values(List.of("true", "false"))));
     }
 
     private static List<List<String>> rows(Connection c, String sql) throws Exception {

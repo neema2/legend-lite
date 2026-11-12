@@ -371,6 +371,12 @@ public final class Boundary {
                             + " them: " + e.getKey());
                 }
                 if (knob.has("values")) {
+                    if (knob.has("scale")) {
+                        // a scale is a range's; beside values it would be read by nothing (the B close's audit,
+                        // SHOULD-FIX 3, 2026-11-12)
+                        throw new IllegalArgumentException("a synthesized column's scale is its range's, and "
+                                + e.getKey() + " gives values");
+                    }
                     java.util.List<String> values = new java.util.ArrayList<>();
                     for (com.legend.json.Json.Node v : knob.getArr("values").items()) {
                         values.add(scalar(v, e.getKey()));
@@ -386,13 +392,19 @@ public final class Boundary {
                 }
             }
         }
+        // the count a whole number as written: 2.9 is refused, never read as 2 (the B close's audit, SHOULD-FIX 3)
+        if (!(in.get("count") instanceof com.legend.json.Json.Num n) || !n.isInteger()) {
+            throw new IllegalArgumentException("a synthesized table's count is a whole number of rows, not "
+                    + com.legend.json.Json.toCompact(in.get("count")));
+        }
+        long count = n.longValue();
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
         com.legend.executionplan.DatabaseType type =
                 com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
         return com.legend.executionplan.PlanJson.write(MODELS.withText(in.getString("model"), ctx ->
                 com.legend.planner.Synthesize.plan(dialect, type, new com.legend.planner.LoadPlanner.DeclaredTable(ctx,
                         in.getString("database"), in.getString("schema"), in.getString("table")),
-                        in.getLong("count"), knobs)));
+                        count, knobs)));
     }
 
     /** A knob's value as written: a number's own token, or a text. */
