@@ -238,7 +238,7 @@ export class SnapManager implements Snaps {
     // the count is the database's one value: none, or one that is no count, is refused by name -- never read as nothing
     // to copy (G7; the orchestrator's item 4, 2026-11-12: `?? 0` copied on as if the rows were none)
     const rowCount = raw === null || raw === undefined ? Number.NaN : Number(raw);
-    if (!Number.isSafeInteger(rowCount) || rowCount < 0) throw new SnapRefusal(`the snap's count answered ${String(raw)}, not a count: nothing is copied`);
+    if (!Number.isSafeInteger(rowCount) || rowCount < 0) throw new SnapRefusal(`the snap's count is ${String(raw)}: nothing is copied`);
 
     if (rowCount > MAX_SNAP_ROWS) {
       return {
@@ -550,7 +550,9 @@ export class HostSnaps implements Snaps {
    */
   leaving(): void {
     if (this.#state.mode !== 'snapped') return;
-    void this.#target.release(this.#state.snap.table).catch(() => undefined);
+    const { table } = this.#state.snap;
+    // a release that fails is said, even as the page goes -- never swallowed (G7; the orchestrator's ruling, 2026-11-12)
+    void this.#target.release(table).catch((e: unknown) => console.error(`the snap's copy ${table} was not let go:`, e));
   }
 
   /** The grid is gone: the copy it holds let go, and one a snap in flight makes let go once it is made. */
