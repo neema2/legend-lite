@@ -84,6 +84,37 @@ class H2KeywordsTest {
         }
     }
 
+    /** The Cypher store's property tables ({@code testcases.CypherGraph}'s native store: {@code node_props},
+     *  {@code rel_props}, each with a column {@code key}), made by the H2 dialect's own DDL and filled and read by its
+     *  spelling on a BARE H2 -- none of the engine's non-keywords freed: the case the D worker measured failing, the
+     *  DDL writing {@code key} bare (the third re-audit's MUST-FIX 2(c), 2026-11-12). */
+    @Test
+    void theCypherStoresTablesAreMadeAndReadOnABareSession() throws SQLException {
+        com.legend.sql.SqlDdl.ColumnType text = new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 4000);
+        com.legend.sql.SqlDdl.ColumnType bigint = new com.legend.sql.SqlDdl.ColumnType.Plain(
+                com.legend.sql.SqlDdl.ColumnType.Kind.BIGINT);
+        H2 h2 = new H2();
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:h2_keywords_cypher");
+                Statement st = c.createStatement()) {
+            for (String table : List.of("node_props", "rel_props")) {
+                String owner = table.equals("node_props") ? "node_id" : "rel_id";
+                st.execute(h2.render(new com.legend.sql.SqlDdl.CreateTable(null, table, com.legend.sql.NameQuoting.BARE,
+                        List.of(new com.legend.sql.SqlDdl.Column(owner, false, bigint, false, false),
+                                new com.legend.sql.SqlDdl.Column("key", false, text, false, false),
+                                new com.legend.sql.SqlDdl.Column("slot", false, text, false, false)), false)));
+                String key = h2.insertColumnName("key", false);
+                assertEquals("\"KEY\"", key, "the DDL's spelling of the column");
+                st.executeUpdate("INSERT INTO " + h2.physicalName(table) + " (" + h2.insertColumnName(owner, false)
+                        + ", " + key + ", " + h2.insertColumnName("slot", false) + ") VALUES (1, 'name', 'v_str')");
+                try (ResultSet rs = st.executeQuery("SELECT " + h2.physicalName("key") + " FROM "
+                        + h2.physicalName(table))) {
+                    assertTrue(rs.next(), table);
+                    assertEquals("name", rs.getString(1), table);
+                }
+            }
+        }
+    }
+
     /** A word the engine's session frees, quoted, names the same column the bare word named: the identifier H2 makes of
      *  a bare word, which it folds to upper case (a plain bare name shows it), so the dialect changed how it writes the
      *  name, never which column it names. (Some freed words parse bare in a column list and not in a select list -- bare
