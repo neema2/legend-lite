@@ -15,6 +15,7 @@ import { ProjectDatabases, ProjectRunner } from '../src/project-data.ts';
 import { TabTables, type Model } from '../src/tab-data.ts';
 import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
+import { unplanned } from './unplanned.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
 
@@ -128,10 +129,10 @@ Database demo::party::OtherDB
     const typed = await modelOf(partyText('ID,SCORE,ACTIVE\n1,0.1,true\n2,2.675,false\n', undefined, 'ID INTEGER PRIMARY KEY, SCORE FLOAT, ACTIVE BIT'));
     const project = await filled(typed);
     try {
-      const types = await project.own.run("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'PARTY' AND table_name = 'PARTY' ORDER BY ordinal_position", 0);
+      const types = await project.own.run(unplanned("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'PARTY' AND table_name = 'PARTY' ORDER BY ordinal_position"), 0);
       assert.deepEqual(Array.from({ length: types.rowCount }, (_, i) => types.columns.map((c) => c.values[i])),
         [['ID', 'INTEGER'], ['SCORE', 'DOUBLE'], ['ACTIVE', 'BOOLEAN']]);
-      const t = await project.own.run('SELECT ID, SCORE, ACTIVE, SCORE = 0.1 AS EXACT FROM "PARTY"."PARTY" ORDER BY ID', 0);
+      const t = await project.own.run(unplanned('SELECT ID, SCORE, ACTIVE, SCORE = 0.1 AS EXACT FROM "PARTY"."PARTY" ORDER BY ID'), 0);
       assert.deepEqual(t.columns.map((c) => c.values[0]), [1, 0.1, true, true]);
       assert.deepEqual(t.columns.map((c) => c.values[1]), [2, 2.675, false, false]);
     } finally {
@@ -371,7 +372,7 @@ describe("a table's rows from a person's file (plan A2)", () => {
   });
 
   it('fills a table from Parquet, each declared column by name, converted to its type', async () => {
-    await engine.run("COPY (SELECT 'AU' AS COUNTRY, 9 AS ID, 'Wattle Capital' AS NAME, true AS EXTRA) TO 'made.parquet' (FORMAT PARQUET)", 0);
+    await engine.run(unplanned("COPY (SELECT 'AU' AS COUNTRY, 9 AS ID, 'Wattle Capital' AS NAME, true AS EXTRA) TO 'made.parquet' (FORMAT PARQUET)"), 0);
     const tabs = tables();
     const v1 = await version(V1);
     await tabs.put(v1, 'PARTY', 'PARTY', { name: 'parties.parquet', bytes: db.copyFileToBuffer('made.parquet') });
@@ -384,7 +385,7 @@ describe("a table's rows from a person's file (plan A2)", () => {
     const tabs = tables();
     await assert.rejects(tabs.put(v1, 'PARTY', 'PARTY', { name: 'parties.json', bytes: enc('[]') }), /a \.csv or a \.parquet file/);
     await assert.rejects(tabs.put(v1, 'PARTY', 'NOPE', { name: 'x.csv', bytes: enc('A\n1\n') }), /a file fills PARTY\.NOPE, which no Database of the model declares/);
-    await engine.run("COPY (SELECT 1 AS ID) TO 'thin.parquet' (FORMAT PARQUET)", 0);
+    await engine.run(unplanned("COPY (SELECT 1 AS ID) TO 'thin.parquet' (FORMAT PARQUET)"), 0);
     await assert.rejects(tabs.put(v1, 'PARTY', 'PARTY', { name: 'thin.parquet', bytes: db.copyFileToBuffer('thin.parquet') }), /NAME/);
     await assert.rejects(tabs.put(v1, 'PARTY', 'PARTY', { name: 'bad.csv', bytes: enc('ID,NAME,COUNTRY\nseven,Osprey Fund,NZ\n') }), /seven/);
   });
@@ -445,7 +446,7 @@ Data demo::plain::PlainData
 `;
   let at: ProjectRunner;
   const tRows = async (): Promise<unknown[][]> => {
-    const t = await at.run('SELECT ID, "first name" FROM T ORDER BY ID', 0);
+    const t = await at.run(unplanned('SELECT ID, "first name" FROM T ORDER BY ID'), 0);
     return Array.from({ length: t.rowCount }, (_, i) => t.columns.map((c) => c.values[i]));
   };
   const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -474,9 +475,9 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
     const project = await planner.projectData(partyText(V1), 'DuckDB');
     assert.match(project.name, /^__project_[0-9a-f]{16}$/);
     // the tab's own table, of the very name the project declares
-    await engine.run('CREATE SCHEMA IF NOT EXISTS "PARTY"', 0);
-    await engine.run('CREATE OR REPLACE TABLE "PARTY"."PARTY" (ID INTEGER, NAME VARCHAR, COUNTRY VARCHAR)', 0);
-    await engine.run("INSERT INTO \"PARTY\".\"PARTY\" VALUES (9, 'the tab''s own', 'XX')", 0);
+    await engine.run(unplanned('CREATE SCHEMA IF NOT EXISTS "PARTY"'), 0);
+    await engine.run(unplanned('CREATE OR REPLACE TABLE "PARTY"."PARTY" (ID INTEGER, NAME VARCHAR, COUNTRY VARCHAR)'), 0);
+    await engine.run(unplanned("INSERT INTO \"PARTY\".\"PARTY\" VALUES (9, 'the tab''s own', 'XX')"), 0);
     for (const sql of project.open) await engine.run(sql, 0);
     const own = new DuckDbEngine(db.connect() as ArrowishConnection);
     for (const sql of project.use) await own.run(sql, 0);
@@ -487,9 +488,9 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
     assert.deepEqual(await rowsOf('PARTY'), [[9, "the tab's own", 'XX']]);
     await own.close();
     for (const sql of project.close) await engine.run(sql, 0);
-    const left = await engine.run('SELECT database_name FROM duckdb_databases()', 0);
+    const left = await engine.run(unplanned('SELECT database_name FROM duckdb_databases()'), 0);
     assert.ok(!left.columns[0]!.values.includes(project.name), String(left.columns[0]!.values));
-    await engine.run('DROP TABLE "PARTY"."PARTY"', 0);
+    await engine.run(unplanned('DROP TABLE "PARTY"."PARTY"'), 0);
   });
 
   it('names a database by what it holds: the same rows the same name, other rows another', async () => {

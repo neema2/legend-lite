@@ -76,24 +76,15 @@ public final class Sessions {
          *  {@link com.legend.base.RunScope#statement}, 2026-11-06): the one door to a session's statements. */
         public final Statements statements() {
             com.legend.base.RunScope.statement("a session's statements");
-            return statementsOf(null);
-        }
-
-        /** The body driver's statements on this session: as {@link #statements()}, each query's execution-trace
-         *  stamp published to {@code trace} (an activity row records the comment its statement carried,
-         *  {@link ExecutionTrace}); as {@link #statements()} when {@code trace} is null. A session whose statements
-         *  carry no SQL comment refuses by name (track B's B1b, 2026-10-29: the driver holds a session, never a
-         *  connection, and reaches the database only through its statements). */
-        public final Statements statements(@com.legend.base.Nullable ExecutionTrace trace) {
-            com.legend.base.RunScope.statement("a session's statements");
-            return statementsOf(trace);
+            return statementsOf();
         }
 
         /** This session's statements, unguarded: the session's own form (JDBC's; a view's its owner's; a connector's
-         *  its own), reached through {@link #statements} alone -- and by the owner's transaction bracket. */
-        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace trace) {
-            return trace == null ? new JdbcStatements(connection(), state())
-                    : new JdbcStatements(connection(), state(), trace);
+         *  its own), reached through {@link #statements} alone -- and by the owner's transaction bracket. Each sends a
+         *  plan's text as it is: no per-execution comment is written in front of it (C1, 2026-11-12, the user's ruling
+         *  of 2026-11-10, "Agree with all": the execution id is bound plan data, ExecutionPlan.Sql#stamp). */
+        Statements statementsOf() {
+            return new JdbcStatements(connection(), state());
         }
 
         /** {@code work} in one transaction on this session ({@link Statements#inTransaction}: a caller's open one
@@ -102,14 +93,14 @@ public final class Sessions {
          *  as an open is: refused while this thread plans (THE WALL's rule 2). */
         public <T> T inTransaction(java.util.function.Supplier<T> work) {
             com.legend.base.RunScope.opening("a transaction bracket");
-            return statementsOf(null).inTransaction(work);
+            return statementsOf().inTransaction(work);
         }
 
         /** Whether a send on this session owns its transaction ({@link Statements#ownsTransaction}). The owner's
          *  question: refused while this thread plans. */
         public boolean ownsTransaction() {
             com.legend.base.RunScope.opening("a transaction's owner asked");
-            return statementsOf(null).ownsTransaction();
+            return statementsOf().ownsTransaction();
         }
 
         @Override
@@ -150,15 +141,12 @@ public final class Sessions {
         }
     }
 
-    /** A non-closing view of a session: the owner's connection, state and version; its statements traced to
-     *  {@code trace} where the view was taken with one. */
+    /** A non-closing view of a session: the owner's connection, state, version and statements. */
     private static final class View extends Session {
         private final Session owner;
-        private final @com.legend.base.Nullable ExecutionTrace trace;
 
-        View(Session owner, @com.legend.base.Nullable ExecutionTrace trace) {
+        View(Session owner) {
             this.owner = owner;
-            this.trace = trace;
         }
 
         @Override
@@ -177,8 +165,8 @@ public final class Sessions {
         }
 
         @Override
-        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace traced) {
-            return owner.statementsOf(traced != null ? traced : trace);
+        Statements statementsOf() {
+            return owner.statementsOf();
         }
 
         @Override
@@ -263,7 +251,7 @@ public final class Sessions {
     /** A non-closing view of {@code session}: the same connection, state and version; closing it closes nothing
      *  (the program entry's, the test runners': D68). */
     public static Session view(Session session) {
-        return new View(session, null);
+        return new View(session);
     }
 
     /** A view of a KEPT session (a project's database, a lane's shared one) that serves one request at a time
@@ -307,8 +295,8 @@ public final class Sessions {
         }
 
         @Override
-        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace traced) {
-            return owner.statementsOf(traced);
+        Statements statementsOf() {
+            return owner.statementsOf();
         }
 
         @Override
@@ -318,11 +306,6 @@ public final class Sessions {
                 lock.unlock();
             }
         }
-    }
-
-    /** {@link #view(Session)} whose statements publish each query's stamp to {@code trace} (the body driver's). */
-    static Session view(Session session, @com.legend.base.Nullable ExecutionTrace trace) {
-        return new View(session, trace);
     }
 
     /** The identity of the session {@code session} is or views: an opaque token, the same for every view of one
@@ -443,7 +426,7 @@ public final class Sessions {
             unwind(session, state, failure);
             throw failure;
         } catch (SQLException e) {
-            com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> JdbcStatements.held(session, e));
+            com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> JdbcStatements.held(session, state, e));
             unwind(session, state, failure);
             throw failure;
         }

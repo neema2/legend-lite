@@ -10,6 +10,7 @@ import { setUpSession } from './engine.ts';
 import type { FileSink } from './model-data.ts';
 import { runHostOperations, type HostOperationsSource } from './host-operations.ts';
 import { ConnectionSettings } from './connection-settings.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 export interface DuckDbInTab {
   readonly engine: DuckDbEngine;
@@ -31,7 +32,7 @@ export interface DuckDbInTab {
 /** What the tab's DuckDB is set up by: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface TabDuckDbPlanner extends HostOperationsSource {
   /** The planner's session setup for a database's type (Boundary.sessionSetup: a DuckDB session in UTC). */
-  sessionSetup(databaseType: string): Promise<readonly string[]>;
+  sessionSetup(databaseType: string): Promise<readonly PlannedSql[]>;
 }
 
 /**

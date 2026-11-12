@@ -69,7 +69,7 @@ final class ProgramRunnerTest {
                     com.legend.Compiler.compileModel(""), com.legend.planner.ConnectionPlans.type(Databases.PLATFORM));
             // the run's leases of the system databases (2026-11-09: the leases themselves, where a function was handed)
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
-                PlanSessions.Source source = PlanSessions.of(body, null, leases);
+                PlanSessions.Source source = PlanSessions.of(body, leases);
                 assertEquals(Sessions.identity(leases.sessionFor(systemTarget)),
                         Sessions.identity(source.open(systemTarget)), "the System target opens the leased session");
                 assertEquals(Sessions.identity(body), Sessions.identity(source.open(target)),
@@ -79,7 +79,7 @@ final class ProgramRunnerTest {
             // name there, never answered on a session holding none of it (B4, 2026-11-11: until then a target of no load
             // opened the caller's own)
             var unmade = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-                    () -> PlanSessions.of(body, null, null).open(systemTarget));
+                    () -> PlanSessions.of(body, null).open(systemTarget));
             assertTrue(unmade.getMessage().contains("ONCE"), unmade.getMessage());
             var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
                     () -> PlanSessions.shared().open(systemTarget));

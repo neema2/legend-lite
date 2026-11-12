@@ -124,7 +124,6 @@ class RunScopeTest {
         try (Sessions.Session session = Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(PLATFORM))) {
             RunScope.Refused sent = assertThrows(RunScope.Refused.class, session::statements);
             assertTrue(sent.getMessage().contains("a session's statements outside a plan's run"), sent.getMessage());
-            assertThrows(RunScope.Refused.class, () -> session.statements(null));
             assertThrows(RunScope.Refused.class, () -> Sessions.check(session, com.legend.planner.ConnectionPlans.type(PLATFORM)));
             assertThrows(RunScope.Refused.class, () -> Sessions.view(session).statements());
             try (var run = RunScope.enter()) {

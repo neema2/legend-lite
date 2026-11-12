@@ -23,6 +23,7 @@ import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: element('trades') },
@@ -88,7 +89,7 @@ class CountingEngine extends FakeEngine {
 /** A planner that hands the query's JSON on as the "SQL", for engines that read it. */
 class EchoPlanner implements Planner {
   async plan(query: Lambda): Promise<Plan> {
-    return { sql: toJson(query), columns: [] };
+    return { sql: unplanned(toJson(query)), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
@@ -101,7 +102,7 @@ class StubPlanner implements Planner {
   readonly queries: Lambda[] = [];
   async plan(query: Lambda): Promise<Plan> {
     this.queries.push(query);
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];

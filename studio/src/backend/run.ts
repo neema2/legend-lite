@@ -9,6 +9,7 @@ import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
 import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
+import { notPlanned } from '../../../engine-client/src/planned-sql.ts';
 
 export type { TableState };
 
@@ -111,7 +112,8 @@ export function runner(session: RunSession): Runner {
       if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
       const engine = await session.sqlEngine();
       if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
-      return engine.run(statement, 0);
+      // a person's own SQL, run as typed: no plan carries it (planned-sql.ts, NOT_PLANNED)
+      return engine.run(notPlanned('the SQL playground', statement), 0);
     },
     async tables(modelText) {
       const { tabs, model } = await tablesOf(modelText);

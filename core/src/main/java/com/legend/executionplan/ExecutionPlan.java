@@ -878,9 +878,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * plan's JSON writes each load once, in its load section, and a target names it by identity). Two runs share an
      * in-memory database when their targets are equal (decision A, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the
      * loads by their identities, which digest their content. No server version: every database's statements are spelled
-     * alike for every version lite runs (2026-11-05, one H2).
+     * alike for every version lite runs (2026-11-05, one H2). {@code raiseReadBack}: the two statements exec sends after a
+     * statement fails, to read back a raise the database keeps in the session (MariaDB's and MySQL's: the charter's A3(c),
+     * C2, 2026-11-12; null where the database's errors carry the raise) -- declared by the dialect, never the connector's.
      */
-    public record Target(Database database, List<String> session, List<Load> loads) {
+    public record Target(Database database, List<String> session, List<Load> loads,
+            @com.legend.base.Nullable RaiseReadBack raiseReadBack) {
         public Target {
             Objects.requireNonNull(database, "database");
             session = List.copyOf(session);
@@ -897,7 +900,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                             + " ones: " + load.identity() + " is " + load.cadence());
                 }
                 if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
-                        || !load.target().session().equals(session)) {
+                        || !load.target().session().equals(session)
+                        || !Objects.equals(load.target().raiseReadBack(), raiseReadBack)) {
                     throw new IllegalArgumentException("a target's load loads into the target's own database and"
                             + " session, and names no load of its own: " + load.identity());
                 }
@@ -907,9 +911,24 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
         }
 
+        /** A target whose database's errors carry a raise's text: no read-back is declared. */
+        public Target(Database database, List<String> session, List<Load> loads) {
+            this(database, session, loads, null);
+        }
+
         /** This target with no load: where its loads load. */
         public Target bare() {
-            return loads.isEmpty() ? this : new Target(database, session, List.of());
+            return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack);
+        }
+    }
+
+    /** The two statements a target declares for reading back a raise its database keeps in the session after a
+     *  statement fails ({@link Target#raiseReadBack}): {@code read} selects the one text (null for none held),
+     *  {@code reset} clears it. Plan data: the dialect writes them, exec sends exactly them (the charter's A3(c), C2). */
+    public record RaiseReadBack(String read, String reset) {
+        public RaiseReadBack {
+            Objects.requireNonNull(read, "read");
+            Objects.requireNonNull(reset, "reset");
         }
     }
 

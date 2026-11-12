@@ -172,7 +172,6 @@ filegroup(
         "demo/*.json",
         "demo/*.css",
         "demo/models/*.pure",
-        "demo/models/*.sql",
         "src/**/*.css",
     ]) + [":bundle", ":planner_worker", ":vendor", ":cube_styles"],
 )

@@ -15,6 +15,7 @@ import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesCsv, sampleTr
 import { sampleById, sampleFileName } from '../src/samples.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 /** The demo's model (demo/trades.pure): the table the sample fills, as the page's planner reads it. */
 const MODEL = readFileSync(runfileFromEnv('TRADES_MODEL'), 'utf8');
@@ -35,12 +36,12 @@ after(async () => {
   await engine?.close();
 });
 
-const one = (sql: string): Promise<unknown> => engine.run(sql, 0).then((t) => t.columns[0]?.values[0]);
+const one = (sql: string): Promise<unknown> => engine.run(unplanned(sql), 0).then((t) => t.columns[0]?.values[0]);
 /** A table's columns and their types, each name as DuckDB matches it: without regard to case (the synthesized table's
  *  columns are spelled as the model's seed makes them, upper case; the file's as its header has them). */
 const columns = async (table: string): Promise<string[]> => {
-  const t = await engine.run(`SELECT lower(column_name), data_type FROM duckdb_columns()
-    WHERE lower(table_name) = lower('${table}') ORDER BY column_index`, 0);
+  const t = await engine.run(unplanned(`SELECT lower(column_name), data_type FROM duckdb_columns()
+    WHERE lower(table_name) = lower('${table}') ORDER BY column_index`), 0);
   return t.columns[0]!.values.map((name, i) => `${String(name)} ${String(t.columns[1]!.values[i])}`);
 };
 /** The same rows both ways, every row counted (EXCEPT ALL keeps duplicates). */
@@ -53,11 +54,11 @@ describe("the demo's sample trades, made by the database as the plan says", () =
       'qtr VARCHAR', 'notional DOUBLE', 'pnl DOUBLE', 'qty INTEGER']);
     assert.equal(Number(await one('SELECT count(*) FROM TRADES')), SAMPLE_TRADES);
     // each knob's values -- every value of a list and of a whole-number range, a decimal range's within it -- and no NULL
-    assert.deepEqual((await engine.run(`SELECT count(DISTINCT region), count(DISTINCT desk), count(DISTINCT qtr),
+    assert.deepEqual((await engine.run(unplanned(`SELECT count(DISTINCT region), count(DISTINCT desk), count(DISTINCT qtr),
       count(DISTINCT book), count(DISTINCT year), min(year), max(year), count(DISTINCT qty), min(qty), max(qty),
       CAST(min(notional) >= 0 AND max(notional) <= 9999.99 AND min(pnl) >= -1000 AND max(pnl) <= 999.99 AS INTEGER),
       count(*) FILTER (WHERE region IS NULL OR desk IS NULL OR year IS NULL OR qtr IS NULL OR book IS NULL
-        OR notional IS NULL OR pnl IS NULL OR qty IS NULL) FROM TRADES`, 0))
+        OR notional IS NULL OR pnl IS NULL OR qty IS NULL) FROM TRADES`), 0))
       .columns.map((c) => Number(c.values[0])), [3, 5, 4, 4, 5, 2021, 2025, 97, 1, 97, 1, 0]);
     // the columns independent (synthesize's mixed radix and a multiplier per range, b58d24265): every combination of the
     // lists and the year occurs, as the demo's pivots by year and desk, or by quarter and book, show them

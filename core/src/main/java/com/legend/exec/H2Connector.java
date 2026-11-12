@@ -131,12 +131,6 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
         return DriverManager.getConnection("jdbc:h2:mem:" + name + closeDelay + SETTINGS);
     }
 
-    /** {@inheritDoc} None: {@code H2}'s errors carry their raise. */
-    @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
-    }
-
     /** {@inheritDoc} No: H2 rolls back the failed statement alone; its transaction goes on. */
     @Override
     public boolean abortsTransactionOnError() {

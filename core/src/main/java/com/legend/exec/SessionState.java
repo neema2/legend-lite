@@ -40,8 +40,23 @@ public final class SessionState {
      *  the run ends, in which a failed statement is rolled back at once ({@link #inTurn}). */
     private final java.util.concurrent.atomic.AtomicBoolean inTurn = new java.util.concurrent.atomic.AtomicBoolean();
 
+    /** The error read-back the plan's target declared when it last checked this session (C2, 2026-11-12: MariaDB's and
+     *  MySQL's, the charter's A3(c)): what the seam sends after a statement, or a bracket's commit, fails on it; null
+     *  for a target whose database's errors carry a raise, or before any check. Plan data, never the connector's. */
+    private volatile com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable RaiseReadBack raiseReadBack;
+
     /** A session no connection keys (a connector's own): its state is its own. */
     public SessionState() {
+    }
+
+    /** The read-back the target that checked this session declares ({@code JdbcStatements.check}). */
+    void declareRaiseReadBack(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable RaiseReadBack declared) {
+        raiseReadBack = declared;
+    }
+
+    /** The read-back the session's last checked target declared; null for none. */
+    com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return raiseReadBack;
     }
 
     /** Whether the seeds {@code key} names are in place: run on this session, and no write run since. */

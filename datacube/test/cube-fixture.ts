@@ -17,6 +17,7 @@ import { FakeEngine } from './fake-engine.ts';
 import { Gate } from './gate.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 export const SNAPSHOT: CubeSnapshot = {
   source: { query: element('trades') },
@@ -63,7 +64,7 @@ export class GateEngine extends FakeEngine {
 
 export class StubPlanner implements Planner {
   async plan(): Promise<Plan> {
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];

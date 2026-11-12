@@ -106,6 +106,8 @@ test_suite(
         # no SQL spelled by the tab's apps or Python's host, two halves of one rule (D5, tools/guards/host_sql.txt)
         "//tools/guards:host_sql_test",
         "//python:host_sql_test",
+        # a host sends only a plan's statement: where that type is made, pinned (the total wall's C3, 2026-11-12)
+        "//tools/guards:planned_sql_test",
         "//tools/browser:revision_test",
         "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",
@@ -221,6 +223,8 @@ test_suite(
         # the markets example over the trading model's classes on Python: its saved queries, tiles and marks (Phase 6, D6)
         "//python:markets_test",
         "//python:frames_test",
+        # the one send: a statement no plan carries refused by name (the total wall's C3, 2026-11-12)
+        "//python:planned_test",
         # a page's grid run by DataCube's own code in V8: its view, its relation, its rows as pandas
         "//python:headless_test",
         # a notebook's cube: the widget's calls and version, show() in a kernel (legend_lite/notebook.py)

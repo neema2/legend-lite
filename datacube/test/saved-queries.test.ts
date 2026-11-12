@@ -21,6 +21,7 @@ import {
 } from '../../pure-protocol/src/index.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { runfileFromEnv, runfileNamed } from '../../tools/js/runfiles.mts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // the trading project as the site serves it (BUILD.bazel `:projects`, from query/demo/models)
 const MODELS = runfileFromEnv('TRADING_PROJECT');
@@ -134,30 +135,30 @@ describe('enumerations as names: only the spec that makes the column', () => {
   });
 });
 
-// The trading rows' three copies (TRADING_COPIES): the project's Data (trading-data.pure, which the tab fills), the
-// warehouse's fixture (trading-seed.sql, one statement per line) and the H2 connection's setup (runtime-h2.pure's
-// testDataSetupSqls, Pure strings). Nothing derives one from another, so this holds them equal.
+// The trading rows' two copies (TRADING_COPIES): the project's Data (trading-data.pure, which the tab fills, and the
+// warehouse's demo too) and the H2 connection's setup (runtime-h2.pure's testDataSetupSqls, Pure strings). Nothing
+// derives one from the other, so this holds them equal. (2026-11-12, the C3 follow-up: a third, the warehouse's own SQL
+// file, trading-seed.sql, went when the warehouse was made by the project's Data load, query/demo/main.ts.)
 const COPIES = runfileFromEnv('TRADING_COPIES');
 const copy = (name: string): string => readFileSync(`${COPIES}/${name}`, 'utf8');
-const fixture = (): string[] => copy('trading-seed.sql').split('\n').map((l) => l.trim()).filter((l) => l !== '' && !l.startsWith('--'));
 const h2Setup = (): string[] => [...copy('runtime-h2.pure').matchAll(/^\s*'((?:[^'\\]|\\.)*)',?\s*$/gm)]
   .map((m) => m[1]!.replace(/\\(.)/g, '$1'));
 
-describe("the trading rows: the project's Data, the warehouse's fixture and the H2 connection's, row for row", () => {
+describe("the trading rows: the project's Data and the H2 connection's, row for row", () => {
   it('every table holds the same rows, NULLs included, with the same column types', async () => {
-    const others = { trading_fixture: fixture(), trading_h2: h2Setup() };
+    const others = { trading_h2: h2Setup() };
     assert.ok(others.trading_h2.length >= 10, `the H2 connection's setup read as ${others.trading_h2.length} statements`);
     try {
       for (const [db, statements] of Object.entries(others)) {
-        await engine.run(`ATTACH ':memory:' AS ${db}`, 0);
-        await engine.run(`USE ${db}`, 0);
-        for (const sql of statements) await engine.run(sql, 0);
+        await engine.run(unplanned(`ATTACH ':memory:' AS ${db}`), 0);
+        await engine.run(unplanned(`USE ${db}`), 0);
+        for (const sql of statements) await engine.run(unplanned(sql), 0);
       }
     } finally {
-      await engine.run(`USE "${projectDb}"`, 0);
+      await engine.run(unplanned(`USE "${projectDb}"`), 0);
     }
     const values = async (sql: string): Promise<string[]> =>
-      (await engine.run(sql, 0)).columns.map((c) => c.values.map(String)).flatMap((v, i, all) => (i === 0 ? v.map((x, r) => [x, ...all.slice(1).map((o) => o[r])].join(' ')) : []));
+      (await engine.run(unplanned(sql), 0)).columns.map((c) => c.values.map(String)).flatMap((v, i, all) => (i === 0 ? v.map((x, r) => [x, ...all.slice(1).map((o) => o[r])].join(' ')) : []));
     const tables = (db: string): Promise<string[]> => values(
       `SELECT table_name FROM duckdb_tables() WHERE database_name = '${db}' AND schema_name = 'TRADING' ORDER BY table_name`);
     const types = (db: string, table: string): Promise<string[]> => values(`SELECT column_name, data_type FROM duckdb_columns()
@@ -175,7 +176,7 @@ describe("the trading rows: the project's Data, the warehouse's fixture and the 
         assert.deepEqual(differ, ['0'], `${theirs} and the Data's ${t} differ`);
       }
     }
-    // an empty cell of the Data is NULL, as the fixture's NULL is (PERSON 5 has no title, 6 no age, 8 no firm)
+    // an empty cell of the Data is NULL, as the H2 setup's NULL is (PERSON 5 has no title, 6 no age, 8 no firm)
     assert.deepEqual(await values(`SELECT PERSON_ID FROM "${projectDb}".TRADING.PERSON
       WHERE TITLE IS NULL OR AGE IS NULL OR FIRM_ID IS NULL ORDER BY PERSON_ID`), ['5', '6', '8']);
   });

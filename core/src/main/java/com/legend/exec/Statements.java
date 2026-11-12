@@ -23,10 +23,6 @@ public interface Statements {
      *  version, of a version they are written for; anything else is refused by name, never run. */
     void check(ExecutionPlan.Target target);
 
-    /** The execution-trace comment the next query this session sends will carry, minted now (the test-is-the-product
-     *  plan's M3f, R17 C4: a statement's stamp a plan binds, {@code ExecutionPlan.Sql.stamp}); asked again before that
-     *  query is sent, the same comment. */
-    String nextStamp();
 
     /** A statement run for its effect -- a session statement, a setup statement, an effect a body sends
      *  ({@link ExecutionPlan.Effect}): whether it answered rows, which are not read. */
@@ -159,11 +155,6 @@ public interface Statements {
         @Override
         public void check(ExecutionPlan.Target target) {
             inner.check(target);
-        }
-
-        @Override
-        public String nextStamp() {
-            return inner.nextStamp();
         }
 
         @Override

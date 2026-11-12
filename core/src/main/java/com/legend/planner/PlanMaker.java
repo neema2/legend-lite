@@ -384,8 +384,7 @@ public final class PlanMaker {
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? systemRouted
                         ? SystemCatalog.target(query.context(), runsOn)
-                        : new ExecutionPlan.Target(database(decided.target(), null), dialect.sessionSetup(),
-                                List.of())
+                        : Targets.of(database(decided.target(), null), dialect)
                 : systemRouted
                         ? SystemCatalog.forQuery(query.context(), runsOn)
                         : target(decided.target(), Objects.requireNonNull(runtime), query.context(), dialect,
@@ -475,7 +474,7 @@ public final class PlanMaker {
      *  which no test run reads). */
     public static ExecutionPlan.Target testSessionTarget(ModelContext ctx, String runtime) {
         Decided decided = decide(ctx, runtime);
-        return new ExecutionPlan.Target(database(decided.target(), null), decided.dialect().sessionSetup(), List.of());
+        return Targets.of(database(decided.target(), null), decided.dialect());
     }
 
     private record Decided(Target target, SqlDialect dialect) {
@@ -1025,8 +1024,7 @@ public final class PlanMaker {
                     named.refused());
         }
         ExecutionPlan.Database database = database(decided, named);
-        List<String> session = new ArrayList<>(dialect.sessionSetup());
-        ExecutionPlan.Target bare = new ExecutionPlan.Target(database, session, List.of());
+        ExecutionPlan.Target bare = Targets.of(database, dialect);
         // the runtime's declared test data, each its own load
         // established on acquisition (L2, 2026-11-09: until then the target's setup steps)
         List<ExecutionPlan.Load> loads = new ArrayList<>();
@@ -1036,7 +1034,7 @@ public final class PlanMaker {
                     project.content()));
         }
         loads.addAll(LoadPlanner.targetLoads(declared, bare));
-        return new ExecutionPlan.Target(database, session, loads);
+        return Targets.of(database, dialect, loads);
     }
 
     /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's, a

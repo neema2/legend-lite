@@ -17,6 +17,7 @@ import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint, limitsOf } from './fake-planner.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: element('trades') },
@@ -56,7 +57,7 @@ class RefusingPlanner implements Planner {
       this.refusals += 1;
       throw new Error('refused: no limit of 42 here');
     }
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
@@ -142,7 +143,7 @@ class ValueRefusingPlanner implements Planner {
   async plan(query: Lambda): Promise<Plan> {
     this.planned += 1;
     if (toJson(query).includes(JSON.stringify(this.refused))) throw new Error(this.message);
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
@@ -191,7 +192,7 @@ class HeldPlanner implements Planner {
   });
   async plan(): Promise<Plan> {
     if (this.hold) await this.#held;
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   release(): void {
     this.#release();

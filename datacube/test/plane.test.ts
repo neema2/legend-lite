@@ -27,6 +27,7 @@ import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type ColSpecArrayInstance, type Lambda } from '../../pure-protocol/src/index.ts';
 import { accessor, from } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('trades::DB', 'TRADES') },
@@ -64,7 +65,7 @@ class RecordingPlanner implements Planner {
     // no Pure reaches the engine, and a stub that pasted the
     // query into its own output would fail that for the wrong
     // reason.
-    return { sql: `SELECT * FROM planned_${this.pure.length}`, columns: [] };
+    return { sql: unplanned(`SELECT * FROM planned_${this.pure.length}`), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];

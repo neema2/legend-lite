@@ -12,6 +12,7 @@
 // aggregates wrongly without a word.
 
 import { plainType } from './types.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** One result column: its name and its Pure type, as the compiler typed it. */
 export interface PlanColumn {
@@ -28,7 +29,8 @@ export interface PlanColumn {
 
 /** A planned query: the SQL to run, and the type of what it returns. */
 export interface Plan {
-  readonly sql: string;
+  /** The statement, as the planner wrote it (planned-sql.ts: the only SQL a host's engine sends). */
+  readonly sql: PlannedSql;
   readonly columns: readonly PlanColumn[];
   /** The values the statement's `?`s bind, in order: the plan's own data: payloads, read from its content by digest and
    *  verified once where the host read the plan (plan-params.ts, the tenets audit's M3). None for a text that runs alone. */

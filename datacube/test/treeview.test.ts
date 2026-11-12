@@ -21,6 +21,7 @@ import {
   } from '../src/query.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { printLevel } from './lite-compiler.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const SNAPSHOT: QuerySnapshot = {
   source: { query: element('trades') },
@@ -321,11 +322,11 @@ before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
   await engine.run(
-    `CREATE TABLE trades AS
+    unplanned(`CREATE TABLE trades AS
        SELECT ((i * 7) % 3) AS r, ((i * 11) % 4) AS d,
               2020 + (i % 3) AS year,
               ((i * 7919) % 100000) / 100.0 AS notional
-       FROM range(5000) t(i)`,
+       FROM range(5000) t(i)`),
     0,
   );
 });
@@ -340,12 +341,12 @@ describe('the global row cap', () => {
     // "there is more" a fact rather than a guess, and it costs no
     // second counting query.
     await engine.run(
-      `CREATE OR REPLACE TABLE many AS
-         SELECT (i % 40) AS g, i * 1.0 AS v FROM range(400) t(i)`,
+      unplanned(`CREATE OR REPLACE TABLE many AS
+         SELECT (i % 40) AS g, i * 1.0 AS v FROM range(400) t(i)`),
       1,
     );
     const capped = await engine.run(
-      'SELECT g, sum(v) AS total FROM many GROUP BY g ORDER BY g LIMIT 11',
+      unplanned('SELECT g, sum(v) AS total FROM many GROUP BY g ORDER BY g LIMIT 11'),
       1,
     );
     assert.equal(capped.rowCount, 11, 'the engine returned the probe row');
@@ -354,8 +355,8 @@ describe('the global row cap', () => {
 
   it('reports no truncation when the level fits', async () => {
     const fits = await engine.run(
-      'SELECT r, sum(notional) AS total FROM trades GROUP BY r ' +
-        'ORDER BY r LIMIT 11',
+      unplanned('SELECT r, sum(notional) AS total FROM trades GROUP BY r ' +
+        'ORDER BY r LIMIT 11'),
       1,
     );
     // 3 distinct regions, far under the probe.
@@ -379,12 +380,12 @@ describe('subtotals against a real engine', () => {
     // not the rounding.
     return (async () => {
       const level1 = await engine.run(
-        'SELECT r, sum(notional) AS total FROM trades GROUP BY r ORDER BY r',
+        unplanned('SELECT r, sum(notional) AS total FROM trades GROUP BY r ORDER BY r'),
         1,
       );
       const level2 = await engine.run(
-        'SELECT r, d, sum(notional) AS total FROM trades ' +
-          'GROUP BY r, d ORDER BY r, d',
+        unplanned('SELECT r, d, sum(notional) AS total FROM trades ' +
+          'GROUP BY r, d ORDER BY r, d'),
         1,
       );
 
@@ -407,11 +408,11 @@ describe('subtotals against a real engine', () => {
 
   it('the grand total equals the aggregate of the top level', async () => {
     const grand = await engine.run(
-      'SELECT sum(notional) AS total FROM trades',
+      unplanned('SELECT sum(notional) AS total FROM trades'),
       1,
     );
     const level1 = await engine.run(
-      'SELECT r, sum(notional) AS total FROM trades GROUP BY r',
+      unplanned('SELECT r, sum(notional) AS total FROM trades GROUP BY r'),
       1,
     );
     let sum = 0;
@@ -426,11 +427,11 @@ describe('subtotals against a real engine', () => {
     // because summing child counts is only correct when the grouping
     // is a true partition.
     const grand = await engine.run(
-      'SELECT count(*) AS n FROM trades',
+      unplanned('SELECT count(*) AS n FROM trades'),
       1,
     );
     const level1 = await engine.run(
-      'SELECT r, count(*) AS n FROM trades GROUP BY r',
+      unplanned('SELECT r, count(*) AS n FROM trades GROUP BY r'),
       1,
     );
     let sum = 0;

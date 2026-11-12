@@ -6,6 +6,7 @@
 // connections keep and replay their settings without carrying the runner (plan-runner.ts re-exports it).
 
 import type { PlanValue } from './plan-runner.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** One `?` of a bound statement: the plan's own value (never a credential), or a value the host holds by name. */
 export type Bind =
@@ -13,7 +14,7 @@ export type Bind =
   | { readonly _type: 'held'; readonly name: string; readonly field: string };
 /** A setting of a connection a load made (a session variable): its statement and what it binds, never a value -- what a
  *  host replays on every connection it opens to that database (`replaySettings`, ConnectionSettings). */
-export interface KeptSetting { readonly sql: string; readonly binds: readonly Bind[] }
+export interface KeptSetting { readonly sql: PlannedSql; readonly binds: readonly Bind[] }
 
 /**
  * WHAT A HOST HOLDS BY NAME (the plan's held binds, B3's Q3): a value of its own store -- a remote file's key's field, a
@@ -39,7 +40,7 @@ export function boundValues(binds: readonly Bind[], secrets: HostSecrets | undef
 /** A load's connection settings run on another connection (`run`), each bound from `secrets`: the host's replay on a
  *  connection it opens after the load made them (a session variable is one connection's: measured, B3's Q3). */
 export async function replaySettings(settings: readonly KeptSetting[],
-  run: (sql: string, params: readonly PlanValue[]) => Promise<unknown>, secrets: HostSecrets): Promise<void> {
+  run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>, secrets: HostSecrets): Promise<void> {
   for (const setting of settings) await run(setting.sql, boundValues(setting.binds, secrets, 'a connection setting'));
 }
 
@@ -120,7 +121,7 @@ export class ConnectionSettings {
   }
 
   /** Every kept setting run on a connection just opened. */
-  async replay(run: (sql: string, params: readonly PlanValue[]) => Promise<unknown>): Promise<void> {
+  async replay(run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>): Promise<void> {
     for (const { settings, secrets } of this.#kept.values()) await replaySettings(settings, run, secrets);
   }
 }

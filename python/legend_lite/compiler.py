@@ -14,6 +14,7 @@ from typing import Any
 
 from . import _json
 from ._library import library
+from ._planned import PlannedSql, all_from_plan, from_plan
 
 Tree = dict[str, Any]
 
@@ -61,7 +62,7 @@ class Plan:
     """A query planned: the SQL to run, the compiler's type of what it returns, and the values its ``?``s bind, in
     order -- the plan's own data: payloads (``plan_params``: the tenets audit's M3); none for a text that runs alone."""
 
-    sql: str
+    sql: PlannedSql
     columns: tuple[Column, ...]
     params: tuple[str, ...] = ()
 
@@ -173,7 +174,7 @@ def read_plan(answer: str) -> Plan:
     it, as DataCube's planner reads it (lite-planner.ts ``readPlan``) -- the values its statement binds read once, here
     (``plan_params``)."""
     out = _json.loads(answer)
-    return Plan(out['sql'], _columns(out['type']), plan_params(out.get('plan')))
+    return Plan(from_plan(out['sql']), _columns(out['type']), plan_params(out.get('plan')))
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:
@@ -259,23 +260,24 @@ def table_model(table: dict[str, Any]) -> dict[str, Any]:
     return _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
 
 
-def catalog_columns_sql(schema: str, table: str) -> str:
+def catalog_columns_sql(schema: str, table: str) -> PlannedSql:
     """The catalog question for one table of a DuckDB: SQL whose rows (``column_name``, ``data_type``,
     ``logical_type``, ``numeric_precision``, ``numeric_scale``, ``not_null``) describe its columns."""
-    return _answer(library().call('lite_catalog_columns_sql', schema, table))
+    return from_plan(_answer(library().call('lite_catalog_columns_sql', schema, table)))
 
 
-def session_setup(database_type: str) -> list[str]:
+def session_setup(database_type: str) -> list[PlannedSql]:
     """What a session of the given database runs before it is queried, so that it answers as the planner's
     SQL expects: the dialect's own setup (a DuckDB session in UTC)."""
-    return _json.loads(_answer(library().call('lite_session_setup', database_type)))
+    return all_from_plan(_json.loads(_answer(library().call('lite_session_setup', database_type))))
 
 
-def host_operations(database_type: str, operations: list[dict[str, Any]]) -> list[list[str]]:
+def host_operations(database_type: str, operations: list[dict[str, Any]]) -> list[list[PlannedSql]]:
     """A host's named operations on its own database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5):
     each operation's statements, in order -- what Python's host runs instead of spelling SQL (engine-client's
     host-operations.ts writes the same operations). One the database has not is refused by name."""
-    return _json.loads(_answer(library().call('lite_host_operations', database_type, _json.dumps(operations))))
+    answered = _json.loads(_answer(library().call('lite_host_operations', database_type, _json.dumps(operations))))
+    return [all_from_plan(statements) for statements in answered]
 
 
 def snap_stream(request: dict[str, Any]) -> dict[str, Any]:
@@ -304,7 +306,9 @@ def project_data(model: str, database_type: str) -> dict[str, Any]:
     fills every table a relational Data element fills (on that connection; ``projects.run_load``), absent for a model
     with no Data rows (B3, 2026-11-11: until then ``fill``, its statements as text). A database without the operations
     is refused by name."""
-    return _json.loads(_answer(library().call('lite_project_data', model, database_type)))
+    answered = _json.loads(_answer(library().call('lite_project_data', model, database_type)))
+    # each step's statements as the planner wrote them (_planned.py); the load is a plan, its steps typed as it runs
+    return {**answered, **{step: all_from_plan(answered[step]) for step in ('open', 'use', 'close')}}
 
 
 

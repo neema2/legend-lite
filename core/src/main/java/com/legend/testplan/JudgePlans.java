@@ -54,7 +54,7 @@ final class JudgePlans {
             case com.legend.database.Target.Declared d ->
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(d.connections().get(0)), null);
         };
-        return new ExecutionPlan.Target(database, dialect.sessionSetup(), List.of());
+        return com.legend.planner.Targets.of(database, dialect);
     }
 
     /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three

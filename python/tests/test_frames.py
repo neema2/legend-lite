@@ -12,6 +12,7 @@ import polars as pl
 import pyarrow as pa
 
 import legend_lite as ll
+from legend_lite._planned import PlannedSql
 
 GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
 
@@ -160,7 +161,8 @@ class NamedAndAttached(unittest.TestCase):
         df = trades()
         frames = ll.Frames()
         frames.register('trades', df)
-        total = 'SELECT sum(qty) FROM main.trades'
+        # the test's own question, no plan's: typed by name as a plan's statement (_planned.py)
+        total = PlannedSql('SELECT sum(qty) FROM main.trades')
         with frames.reading() as read:
             before = read.execute(total).fetchone()[0]
         df.loc[0, 'qty'] = 1000.0

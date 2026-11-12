@@ -31,6 +31,7 @@ import { boxOmitted } from '../src/box-columns.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { lambda, lit, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const file = (name: string, columns: [string, string][]): FileSource => ({
   _type: 'file', name: `${name}.csv`, format: 'csv', size: 1, sha256: name.padEnd(64, '0'),
@@ -85,24 +86,24 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const db = await openDatabase();
     engine = new DuckDbEngine(db.connection);
     models = plannerFor('', 'local::RT');
-    await engine.run('CREATE TABLE trades (id BIGINT NOT NULL, cust INTEGER, sym VARCHAR, "at" TIMESTAMP, qty DOUBLE)', 0);
-    await engine.run(`INSERT INTO trades VALUES (1, 10, 'A', '2026-01-01 10:00', 5), (2, 10, 'B', '2026-01-01 11:00', 7),
-      (3, 20, 'A', '2026-01-01 12:00', 1), (4, NULL, 'C', '2026-01-01 13:00', 2), (5, 99, 'A', '2026-01-01 09:00', 3)`, 0);
-    await engine.run('CREATE TABLE customers (id INTEGER NOT NULL, region VARCHAR)', 0);
+    await engine.run(unplanned('CREATE TABLE trades (id BIGINT NOT NULL, cust INTEGER, sym VARCHAR, "at" TIMESTAMP, qty DOUBLE)'), 0);
+    await engine.run(unplanned(`INSERT INTO trades VALUES (1, 10, 'A', '2026-01-01 10:00', 5), (2, 10, 'B', '2026-01-01 11:00', 7),
+      (3, 20, 'A', '2026-01-01 12:00', 1), (4, NULL, 'C', '2026-01-01 13:00', 2), (5, 99, 'A', '2026-01-01 09:00', 3)`), 0);
+    await engine.run(unplanned('CREATE TABLE customers (id INTEGER NOT NULL, region VARCHAR)'), 0);
     // customer 20 twice: a key that repeats
-    await engine.run("INSERT INTO customers VALUES (10, 'EMEA'), (20, 'AMER'), (20, 'APAC'), (30, 'EMEA')", 0);
-    await engine.run('CREATE TABLE prices (sym VARCHAR, "at" TIMESTAMP, px DOUBLE)', 0);
-    await engine.run(`INSERT INTO prices VALUES ('A', '2026-01-01 09:30', 100), ('A', '2026-01-01 11:30', 101),
-      ('B', '2026-01-01 10:30', 50)`, 0);
-    await engine.run('CREATE TABLE more (sym VARCHAR, id BIGINT NOT NULL, venue VARCHAR)', 0);
-    await engine.run("INSERT INTO more VALUES ('D', 6, 'X')", 0);
-    await engine.run('CREATE TABLE labels (id VARCHAR)', 0);
-    await engine.run('CREATE TABLE twins (id INTEGER, c_id INTEGER)', 0);
+    await engine.run(unplanned("INSERT INTO customers VALUES (10, 'EMEA'), (20, 'AMER'), (20, 'APAC'), (30, 'EMEA')"), 0);
+    await engine.run(unplanned('CREATE TABLE prices (sym VARCHAR, "at" TIMESTAMP, px DOUBLE)'), 0);
+    await engine.run(unplanned(`INSERT INTO prices VALUES ('A', '2026-01-01 09:30', 100), ('A', '2026-01-01 11:30', 101),
+      ('B', '2026-01-01 10:30', 50)`), 0);
+    await engine.run(unplanned('CREATE TABLE more (sym VARCHAR, id BIGINT NOT NULL, venue VARCHAR)'), 0);
+    await engine.run(unplanned("INSERT INTO more VALUES ('D', 6, 'X')"), 0);
+    await engine.run(unplanned('CREATE TABLE labels (id VARCHAR)'), 0);
+    await engine.run(unplanned('CREATE TABLE twins (id INTEGER, c_id INTEGER)'), 0);
     // a column trades lack of JSON (a Variant), and one of a precise decimal
-    await engine.run('CREATE TABLE tagged (id BIGINT NOT NULL, tags JSON)', 0);
-    await engine.run(`INSERT INTO tagged VALUES (7, '["a","b"]')`, 0);
-    await engine.run('CREATE TABLE priced (id BIGINT NOT NULL, px DECIMAL(10,2))', 0);
-    await engine.run('INSERT INTO priced VALUES (7, 12.50)', 0);
+    await engine.run(unplanned('CREATE TABLE tagged (id BIGINT NOT NULL, tags JSON)'), 0);
+    await engine.run(unplanned(`INSERT INTO tagged VALUES (7, '["a","b"]')`), 0);
+    await engine.run(unplanned('CREATE TABLE priced (id BIGINT NOT NULL, px DECIMAL(10,2))'), 0);
+    await engine.run(unplanned('INSERT INTO priced VALUES (7, 12.50)'), 0);
   });
 
   // each test's planners let go as it ends: a planner is a WebAssembly instance, and kept to the file's end they filled
@@ -212,7 +213,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
 
   it("an input read by its grid's copy (a cached box, FL10): the copy's table, its query over it -- a box over it, a join of it with a file", async () => {
     // the copy: trades 1 and 2 only, so what reads it is told apart from what reads trades live
-    await engine.run('CREATE TABLE trades_copy AS SELECT * FROM trades WHERE id <= 2', 0);
+    await engine.run(unplanned('CREATE TABLE trades_copy AS SELECT * FROM trades WHERE id <= 2'), 0);
     const copy = { table: 'trades_copy', label: 'Snap 14:02', takenAt: '2026-10-26T14:02:00.000Z' };
     const big = query(TRADES, { filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 2 } });
     const box: RowsSource = { _type: 'rows', name: 'trades', input: { ...input(TRADES, 'Big', big), copy }, columns: [] };
@@ -224,7 +225,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const joined = await openJoin(join({ ...input(TRADES, 'Big', big), copy }, input(CUSTOMERS, 'customers'), LEFT_ON_CUST), opening(['trades_copy', 'customers']));
     const pairs = await rows(joined.model, joined.runtime, { _type: 'lambda', parameters: [], body: [joined.relation] });
     assert.deepEqual(pairs['id']!.map((id, i) => `${String(id)}:${String(pairs['region']![i])}`).sort(), ['1:EMEA', '2:EMEA']);
-    await engine.run('DROP TABLE trades_copy', 0);
+    await engine.run(unplanned('DROP TABLE trades_copy'), 0);
   });
 
   it("another grid's rows unresolved is refused, never guessed: its link is its page's", async () => {

@@ -135,7 +135,8 @@ public final class PlanJson {
      *  of 2026-11-11 ("This is the right plan"): a HOST_SESSION load's step may be {@code stream} (a remote
      *  {@code plane} by name, its {@code sql}, the {@code schema} and {@code table} it lands in, the {@code prepare}
      *  statements before it, the {@code count} after it and its {@code transaction}'s statements) or {@code attach} (a {@code held} value by name, attached {@code as} a relation, its
-     *  {@code reach}). */
+     *  {@code reach}); and (C2, 2026-11-12) a target may carry {@code raiseReadBack}, the {@code read} and {@code reset}
+     *  statements exec sends after a failure (MariaDB's and MySQL's), written only where a target declares them. */
     public static final int VERSION = 48;
 
     private PlanJson() {
@@ -721,6 +722,13 @@ public final class PlanJson {
         to.put("session", t.session());
         // inline here; the plan's writer moves each to its load section once (hoistLoads)
         to.put("loads", t.loads().stream().map(PlanJson::node).toList());
+        // the error read-back the target declares (C2, 2026-11-12: MariaDB's and MySQL's), written where there is one
+        if (t.raiseReadBack() != null) {
+            Map<String, Object> readBack = new LinkedHashMap<>();
+            readBack.put("read", t.raiseReadBack().read());
+            readBack.put("reset", t.raiseReadBack().reset());
+            to.put("raiseReadBack", readBack);
+        }
         return to;
     }
 
@@ -1189,7 +1197,13 @@ public final class PlanJson {
             }
             loads.add(load);
         }
-        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads);
+        ExecutionPlan.RaiseReadBack readBack = null;
+        if (t.has("raiseReadBack")) {
+            Json.Obj r = t.getObj("raiseReadBack");
+            only(r, "a target's error read-back", "read", "reset");
+            readBack = new ExecutionPlan.RaiseReadBack(r.getString("read"), r.getString("reset"));
+        }
+        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads, readBack);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {

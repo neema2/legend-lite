@@ -237,12 +237,12 @@ class ConnectorsTest {
             }
             assertEquals(inProcess.contains(type), Sessions.inProcess(com.legend.planner.ConnectionPlans.type(type)), type.toString());
             if (inProcess.contains(type)) {
-                // its private instance is a session of its own database, whose errors carry their raise: no
-                // recovery declared, so the seam reads nothing back after a failure (JdbcStatements.held)
+                // its private instance is a session of its own database, whose errors carry their raise: no read-back
+                // declared by any target (the plan's since C2, 2026-11-12), so the seam reads nothing back after a
+                // failure (JdbcStatements.held)
                 try (Connection c = Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
                     assertSame(Connectors.of(com.legend.planner.ConnectionPlans.type(type)), Connectors.of(c));
-                    assertNull(Connectors.of(com.legend.planner.ConnectionPlans.type(type)).raiseRecovery());
-                    assertNull(JdbcStatements.held(c, new java.sql.SQLException("the statement's")));
+                    assertNull(JdbcStatements.held(c, new SessionState(), new java.sql.SQLException("the statement's")));
                 }
             } else {
                 NotImplementedException refused = assertThrows(NotImplementedException.class,

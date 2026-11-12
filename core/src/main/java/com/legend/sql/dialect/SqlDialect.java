@@ -43,6 +43,26 @@ public interface SqlDialect {
     int timestampColumnDigits();
 
     /**
+     * How a raise this dialect keeps in the SESSION is read back after a statement fails (C2, 2026-11-12, D4: the charter's
+     * A3(c), "declared error read-back"): where this database's errors cannot carry a raise's text (MariaDB's and MySQL's:
+     * SIGNAL runs only in a stored program), the dialect keeps the text in a session variable and these two statements
+     * read it and clear it; the plan's target carries them as data ({@code ExecutionPlan.Target#raiseReadBack}) and exec
+     * sends exactly them after a failure, nothing else. Null where the database's errors carry the raise. Each dialect
+     * answers: a default would lose a new database's raised message without a word. Until C2 the connector declared them
+     * (the exec connector's {@code raiseRecovery}), outside every plan.
+     */
+    @com.legend.base.Nullable RaiseReadBack raiseReadBack();
+
+    /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one row,
+     *  one column; null where none is held), {@code reset} clears it, so a later failure reads no stale one. */
+    record RaiseReadBack(String read, String reset) {
+        public RaiseReadBack {
+            java.util.Objects.requireNonNull(read, "read");
+            java.util.Objects.requireNonNull(reset, "reset");
+        }
+    }
+
+    /**
      * A {@code data:} payload as the planner hands it to the dialect (the user, 2026-11-11: "how to represent the data in
      * the plan vs the database mechanism ... Shouldn't that all be delegated to dialect to decide?"): ONE representation
      * whatever the database -- the source it was read from and its elements cut once (an array's elements, or a frame's

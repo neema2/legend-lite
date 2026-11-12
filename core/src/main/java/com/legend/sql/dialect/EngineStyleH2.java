@@ -40,6 +40,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return 6;
     }
 
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
     /** None: this text is the engine's goldens', which no database executes, so no {@code data:} payload is delivered
      *  through it: refused by name, never a delivery borrowed from H2's. */
     @Override

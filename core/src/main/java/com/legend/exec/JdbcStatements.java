@@ -28,10 +28,6 @@ final class JdbcStatements implements Statements {
      *  session's, handed with the connection (D70). */
     private final SessionState state;
 
-    /** The execution trace a query's stamp is published to (the body driver's, whose activity rows record the comment
-     *  the statement carried); null for a session no trace reads, whose own stamps are its own ({@link #nextStamp}). */
-    private final @com.legend.base.Nullable ExecutionTrace trace;
-
     /** The session's driver facts the typed rows are read by (its database's: a timestamp re-read as
      *  {@code java.time}, a decimal's trailing zeros dropped, a failing statement's result opened with no columns),
      *  known once {@link #check} has checked the session against the plan's target; null before. */
@@ -43,13 +39,8 @@ final class JdbcStatements implements Statements {
     private @com.legend.base.Nullable DatabaseConnector declared;
 
     JdbcStatements(Connection c, SessionState state) {
-        this(c, state, null);
-    }
-
-    JdbcStatements(Connection c, SessionState state, @com.legend.base.Nullable ExecutionTrace trace) {
         this.c = c;
         this.state = state;
-        this.trace = trace;
     }
 
     /** The JDBC type number of {@code one}'s null: the plan's null types are {@code java.sql.JDBCType} names (the
@@ -125,75 +116,41 @@ final class JdbcStatements implements Statements {
         return declared.abortsTransactionOnError();
     }
 
-    /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two
-     *  declared statements ({@link DatabaseConnector#raiseRecovery}: MariaDB's and MySQL's, whose errors cannot carry
-     *  a raise's text), by the seam (D65, 2026-10-29: until then the connector ran them itself). Null for a session
-     *  whose database declares none or holds none; a read that fails is kept beside the statement's {@code failure},
-     *  never dropped (the A delta audit's 6, 2026-11-11). On a session no plan target checked (a bracket's commit): the
-     *  driver's connector; a run's statements read the target's ({@link #heldBy}). */
-    static @com.legend.base.Nullable String held(Connection c, SQLException failure) {
+    /** The raise {@code c}'s session holds after a failed COMMIT (a bracket's: {@code Sessions.inTransaction}), read back
+     *  by the statements the plan's target declared when it checked this session ({@code SessionState.raiseReadBack}:
+     *  MariaDB's and MySQL's, the charter's A3(c), C2 2026-11-12 -- until then the driver's connector declared them,
+     *  outside every plan). Null for a session whose target declared none, or that holds none; a read that fails is kept
+     *  beside the statement's {@code failure}, never dropped (the A delta audit's 6, 2026-11-11). */
+    static @com.legend.base.Nullable String held(Connection c, SessionState state, SQLException failure) {
         try {
-            DatabaseConnector connector = Connectors.of(c);
-            return connector == null ? null : held(c, connector.raiseRecovery());
+            return held(c, state.raiseReadBack());
         } catch (SQLException unreadable) {
             failure.addSuppressed(unreadable);
             return null;
         }
     }
 
-    /** The raise this session holds after {@code e}, read by the connector the plan's target declared (the A delta
-     *  audit's 6, 2026-11-11: until then the driver's product name chose it and an unreadable read answered none), else,
-     *  on a session no target checked yet, by the driver's; a read that fails is kept beside {@code e}, never dropped. */
+    /** The raise this session holds after {@code e}, read by the statements the plan's target declares (checked:
+     *  {@link #check}), else -- a statement on a session its target has not checked here -- the ones the session's last
+     *  checked target declared; a read that fails is kept beside {@code e}, never dropped. */
     private @com.legend.base.Nullable String heldBy(SQLException e) {
-        try {
-            DatabaseConnector connector = declared != null ? declared : Connectors.of(c);
-            return connector == null ? null : held(c, connector.raiseRecovery());
-        } catch (SQLException unreadable) {
-            e.addSuppressed(unreadable);
-            return null;
-        }
+        return held(c, state, e);
     }
 
-    /** {@link #held(Connection, SQLException)} by {@code recovery}'s statements: the read's one text (its first row's first column;
-     *  null for no row), then the reset. One {@code getString}: the database's own text passed on unread. */
+    /** The raise held, by {@code readBack}'s statements -- exactly the plan's, sent as written: the read's one text (its
+     *  first row's first column; null for no row), then the reset. One {@code getString}: the database's own text
+     *  passed on unread. A run's act (THE WALL's rule 3). */
     static @com.legend.base.Nullable String held(Connection c,
-            DatabaseConnector.@com.legend.base.Nullable RaiseRecovery recovery) throws SQLException {
-        if (recovery == null) {
+            ExecutionPlan.@com.legend.base.Nullable RaiseReadBack readBack) throws SQLException {
+        if (readBack == null) {
             return null;
         }
-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(recovery.read())) {
+        com.legend.base.RunScope.statement("a declared error read-back");   // the charter's A3(c), a run's act
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(readBack.read())) {
             String held = rs.next() ? rs.getString(1) : null;
-            st.execute(recovery.reset());
+            st.execute(readBack.reset());
             return held;
         }
-    }
-
-    /** A query as the database receives it: the engine's execution-trace comment line, then the statement
-     *  ({@link ExecutionTrace}: legend-engine's RelationalExecutor stamps every query it runs, and the activity records
-     *  the comment). The old executor stamped at its one JDBC boundary; the plan runner's is this one (2026-10-27, the
-     *  result boundary program's phase 5: with the old executor deleted no query carried it, and the corpus's
-     *  testSQLComments read an activity comment no statement had). */
-    private String stamped(String statement) {
-        if (trace != null) {
-            return trace.stamp(statement);
-        }
-        String comment = reserved != null ? reserved : ExecutionTrace.comment();
-        reserved = null;
-        return comment + "\n" + statement;
-    }
-
-    /** With no trace: the comment the next query carries, minted by {@link #nextStamp} (null: minted when sent). */
-    private @com.legend.base.Nullable String reserved;
-
-    @Override
-    public String nextStamp() {
-        if (trace != null) {
-            return trace.reserve();
-        }
-        if (reserved == null) {
-            reserved = ExecutionTrace.comment();
-        }
-        return reserved;
     }
 
     @Override
@@ -202,6 +159,8 @@ final class JdbcStatements implements Statements {
         Sessions.check(c, target.database().type());
         declared = Connectors.of(target.database().type());
         driver = declared.decoding();   // the driver's facts are its connector's (D72)
+        // the error read-back the plan's target declares, kept with the session for a failure on it (C2)
+        state.declareRaiseReadBack(target.raiseReadBack());
     }
 
     @Override
@@ -315,7 +274,7 @@ final class JdbcStatements implements Statements {
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -336,7 +295,7 @@ final class JdbcStatements implements Statements {
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -387,7 +346,7 @@ final class JdbcStatements implements Statements {
     public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }

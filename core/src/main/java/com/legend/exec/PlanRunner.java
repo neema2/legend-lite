@@ -524,7 +524,7 @@ public final class PlanRunner {
     /** A check's rows read and dropped (the database computes what it may raise). */
     static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
-        stamp(k.sql(), values, st);
+        stamp(k.sql(), values);
         String statement = k.sql().statement();
         StatementOrigin.sent(st.mark(), statement);
         st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
@@ -748,7 +748,7 @@ public final class PlanRunner {
     /** A typed result's rows into {@code held}. */
     static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
             Held held) throws IOException {
-        stamp(t.sql(), values, st);
+        stamp(t.sql(), values);
         String statement = t.sql().statement();
         StatementOrigin.sent(st.mark(), statement);
         if (reported(t)) {
@@ -783,11 +783,14 @@ public final class PlanRunner {
         }
     }
 
-    /** {@code sql}'s own execution-trace stamp, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): the comment
-     *  the session will send it under, minted now and bound under its name (R17 C4). */
-    private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values, Statements st) {
+    /** {@code sql}'s own execution id, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): legend-engine's
+     *  execution-trace comment, minted per execution as its executor mints one, and bound under its name (R17 C4) -- the
+     *  activity rows the plan's statements write read it as a bound value. The statement itself is sent as the plan
+     *  wrote it, no comment in front of it (C1, 2026-11-12, the user's ruling of 2026-11-10, "Agree with all": the
+     *  database receives exactly the plan's text; upstream writes the comment into the text at run, register S304). */
+    private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values) {
         if (sql.stamp() != null) {
-            values.put(sql.stamp(), new PlanParameters.One(st.nextStamp()));
+            values.put(sql.stamp(), new PlanParameters.One(ExecutionPlan.traceComment(java.util.UUID.randomUUID())));
         }
     }
 
@@ -1018,7 +1021,7 @@ public final class PlanRunner {
             Map<String, PlanParameters.Checked> bound = checked;
             if (sql.stamp() != null) {
                 bound = new HashMap<>(bound);
-                stamp(sql, bound, st);
+                stamp(sql, bound);
             }
             List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
             for (int i = 0; i < sql.slots().size(); i++) {

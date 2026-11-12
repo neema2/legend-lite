@@ -231,6 +231,13 @@ public class MariaDb extends AnsiSqlRenderer {
         return 6;
     }
 
+    /** The raise {@link #raise} keeps in {@code @legend_raise}, read back and cleared after a failure (C2, 2026-11-12: the
+     *  plan's target declares them, exec sends them; MySQL's are the same). */
+    @Override
+    public RaiseReadBack raiseReadBack() {
+        return new RaiseReadBack("SELECT @legend_raise", "SET @legend_raise = NULL");
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -2160,8 +2167,8 @@ public class MariaDb extends AnsiSqlRenderer {
      *  and any other is refused, measured), branch taken or not. So the message is kept in the session's user
      *  variable {@code @legend_raise} and a run-time error follows, raised only when evaluated (a CASE branch not
      *  taken raises nothing, measured): a scalar subquery of two rows, "Subquery returns more than 1 row". The
-     *  platform reads the message back from the session it failed on by the two statements its connector declares
-     *  ({@code exec.MariaDbConnector.raiseRecovery}), the seam's read ({@code exec.JdbcStatements.held}). */
+     *  platform reads the message back from the session it failed on by the two statements this dialect declares
+     *  ({@link #raiseReadBack}, carried by the plan's target: C2), the seam's read ({@code exec.JdbcStatements.held}). */
     private SqlWriter.Piece raise(List<SqlExpr> a) {
         return raise(a, null);
     }

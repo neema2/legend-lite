@@ -84,6 +84,11 @@ public final class Snowflake extends AnsiSqlRenderer {
         return 9;
     }
 
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
     /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
      *  2026-11-11, on round 2's measurement, probes/SnowflakeDelivery2.java.txt): at 100,000 records 0.48 s, against
      *  17.0 s as the statement's own rows and 73 s as a temporary table (whose one safe drop, a Snowflake Scripting block

@@ -4,6 +4,8 @@
 // HostOperations in Java, by the database's type) as the statements the database runs. The page spells no SQL; a
 // database without an operation refuses it by name. Python's host writes the same JSON (compiler.host_operations).
 
+import type { PlannedSql } from './planned-sql.ts';
+
 /** A relation's name. `declared`: a model's own table, spelled as its seed made it; any other name is quoted. */
 export interface HostName {
   readonly database?: string;
@@ -148,12 +150,12 @@ export interface SynthesizeSource {
 /** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface HostOperationsSource {
   /** Each operation's statements, in order, for a database of `databaseType`. */
-  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]>;
+  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]>;
 }
 
 /** Each of `operations`' statements run on `engine`, in order: the operations' whole step. */
 export async function runHostOperations(source: HostOperationsSource,
-  engine: { readonly databaseType: string; run(sql: string, epoch: number): Promise<unknown> },
+  engine: { readonly databaseType: string; run(sql: PlannedSql, epoch: number): Promise<unknown> },
   operations: readonly HostOperation[], epoch = 0): Promise<void> {
   for (const statements of await source.hostOperations(engine.databaseType, operations)) {
     for (const sql of statements) await engine.run(sql, epoch);

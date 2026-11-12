@@ -41,12 +41,9 @@ public interface DatabaseConnector {
         throw new com.legend.error.NotImplementedException("no in-memory instance of database type '" + type() + "'");
     }
 
-    /** How a raise a session holds is read back after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md
-     *  §13): where this database's errors cannot carry a raise's text, its dialect keeps the text in the session, and
-     *  these two statements read it and clear it. Declared here as data, run by the seam ({@link JdbcStatements#held};
-     *  D65, 2026-10-29: until then the connector ran them itself). Null for a database whose errors carry the raise.
-     *  Each connector answers: a default would lose a new database's held message without a word. */
-    @com.legend.base.Nullable RaiseRecovery raiseRecovery();
+    // (raiseRecovery, the two statements that read back a raise a session holds: the PLAN's since C2, 2026-11-12 --
+    // SqlDialect.raiseReadBack, carried by ExecutionPlan.Target.raiseReadBack and sent by the seam after a failure, the
+    // charter's A3(c); a connector declares no statement)
 
     /** Whether this database ABORTS its whole transaction when a statement in it fails, refusing every statement after
      *  it until a rollback (DuckDB, Postgres), where another rolls back the failed statement alone (H2, SQLite): a run's
@@ -60,15 +57,6 @@ public interface DatabaseConnector {
      *  a load's no-leftovers rule is its drop first and its drop at release (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3
      *  rule 1, the orchestrator's check of 2026-11-10). Each connector answers. */
     boolean takesTransactions();
-
-    /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one
-     *  row, one column; null where none is held), {@code reset} clears it so a later failure cannot read a stale one. */
-    record RaiseRecovery(String read, String reset) {
-        public RaiseRecovery {
-            java.util.Objects.requireNonNull(read, "read");
-            java.util.Objects.requireNonNull(reset, "reset");
-        }
-    }
 
     /** The facts of this database's JDBC driver that reading a row back needs and no plan column's slot can say
      *  (D72, 2026-10-30; until then four {@code SqlDialect} hooks the runtime read through the plan side -- a driver's

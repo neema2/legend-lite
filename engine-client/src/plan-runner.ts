@@ -32,6 +32,7 @@ import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './co
 import { familyOf, isBoolean } from './types.ts';
 import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
+import { fromPlan, type PlannedSql } from './planned-sql.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -45,7 +46,7 @@ export interface PlanSession {
   /** The database's type, as the planner names it (`DuckDB`): a plan's steps must be of it. */
   readonly databaseType: string;
   /** A statement run with its `?`s bound in order: its rows, each its values by column. */
-  run(sql: string, params: readonly PlanValue[]): Promise<readonly (readonly unknown[])[]>;
+  run(sql: PlannedSql, params: readonly PlanValue[]): Promise<readonly (readonly unknown[])[]>;
   /** A transaction begun, committed or rolled back, as this database spells it (the planner's `transaction` host
    *  operation). */
   transaction(step: 'begin' | 'commit' | 'rollback'): Promise<void>;
@@ -243,7 +244,7 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
 export interface HostStreams {
   readonly planes: Readonly<Record<string, HostPlane>>;
   readonly held: {
-    rows(sql: string, params: readonly PlanValue[]): Promise<unknown[][]>;
+    rows(sql: PlannedSql, params: readonly PlanValue[]): Promise<unknown[][]>;
     insertArrow(bytes: Uint8Array, target: { readonly schema?: string; readonly table: string }, create: boolean): Promise<void>;
   };
 }
@@ -251,7 +252,7 @@ export interface HostStreams {
 /** A remote plane: its answer to a statement as Arrow IPC streams, one per chunk, and the receipt its done step issues
  *  (its count of the answer's rows) before the first chunk (warehouse.ts arrowChunks). */
 export interface HostPlane {
-  arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array>;
+  arrowChunks(sql: PlannedSql, signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array>;
 }
 
 /** What a stream step landed: its table, the rows the database counted there, and the plane's receipt. */
@@ -279,7 +280,7 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
   const plane = Object.hasOwn(streams.planes, step.plane) ? streams.planes[step.plane] : undefined;
   if (plane === undefined) throw new PlanRefusal(`'${step.plane}' is not a remote plane this host holds: nothing is streamed into ${into}`);
   const run = async (statements: readonly string[]): Promise<void> => {
-    for (const sql of statements) await streams.held.rows(sql, []);
+    for (const sql of statements) await streams.held.rows(fromPlan(sql), []);
   };
   const target = { ...(step.schema === null ? {} : { schema: step.schema }), table: step.table };
   await run(step.transaction.begin);
@@ -287,7 +288,7 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
     await run(step.prepare);
     let receipt: Receipt | undefined;
     let chunks = 0;
-    for await (const bytes of plane.arrowChunks(step.sql, undefined, (r) => { receipt = r; })) {
+    for await (const bytes of plane.arrowChunks(fromPlan(step.sql), undefined, (r) => { receipt = r; })) {
       await streams.held.insertArrow(bytes, target, chunks === 0);
       chunks += 1;
     }
@@ -295,7 +296,7 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
     if (chunks === 0) throw new PlanRefusal(`no data came back from '${step.plane}' to load into ${into}, not even its columns`);
     const expected = receipt.serverRows;
     if (expected === undefined) throw new PlanRefusal(`'${step.plane}' did not count its answer, so a stream cut short could not be told: nothing of it is kept in ${into}`);
-    const counted = Number((await streams.held.rows(step.count, []))[0]?.[0]);
+    const counted = Number((await streams.held.rows(fromPlan(step.count), []))[0]?.[0]);
     if (counted !== expected) {
       throw new PlanRefusal(`the stream from '${step.plane}' landed ${counted} rows in ${into}, where its plane counted ${expected}: nothing of it is kept`);
     }
@@ -318,7 +319,7 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
   const settings: KeptSetting[] = [];
   for (const step of load.steps) {
     if (step._type === 'statement') {
-      await session.run((step as { readonly sql: string }).sql, []);
+      await session.run(fromPlan((step as { readonly sql: string }).sql), []);
     } else if (step._type === 'statements') {
       const { ref, of } = step as Extract<LoadStep, { _type: 'statements' }>;
       const text = load.content?.[ref.digest];
@@ -333,7 +334,7 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
       }
       for (const statement of statements as string[]) {
         try {
-          await session.run(statement, []);
+          await session.run(fromPlan(statement), []);
         } catch (e) {
           // the database's own words, the data named (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5)
           throw new Error(`${of}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
@@ -348,20 +349,20 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
       try {
         for (const statement of delivery.statements) {
           try {
-            await session.run(statement, [at]);
+            await session.run(fromPlan(statement), [at]);
           } catch (e) {
             // the database's own words, the file named (its reader names the bound path)
             throw new Error(`the file '${ref.name}': ${e instanceof Error ? e.message : String(e)}`, { cause: e });
           }
         }
       } finally {
-        for (const statement of delivery.after) await session.run(statement, []);
+        for (const statement of delivery.after) await session.run(fromPlan(statement), []);
       }
     } else if (step._type === 'bound') {
       // what the host holds bound by name, never written (B3's Q3); a connection's setting kept for the host to replay
       const bound = step as BoundStep;
-      await session.run(bound.sql, boundValues(bound.binds, secrets, `the load ${load.identity}'s bound statement`));
-      if (bound.reach === 'CONNECTION') settings.push({ sql: bound.sql, binds: bound.binds });
+      await session.run(fromPlan(bound.sql), boundValues(bound.binds, secrets, `the load ${load.identity}'s bound statement`));
+      if (bound.reach === 'CONNECTION') settings.push({ sql: fromPlan(bound.sql), binds: bound.binds });
       else if (bound.reach !== 'DATABASE') throw new PlanRefusal(`a bound statement's reach is DATABASE or CONNECTION, not ${String(bound.reach)}`);
     } else if (step._type === 'stream') {
       landed.push(await stream(load, step as StreamStep, streams));
@@ -387,7 +388,7 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
  * A load of any other cadence is refused by name; the host undoes a failure its own way (a project's database dropped
  * whole, a file put in one transaction, a stream rolled back).
  */
-export async function runLoad(plan: string, run: (sql: string, params: readonly PlanValue[]) => Promise<unknown>,
+export async function runLoad(plan: string, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
   host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams } = {}):
   Promise<{ readonly settings: readonly KeptSetting[]; readonly landed: readonly Landed[] }> {
   const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
@@ -411,7 +412,7 @@ export async function establish(plan: string, session: PlanSession): Promise<voi
   const p = read(plan);
   const target = targetOf(p);
   if (target === undefined) return;
-  for (const statement of target.session ?? []) await session.run(statement, []);
+  for (const statement of target.session ?? []) await session.run(fromPlan(statement), []);
   const loads = loadsOf(p, target);
   for (const l of loads) {
     if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE or PER_ACQUISITION, not ${l.cadence}`);
@@ -468,7 +469,7 @@ export async function runPlan(plan: string, session: PlanSession,
     // a pivot whose columns the data names: its keys read first, then its body per key (B3: the hosts run it)
     const keyed = root as Keyed;
     checkTarget(keyed.keys, session, o);
-    if (o.established !== true) for (const statement of (keyed.keys.target as Target).session ?? []) await session.run(statement, []);
+    if (o.established !== true) for (const statement of (keyed.keys.target as Target).session ?? []) await session.run(fromPlan(statement), []);
     return keyedRows(keyed, session);
   }
   const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
@@ -510,7 +511,7 @@ export async function runPlan(plan: string, session: PlanSession,
   }
   const changes = steps.some((s) => s._type === 'update') && o.joined !== true;
   // the target's session statements: run by `establish` on a session established for it, else here
-  if (o.established !== true) for (const statement of t.session ?? []) await session.run(statement, []);
+  if (o.established !== true) for (const statement of t.session ?? []) await session.run(fromPlan(statement), []);
   const values = new Map<string, PlanValue>();
   const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
     // its payload's text from the statement's content, checked against its digest
@@ -527,7 +528,7 @@ export async function runPlan(plan: string, session: PlanSession,
         continue;
       }
       const sql = stepSql(step);
-      const rows = await session.run(sql.statement, bound(sql));
+      const rows = await session.run(fromPlan(sql.statement), bound(sql));
       if (step._type === 'update') {
         // the database's count, a value it produced, bound where a later step reads it
         const count = (step as { readonly count?: string | null }).count;
@@ -616,7 +617,7 @@ async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
   if (snapshot) await session.transaction('begin');
   try {
     if (keyed.keys.slots.length > 0) throw new PlanRefusal("a keys statement binding a value is not run here: a host's plan binds none");
-    const keys = (await session.run(keyed.keys.statement, [])).map((row) => row.slice(0, perKey + 1).map((cell) => {
+    const keys = (await session.run(fromPlan(keyed.keys.statement), [])).map((row) => row.slice(0, perKey + 1).map((cell) => {
       if (typeof cell !== 'string') throw new PlanRefusal(`a keys row holds ${String(cell)}: the probe writes each key's text and names`);
       return cell;
     }));
@@ -637,7 +638,7 @@ async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
     const inOrder: Column[] = new Array<Column>(width);
     answered.forEach((c, i) => { inOrder[place[i]!] = c; });
     const body = expandKeyed(keyed.body, keys);
-    const rows = (await session.run(body.statement, body.params)).map((row) => {
+    const rows = (await session.run(fromPlan(body.statement), body.params)).map((row) => {
       const placed = new Array<unknown>(width);
       row.forEach((cell, i) => { placed[place[i]!] = cell; });
       return placed;

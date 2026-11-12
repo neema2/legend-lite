@@ -26,6 +26,8 @@ export interface ProjectConfig {
  */
 export type ExecutionConfig =
   | { readonly kind: 'duckdb-wasm'; readonly user: string }
+  // `seed`: the model files, compiled whole, whose Data rows the warehouse is loaded with by the project's own Data
+  // load (demo/main.ts)
   | { readonly kind: 'warehouse'; readonly url: string; readonly catalog?: string; readonly seed?: readonly string[] }
   | { readonly kind: 'server'; readonly engine: string };
 

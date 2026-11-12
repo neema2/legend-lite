@@ -39,6 +39,7 @@ import { UI_LOCALE } from './locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from './engine.ts';
 import type { Receipt } from './receipt.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /**
  * A LIVE plane on another machine (the warehouse): where a snap's rows come
@@ -51,7 +52,7 @@ export interface RemoteSource {
   /** Raw SQL on the remote plane: the preflight count, as the planner writes it for that database. */
   run: QueryEngine['run'];
   /** `onReceipt` hears, once the statement has succeeded, what the server issued for it. */
-  arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array>;
+  arrowChunks(sql: PlannedSql, signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array>;
 }
 
 /** The name a snap's plan names the remote live plane by (LoadPlanner.snapStream's `plane`): the warehouse a grid reads. */
@@ -177,7 +178,7 @@ export class SnapManager implements Snaps {
   }
 
   /** The planner's statements for `operations` on a database of `databaseType`, in order. */
-  async #statements(databaseType: string, operations: readonly HostOperation[]): Promise<string[]> {
+  async #statements(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[]> {
     if (!this.#host) throw new SnapRefusal('this cube has no planner to write its copy\u2019s statements: it cannot be snapped');
     return (await this.#host.hostOperations(databaseType, operations)).flat();
   }

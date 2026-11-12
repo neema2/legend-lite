@@ -12,6 +12,7 @@ import { bearerName, mountRemote, secretName, type S3Credentials } from './remot
 import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/plan-runner.ts';
 import { runHostOperations } from '../../engine-client/src/host-operations.ts';
 import { isIdentifier } from '../../pure-protocol/src/index.ts';
+import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
 /** The hosts' plan runner, fetched with the first file read (a chunk of its own: a grid-only page carries none of it). */
 const planRunner = (): Promise<typeof import('../../engine-client/src/plan-runner.ts')> =>
@@ -432,7 +433,7 @@ export async function catalogColumns(engine: QueryEngine, models: TableModels, t
 
 /** A table's columns as the catalog says them (catalogColumns's), of `schema`, asked of whatever runs the catalog's
  *  question: an engine, or a connection held (table-output.ts: a table made in the transaction that reads it). */
-export async function catalogColumnsOf(engine: { run(sql: string, epoch: number): Promise<RawTable> }, models: Pick<TableModels, 'catalogColumnsSql'>,
+export async function catalogColumnsOf(engine: { run(sql: PlannedSql, epoch: number): Promise<RawTable> }, models: Pick<TableModels, 'catalogColumnsSql'>,
   schema: string, table: string): Promise<CatalogColumn[]> {
   const answer = await engine.run(await models.catalogColumnsSql(schema, table), 0);
   const names = columnOf(answer, 'column_name');

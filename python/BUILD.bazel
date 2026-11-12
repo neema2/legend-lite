@@ -233,6 +233,27 @@ py_test(
     ],
 )
 
+# THE ONE SEND (the total wall's C3, 2026-11-12): Python's host runs only a statement a plan carries or the planner wrote
+# (legend_lite/_planned.py), any other text refused by name before the database sees it; where the type is made is
+# pinned by //tools/guards:planned_sql_test
+py_test(
+    name = "planned_test",
+    size = "small",
+    srcs = [
+        "tests/main.py",
+        "tests/test_planned.py",
+    ],
+    args = ["test_planned"],
+    data = ["//native:compiler"],
+    env = _ENV,
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # what the headless test is given: DataCube's bundle, and DuckDB's extensions as the wheel carries them
 _HEADLESS_ENV = {
     "LEGEND_LITE_DATACUBE": "$(rlocationpath //datacube:headless_bundle)",

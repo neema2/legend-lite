@@ -26,6 +26,7 @@ import { TreeState } from '../src/tree.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { fakeParse, fakePrint, someQuery } from './fake-planner.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const GROUPED: CubeSnapshot = {
   source: { query: accessor('db', 'T') },
@@ -121,7 +122,7 @@ describe('a tree fetch that is already obsolete', () => {
         // the caller is looking at it.
         if (planned === 1) controller.abort(new Superseded(1));
         if (controller.signal.aborted) throw controller.signal.reason;
-        return { sql: `SELECT ${planned}`, columns: [] };
+        return { sql: unplanned(`SELECT ${planned}`), columns: [] };
       },
       relationType: async () => [],
       parse: fakeParse,
@@ -195,7 +196,7 @@ describe('the controller under a burst', () => {
           await new Promise<void>((r) => { release = r; });
           if (signal?.aborted) throw signal.reason;
         }
-        return { sql: `SELECT ${planned.length}`, columns: [] };
+        return { sql: unplanned(`SELECT ${planned.length}`), columns: [] };
       },
       relationType: async () => [],
       parse: fakeParse,

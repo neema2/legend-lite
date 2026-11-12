@@ -462,6 +462,8 @@ _SLOW_WALK_TESTS = [
         ":node_modules/jsdom",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
+        # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12)
+        "//engine-client:unplanned",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
         [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
     ) + (
@@ -1056,6 +1058,7 @@ node_test(
     size = "medium",
     data = [
         "test/pivot-rows/pivot-rows.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1072,6 +1075,7 @@ node_test(
     size = "medium",
     data = [
         "test/json-read/json-read.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1105,6 +1109,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1120,6 +1125,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1135,6 +1141,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1153,6 +1160,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/live-snap/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],
@@ -1198,6 +1206,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/python-engine/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],
@@ -1351,6 +1360,7 @@ node_test(
     name = "python_execute_test",
     size = "medium",
     data = [
+        "//engine-client:unplanned",
         "test/host/node.ts",
         "test/python-engine/execute.test.ts",
         ":dist",
@@ -1746,14 +1756,14 @@ copy_to_directory(
     ],
 )
 
-# The trading rows' other two copies, for the test that holds them equal to the project's Data (saved-queries): the
-# warehouse's fixture and the H2 connection's setup, copied as :projects is (a test's data is its own package's).
+# The trading rows' other copy, for the test that holds it equal to the project's Data (saved-queries): the H2
+# connection's setup, copied as :projects is (a test's data is its own package's). (2026-11-12: the warehouse's own SQL
+# file went; the warehouse is made by the project's Data load.)
 copy_to_directory(
     name = "trading_copies",
     testonly = True,
     srcs = [
         "//query:demo/models/runtime-h2.pure",
-        "//query:demo/models/trading-seed.sql",
     ],
     out = "test/trading-copies",
     root_paths = ["query/demo/models"],

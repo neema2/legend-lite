@@ -97,7 +97,7 @@ public final class TestRunner {
                 Appeals.Decider decider = (n, golden, ours, textEqual, l, reader, sessions) ->
                         com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
                                 golden, ours, textEqual, referee, l, reader, sessions);
-                PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, null, systemSessions), origin);
+                PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, systemSessions), origin);
                 try {
                     TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved);
                 } catch (RuntimeException runFailed) {

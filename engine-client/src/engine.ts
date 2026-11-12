@@ -15,6 +15,7 @@
 import type { Plan } from './relation-type.ts';
 import type { Receipt } from './receipt.ts';
 import type { ResultTable, Scalar } from './result.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** A raw read's column: its name and values, and NO Pure type -- no compiler typed it. */
 export interface RawColumn {
@@ -65,7 +66,7 @@ export interface QueryEngine {
    * values, no types. Same `signal` rules. `params`: the values its `?`s bind, in order (a plan's data: payloads,
    * plan-params.ts, the tenets audit's M3); an engine that binds none refuses them by name, never runs the text alone.
    */
-  run(sql: string, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable>;
+  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable>;
   close(): Promise<void>;
 }
 
@@ -79,7 +80,7 @@ export interface QueryEngine {
  * of a tab's DuckDB).
  */
 export async function setUpSession(engine: Pick<QueryEngine, 'run'> & { readonly databaseType: string },
-  setup: (databaseType: string) => Promise<readonly string[]>): Promise<void> {
+  setup: (databaseType: string) => Promise<readonly PlannedSql[]>): Promise<void> {
   for (const statement of await setup(engine.databaseType)) await engine.run(statement, 0);
 }
 

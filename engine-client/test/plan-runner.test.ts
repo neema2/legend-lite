@@ -24,6 +24,7 @@ import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSp
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { arrowIpcStream } from '../src/arrow-ipc.ts';
 import type { Receipt } from '../src/receipt.ts';
+import { unplanned } from './unplanned.ts';
 
 const MODEL = `###Relational
 Database w::DB
@@ -70,7 +71,7 @@ const target = (): ValueSpecification => accessor('w::DB', 'T');
 const run = (plan: string): Promise<string> => engine.exclusive(async (held) =>
   runPlan(plan, await hostSession(engine.databaseType, held.rows, grammar)));
 const rows = async (): Promise<string> => {
-  const t = await engine.exclusive((held) => held.rows('SELECT id, name, amount FROM T ORDER BY id', []));
+  const t = await engine.exclusive((held) => held.rows(unplanned('SELECT id, name, amount FROM T ORDER BY id'), []));
   return t.map((r) => r.map(String).join(':')).join(' ');
 };
 
@@ -79,9 +80,9 @@ before(async () => {
   grammar = await loadPlanner();
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
-  await engine.run('CREATE TABLE SRC (id INTEGER PRIMARY KEY, name VARCHAR, amount DOUBLE)', 0);
-  await engine.run("INSERT INTO SRC VALUES (1, 'a', 1.5), (2, 'b', 2.5)", 0);
-  await engine.run('CREATE TABLE T (id INTEGER PRIMARY KEY, name VARCHAR, amount DOUBLE)', 0);
+  await engine.run(unplanned('CREATE TABLE SRC (id INTEGER PRIMARY KEY, name VARCHAR, amount DOUBLE)'), 0);
+  await engine.run(unplanned("INSERT INTO SRC VALUES (1, 'a', 1.5), (2, 'b', 2.5)"), 0);
+  await engine.run(unplanned('CREATE TABLE T (id INTEGER PRIMARY KEY, name VARCHAR, amount DOUBLE)'), 0);
   handle = Number(ok(answer(m, { kind: 'hold', model: MODEL })));
 });
 
@@ -97,7 +98,7 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
   });
 
   it('replaces: its rows deleted, then written -- one transaction', async () => {
-    await engine.run("UPDATE SRC SET amount = amount * 10", 0);
+    await engine.run(unplanned("UPDATE SRC SET amount = amount * 10"), 0);
     const plan = planned(fn('delete', target(), lambda(['r'], lit.boolean(true))), fn('write', src(), target()));
     assert.deepEqual(JSON.parse(await run(plan)), [{ value: 2 }]);
     assert.equal(await rows(), '1:a:15 2:b:25');
@@ -109,7 +110,7 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await assert.rejects(() => run(plan), /PRIMARY KEY|Duplicate key|constraint/i);
     assert.equal(await rows(), '1:a:15 2:b:25', 'as it was');
     // the connection is the engine's again, outside any transaction
-    assert.deepEqual(await engine.exclusive((held) => held.rows('SELECT 1', [])), [[1]]);
+    assert.deepEqual(await engine.exclusive((held) => held.rows(unplanned('SELECT 1'), [])), [[1]]);
   });
 
   it('answers a value the program wrote with nothing sent for it: the constant node', async () => {
@@ -194,7 +195,7 @@ describe("a plan's loads, established on a database the host made for its target
     return { engine: own, on: (work) => own.exclusive(async (held) => work(await hostSession(own.databaseType, held.rows, grammar))) };
   };
   const tables = (e: DuckDbEngine): Promise<string> => e.exclusive(async (held) =>
-    (await held.rows("SELECT string_agg(table_name, ',' ORDER BY table_name) FROM duckdb_tables()", [])).map((r) => String(r[0])).join(''));
+    (await held.rows(unplanned("SELECT string_agg(table_name, ',' ORDER BY table_name) FROM duckdb_tables()"), [])).map((r) => String(r[0])).join(''));
 
   before(() => {
     loaded = Number(ok(answer(m, { kind: 'hold', model: LOADED })));
@@ -269,11 +270,11 @@ describe("a remote file's mount, a planned load whose bearer URL the host binds 
     const store = new SecretStore();
     store.hold('datacube_url_t', new Map([['URL', 'held.csv']]));
     const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown> =>
-      (params.length === 0 ? e.run(sql, 0) : e.exclusive((held) => held.rows(sql, params)));
+      (params.length === 0 ? e.run(unplanned(sql), 0) : e.exclusive((held) => held.rows(unplanned(sql), params)));
     const { settings } = await runLoad(plan, route(first), { secrets: store });
-    const count = (e: DuckDbEngine): Promise<string> => e.exclusive(async (held) => String((await held.rows('SELECT count(*) FROM remote_t', []))[0]![0]));
+    const count = (e: DuckDbEngine): Promise<string> => e.exclusive(async (held) => String((await held.rows(unplanned('SELECT count(*) FROM remote_t'), []))[0]![0]));
     assert.equal(await count(first), '2');
-    const viewText = await first.exclusive(async (held) => String((await held.rows("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_t'", []))[0]![0]));
+    const viewText = await first.exclusive(async (held) => String((await held.rows(unplanned("SELECT sql FROM duckdb_views() WHERE view_name = 'remote_t'"), []))[0]![0]));
     assert.ok(!viewText.includes('held.csv') && viewText.includes('getvariable'), viewText);
     // a second connection to the same database: the variable is the first's, so it reads nothing until the setting is
     // replayed on it, bound again from the store
@@ -313,7 +314,7 @@ describe("a failure's words, the values a host holds taken out at the engine's Q
     const store = new SecretStore();
     store.hold('datacube_url_t', new Map([['URL', URL]]));
     const settings = new ConnectionSettings();
-    settings.keep('remote_t', [{ sql: 'SET VARIABLE lite_url_t = ?', binds: [{ _type: 'held', name: 'datacube_url_t', field: 'URL' }] }], store);
+    settings.keep('remote_t', [{ sql: unplanned('SET VARIABLE lite_url_t = ?'), binds: [{ _type: 'held', name: 'datacube_url_t', field: 'URL' }] }], store);
     const engine = new DuckDbEngine(db.connect() as ArrowishConnection, { settings });
     // DuckDB's own error repeating the URL, its query string and one parameter, as a failed read's does
     const failing = `SELECT error('HTTP 403 reading "${URL}" (${URL.slice(URL.indexOf('?') + 1)}; ${SIGNATURE})')`;
@@ -324,10 +325,10 @@ describe("a failure's words, the values a host holds taken out at the engine's Q
       assert.equal(e.cause, undefined, 'the raw error, which holds the URL, is not carried');
       return true;
     };
-    await assert.rejects(() => engine.run(failing, 0), said);
-    await assert.rejects(() => engine.exclusive((held) => held.rows(failing, [])), said);
+    await assert.rejects(() => engine.run(unplanned(failing), 0), said);
+    await assert.rejects(() => engine.exclusive((held) => held.rows(unplanned(failing), [])), said);
     // a failure that names no held value is said as it is, its cause kept
-    await assert.rejects(() => engine.run("SELECT error('plain')", 0), (e: unknown) =>
+    await assert.rejects(() => engine.run(unplanned("SELECT error('plain')"), 0), (e: unknown) =>
       e instanceof QueryError && /plain/.test(e.message) && e.cause !== undefined);
   });
 });
@@ -359,11 +360,11 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
     assert.ok(body.sql.includes('?') && !body.sql.includes('back') && !body.sql.includes('data:'), body.sql);
     const params = planParams(body.plan);
     assert.deepEqual(params.map((p) => JSON.parse(p) as unknown), [RECORDS]);
-    const answered = await engine.execute({ sql: body.sql, columns: relationColumns(body.type), params }, 0);
+    const answered = await engine.execute({ sql: unplanned(body.sql), columns: relationColumns(body.type), params }, 0);
     assert.deepEqual(answered.columns[0]!.values, RECORDS.map((r) => r.name));
     // an empty array: no record, no row
     const empty = await planOf(jsonModel([]));
-    const none = await engine.execute({ sql: empty.sql, columns: relationColumns(empty.type), params: planParams(empty.plan) }, 0);
+    const none = await engine.execute({ sql: unplanned(empty.sql), columns: relationColumns(empty.type), params: planParams(empty.plan) }, 0);
     assert.equal(none.rowCount, 0);
   });
 
@@ -403,9 +404,9 @@ describe("the load runners' shared conformance fixture", () => {
     const project = planOf();
     const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
     const own = new DuckDbEngine(db.connect() as ArrowishConnection);
-    for (const sql of [...project.open, ...project.use]) await own.run(sql, 0);
+    for (const sql of [...project.open, ...project.use]) await own.run(unplanned(sql), 0);
     await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
-    const rows = await own.exclusive((held) => held.rows(fixture.check, []));
+    const rows = await own.exclusive((held) => held.rows(unplanned(fixture.check), []));
     assert.deepEqual(rows.map((r) => r.map((v) => (typeof v === 'bigint' ? Number(v) : v))), fixture.rows);
   });
 
@@ -458,12 +459,12 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
   const planOf = (table: string, schema?: string): string => ok(answer(m, { kind: 'snapStream', request: JSON.stringify({
     databaseType: 'DuckDB', plane: 'warehouse', sql: SQL, ...(schema ? { schema } : {}), table }) }));
   const tableRows = (t: string): Promise<string> => engine.exclusive(async (held) =>
-    (await held.rows(`SELECT id, notional, region FROM ${t} ORDER BY id`, [])).map((r) => r.map(String).join(':')).join(' '));
+    (await held.rows(unplanned(`SELECT id, notional, region FROM ${t} ORDER BY id`), [])).map((r) => r.map(String).join(':')).join(' '));
   const columns = (t: string): Promise<string> => engine.exclusive(async (held) =>
-    (await held.rows(`SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = '${t}' ORDER BY column_index`, []))
+    (await held.rows(unplanned(`SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = '${t}' ORDER BY column_index`), []))
       .map((r) => r.join(' ')).join(', '));
   const exists = (t: string): Promise<number> => engine.exclusive(async (held) =>
-    Number((await held.rows(`SELECT count(*) FROM duckdb_tables() WHERE table_name = '${t}'`, []))[0]![0]));
+    Number((await held.rows(unplanned(`SELECT count(*) FROM duckdb_tables() WHERE table_name = '${t}'`), []))[0]![0]));
   const snap = (plan: string, p: ReturnType<typeof plane>) => engine.exclusive((held) =>
     runLoad(plan, (sql, params) => held.rows(sql, params), { streams: { planes: { warehouse: p }, held } }));
 
@@ -487,7 +488,7 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     await assert.rejects(() => snap(planOf('cut'), plane([chunkOf(1, 4), chunkOf(5, 3)], { cutAfter: 1 })), /the connection was reset/);
     assert.equal(await exists('cut'), 0);
     // a table of that name there before: its drop is the stream's transaction's, rolled back with it
-    await engine.run("CREATE TABLE kept AS SELECT 1 AS id, CAST(0.5 AS DOUBLE) AS notional, 'EMEA' AS region", 0);
+    await engine.run(unplanned("CREATE TABLE kept AS SELECT 1 AS id, CAST(0.5 AS DOUBLE) AS notional, 'EMEA' AS region"), 0);
     await assert.rejects(() => snap(planOf('kept'), plane([chunkOf(1, 4), chunkOf(5, 3)], { cutAfter: 1 })), /reset/);
     assert.equal(await tableRows('kept'), '1:0.5:EMEA');
   });
@@ -529,7 +530,8 @@ Database s::DB
   const KNOBS = { region: { values: ['EMEA', 'AMER', 'APAC'] }, notional: { range: [0, 9999.99], scale: 2 } };
   const request = (count: number, databaseType = 'DuckDB'): string => JSON.stringify({
     databaseType, model: SYNTH, database: 's::DB', schema: 'demo', table: 'TRADES', count, columns: KNOBS });
-  const one = (sql: string): Promise<unknown[]> => engine.exclusive(async (held) => (await held.rows(sql, []))[0]!);
+  // the test's own questions of the table the plan made (C3: typed as a plan's by name, unplanned.ts)
+  const one = (sql: string): Promise<unknown[]> => engine.exclusive(async (held) => (await held.rows(unplanned(sql), []))[0]!);
 
   it('fills the declared table with the rows the database made, the plan holding none of them', async () => {
     const plan = ok(answer(m, { kind: 'synthesize', request: request(100_000) }));

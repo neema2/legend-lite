@@ -48,10 +48,7 @@ public final class SystemCatalog {
             com.legend.executionplan.DatabaseType runtime) {
         com.legend.executionplan.DatabaseType type = engine(runtime);
         com.legend.sql.dialect.SqlDialect dialect = dialect(type);
-        java.util.List<String> session = dialect.sessionSetup();
-        var bare = new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.System(type, Platform.KEY), session,
-                java.util.List.of());
+        var bare = Targets.of(new com.legend.executionplan.ExecutionPlan.Database.System(type, Platform.KEY), dialect);
         var once = com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE;
         Seeded platform = ctx.derived(SeedMemo.class, c -> new SeedMemo()).platform.computeIfAbsent(type, t -> {
             // the catalog's own tables and rows, made once here, outside any run's transaction (until the JSON pass,
@@ -59,8 +56,8 @@ public final class SystemCatalog {
             var steps = steps(store(ctx), dialect, true, Platform::rows);
             return new Seeded(LoadPlanner.identity(once, steps.steps()), steps);
         });
-        return new com.legend.executionplan.ExecutionPlan.Target(bare.database(), session,
-                java.util.List.of(platform.load(once, bare)));
+        return new com.legend.executionplan.ExecutionPlan.Target(bare.database(), bare.session(),
+                java.util.List.of(platform.load(once, bare)), bare.raiseReadBack());
     }
 
     /** The graph's system metamodel store's load on {@code system} (the catalog's target, {@link #target}), written in
@@ -254,6 +251,7 @@ public final class SystemCatalog {
         }
         java.util.List<com.legend.executionplan.ExecutionPlan.Load> loads = new java.util.ArrayList<>(catalog.loads());
         loads.add(own.load(acquisition, catalog.bare()));
-        return new com.legend.executionplan.ExecutionPlan.Target(catalog.database(), catalog.session(), loads);
+        return new com.legend.executionplan.ExecutionPlan.Target(catalog.database(), catalog.session(), loads,
+                catalog.raiseReadBack());
     }
 }
