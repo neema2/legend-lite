@@ -46,11 +46,12 @@ class PlannedSqlTest {
     /**
      * What a host still sends that no plan carries, NAMED (planned-sql.ts {@code notPlanned}): each file and the name it
      * gives. 2026-11-12 (C3), both reported to the orchestrator for a ruling (plan each, or keep it named): Studio's SQL
-     * playground (a person's own SQL, run as typed) and Query's demo warehouse fixture (its seed files' statements).
+     * playground (a person's own SQL, run as typed), kept named by the ruling (below), and Query's demo warehouse fixture
+     * (its seed files' statements), planned by the ruling: 2026-11-12, the C3 follow-up, the warehouse is made by the
+     * project's own Data load (query/demo/main.ts seed, Boundary.projectData), and its SQL file is deleted.
      */
     static final Map<String, String> NOT_PLANNED = Map.of(
-            "studio/src/backend/run.ts", "the SQL playground",
-            "query/demo/main.ts", "the demo warehouse fixture");
+            "studio/src/backend/run.ts", "the SQL playground");
 
     /**
      * THE PLAYGROUND'S ONE PATH (the orchestrator's ruling of 2026-11-12: Studio's SQL playground stays named -- a person's

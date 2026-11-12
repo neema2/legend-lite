@@ -135,18 +135,18 @@ describe('enumerations as names: only the spec that makes the column', () => {
   });
 });
 
-// The trading rows' three copies (TRADING_COPIES): the project's Data (trading-data.pure, which the tab fills), the
-// warehouse's fixture (trading-seed.sql, one statement per line) and the H2 connection's setup (runtime-h2.pure's
-// testDataSetupSqls, Pure strings). Nothing derives one from another, so this holds them equal.
+// The trading rows' two copies (TRADING_COPIES): the project's Data (trading-data.pure, which the tab fills, and the
+// warehouse's demo too) and the H2 connection's setup (runtime-h2.pure's testDataSetupSqls, Pure strings). Nothing
+// derives one from the other, so this holds them equal. (2026-11-12, the C3 follow-up: a third, the warehouse's own SQL
+// file, trading-seed.sql, went when the warehouse was made by the project's Data load, query/demo/main.ts.)
 const COPIES = runfileFromEnv('TRADING_COPIES');
 const copy = (name: string): string => readFileSync(`${COPIES}/${name}`, 'utf8');
-const fixture = (): string[] => copy('trading-seed.sql').split('\n').map((l) => l.trim()).filter((l) => l !== '' && !l.startsWith('--'));
 const h2Setup = (): string[] => [...copy('runtime-h2.pure').matchAll(/^\s*'((?:[^'\\]|\\.)*)',?\s*$/gm)]
   .map((m) => m[1]!.replace(/\\(.)/g, '$1'));
 
-describe("the trading rows: the project's Data, the warehouse's fixture and the H2 connection's, row for row", () => {
+describe("the trading rows: the project's Data and the H2 connection's, row for row", () => {
   it('every table holds the same rows, NULLs included, with the same column types', async () => {
-    const others = { trading_fixture: fixture(), trading_h2: h2Setup() };
+    const others = { trading_h2: h2Setup() };
     assert.ok(others.trading_h2.length >= 10, `the H2 connection's setup read as ${others.trading_h2.length} statements`);
     try {
       for (const [db, statements] of Object.entries(others)) {
@@ -176,7 +176,7 @@ describe("the trading rows: the project's Data, the warehouse's fixture and the 
         assert.deepEqual(differ, ['0'], `${theirs} and the Data's ${t} differ`);
       }
     }
-    // an empty cell of the Data is NULL, as the fixture's NULL is (PERSON 5 has no title, 6 no age, 8 no firm)
+    // an empty cell of the Data is NULL, as the H2 setup's NULL is (PERSON 5 has no title, 6 no age, 8 no firm)
     assert.deepEqual(await values(`SELECT PERSON_ID FROM "${projectDb}".TRADING.PERSON
       WHERE TITLE IS NULL OR AGE IS NULL OR FIRM_ID IS NULL ORDER BY PERSON_ID`), ['5', '6', '8']);
   });

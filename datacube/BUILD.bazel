@@ -1756,14 +1756,14 @@ copy_to_directory(
     ],
 )
 
-# The trading rows' other two copies, for the test that holds them equal to the project's Data (saved-queries): the
-# warehouse's fixture and the H2 connection's setup, copied as :projects is (a test's data is its own package's).
+# The trading rows' other copy, for the test that holds it equal to the project's Data (saved-queries): the H2
+# connection's setup, copied as :projects is (a test's data is its own package's). (2026-11-12: the warehouse's own SQL
+# file went; the warehouse is made by the project's Data load.)
 copy_to_directory(
     name = "trading_copies",
     testonly = True,
     srcs = [
         "//query:demo/models/runtime-h2.pure",
-        "//query:demo/models/trading-seed.sql",
     ],
     out = "test/trading-copies",
     root_paths = ["query/demo/models"],

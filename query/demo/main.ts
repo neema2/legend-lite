@@ -9,9 +9,9 @@
 // and saved queries stay in this browser (the same records and rules as a server's store).
 
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
-import { ProjectDatabases, ProjectRunner } from '../../engine-client/src/project-data.ts';
+import { ProjectDatabases, ProjectRunner, type ProjectDataSource } from '../../engine-client/src/project-data.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import { notPlanned } from '../../engine-client/src/planned-sql.ts';
+import { runLoad } from '../../engine-client/src/plan-runner.ts';
 import {
   listObjects, loadWarehouseBinding, signIn, WarehouseEngine, type WarehouseBinding, type WarehouseSession,
 } from '../../engine-client/src/warehouse.ts';
@@ -33,17 +33,22 @@ async function text(url: string): Promise<string> {
 }
 
 /**
- * The warehouse's fixture (config-warehouse.json `seed`): each SQL file's statements (one per line; `--` comments
- * skipped) run on the warehouse, a real server's data. In this tab a project's rows are its Data elements' (C5).
+ * The warehouse's demo data (config-warehouse.json `seed`, a whole model whose Data rows it holds): the project's own
+ * Data load, as the planner makes it for the server's project plan and the tab's project database (Boundary.projectData,
+ * the ONCE load, its statements a blob checked against its digest), run by the hosts' plan runner on the warehouse's
+ * catalog -- the warehouse is the database here, so the tab's statements that make, point at and drop a database of the
+ * project's own are not run. Each table is dropped and made again, so a reload against a running warehouse loads it
+ * afresh. (Until 2026-11-12 a SQL file of its own, `trading-seed.sql`, a third copy of the rows, run line by line.)
  */
-async function seed(engine: QueryEngine, files: readonly string[]): Promise<void> {
-  for (const f of files) {
-    for (const line of (await text(f)).split('\n')) {
-      const stmt = line.trim();
-      // the demo warehouse's fixture, its seed files' statements: no plan carries them (planned-sql.ts, NOT_PLANNED)
-      if (stmt && !stmt.startsWith('--')) await engine.run(notPlanned('the demo warehouse fixture', stmt), 0);
-    }
-  }
+async function seed(engine: QueryEngine & { readonly databaseType: string }, planner: ProjectDataSource,
+  files: readonly string[]): Promise<void> {
+  const model = (await Promise.all(files.map(text))).join('\n');
+  const { load } = await planner.projectData(model, engine.databaseType);
+  if (load === undefined) throw new Error(`the warehouse's seed (${files.join(', ')}) holds no Data rows to load`);
+  await runLoad(JSON.stringify(load), (sql, params) => {
+    if (params.length > 0) throw new Error("a project's Data load binds no value");
+    return engine.run(sql, 0);
+  });
 }
 
 /**
@@ -143,11 +148,12 @@ async function boot(): Promise<void> {
       const binding = await loading;
       const session = await signIn(binding, exec.url, creds.user, creds.password);
       const catalog = exec.catalog ?? 'main';
-      runner = new WarehouseEngine(binding, session, catalog, await catalogType(binding, session, catalog));
+      const warehouse = new WarehouseEngine(binding, session, catalog, await catalogType(binding, session, catalog));
+      runner = warehouse;
       user = session.principal;
       if (exec.seed?.length) {
         starting('Loading the demo data');
-        await seed(runner, exec.seed);
+        await seed(warehouse, planner!, exec.seed);
       }
     }
     engine = new BrowserEngine(planner!, runner, user);
