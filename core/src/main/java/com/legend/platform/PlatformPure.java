@@ -40,11 +40,23 @@ public final class PlatformPure {
      * {@code platform}'s. Both have the same id by construction. The body binds the platform's parameter NAMES, so
      * the two declarations must name their parameters alike; a difference is an error naming both, never a silent
      * rebinding (every twin measured on 2026-10-09 agrees: {@code Phase3bProbesTest} H1).
+     *
+     * <p>The declaration keeps its pre- and post-conditions too: they are the declaration's, not the body's
+     * (2026-11-12, the owner's ruling on slice 1b's report: they were dropped). Measured that day: no adopted
+     * declaration carries one -- the boot layer adopts none, and none of upstream's 43 declarations at the platform's
+     * names in the pinned sources has a condition -- so keeping them changes no answer today. The platform's own
+     * versions declare none (the system metamodel's 35); one that did would be the platform's bug, refused here, never
+     * dropped.
      */
     public static FunctionDefinition adopt(FunctionDefinition declaration, FunctionDefinition platform) {
         FunctionId id = FunctionId.of(declaration);
         if (!id.equals(FunctionId.of(platform))) {
             throw new IllegalArgumentException("not the same function: " + id + " and " + FunctionId.of(platform));
+        }
+        if (!platform.preConstraints().isEmpty() || !platform.postConstraints().isEmpty()) {
+            throw new IllegalArgumentException("the platform's own Pure declares no conditions: " + id + " declares "
+                    + platform.preConstraints().size() + " pre- and " + platform.postConstraints().size()
+                    + " post-conditions");
         }
         for (int i = 0; i < declaration.parameters().size(); i++) {
             String theirs = declaration.parameters().get(i).name();
@@ -60,7 +72,8 @@ public final class PlatformPure {
         return new FunctionDefinition(declaration.qualifiedName(), declaration.typeParameters(),
                 declaration.multiplicityParameters(), declaration.parameters(), declaration.returnType(),
                 declaration.returnMultiplicity(), platform.body(), declaration.stereotypes(),
-                declaration.taggedValues(), declaration.synthesizedFrom());
+                declaration.taggedValues(), declaration.synthesizedFrom(), declaration.preConstraints(),
+                declaration.postConstraints());
     }
 
     /** Upstream's other versions at the platform's own names whose upstream body runs here, by id, each with why
