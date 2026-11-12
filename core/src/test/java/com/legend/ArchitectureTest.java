@@ -1434,6 +1434,11 @@ final class ArchitectureTest {
             // metamodel store runs on the process's in-process catalog; the host's system connections deleted)
             "com.legend.ExecuteOptions#stores");
 
+    /** The one value a door makes (2026-11-12, the user's ruling "Do the exec id as part of C"; the C4 exec-id item):
+     *  its execution's id, minted once per method and passed into the run -- exec makes none
+     *  ({@link #execMakesNoValueOfItsOwn}). */
+    private static final String DOOR_MINT_CALL = "java.util.UUID#randomUUID";
+
     private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
             "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",
             "com.legend.testexec.TestRunner#runOpening");
@@ -1446,6 +1451,8 @@ final class ArchitectureTest {
      * overload. It reads no field but an enum's constant. Its source is one statement per method, with no branch, loop,
      * lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}: the bytecode shows neither a branch nor
      * which call comes first in one expression) -- so the run is the statement's outermost call, its plan an argument. A line cap would only measure it; this says what it may do.
+     * Since 2026-11-12 (the exec-id item, C4) a method may also mint ONE execution id ({@link #DOOR_MINT_CALL}), the
+     * run's argument: the door is where an execution starts, so its id is made there and nowhere in exec.
      */
     @Test
     void theDoorsOnlyCompose() {
@@ -1467,16 +1474,22 @@ final class ArchitectureTest {
                     continue;
                 }
                 int runs = 0;
+                int mints = 0;
                 for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
                     String target = call.getTargetOwner().getName() + "#" + call.getName();
                     if (DOOR_RUN_CALLS.contains(target) || call.getTargetOwner().getName().equals(top)) {
                         runs++;
+                    } else if (target.equals(DOOR_MINT_CALL)) {
+                        mints++;
                     } else if (!DOOR_PLANNING_CALLS.contains(target)) {
                         found.add(u.getFullName() + " calls " + target);
                     }
                 }
                 if (runs > 1) {
                     found.add(u.getFullName() + " runs " + runs + " times");
+                }
+                if (mints > 1) {
+                    found.add(u.getFullName() + " mints " + mints + " execution ids: one run, one id");
                 }
                 if (!u.getMethodReferencesFromSelf().isEmpty() || !u.getConstructorReferencesFromSelf().isEmpty()) {
                     found.add(u.getFullName() + " makes a method reference");
