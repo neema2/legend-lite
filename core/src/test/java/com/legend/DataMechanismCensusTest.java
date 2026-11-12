@@ -250,10 +250,7 @@ class DataMechanismCensusTest {
             // LoadPlanner.remoteMount; docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md). Gone: the
             // fill's text, the seed text, a file and a remote file named in a host's operation, a secret's operation
             // (2026-11-12: two more of the hosts' ways were found after M14 closed -- a snapshot's rows from a remote
-            // plane, and a Python frame's -- each its own row below, M14-snap and M14-frames, DELETED by the same slice;
-            // and the demo's sample, made in the tab and put in by DuckDbEngine.loadArrow, is a Parquet file made at
-            // build time and read as a person's file is, the user's ruling of that day, "Demo has to go through
-            // platform": loadArrow deleted, its spellings M14's host symbols)
+            // plane, and a Python frame's -- each its own row below, M14-snap and M14-frames, DELETED by the same slice)
             new Row("M14", "the browser tab, Python and DataCube load data outside any plan", new Deleted("B3", List.of(
                     // B3.4: a project's database filled from the fill's statement text
                     "out.put(\"fill\"", "p.fill()", "List<String> fill",
@@ -335,19 +332,14 @@ class DataMechanismCensusTest {
      * hosts' history (git log -S) and reading zero in every host source now, as the Java symbols above do in the Java
      * trees. M14: the fill's statement text, the seed text, a host's file and remote file named in an operation, a
      * secret's operation (its view, mount, access and credential operations, their scope and binds), a table's seed
-     * rows and the tables a project's Data loaded outside its plan, and (2026-11-12) the engine's Arrow load the demo's
-     * sample took.
+     * rows and the tables a project's Data loaded outside its plan.
      */
     static final java.util.Map<String, List<String>> HOST_SYMBOLS = java.util.Map.of("M14", List.of(
             // TypeScript (engine-client, datacube)
             "testDataSql(", "viewOperation(", "mountOperations(", "accessOperations(", "credentialOperations(",
             "credentialScope(", "secretBinds(", "op: 'secret'", "op: 'insert'", "TableSeed", "loadDataTables(",
             // Python (legend_lite)
-            "lite_test_data_sql", "statements['fill']",
-            // 2026-11-12 (the user's ruling, "Demo has to go through platform"): the engine's Arrow load outside any
-            // plan, whose last caller was the demo's sample (datacube/demo/boot.ts generateTrades) -- the sample now a
-            // Parquet file made at build time, read as a person's file is (upload.ts loadFileInto); no exception left
-            "loadArrow(", "generateTrades("),
+            "lite_test_data_sql", "statements['fill']"),
             // 2026-11-12: the tab's direct Arrow load of a snap; Python's landing table
             "M14-snap", List.of("interface ArrowLoader", "loader.loadArrow(", "__legend_lite_snap",
                     "connection.register(landing, pulled)"),
@@ -355,11 +347,10 @@ class DataMechanismCensusTest {
             "M14-frames", List.of("con.register(self._registered", "connection.register(self._registered",
                     "cursor.register(table._registered"));
 
-    /** The hosts' sources the census reads (M4): DataCube's and engine-client's TypeScript, Python's package, and the
-     *  demo's page code DataCube ships (2026-11-12: its sample was the last load outside a plan). */
+    /** The hosts' sources the census reads (M4): DataCube's and engine-client's TypeScript, Python's package. */
     private static List<Path> hostSources() {
         List<Path> out = new ArrayList<>();
-        for (String tree : List.of("datacube/src", "datacube/demo", "engine-client/src", "python/legend_lite")) {
+        for (String tree : List.of("datacube/src", "engine-client/src", "python/legend_lite")) {
             List<Path> files = SourceFiles.under(tree);
             assertTrue(!files.isEmpty(), "the census read nothing under " + tree);
             out.addAll(files);
