@@ -1511,11 +1511,21 @@ final class ArchitectureTest {
      *  build's twin is {@code tools/deps/core-layers.txt} (no product library lists {@code edge}). */
     @Test
     void noProductClassReachesTheEdge() {
-        noClasses()
+        PRODUCT_REACHES_NO_EDGE.check(CORE_PROD_CLASSES);
+    }
+
+    /** G5 (rule E2 of docs/GOALS_OF_RECORD_2026_11_07.md §2): the edge depends on the product, never the reverse. */
+    private static final com.tngtech.archunit.lang.ArchRule PRODUCT_REACHES_NO_EDGE = noClasses()
             .that().resideOutsideOfPackage("com.legend.edge..")
             .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
-            .as("G5: the edge depends on the product, never the reverse")
-            .check(CORE_PROD_CLASSES);
+            .as("G5: the edge depends on the product, never the reverse");
+
+    /** {@link #noProductClassReachesTheEdge} fails on a product class that names an edge type
+     *  ({@code planner.PlantedEdgeReach}, a test class planted for this alone; phase D step 1, 2026-11-12). */
+    @Test
+    void theEdgeRuleBitesAPlantedProductClass() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PRODUCT_REACHES_NO_EDGE.check(
+                new ClassFileImporter().importClasses(com.legend.planner.PlantedEdgeReach.class)));
     }
 
     /** No thread-scoped state (the user's ruling of 2026-11-09, "remove all thread local"): every value a step needs is
