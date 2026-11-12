@@ -604,15 +604,21 @@ and the briefs' "RULED" items.
     (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`, branch `claude/datacube-engine-contract`, PROPOSED) into the next PR,
     in parallel with D and E (the user: "we should do this in parallel with D and E").
   - **MongoDB's parameters bound by the command's `let`** (the probe answered on MongoDB 8.0): a plan parameter is the
-    pipeline variable `$$lpN`, its value `{"$literal": v}`; a server before 5.0, a parameter in a per-key region and a
-    parameter in an insert are refused by name; the session writes nothing into the pipeline (93e318dbf, 041f2f05b).
+    pipeline variable `$$lpN`, its value `{"$literal": v}`; a parameter in a per-key region and a parameter in an insert
+    are refused by name; the session writes nothing into the pipeline but each key's `$literal` at its marker (the keyed
+    region, A3(a)) (93e318dbf, 041f2f05b). The version check exec once sent (`buildInfo`) is DELETED (the user, C's final
+    audit: "delete mongo check for sure"): a server before 5.0 refuses the `let` field with its own error, and every
+    driver send is at one choke point (26b068966).
   - **The execution id minted by the door, no caller ids** (the user: "Does it simplify if we don't let caller IDs?",
     then "Do the exec id as part of C"): `Execution`'s run methods and `TestExecution`'s `runProgram`, `runBody`,
-    `runFixture` mint one id per plan run, passed into exec; exec mints nothing (`execMakesNoValueOfItsOwn`); an answer's
-    writer is made for its execution (8ed2114fd, ed7bce10e). S304 amended.
+    `runFixture` mint the ids, passed into exec; exec mints nothing (`execMakesNoValueOfItsOwn`); an answer's writer is
+    made for its execution (8ed2114fd, ed7bce10e). Then, as upstream does it (C's final audit, read in 4.145.0,
+    e743dadad): a product run is one id; a test body's plan declares one execution per `execute()`, the door mints one id
+    each (`ExecutionIds`), exec binds each where the plan reads it, and no id is written at planning. S304 amended.
   - **H2's settings as plan data**: `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` are the target's `settings` (plan
-    version 49, test plan 18), written on an in-memory URL and compared by the database on a borrowed session, a
-    mismatch refused by name; `NON_KEYWORDS` a planned SET. As session statements they were measured and reverted: two of
+    version 49, test plan 18), written on the URL of a database lite creates and compared by the database on a borrowed
+    session, a mismatch refused by name; a database the user declares (a file, a server) is never modified (C's final
+    audit: its target declares no settings, H2's own defaults); `NON_KEYWORDS` a planned SET. As session statements they were measured and reverted: two of
     the three commit an open transaction (9a1bf98c4, 947008159).
   - **G10, found in the hand-back and fixed as part of C**: a test body's plan is the same for the same input
     (`ActivityComments` derived; `planningMakesNoValueOfItsOwn`; `aBodyPlannedTwiceIsTheSamePlan`, cf56a1e25).
