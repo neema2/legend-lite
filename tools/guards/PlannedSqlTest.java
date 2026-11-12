@@ -32,15 +32,13 @@ import org.junit.jupiter.api.Test;
 class PlannedSqlTest {
 
     /**
-     * The product TypeScript files that MAKE a PlannedSql from a plan's text (import fromPlan or allFromPlan): the plan readers
-     * and the planner clients, where a plan or the planner's answer is read. 2026-11-12 (C3): the hosts' plan runner
-     * (plan-runner.ts: a plan's steps), the planner's project databases (project-data.ts: its open, use and close),
-     * the planner clients of the tab (legend/wasm-grammar.ts: Query's, Studio's; DataCube's lite-planner.ts) and the
-     * reader of a server's generatePlan (DataCube's planner.ts serverPlan).
+     * The product TypeScript files that MAKE a PlannedSql from a plan's text (import fromPlan or allFromPlan): the plan
+     * readers and the planner clients, where a plan or the planner's answer is read. 2026-11-12 (C3): the hosts' plan
+     * runner (plan-runner.ts: a plan's steps), the planner clients of the tab (legend/wasm-grammar.ts: Query's and
+     * Studio's; DataCube's lite-planner.ts) and the reader of a server's generatePlan (DataCube's planner.ts serverPlan).
      */
     static final Set<String> MINTS = Set.of(
             "engine-client/src/plan-runner.ts",
-            "engine-client/src/project-data.ts",
             "engine-client/src/legend/wasm-grammar.ts",
             "datacube/src/lite-planner.ts",
             "datacube/src/planner.ts");

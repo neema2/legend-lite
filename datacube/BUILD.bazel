@@ -1351,6 +1351,7 @@ node_test(
     name = "python_execute_test",
     size = "medium",
     data = [
+        "//engine-client:unplanned",
         "test/host/node.ts",
         "test/python-engine/execute.test.ts",
         ":dist",

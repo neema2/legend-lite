@@ -9,7 +9,7 @@
 import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
 import { runLoad } from './plan-runner.ts';
-import { allFromPlan, type PlannedSql } from './planned-sql.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** The planner's answer for one project's database: its name, and the statements of each step, in order. */
 export interface ProjectDataStatements {
@@ -26,15 +26,6 @@ export interface ProjectDataStatements {
   readonly close: readonly PlannedSql[];
 }
 
-/** The planner's answer for a project's database (Boundary.projectData), its statements typed as the planner wrote
- *  them (planned-sql.ts): what WasmGrammar and DataCube's planner client read it as. */
-export function plannedProjectData(answer: unknown): ProjectDataStatements {
-  const a = answer as { name: string; open: string[]; use: string[]; load?: unknown; close: string[] };
-  return { name: a.name, open: allFromPlan(a.open), use: allFromPlan(a.use), ...(a.load === undefined ? {} : { load: a.load }),
-    close: allFromPlan(a.close) };
-}
-
-/** Where a project's database comes from: legend-lite's planner (WasmGrammar.projectData, DataCube's LitePlanner). */
 export interface ProjectDataSource {
   /** Named by what it holds (the model's Databases and Data rows): an edited row is a fresh database. */
   projectData(model: string, databaseType: string): Promise<ProjectDataStatements>;

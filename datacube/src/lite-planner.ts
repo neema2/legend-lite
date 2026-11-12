@@ -35,12 +35,12 @@ import { relationColumns, type Plan, type PlanColumn } from '../../engine-client
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
 import type { RemoteMountRequest, SnapStreamRequest } from '../../engine-client/src/host-operations.ts';
-import { plannedProjectData, type ProjectDataStatements } from '../../engine-client/src/project-data.ts';
+import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
-import { allFromPlan, fromPlan, type PlannedSql } from '../../engine-client/src/planned-sql.ts';
+import { allFromPlan, fromPlan, plannedProjectData, type PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
 interface TeavmRuntime {
   load(

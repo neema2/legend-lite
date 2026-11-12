@@ -12,9 +12,9 @@ import type { RequestBody, Response as PlannerResponse } from './planner-protoco
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
 import type { RemoteMountRequest, SnapStreamRequest } from '../host-operations.ts';
-import { plannedProjectData, type ProjectDataStatements } from '../project-data.ts';
+import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
-import { allFromPlan, fromPlan, type PlannedSql } from '../planned-sql.ts';
+import { allFromPlan, fromPlan, plannedProjectData, type PlannedSql } from '../planned-sql.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
