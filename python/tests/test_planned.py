@@ -105,6 +105,86 @@ class OneSendTest(unittest.TestCase):
         self.assertIn('the warehouse', str(refused.exception))
 
 
+class _Witness:
+    """A duckdb-python connection that records every text it is handed and every other act asked of it -- what the
+    database itself received, not what a runner said it sent (the unfiltered witness: the C final audit's H8 and H13,
+    2026-11-12). The one Database holds it as it holds duckdb's own."""
+
+    def __init__(self, con):
+        self._con, self.received = con, []
+
+    def execute(self, sql, params=None):
+        self.received.append(str(sql))
+        return self._con.execute(sql) if params is None else self._con.execute(sql, params)
+
+    def __getattr__(self, name):
+        self.received.append(f'<{name}>')
+        return getattr(self._con, name)
+
+
+def _statements_of(node, content=None):
+    """Every statement a plan's JSON carries for its steps, in the order written: a step's ``sql``, a list of them, a
+    statements step's blob read by its digest (the TypeScript twin: plan-runner.test.ts statementsOf)."""
+    if isinstance(node, list):
+        return [s for n in node for s in _statements_of(n, content)]
+    if not isinstance(node, dict):
+        return []
+    blobs = node['content'] if isinstance(node.get('content'), dict) else (content or {})
+    if node.get('_type') == 'statements':
+        return json.loads(blobs[node['ref']['digest']])
+    out = []
+    for key, value in node.items():
+        if key in ('tree', 'content', 'regions', 'target'):
+            continue
+        if key in ('statement', 'sql') and isinstance(value, str):
+            out.append(value)
+        elif isinstance(value, list) and value and all(isinstance(v, str) for v in value):
+            out.extend(value)
+        else:
+            out.extend(_statements_of(value, blobs))
+    return out
+
+
+class WitnessTest(unittest.TestCase):
+    """THE UNFILTERED WITNESS (the C final audit's H8 and H13, 2026-11-12): everything Python's DuckDB receives during a
+    plan's run is the plan's -- its statements in order, and no other text or act."""
+
+    def test_a_load_hands_the_database_its_plans_statements_alone(self):
+        import os
+        fixture = json.loads(open(os.environ['LEGEND_LITE_RUN_LOAD_FIXTURE'], encoding='utf-8').read())
+        project = compiler.project_data(fixture['model'], fixture['databaseType'])
+        witness = _Witness(duckdb.connect())
+        db = Database(witness)
+        for sql in [*project['open'], *project['use']]:
+            send(db, sql)
+        witness.received.clear()
+        projects.run_load(project['load'], lambda statement: send(db, statement))
+        self.assertGreater(len(witness.received), 1)
+        self.assertEqual(witness.received, _statements_of(project['load']['root']))
+
+    def test_a_stream_hands_the_database_its_statements_and_its_import_alone(self):
+        import pyarrow as pa
+        import pyarrow.ipc
+
+        rows = pa.table({'id': pa.array([1, 2, 3], pa.int32())})
+        sink = pa.BufferOutputStream()
+        with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+            w.write_table(rows)
+
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                on_receipt({'statementId': 's1', 'serverRows': 3, 'as': 'rita', 'where': 'a stand-in'})
+                yield sink.getvalue().to_pybytes()
+
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': from_plan('SELECT * FROM t'),
+                                     'table': 'witnessed'})
+        step = plan['root']['steps'][0]
+        witness = _Witness(duckdb.connect())
+        projects.run_host_load(plan, Database(witness), planes={'warehouse': Plane()})
+        self.assertEqual(witness.received, [*step['transaction']['begin'], *step['prepare'], '<from_arrow>', step['count'],
+                                            *step['transaction']['commit']])
+
+
 class KeyedExpansionFixtureTest(unittest.TestCase):
     """THE KEYED EXPANSION'S ONE FIXTURE (the C final audit's H8, 2026-11-12; engine-client/test/fixtures/
     keyed-expansion.json): the text Python's bridge holds a keyed statement to (_keyed_text) is the text Java's

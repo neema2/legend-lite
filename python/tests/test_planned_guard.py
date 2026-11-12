@@ -51,6 +51,8 @@ SENDS = {
     # 2026-11-12 (the second audit): the Database's own -- the one send's run and a planned stream step's Arrow import
     ('_planned.py', 'execute', 'self._con'),
     ('_planned.py', 'from_arrow', 'self._con'),
+    # 2026-11-12 (H13): the same import's table made, the relation API's send counted with it
+    ('_planned.py', 'create', 'self._con.from_arrow(reader)'),
     ('frames.py', 'execute', 'self'),
     # 2026-11-12 (the second audit): the hosted DataCube's query in a read of the frames, by the read's own send
     # (frames.Reading.execute: the one send on its cursor), the read being no Database of its own
@@ -68,7 +70,11 @@ TYPE_CALLS = {('frames.py', 'type(failure)(out)')}
 # DuckDB's ways to run text or load data, on any receiver (2026-11-12, the second audit: from_arrow(...).create landed a
 # planned stream step outside the one send): each pinned by module and receiver (SENDS), or refused
 SEND_METHODS = {'execute', 'executemany', 'sql', 'query', 'from_query', 'from_arrow', 'from_df', 'from_parquet',
-                'from_csv_auto', 'read_csv', 'read_parquet', 'read_json', 'install_extension', 'load_extension'}
+                'from_csv_auto', 'read_csv', 'read_parquet', 'read_json', 'install_extension', 'load_extension',
+                # 2026-11-12 (the C final audit's H13): the relation API's sends -- a relation made into a table or a
+                # view, inserted, written out
+                'create', 'create_view', 'insert_into', 'insert', 'to_table', 'to_view', 'write_csv', 'write_parquet',
+                'to_csv', 'to_parquet'}
 MINT_NAMES = {'from_plan', 'all_from_plan'}
 
 # Each mint's uses by module (2026-11-12, the C final audit's H4, measured: an import is pinned by IMPORTS, a new call
@@ -111,6 +117,24 @@ ATTACHES = {
     ('page.py', 'unregister', 'session'),
 }
 
+# ONE CHOKE POINT PER TRANSPORT (the C final audit's H13, 2026-11-12; the user: "how do we stop this from actually being
+# able to be added without loud alarm bells?"). DuckDB: the one connection is made and sent to in _planned.py alone (its
+# Database: duckdb.connect, self._con; SENDS) -- outside it the duckdb module is named for its errors, a connection's
+# type and its version alone, never for a function that runs on its default connection (duckdb.sql, duckdb.execute,
+# duckdb.append, duckdb.read_csv, ...). HTTP: a SQL API's statement ('submit') is sent by warehouse.py alone
+# (Warehouse.arrow_chunks: required a PlannedSql), and each module that opens a network client is pinned.
+DUCKDB_NAMES = {'Error', 'TransactionException', 'DuckDBPyConnection', '__version__'}
+SUBMITS = {'warehouse.py': 1}
+NETWORK = {
+    # the SQL API's client (the one): its HTTP, its errors
+    'warehouse.py': {'http.client', 'urllib.error', 'urllib.request'},
+    # the hosted DataCube's fetch, as a browser's (the bundle's own sends: its warehouse's statement is warehouse.ts's)
+    '_headless.py': {'urllib.error', 'urllib.request'},
+    # the engine's own server (it serves; it sends nothing)
+    'engine.py': {'http.server', 'socket'},
+}
+_NETWORK_ROOTS = {'urllib', 'http', 'requests', 'urllib3', 'socket', 'httpx', 'aiohttp', 'ssl', 'websocket', 'websockets'}
+
 # THE AUTHORED DOOR by module (the C final audit's H1, 2026-11-12, measured): a person's statement planned as the
 # planner's is Studio's SQL playground's alone (tools/guards/PlannedSqlTest.java AUTHORED); Python's planner answers the
 # request kind ('authored' -> the native library's 'lite_authored') and its library declares the export, and no module
@@ -128,7 +152,8 @@ def census(name: str, source: str) -> dict:
     sends: set[tuple[str, str, str]] = set()
     references: set[tuple[str, str, str]] = set()
     attaches: set[tuple[str, str, str]] = set()
-    crossings = mints = authored = 0
+    crossings = mints = authored = submits = 0
+    network: set[str] = set()
     own = name == '_planned.py'
     called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
     for node in ast.walk(tree):
@@ -144,6 +169,18 @@ def census(name: str, source: str) -> dict:
                 or isinstance(node, ast.Attribute) and node.attr in AUTHORED_NAMES \
                 or isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in AUTHORED_NAMES:
             authored += 1
+        # H13: the duckdb module's own names outside the one Database; a network client; the SQL API's submit
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == 'duckdb' \
+                and not (own and node.attr == 'connect') and node.attr not in DUCKDB_NAMES:
+            refused.append(f'line {node.lineno}: duckdb.{node.attr}: the duckdb module is sent to through the one Database'
+                           ' (_planned.py), never on its default connection')
+        if isinstance(node, ast.Import):
+            network |= {a.name for a in node.names if a.name.split('.')[0] in _NETWORK_ROOTS and a.name != 'urllib.parse'}
+        if isinstance(node, ast.ImportFrom) and (node.module or '').split('.')[0] in _NETWORK_ROOTS \
+                and node.module != 'urllib.parse':
+            network.add(node.module)
+        if isinstance(node, ast.Constant) and node.value == 'submit':
+            submits += 1
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name == 'duckdb' and alias.asname is not None:
@@ -198,7 +235,8 @@ def census(name: str, source: str) -> dict:
             if isinstance(f, ast.Name) and f.id == 'across_the_bridge':
                 crossings += 1
     return {'imported': imported, 'refused': refused, 'sends': sends, 'crossings': crossings, 'mints': mints,
-            'references': references, 'attaches': attaches, 'authored': authored}
+            'references': references, 'attaches': attaches, 'authored': authored, 'submits': submits,
+            'network': network}
 
 
 class PlannedGuardTest(unittest.TestCase):
@@ -224,7 +262,7 @@ class PlannedGuardTest(unittest.TestCase):
         self.assertEqual({('m.py', 'sql', 'con'), ('m.py', 'from_query', 'duckdb')},
                          census('m.py', 'con.sql(q)\nduckdb.from_query(q)')['sends'])
         self.assertEqual({('m.py', 'query', 'self._db')}, census('m.py', 'self._db.query(q)')['sends'])
-        self.assertEqual({('m.py', 'from_arrow', 'con'), ('m.py', 'read_csv', 'duckdb')},
+        self.assertEqual({('m.py', 'from_arrow', 'con'), ('m.py', 'create', 'con.from_arrow(r)'), ('m.py', 'read_csv', 'duckdb')},
                          census('m.py', 'con.from_arrow(r).create(t)\nduckdb.read_csv(p)')['sends'])
         # a docstring's example is prose: no node of the tree
         self.assertEqual(set(), census('m.py', '"""trades.execute(q)"""')['sends'])
@@ -244,6 +282,19 @@ class PlannedGuardTest(unittest.TestCase):
                        'client.authored(r)', 'def authored(r):\n    pass']:
             self.assertEqual(1, census('m.py', source)['authored'], f'the census does not see: {source!r}')
 
+    def test_the_census_sees_every_transports_forms(self):
+        """H13 (2026-11-12): each way past the one choke point, planted, and seen."""
+        for source in ["duckdb.sql('DROP TABLE t')", 'duckdb.execute(q)', 'duckdb.append(t, df)', "duckdb.read_csv('x')",
+                       'con = duckdb.default_connection']:
+            self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
+        self.assertEqual([], census('m.py', 'try:\n    pass\nexcept duckdb.Error as e:\n    pass')['refused'])
+        self.assertEqual({('m.py', 'create', 'con.from_arrow(r)'), ('m.py', 'from_arrow', 'con')},
+                         census('m.py', 'con.from_arrow(r).create(t)')['sends'])
+        self.assertEqual({('m.py', 'insert_into', 'rel')}, census('m.py', "rel.insert_into('t')")['sends'])
+        self.assertEqual({'urllib.request', 'requests'},
+                         census('m.py', 'import urllib.request\nimport urllib.parse\nfrom requests import post')['network'])
+        self.assertEqual(1, census('m.py', "self._call('submit', {'sql': q})")['submits'])
+
     def test_pythons_host_makes_and_sends_a_planned_statement_only_where_pinned(self):
         package = Path(FILES.Rlocation(os.environ['PLANNED_PACKAGE'])).parent
         modules = sorted(package.glob('*.py'))
@@ -256,6 +307,8 @@ class PlannedGuardTest(unittest.TestCase):
         references: set[tuple[str, str, str]] = set()
         attaches: set[tuple[str, str, str]] = set()
         authored: dict[str, int] = {}
+        submits: dict[str, int] = {}
+        network: dict[str, set[str]] = {}
         for m in modules:
             c = census(m.name, m.read_text(encoding='utf-8'))
             refused += [f'{m.name}: {r}' for r in c['refused']]
@@ -270,6 +323,10 @@ class PlannedGuardTest(unittest.TestCase):
             attaches |= c['attaches']
             if c['authored']:
                 authored[m.name] = c['authored']
+            if c['submits']:
+                submits[m.name] = c['submits']
+            if c['network']:
+                network[m.name] = c['network']
         self.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
         self.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
                                           ' or the planner\'s answer is read, the one send, the bridge\'s check')
@@ -286,6 +343,10 @@ class PlannedGuardTest(unittest.TestCase):
         self.assertEqual(ATTACHES, attaches, 'a value attached or a stream imported, by module and receiver (ATTACHES)')
         self.assertEqual(AUTHORED, authored, 'the authored door, by module (AUTHORED): Python answers the kind, and'
                                              ' asks it nowhere')
+        self.assertEqual(SUBMITS, submits, 'ONE CHOKE POINT (H13): a SQL API\'s statement is submitted by warehouse.py'
+                                           ' alone, a PlannedSql (SUBMITS)')
+        self.assertEqual(NETWORK, network, 'ONE CHOKE POINT (H13): each module that opens a network client is pinned'
+                                           ' (NETWORK): a new one could carry a statement to a SQL API')
 
 
 if __name__ == '__main__':

@@ -117,10 +117,35 @@ const sessionOf = (node: unknown): string[] => {
   return [];
 };
 
+/** The database the write plans run on: another connection to it is a witness's (`witnessed`). */
+let database: Awaited<ReturnType<typeof startNodeDuckDb>>;
+
+/**
+ * THE UNFILTERED WITNESS (the C final audit's H8 and H13, 2026-11-12): an engine over a connection that records every
+ * text DuckDB-WASM itself is handed -- each query, each statement prepared or sent, each Arrow import (by its target's
+ * name) -- not what the runner says it sent. A plan's run must hand it its plan's statements and nothing else.
+ */
+const witnessed = (raw: ArrowishConnection): { readonly engine: DuckDbEngine; readonly received: string[] } => {
+  const received: string[] = [];
+  const connection: ArrowishConnection = {
+    query: (sql) => { received.push(sql); return raw.query(sql); },
+    ...(raw.send === undefined ? {} : { send: (sql: PlannedSql) => { received.push(sql); return raw.send!(sql); } }),
+    ...(raw.prepare === undefined ? {} : { prepare: (sql: PlannedSql) => { received.push(sql); return raw.prepare!(sql); } }),
+    ...(raw.insertArrowFromIPCStream === undefined ? {} : {
+      insertArrowFromIPCStream: (buffer: Uint8Array, options: { name: string; schema?: string; create?: boolean }) => {
+        received.push(`<an Arrow stream into ${options.name}>`);
+        return raw.insertArrowFromIPCStream!(buffer, options);
+      },
+    }),
+  };
+  return { engine: new DuckDbEngine(connection), received };
+};
+
 before(async () => {
   m = await loadPlannerModule();
   grammar = await loadPlanner();
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+  database = db;
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
   await engine.run(unplanned('CREATE TABLE SRC (id INTEGER PRIMARY KEY, name VARCHAR, amount DOUBLE)'), 0);
   await engine.run(unplanned("INSERT INTO SRC VALUES (1, 'a', 1.5), (2, 'b', 2.5)"), 0);
@@ -169,16 +194,16 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     assert.deepEqual(looseJson(await runPlan(alone, untouched)), [{ value: true }]);
   });
 
-  it("sends exactly the plan's statements, in order, inside the planner's transaction (the C final audit's H8)", async () => {
+  it("hands the database exactly the plan's statements, in order, inside the planner's transaction (the C final audit's H8)", async () => {
     await engine.run(unplanned('DELETE FROM T'), 0);
     const plan = planned(fn('write', src(), target()));
-    const sent: string[] = [];
-    await engine.exclusive(async (held) => runPlan(plan, await hostSession(engine.databaseType,
-      (sql, params) => { sent.push(sql); return held.rows(sql, params); }, grammar)));
+    // the witness at the database itself: every text DuckDB-WASM's connection is handed during the run (H13)
+    const { engine: own, received } = witnessed(database.connect() as ArrowishConnection);
+    await own.exclusive(async (held) => runPlan(plan, await hostSession(own.databaseType, held.rows, grammar)));
     const [begin, commit] = await grammar.hostOperations(engine.databaseType,
       [{ op: 'transaction', step: 'begin' }, { op: 'transaction', step: 'commit' }]);
     const read: unknown = looseJson(plan);
-    assert.deepEqual(sent, [...sessionOf(read), ...begin!, ...statementsOf((read as { root: unknown }).root), ...commit!]);
+    assert.deepEqual(received, [...sessionOf(read), ...begin!, ...statementsOf((read as { root: unknown }).root), ...commit!]);
   });
 
   it("refuses by name a plan missing what its version carries, nothing run (the C final audit's H10)", async () => {
@@ -327,24 +352,18 @@ describe("a plan's loads, established on a database the host made for its target
       { dept: 'A', "'NYC__|__names'": 'x', "'SAN__|__names'": 'y' },
       { dept: 'B', "'NYC__|__names'": 'z', "'SAN__|__names'": null },
     ]);
-    // H8: exactly the plan's statements -- its keys statement, then its body written for the keys read (expandKeyed,
-    // the one form a statement is written at run: test/fixtures/keyed-expansion.json holds it to Java's and Python's)
-    const sent: { readonly sql: string; readonly rows: readonly (readonly unknown[])[] }[] = [];
-    await engine.exclusive(async (held) => runPlan(plan, await hostSession(engine.databaseType, async (sql, params) => {
-      const answered = await held.rows(sql, params);
-      sent.push({ sql, rows: answered });
-      return answered;
-    }, grammar)));
+    // H8: exactly the plan's statements, as the database itself received them (the unfiltered witness, H13) -- its
+    // target's session, then its keys statement and its body written for the keys read (expandKeyed, the one form a
+    // statement is written at run: test/fixtures/keyed-expansion.json holds it to Java's and Python's), in its
+    // snapshot's transaction
     const keyed = (looseJson(plan).root) as { keys: { statement: string }; body: Parameters<typeof expandKeyed>[0] };
-    const session = sessionOf(looseJson(plan));
-    assert.deepEqual(sent.slice(0, session.length).map((r) => r.sql), session, "its target's session first");
-    // its keys and body read in one snapshot, the planner's transaction around them
+    const keyRows = await engine.exclusive((held) => held.rows(unplanned(keyed.keys.statement), []));
+    const { engine: own, received } = witnessed(database.connect() as ArrowishConnection);
+    await own.exclusive(async (held) => runPlan(plan, await hostSession(own.databaseType, held.rows, grammar)));
     const [begin, commit] = await grammar.hostOperations(engine.databaseType,
       [{ op: 'transaction', step: 'begin' }, { op: 'transaction', step: 'commit' }]);
-    const keys = sent[session.length + begin!.length];
-    assert.ok(keys !== undefined);
-    assert.deepEqual(sent.slice(session.length).map((r) => r.sql), [...begin!, keyed.keys.statement,
-      expandKeyed(keyed.body, keys.rows.map((r) => r.map(String))).statement, ...commit!]);
+    assert.deepEqual(received, [...sessionOf(looseJson(plan)), ...begin!, keyed.keys.statement,
+      expandKeyed(keyed.body, keyRows.map((r) => r.map(String))).statement, ...commit!]);
   });
 });
 
@@ -525,15 +544,16 @@ describe("the load runners' shared conformance fixture", () => {
     assert.deepEqual(rows.map((r) => r.map((v) => (typeof v === 'bigint' ? Number(v) : v))), fixture.rows);
   });
 
-  it("sends exactly the load's statements, in order (the C final audit's H8)", async () => {
+  it("hands the database exactly the load's statements, in order (the C final audit's H8)", async () => {
     const project = planOf();
     const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
-    const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+    // the witness at the database itself (H13): what it receives from the load's run alone
+    const { engine: own, received } = witnessed(db.connect() as ArrowishConnection);
     for (const sql of [...project.open, ...project.use]) await own.run(unplanned(sql), 0);
-    const sent: string[] = [];
-    await runLoad(JSON.stringify(project.load), (sql) => { sent.push(sql); return own.run(sql, 0); });
-    assert.ok(sent.length > 1, sent.join('; '));
-    assert.deepEqual(sent, statementsOf(project.load.root));
+    received.length = 0;
+    await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
+    assert.ok(received.length > 1, received.join('; '));
+    assert.deepEqual(received, statementsOf(project.load.root));
   });
 
   it('refuses the tampered blob in the fixture\'s words, nothing run', async () => {
@@ -607,6 +627,18 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     assert.equal(landed[0]!.receipt.statementId, 's-1');
     assert.equal(await columns('snapped'), 'id BIGINT, notional DOUBLE, region VARCHAR');
     assert.equal(await tableRows('copies.snapped'), '1:0.25:AMER 2:0.5:APAC 3:0.75:EMEA 4:1:AMER 5:1.25:APAC 6:1.5:EMEA 7:1.75:AMER');
+  });
+
+  it("hands the database exactly the stream's statements and its chunks, nothing else (the C final audit's H8, H13)", async () => {
+    const plan = planOf('witnessed');
+    const step = (looseJson(plan) as { root: { steps: { transaction: { begin: string[]; commit: string[] }; prepare: string[]; count: string }[] } })
+      .root.steps[0]!;
+    // the witness at the database itself: each statement and each Arrow import it is handed during the load's run
+    const { engine: own, received } = witnessed(database.connect() as ArrowishConnection);
+    await own.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
+      { streams: { planes: { warehouse: plane([chunkOf(1, 4), chunkOf(5, 3)]) }, held } }));
+    assert.deepEqual(received, [...step.transaction.begin, ...step.prepare, '<an Arrow stream into witnessed>',
+      '<an Arrow stream into witnessed>', step.count, ...step.transaction.commit]);
   });
 
   it('a stream cut short rolls back: no table is left, and one there before is as it was', async () => {

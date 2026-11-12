@@ -163,6 +163,72 @@ class PlannedSqlTest {
     // its run then minted) were typed without the brand
 
     /**
+     * ONE CHOKE POINT PER TRANSPORT (the C final audit's H13, 2026-11-12; the user: "how do we stop this from actually
+     * being able to be added without loud alarm bells?"). Each place the product's TypeScript could hand a database or a
+     * SQL API text, by file, exactly -- a new one is red, naming this rule:
+     * <ul>
+     * <li>DATABASE_SENDS: a call of {@code .query(}, {@code .send(} or {@code .prepare(} (DuckDB-WASM's connection's
+     * sends), a reference to one of DuckDB-WASM's own ingest or file members ({@code insertArrowFromIPCStream},
+     * {@code registerFileHandle}, ...), and any of them by a bracketed name. DuckDB-WASM's connection is sent to in
+     * engine-client/src/duckdb.ts alone (DuckDbEngine: ArrowishConnection takes a PlannedSql); the rest are named.</li>
+     * <li>CONNECTS: a call of {@code .connect(} -- DuckDB-WASM's raw connection (whose own query takes any string) is
+     * made in duckdb-tab.ts alone and handed to DuckDbEngine; the others connect to something else (named).</li>
+     * <li>FETCHES: each {@code fetch(}: the HTTP a host sends; a SQL API's statement (the warehouse's {@code submit}) is
+     * sent by engine-client/src/warehouse.ts alone (WarehouseEngine.arrowChunks, a PlannedSql: SUBMITS). Any
+     * XMLHttpRequest, WebSocket or sendBeacon is refused.</li>
+     * </ul>
+     */
+    static final Map<String, Integer> DATABASE_SENDS = Map.of(
+            // 2026-11-12 (H13, measured): THE choke point -- DuckDbEngine's runs, held rows, prepared sends and its
+            // Arrow import (insertArrowFromIPCStream)
+            "engine-client/src/duckdb.ts", 7,
+            // not DuckDB-WASM's: the V8 host's own call (its bridge checks it: _planned.py across_the_bridge); the
+            // recent queries list's entry (query's store); a notebook widget's message to its kernel
+            "datacube/src/headless/host.ts", 1,
+            "query/src/ui/queries.ts", 1,
+            "query/src/app/app.ts", 1,
+            "datacube/demo/widget-loader.ts", 1);
+    static final Map<String, Integer> CONNECTS = Map.of(
+            // 2026-11-12 (H13, measured): the raw connection, made once and handed to DuckDbEngine
+            "engine-client/src/duckdb-tab.ts", 1,
+            // the tab's own `connect()` (another DuckDbEngine, set up as the first) and a warehouse's sign-in
+            "engine-client/src/project-data.ts", 1,
+            "studio/src/app/app.ts", 1,
+            "query/demo/main.ts", 1,
+            "datacube/src/services/browser.ts", 2,
+            "datacube/src/app/sources.ts", 4,
+            "datacube/src/app/datacube-app.ts", 2);
+    static final Map<String, Integer> SUBMITS = Map.of("engine-client/src/warehouse.ts", 1);
+    /** 2026-11-12 (H13, measured): Node's XMLHttpRequest stand-in, which answers DuckDB's extension requests from the
+     *  pinned files and sends nothing (node-require.ts answerExtensionRequests). */
+    static final Set<String> OTHER_HTTP_KEPT = Set.of("engine-client/src/node-require.ts");
+    static final Map<String, Integer> FETCHES = Map.ofEntries(
+            // 2026-11-12 (H13, measured): 31 in 21 files -- a server's API (legend-lite's, an
+            // SDLC's, a depot's, a query store's, Python's page), a site's own assets, and the warehouse's (warehouse.ts,
+            // whose statement is SUBMITS's); none sends a statement but warehouse.ts's
+            Map.entry("datacube/demo/boot.ts", 1),
+            Map.entry("datacube/demo/engine.ts", 1),
+            Map.entry("datacube/demo/page-config.ts", 1),
+            Map.entry("datacube/demo/planners.ts", 1),
+            Map.entry("datacube/demo/widget-loader.ts", 1),
+            Map.entry("datacube/src/cube-store.ts", 1),
+            Map.entry("datacube/src/headless/calls.ts", 1),
+            Map.entry("datacube/src/headless/host-tables.ts", 1),
+            Map.entry("datacube/src/headless/host.ts", 1),
+            Map.entry("datacube/src/services/browser.ts", 1),
+            Map.entry("datacube/src/services/python-host.ts", 7),
+            Map.entry("datacube/src/ui/timeseries-view.ts", 4),
+            Map.entry("depot-client/src/client.ts", 1),
+            Map.entry("engine-client/src/legend/engine.ts", 1),
+            Map.entry("engine-client/src/pure-v1.ts", 1),
+            Map.entry("engine-client/src/warehouse.ts", 1),
+            Map.entry("query-store/src/client.ts", 1),
+            Map.entry("query/demo/main.ts", 1),
+            Map.entry("sdlc-client/src/client.ts", 1),
+            Map.entry("studio/demo/main.ts", 1),
+            Map.entry("studio/src/app/app.ts", 2));
+
+    /**
      * THE AUTHORED DOOR (the C final audit's H1, 2026-11-12: "any product file can write
      * {@code runAuthored(await grammar.authored('DuckDB', text), ...)} and every guard stays green"): a person's own
      * statement, carried by the planner as written (Boundary.authored) and run by the hosts' runner (runAuthored), is the
@@ -244,6 +310,18 @@ class PlannedSqlTest {
     private static final Pattern AUTHORED_JAVA_REFERENCE = Pattern.compile(
             "\\bAuthored\\s*\\.\\s*plan\\b|\\bBoundary\\s*\\.\\s*authored\\b|(?<![\\w$])authoredOrError(?![\\w$])");
     private static final Pattern SUPPRESSION = Pattern.compile("@ts-(?:ignore|expect-error|nocheck)");
+    /** H13: DuckDB-WASM's sends by call, its own ingest and file members by any reference, any of them bracketed. */
+    private static final Pattern DATABASE_SEND = Pattern.compile("\\.\\s*(?:query|send|prepare)\\s*\\("
+            + "|\\.\\s*(?:insertArrowFromIPCStream|insertArrowTable|insertCSVFromPath|insertJSONFromPath|registerFileHandle"
+            + "|registerFileURL|copyFileToBuffer|copyFileToPath|exportFileStatistics|runTask|postTask)(?![\\w$])");
+    private static final Pattern BRACKETED_SEND = Pattern.compile(
+            "\\[\\s*(['\"`])(?:query|send|prepare|connect)\\1\\s*\\]\\s*\\("
+            + "|\\[\\s*(['\"`])(?:insertArrow\\w*|insertCSV\\w*|insertJSON\\w*|registerFile\\w*|copyFile\\w*)\\2\\s*\\]");
+    private static final Pattern CONNECT_CALL = Pattern.compile("\\.\\s*connect\\s*\\(");
+    private static final Pattern FETCH_CALL = Pattern.compile("(?<![\\w$])fetch\\s*\\(");
+    private static final Pattern OTHER_HTTP = Pattern.compile("(?<![\\w$])(?:XMLHttpRequest|WebSocket|EventSource)(?![\\w$])"
+            + "|\\.\\s*sendBeacon\\s*\\(");
+    private static final Pattern SUBMIT_CALL = Pattern.compile("\\bcall\\s*(?:<[^>()]*>)?\\s*\\(\\s*(['\"`])submit\\1");
     /** H5: a cast through unknown, which satisfies any type. */
     private static final Pattern UNKNOWN_CAST = Pattern.compile("\\bas\\s+unknown\\s+as\\b");
     /** H5: the brand under another name -- a renamed import or export of it, or a type alias of it. */
@@ -925,6 +1003,79 @@ class PlannedSqlTest {
                 + " shrink-only); measured: " + unknownCasts);
         assertEquals(List.of(), shrank, "an `as unknown as` gone: lower its file's count in"
                 + " PlannedSqlTest.UNKNOWN_CASTS, dated; measured: " + unknownCasts);
+    }
+
+    /** {@code src}'s sends to DuckDB-WASM (H13): its calls and members in code, and a bracketed name in code with its
+     *  strings kept. */
+    static int databaseSends(String src) {
+        return count(DATABASE_SEND, code(src)) + count(BRACKETED_SEND, code(src, true));
+    }
+
+    @Test
+    void everyTransportHasOneChokePoint() throws IOException {
+        List<String> product = folders().get("typescript");
+        Map<String, Integer> sends = new TreeMap<>();
+        Map<String, Integer> connects = new TreeMap<>();
+        Map<String, Integer> fetches = new TreeMap<>();
+        Map<String, Integer> submits = new TreeMap<>();
+        List<String> otherHttp = new ArrayList<>();
+        for (String file : inventory()) {
+            if (!file.matches(".*\\.(?:[cm]?ts|tsx)$") || file.endsWith(".d.ts") || !under(file, product)) {
+                continue;
+            }
+            String src = read(file);
+            String code = code(src);
+            int d = databaseSends(src);
+            if (d > 0) {
+                sends.put(file, d);
+            }
+            int c = count(CONNECT_CALL, code);
+            if (c > 0) {
+                connects.put(file, c);
+            }
+            int f = count(FETCH_CALL, code);
+            if (f > 0) {
+                fetches.put(file, f);
+            }
+            int u = count(SUBMIT_CALL, code(src, true));
+            if (u > 0) {
+                submits.put(file, u);
+            }
+            if (OTHER_HTTP.matcher(code).find() && !OTHER_HTTP_KEPT.contains(file)) {
+                otherHttp.add(file);
+            }
+        }
+        assertEquals(new TreeMap<>(DATABASE_SENDS), sends, "ONE CHOKE POINT (H13): DuckDB-WASM's connection is sent to in"
+                + " engine-client/src/duckdb.ts alone, as a PlannedSql (PlannedSqlTest.DATABASE_SENDS): a new send site is"
+                + " a statement no plan may carry");
+        assertEquals(new TreeMap<>(CONNECTS), connects, "ONE CHOKE POINT (H13): DuckDB-WASM's raw connection is made in"
+                + " duckdb-tab.ts alone and handed to DuckDbEngine (PlannedSqlTest.CONNECTS)");
+        assertEquals(new TreeMap<>(SUBMITS), submits, "ONE CHOKE POINT (H13): a SQL API's statement is submitted by"
+                + " engine-client/src/warehouse.ts alone, as a PlannedSql (PlannedSqlTest.SUBMITS)");
+        assertEquals(new TreeMap<>(FETCHES), fetches, "ONE CHOKE POINT (H13): each HTTP send of the product's is pinned by"
+                + " file (PlannedSqlTest.FETCHES): a new one could carry a statement to a SQL API");
+        assertEquals(List.of(), otherHttp, "ONE CHOKE POINT (H13): the product sends HTTP by fetch alone (no"
+                + " XMLHttpRequest, WebSocket, EventSource or sendBeacon), each fetch pinned");
+    }
+
+    /** H13's forms, planted: a census that stops seeing one is red. */
+    @Test
+    void theChokePointCensusSeesEveryForm() {
+        for (String planted : List.of("await conn.query('DROP TABLE t');", "conn.send(sql);", "const p = await c.prepare(s);",
+                "const insert = conn.insertArrowFromIPCStream;", "await conn['query']('x');", "db[\"registerFileHandle\"](n, h);",
+                "await (await db.connect()).query(text);")) {
+            assertTrue(databaseSends(planted) > 0, "the census does not see: " + planted);
+        }
+        assertEquals(0, databaseSends("// conn.query('x') in prose\nconst s = 'conn.query(x)'; const q = snapshot.query;"
+                + " const r = o['query'];"));
+        assertEquals(1, count(CONNECT_CALL, code("const raw = await db.connect();")));
+        assertEquals(1, count(FETCH_CALL, code("await fetch(url, { method: 'POST', body });")));
+        assertEquals(0, count(FETCH_CALL, code("const r = await this.#binding.fetchChunk(); prefetch(x);")));
+        assertEquals(1, count(SUBMIT_CALL, code("await this.#call<Step>('submit', { sql }, signal);", true)));
+        assertEquals(0, count(SUBMIT_CALL, code("form.addEventListener('submit', go);", true)));
+        for (String planted : List.of("new XMLHttpRequest()", "new WebSocket(url)", "navigator.sendBeacon(url, body)")) {
+            assertTrue(OTHER_HTTP.matcher(code(planted)).find(), "the census does not refuse: " + planted);
+        }
     }
 
     /** Each form H5 named, planted: a census that stops seeing one is red. */
