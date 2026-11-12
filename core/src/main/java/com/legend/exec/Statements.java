@@ -4,6 +4,7 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.PlannedSql;
 
 import java.io.IOException;
 import java.util.List;
@@ -15,7 +16,10 @@ import java.util.List;
  * that speaks no JDBC gives its own through its connector ({@link DatabaseConnector}), and the runner never knows
  * which it holds. Since the plan path program's step 7 (2026-10-18) a session answers typed rows too
  * ({@link #rows}): text in, rows out, a row a text or the plan's typed cells (D12 amended by
- * docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3).
+ * docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3). Every method that sends text takes a {@link PlannedSql} -- a statement
+ * a plan carries, exactly as it carries it -- and no {@code String} (the C checkpoint's MUST-FIX 1, 2026-11-12): what a
+ * session is sent is the plan's text by type, minted only where a plan is read
+ * ({@code ArchitectureTest.onlyThePlansReadersMintPlannedSql}).
  */
 public interface Statements {
 
@@ -26,19 +30,19 @@ public interface Statements {
 
     /** A statement run for its effect -- a session statement, a setup statement, an effect a body sends
      *  ({@link ExecutionPlan.Effect}): whether it answered rows, which are not read. */
-    boolean execute(String statement);
+    boolean execute(PlannedSql statement);
 
     /**
      * The plan's statement, each slot bound to its parameter's checked value as the slot says, and each row's one text
      * (what the database wrote: carried, never read as a value, Charter C1.2) handed to {@code rows} in order.
      */
-    void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values, Rows rows)
+    void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values, Rows rows)
             throws IOException;
 
     /** Where a query's rows go. */
     /** {@code statement} run for the change it makes, {@code slots} bound to {@code values}: the count of rows the
      *  database reports (a write plan's step, docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged 2026-10-26). */
-    long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+    long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException;
 
     /** {@code work} inside one transaction of this session (a caller's open one joined, {@link Sessions#inTransaction}):
@@ -58,13 +62,13 @@ public interface Statements {
      * of the result boundary program, B1a, 2026-10-29; until then each probe ran its own JDBC statement, and the
      * wire-type reader a prepare, whose metadata a driver may withhold).
      */
-    List<Reported> columns(String statement);
+    List<Reported> columns(PlannedSql statement);
 
     /** The columns {@code statement} would answer, as the database DESCRIBES it before running it (a JDBC session:
      *  the prepared statement's metadata), none where the driver withholds them: the wire-type reader's reading
      *  ({@code WireTypes}: a prepare, no execution, since leg 3.3), kept as it was when it moved onto the seam
      *  (B1a); {@link #columns} is the probe that runs. */
-    List<Reported> describe(String statement);
+    List<Reported> describe(PlannedSql statement);
 
     /** A column a statement reports: its label; the driver's own name for its type (what a dialect's typing reads,
      *  {@code SqlDialect.typingWireName}); the SQL vocabulary's type where JDBC's type code names one (null
@@ -76,7 +80,7 @@ public interface Statements {
     /** A file's load statement, its database reading the runner's verified copy ({@code ExecutionPlan.LoadStep
      *  .Delivery.Reads}, the user's ruling of 2026-11-09): {@code statement} sent once, its one {@code ?} -- if it has one
      *  -- bound to {@code path}, the copy's. Until then (L2) the runner streamed the file's cells itself. */
-    void readsFile(String statement, String path);
+    void readsFile(PlannedSql statement, String path);
 
     @FunctionalInterface
     interface Rows {
@@ -95,7 +99,7 @@ public interface Statements {
      * ruling's carrier-decode bridge, docs/TENET_CHARTER.md Clause 2c); a cell no rule reads is refused by name,
      * never guessed (AGENTS.md invariant 4).
      */
-    void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException;
 
     /**
@@ -106,7 +110,7 @@ public interface Statements {
      * as reported -- and each row's cells are read by them as {@link #rows} reads a plan's. Nothing is read at
      * planning; the plan declared no column ({@code ExecutionPlan.TdsResult}: a relation of no column).
      */
-    void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) throws IOException;
 
     /** Where a result's reported columns go, before its rows. */
@@ -158,18 +162,18 @@ public interface Statements {
         }
 
         @Override
-        public boolean execute(String statement) {
+        public boolean execute(PlannedSql statement) {
             return inner.execute(statement);
         }
 
         @Override
-        public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+        public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
                 Rows rows) throws IOException {
             inner.query(statement, slots, values, rows);
         }
 
         @Override
-        public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+        public long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
                 throws IOException {
             return inner.update(statement, slots, values);
         }
@@ -185,28 +189,28 @@ public interface Statements {
         }
 
         @Override
-        public List<Reported> columns(String statement) {
+        public List<Reported> columns(PlannedSql statement) {
             return inner.columns(statement);
         }
 
         @Override
-        public List<Reported> describe(String statement) {
+        public List<Reported> describe(PlannedSql statement) {
             return inner.describe(statement);
         }
 
         @Override
-        public void readsFile(String statement, String path) {
+        public void readsFile(PlannedSql statement, String path) {
             inner.readsFile(statement, path);
         }
 
         @Override
-        public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+        public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
                 List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
             inner.rows(statement, slots, values, columns, cells);
         }
 
         @Override
-        public void reportedRows(String statement, List<ExecutionPlan.Slot> slots,
+        public void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots,
                 List<PlanParameters.Checked> values, ReportedColumns columns, Cells cells) throws IOException {
             inner.reportedRows(statement, slots, values, columns, cells);
         }

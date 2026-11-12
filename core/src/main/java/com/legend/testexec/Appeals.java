@@ -66,7 +66,12 @@ final class Appeals {
     /** A write of the body's ran at all: a failed run's rollback undoes it before the appeals are decided. */
     private boolean wrote;
 
-    Appeals(@Nullable AssertListener listener) {
+    /** The body's execution, its door's id: an appeal's sides are read after the body's run, as the same execution
+     *  (they judge its statements; 2026-11-12). */
+    private final java.util.UUID execution;
+
+    Appeals(@Nullable AssertListener listener, java.util.UUID execution) {
+        this.execution = java.util.Objects.requireNonNull(execution, "execution");
         this.listener = listener;
         this.keeping = listener == null ? null : new Keeping(listener);
     }
@@ -172,9 +177,9 @@ final class Appeals {
         // the edge's reader: each planned side a plan of its own, run on the body's sessions after its run
         com.legend.testexec.SideReader own = side -> switch (side) {
             case TestPlan.Side.Rows r -> PlanRunner.rows(ExecutionPlan.reading(List.of(), r.result()), Map.of(),
-                    source);
+                    source, execution);
             case TestPlan.Side.KeyedRows k -> PlanRunner.rows(ExecutionPlan.reading(List.of(), k.keyed()), Map.of(),
-                    source);
+                    source, execution);
             case TestPlan.Side.Constant c -> throw new IllegalStateException("an appeal's side is a constant: its"
                     + " answer is the planned side's own, never read");
         };

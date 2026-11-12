@@ -69,7 +69,7 @@ class ContentBundleTest {
         try (Connection c = TestBackends.platform().open()) {
             Collector collector = new Collector();
             ProductRun.run(plan, SessionSource.given(TestSessions.over(c)), PlanSessions.of(TestSessions.over(c)),
-                    ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(collector), 1024);
+                    ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(collector), 1024, java.util.UUID.randomUUID());
             return collector.collected().rows();
         }
     }

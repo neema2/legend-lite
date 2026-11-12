@@ -240,13 +240,13 @@ class ConnectorsTest {
                 // its private instance is a session of its own database, whose errors carry their raise: no read-back
                 // declared by any target (the plan's since C2, 2026-11-12), so the seam reads nothing back after a
                 // failure (JdbcStatements.held)
-                try (Connection c = Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+                try (Connection c = Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate(null)) {
                     assertSame(Connectors.of(com.legend.planner.ConnectionPlans.type(type)), Connectors.of(c));
                     assertNull(JdbcStatements.held(c, new SessionState(), new java.sql.SQLException("the statement's")));
                 }
             } else {
                 NotImplementedException refused = assertThrows(NotImplementedException.class,
-                        () -> Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(type)));
+                        () -> Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(type), null));
                 assertEquals("no in-memory instance of database type '" + type + "'", refused.getMessage());
             }
         }

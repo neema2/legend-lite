@@ -4,6 +4,7 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.PlannedSql;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -149,24 +150,27 @@ final class JdbcStatements implements Statements {
             return null;
         }
         com.legend.base.RunScope.statement("a declared error read-back");   // the charter's A3(c), a run's act
+        PlannedSql read = readBack.plannedRead();
+        PlannedSql reset = readBack.plannedReset();
         try (Statement st = c.createStatement()) {
             String held;
             try {
-                StatementOrigin.sent(StatementOrigin.SESSION, readBack.read());
-                try (ResultSet rs = st.executeQuery(readBack.read())) {
-                    held = rs.next() ? rs.getString(1) : null;
+                StatementOrigin.sent(StatementOrigin.SESSION, read.text());
+                try (ResultSet rs = st.executeQuery(read.text())) {
+                    List<String> texts = texts(rs);
+                    held = texts.isEmpty() ? null : texts.get(0);
                 }
             } catch (SQLException unread) {
                 try {
-                    StatementOrigin.sent(StatementOrigin.SESSION, readBack.reset());
-                    st.execute(readBack.reset());
+                    StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
+                    st.execute(reset.text());
                 } catch (SQLException unreset) {
                     unread.addSuppressed(unreset);
                 }
                 throw unread;
             }
-            StatementOrigin.sent(StatementOrigin.SESSION, readBack.reset());
-            st.execute(readBack.reset());
+            StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
+            st.execute(reset.text());
             return held;
         }
     }
@@ -179,23 +183,64 @@ final class JdbcStatements implements Statements {
         driver = declared.decoding();   // the driver's facts are its connector's (D72)
         // the error read-back the plan's target declares, kept with the session for a failure on it (C2)
         state.declareRaiseReadBack(target.raiseReadBack());
+        // the settings the target's database must have: written where this platform opened it, else read back once
+        ExecutionPlan.DatabaseSettings settings = target.settings();
+        if (settings != null && !state.holdsSettings(settings)) {
+            verifySettings(c, settings);
+            state.settingsHeld(settings);
+        }
+    }
+
+    /**
+     * {@code settings}, the ones the plan's target says its database must have, READ BACK from a session this platform
+     * did not open (a caller's, a borrowed one, a URL's; the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling of
+     * 2026-11-12): the target's own read-back statement sent as written and counted as the session's. It answers one
+     * text for each setting the database has otherwise -- the DATABASE compares; exec carries the texts unread -- and
+     * any row refuses the session by name: the plan is never run with other semantics (H2's null ordering would order
+     * its answer otherwise).
+     */
+    static void verifySettings(Connection c, ExecutionPlan.DatabaseSettings settings) {
+        PlannedSql read = settings.plannedReadBack();
+        List<String> otherwise;
+        StatementOrigin.sent(StatementOrigin.SESSION, read.text());
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(read.text())) {
+            otherwise = texts(rs);
+        } catch (SQLException e) {
+            throw RaisedErrors.dataError(e);
+        }
+        if (!otherwise.isEmpty()) {
+            throw new com.legend.error.NotImplementedException("the session's database does not have the settings the"
+                    + " plan's target declares (it has " + String.join(", ", otherwise) + "; the target declares "
+                    + String.join(", ", settings.required().stream().map(s -> s.name() + "=" + s.value()).toList())
+                    + "): a session this platform did not open is read back, and never runs a plan with other"
+                    + " settings");
+        }
+    }
+
+    /** Each row's one text, in order: the database's own, passed on unread (a plan's read-back answers texts). */
+    private static List<String> texts(ResultSet rs) throws SQLException {
+        List<String> out = new java.util.ArrayList<>();
+        while (rs.next()) {
+            out.add(rs.getString(1));
+        }
+        return out;
     }
 
     @Override
-    public boolean execute(String statement) {
+    public boolean execute(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (Statement st = c.createStatement()) {
-            return st.execute(statement);
+            return st.execute(statement.text());
         } catch (SQLException e) {
             throw failed(e);
         }
     }
 
     @Override
-    public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+    public long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -206,9 +251,9 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public List<Reported> columns(String statement) {
+    public List<Reported> columns(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement.text())) {
             return reported(rs.getMetaData());
         } catch (SQLException e) {
             throw failed(e);
@@ -216,9 +261,9 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public List<Reported> describe(String statement) {
+    public List<Reported> describe(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             java.sql.ResultSetMetaData md = st.getMetaData();
             return md == null ? List.of() : reported(md);
         } catch (SQLException e) {
@@ -237,9 +282,9 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void readsFile(String statement, String path) {
+    public void readsFile(PlannedSql statement, String path) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
             if (st.getParameterMetaData().getParameterCount() == 1) {
                 st.setString(1, path);
@@ -289,10 +334,10 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -310,10 +355,10 @@ final class JdbcStatements implements Statements {
      *  column from the i-th result column; a statement answering another number of columns than the plan declares
      *  is refused by name before a row is read. */
     @Override
-    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -361,10 +406,10 @@ final class JdbcStatements implements Statements {
 
     /** {@inheritDoc} Each reported column named by the wire table ({@link WireTypes#column}). */
     @Override
-    public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }

@@ -77,7 +77,7 @@ class TestDataPlannerTest {
                         new TestDataGenerator.RowId(List.of("ID"), List.of(3L)))));
         List<TestDataGenerator.TableRowIds> four = List.of(new TestDataGenerator.TableRowIds("default", "PERSON",
                 List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(4L)))));
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(CSV, "t::DB", ctx, dialect)) {
                     s.execute(sql);
@@ -161,7 +161,7 @@ class TestDataPlannerTest {
                 Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }
                 """.formatted(com.legend.testbackend.TestBackends.of(type).connectionBody());
         ModelContext ctx = Compiler.compileModel(model);
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls("default\nMIXED\nID,firstName,AGE,\"last name\"\n1,ann,30,lee\n"
                         + "2,bob,40,kim\n-----\ndefault\nNONE\nID,N\n", "t::DB", ctx, dialect)) {
@@ -200,7 +200,7 @@ class TestDataPlannerTest {
                 + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
                 + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
         ModelContext ctx = Compiler.compileModel(model);
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls("default\nCODES\nCODE,N\nb,1\nB,2\na,3\nZ,4\n", "t::DB", ctx,
                         dialect)) {
@@ -254,7 +254,7 @@ class TestDataPlannerTest {
                 + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
         ModelContext ctx = Compiler.compileModel(model);
         TestDataPlanner.Queries queries = PlannerViews.queries(ctx, "t::M", "t::RT");
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls("default\nKEYS\nID,NAME\n1,x\n2,x\n3,y\n4,z\n-----\n"
                         + "default\nNOKEY\nA,B,C\n1,p,10\n1,q,20\n2,p,30\n-----\ndefault\nNEITHER\nA,B\n1,p\n",
@@ -385,7 +385,7 @@ class TestDataPlannerTest {
         String tables = "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,200.0\n3,-5.0\n-----\n"
                 + "default\nORDERS\nACCOUNTID,ID\n10,1\n10,3\n20,2\n-----\n"
                 + "default\nACCOUNT\nID,NAME\n10,acme\n20,zeta\n-----\n";
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(VIEW_CSV, "t::DB", ctx, dialect)) {
                     s.execute(sql);
@@ -437,7 +437,7 @@ class TestDataPlannerTest {
                 Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }
                 """.formatted(com.legend.testbackend.TestBackends.of(type).connectionBody());
         ModelContext ctx = Compiler.compileModel(model);
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls("default\nPNL\norder_id,pnl\n1,100.0\n2,-5.0\n", "t::DB", ctx,
                         dialect)) {
@@ -511,7 +511,7 @@ class TestDataPlannerTest {
                 ###Mapping
                 Mapping t::M ( t::K: Relational { ~mainTable [t::DB]K name: [t::DB]K.NAME, n: [t::DB]K.N } )
                 """);
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 // the table and its NULL row through the test-data reader; the empty text, which the reader reads as
                 // NULL, written as it is
@@ -572,7 +572,7 @@ class TestDataPlannerTest {
         }
         csv.append("-----\ndefault\nCODES\nCODE,N\n\"a'b\",1\n\"c\\d\",2\n\"e\nf\",3\n");
         TestDataPlanner.Queries queries = PlannerViews.queries(ctx, "t::M", "t::RT");
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(csv.toString(), "t::DB", ctx, dialect)) {
                     s.execute(sql);
@@ -661,7 +661,7 @@ class TestDataPlannerTest {
                         new TestDataGenerator.RowId(List.of("ID"), List.of(4L)),
                         new TestDataGenerator.RowId(List.of("ID"), List.of(5L)))));
         LambdaFunction q = query("|t::E.all()->project([e|$e.stamp, e|$e.day, e|$e.amount], ['s', 'd', 'a'])");
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(csv, "t::DB", ctx, dialect)) {
                     s.execute(sql);

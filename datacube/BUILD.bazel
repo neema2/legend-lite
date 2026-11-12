@@ -694,6 +694,9 @@ esbuild_bundle(
         ":node_modules/fflate",
         ":node_modules/echarts",
         ":src",
+        # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12): the headless bundles
+        # import it as the node tests do (linux-arm's sandbox found it missing, CI run 43269720233)
+        "//engine-client:unplanned",
     ],
     out_dirs = ["headless-tests"],
     args = ["test/%s.test.ts" % t for t in _HEADLESS_TESTS] + [

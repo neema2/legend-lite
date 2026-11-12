@@ -85,14 +85,41 @@ class MongoDbDialectTest {
     }
 
     @Test
-    void aParameterIsAMarkerTheConnectorReplaces() {
+    void aParameterIsAPipelineVariableTheCommandsLetBinds() {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(MODEL),
                 "{n: Integer[1] | #>{test::Store.people}#->filter(x | $x.age > $n)->select(~[name])}")
                 .executionPlan("test::RT");
         ExecutionPlan.Sql sql = plan.answerSql();
         assertEquals(1, sql.slots().size(), sql.statement());
         assertEquals("n", sql.slots().get(0).parameter());
-        assertTrue(sql.statement().contains("{\"$legendParam\": \"?\"}"), sql.statement());
+        assertTrue(sql.statement().contains("\"$$lp1\""), sql.statement());
+        assertTrue(!sql.statement().contains("$legendParam"), sql.statement());
+    }
+
+    /** A plan parameter's variable ({@code lp1}, {@code lp2}, ...) is the command's let's: a variable the pipeline binds
+     *  itself is refused by name where it would take one of those names and hide the parameter's value. */
+    @Test
+    void aVariableThePipelineBindsNeverTakesAParametersName() {
+        DialectCapability clash = org.junit.jupiter.api.Assertions.assertThrows(DialectCapability.class,
+                () -> MongoJson.letVariable("lp1"));
+        assertTrue(clash.getMessage().contains("'lp1'") && clash.getMessage().contains("a plan parameter's"),
+                clash.getMessage());
+        assertEquals("lpx", MongoJson.letVariable("lpx"));
+        assertEquals("v_lp1", MongoJson.variable("lp1"));
+        assertEquals("lp2", MongoJson.parameterVariable(2));
+    }
+
+    /** A parameter binds only through an aggregate command's let: an insert takes none, refused by name. */
+    @Test
+    void anInsertTakesNoParameter() {
+        com.legend.sql.SqlExpr.PlanParam n = new com.legend.sql.SqlExpr.PlanParam("n",
+                com.legend.sql.SqlExpr.PlanParam.Kind.OTHER, false, null,
+                new com.legend.sql.TypeFact.Typed(com.legend.sql.SqlType.Scalar.BIGINT, false), null);
+        DialectCapability refused = org.junit.jupiter.api.Assertions.assertThrows(DialectCapability.class,
+                () -> new MongoDb().render(new com.legend.sql.SqlDml.InsertValues(null, "people",
+                        com.legend.sql.NameQuoting.BARE, java.util.List.of("age"), java.util.Set.of(),
+                        java.util.List.of(java.util.List.of(n)))));
+        assertTrue(refused.getMessage().contains("plan parameter 'n' in an insert command"), refused.getMessage());
     }
 
     @Test

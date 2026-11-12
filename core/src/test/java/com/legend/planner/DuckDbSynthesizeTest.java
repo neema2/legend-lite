@@ -139,7 +139,7 @@ class DuckDbSynthesizeTest {
         int n = 200_000;
         ExecutionPlan plan = plan(TRADES, "trades::DB", "TRADES", n, tradeKnobs());
         try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(
-                com.legend.model.ConnectionDefinition.DatabaseType.DuckDB)).openPrivate()) {
+                com.legend.model.ConnectionDefinition.DatabaseType.DuckDB)).openPrivate(null)) {
             try (Statement s = c.createStatement()) {
                 for (ExecutionPlan.LoadStep step : load(plan).steps()) {
                     s.execute(((ExecutionPlan.LoadStep.Statement) step).sql());

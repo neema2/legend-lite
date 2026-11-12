@@ -67,7 +67,7 @@ class TaggedSelectionTest {
         ExecutionPlan plan = query(q).executionPlan("s::RT");
         PlanRoundTrip.assertRoundTrips(plan, q);
         return PlanRunner.rows(plan, java.util.Map.of(), (plan.sendsTheAnswer() ? PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c),
-                plan.answerSql().target()) : PlanSessions.of(com.legend.testbackend.TestSessions.over(c)))).rows()
+                plan.answerSql().target()) : PlanSessions.of(com.legend.testbackend.TestSessions.over(c))), java.util.UUID.randomUUID()).rows()
                 .get(0).get(0);
     }
 

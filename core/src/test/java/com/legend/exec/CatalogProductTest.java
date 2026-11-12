@@ -38,7 +38,7 @@ class CatalogProductTest {
         try (Connection c = TestBackends.platform().open()) {
             Collector collector = new Collector();
             ProductRun.run(plan, SessionSource.given(TestSessions.over(c)), PlanSessions.of(TestSessions.over(c)),
-                    ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(collector), 1024);
+                    ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(collector), 1024, java.util.UUID.randomUUID());
             List<List<Object>> rows = collector.collected().rows();
             assertEquals(1, rows.size(), String.valueOf(rows));
             return ((Number) rows.get(0).get(0)).longValue();

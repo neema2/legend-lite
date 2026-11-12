@@ -53,7 +53,7 @@ class TestDataTextAsWrittenTest {
         ModelContext ctx = Compiler.compileModel(MODEL);
         // the first block's schema line is where upstream's reading of a CRLF text fails ("default\r")
         String crlf = "default\r\nK\r\nID,NAME\r\n1, ann \r\n2,bob\r\n-----\r\n";
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(crlf, "t::DB", ctx, dialect)) {
                     s.execute(sql);
@@ -87,7 +87,7 @@ class TestDataTextAsWrittenTest {
     void aHeaderNamesItsColumnAsUpstreamMatchesIt(DatabaseType type) throws Exception {
         SqlDialect dialect = Databases.dialect(type);
         ModelContext ctx = Compiler.compileModel(MODEL);
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls("default\nQ\n id , \"NAME\"\n1,ann\n", "t::DB", ctx, dialect)) {
                     s.execute(sql);
@@ -144,7 +144,7 @@ class TestDataTextAsWrittenTest {
         List<CsvSeed.Step> steps = CsvSeed.declaredSteps("s::RT", ctx, dialect);
         // the connection's two statements once, not once per store it serves (they are H2's text: not run here)
         assertEquals(2, steps.stream().filter(st -> st instanceof CsvSeed.Step.Sql).count(), type.name());
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+        try (Connection c = com.legend.testbackend.TestBackends.of(type).open()) {
             try (Statement s = c.createStatement()) {
                 for (CsvSeed.Step step : steps) {
                     if (!(step instanceof CsvSeed.Step.Sql)) {

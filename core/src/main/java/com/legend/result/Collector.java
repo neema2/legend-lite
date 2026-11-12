@@ -18,6 +18,19 @@ public final class Collector implements ResultSink {
     private @com.legend.base.Nullable List<ExecutionPlan.Column> columns;
     private final List<List<Object>> rows = new ArrayList<>();
     private boolean ended;
+    private java.util.@com.legend.base.Nullable UUID execution;
+
+    /** {@inheritDoc} Kept: a result collected is written again later, by a writer whose activity names the execution
+     *  that ran its SQL ({@link #execution()}). */
+    @Override
+    public void execution(java.util.UUID id) {
+        execution = id;
+    }
+
+    /** The id of the execution the run named before its columns; null where none was named. */
+    public java.util.@com.legend.base.Nullable UUID execution() {
+        return execution;
+    }
 
     @Override
     public void columns(List<ExecutionPlan.Column> columns) {

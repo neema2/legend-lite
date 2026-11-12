@@ -104,7 +104,7 @@ class RaiseReadBackTest {
         List<String> sent = new ArrayList<>();
         try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent)) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                    com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack);
+                    com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack, null);
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
                     PlanSessions.of(Sessions.borrowed(c))));
@@ -184,8 +184,11 @@ class RaiseReadBackTest {
     void aTargetIsMadeOnlyBySayingItsReadBack() {
         java.lang.reflect.Constructor<?>[] made = ExecutionPlan.Target.class.getDeclaredConstructors();
         assertEquals(1, made.length, "one constructor: the record's own");
-        assertEquals(List.of(ExecutionPlan.Database.class, List.class, List.class, ExecutionPlan.RaiseReadBack.class),
-                List.of(made[0].getParameterTypes()), "the read-back is said, never defaulted");
+        // moved 2026-11-12 (the C checkpoint's SHOULD-FIX 3): the target says its database's settings too, as it says
+        // its read-back, never defaulted
+        assertEquals(List.of(ExecutionPlan.Database.class, List.class, List.class, ExecutionPlan.RaiseReadBack.class,
+                ExecutionPlan.DatabaseSettings.class), List.of(made[0].getParameterTypes()),
+                "the read-back and the settings are said, never defaulted");
     }
 
     @Test

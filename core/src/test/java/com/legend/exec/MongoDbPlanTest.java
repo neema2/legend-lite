@@ -100,7 +100,7 @@ class MongoDbPlanTest {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT");
         com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
         StringWriter out = new StringWriter();
-        PlanRunner.stream(plan, values, PlanSessions.shared(), written.writer(out, plan.answerShape()));
+        PlanRunner.stream(plan, values, PlanSessions.shared(), written.writer(out, plan.answerShape()), java.util.UUID.randomUUID());
         return out.toString();
     }
 
@@ -118,11 +118,179 @@ class MongoDbPlanTest {
                         PlanCases.Written.JSON, Map.of()));
     }
 
+    /**
+     * WHAT MONGODB IS SENT IS THE PLAN'S COMMAND (the C checkpoint's MUST-FIX 1 and its NOTE, 2026-11-12): the aggregate
+     * command the server receives -- read by the driver's own command listener -- carries the plan's pipeline EXACTLY,
+     * each plan parameter the pipeline variable {@code "$$lpN"} the dialect wrote, and the parameters' values in the
+     * command's {@code let} alone ({@code lpN} the N-th slot's, as a {@code $literal}): the session writes nothing into
+     * the pipeline (AGENTS.md invariant 3; until 2026-11-12 it replaced a marker document by each value). The
+     * session's statements take the plan's text by type ({@code PlannedSql}); this is the run's witness of what it
+     * sends.
+     */
     @Test
-    void aParameterIsBoundInPlace() throws Exception {
+    void theCommandSentIsThePlans_itsParametersBoundByTheLet() throws Exception {
+        String query = "{n: Integer[1], s: String[1] | #>{test::Store.people}#->filter(x | ($x.age > $n) &&"
+                + " ($x.name != $s))->select(~[name])}";
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT");
+        ExecutionPlan.Sql sql = plan.answerSql();
+        assertEquals(List.of("n", "s"), sql.slots().stream().map(ExecutionPlan.Slot::parameter).toList(),
+                "a slot for each parameter, in document order");
+        assertTrue(sql.statement().contains("\"$$lp1\"") && sql.statement().contains("\"$$lp2\""), sql.statement());
+        assertTrue(!sql.statement().contains("$legendParam"), "no marker in the plan: " + sql.statement());
+        List<org.bson.BsonDocument> sent = new java.util.ArrayList<>();
+        com.mongodb.event.CommandListener listener = new com.mongodb.event.CommandListener() {
+            @Override
+            public void commandStarted(com.mongodb.event.CommandStartedEvent e) {
+                if (e.getCommandName().equals("aggregate")) {
+                    sent.add(e.getCommand().clone());
+                }
+            }
+        };
+        EmbeddedMongoDb db = EmbeddedMongoDb.shared();
+        com.mongodb.MongoClientSettings settings = com.mongodb.MongoClientSettings.builder()
+                .applyToClusterSettings(c -> c.hosts(List.of(new com.mongodb.ServerAddress("127.0.0.1", db.port()))))
+                .credential(com.mongodb.MongoCredential.createCredential(EmbeddedMongoDb.USER, EmbeddedMongoDb.DATABASE,
+                        EmbeddedMongoDb.PASSWORD.toCharArray()))
+                .addCommandListener(listener)
+                .build();
+        Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(),
+                Map.of("n", 30L, "s", "Ann"));
+        List<List<Object>> rows = new java.util.ArrayList<>();
+        try (MongoClient client = com.mongodb.client.MongoClients.create(settings);
+                var run = com.legend.base.RunScope.enter()) {
+            Statements st = new MongoDbStatements(client.getDatabase(EmbeddedMongoDb.DATABASE));
+            st.rows(sql.planned(), sql.slots(), List.of(checked.get("n"), checked.get("s")),
+                    ((ExecutionPlan.TdsResult) plan.root()).columns(), rows::add);
+        }
+        assertEquals(List.of(List.of("Cy")), rows);
+        assertEquals(1, sent.size(), "one aggregate command");
+        org.bson.BsonDocument planned = org.bson.BsonDocument.parse(sql.statement());
+        assertEquals(planned.get("aggregate"), sent.get(0).get("aggregate"));
+        assertEquals(planned.get("pipeline"), sent.get(0).get("pipeline"), "the plan's pipeline, untouched");
+        assertEquals(org.bson.BsonDocument.parse("{\"lp1\": {\"$literal\": {\"$numberLong\": \"30\"}},"
+                + " \"lp2\": {\"$literal\": \"Ann\"}}"), sent.get(0).get("let"), "the values, in the let alone");
+    }
+
+    /** An aggregate's {@code let} is MongoDB's from 5.0: an older server is refused by name where the session is
+     *  checked, before any plan runs (the embedded 8.0 is taken, as every test here shows). */
+    @Test
+    void aServerBeforeFiveIsRefusedByName() {
+        com.legend.error.NotImplementedException old = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> MongoDbStatements.requireLet("4.4.29"));
+        assertEquals("the MongoDB server is 4.4.29: a plan's parameters are bound through the aggregate command's let,"
+                + " which MongoDB takes from 5.0; the server is refused, never sent a plan", old.getMessage());
+        com.legend.error.NotImplementedException odd = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> MongoDbStatements.requireLet("unknown"));
+        assertTrue(odd.getMessage().contains("'unknown'"), odd.getMessage());
+        MongoDbStatements.requireLet("5.0.0");
+        MongoDbStatements.requireLet("8.0.17");
+    }
+
+    /**
+     * A dynamic pivot's keys and a plan's parameters bind apart (the keyed plan of 2026-10-20 on MongoDB): each copy of
+     * the per-key region binds its key at the key's marker, as it did, and the parameters -- before the region and
+     * after it in document order -- are the command's let variables, numbered over the parameters alone. Swapped,
+     * {@code lp1} and {@code lp2} would filter every row out.
+     */
+    @Test
+    void aDynamicPivotsKeysAndParametersBindApart() throws Exception {
+        String query = "{lo: Integer[1], hi: Integer[1] | #>{test::Store.people}#->filter(x | ($x.age > $lo) &&"
+                + " ($x.age < $hi))->select(~[city, age])->pivot(~city, ~[s: x | $x.age : y | $y->plus()])}";
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT");
+        String body = plan.answerSql().statement();
+        assertTrue(body.contains("\"$$lp1\"") && body.contains("\"$$lp2\"") && body.contains("$legendParam"),
+                "the parameters' variables and the keys' markers: " + body);
+        assertEquals("[{\"'Oslo__|__s'\":62}]", run(query, PlanCases.Written.JSON, Map.of("lo", 20L, "hi", 40L)));
+        assertEquals("[{\"'Oslo__|__s'\":34,\"'Rome__|__s'\":41}]",
+                run(query, PlanCases.Written.JSON, Map.of("lo", 30L, "hi", 50L)));
+    }
+
+    /** A parameter inside the per-key region is refused by name: each copy of the region would bind it again, and a
+     *  pipeline variable is bound once. */
+    @Test
+    void aParameterInsideAPerKeyRegionIsRefusedByName() {
+        String query = "{n: Integer[1] | #>{test::Store.people}#->select(~[city, age])"
+                + "->pivot(~city, ~[s: x | $x.age->toOne() + $n : y | $y->plus()])}";
+        RuntimeException refused = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT"));
+        assertTrue(String.valueOf(refused.getMessage()).contains("inside a dynamic pivot's per-key region"),
+                String.valueOf(refused.getMessage()));
+    }
+
+    @Test
+    void aParameterFilters() throws Exception {
         assertEquals("[{\"name\":\"Cy\"}]",
                 run("{n: Integer[1] | #>{test::Store.people}#->filter(x | $x.age > $n)->select(~[name])}",
                         PlanCases.Written.JSON, Map.of("n", 40L)));
+    }
+
+    @Test
+    void aParameterInAnExtend() throws Exception {
+        assertEquals("[{\"name\":\"Ann\",\"next\":35},{\"name\":\"Bob\",\"next\":29},{\"name\":\"Cy\",\"next\":42}]",
+                run("{n: Integer[1] | #>{test::Store.people}#->filter(x | $x.age->isNotEmpty())"
+                        + "->extend(~next: x | $x.age->toOne() + $n)->select(~[name, next])->sort(~name->ascending())}",
+                        PlanCases.Written.JSON, Map.of("n", 1L)));
+    }
+
+    /** A join's condition is matched inside its {@code $lookup}'s sub-pipeline, where the command's {@code let}
+     *  variables are read as anywhere in the pipeline. */
+    @Test
+    void aParameterInsideALookupsSubPipeline() throws Exception {
+        String query = "{n: Integer[1] | #>{test::Store.people}#->select(~[name, city])"
+                + "->join(#>{test::Store.people}#->select(~[name, age])->rename(~name, ~other), JoinKind.INNER,"
+                + " {a, b | ($a.name == $b.other) && ($b.age > $n)})->select(~[name])->sort(~name->ascending())}";
+        String statement = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT").answerSql()
+                .statement();
+        int lookup = statement.indexOf("\"$lookup\"");
+        assertTrue(lookup >= 0 && statement.indexOf("\"$$lp1\"", lookup) > lookup,
+                "the parameter inside the lookup: " + statement);
+        assertEquals("[{\"name\":\"Ann\"},{\"name\":\"Cy\"}]", run(query, PlanCases.Written.JSON, Map.of("n", 30L)));
+    }
+
+    @Test
+    void aListParameterIsBoundWhole() throws Exception {
+        String query = "{names: String[*] | #>{test::Store.people}#->filter(x | $names->contains($x.name))"
+                + "->select(~[name])->sort(~name->ascending())}";
+        assertEquals("[{\"name\":\"Ann\"},{\"name\":\"Di\"}]",
+                run(query, PlanCases.Written.JSON, Map.of("names", List.of("Ann", "Di"))));
+        assertEquals("[]", run(query, PlanCases.Written.JSON, Map.of("names", List.of())));
+    }
+
+    @Test
+    void anAbsentParameterIsBoundAsNull() throws Exception {
+        assertEquals("[{\"name\":\"Ann\",\"given\":null}]",
+                run("{c: String[0..1] | #>{test::Store.people}#->filter(x | $x.name == 'Ann')"
+                        + "->extend(~given: x | $c)->select(~[name, given])}", PlanCases.Written.JSON, Map.of()));
+    }
+
+    @Test
+    void aDecimalParameterKeepsItsDigits() throws Exception {
+        assertEquals("[{\"name\":\"Ann\",\"d\":12.345}]",
+                run("{d: Decimal[1] | #>{test::Store.people}#->filter(x | $x.name == 'Ann')"
+                        + "->extend(~d: x | $d)->select(~[name, d])}", PlanCases.Written.JSON,
+                        Map.of("d", new java.math.BigDecimal("12.345"))));
+    }
+
+    @Test
+    void aDateParameter() throws Exception {
+        assertEquals("[{\"name\":\"Ann\",\"t\":\"2026-11-12\"}]",
+                run("{t: StrictDate[1] | #>{test::Store.people}#->filter(x | $x.name == 'Ann')"
+                        + "->extend(~t: x | $t)->select(~[name, t])}", PlanCases.Written.JSON,
+                        Map.of("t", java.time.LocalDate.of(2026, 11, 12))));
+    }
+
+    /** A text is bound as its text, a {@code $literal}: quotes stay quotes, and a leading {@code $} is no field path
+     *  (bare, {@code "$name"} would read each document's own name, and every row would match). */
+    @Test
+    void aStringIsBoundAsItsText() throws Exception {
+        String echo = "{s: String[1] | #>{test::Store.people}#->filter(x | $x.name == 'Ann')"
+                + "->extend(~s: x | $s)->select(~[name, s])}";
+        assertEquals("[{\"name\":\"Ann\",\"s\":\"it's \\\"quoted\\\"\"}]",
+                run(echo, PlanCases.Written.JSON, Map.of("s", "it's \"quoted\"")));
+        assertEquals("[{\"name\":\"Ann\",\"s\":\"$name\"}]", run(echo, PlanCases.Written.JSON, Map.of("s", "$name")));
+        assertEquals("[{\"name\":\"Ann\",\"s\":\"$$ROOT\"}]", run(echo, PlanCases.Written.JSON, Map.of("s", "$$ROOT")));
+        assertEquals("[]", run("{s: String[1] | #>{test::Store.people}#->filter(x | $x.name == $s)->select(~[name])}",
+                PlanCases.Written.JSON, Map.of("s", "$name")));
     }
 
     @Test

@@ -34,8 +34,10 @@ public final class RunScope implements AutoCloseable {
 
     private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
     /** The running execution's id (C1's second half, the user's ruling of 2026-11-10, "Agree with all": "the execution
-     *  id lives in lite's own trace"; built 2026-11-12, the C checkpoint's code audit SHOULD-FIX 4): one minted per run
-     *  as it enters ({@link #enter}), as legend-engine's {@code ExecutionState} mints its {@code execID} once per
+     *  id lives in lite's own trace"; built 2026-11-12, the C checkpoint's code audit SHOULD-FIX 4): the id the DOOR that
+     *  started the run minted and passed in ({@link #enter(java.util.UUID)}; the user's ruling of 2026-11-12, "Do the exec
+     *  id as part of C": exec makes no value of its own, so nothing here or in exec mints one -- until then this scope
+     *  minted one as a run entered), as legend-engine's {@code ExecutionState} holds its {@code execID} once per
      *  execution ({@code ExecutionState.java:149}) and tags its relational span with it
      *  ({@code RelationalExecutionNodeExecutor.java:467}); this scope is lite's span of a run. */
     private static final ThreadLocal<Execution> EXECUTION = ThreadLocal.withInitial(Execution::new);
@@ -56,8 +58,21 @@ public final class RunScope implements AutoCloseable {
     }
 
     /**
-     * A plan starts running on this thread; close it when the run ends. Refused while this thread plans (rule 2), and
-     * inside a run (rule 4).
+     * A plan starts running on this thread as the execution {@code execution} -- the id its door minted and passed in
+     * (an execution is one plan run: a product query's, a test body's, a fixture's); close it when the run ends. Refused
+     * as {@link #enter()} is.
+     */
+    public static RunScope enter(java.util.UUID execution) {
+        java.util.Objects.requireNonNull(execution, "execution: the run's door mints it");
+        RunScope scope = enter();
+        EXECUTION.get().id = execution;
+        return scope;
+    }
+
+    /**
+     * A plan starts running on this thread, as no execution its activity reports (a run of one statement: a write's,
+     * an effect's, a probe's, a load's -- none reads an execution's id); close it when the run ends. Refused while this
+     * thread plans (rule 2), and inside a run (rule 4).
      */
     public static RunScope enter() {
         String planning = PLANNING.get().name;
@@ -70,7 +85,7 @@ public final class RunScope implements AutoCloseable {
                     + " plan) <- " + callers(12));
         }
         DEPTH.get()[0]++;
-        EXECUTION.get().id = java.util.UUID.randomUUID();
+        EXECUTION.get().id = null;
         return SCOPE;
     }
 
@@ -81,8 +96,8 @@ public final class RunScope implements AutoCloseable {
     }
 
     /** The id of the execution running on this thread: what its statements' stamps bind, what the run names to its
-     *  listener, what the SQL dump prints. Refused by name where none runs: an id read outside a run is a defect of
-     *  exec's, never a fresh id. */
+     *  listener, what the SQL dump prints -- its door's. Refused by name where none runs, or the run is no execution
+     *  ({@link #enter()}): an id read there is a defect, never a fresh one. */
     public static java.util.UUID execution() {
         java.util.UUID id = EXECUTION.get().id;
         if (id == null) {

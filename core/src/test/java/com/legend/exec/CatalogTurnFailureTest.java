@@ -32,7 +32,7 @@ class CatalogTurnFailureTest {
 
     private static Statements statements(Sessions.Session session, DatabaseType type) {
         return PlanRunner.opened(session, new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null));
+                com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null, null));
     }
 
     @Test
@@ -43,16 +43,16 @@ class CatalogTurnFailureTest {
                 Sessions.beginTurn(session);
                 try {
                     Statements st = statements(session, DatabaseType.DuckDB);
-                    st.execute("CREATE TEMPORARY TABLE TURN_T (A INTEGER)");
-                    st.execute("INSERT INTO TURN_T VALUES (1)");
+                    st.execute(com.legend.testbackend.Unplanned.sql("CREATE TEMPORARY TABLE TURN_T (A INTEGER)"));
+                    st.execute(com.legend.testbackend.Unplanned.sql("INSERT INTO TURN_T VALUES (1)"));
                     session.state().register(new Key("registration"));
-                    assertThrows(com.legend.error.DataError.class, () -> st.execute("SELECT * FROM NO_SUCH_TABLE"));
+                    assertThrows(com.legend.error.DataError.class, () -> st.execute(com.legend.testbackend.Unplanned.sql("SELECT * FROM NO_SUCH_TABLE")));
                     // the turn rolled back: its registration is forgotten, so the run's next step makes it again
                     assertFalse(session.state().registered(new Key("registration")));
                     // and the run's next statement runs, in a fresh transaction (aborted until A4: "Current transaction
                     // is aborted (please ROLLBACK)")
-                    st.execute("CREATE TEMPORARY TABLE TURN_T (A INTEGER)");
-                    st.execute("INSERT INTO TURN_T VALUES (2)");
+                    st.execute(com.legend.testbackend.Unplanned.sql("CREATE TEMPORARY TABLE TURN_T (A INTEGER)"));
+                    st.execute(com.legend.testbackend.Unplanned.sql("INSERT INTO TURN_T VALUES (2)"));
                 } finally {
                     Sessions.endTurn(session);
                 }
@@ -72,7 +72,7 @@ class CatalogTurnFailureTest {
         try (Connection c = TestBackends.of(type).open()) {
             Sessions.Session session = TestSessions.over(c);
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                    com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null);
+                    com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null, null);
             // the catalog's keyed table, made by a load of its own before the turn; the registration's row into it
             ExecutionPlan.Load table = load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, target,
                     "CREATE TABLE REG_T (A INTEGER PRIMARY KEY)");
@@ -125,10 +125,10 @@ class CatalogTurnFailureTest {
                 Sessions.beginTurn(session);
                 try {
                     Statements st = statements(session, DatabaseType.H2);
-                    st.execute("CREATE LOCAL TEMPORARY TABLE TURN_T (A INTEGER) TRANSACTIONAL");
-                    st.execute("INSERT INTO TURN_T VALUES (1)");
+                    st.execute(com.legend.testbackend.Unplanned.sql("CREATE LOCAL TEMPORARY TABLE TURN_T (A INTEGER) TRANSACTIONAL"));
+                    st.execute(com.legend.testbackend.Unplanned.sql("INSERT INTO TURN_T VALUES (1)"));
                     session.state().register(new Key("registration"));
-                    assertThrows(com.legend.error.DataError.class, () -> st.execute("SELECT * FROM NO_SUCH_TABLE"));
+                    assertThrows(com.legend.error.DataError.class, () -> st.execute(com.legend.testbackend.Unplanned.sql("SELECT * FROM NO_SUCH_TABLE")));
                     assertTrue(session.state().registered(new Key("registration")),
                             "H2 rolls back the failed statement alone: the turn's registration stands");
                     try (java.sql.Statement plain = c.createStatement();

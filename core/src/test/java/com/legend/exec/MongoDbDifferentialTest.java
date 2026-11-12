@@ -434,7 +434,7 @@ class MongoDbDifferentialTest {
         // the plan path program's round-trip gate (step 1b): every case's plan, on both databases
         com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, expression);
         StringWriter out = new StringWriter();
-        PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), output.writer(out, plan.answerShape()));
+        PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), output.writer(out, plan.answerShape()), java.util.UUID.randomUUID());
         return out.toString();
     }
 

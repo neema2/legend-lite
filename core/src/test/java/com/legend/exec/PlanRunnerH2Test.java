@@ -67,7 +67,7 @@ class PlanRunnerH2Test {
      *  ({@code cast}: H2's, D1, P4) -- the statement the plan's own, never written at run. */
     private static ExecutionPlan declaredCast(String type, String cast, ExecutionPlan.@com.legend.base.Nullable AsText asText) {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
-                H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null);
+                H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null, null);
         return ExecutionPlan.reading(List.of(declared("v", type, 0, 1)), PlanRunnerTest.cell(
                 new ExecutionPlan.Sql("SELECT CAST(CAST(? AS " + cast + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
                         new ExecutionPlan.Binding.One("DECIMAL", asText))), target, null)));
@@ -121,7 +121,7 @@ class PlanRunnerH2Test {
     void typedRowsAreReadFromTheDriverByThePlansColumns() throws Exception {
         try (Connection h2 = TestBackends.of(H2).open()) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
-                    H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null);
+                    H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null, null);
             ExecutionPlan plan = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
                     ExecutionPlan.TdsResult.Shape.RELATION,
                     List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null,
@@ -133,7 +133,7 @@ class PlanRunnerH2Test {
                     new ExecutionPlan.Sql("SELECT CAST(? AS BIGINT) AS N, 'a' AS S, DATE '2024-01-02' AS D",
                             List.of(new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null))), target,
                             null)));
-            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)));
+            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)), java.util.UUID.randomUUID());
             assertEquals(List.of(List.of(7L, "a", com.legend.values.PureDateLiteral.parse("2024-01-02"))), rows.rows());
             assertEquals(List.of("N", "S", "D"), rows.columns().stream().map(ExecutionPlan.Column::name).toList());
         }

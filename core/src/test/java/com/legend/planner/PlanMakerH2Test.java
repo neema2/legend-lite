@@ -35,7 +35,11 @@ class PlanMakerH2Test {
     void theTargetIsWhole_itsDatabaseSessionAndSetup() {
         ExecutionPlan.Target h2 = target(plan(H2, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",
                 com.legend.testcases.PlanCases.Written.JSON));
-        assertEquals(List.of(), h2.session());
+        // its session statement, the engine's non-keywords; its database's settings, plan data (the C checkpoint's
+        // SHOULD-FIX 3, 2026-11-12: until then the connector's URL, outside the plan)
+        assertEquals(List.of("SET NON_KEYWORDS " + com.legend.sql.dialect.H2.NON_KEYWORDS), h2.session());
+        assertEquals(List.of(new ExecutionPlan.Setting("MODE", "LEGACY"),
+                new ExecutionPlan.Setting("DEFAULT_NULL_ORDERING", "HIGH")), h2.settings().required());
         // H2's rows are a content blob of inserts, as every database's (A2, 2026-11-10)
         assertInstanceOf(ExecutionPlan.LoadStep.Statements.class, h2.loads().get(0).steps().get(h2.loads().get(0).steps().size() - 1));
     }

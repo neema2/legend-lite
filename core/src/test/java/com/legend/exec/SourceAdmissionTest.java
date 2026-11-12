@@ -100,7 +100,10 @@ class SourceAdmissionTest {
                 named.getMessage());
         Path inside = Files.writeString(dir.resolve("rows.json"), "[]");
         SourceAdmission fenced = SourceAdmission.configured(dir.toString());
-        assertEquals(inside.toRealPath().toString(), fenced.admit(inside.toUri().toString()));
+        // the admitted path as a database reads it on every system: real, forward slashes (Windows CI, PR #95,
+        // 2026-11-12: the expectation spelled the machine's separator)
+        assertEquals(inside.toRealPath().toString().replace(java.io.File.separatorChar, '/'),
+                fenced.admit(inside.toUri().toString()));
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> SourceAdmission.configured(dir.resolve("rows.json").toString()));
         assertTrue(refused.getMessage().contains("is no directory"), refused.getMessage());

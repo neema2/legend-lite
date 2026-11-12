@@ -276,10 +276,10 @@ class ResultWritersTest {
     @Test
     void thePureV1RelationIsTheEnginesTdsLayout_inTheEnginesColumnOrder() throws IOException {
         StringWriter out = new StringWriter();
+        // the execution the writer is made for, the door's id: the activity's comment reports it (C1's second half)
         PureV1Writer writer = PureV1Writer.relation(out, columns -> new PureV1Writer.Envelope(
-                "{\"_type\":\"tdsBuilder\"}", "SELECT 1", List.of("F", "ID", "NAME")));
-        // the execution the run names before its columns: the activity's comment reports it (C1's second half)
-        writer.execution(java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"));
+                "{\"_type\":\"tdsBuilder\"}", "SELECT 1", List.of("F", "ID", "NAME")),
+                java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"));
         String json = write(writer, out, ROWS, DATA);
         assertEquals("{\"builder\": {\"_type\":\"tdsBuilder\"}, \"activities\": [{\"_type\":\"relational\",\"comment\":"
                 + "\"-- \\\"executionTraceID\\\" : \\\"00000000-0000-0000-0000-000000000001\\\"\",\"sql\":\"SELECT 1\"}],"

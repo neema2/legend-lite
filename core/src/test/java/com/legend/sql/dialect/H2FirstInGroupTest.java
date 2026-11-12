@@ -34,7 +34,8 @@ class H2FirstInGroupTest {
             """;
 
     private static List<String> run(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:firstgrp" + System.nanoTime())) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:firstgrp" + System.nanoTime()
+                + com.legend.testbackend.TestBackends.h2UrlSettings())) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE t (k INTEGER, s VARCHAR(32), n INTEGER)");
                 st.execute("INSERT INTO t VALUES (1, NULL, NULL), (1, 'b', 2), (2, 'z', 9)");

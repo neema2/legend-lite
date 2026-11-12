@@ -83,13 +83,17 @@ class DataLoadsTest {
     private static ExecutionPlan.Load load(TestBackend b, ExecutionPlan.LoadStep.File file) {
         return com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, List.of(file),
                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(b.planType(), null), List.of(),
-                        List.of(), null));
+                        List.of(), null, null));
     }
 
-    /** {@code load} run on a fresh table of {@code b}'s, its rows read back. */
-    private static List<List<Object>> loaded(TestBackend b, DataStores stores, ExecutionPlan.Load load)
+    /** {@code load} run on a fresh table of {@code b}'s, its rows read back; {@code setup} the test's own settings on the
+     *  connection first. */
+    private static List<List<Object>> loaded(TestBackend b, DataStores stores, ExecutionPlan.Load load, String... setup)
             throws Exception {
         try (Connection c = b.open(); Statement st = c.createStatement()) {
+            for (String s : setup) {
+                st.execute(s);
+            }
             st.execute("CREATE TABLE data_loads_people (FIRSTNAME VARCHAR(200), LASTNAME VARCHAR(200), AGE INT)");
             try {
                 Sessions.Session session = TestSessions.over(c);
@@ -110,6 +114,19 @@ class DataLoadsTest {
                 st.execute("DROP TABLE data_loads_people");
             }
         }
+    }
+
+    /** A load fits a database of small memory (PR #95's macOS CI, 2026-11-12): DuckDB sized its read buffer at sixteen
+     *  times the line limit unless told, 7.8 GiB for 500 MB, and a 7 GB runner refused every load before reading a byte.
+     *  The statement now says its buffer, the line limit's size; a 1 GB memory limit stands for the small machine here. */
+    @Test
+    void aLoadFitsADatabaseOfSmallMemory(@TempDir Path dir) throws Exception {
+        byte[] bytes = CSV.getBytes(StandardCharsets.UTF_8);
+        Files.write(dir.resolve("small.csv"), bytes);
+        TestBackend reader = loading().stream().filter(b -> b.name().equals("duckdb")).findFirst().orElseThrow();
+        ExecutionPlan.Load load = load(reader, file(reader.dialect(), "small.csv", bytes));
+        assertEquals(List.of(List.of("Joe", "Bloggs", 21), List.of("Jill", "Smith", 31)),
+                loaded(reader, DataStores.resources(dir), load, "SET memory_limit = '1GB'"));
     }
 
     @Test
