@@ -38,8 +38,9 @@ public final class TestPlanJson {
      *  target ({@code on}), the program's, where its tables were made; 16 the same day (B2b): the edge's record of a
      *  seed is the referee's copy as a load ({@code refereeLoad}: its steps and bundle), no longer its texts; 17
      *  (2026-11-11, the JSON pass): no {@code release} -- a body makes no {@code data:} session table to drop, its
-     *  payloads bound or inline -- and the product's version 48. */
-    public static final int VERSION = 17;
+     *  payloads bound or inline -- and the product's version 48; 18 (2026-11-12, the C checkpoint's SHOULD-FIX 3): a
+     *  target may carry its database's settings, the product's version 49. */
+    public static final int VERSION = 18;
 
     private TestPlanJson() {
     }

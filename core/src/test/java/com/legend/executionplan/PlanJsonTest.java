@@ -208,8 +208,9 @@ class PlanJsonTest {
         // same day: a sourceUrl's form and the SOURCE load (B2a and its audit); 45 the same day: a plan's release (the
         // second audit's S12); 46 the same day: a slot's bound data: payload (the dialect's delivery); 47 the same day
         // (B3): a host's own file (HOST, its upload formats) and the HOST_SESSION load; 48 the same day (the JSON pass,
-        // over 47 when the two merged): the payload named by its digest, its text the statement's content
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":48,"), json);
+        // over 47 when the two merged): the payload named by its digest, its text the statement's content; 49 since
+        // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":49,"), json);
     }
 
     @Test

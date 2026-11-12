@@ -136,11 +136,12 @@ public final class PlanJson {
      *  {@code plane} by name, its {@code sql}, the {@code schema} and {@code table} it lands in, the {@code prepare}
      *  statements before it, the {@code count} after it and its {@code transaction}'s statements) or {@code attach} (a {@code held} value by name, attached {@code as} a relation, its
      *  {@code reach}); and (C2, 2026-11-12) a target may carry {@code raiseReadBack}, the {@code read} and {@code reset}
-     *  statements exec sends after a failure (MariaDB's and MySQL's), written only where a target declares them; and
-     *  (SHOULD-FIX 3, 2026-11-12) a target may carry {@code settings}, the {@code required} settings its database must
-     *  have (each a {@code name} and {@code value}) and their {@code readBack} statement (H2's), written only where a
+     *  statements exec sends after a failure (MariaDB's and MySQL's), written only where a target declares them. 49
+     *  since 2026-11-12 (the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling: bumped): a target may carry
+     *  {@code settings}, the {@code required} settings its database must have (each a {@code name} and {@code value})
+     *  and their {@code readBack} statement (H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}), written only where a
      *  target declares them. */
-    public static final int VERSION = 48;
+    public static final int VERSION = 49;
 
     private PlanJson() {
     }

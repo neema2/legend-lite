@@ -120,7 +120,7 @@ interface Sql {
 // (payload's digest), the text in its statement's content -- refused by name here, as at 46; and no plan carries a
 // release and no load is SOURCE or AT_RELEASE (every payload bound or inline: no session table): this runner's release,
 // which sent them, deleted with them (B3's follow-up, the same day)
-const PLAN_VERSION = 48;
+const PLAN_VERSION = 49;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
