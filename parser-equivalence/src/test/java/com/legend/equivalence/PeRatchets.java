@@ -59,7 +59,9 @@ public final class PeRatchets {
                     + " claude/total-wall-b2d3): their tests' models (TestDataPlannerTest's keyless table and lower-case"
                     + " view, GeneratedTestDataProgramTest's lower-case table, TestDataRoutesTest's parameterised query)",
             "own_corpus.matched 3163 -> 3164 (2026-11-12, G7 built as ruled, S302, on claude/total-wall-b2d3):"
-                    + " TestDataTextAsWrittenTest's store");
+                    + " TestDataTextAsWrittenTest's store",
+            "own_corpus.matched 3164 -> 3166 (2026-11-12, the simple synthesize slice merged, a24f3a5b4):"
+                    + " DuckDbSynthesizeTest's models (its TRADES table and the refusals' tables)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
