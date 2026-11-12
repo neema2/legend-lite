@@ -96,6 +96,9 @@ REFERENCES = {
     ('_headless.py', 'query', 'parts'),
     ('engine.py', 'query', 'url'),
     ('engine.py', 'sql', 'plan'),
+    # 2026-11-12 (the final audit's item 1): a served snap's count, the planner's plan of the pull's size() -- its
+    # statement, a plan's field (beside the pull's own plan, which its copy reads until snapCopy plans the copy)
+    ('engine.py', 'sql', 'count'),
     ('frames.py', 'sql', 'plan'),
     ('page.py', 'query', 'self'),
     ('page.py', 'sql', 'self'),
