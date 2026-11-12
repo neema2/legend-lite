@@ -1305,14 +1305,9 @@ class JavaEvalLedgerTest {
                     // its Established class, moved to the seam so the driver holds a session and no JDBC. A memo of
                     // facts the database reported; no value a verdict reads is computed here.
                     "SessionState.java",
-                    // batch 83 (2026-09-06): the engine's execution-trace
-                    // comment — the statement the database receives carries
-                    // `-- "executionTraceID" : "<uuid>"` (the engine's
-                    // RelationalExecutor mints one per execution) and the
-                    // frame's activity records the comment of its own run.
-                    // An identifier stamped at the JDBC boundary; no value
-                    // a verdict reads is computed here.
-                    "ExecutionTrace.java",
+                    // (ExecutionTrace.java, batch 83's execution-trace comment written in front of every statement
+                    // at the JDBC boundary: DELETED by C1, 2026-11-12, the user's ruling of 2026-11-10 -- the database
+                    // receives exactly the plan's text; the execution id is the runner's bound value, register S304)
                     // (TestResources.java: the per-run resource resolver — DELETED
                     // in batch 138, it rides ExecuteOptions.resources now)
                     // (QueryPlan.java and ResultShape.java: LEFT exec for com.legend.plan

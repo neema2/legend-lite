@@ -76,9 +76,10 @@ class CodeShapeGuardrailTest {
             "MappingClosures.sets", "MappingClosures.unions", "MappingClosures.inheritances", "MappingClosures.roots",
             "MappingClosures.enums", "MappingClosures.relationalSets",
             // (same date) A SESSION'S facts, learned once from its database: the decoding its driver needs (known at
-            // check), its server's version, the next query's minted stamp (one statement's); the test runner's shared
-            // session and the package it holds
-            "JdbcStatements.driver", "JdbcStatements.reserved", "ExecutionTrace.reserved", "Sessions.version",
+            // check), its server's version; the test runner's shared session and the package it holds. (The next
+            // query's minted stamp, JdbcStatements.reserved and ExecutionTrace.reserved, went with C1, 2026-11-12: the
+            // database receives exactly the plan's text, the execution id the runner's bound value.)
+            "JdbcStatements.driver", "Sessions.version",
             // 2026-11-10, the A checkpoint's tenets audit (2): the session's checked target's connector, learned at
             // check as the driver's decoding is, whose facts (a transaction taken, an error aborting it) a run acts on
             "JdbcStatements.declared",
@@ -320,10 +321,8 @@ class CodeShapeGuardrailTest {
             // set once by the executor before lower(), same lifecycle as
             // engineText — a flag selects an emission during the lowering
             "Lowerer.features", "Lowerer.legacyNullUnsafeEquals",
-            // Phase 2b (batch 137): the execution-trace stamp is state of the
-            // execution ENVIRONMENT (one ExecutionTrace per ExecEnv), a
-            // thread-local before
-            "ExecutionTrace.last",
+            // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
+            // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set
             // once by the driver before lower(), read during the lowering
             "Lowerer.streamingGraphRoot",

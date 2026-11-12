@@ -143,16 +143,10 @@ public final class MongoDbConnector implements DatabaseConnector {
         }
 
         /** The connector's statements, reached through the session's one guarded door ({@code Session.statements}:
-         *  inside a plan's run alone, THE WALL's rule 3). A MongoDB session's commands carry no SQL comment: no
-         *  execution trace rides them, and the body driver (whose activity rows read the trace) is not designed for
-         *  MongoDB; refused by name. */
+         *  inside a plan's run alone, THE WALL's rule 3). */
         @Override
-        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace trace) {
-            if (trace == null) {
-                return statements;
-            }
-            throw new com.legend.error.NotImplementedException("the body driver's traced statements on MongoDB: its"
-                    + " commands carry no execution-trace comment, and the driver is not designed for MongoDB");
+        Statements statementsOf() {
+            return statements;
         }
 
         @Override

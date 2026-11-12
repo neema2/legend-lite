@@ -179,35 +179,28 @@ public final class PlanSessions {
         return of(session, null);
     }
 
-    /** {@link #of(Sessions.Session)} whose statements publish each query's execution-trace stamp to {@code trace}
-     *  (the body driver's, track B's B1b). */
-    public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace) {
-        return of(session, trace, null);
-    }
-
-    /** {@link #of(Sessions.Session, ExecutionTrace)} where a target naming the graph's SYSTEM database
+    /** {@link #of(Sessions.Session)} where a target naming the graph's SYSTEM database
      *  ({@link ExecutionPlan.Database.System}) opens {@code system}'s session for it instead -- a non-closing view, as
      *  the caller's own (the test-is-the-product plan's M10a: the body driver holds the graph's system database,
      *  opened once per graph -- its store written by the plan's own seed step -- and hands it here; the runner knows
      *  no database). Null {@code system}: every target the caller's session. */
-    public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace,
-            SystemDatabase.@com.legend.base.Nullable Leases system) {
-        return new Given(session, trace, system);
+    public static Source of(Sessions.Session session, SystemDatabase.@com.legend.base.Nullable Leases system) {
+        return new Given(session, system);
     }
 
-    private record Given(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace,
-            SystemDatabase.@com.legend.base.Nullable Leases system) implements Source {
+    private record Given(Sessions.Session session, SystemDatabase.@com.legend.base.Nullable Leases system)
+            implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
             var sys = system;
             if (target.database() instanceof ExecutionPlan.Database.System && sys != null) {
                 // the system database's leases make and establish what its target loads (the catalog, L4b)
-                return Sessions.view(sys.sessionFor(target), trace);
+                return Sessions.view(sys.sessionFor(target));
             }
             // the caller's session as it set it up: a target that loads data would run without it, refused by name,
             // never skipped (the re-audit's A-3, 2026-11-09: until then this source ran none and said nothing)
             refuseUnrun(target, "a session the caller holds, as it set it up", false);
-            return Sessions.view(session, trace);
+            return Sessions.view(session);
         }
     }
 
