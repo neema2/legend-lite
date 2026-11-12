@@ -2065,6 +2065,37 @@ final class ArchitectureTest {
     }
 
     /**
+     * A TARGET IS WRITTEN BY ITS DIALECT, NEVER DEFAULTED (C2's no-default, the C checkpoint's SHOULD-FIX 2,
+     * 2026-11-12: until then a three-argument constructor set the error read-back to none, and the synthesize slice's
+     * target took it): a plan's {@code ExecutionPlan.Target} is built by {@code planner.Targets} (as its dialect writes
+     * it: session statements and error read-back), by {@code PlanJson} (as a plan holds it, read or written for a key)
+     * and by {@code Target.bare} (itself without its loads), and nowhere else.
+     */
+    @Test
+    void onlyTheTargetsMakersBuildATarget() {
+        noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("an ExecutionPlan.Target built outside Targets,"
+                    + " PlanJson and Target.bare") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    if (!access.getTargetOwner().isEquivalentTo(com.legend.executionplan.ExecutionPlan.Target.class)
+                            || !access.getName().equals("<init>")) {
+                        return false;
+                    }
+                    com.tngtech.archunit.core.domain.JavaCodeUnit origin = access.getOrigin();
+                    com.tngtech.archunit.core.domain.JavaClass owner = origin.getOwner();
+                    return !(owner.isEquivalentTo(com.legend.planner.Targets.class)
+                            || owner.isEquivalentTo(com.legend.executionplan.PlanJson.class)
+                            || owner.isEquivalentTo(com.legend.executionplan.ExecutionPlan.Target.class)
+                                    && origin.getName().equals("bare"));
+                }
+            })
+            .as("a target is built by Targets, PlanJson and Target.bare alone: its dialect writes it, never a default")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * A SESSION'S STATEMENTS TAKE NO TEXT BUT THE PLAN'S (the C checkpoint's MUST-FIX 1, 2026-11-12): every method of
      * {@code exec.Statements} that sends a statement takes a {@link com.legend.executionplan.PlannedSql}, and none takes
      * a {@code String} -- but {@code readsFile}'s second argument, the runner's verified copy's path, which the

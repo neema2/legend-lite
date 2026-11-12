@@ -42,7 +42,7 @@ class PlanRunnerDuckDbTest {
             com.legend.setup.RowLoad load = new com.legend.setup.RowLoad(null, "K", com.legend.sql.NameQuoting.BARE,
                     List.of("A", "B"), java.util.Set.of(), 2, List.of(e.getKey()));
             ExecutionPlan p = plan(read, com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(duck,
-                    List.of(), List.of()), com.legend.setup.LoadSteps.of(List.of(statement(
+                    List.of(), List.of(), null), com.legend.setup.LoadSteps.of(List.of(statement(
                             "CREATE TABLE K (A VARCHAR, B VARCHAR)"))).then(com.legend.setup.LoadSteps.rows(load,
                             com.legend.database.Databases.dialect(DatabaseType.DuckDB)))));
             assertEquals(e.getValue(), run(p, PlanSessions.shared()), String.valueOf(e.getKey()));
