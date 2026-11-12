@@ -4,8 +4,7 @@
 // store binds), run by the hosts' runner (runLoad) in one transaction. Until then the server's seed statements were
 // handed over as text (testDataSql) and the file named by a host's operation, run outside any plan (census M14).
 
-import type { HostOperationsSource } from './host-operations.ts';
-import { runLoad, sha256Hex, type PlanValue } from './plan-runner.ts';
+import { inLoadsTransaction, runLoad, sha256Hex, type PlanValue } from './plan-runner.ts';
 import type { PlannedSql, PlanText } from './planned-sql.ts';
 
 /** The model JSON parts read here (grammarToJson/model). */
@@ -115,8 +114,10 @@ export interface FileSink {
  * cannot take) leaves the table as it was. The file's name says which kind it is. Its bytes are registered as `<as>.csv`
  * or `<as>.parquet`, never by the person's own name (read_csv and read_parquet read a name as a glob: `sales[2024].csv`
  * matches nothing), and the plan names them by that name, their SHA-256 and size: the statement's ? is bound to them.
+ * The transaction's statements are the plan's (its target's: the re-audit's S8, 2026-11-12 -- until then they were
+ * asked of the planner here, at run).
  */
-export async function loadFileTable(sink: FileSink, source: FileLoadSource & HostOperationsSource, databaseType: string, model: string,
+export async function loadFileTable(sink: FileSink, source: FileLoadSource, databaseType: string, model: string,
   target: { readonly database: string; readonly schema: string; readonly table: string },
   file: { readonly name: string; readonly bytes: Uint8Array }, as: string): Promise<void> {
   const format = /\.csv$/i.test(file.name) ? 'csv' : /\.parquet$/i.test(file.name) ? 'parquet' : undefined;
@@ -127,8 +128,6 @@ export async function loadFileTable(sink: FileSink, source: FileLoadSource & Hos
     databaseType, file: { name: registered, digest, size: file.bytes.length, format },
     into: { model, database: target.database, schema: target.schema, table: target.table },
   });
-  const [begin, commit, rollback] = await source.hostOperations(databaseType,
-    (['begin', 'commit', 'rollback'] as const).map((step) => ({ op: 'transaction' as const, step })));
   // a copy: the database takes the buffer it is given, and the caller keeps its bytes (Studio puts them in again)
   await sink.registerFileBuffer(registered, file.bytes.slice());
   // the tab's store of its own files: the one registered for this put, by its name, its bytes the plan's
@@ -141,20 +140,7 @@ export async function loadFileTable(sink: FileSink, source: FileLoadSource & Hos
     },
   };
   try {
-    await sink.hold(async (run) => {
-      for (const sql of begin!) await run(sql, []);
-      try {
-        await runLoad(plan, run, { files });
-        for (const sql of commit!) await run(sql, []);
-      } catch (e) {
-        try {
-          for (const sql of rollback!) await run(sql, []);
-        } catch (r) {
-          throw new Error(`${e instanceof Error ? e.message : String(e)} -- and putting the table back failed: ${r instanceof Error ? r.message : String(r)}`);
-        }
-        throw e;
-      }
-    });
+    await sink.hold((run) => inLoadsTransaction(plan, run, () => runLoad(plan, run, { files })));
   } finally {
     // the rows are the table's now (or the table is as it was): the file is not read again -- and a drop that fails
     // neither fails a put that worked nor hides why a read did not (at worst the file stays registered)

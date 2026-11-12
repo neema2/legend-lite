@@ -140,8 +140,11 @@ public final class PlanJson {
      *  since 2026-11-12 (the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling: bumped): a target may carry
      *  {@code settings}, the {@code required} settings its database must have (each a {@code name} and {@code value})
      *  and their {@code readBack} statement (H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}), written only where a
-     *  target declares them. */
-    public static final int VERSION = 49;
+     *  target declares them. 50 since 2026-11-12 (the re-audit's S8): a target may carry {@code transaction}, the
+     *  {@code begin}, {@code commit} and {@code rollback} statements a host opens, commits and rolls back a transaction
+     *  with on its database (DuckDB's), written only where the database has them -- a host's runner reads them from the
+     *  plan, never asking the planner at run. */
+    public static final int VERSION = 50;
 
     private PlanJson() {
     }
@@ -711,11 +714,12 @@ public final class PlanJson {
     }
 
     /** What {@code target}'s database IS, as {@link #writeTarget} writes it: its database and the settings it is made
-     *  with -- no session statement, no load and no read-back, which are not what it holds (exec keeps a project's
-     *  database by it, {@code exec.PlanSessions.projectKey}; the C final audit's J2, 2026-11-12: until then exec built
-     *  a target of its own to write it, and the run side builds no plan record that carries text). */
+     *  with -- no session statement, no load, no read-back and no transaction (the re-audit's S8), which are not what it
+     *  holds (exec keeps a project's database by it, {@code exec.PlanSessions.projectKey}; the C final audit's J2,
+     *  2026-11-12: until then exec built a target of its own to write it, and the run side builds no plan record that
+     *  carries text). */
     public static String writeHeldDatabase(Target target) {
-        return writeTarget(new Target(target.database(), List.of(), List.of(), null, target.settings()));
+        return writeTarget(new Target(target.database(), List.of(), List.of(), null, target.settings(), null));
     }
 
     /** {@code t} as a JSON object (the test plan's format writes an appeal's replay target so: step 8b). */
@@ -753,7 +757,26 @@ public final class PlanJson {
             settings.put("readBack", t.settings().readBack());
             to.put("settings", settings);
         }
+        // the statements a host opens, commits and rolls back a transaction with (the re-audit's S8, 2026-11-12:
+        // DuckDB's), written where the target's database has them
+        if (t.transaction() != null) {
+            to.put("transaction", transaction(t.transaction()));
+        }
         return to;
+    }
+
+    private static Map<String, Object> transaction(ExecutionPlan.Transaction t) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("begin", t.begin());
+        o.put("commit", t.commit());
+        o.put("rollback", t.rollback());
+        return o;
+    }
+
+    private static ExecutionPlan.Transaction readTransaction(Json.Obj t, String what) {
+        only(t, what, "begin", "commit", "rollback");
+        return new ExecutionPlan.Transaction(t.getStringArray("begin"), t.getStringArray("commit"),
+                t.getStringArray("rollback"));
     }
 
     private static Map<String, Object> database(ExecutionPlan.Database database) {
@@ -884,11 +907,7 @@ public final class PlanJson {
                 o.put("table", s.table());
                 o.put("prepare", s.prepare());
                 o.put("count", s.count());
-                Map<String, Object> transaction = new LinkedHashMap<>();
-                transaction.put("begin", s.transaction().begin());
-                transaction.put("commit", s.transaction().commit());
-                transaction.put("rollback", s.transaction().rollback());
-                o.put("transaction", transaction);
+                o.put("transaction", transaction(s.transaction()));
             }
             case LoadStep.Attach a -> {
                 o.put("_type", SetupTag.attach.name());
@@ -1215,7 +1234,7 @@ public final class PlanJson {
     private static Target readTarget(Json.Obj t) {
         // a key the target does not have is refused by name, as its read-back's and settings' are (the C final audit's
         // J4, 2026-11-12: until then one was ignored, so a misspelled "settings" read as a target that declares none)
-        only(t, "a target", "database", "session", "loads", "raiseReadBack", "settings");
+        only(t, "a target", "database", "session", "loads", "raiseReadBack", "settings", "transaction");
         // the loads inline: the plan's reader gave each back from its load section (inlineLoads)
         List<ExecutionPlan.Load> loads = new ArrayList<>();
         for (Json.Node n : t.getArr("loads").items()) {
@@ -1244,7 +1263,10 @@ public final class PlanJson {
             }
             settings = new ExecutionPlan.DatabaseSettings(required, o.getString("readBack"));
         }
-        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads, readBack, settings);
+        ExecutionPlan.Transaction transaction = t.has("transaction")
+                ? readTransaction(t.getObj("transaction"), "a target's transaction") : null;
+        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads, readBack, settings,
+                transaction);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {
@@ -1327,13 +1349,11 @@ public final class PlanJson {
                 // exactly the writer's keys: a stream names its plane, never a row
                 only(o, "a remote plane's stream", "_type", "plane", "sql", "schema", "table", "prepare", "count",
                         "transaction");
-                Json.Obj t = o.getObj("transaction");
-                only(t, "a stream's transaction", "begin", "commit", "rollback");
                 Json.Node schema = o.get("schema");
                 yield new LoadStep.Stream(o.getString("plane"), o.getString("sql"),
                         schema instanceof Json.Str str ? str.value() : null, o.getString("table"),
-                        o.getStringArray("prepare"), o.getString("count"), new LoadStep.Stream.Transaction(
-                                t.getStringArray("begin"), t.getStringArray("commit"), t.getStringArray("rollback")));
+                        o.getStringArray("prepare"), o.getString("count"),
+                        readTransaction(o.getObj("transaction"), "a stream's transaction"));
             }
             case attach -> {
                 only(o, "an attached held value", "_type", "held", "as", "reach");

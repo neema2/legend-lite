@@ -70,8 +70,10 @@ class PlannedSqlTest {
      */
     static final Map<String, Integer> MINT_REFERENCES = Map.of(
             // 2026-11-12 (the second audit): the hosts' plan runner, each step's statement typed as it is read; 17 -> 18
-            // (the C final audit's H9): an authored plan's target's session statements, typed as they are read
-            "engine-client/src/plan-runner.ts", 18,
+            // (the C final audit's H9): an authored plan's target's session statements, typed as they are read; 18 ->
+            // 21 (the re-audit's S8, 2026-11-12): a target's transaction statements (begin, commit, rollback), typed as
+            // they are read -- until then a host's session asked the planner for them at run (hostSession, deleted)
+            "engine-client/src/plan-runner.ts", 21,
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
             // 2026-11-12, 8 -> 14 (the re-audit's M1): its five plan answers (fileLoad, remoteMount, snapStream,
             // synthesize, authored) typed as read, and the mint's import

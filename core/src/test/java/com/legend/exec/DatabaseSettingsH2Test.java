@@ -158,7 +158,7 @@ class DatabaseSettingsH2Test {
         assertEquals("an H2 database is opened with the settings the plan's target declares, and it declares none:"
                 + " H2's own defaults would run the plan with other semantics", opened.getMessage());
         ExecutionPlan.Target none = new ExecutionPlan.Target(h2Target().database(), h2Target().session(), List.of(),
-                null, null);
+                null, null, null);
         try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter()) {
             JdbcStatements st = new JdbcStatements(c, new SessionState());
             com.legend.error.NotImplementedException refused = assertThrows(
