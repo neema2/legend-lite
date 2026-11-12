@@ -11,7 +11,7 @@
 // its database, held for the write, and its planner.
 
 import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
-import { runPlan } from '../../engine-client/src/plan-runner.ts';
+import { runPlan, transacted } from '../../engine-client/src/plan-runner.ts';
 import { colSpecs, fn, lambda, lit, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { ModelTable, TableModels } from './infer.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
@@ -73,43 +73,31 @@ export async function writeTable(rows: Lambda, output: TableOutput, host: TableW
   if (begin === undefined || commit === undefined || rollback === undefined || made.length !== (shape !== undefined ? 1 : 0)) {
     throw new Error(`the planner answered ${asked.length} host operations for an output's ${3 + (shape !== undefined ? 1 : 0)}`);
   }
-  return host.hold(async (held) => {
+  return host.hold((held) => transacted({ begin, commit, rollback }, held.rows, async () => {
     const session = { databaseType: host.databaseType, run: held.rows };
-    for (const statement of begin) await held.rows(statement, []);
-    try {
-      const params = shape?.params ?? [];
-      // the values bind the one statement that reads the query; a create of several statements binds none of them
-      if (params.length > 0 && made.flat().length !== 1) {
-        throw new CubeRefusal(`'${output.name}' is made by ${made.flat().length} statements, and its rows' query binds a data: payload one of them reads: not written here`);
-      }
-      for (const statement of made.flat()) await held.rows(statement, params);
-      // one model of its tables and the target, each read off the catalog as it is now (the target made just now, in
-      // the same transaction)
-      const engine = { run: (sql: PlannedSql) => held.table(sql) };
-      const tables: ModelTable[] = [];
-      for (const s of [...new Set(host.sources.map((x) => x.table))]) {
-        const given = host.sources.find((x) => x.table === s)!;
-        tables.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
-          columns: await catalogColumnsOf(engine, host.models, SCHEMA, s) });
-      }
-      const target = await catalogColumnsOf(engine, host.models, SCHEMA, output.name);
-      if (target.length === 0) throw new CubeRefusal(`this page's database has no table '${output.name}': write it with Create a new table first`);
-      tables.push({ table: output.name, convertible: false, columns: target });
-      const model = await host.models.tablesModel(tables, host.databaseType);
-      const into = model.tables.at(-1)!.source;
-      const plan = await host.executionPlan(model.model, model.runtime, lambda([], ...program(body, into, output)));
-      const answer = await runPlan(plan, session, { joined: true });
-      for (const statement of commit) await held.rows(statement, []);
-      return countOf(answer);
-    } catch (e) {
-      try {
-        for (const statement of rollback) await held.rows(statement, []);
-      } catch (r) {
-        throw new Error(`${e instanceof Error ? e.message : String(e)} -- and rolling its transaction back failed: ${r instanceof Error ? r.message : String(r)}`, { cause: e });
-      }
-      throw e;
+    const params = shape?.params ?? [];
+    // the values bind the one statement that reads the query; a create of several statements binds none of them
+    if (params.length > 0 && made.flat().length !== 1) {
+      throw new CubeRefusal(`'${output.name}' is made by ${made.flat().length} statements, and its rows' query binds a data: payload one of them reads: not written here`);
     }
-  });
+    for (const statement of made.flat()) await held.rows(statement, params);
+    // one model of its tables and the target, each read off the catalog as it is now (the target made just now, in
+    // the same transaction)
+    const engine = { run: (sql: PlannedSql) => held.table(sql) };
+    const tables: ModelTable[] = [];
+    for (const s of [...new Set(host.sources.map((x) => x.table))]) {
+      const given = host.sources.find((x) => x.table === s)!;
+      tables.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
+        columns: await catalogColumnsOf(engine, host.models, SCHEMA, s) });
+    }
+    const target = await catalogColumnsOf(engine, host.models, SCHEMA, output.name);
+    if (target.length === 0) throw new CubeRefusal(`this page's database has no table '${output.name}': write it with Create a new table first`);
+    tables.push({ table: output.name, convertible: false, columns: target });
+    const model = await host.models.tablesModel(tables, host.databaseType);
+    const into = model.tables.at(-1)!.source;
+    const plan = await host.executionPlan(model.model, model.runtime, lambda([], ...program(body, into, output)));
+    return countOf(await runPlan(plan, session, { joined: true }));
+  }));
 }
 
 /** The Pure program that writes the rows (`rows`) into its table (`into`): its statements in order. */

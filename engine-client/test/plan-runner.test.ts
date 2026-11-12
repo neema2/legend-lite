@@ -838,9 +838,10 @@ describe("a statement's slots and a payload's digest, required", () => {
   it('refuses a statement with no slots, a payload with no digest, and one whose statement carries no content, by name', () => {
     const refused = (statement: Parameters<typeof statementParams>[0], words: RegExp): void =>
       assert.throws(() => statementParams(statement), (e: unknown) => e instanceof PlanParamsRefusal && words.test(e.message));
-    refused({}, /carries its slots, and this one has none/);
-    refused({ slots: [{ parameter: 'p', binding: { _type: 'payload' } }], content: {} }, /'p' binds a payload, and names no digest/);
-    refused({ slots: [{ parameter: 'p', binding: { _type: 'payload', digest: 'ab' } }] }, /the statement carries no content/);
+    refused({}, /this plan's statement does not carry its slots/);
+    // no digest, and no content: either way the payload is not carried
+    refused({ slots: [{ parameter: 'p', binding: { _type: 'payload' } }], content: {} }, /'p' binds a payload its statement does not carry/);
+    refused({ slots: [{ parameter: 'p', binding: { _type: 'payload', digest: 'ab' } }] }, /'p' binds a payload its statement does not carry/);
     assert.deepEqual(statementParams({ slots: [] }), []);
   });
 });

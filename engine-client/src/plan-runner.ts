@@ -221,19 +221,30 @@ function required<T>(value: T | undefined | null, what: string): T {
 async function inTransaction<T>(target: Target, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
   work: () => Promise<T>): Promise<T> {
   const t = required(target.transaction, "its target's transaction");
-  for (const statement of t.begin) await run(fromPlan(statement), []);
+  return transacted({ begin: t.begin.map((s) => fromPlan(s)), commit: t.commit.map((s) => fromPlan(s)), rollback: t.rollback.map((s) => fromPlan(s)) },
+    run, work);
+}
+
+/**
+ * `work` between a transaction's statements on `run` (each a plan's or a planner's: inTransaction, DataCube's table
+ * writer) -- committed where it completes, rolled back where it fails and its failure thrown, a rollback that fails too
+ * said with it.
+ */
+export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; readonly commit: readonly PlannedSql[]; readonly rollback: readonly PlannedSql[] },
+  run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>, work: () => Promise<T>): Promise<T> {
+  for (const statement of t.begin) await run(statement, []);
   let done: T;
   try {
     done = await work();
   } catch (e) {
     try {
-      for (const statement of t.rollback) await run(fromPlan(statement), []);
+      for (const statement of t.rollback) await run(statement, []);
     } catch (r) {
       throw new Error(`${e instanceof Error ? e.message : String(e)} -- and rolling its transaction back failed: ${r instanceof Error ? r.message : String(r)}`, { cause: e });
     }
     throw e;
   }
-  for (const statement of t.commit) await run(fromPlan(statement), []);
+  for (const statement of t.commit) await run(statement, []);
   return done;
 }
 
