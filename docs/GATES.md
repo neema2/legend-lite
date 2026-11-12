@@ -21640,3 +21640,40 @@ core integration lanes, and testdatagen, testplan, server and setup are green. N
 
 Test: `TestDataPlannerTest.aColumnIsResolvedByItsExactName`: a row identifier's column spelled `id` against `ID` is
 refused by name (until now it was matched in any case).
+
+## 2026-11-12 — L9: the generator prints a timestamp in full in lite's own text, as upstream cuts it in backwards compatibility (S306)
+
+The user's ruling of 2026-11-12 on the L9 printing question: "Our clean sheet lite plan should always do the
+clean/nice/right thing. In backwards compat we can chop the timestamp and we can make float a known divergence".
+Until now every cell of the generator's text was the database's own `CAST(cell AS VARCHAR)` (`2020-01-02
+03:04:05.123` on DuckDB and H2, SQLite's stored text), and the seed route's JSON wrote a timestamp key as the
+database's JSON builder spelled it.
+
+- **`TestDataPlanner.Printing`:** CLEAN prints a timestamp in full, as lite's writers spell a relation's
+  time-bearing cell (`CellText`, `Precision.INSTANT`): `yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000` on every database.
+  COMPAT prints it as upstream's text does: `toCSVString`'s `SimpleDateTimeFormat`, `yyyy-MM-dd HH:mm:ss`, the
+  fraction cut. Each is the database's spelling: STRFTIME of a typed `DateFmt` (`ISO_NANO`, or the seconds form), the
+  dialect's strftime, never Java.
+- **Where it applies:** the text's cells, and the `assertTestData` comparison's generated side, which reads the text
+  as it printed it. The seed route's JSON writes a timestamp key in the canonical form in both printings; it is
+  upstream's own (`SeedDataGeneration.java:192`, the `ValueTransformer`). A date is `yyyy-MM-dd` in both.
+- **How the mode reaches the generator:**
+  - a test body takes it from its judging rules (`TestPlanner.plan`): lite's rules give CLEAN; the compatibility
+    rules (`ExecuteOptions.withEngineCompat`, which the corpus lanes run under) give COMPAT;
+  - the four `pure/v1` test-data routes always plan COMPAT. They are legend-engine's API, and every `pure/v1` route
+    writes legend-engine's spellings with no mode.
+- **Floats:** the database's own text in both printings, the known divergence the ruling names (S306): `1e20` is
+  `1e+20` / `1.0E20` / `1.0e+20` on DuckDB / H2 / SQLite, and `0.00001` is `1e-05` / `1.0E-5` / `1.0e-05`. Pure prints
+  `100000000000000000000.0` and `0.00001`; ordinary values agree.
+- **Line order:** a table's lines are ordered NULLS LAST, named. SQLite's default put a NULL first, DuckDB's and H2's
+  last; the printing test's NULL row found it. One text is now one text on every database.
+- **Tests:**
+  - `TestDataPlannerTest.aTimestampPrintsInFullOrAsUpstreamCutsIt` (DuckDB, H2, SQLite): both printings; a timestamp
+    with three, none and six fraction digits, and NULL; a date; the floats against the database's own cast, never
+    Pure's; the seed JSON's timestamp key;
+  - `GeneratedTestDataPrintingTest`: a test body under each rule set, on each in-process database and judge;
+  - `TestDataRoutesTest.theRoutesPrintATimestampAsUpstreamDoes` (DuckDB): the route's text cut, the seed's key whole.
+- **Guards moved, each with its note:** parser-equivalence `own_corpus.matched` 3164 -> 3177 (the three tests'
+  models).
+- **The corpus lanes** (DuckDB and H2, both judges, under the compatibility rules: COMPAT): unchanged, every roster
+  and register as committed (`//spec:corpus_duckdb`, `//spec:corpus_h2`, 12 of 12).

@@ -69,14 +69,32 @@ public final class TestDataPlanner {
     /** The generator's plan: one text per fetch ({@code sqls}), and the statement answering the test-data text in its
      *  one cell ({@code csv}), both written in the dialect the caller renders them in; and what a comparison with an
      *  expected text and the slice read ({@link #same}, {@link #slice}): the fetches' clauses in order, each table
-     *  fetched, and whether its text cells are hashed. */
+     *  fetched, whether its text cells are hashed, and how its text prints a timestamp. */
     public record Planned(List<SqlQuery> fetches, SqlQuery csv, List<SqlWith.Cte> clauses, List<Table> tables,
-            boolean hashStrings) {
+            boolean hashStrings, Printing printing) {
         public Planned {
             fetches = List.copyOf(fetches);
             clauses = List.copyOf(clauses);
             tables = List.copyOf(tables);
         }
+    }
+
+    /**
+     * How the generator's texts print a timestamp cell (L9; the user's ruling of 2026-11-12: "Our clean sheet lite plan
+     * should always do the clean/nice/right thing. In backwards compat we can chop the timestamp and we can make float a
+     * known divergence"), each spelled by the database ({@link #timestampText}). A date is {@code yyyy-MM-dd} and a float
+     * the database's own text in both (register S306).
+     */
+    public enum Printing {
+        /** Lite's own: a timestamp in full, as lite's writers spell a relation's time-bearing cell
+         *  ({@code result.CellText}, {@code Precision.INSTANT}): {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000} on every
+         *  database. */
+        CLEAN,
+        /** Backwards compatibility's (a test body judged by the compatibility rules; the server's legend-engine routes): a
+         *  timestamp as upstream's text writes it -- {@code toCSVString}'s {@code SimpleDateTimeFormat},
+         *  {@code yyyy-MM-dd HH:mm:ss}, its fraction cut (legend-engine {@code helperFunctions.pure:214-243}, the
+         *  generator's {@code getResultCSV}). */
+        COMPAT
     }
 
     /** One table the generator fetched: its schema and name, its definition, its fetched columns in the test-data
@@ -102,11 +120,11 @@ public final class TestDataPlanner {
 
     /** The test data {@code query} over {@code mappingFqn} needs, starting from {@code rowIds}, the milestoned tables
      *  read on {@code dates}, text cells hashed where {@code hashStrings} says, a view's own fetch planned by
-     *  {@code views}. */
+     *  {@code views}, a timestamp printed as {@code printing} says. */
     public static Planned plan(ModelContext ctx, LambdaFunction query, String mappingFqn,
             List<TestDataGenerator.TableRowIds> rowIds, TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings, Views views) {
-        return planned(ctx, query, mappingFqn, rowIds, dates, hashStrings, views, null, false);
+            boolean hashStrings, Views views, Printing printing) {
+        return planned(ctx, query, mappingFqn, rowIds, dates, hashStrings, views, null, false, printing);
     }
 
     /**
@@ -120,18 +138,20 @@ public final class TestDataPlanner {
      * :282), each cell written as the function writes it (the user's ruling R5, register S191). A view in the query's
      * relation tree is refused by name: upstream's plan form fetches a view's own rows {@code top 20} and a child view's
      * main table through its parent (TDG:1023-1201), which lite does not plan. A root no identifier names and no seed
-     * starts is upstream's error node ({@link Unseeded}).
+     * starts is upstream's error node ({@link Unseeded}). A timestamp prints as backwards compatibility's
+     * ({@link Printing#COMPAT}): the routes are legend-engine's API, whose every {@code pure/v1} route writes
+     * legend-engine's spellings (L9, 2026-11-12).
      */
     public static Planned route(ModelContext ctx, LambdaFunction query, String mappingFqn,
             List<TestDataGenerator.TableRowIds> rowIds, @com.legend.base.Nullable Seed seed, boolean hashStrings) {
         return planned(ctx, query, mappingFqn, rowIds, null, hashStrings, (db, view, reads, tables) -> {
             throw new IllegalStateException("a view on the server's route is refused before it is fetched");
-        }, seed, true);
+        }, seed, true, Printing.COMPAT);
     }
 
     private static Planned planned(ModelContext ctx, LambdaFunction query, String mappingFqn,
             List<TestDataGenerator.TableRowIds> rowIds, TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings, Views views, @com.legend.base.Nullable Seed seed, boolean route) {
+            boolean hashStrings, Views views, @com.legend.base.Nullable Seed seed, boolean route, Printing printing) {
         List<ScanRelations.Rel> roots = ScanRelations.relTree(ctx, query, mappingFqn);
         if (route) {
             for (ScanRelations.Rel r : roots) {
@@ -158,7 +178,7 @@ public final class TestDataPlanner {
         for (Fetched f : walk.fetched.values()) {
             tables.add(new Table(f.schema(), f.table(), f.def(), headerOrder(f.cols()), f.ctes()));
         }
-        return new Planned(fetches, csv(walk, hashStrings, route), walk.ctes, tables, hashStrings);
+        return new Planned(fetches, csv(walk, hashStrings, route, printing), walk.ctes, tables, hashStrings, printing);
     }
 
     /** A view in {@code rel}'s tree, refused by name on the server's route ({@link #route}). */
@@ -563,7 +583,7 @@ public final class TestDataPlanner {
      *  inside a common table expression -- as the database judge's verdict statement places a side (measured
      *  2026-11-11: "Table not found"; from a derived table in the body's FROM it resolves them, as DuckDB and SQLite
      *  do either way). */
-    private static SqlQuery csv(Walk walk, boolean hashStrings, boolean route) {
+    private static SqlQuery csv(Walk walk, boolean hashStrings, boolean route, Printing printing) {
         if (walk.fetched.isEmpty()) {
             throw new IllegalStateException("testDataGen: a relation tree with no table");
         }
@@ -581,7 +601,7 @@ public final class TestDataPlanner {
             String header = f.schema() + "\n" + f.table() + "\n"
                     + String.join(",", cs.stream().map(TestDataPlanner::headerCase).toList()) + "\n";
             String alias = "_t" + n++;
-            SqlSource lines = new SqlSource.Subselect(lines(walk, f, cs, hashStrings), alias, null);
+            SqlSource lines = new SqlSource.Subselect(lines(walk, f, cs, hashStrings, printing), alias, null);
             from = from == null ? lines : new SqlSource.Join(from, lines, SqlSource.Join.Kind.CROSS, null);
             blocks.add(new SqlExpr.StringLit(header));
             blocks.add(SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Column.derived(alias, LINES),
@@ -599,13 +619,16 @@ public final class TestDataPlanner {
 
     /** {@code f}'s lines as one text: its fetches' distinct rows, each cell's display text (a text cell hashed or
      *  quoted where it holds a comma, a quote or a line break, a NULL {@code ---null---}) joined by commas, each line ending in a line break, in the cells' order. */
-    private static SqlQuery lines(Walk walk, Fetched f, List<String> cs, boolean hashStrings) {
+    private static SqlQuery lines(Walk walk, Fetched f, List<String> cs, boolean hashStrings, Printing printing) {
         SqlQuery distinct = fetchedRows(f.ctes());
         List<SqlSelect.Projection> projs = new ArrayList<>(cs.size());
         for (String c : cs) {
             String tc = tempColumn(f.def(), c);
             SqlExpr cell = SqlExpr.Column.derived("_u", tc);
-            if (!isText(column(f.def(), c).dataType())) {
+            RelationalDataType type = column(f.def(), c).dataType();
+            if (timestamp(type)) {
+                projs.add(new SqlSelect.Projection(timestampText(cell, printing), tc, null));
+            } else if (!isText(type)) {
                 projs.add(new SqlSelect.Projection(cell, tc, null));
             } else if (hashStrings) {
                 projs.add(new SqlSelect.Projection(hashString(cell), tc, null));
@@ -625,8 +648,11 @@ public final class TestDataPlanner {
         }
         parts.add(new SqlExpr.StringLit("\n"));
         SqlExpr line = new SqlExpr.Call(SqlFn.CONCAT, parts, SqlTyping.UNKNOWN);
+        // NULLS LAST named: a database's own default differs (SQLite's first, DuckDB's and H2's last), and one text is
+        // one text on every database (L9, 2026-11-12: found by the printing test's NULL row)
         List<SqlSelect.SortKey> order = cs.stream()
-                .map(c -> SqlSelect.SortKey.asc(SqlExpr.Column.derived(CSV_ROW, tempColumn(f.def(), c)))).toList();
+                .map(c -> new SqlSelect.SortKey(SqlExpr.Column.derived(CSV_ROW, tempColumn(f.def(), c)), true,
+                        SqlSelect.SortKey.NullOrder.NULLS_LAST, null)).toList();
         SqlExpr joined = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(line, new SqlExpr.StringLit("")), false,
                 order);
         return new SqlSelect(List.of(new SqlSelect.Projection(joined, LINES, null)), false,
@@ -804,8 +830,11 @@ public final class TestDataPlanner {
         for (String k : seed.keys()) {
             String name = bareName(k);
             SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
+            // a timestamp key as upstream's ValueTransformer writes it (SeedDataGeneration.java:192), which is lite's
+            // canonical text too: the same in both printings (L9, 2026-11-12)
+            SqlExpr value = timestamp(column(def, k).dataType()) ? timestampText(cell, Printing.CLEAN) : cell;
             pairs.add(new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("name"), new SqlExpr.StringLit(
-                    name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), cell)));
+                    name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), value)));
             order.add(new SqlExpr.JsonArrayAgg.Key(cell, false));
         }
         SqlExpr identifier = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("columnValuePairs"),
@@ -1054,7 +1083,7 @@ public final class TestDataPlanner {
         List<Integer> widths = new ArrayList<>();
         for (Map.Entry<String, Table> e : generated.entrySet()) {
             Table g = e.getValue();
-            SqlQuery got = counted(generatedCells(g, planned.hashStrings()), g, "_g");
+            SqlQuery got = counted(generatedCells(g, planned.hashStrings(), planned.printing()), g, "_g");
             List<List<String>> want = rows.getOrDefault(e.getKey(), List.of());
             String label = g.schema() + "." + g.table() + " (" + String.join(",", g.columns()) + ")";
             if (want.isEmpty()) {
@@ -1161,12 +1190,15 @@ public final class TestDataPlanner {
     /** {@code g}'s rows as its text writes them -- its fetches' distinct rows, each cell's text before quoting (a text
      *  cell hashed where the text hashes it, NULL where the text writes {@code ---null---}) -- each cell by upstream's
      *  rule ({@link #upstreamCell}). */
-    private static SqlQuery generatedCells(Table g, boolean hashStrings) {
+    private static SqlQuery generatedCells(Table g, boolean hashStrings, Printing printing) {
         List<SqlSelect.Projection> ps = new ArrayList<>(g.columns().size());
         for (int i = 0; i < g.columns().size(); i++) {
             String c = g.columns().get(i);
-            ps.add(new SqlSelect.Projection(upstreamCell(new SqlExpr.Cast(sliceCell(g.def(), c, "_u", hashStrings),
-                    SqlType.Scalar.VARCHAR), column(g.def(), c).dataType()), "v" + i, null));
+            RelationalDataType type = column(g.def(), c).dataType();
+            SqlExpr cell = sliceCell(g.def(), c, "_u", hashStrings);
+            // a timestamp as the text prints it ({@link Printing}), so the comparison reads what the text wrote
+            ps.add(new SqlSelect.Projection(upstreamCell(timestamp(type) ? timestampText(cell, printing)
+                    : new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR), type), "v" + i, null));
         }
         return new SqlSelect(ps, false, new SqlSource.Subselect(fetchedRows(g.clauses()), "_u", null), null,
                 List.of(), null, null, List.of(), null, null, List.of());
@@ -1220,6 +1252,31 @@ public final class TestDataPlanner {
         }
         return new SqlExpr.Case(whens, x);
     }
+
+    /** Whether {@code t} is a timestamp column's type, printed by {@link Printing}. */
+    private static boolean timestamp(RelationalDataType t) {
+        return t instanceof RelationalDataType.Timestamp || t instanceof RelationalDataType.TimestampNs;
+    }
+
+    /** A timestamp's spelling in {@code printing}, written by the database (each dialect's strftime of the typed
+     *  format): {@link Printing#CLEAN}'s {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000}, or {@link Printing#COMPAT}'s
+     *  {@code yyyy-MM-dd HH:mm:ss}; a NULL stays NULL. */
+    private static SqlExpr timestampText(SqlExpr x, Printing printing) {
+        return switch (printing) {
+            case CLEAN -> new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR))), SqlExpr.Call.of(SqlFn.CONCAT,
+                    SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
+                    new SqlExpr.StringLit("+0000")));
+            case COMPAT -> SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(SECONDS));
+        };
+    }
+
+    /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss}. */
+    private static final List<com.legend.sql.DateFmt> SECONDS = List.of(com.legend.sql.DateFmt.Part.YEAR4,
+            new com.legend.sql.DateFmt.Text("-"), com.legend.sql.DateFmt.Part.MONTH2, new com.legend.sql.DateFmt.Text("-"),
+            com.legend.sql.DateFmt.Part.DAY2, new com.legend.sql.DateFmt.Text(" "), com.legend.sql.DateFmt.Part.HOUR2,
+            new com.legend.sql.DateFmt.Text(":"), com.legend.sql.DateFmt.Part.MIN2, new com.legend.sql.DateFmt.Text(":"),
+            com.legend.sql.DateFmt.Part.SEC2);
 
     /** Whether {@code x} is one of {@code texts}. */
     private static SqlExpr oneOf(SqlExpr x, String... texts) {

@@ -38,8 +38,10 @@ final class GeneratedTestData {
 
     /** {@code given} with each census replaced by its constant and each test-data generator it binds planned, or as
      *  it is where it holds neither;
-     *  statements written in {@code dialect}, the body's, whose runtime is {@code runtimeFqn}. */
-    static TypedQuery planned(TypedQuery given, SqlDialect dialect, @com.legend.base.Nullable String runtimeFqn) {
+     *  statements written in {@code dialect}, the body's, whose runtime is {@code runtimeFqn}; a timestamp printed as
+     *  {@code printing} says (the body's judging rules: L9, 2026-11-12). */
+    static TypedQuery planned(TypedQuery given, SqlDialect dialect, @com.legend.base.Nullable String runtimeFqn,
+            TestDataPlanner.Printing printing) {
         TypedQuery typed = withSeedStrings(withCensus(given), runtimeFqn);
         if (!GeneratorSplice.holdsAGenerator(typed.body())) {
             return typed;
@@ -49,7 +51,7 @@ final class GeneratedTestData {
         return typed.withBody(GeneratorSplice.spliced(body, ctx, typed.specs(), new GeneratorSplice.Generator() {
             @Override
             public GeneratorSplice.Generated plan(TypedTestDataGen g) {
-                return generated(g, typed, dialect, body, runtimeFqn);
+                return generated(g, typed, dialect, body, runtimeFqn, printing);
             }
 
             @Override
@@ -186,7 +188,7 @@ final class GeneratedTestData {
      *  arguments after the query, the mapping and the runtime classified (the row identifiers, the milestoning dates,
      *  the hash flag; each a literal, a non-literal refused by name), its fetches' texts written in {@code dialect}. */
     private static Generated generated(TypedTestDataGen g, TypedQuery typed, SqlDialect dialect, List<TypedSpec> body,
-            @com.legend.base.Nullable String runtimeFqn) {
+            @com.legend.base.Nullable String runtimeFqn, TestDataPlanner.Printing printing) {
         ModelContext ctx = typed.context();
         List<ValueSpecification> ps = g.params();
         theBodysRuntime(ps.get(2), body, runtimeFqn);
@@ -199,7 +201,7 @@ final class GeneratedTestData {
             TestDataGenerationNatives.classifyArg(ps.get(i), rowIds, dates, hash);
         }
         TestDataPlanner.Planned p = TestDataPlanner.plan(ctx, query, mapping, rowIds, dates[0], hash[0],
-                views(typed, runtimeFqn, dialect));
+                views(typed, runtimeFqn, dialect), printing);
         List<String> texts = new ArrayList<>(p.fetches().size());
         for (SqlQuery f : p.fetches()) {
             texts.add(dialect.render(f));
