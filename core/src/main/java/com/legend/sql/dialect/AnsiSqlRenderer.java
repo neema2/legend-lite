@@ -764,24 +764,16 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     java.util.List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
                                     co.list()),
-                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                                    new SqlExpr.StringLit(
-                                            "Cannot cast a collection of"
-                                            + " size 0 to multiplicity "
-                                            + bound)))),
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                                    com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+                                    java.util.List.of(new SqlExpr.StringLit(bound)))))),
                     co.list()), parentPrec);
         }
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
-        SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                        new SqlExpr.StringLit(
-                                "Cannot cast a collection of size "),
-                        new SqlExpr.Cast(SqlExpr.Call.of(
-                                        com.legend.sql.SqlFn.COALESCE, len,
-                                        new SqlExpr.IntLit(0)),
-                                com.legend.sql.SqlType.Scalar.VARCHAR),
-                        new SqlExpr.StringLit(" to multiplicity " + bound)));
+        SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0)))));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(

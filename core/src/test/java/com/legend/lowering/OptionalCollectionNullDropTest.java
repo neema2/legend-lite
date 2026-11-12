@@ -102,8 +102,7 @@ class OptionalCollectionNullDropTest {
     void toOneCountsPureCollection() {
         var ex = assertThrows(Exception.class,
                 () -> run("{| m::P.all().nick->toOne();}"));
-        assertTrue(ex.getMessage().contains("size 2")
-                        || ex.getMessage().contains("2 to multiplicity"),
+        assertTrue(ex.getMessage().contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
                 "expected pure's size-2 cast error, got: " + ex.getMessage());
     }
 
@@ -121,8 +120,7 @@ class OptionalCollectionNullDropTest {
     void relationLaneToOneCountsPure() {
         var ex = assertThrows(Exception.class,
                 () -> run("{| #>{s::DB.P}#->map(r|$r.NICK)->toOne();}"));
-        assertTrue(ex.getMessage().contains("size 2")
-                        || ex.getMessage().contains("2 to multiplicity"),
+        assertTrue(ex.getMessage().contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
                 "expected pure's size-2 cast error, got: " + ex.getMessage());
     }
 

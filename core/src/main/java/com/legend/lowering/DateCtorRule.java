@@ -44,15 +44,13 @@ final class DateCtorRule {
                         && args.get(1) instanceof SqlExpr.IntLit ml
                         && ml.value() >= 1 && ml.value() <= 12
                         && lit.value() > daysInMonth(yl.value(), ml.value())) {
-                    return PureSql.raise(
-                            new SqlExpr.StringLit("Invalid day: "
-                            + yl.value() + "-" + ml.value() + "-"
-                            + lit.value()), n.pos());
+                    // the attempted year, month and day, the edge's sentence's operands (D1.1)
+                    return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                            List.of(new SqlExpr.StringLit("day"), yl, ml, lit)), n.pos());
                 }
                 if (lit.value() < ranges[i][0] || lit.value() > ranges[i][1]) {
-                    return PureSql.raise(
-                            new SqlExpr.StringLit(
-                            "Invalid " + comps[i] + ": " + lit.value()), n.pos());
+                    return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                            List.of(new SqlExpr.StringLit(comps[i]), lit)), n.pos());
                 }
             } else if (args.get(i) instanceof SqlExpr.FloatLit
                     || args.get(i) instanceof SqlExpr.DecimalLit) {
@@ -63,9 +61,8 @@ final class DateCtorRule {
                         : ((SqlExpr.DecimalLit) args.get(i)).value();
                 if (v.signum() < 0
                         || v.compareTo(java.math.BigDecimal.valueOf(60)) >= 0) {
-                    return PureSql.raise(
-                            new SqlExpr.StringLit(
-                            "Invalid " + comps[i] + ": " + v.toPlainString()), n.pos());
+                    return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                            List.of(new SqlExpr.StringLit(comps[i]), args.get(i))), n.pos());
                 }
             } else {
                 // FRACTIONAL seconds are legal up to (not including)
@@ -83,8 +80,8 @@ final class DateCtorRule {
                                 SqlExpr.Call.of(SqlFn.LESS, args.get(i),
                                         new SqlExpr.IntLit(ranges[i][0])),
                                 tooHigh),
-                        Scalars.cat(new SqlExpr.StringLit("Invalid " + comps[i] + ": "),
-                                Scalars.str(args.get(i))),
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                                List.of(new SqlExpr.StringLit(comps[i]), args.get(i))),
                         args.get(i)));
             }
         }

@@ -52,8 +52,9 @@ class ToOneLaneTest {
 
     private static void assertSizeError(String query, int size) {
         var ex = assertThrows(Exception.class, () -> run(query));
+        // the product's kind, in lite's words (D1.1): the size is legend-pure's sentence's, the edge's
         assertTrue(ex.getMessage().contains(
-                        "size " + size + " to multiplicity [1]"),
+                        com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
                 "expected pure's size-" + size + " cast error for "
                         + query + ", got: " + ex.getMessage());
     }

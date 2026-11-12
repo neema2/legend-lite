@@ -410,8 +410,7 @@ final class Scalars {
                             new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT),
                             args.get(1));
                     SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
-                            new SqlExpr.StringLit(
-                                    "Unsupported number of bits to shift - max bits allowed is 62"));
+                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
                     if (args.get(1) instanceof SqlExpr.IntLit sh) {
                         return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
                     }
@@ -1208,10 +1207,9 @@ final class Scalars {
                     PureDateLiteral.Precision prec =
                             datePrecisionOrUnknown(n.args().get(0));
                     if (prec != null && !prec.atLeast(needed)) {
-                        return PureSql.raise(
-                                cat(new SqlExpr.StringLit(
-                                                "Cannot get " + label + " for "),
-                                        str(args.get(0))), n.pos());
+                        // the part's label and the date, the edge's sentence's operands (D1.1)
+                        return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_PART_ABSENT,
+                                List.of(new SqlExpr.StringLit(label), args.get(0))), n.pos());
                     }
                     // A PARTIAL date that HAS the component carries as its
                     // print-form string ('2015-04') — the component is a
@@ -1505,12 +1503,10 @@ final class Scalars {
                 SqlExpr oob = SqlExpr.Call.of(SqlFn.OR,
                         SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), size),
                         SqlExpr.Call.of(SqlFn.LESS, args.get(1), new SqlExpr.IntLit(0)));
+                // the offset and the size, the edge's sentence's operands (D1.1)
                 return guarded(oob,
-                        cat(new SqlExpr.StringLit(
-                                        "The system is trying to get an element at offset "),
-                                str(args.get(1)),
-                                new SqlExpr.StringLit(" where the collection is of size "),
-                                str(size)),
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INDEX_OUT_OF_BOUNDS,
+                                List.of(args.get(1), size)),
                         new SqlExpr.Call(SqlFn.LIST_GET,
                                 List.of(op, plusOne(args.get(1)))),
                         n.pos());
@@ -1550,8 +1546,8 @@ final class Scalars {
                 return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.GREATER, idx,
                                 SqlExpr.Call.of(SqlFn.LIST_LENGTH, l)),
-                        SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                                "add(set, index, value): index out of bounds")))),
+                        SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
+                                com.legend.sql.RaiseKind.INSERT_OUT_OF_BOUNDS, List.of())))),
                         inserted);
             });
         }
@@ -1842,7 +1838,8 @@ final class Scalars {
                 SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE);
                 return guarded(
                         SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
-                        cat(new SqlExpr.StringLit("Unable to compute sqrt of "), floatRepr(x)),
+                        // the value, the edge's sentence's operand, printed there as Pure prints a Float (D1.1)
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(x)),
                         SqlExpr.Call.of(SqlFn.SQRT, args.get(0)));
             });
         }
@@ -2052,9 +2049,9 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, xs),
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, ys)),
-                            SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                                    e.getKey() + ": the two value lists differ"
-                                            + " in length")))),
+                            SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
+                                    com.legend.sql.RaiseKind.LIST_LENGTHS_DIFFER,
+                                    List.of(new SqlExpr.StringLit(String.valueOf(e.getKey()))))))),
                             new SqlExpr.ScalarSubquery(outer));
                 });
             }

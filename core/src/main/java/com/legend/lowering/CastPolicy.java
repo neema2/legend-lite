@@ -218,9 +218,10 @@ final class CastPolicy {
         if (contract) {
             return null;
         }
-        return SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                new SqlExpr.StringLit("Cast exception: " + src.typeName()
-                        + " cannot be cast to " + target.typeName()));
+        // the two types' names, the edge's sentence's operands (D1.1)
+        return SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, java.util.List.of(new SqlExpr.StringLit(src.typeName()),
+                        new SqlExpr.StringLit(target.typeName()))));
     }
 
     private static Type.Primitive.@com.legend.base.Nullable Family familyOf(Type t) {

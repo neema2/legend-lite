@@ -262,16 +262,8 @@ final class ListEncodings {
                 onePlus(lo), hi);
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
-                SqlExpr.Call.of(SqlFn.ERROR,
-                        SqlExpr.Call.of(SqlFn.CONCAT,
-                                SqlExpr.Call.of(SqlFn.CONCAT,
-                                        SqlExpr.Call.of(SqlFn.CONCAT,
-                                                new SqlExpr.StringLit("The low bound ("),
-                                                new SqlExpr.Cast(lo, SqlType.Scalar.VARCHAR)),
-                                        new SqlExpr.StringLit(") can't be higher than the high bound (")),
-                                SqlExpr.Call.of(SqlFn.CONCAT,
-                                        new SqlExpr.Cast(hi, SqlType.Scalar.VARCHAR),
-                                        new SqlExpr.StringLit(") in a slice operation")))))),
+                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, List.of(lo, hi))))),
                 sliced);
     }
 

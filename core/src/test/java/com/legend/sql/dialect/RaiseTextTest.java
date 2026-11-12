@@ -96,6 +96,69 @@ class RaiseTextTest {
         }
     }
 
+    private static SqlExpr cat(SqlExpr... parts) {
+        SqlExpr out = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            out = SqlExpr.Call.of(SqlFn.CONCAT, out, parts[i]);
+        }
+        return out;
+    }
+
+    private static SqlExpr str(SqlExpr x) {
+        return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+    }
+
+    private static SqlExpr lit(String s) {
+        return new SqlExpr.StringLit(s);
+    }
+
+    /** Each moved family's raise against the message the lowering wrote before the move (D1.1, families 2-12). */
+    @Test
+    void theEdgeWritesEachMovedFamilysSentence() {
+        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT);
+        SqlExpr b = new SqlExpr.Cast(new SqlExpr.Column("t", "other_col"), SqlType.Scalar.BIGINT);
+        java.util.Map<SqlExpr, SqlExpr> moved = new java.util.LinkedHashMap<>();
+        moved.put(new SqlExpr.RaiseText(RaiseKind.SHIFT_OUT_OF_RANGE, List.of()),
+                lit("Unsupported number of bits to shift - max bits allowed is 62"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_PART_ABSENT, List.of(lit("hour"), a)),
+                cat(lit("Cannot get hour for "), str(a)));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.INDEX_OUT_OF_BOUNDS, List.of(a, b)),
+                cat(lit("The system is trying to get an element at offset "), str(a),
+                        lit(" where the collection is of size "), str(b)));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.INSERT_OUT_OF_BOUNDS, List.of()),
+                lit("add(set, index, value): index out of bounds"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.SQRT_OF_NEGATIVE, List.of(a)),
+                cat(lit("Unable to compute sqrt of "), SqlExpr.Call.of(SqlFn.FLOAT_PRINT, a)));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(lit("[1..*]"))),
+                lit("Cannot cast a collection of size 0 to multiplicity [1..*]"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(lit("[1]"), b)),
+                new SqlExpr.Call(SqlFn.CONCAT, List.of(lit("Cannot cast a collection of size "), str(b),
+                        lit(" to multiplicity [1]"))));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.SLICE_BOUNDS_INVERTED, List.of(a, b)),
+                SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT,
+                        lit("The low bound ("), str(a)), lit(") can't be higher than the high bound (")),
+                        SqlExpr.Call.of(SqlFn.CONCAT, str(b), lit(") in a slice operation"))));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("day"),
+                new SqlExpr.IntLit(2016), new SqlExpr.IntLit(12), new SqlExpr.IntLit(32))), lit("Invalid day: 2016-12-32"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("month"), new SqlExpr.IntLit(13))),
+                lit("Invalid month: 13"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("second"),
+                new SqlExpr.FloatLit(61.5))), lit("Invalid second: 61.5"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("hour"), a)),
+                cat(lit("Invalid hour: "), str(a)));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.CAST_IMPOSSIBLE, List.of(lit("Integer"), lit("Date"))),
+                lit("Cast exception: Integer cannot be cast to Date"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.RANGE_STEP_ZERO, List.of()), lit("range step must not be 0"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.LIST_LENGTHS_DIFFER, List.of(lit("zip"))),
+                lit("zip: the two value lists differ in length"));
+        for (DatabaseType type : Databases.implemented()) {
+            for (var e : moved.entrySet()) {
+                assertEquals(text(Databases.dialect(type), select(e.getValue())),
+                        text(com.legend.edge.PureText.dialect(type), select(e.getKey())), type + ": " + e.getKey());
+            }
+        }
+    }
+
     @Test
     void aKindNoSiteRaisesYetIsRefusedAtTheEdge() {
         var refused = assertThrows(UnsupportedOperationException.class, () -> com.legend.edge.PureMessages.sentence(

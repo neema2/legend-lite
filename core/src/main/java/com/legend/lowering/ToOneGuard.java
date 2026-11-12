@@ -64,10 +64,9 @@ final class ToOneGuard {
         SqlSource joined = new SqlSource.Join(new SqlSource.Subselect(one, da, null),
                 new SqlSource.Subselect(withCount, ra, null), SqlSource.Join.Kind.LEFT, new SqlExpr.BoolLit(true));
         SqlExpr n = SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Column.of(ra, rows), new SqlExpr.IntLit(0));
-        SqlExpr raise = SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.StringLit("Cannot cast a collection of size "),
-                new SqlExpr.Cast(n, SqlType.Scalar.VARCHAR),
-                new SqlExpr.StringLit(" to multiplicity [1]")));
+        // the bound and the size, the edge's sentence's operands (D1.1)
+        SqlExpr raise = SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(new SqlExpr.StringLit("[1]"), n)));
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(1)), new SqlExpr.BoolLit(true))), raise);
         List<SqlSelect.Projection> out = new ArrayList<>(cols.size());

@@ -198,10 +198,7 @@ final class TaggedLists {
                 SqlExpr.Call.of(SqlFn.LESS, index, new SqlExpr.IntLit(0)));
         SqlExpr position = SqlExpr.Call.of(SqlFn.LIST_GET, tl.positions(), plusOne(index));
         return Scalars.guarded(oob,
-                Scalars.cat(new SqlExpr.StringLit("The system is trying to get an element at offset "),
-                        Scalars.str(index),
-                        new SqlExpr.StringLit(" where the collection is of size "),
-                        Scalars.str(size)),
+                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INDEX_OUT_OF_BOUNDS, List.of(index, size)),
                 tl.element(position), pos);
     }
 
