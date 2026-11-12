@@ -1687,9 +1687,25 @@ junit_test(
         ":core_tests_lib",
         ":duckdb_cells",
         ":mongodb_connector",
+        # the MongoDB choke rule's planted violator, compiled against the driver (the C final audit's J3, 2026-11-12)
+        ":mongodb_planted",
         ":postgres_cells",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# A class planted to send a MongoDB command outside the one method that sends (the C final audit's J3, the user's
+# ruling of 2026-11-12): ArchitectureTest.theMongoDbRuleBitesAPlantedCommand reads it from :guardrails's classpath.
+# Its own library because it is compiled against the driver, which :core_tests_lib is not.
+legend_java_library(
+    name = "mongodb_planted",
+    testonly = True,
+    srcs = ["src/test/mongodb/com/legend/exec/PlantedMongoCommand.java"],
+    deps = [
+        "@bson//jar",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
+    ],
 )
 
 # THE PRODUCT'S JARS, declared: what ArchitectureTest imports and NoEagerTypeReferencesTest loads (Bazel workplan
@@ -2079,6 +2095,7 @@ core_layer_queries(not_layers = {
     "core_next": "core as the generators rewrite it, for the claims generator (spec)",
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
+    "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",

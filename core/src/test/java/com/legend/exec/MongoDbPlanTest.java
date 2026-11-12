@@ -170,30 +170,15 @@ class MongoDbPlanTest {
             sentByTheRun = List.copyOf(names);
         }
         assertEquals(List.of(List.of("Cy")), rows);
-        // the session's check reads the server's version (buildInfo: a command the session writes, HELD for the user's
-        // ruling, J3), then the plan's aggregate: nothing else
-        assertEquals(List.of("buildInfo", "aggregate"), sentByTheRun, "every command the run sent");
-        org.bson.BsonDocument aggregate = commands.get(sentByTheRun.indexOf("aggregate"));
+        // the plan's command and nothing else: a command the plan does not carry fails here (the user's ruling of
+        // 2026-11-12, J3: the session's own buildInfo, sent by its check until then, is deleted)
         org.bson.BsonDocument planned = org.bson.BsonDocument.parse(sql.statement());
+        assertEquals(List.of(planned.getFirstKey()), sentByTheRun, "every command the run sent is the plan's");
+        org.bson.BsonDocument aggregate = commands.get(0);
         assertEquals(planned.get("aggregate"), aggregate.get("aggregate"));
         assertEquals(planned.get("pipeline"), aggregate.get("pipeline"), "the plan's pipeline, untouched");
         assertEquals(org.bson.BsonDocument.parse("{\"lp1\": {\"$literal\": {\"$numberLong\": \"30\"}},"
                 + " \"lp2\": {\"$literal\": \"Ann\"}}"), aggregate.get("let"), "the values, in the let alone");
-    }
-
-    /** An aggregate's {@code let} is MongoDB's from 5.0: an older server is refused by name where the session is
-     *  checked, before any plan runs (the embedded 8.0 is taken, as every test here shows). */
-    @Test
-    void aServerBeforeFiveIsRefusedByName() {
-        com.legend.error.NotImplementedException old = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class, () -> MongoDbStatements.requireLet("4.4.29"));
-        assertEquals("the MongoDB server is 4.4.29: a plan's parameters are bound through the aggregate command's let,"
-                + " which MongoDB takes from 5.0; the server is refused, never sent a plan", old.getMessage());
-        com.legend.error.NotImplementedException odd = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class, () -> MongoDbStatements.requireLet("unknown"));
-        assertTrue(odd.getMessage().contains("'unknown'"), odd.getMessage());
-        MongoDbStatements.requireLet("5.0.0");
-        MongoDbStatements.requireLet("8.0.17");
     }
 
     /**

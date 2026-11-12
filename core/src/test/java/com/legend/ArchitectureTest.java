@@ -2242,6 +2242,112 @@ final class ArchitectureTest {
         bites(ONLY_THE_PLANS_READERS_MINT, com.legend.exec.PlantedPlanText.MintsByReference.class);
     }
 
+    /** The MongoDB driver's types whose methods reach the server (a command, a cursor's opening, a session): the
+     *  synchronous driver's and the reactive one's, by name -- the driver is not imported, a call's owner is named.
+     *  {@code MongoClient}'s {@code getDatabase} and {@code close} are the connector's opening and closing, pinned in
+     *  {@link #MONGODB_DRIVER_REGISTER}. */
+    private static final String MONGODB_SENDS = "com\\.mongodb\\.(client|reactivestreams\\.client)\\.(MongoDatabase"
+            + "|MongoCollection|MongoCluster|MongoClient|ClientSession|\\w*Iterable|\\w*Publisher)|com\\.mongodb\\.(DB"
+            + "|DBCollection)";
+
+    /** THE MONGODB CHOKE POINT (the rule of {@link #theMongoDbDriverSendsAtOneChokePoint}). */
+    static final com.tngtech.archunit.lang.ArchRule MONGODB_SENDS_AT_ONE_POINT = noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a MongoDB driver call that reaches the server,"
+                    + " outside MongoDbStatements.send") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    String owner = access.getTargetOwner().getName();
+                    if (!owner.matches(MONGODB_SENDS)) {
+                        return false;
+                    }
+                    if (owner.endsWith(".MongoClient")
+                            && java.util.Set.of("getDatabase", "close").contains(access.getName())) {
+                        return false;
+                    }
+                    return !(access.getOriginOwner().getName().equals("com.legend.exec.MongoDbStatements")
+                            && access.getOrigin().getName().equals("send"));
+                }
+            })
+            .as("the MongoDB driver reaches the server from MongoDbStatements.send alone, which takes the plan's"
+                    + " statement");
+
+    /**
+     * THE MONGODB DRIVER SENDS AT ONE CHOKE POINT (the C final audit's J3, the user's question of 2026-11-12: "how do we
+     * stop this from actually being able to be added without loud alarm bells?"): every call of the MongoDB driver that
+     * reaches the server -- a database's or a collection's command, aggregate, find, insert, update, delete, bulk write,
+     * an iterable's opening, a client's session ({@link #MONGODB_SENDS}) -- is made in {@code MongoDbStatements.send}
+     * and nowhere else, by a call or a reference; and {@code send} takes the plan's statement ({@code PlannedSql}),
+     * never a document exec built. Until then the session's check sent {@code buildInfo}, a command of its own, and
+     * nothing noticed. {@link #theMongoDbDriverIsUsedAsTheRegisterSays} pins every other call into the driver, class by
+     * class; {@link #theMongoDbRuleBitesAPlantedCommand} shows this bites.
+     */
+    @Test
+    void theMongoDbDriverSendsAtOneChokePoint() {
+        MONGODB_SENDS_AT_ONE_POINT.check(CORE_PROD_CLASSES);
+        // the one method takes the plan's statement
+        java.util.List<String> sends = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaMethod m : CORE_PROD_CLASSES.get("com.legend.exec.MongoDbStatements")
+                .getMethods()) {
+            if (m.getName().equals("send")) {
+                sends.add(m.getRawParameterTypes().get(0).getName());
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("com.legend.executionplan.PlannedSql"), sends,
+                "one send, taking the plan's statement");
+    }
+
+    /** {@link #theMongoDbDriverSendsAtOneChokePoint} fails on a class of exec's package that sends a command of its own
+     *  ({@code exec.PlantedMongoCommand}: the version check, compiled against the driver in {@code //core:mongodb_planted},
+     *  read from this test's classpath by its class file). */
+    @Test
+    void theMongoDbRuleBitesAPlantedCommand() {
+        java.net.URL planted = ArchitectureTest.class.getClassLoader().getResource(
+                "com/legend/exec/PlantedMongoCommand.class");
+        org.junit.jupiter.api.Assertions.assertNotNull(planted, "the planted class is on the classpath");
+        AssertionError failed = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> MONGODB_SENDS_AT_ONE_POINT.check(new ClassFileImporter().importUrl(planted)));
+        org.junit.jupiter.api.Assertions.assertTrue(failed.getMessage().contains("was violated"), failed.getMessage());
+    }
+
+    /** Every product class's calls into the MongoDB driver ({@code com.mongodb..}), pinned: the connector opens and
+     *  closes a client, the statements send (at {@code send} alone) and read their cursor, the decoder reads nothing of
+     *  the driver's. A new call is a new line here, dated -- never an edit in passing. */
+    private static final java.util.Map<String, java.util.Set<String>> MONGODB_DRIVER_REGISTER = java.util.Map.of(
+            // opens a client on the declared server (its settings, its credential) and closes it
+            "com.legend.exec.MongoDbConnector", java.util.Set.of("MongoClientSettings#builder",
+                    "MongoClientSettings$Builder#applyToClusterSettings", "MongoClientSettings$Builder#build",
+                    "MongoClientSettings$Builder#credential", "MongoCredential#createCredential", "ServerAddress#<init>",
+                    "client.MongoClient#close", "client.MongoClient#getDatabase", "client.MongoClients#create",
+                    "connection.ClusterSettings$Builder#hosts", "connection.ClusterSettings$Builder#serverSelectionTimeout"),
+            // sends the plan's statement (send alone: theMongoDbDriverSendsAtOneChokePoint), closes its cursor, reads a
+            // failure's text
+            "com.legend.exec.MongoDbStatements", java.util.Set.of("MongoException#getMessage",
+                    "client.AggregateIterable#iterator", "client.AggregateIterable#let", "client.MongoCollection#aggregate",
+                    "client.MongoCursor#close", "client.MongoDatabase#aggregate", "client.MongoDatabase#getCollection",
+                    "client.MongoDatabase#runCommand"));
+
+    /**
+     * THE MONGODB DRIVER'S CENSUS (the C final audit's J3, 2026-11-12; as {@code JdbcSurfaceCensusTest} is JDBC's):
+     * every call of a product class into {@code com.mongodb..} -- the driver, not BSON's values -- by class, held equal
+     * to {@link #MONGODB_DRIVER_REGISTER}.
+     */
+    @Test
+    void theMongoDbDriverIsUsedAsTheRegisterSays() {
+        java.util.Map<String, java.util.Set<String>> found = new java.util.TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            for (com.tngtech.archunit.core.domain.JavaAccess<?> a : c.getAccessesFromSelf()) {
+                String owner = a.getTargetOwner().getName();
+                if (owner.startsWith("com.mongodb.")) {
+                    found.computeIfAbsent(c.getName().replaceAll("\\$.*", ""), k -> new java.util.TreeSet<>())
+                            .add(owner.substring("com.mongodb.".length()) + "#" + a.getName());
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeMap<>(MONGODB_DRIVER_REGISTER), found,
+                "the MongoDB driver's census");
+    }
+
     /**
      * A SESSION'S STATEMENTS TAKE NO TEXT BUT THE PLAN'S (the C checkpoint's MUST-FIX 1, 2026-11-12): every method of
      * {@code exec.Statements} that sends a statement takes a {@link com.legend.executionplan.PlannedSql}, and none takes
