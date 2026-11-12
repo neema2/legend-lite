@@ -105,6 +105,28 @@ class OneSendTest(unittest.TestCase):
         self.assertIn('the warehouse', str(refused.exception))
 
 
+class TheReAuditsSendTest(unittest.TestCase):
+    """The re-audit's M2 and S4 (2026-11-12): the Database's own send requires a plan's statement, as the one send does;
+    and only a PlannedSql itself is one -- a str subclass claiming the class is refused."""
+
+    def test_the_databases_own_send_requires_a_plans_statement(self):
+        recording = _Recording()
+        with self.assertRaises(NotPlanned):
+            Database(recording)._send_planned('DROP TABLE t', None)
+        self.assertEqual(recording.sent, [], "nothing reached the database")
+
+    def test_a_string_claiming_to_be_planned_is_not(self):
+        class Spoof(str):
+            @property
+            def __class__(self):
+                return PlannedSql
+
+        spoof = Spoof('DROP TABLE t')
+        self.assertIsInstance(spoof, PlannedSql, 'isinstance is fooled: the check must not be isinstance')
+        with self.assertRaises(NotPlanned):
+            send(Database(_Recording()), spoof)
+
+
 class _Witness:
     """A duckdb-python connection that records every text it is handed and every other act asked of it -- what the
     database itself received, not what a runner said it sent (the unfiltered witness: the C final audit's H8 and H13,

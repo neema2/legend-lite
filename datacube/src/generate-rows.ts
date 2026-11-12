@@ -35,8 +35,8 @@ export const dayName = (name: string): string => `${name}__day`;
 function guarded(columns: readonly string[], list: ValueSpecification): Lambda {
   if (columns.length === 0) return lambda(['x'], list);
   const empty = columns.map((c) => fn('isEmpty', x(c)));
-  const any = empty.length === 1 ? empty[0]! : fn('or', empty[0]!, empty[1]!);
-  return lambda(['x'], fn('if', any, lambda([], collection([])), lambda([], list)));
+  const someEmpty = empty.length === 1 ? empty[0]! : fn('or', empty[0]!, empty[1]!);
+  return lambda(['x'], fn('if', someEmpty, lambda([], collection([])), lambda([], list)));
 }
 
 const boundOf = (b: Bound): ValueSpecification => (typeof b === 'number' ? lit.integer(b) : one(b.column));

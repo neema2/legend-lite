@@ -12,7 +12,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { ConnectionSettings, establish, expandKeyed, hostSession, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
-import { PlanParamsRefusal, planParams } from '../src/plan-params.ts';
+import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
 import { relationColumns } from '../src/relation-type.ts';
 import { BrowserEngine } from '../src/legend/browser-engine.ts';
 import { QueryError } from '../src/engine.ts';
@@ -770,5 +770,17 @@ describe("a person's own statement, carried by the WASM planner as written and r
       sql: 'SELECT 1', table: 't' }) }));
     await assert.rejects(() => runAuthored(load, { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { sent.push(sql); } }), /an authored statement's plan answers the relation its database reports, not a load/);
     assert.deepEqual(sent, []);
+  });
+});
+
+// G7 (the re-audit's S7, 2026-11-12): what the planner always writes is required, never defaulted
+describe("a statement's slots and a payload's digest, required", () => {
+  it('refuses a statement with no slots, a payload with no digest, and one whose statement carries no content, by name', () => {
+    const refused = (statement: Parameters<typeof statementParams>[0], words: RegExp): void =>
+      assert.throws(() => statementParams(statement), (e: unknown) => e instanceof PlanParamsRefusal && words.test(e.message));
+    refused({}, /carries its slots, and this one has none/);
+    refused({ slots: [{ parameter: 'p', binding: { _type: 'payload' } }], content: {} }, /'p' binds a payload, and names no digest/);
+    refused({ slots: [{ parameter: 'p', binding: { _type: 'payload', digest: 'ab' } }] }, /the statement carries no content/);
+    assert.deepEqual(statementParams({ slots: [] }), []);
   });
 });

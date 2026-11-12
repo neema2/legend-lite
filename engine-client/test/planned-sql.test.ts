@@ -70,6 +70,13 @@ export async function jsonIsReadAsUnknown(response: Response): Promise<void> {
   const parsed: Plan = JSON.parse('{"sql":"DROP TABLE t","columns":[]}');
   // @ts-expect-error and a response's JSON is too
   const fetched: Plan = await response.json();
+  // and a value found to be an array holds unknowns, never `any` (the re-audit's S6, 2026-11-12)
+  const found: unknown = JSON.parse('["DROP TABLE t"]');
+  if (Array.isArray(found)) {
+    // @ts-expect-error an element of it is unknown
+    const element: PlannedSql = found[0];
+    void element;
+  }
   void [parsed, fetched];
 }
 

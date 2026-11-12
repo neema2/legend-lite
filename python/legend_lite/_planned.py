@@ -241,8 +241,10 @@ def _keyed_text(body: str, regions: tuple[dict, ...], n: int) -> str | None:
 
 
 def require(statement: Any, where: str) -> PlannedSql:
-    """``statement`` if it is a plan's; else refused by name, ``where`` saying what it was about to be sent to."""
-    if isinstance(statement, PlannedSql):
+    """``statement`` if it is a plan's; else refused by name, ``where`` saying what it was about to be sent to. The type
+    exactly (2026-11-12, the re-audit's S4: an isinstance check passed a str subclass whose ``__class__`` claimed to be
+    PlannedSql)."""
+    if type(statement) is PlannedSql:
         return statement
     shown = statement if isinstance(statement, str) else type(statement).__name__
     if isinstance(shown, str) and len(shown) > 120:
@@ -336,7 +338,10 @@ class Database:
                 raise NotPlanned(f"a stream lands in a table named plainly (letters, digits, '_'), not {name!r}")
         self._con.from_arrow(reader).create(table if schema is None else f'{schema}.{table}')
 
-    def _run(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
+    def _send_planned(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
+        # the one send's own check, here too (the re-audit's M2, 2026-11-12: this, `_run` until then, sent whatever it
+        # was handed, and the guard refused no call of it -- it refuses any reference to it outside this module now)
+        sql = require(sql, 'the database')
         return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql))
 
 
@@ -353,4 +358,4 @@ def send(target: Database, statement: Any, params: Sequence[Any] | None = None) 
     if not isinstance(target, Database):
         raise NotPlanned(f"the one send runs on the host's Database, not on a {type(target).__name__}")
     sql = require(statement, 'the database')
-    return target._run(sql, params)
+    return target._send_planned(sql, params)

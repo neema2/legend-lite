@@ -63,9 +63,9 @@ SENDS = {
 # remote file's settings its plan runner kept (engine.py).
 BRIDGE = {'_headless.py': 2, 'engine.py': 1}
 
-# Each call of a value's own type, by module and text: none makes a PlannedSql. 2026-11-12: a database error rebuilt of
-# its own type with a held value taken out of its words (frames.py redacted), never a statement.
-TYPE_CALLS = {('frames.py', 'type(failure)(out)')}
+# (TYPE_CALLS -- frames.py's `type(failure)(out)`, a database error rebuilt of its own type: GONE 2026-11-12, the
+# re-audit's S4. Outside _planned.py a value's type is named (`type(x).__name__`) or compared (`type(x) is T`), never
+# called, bound or handed on, and `__class__` is never reached: `T = type(p); T(text)` made a PlannedSql unseen.)
 
 # DuckDB's ways to run text or load data, on any receiver (2026-11-12, the second audit: from_arrow(...).create landed a
 # planned stream step outside the one send): each pinned by module and receiver (SENDS), or refused
@@ -144,6 +144,13 @@ AUTHORED_NAMES = {'authored', 'lite_authored'}
 AUTHORED = {'_planner.py': 2, '_library.py': 1}
 
 
+def _named_or_compared(call: ast.Call, parents: dict) -> bool:
+    """Whether a one-argument ``type(...)`` is only named (``.__name__``, ``.__qualname__``) or compared (``is``, ``==``)."""
+    up = parents.get(id(call))
+    return (isinstance(up, ast.Attribute) and up.attr in ('__name__', '__qualname__')) or \
+        (isinstance(up, ast.Compare) and all(isinstance(o, (ast.Is, ast.IsNot, ast.Eq, ast.NotEq)) for o in up.ops))
+
+
 def census(name: str, source: str) -> dict:
     """One module, read: the names it imports from _planned, each form the guard refuses, its sends and its crossings."""
     tree = ast.parse(source)
@@ -156,7 +163,15 @@ def census(name: str, source: str) -> dict:
     network: set[str] = set()
     own = name == '_planned.py'
     called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+    parents = {id(c): p for p in ast.walk(tree) for c in ast.iter_child_nodes(p)}
     for node in ast.walk(tree):
+        # S4 (the re-audit, 2026-11-12): a class reached through a value, called or not
+        if isinstance(node, ast.Attribute) and node.attr == '__class__' and not own:
+            refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a class reached through a value')
+        # M2 (the re-audit, 2026-11-12): the Database's own run, called or handed on, is _planned.send's alone
+        if isinstance(node, ast.Attribute) and node.attr == '_send_planned' and not own:
+            refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: the Database\'s own run is _planned.send\'s'
+                           ' alone (send, which requires a PlannedSql)')
         # H4 and H1, on every node: a mint's use, a send method reached, an attach, the authored door's spellings
         if isinstance(node, ast.Name) and node.id in MINT_NAMES and not own:
             mints += 1
@@ -222,10 +237,11 @@ def census(name: str, source: str) -> dict:
             f = node.func
             if not own and isinstance(f, ast.Name) and f.id == 'PlannedSql':
                 refused.append(f'line {node.lineno}: PlannedSql constructed outside _planned.py')
-            if not own and isinstance(f, ast.Call) and isinstance(f.func, ast.Name) and f.func.id == 'type' \
-                    and (name, ast.unparse(node)) not in TYPE_CALLS:
-                refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a value\'s own type called')
-            if not own and isinstance(f, ast.Attribute) and f.attr in ('__class__', '__new__'):
+            if not own and isinstance(f, ast.Name) and f.id == 'type' and len(node.args) == 1 and not _named_or_compared(node, parents):
+                refused.append(f'line {node.lineno}: {ast.unparse(parents.get(id(node), node))[:60]!r}: a value\'s type is'
+                               ' named or compared outside _planned.py, never called, bound or handed on')
+
+            if not own and isinstance(f, ast.Attribute) and f.attr == '__new__':
                 refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a class reached through a value')
             if not own and isinstance(f, ast.Attribute) and f.attr == 'connect' and isinstance(f.value, ast.Name) \
                     and f.value.id == 'duckdb':
@@ -281,6 +297,14 @@ class PlannedGuardTest(unittest.TestCase):
         for source in ["planner.ask({'kind': 'authored', 'request': r})", "lib.call('lite_authored', r)",
                        'client.authored(r)', 'def authored(r):\n    pass']:
             self.assertEqual(1, census('m.py', source)['authored'], f'the census does not see: {source!r}')
+
+    def test_the_census_sees_the_re_audits_forms(self):
+        """S4 and M2 (the re-audit, 2026-11-12): each form planted, and refused; a type named or compared is not."""
+        for source in ['T = type(p)\nT(text)', 'type(p)(text)', 'make(type(p), text)', 'p.__class__', 'k = p.__class__',
+                       'db._send_planned(text, None)', 'run = db._send_planned']:
+            self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
+        for source in ["f'{type(e).__name__}: {e}'", 'type(x) is int', 'type(a) == type(b)']:
+            self.assertEqual([], census('m.py', source)['refused'], source)
 
     def test_the_census_sees_every_transports_forms(self):
         """H13 (2026-11-12): each way past the one choke point, planted, and seen."""

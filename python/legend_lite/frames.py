@@ -29,6 +29,7 @@ Integer or a Boolean with nulls stays an integer or a boolean (pandas' nullable 
 from __future__ import annotations
 
 import contextlib
+import copy
 import re
 import sys
 import threading
@@ -324,10 +325,12 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     out = redact_held(said, held)
     if out == said:
         return None
-    try:
-        return type(failure)(out)
-    except Exception:  # an error type that takes no message: said as the database's error
-        return duckdb.Error(out)
+    # of its type, as raised, by a copy: no traceback, cause or context of the original's, its attributes cleared, its
+    # words the redacted ones (2026-11-12, the re-audit's S4: no value's own type is called outside _planned.py)
+    redacted = copy.copy(failure)
+    redacted.__dict__.clear()
+    redacted.args = (out,)
+    return redacted
 
 
 def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:

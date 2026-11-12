@@ -1266,7 +1266,7 @@ class Engine:
         elif not all(isinstance(asked.get(k), str) for k in ('page', 'mine', 'theirs')):
             return _said(400, shape)
         if (op not in ('sides', 'together') and 'how' not in asked) \
-                or (op == 'cube' and not isinstance(asked.get('sheet', 0), (str, type(None)))):
+                or (op == 'cube' and not (asked.get('sheet', 0) is None or isinstance(asked.get('sheet', 0), str))):
             return _said(400, shape)
         if self._headless is None:
             return _said(404, 'this engine makes no join: legend-lite makes one with DataCube\'s own code, headless, '
