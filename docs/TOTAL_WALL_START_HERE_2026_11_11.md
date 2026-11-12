@@ -874,6 +874,13 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
     5. no run asks the planner;
     6. every guard bites by an actual violation.
   - The final audit checks this list and nothing wider. D and E each get theirs written before they build.
+  - **The trims, ruled** (the user: "yes we should put the snapshot request in this - that is a real off platform problem
+    the other 3 we can skip").
+    - In C: the snapshot request carries the pull, never SQL, so no planner door takes SQL except the named playground.
+    - To the later list (adversarial, outside the threat model):
+      - Python's guard on `type(...)` and `__class__` (the one-line `type(statement) is PlannedSql` stays in C);
+      - TypeScript's compiler-API brand check (`Parameters<>`, `interface extends`, `Omit`);
+      - per-call counting and `.query.call` / `.bind`.
 - **Mixed lists: the hybrid** (the user, 2026-11-12: "hybrid mixed list is good, lets go with that"). On the product
   path a list has one element type:
   - Number lists are promoted by a fixed rule (Integer+Decimal -> Decimal, Integer+Float -> Float; integer literals
