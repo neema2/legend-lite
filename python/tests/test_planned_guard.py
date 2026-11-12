@@ -348,66 +348,108 @@ class PlannedGuardTest(unittest.TestCase):
         self.assertEqual(1, census('m.py', "self._call('submit', {'sql': q})")['submits'])
 
     def test_pythons_host_makes_and_sends_a_planned_statement_only_where_pinned(self):
-        package = Path(FILES.Rlocation(os.environ['PLANNED_PACKAGE'])).parent
-        modules = sorted(package.glob('*.py'))
-        self.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
-        imports: dict[str, set[str]] = {}
-        refused: list[str] = []
-        sends: set[tuple[str, str, str]] = set()
-        bridge: dict[str, int] = {}
-        mints: dict[str, int] = {}
-        references: set[tuple[str, str, str]] = set()
-        attaches: set[tuple[str, str, str]] = set()
-        authored: dict[str, int] = {}
-        submits: dict[str, int] = {}
-        network: dict[str, set[str]] = {}
-        runners: dict[str, int] = {}
-        handed_on: list[str] = []
-        for m in modules:
-            c = census(m.name, m.read_text(encoding='utf-8'))
-            refused += [f'{m.name}: {r}' for r in c['refused']]
-            if c['imported']:
-                imports[m.name] = c['imported']
-            sends |= c['sends']
-            if c['crossings'] and m.name != '_planned.py':
-                bridge[m.name] = c['crossings']
-            if c['mints']:
-                mints[m.name] = c['mints']
-            references |= c['references']
-            attaches |= c['attaches']
-            if c['authored']:
-                authored[m.name] = c['authored']
-            if c['submits']:
-                submits[m.name] = c['submits']
-            if c['network']:
-                network[m.name] = c['network']
-            if c['runner_calls']:
-                runners[m.name] = c['runner_calls']
-            if c['runner_names'] != c['runner_calls']:
-                handed_on.append(m.name)
-        self.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
-        self.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
-                                          ' or the planner\'s answer is read, the one send, the bridge\'s check')
-        self.assertEqual({m for m, names in IMPORTS.items() if names & MINT_NAMES},
-                         {'compiler.py', 'projects.py', 'engine.py'}, 'the mints, by module')
-        self.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
-                                       ' any text no plan carries (SENDS)')
-        self.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'
-                                         ' crossings alone (BRIDGE)')
-        self.assertEqual(MINT_REFERENCES, mints, 'each mint\'s uses, by module (MINT_REFERENCES): a new one is a new'
-                                                 ' place a text is typed as a plan\'s')
-        self.assertEqual(REFERENCES, references, 'a send method reached and not called is a field of a plan, a URL or'
-                                                 ' a view (REFERENCES), never a method handed on')
-        self.assertEqual(ATTACHES, attaches, 'a value attached or a stream imported, by module and receiver (ATTACHES)')
-        self.assertEqual(AUTHORED, authored, 'the authored door, by module (AUTHORED): Python answers the kind, and'
-                                             ' asks it nowhere')
-        self.assertEqual(SUBMITS, submits, 'ONE CHOKE POINT (H13): a SQL API\'s statement is submitted by warehouse.py'
-                                           ' alone, a PlannedSql (SUBMITS)')
-        self.assertEqual(NETWORK, network, 'ONE CHOKE POINT (H13): each module that opens a network client is pinned'
-                                           ' (NETWORK): a new one could carry a statement to a SQL API')
-        self.assertEqual(RUNNERS, runners, "THE PLAN RUNNERS' CALLERS (M1): each call of run_load or run_host_load is"
-                                           " pinned by module (RUNNERS), its plan the planner's answer")
-        self.assertEqual([], handed_on, 'a plan runner is called where it is named, never handed on')
+        pinned_comparison(self, package_modules(self))
+
+    def test_every_pinned_comparison_fails_on_a_planned_violator(self):
+        """CHECK 6 (the final audit's item 5, 2026-11-12): each pin's comparison, run over the package with one violator
+        planted beside its modules, FAILS naming it -- never merely that the census sees the form."""
+        modules = package_modules(self)
+        for what, text in [
+            ('a form refused', 'import legend_lite._planned'),
+            ('IMPORTS', 'from ._planned import send'),
+            ('SENDS', "con.execute('SELECT 1')"),
+            ('BRIDGE', 'across_the_bridge(answered, text)'),
+            ('MINT_REFERENCES', 'statement = from_plan(text)'),
+            ('REFERENCES', 'run = con.execute'),
+            ('ATTACHES', "con.register('t', frame)"),
+            ('AUTHORED', "kind = 'authored'"),
+            ('SUBMITS', "warehouse.call('submit', body)"),
+            ('NETWORK', 'import urllib.request'),
+            ('RUNNERS', 'run_load(plan, send)'),
+            ('a runner handed on', 'go = run_load'),
+        ]:
+            bites(self, pinned_comparison, modules, text, what)
+
+
+def package_modules(case: unittest.TestCase) -> dict[str, str]:
+    """The package's modules, each its text by its file's name."""
+    package = Path(FILES.Rlocation(os.environ['PLANNED_PACKAGE'])).parent
+    modules = sorted(package.glob('*.py'))
+    case.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
+    return {m.name: m.read_text(encoding='utf-8') for m in modules}
+
+
+PLANTED = 'planted_violator.py'
+
+
+def bites(case: unittest.TestCase, comparison, modules: dict[str, str], text: str, what: str) -> None:
+    """``comparison`` FAILS over ``modules`` with ``text`` planted as one more module (check 6), naming it."""
+    case.maxDiff = None
+    with case.assertRaises(AssertionError, msg=f'{what}: its pinned comparison passed over a planted violator: {text!r}') \
+            as failed:
+        comparison(case, {**modules, PLANTED: text})
+    case.assertIn(PLANTED, str(failed.exception), f'{what}: failed over the planted violator without naming it')
+
+
+def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
+    """The census over ``modules`` (each module's text by its file's name), compared with every pin."""
+    imports: dict[str, set[str]] = {}
+    refused: list[str] = []
+    sends: set[tuple[str, str, str]] = set()
+    bridge: dict[str, int] = {}
+    mints: dict[str, int] = {}
+    references: set[tuple[str, str, str]] = set()
+    attaches: set[tuple[str, str, str]] = set()
+    authored: dict[str, int] = {}
+    submits: dict[str, int] = {}
+    network: dict[str, set[str]] = {}
+    runners: dict[str, int] = {}
+    handed_on: list[str] = []
+    for name, text in sorted(modules.items()):
+        c = census(name, text)
+        refused += [f'{name}: {r}' for r in c['refused']]
+        if c['imported']:
+            imports[name] = c['imported']
+        sends |= c['sends']
+        if c['crossings'] and name != '_planned.py':
+            bridge[name] = c['crossings']
+        if c['mints']:
+            mints[name] = c['mints']
+        references |= c['references']
+        attaches |= c['attaches']
+        if c['authored']:
+            authored[name] = c['authored']
+        if c['submits']:
+            submits[name] = c['submits']
+        if c['network']:
+            network[name] = c['network']
+        if c['runner_calls']:
+            runners[name] = c['runner_calls']
+        if c['runner_names'] != c['runner_calls']:
+            handed_on.append(name)
+    case.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
+    case.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
+                                      ' or the planner\'s answer is read, the one send, the bridge\'s check')
+    case.assertEqual({m for m, names in IMPORTS.items() if names & MINT_NAMES},
+                     {'compiler.py', 'projects.py', 'engine.py'}, 'the mints, by module')
+    case.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
+                                   ' any text no plan carries (SENDS)')
+    case.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'
+                                     ' crossings alone (BRIDGE)')
+    case.assertEqual(MINT_REFERENCES, mints, 'each mint\'s uses, by module (MINT_REFERENCES): a new one is a new'
+                                             ' place a text is typed as a plan\'s')
+    case.assertEqual(REFERENCES, references, 'a send method reached and not called is a field of a plan, a URL or'
+                                             ' a view (REFERENCES), never a method handed on')
+    case.assertEqual(ATTACHES, attaches, 'a value attached or a stream imported, by module and receiver (ATTACHES)')
+    case.assertEqual(AUTHORED, authored, 'the authored door, by module (AUTHORED): Python answers the kind, and'
+                                         ' asks it nowhere')
+    case.assertEqual(SUBMITS, submits, 'ONE CHOKE POINT (H13): a SQL API\'s statement is submitted by warehouse.py'
+                                       ' alone, a PlannedSql (SUBMITS)')
+    case.assertEqual(NETWORK, network, 'ONE CHOKE POINT (H13): each module that opens a network client is pinned'
+                                       ' (NETWORK): a new one could carry a statement to a SQL API')
+    case.assertEqual(RUNNERS, runners, "THE PLAN RUNNERS' CALLERS (M1): each call of run_load or run_host_load is"
+                                       " pinned by module (RUNNERS), its plan the planner's answer")
+    case.assertEqual([], handed_on, 'a plan runner is called where it is named, never handed on')
 
 
 if __name__ == '__main__':

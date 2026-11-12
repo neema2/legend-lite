@@ -1,6 +1,7 @@
 package com.legend.tools.guards;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.testing.Runfile;
@@ -258,8 +259,24 @@ class HostSqlTest {
 
     @Test
     void noProductTypeScriptSpellsSqlButTheSitesKept() throws IOException {
+        noProductTypeScriptSpellsSqlButTheSitesKept(Map.of());
+    }
+
+    /** CHECK 6 (the final audit's item 5, 2026-11-12): the census's own pinned comparison FAILS over the tree with a
+     *  statement planted in a product source, naming it -- never merely that its reader finds the literal. */
+    @Test
+    void theCensusFailsOnAPlantedStatement() throws IOException {
+        String planted = "datacube/src/planted-violator.ts";
+        AssertionError failed = assertThrows(AssertionError.class, () -> noProductTypeScriptSpellsSqlButTheSitesKept(
+                Map.of(planted, "export const sql = 'SELECT * FROM trades WHERE desk = ?';")));
+        assertTrue(failed.getMessage().contains(planted), "failed without naming the planted file: " + failed.getMessage());
+    }
+
+    /** The census over the tree's product TypeScript, and any file {@code planted} on top of it (path to its text). */
+    static void noProductTypeScriptSpellsSqlButTheSitesKept(Map<String, String> planted) throws IOException {
         Rule rule = rule();
-        List<String> files = Files.readAllLines(Runfile.property("inventory.files")).stream()
+        List<String> files = java.util.stream.Stream.concat(Files.readAllLines(Runfile.property("inventory.files")).stream(),
+                        new TreeSet<>(planted.keySet()).stream())
                 // and the JavaScript beside it (the C final audit's H12, 2026-11-12: a harness's .mjs sent its own
                 // statements, which no census read)
                 .filter(f -> f.endsWith(".ts") && !f.endsWith(".d.ts") || f.matches(".*\\.(?:mjs|cjs|js)$"))
@@ -274,7 +291,8 @@ class HostSqlTest {
         Set<String> harnessed = new TreeSet<>();
         Set<String> harnesses = new TreeSet<>(rule.harnesses().stream().map(Harness::file).toList());
         for (String file : files) {
-            String src = Files.readString(Runfile.of("_main/" + file), StandardCharsets.UTF_8);
+            String src = planted.containsKey(file) ? planted.get(file)
+                    : Files.readString(Runfile.of("_main/" + file), StandardCharsets.UTF_8);
             for (Literal l : literals(src)) {
                 if (!rule.isStatement(l.text())) {
                     continue;
