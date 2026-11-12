@@ -211,6 +211,11 @@ public final class LeanSqlBaseline {
         };
     }
 
+    /** Every statement {@code node} sends: the query's own, never a target's loads or session statements. */
+    public static void statements(ExecutionPlan.Node node, List<String> out) {
+        collect(node, out);
+    }
+
     /** Every statement the plan's nodes send: the query's own, never a target's loads or session statements. */
     static void collect(ExecutionPlan.Node node, List<String> out) {
         switch (node) {

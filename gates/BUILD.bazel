@@ -138,6 +138,9 @@ test_suite(
         "//core:lean_sql_baseline_test",
         # its sets' capture, run with the switch on: text and names only, no plan changed
         "//core:query_capture_test",
+        # the corpus's set (E3, 2026-11-12): every corpus body planned on DuckDB and H2, its product statements pinned
+        "//spec:lean_sql_corpus_duckdb",
+        "//spec:lean_sql_corpus_h2",
         "//pct:pct_discipline",
         # every hand tool compiles (L1b): the manual binaries of each package, built and not run; the three whose
         # closures hold the native image or the WebAssembly planner sit in the lanes that build those anyway

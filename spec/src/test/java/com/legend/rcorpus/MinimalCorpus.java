@@ -111,7 +111,7 @@ public final class MinimalCorpus {
             "meta::pure::functions::asserts::assertEmpty",
             "meta::pure::functions::asserts::assertNotEmpty");
 
-    private static final String RUNTIME = "rcorpus::Rt";
+    static final String RUNTIME = "rcorpus::Rt";
     private static final String CONNECTION = "rcorpus::Conn";
     /** Corpus files that are the ENGINE'S IMPLEMENTATION of a platform-owned
      * function family, not test input: loaded, they would redefine the

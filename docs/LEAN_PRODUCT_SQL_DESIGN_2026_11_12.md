@@ -419,6 +419,69 @@ no row. "Sane" means:
   - D's print form is a fixed-scale render that each database spells in one call. The shortest digits move to the
     edge, as the orchestrator's example says.
 
+### 5.7 Mixed lists, the hybrid (RULED by the user, 2026-11-12: "hybrid mixed list is good, lets go with that")
+
+It replaces P1c. **This section is the write-up the orchestrator asked for before the build.** It covers the
+answer changes, each a draft register row with scope "product" and ids to be assigned, and the before and after SQL
+per dialect.
+
+**The rule, on the product path.** The TYPER makes every promotion explicit in the typed tree; lowering never infers
+one.
+1. **Number lists** promote by a fixed rule:
+   - Integer + Decimal -> Decimal;
+   - Integer + Float -> Float;
+   - an Integer literal above 2^53 in a Float-promoted list is refused at compile time, by name (no silent loss).
+2. **Date lists:** StrictDate + DateTime -> DateTime, a date taken as its midnight at UTC.
+3. **Truly mixed (Any) lists** are an implicit Variant: one JSON array, kinds kept.
+   - Its elements are strings, numbers (integer and float told apart per dialect) and booleans.
+   - A date inside one is a small lite tag, `{"date": "2025-02-10"}`, never a silent string.
+   - Sort, min, max, greatest and least across kinds are refused by name.
+4. **Today's tagged lists** (a tag plus typed slots) leave the product. The compatibility road keeps them; where is
+   being decided with the user.
+
+**The answer changes (draft register rows, scope "product"; upstream read from legend-pure 5.99.0 before each lands):**
+
+| draft row | expression | upstream (to be read and recorded) | lite after | why it is sane |
+|---|---|---|---|---|
+| E-R1 | `[1, 1.0]->removeDuplicates()` | two elements, `1` and `1.0`: Pure's equality tells Integer from Float | one element, `1.0` | one promoted type, IEEE-equal values; the same on every database |
+| E-R2 | `[1, 2.0]->at(0)->type()` (and `toString()`) | `Integer`, `'1'` | `Float`, `'1.0'` | the list's one declared element type, the value matching it |
+| E-R3 | `[%2025-02-10, %2025-02-10T00:00:00]->removeDuplicates()` (and `==` across them) | two elements: a StrictDate is not a DateTime | one element, the DateTime | a date is its midnight at UTC in a DateTime list (ISO 8601) |
+| E-R4 | `['b', 1, 'a']->sort()`, `->min()`, `->max()`, `greatest`, `least` across kinds | ordered by upstream's cross-kind comparison | refused by name ("a list of mixed kinds has no order: sort a list of one kind") | no principled order across kinds; refusal is never a silent answer |
+| E-R5 | a date inside a truly mixed list read back (`[1, %2025-02-10]->at(1)`) | the StrictDate | the StrictDate, carried in the Variant as `{"date": "..."}` | typed, never a string; listed because the CARRIER changes (a JSON array, not tag+slots), the answer does not |
+
+Every channel-A PCT test that reads a changed answer moves to the compatibility road (which keeps today's tagged
+lists), or becomes an expected failure on the product door with its row. Never a test made green by ledgering it.
+The count is to be measured at the build: a query whose answer moves shows up in channel A's diff.
+
+**Before and after SQL, per dialect** (characters of the product statement; "after" for numbers and dates is the
+plan of the query's already-homogeneous twin, which a promoted list lowers like, measured on 2026-11-12; truly mixed
+is a design target until built):
+
+| family (case) | DuckDB | Postgres | Snowflake | MySQL | SQLite | Trino | BigQuery |
+|---|---|---|---|---|---|---|---|
+| numbers, `[1.0, 2, 3.0]->stdDevSample()` (2569): before | 60 | 175 | 1,673 | 239 | 138 | 102 | 145 |
+| after: the twin `[1.0, 2.0, 3.0]` | 62 | 176 | 1,742 | 242 | 140 | 95 | 160 |
+| dates, `[%2025-02-10, %2025-02-10T20:10:20+0000]->greatest()` (2075): before | 451 | 588 | 570 | 904 | 579 | 856 | 651 |
+| after: the twin `[DateTime, DateTime]` | **92** | **166** | **133** | **300** | **155** | **136** | **160** |
+| truly mixed, `['1', 2, '1', '3', 1, 3, '3', 2]->removeDuplicates(...)` (1267): before | 1,486 | 4,577 | 12,180 | 28,110 | 16,084 | 3,013 | -- |
+| after (design target) | a JSON array's distinct elements in order (DuckDB `list_distinct` over a `JSON[]`, Postgres `jsonb_array_elements` + first `ORDINALITY` per value, Snowflake `ARRAY_DISTINCT`, MySQL `JSON_TABLE` + `ROW_NUMBER`) | | | | | | |
+
+- **Numbers:** today's product already lowers a mixed number list as one native list (DuckDB `[1.0, 2, 3.0]`), so
+  the SQL barely moves. The change is the elements' TYPE (E-R1, E-R2): their kinds stop being tracked.
+- **Dates:** the tag-and-slots root (`CASE WHEN __tag = 1 ...`, a slot column per kind) becomes one typed list,
+  about 4x smaller on every dialect.
+- **Truly mixed:** the tagged list's slot arrays and their positions, read per element and per channel (the
+  mixed-list lead, §4 item 4), become one JSON array the database reads natively. This is where the size lands.
+  §4.1's measurement puts these 74 channel-A queries at 3.6% (DuckDB) to 10.9% (Snowflake) of product characters,
+  and core's 4 at up to 98% of a server database's.
+
+**The build, after this write-up is ruled:**
+1. The typer's promotion, with typed nodes for the promotions and for the Variant list.
+2. Lowering of the Variant list per dialect, each form measured on its lane.
+3. The tagged lists' product uses deleted; the compatibility road keeps its own.
+4. The rows above landed with the user's batch.
+5. The guard's pins for the mixed families fall: a re-pin, dated.
+
 ## 6. The guard: a product-SQL size baseline, shrink-only (G3)
 
 > **BUILT (2026-11-12, ruled by the orchestrator: its own target in `//gates:local`, all 11 dialects).**
@@ -444,8 +507,17 @@ no row. "Sane" means:
 >     and the runtime's NAME only (a connection naming vault references is recorded as written). It also shows the
 >     capture changes no plan: replanning the recorded query gives the same plan byte for byte, and channel A's
 >     DuckDB plans with the switch on measure exactly the pins made with it off.
-> - The corpus's set is next: it is one module built from upstream's files, so its baseline lives in `spec`, planning
->   each body there (§7 item 1).
+> - **The corpus's set, added the same day** (ruled: `//spec:lean_sql_corpus_{duckdb,h2}`, in `//gates:local`, about
+>   100 s each):
+>   - Every discovered corpus body is planned whole (`TestExecution.planBody`, the database judge, planning only).
+>   - Its PRODUCT statements -- the body's own statement nodes: results, frame runs, writes -- are pinned per database
+>     and test package in `spec/src/test/resources/rcorpus/lean-sql-baseline.tsv`, by the same rule.
+>   - Excluded, as ruled: verdict and canon steps, and a fixture's setup, seeds and loads.
+>   - Re-pin with `bazel run //spec:update_lean_sql_corpus_<lane>`.
+>   - Measured: DuckDB 325 product statements, 1,297,677 characters; H2 324, 1,246,855.
+>   - The JUDGE's statements are recorded UNGUARDED (`judge-sql.tsv` in the test's outputs): DuckDB 2,523 statements,
+>     20,327,235 characters; H2 2,378, 21,591,361. On the corpus the test road's SQL is about 16 times the product's:
+>     E3's last item, the test road's speed.
 >
 > Totals at the pins (channel A, 2,451 cases):
 >

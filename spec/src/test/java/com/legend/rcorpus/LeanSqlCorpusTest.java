@@ -1,0 +1,189 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.rcorpus;
+
+import com.legend.Compiler;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.PlanJson;
+import com.legend.leansql.LeanSqlBaseline;
+import com.legend.testexecutionplan.TestPlan;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * THE CORPUS'S PRODUCT-SQL SIZE BASELINE (G3's guard, the corpus set; E3 of the total-wall program, ruled by the
+ * orchestrator 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §6): every discovered corpus body planned whole
+ * ({@code TestExecution.planBody}, planning only, no database) on the lane's backend, and its PRODUCT statements -- the
+ * body's own statement nodes: its results, lets' frame runs, writes -- held to {@code rcorpus/lean-sql-baseline.tsv}
+ * per database and test package by {@link LeanSqlBaseline}'s rule (growth fails, a shrink past 1% re-pins). Excluded,
+ * as ruled: the verdict and canon steps (the judge's: recorded unguarded in {@code judge-sql.tsv} among the test's
+ * outputs, for the test road's speed work) and a fixture's setup, seeds and loads (data delivery). Its own targets,
+ * {@code //spec:lean_sql_corpus_duckdb} and {@code _h2}; re-pin with {@code bazel run
+ * //spec:update_lean_sql_corpus_<lane>}.
+ */
+@Tag("heavy")
+class LeanSqlCorpusTest {
+
+    /** The pins' file in the source tree. */
+    static final String PINS = "spec/src/test/resources/rcorpus/lean-sql-baseline.tsv";
+
+    /** The corpus's bodies planned on this JVM's backend: [0] the product's measures, [1] the judge's. */
+    @SuppressWarnings("unchecked")
+    static Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measure() throws IOException {
+        MinimalCorpus corpus = new MinimalCorpus();
+        String database = MinimalCorpus.BACKEND.type().name();
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> product = new java.util.HashMap<>();
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> judge = new java.util.HashMap<>();
+        com.legend.ExecuteOptions options = com.legend.ExecuteOptions.NONE
+                .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+        for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
+            String family = t.pkg();
+            List<String> productSql = new ArrayList<>();
+            List<ExecutionPlan.Node> productNodes = new ArrayList<>();
+            List<String> judgeSql = new ArrayList<>();
+            try {
+                var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
+                TestPlan plan = com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
+                        MinimalCorpus.RUNTIME, options);
+                steps(plan.steps(), productSql, productNodes, judgeSql);
+            } catch (RuntimeException | StackOverflowError e) {
+                family = "refused";
+            }
+            long chars = productSql.stream().mapToLong(String::length).sum();
+            long planChars = 0;
+            for (ExecutionPlan.Node n : productNodes) {
+                planChars += PlanJson.write(ExecutionPlan.reading(List.of(), n)).length();
+            }
+            add(product, new LeanSqlBaseline.Key("corpus", database, family), productSql.size(), chars, planChars,
+                    t.fqn());
+            add(judge, new LeanSqlBaseline.Key("corpus-judge", database, family), judgeSql.size(),
+                    judgeSql.stream().mapToLong(String::length).sum(), 0, t.fqn());
+        }
+        return new Map[] {product, judge};
+    }
+
+    private static void add(Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> into, LeanSqlBaseline.Key k, long s,
+            long c, long p, String test) {
+        LeanSqlBaseline.Measure was = into.get(k);
+        into.put(k, was == null ? new LeanSqlBaseline.Measure(s, c, p, test)
+                : new LeanSqlBaseline.Measure(was.statements() + s, was.chars() + c, was.plan() + p, was.worst()));
+    }
+
+    /** The body's own statement nodes to the product's; the verdict steps' statements to the judge's. */
+    private static void steps(List<TestPlan.TestStep> steps, List<String> productSql,
+            List<ExecutionPlan.Node> productNodes, List<String> judgeSql) {
+        for (TestPlan.TestStep step : steps) {
+            switch (step) {
+                case TestPlan.Run r -> {
+                    if (!(r.node() instanceof ExecutionPlan.Load)) {
+                        List<String> statements = new ArrayList<>();
+                        LeanSqlBaseline.statements(r.node(), statements);
+                        productSql.addAll(statements);
+                        productNodes.add(r.node());
+                    }
+                }
+                case TestPlan.FrameRun f -> {
+                    productSql.add(f.check().sql().statement());
+                    productNodes.add(f.check());
+                }
+                case TestPlan.Verdicts v -> judgeSql.addAll(verdictStatements(v));
+                case TestPlan.Branch b -> {
+                    steps(b.then(), productSql, productNodes, judgeSql);
+                    steps(b.otherwise(), productSql, productNodes, judgeSql);
+                }
+            }
+        }
+    }
+
+    /** A verdict group's statements: its fused statement, each verdict's sides (the judge's SQL). */
+    private static List<String> verdictStatements(TestPlan.Verdicts v) {
+        List<String> out = new ArrayList<>();
+        if (v.fused() != null) {
+            out.add(v.fused().sql().statement());
+        }
+        for (TestPlan.Verdict verdict : v.verdicts()) {
+            for (TestPlan.Side side : verdict.base()) {
+                switch (side) {
+                    case TestPlan.Side.Rows rows -> out.add(rows.result().sql().statement());
+                    case TestPlan.Side.KeyedRows keyed -> {
+                        out.add(keyed.keyed().keys().statement());
+                        out.add(keyed.keyed().body().statement());
+                    }
+                    case TestPlan.Side.Constant c -> {
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void theCorpusProductSqlIsHeldToItsBaseline() throws Exception {
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measured = measure();
+        String database = MinimalCorpus.BACKEND.type().name();
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pinned = new java.util.HashMap<>();
+        try (var in = LeanSqlCorpusTest.class.getResourceAsStream("/rcorpus/lean-sql-baseline.tsv")) {
+            if (in != null) {
+                LeanSqlBaseline.read(new String(in.readAllBytes(), StandardCharsets.UTF_8)).forEach((k, m) -> {
+                    if (k.database().equals(database)) {
+                        pinned.put(k, m);
+                    }
+                });
+            }
+        }
+        // the judge's statements, unguarded: a measurement for the test road's speed work
+        String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+        if (outputs != null) {
+            Files.writeString(Path.of(outputs, "judge-sql.tsv"), LeanSqlBaseline.write(measured[1]),
+                    StandardCharsets.UTF_8);
+        }
+        List<String> drift = LeanSqlBaseline.drift(pinned, measured[0]);
+        assertTrue(drift.isEmpty(), "the corpus's product SQL left its baseline (" + PINS + "):\n  "
+                + String.join("\n  ", drift));
+    }
+
+    /** {@code bazel run //spec:update_lean_sql_corpus_<lane>}: this backend's rows measured again and written over
+     *  the source tree's pins, the other backends' rows kept. */
+    public static void main(String[] args) throws IOException {
+        String workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY");
+        if (workspace == null) {
+            throw new IllegalStateException("run it with bazel run //spec:update_lean_sql_corpus_<lane>");
+        }
+        Path file = Path.of(workspace, PINS);
+        String database = MinimalCorpus.BACKEND.type().name();
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pins = new java.util.HashMap<>();
+        if (Files.exists(file)) {
+            LeanSqlBaseline.read(Files.readString(file, StandardCharsets.UTF_8)).forEach((k, m) -> {
+                if (!k.database().equals(database)) {
+                    pins.put(k, m);
+                }
+            });
+        }
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measured = measure();
+        pins.putAll(measured[0]);
+        Files.writeString(file, LeanSqlBaseline.write(pins), StandardCharsets.UTF_8);
+        long[] p = {0, 0};
+        long[] j = {0, 0};
+        measured[0].values().forEach(m -> {
+            p[0] += m.statements();
+            p[1] += m.chars();
+        });
+        measured[1].values().forEach(m -> {
+            j[0] += m.statements();
+            j[1] += m.chars();
+        });
+        System.out.println("corpus " + database + ": product statements " + p[0] + ", chars " + p[1]
+                + "; judge statements " + j[0] + ", chars " + j[1] + " (unguarded)");
+    }
+}

@@ -125,6 +125,9 @@ legend_java_library(
         "//core:edge",
         # the corpus lanes' databases: each lane's workspaces, fixture asides and the replay referee's sessions
         "//core:test_backends",
+        # the corpus's product-SQL size baseline measures with the product set's rule (LeanSqlCorpusTest; E3,
+        # 2026-11-12)
+        "//core:lean_sql_baseline_lib",
         "//testing",
         # CorpusOne runs a corpus pass through JUnitAction
         "//tools/junit",
@@ -233,6 +236,41 @@ corpus_lane(
 )
 
 # One corpus pass on demand, scoped to a test when one is named (CorpusOne):
+# THE CORPUS'S PRODUCT-SQL SIZE BASELINE (G3's guard, the corpus set; E3 of the total-wall program, ruled by the
+# orchestrator 2026-11-12): every corpus body planned whole on the lane's backend (planning only), its product
+# statements pinned per database and package (rcorpus/lean-sql-baseline.tsv, LeanSqlBaseline's rule); the judge's
+# statements recorded unguarded (judge-sql.tsv in the test's outputs). In //gates:local; re-pin with
+# bazel run //spec:update_lean_sql_corpus_<lane>.
+[junit_test(
+    name = "lean_sql_corpus_" + lane,
+    memory_mb = 4096,
+    data = _CORPUS_INPUTS,
+    jvm_flags = ["-Drcorpus.backend=" + lane],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.LeanSqlCorpusTest"],
+    upstream = True,
+    visibility = ["//gates:__pkg__"],
+) for lane in ["duckdb", "h2"]]
+
+[legend_java_binary(
+    name = "update_lean_sql_corpus_" + lane,
+    testonly = True,
+    data = _INPUTS + UPSTREAM_TREES,
+    jvm_flags = [
+        "-Drcorpus.backend=" + lane,
+        "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
+        "-Duser.timezone=GMT",
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dfile.encoding=UTF-8",
+        "-Xmx4096m",
+    ],
+    main_class = "com.legend.rcorpus.LeanSqlCorpusTest",
+    tags = ["manual"],
+    runtime_deps = [":spec_tests_lib"],
+) for lane in ["duckdb", "h2"]]
+
 #   bazel run //spec:corpus_one -- <lane: a test backend's name, duckdb or h2> <host|database> [<test fqn>]
 legend_java_binary(
     name = "corpus_one",

@@ -1906,6 +1906,8 @@ legend_java_library(
     # test code, as core_tests_lib, not yet written to the null discipline (Bazel workplan P1-20)
     nullaway = False,
     testonly = True,
+    # the corpus's set measures with its rule (//spec:lean_sql_corpus_*)
+    visibility = ["//spec:__pkg__"],
     srcs = ["src/test/java/com/legend/leansql/LeanSqlBaseline.java"],
     deps = [
         ":core",
