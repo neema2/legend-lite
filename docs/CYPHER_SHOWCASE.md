@@ -205,7 +205,7 @@ restoring the items' order; the `WHERE` after `WITH` is a `filter` over the grou
 ## 8. The SQL for DuckDB (rendered and run)
 
 ```sql
-SELECT t8.firm, t8.city, t8.headcount, t8.avgAge, t8.youngest, t8.oldest, CASE WHEN t8.avgAge IS NOT NULL AND t8.avgAge >= 32 THEN 'seasoned' ELSE 'young' END AS band
+SELECT t8.firm AS firm, t8.city AS city, t8.headcount AS headcount, t8.avgAge AS avgAge, t8.youngest AS youngest, t8.oldest AS oldest, CASE WHEN t8.avgAge IS NOT NULL AND t8.avgAge >= 32 THEN 'seasoned' ELSE 'young' END AS band
 FROM (
   SELECT t3.p_legalname AS firm, t3.HQ_p_name AS city, COUNT(1) AS headcount, AVG(1.0 * t0.p_age) AS avgAge, MIN(t0.p_age) AS youngest, MAX(t0.p_age) AS oldest
   FROM n_person AS t0

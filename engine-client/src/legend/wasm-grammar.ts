@@ -11,7 +11,7 @@ import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
-import type { RemoteMountRequest, SnapStreamRequest } from '../host-operations.ts';
+import type { RemoteMountRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
 import { allFromPlan, fromPlan, plannedProjectData, type PlannedSql } from '../planned-sql.ts';
@@ -273,5 +273,14 @@ export class WasmGrammar implements Grammar {
    */
   async snapStream(request: SnapStreamRequest): Promise<string> {
     return unfold(await this.#port.ask({ kind: 'snapStream', request: JSON.stringify(request) }));
+  }
+
+  /**
+   * Rows the database generates into a declared table, as a plan (Boundary.synthesize: SYNTHESIZE, the user's ruling of
+   * 2026-11-12): one HOST_SESSION load -- the table made as declared, then one statement filling it -- PlanJson's text,
+   * never a row.
+   */
+  async synthesize(request: SynthesizeRequest): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'synthesize', request: JSON.stringify(request) }));
   }
 }

@@ -177,6 +177,13 @@ public final class MongoDb extends AnsiSqlRenderer {
     // The query: a pipeline
     // ==================================================================
 
+    /** A pipeline's fields are its projections' names: the result labels of AnsiSqlRenderer#labeled are a SQL
+     *  dialect's (2026-11-12). */
+    @Override
+    protected boolean labelsResults() {
+        return false;
+    }
+
     @Override
     protected SqlWriter query(SqlWriter writer, SqlQuery q, int depth) {
         if (depth != 0) {

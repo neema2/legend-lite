@@ -21309,3 +21309,36 @@ The corpus lanes, measured (both judges, both lanes alike):
   text check again (it reloads `dbInc` and reads its tables through `db`, which includes it: the swap's typed identity);
   `testUnionToUnionMultipleLevelsWithStringHashing` keeps passing (its runtime a constructed `^Runtime`).
 - **Unchanged:** both fail rosters (DuckDB 108, H2 273), H2's registers, the skipped and unordered registers.
+
+## 2026-11-12 — SYNTHESIZE, the simple slice: a declared table filled by one planned DuckDB statement (S303)
+
+The user's ruling of 2026-11-12 ("Let's do the most simple thing that will work on duckdb for now - can extend later",
+then "Go ahead"), built on `claude/total-wall-synth`: a lite-only scope (register S303, one row; upstream has no
+synthesizer -- its DataCube samples are shipped CSVs).
+
+- **The planner's entry:** `com.legend.planner.Synthesize.plan(SqlDialect, DatabaseType, LoadPlanner.DeclaredTable,
+  long count, Map<String, Synthesize.Knob>)` -- a table the model declares, a row count, an optional knob per column
+  (`Knob.Values`, its values in turn; `Knob.Range`, numbers at a scale or ISO dates). The answer is ONE `HOST_SESSION`
+  load: the table made as declared, empty (`CsvSeed`'s header-only steps), then ONE statement
+  `INSERT INTO <table> (<columns>) SELECT <formula per column> FROM range(N) AS t(i)` -- `HostOperation.Synthesize`,
+  written by `DuckDbHostOperations`; every other database's host operations refuse it by name ("a host's Synthesize on
+  <database> is not built"). Each formula is the dialect's, a function of the row's number the database computes: a
+  value list cycles (`[..][(i % k) + 1]`), a text without one is `<column>_1`..`<column>_5`, a number is spread over its
+  range by the prime 2^31 - 1 at its scale, a date or timestamp over the five years ending 2025-12-31, a BIT alternates.
+  No NULL in this slice. A column of another type (binary, JSON, an array, a time), a knob for an undeclared column, a
+  range on a text column and a value a number column cannot take are refused by name.
+- **The doors:** the WASM planner's `TabExports.synthesizeOrError(request)` (`Boundary.synthesize`; the request
+  `{"databaseType","model","database","schema","table","count","columns"?}`, each column `{"values":[..]}` or
+  `{"range":[lo,hi],"scale"?}`, any other key refused by name), the native library's `lite_synthesize`, Python's
+  `synthesize` planner kind, the TS `LitePlanner.synthesize(SynthesizeRequest)` and `WasmGrammar.synthesize`. The
+  server route and the Pure face are later.
+- **Tests:** `DuckDbSynthesizeTest` (each type's and each knob's statement pinned; the demo's TRADES table filled with
+  200,000 rows on DuckDB and its aggregates exact -- sums, distinct counts, min and max, each region's count; the plan's
+  size the count's digits and every step a statement; every other database refused by name, and each refusal above);
+  `plan-runner.test.ts` (the WASM planner's plan run on DuckDB-WASM by the hosts' runner: 100,000 rows, their counts
+  exact; Postgres refused).
+- **Measured:** 200,000 rows planned, made and aggregated on DuckDB (JDBC) in 0.28 s, the test's own time; 100,000
+  rows planned by the WASM planner and run on DuckDB-WASM in 0.13 s; the plan of 200,000 rows is the plan of 10 plus
+  4 bytes (the count's digits).
+- **Guards moved, each with its note:** `JavaEvalLedgerTest` PLANNER_CLASSES registers `Synthesize.java` (S303: it
+  computes no value, it names formulas).

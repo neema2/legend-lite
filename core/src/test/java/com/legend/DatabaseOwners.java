@@ -210,6 +210,9 @@ final class DatabaseOwners {
             // 2026-11-11 (the total wall's item 5d, the user's question): a CSV's JSON column read by path on each
             // in-process database and Postgres, by design
             "core/src/test/java/com/legend/integration/CsvJsonColumnTest.java",
+            // 2026-11-12 (the total wall's B, the orchestrator's ruling (a) on the demo's start): a result's labels over a
+            // table lite's DDL stores upper case, on the two databases whose DDL folds a bare name, DuckDB and H2, by design
+            "core/src/test/java/com/legend/planner/ResultLabelsTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

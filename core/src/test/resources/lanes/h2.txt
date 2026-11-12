@@ -31,7 +31,7 @@ ExtendCheckerTest$ComparisonExtend#testGreatest	measured 2026-10-29: LIST_MAX re
 ExtendCheckerTest$ComparisonExtend#testLeast	measured 2026-10-29: LIST_MIN reached a dialect without a list encoding
 ExtendCheckerTest$DateTimeExtend#testDateConstructor	measured 2026-10-29: Function "MAKE_DATE" not found; SQL statement:  SELECT "_tds0".*, make_date("_tds0"."yr", CASE WHEN "_tds0"."mon" < 1 OR
 ExtendCheckerTest$DateTimeExtend#testTimeBucket	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
-ExtendCheckerTest$MathExtend#testCbrt	measured 2026-10-29: Function "CBRT" not found; SQL statement:  SELECT "_tds0".*, cbrt("_tds0"."val") AS "cube" FROM (VALUES (27), (8)) AS "_
+ExtendCheckerTest$MathExtend#testCbrt	measured 2026-11-12 (the total wall's B, the root's star spelled as its columns, labeled): Function "CBRT" not found; SQL statement:  SELECT "_tds0"."val" AS "val", cbrt("_tds0"."val") AS "cube" FROM (VALUES (27), (8)) AS "_
 ExtendCheckerTest$StringExtendAdvanced#testDecodeBase64	measured 2026-10-29: decodeBase64 reached H2, which has no from_base64()
 ExtendCheckerTest$StringExtendAdvanced#testEncodeBase64	measured 2026-10-29: encodeBase64 reached H2, which has no to_base64()
 ExtendCheckerTest$StringExtendAdvanced#testJaroWinkler	measured 2026-10-29: Function "JARO_WINKLER_SIMILARITY" not found; SQL statement:  SELECT "_tds0".*, jaro_winkler_similarity("_tds0"."a", "_t

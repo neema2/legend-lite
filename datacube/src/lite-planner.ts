@@ -34,7 +34,7 @@ import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest, SnapStreamRequest } from '../../engine-client/src/host-operations.ts';
+import type { RemoteMountRequest, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
@@ -686,6 +686,15 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    */
   async snapStream(request: SnapStreamRequest): Promise<string> {
     return decode(await this.#call({ kind: 'snapStream', request: JSON.stringify(request) }), `the snap into ${request.table}`);
+  }
+
+  /**
+   * Rows the database generates into a declared table, as a plan (Boundary.synthesize: SYNTHESIZE, the user's ruling of
+   * 2026-11-12, DuckDB alone): one HOST_SESSION load the hosts' runner runs -- the table made as declared, then one
+   * statement filling it, each column a formula of the row's number -- PlanJson's text, never a row.
+   */
+  async synthesize(request: SynthesizeRequest): Promise<string> {
+    return decode(await this.#call({ kind: 'synthesize', request: JSON.stringify(request) }), `the rows made for ${request.table}`);
   }
 
   /**

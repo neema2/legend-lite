@@ -23,6 +23,7 @@ export const REQUEST_KINDS = [
   'fileLoad',
   'remoteMount',
   'snapStream',
+  'synthesize',
   'sessionSetup',
   'projectData',
   'hostOperations',
@@ -60,6 +61,9 @@ export type RequestBody =
   // a snapshot from a remote plane, as a plan (the user's ruling of 2026-11-11): the request's JSON, the plane by name,
   // its statement and the table it lands in (Boundary.snapStream)
   | { readonly kind: 'snapStream'; readonly request: string }
+  // rows the database generates into a declared table, as a plan (SYNTHESIZE, the user's ruling of 2026-11-12): the
+  // request's JSON, the table and its knobs, never a row (Boundary.synthesize)
+  | { readonly kind: 'synthesize'; readonly request: string }
   // what a session of a database runs before it is queried, so that it answers as the planner's SQL expects
   | { readonly kind: 'sessionSetup'; readonly databaseType: string }
   // a project's own database on a host's database of that type (C5), named by what it holds

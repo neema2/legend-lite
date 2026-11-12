@@ -347,6 +347,67 @@ public final class Boundary {
     }
 
     /**
+     * ROWS THE DATABASE GENERATES INTO A DECLARED TABLE, AS A PLAN (the test-data generator's SYNTHESIZE, its simple slice:
+     * the user's ruling of 2026-11-12; register S303): {@code request} is {@code {"databaseType", "model", "database",
+     * "schema", "table", "count", "columns"?}} -- the host's database's type (DuckDB alone in this slice), the model's
+     * text, the table its Database declares, how many rows, and a knob per column by name: {@code {"values": [...]}}
+     * (taken in turn) or {@code {"range": [lo, hi], "scale"?}} (numbers, or ISO dates). Any other key is refused by name,
+     * so no row can ride in one. The answer is the plan (PlanJson's): one HOST_SESSION load the host's runner runs, its
+     * steps the table made as declared, empty, and one statement the database fills it with
+     * ({@code com.legend.planner.Synthesize}). A model this host holds is read as held, compiled no more.
+     */
+    public static String synthesize(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a synthesized table", "databaseType", "model", "database", "schema", "table", "count", "columns");
+        String databaseType = in.getString("databaseType");
+        java.util.Map<String, com.legend.planner.Synthesize.Knob> knobs = new java.util.LinkedHashMap<>();
+        com.legend.json.Json.Obj columns = in.getObjOr("columns", null);
+        if (columns != null) {
+            for (java.util.Map.Entry<String, com.legend.json.Json.Node> e : columns.fields().entrySet()) {
+                com.legend.json.Json.Obj knob = columns.getObj(e.getKey());
+                only(knob, "a synthesized column's knob", "values", "range", "scale");
+                if (knob.has("values") == knob.has("range")) {
+                    throw new IllegalArgumentException("a synthesized column's knob is its values or its range, one of"
+                            + " them: " + e.getKey());
+                }
+                if (knob.has("values")) {
+                    java.util.List<String> values = new java.util.ArrayList<>();
+                    for (com.legend.json.Json.Node v : knob.getArr("values").items()) {
+                        values.add(scalar(v, e.getKey()));
+                    }
+                    knobs.put(e.getKey(), new com.legend.planner.Synthesize.Knob.Values(values));
+                } else {
+                    java.util.List<com.legend.json.Json.Node> range = knob.getArr("range").items();
+                    if (range.size() != 2) {
+                        throw new IllegalArgumentException("a synthesized column's range is [lo, hi]: " + e.getKey());
+                    }
+                    knobs.put(e.getKey(), new com.legend.planner.Synthesize.Knob.Range(scalar(range.get(0), e.getKey()),
+                            scalar(range.get(1), e.getKey()), knob.has("scale") ? knob.getInt("scale") : null));
+                }
+            }
+        }
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(in.getString("model"), ctx ->
+                com.legend.planner.Synthesize.plan(dialect, type, new com.legend.planner.LoadPlanner.DeclaredTable(ctx,
+                        in.getString("database"), in.getString("schema"), in.getString("table")),
+                        in.getLong("count"), knobs)));
+    }
+
+    /** A knob's value as written: a number's own token, or a text. */
+    private static String scalar(com.legend.json.Json.Node v, String column) {
+        return switch (v) {
+            case com.legend.json.Json.Str s -> s.value();
+            case com.legend.json.Json.Num n -> n.token() != null ? n.token()
+                    : n.isInteger() ? Long.toString(n.longValue()) : java.math.BigDecimal.valueOf(n.doubleValue())
+                            .toPlainString();
+            default -> throw new IllegalArgumentException("a synthesized column's value is a number or a text: "
+                    + column);
+        };
+    }
+
+    /**
      * A HOST'S VALUE READ AS A RELATION, AS A PLAN (the user's ruling of 2026-11-11: a Python frame named, attached at
      * run): {@code request} is {@code {"databaseType", "held", "as", "live", "schema"?, "relation"}} -- the name the host
      * holds the value under, the relation it is attached as, whether it is read at each query (a view) or once (a

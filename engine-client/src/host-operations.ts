@@ -120,6 +120,33 @@ export interface SnapStreamSource {
   snapStream(request: SnapStreamRequest): Promise<string>;
 }
 
+/**
+ * ROWS THE DATABASE GENERATES INTO A DECLARED TABLE, as the planner is asked for their plan (Boundary.synthesize: the
+ * test-data generator's SYNTHESIZE, its simple slice, the user's ruling of 2026-11-12; DuckDB alone): the host's
+ * database's type, the model's text, the table its Database declares, how many rows, and a knob per column by name --
+ * its values in turn, or a range of numbers (at a scale) or of ISO dates. Never a row: the planner refuses any other key.
+ */
+export interface SynthesizeRequest {
+  readonly databaseType: string;
+  readonly model: string;
+  readonly database: string;
+  readonly schema: string;
+  readonly table: string;
+  readonly count: number;
+  readonly columns?: Readonly<Record<string, SynthesizeKnob>>;
+}
+
+/** A column's knob: its values in turn, or a range `[lo, hi]` (numbers at `scale` places, or ISO dates). */
+export type SynthesizeKnob =
+  | { readonly values: readonly (string | number)[] }
+  | { readonly range: readonly [string | number, string | number]; readonly scale?: number };
+
+/** Where a synthesized table's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
+export interface SynthesizeSource {
+  /** The plan, PlanJson's text: one HOST_SESSION load (the table made as declared, then one statement filling it). */
+  synthesize(request: SynthesizeRequest): Promise<string>;
+}
+
 /** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface HostOperationsSource {
   /** Each operation's statements, in order, for a database of `databaseType`. */
