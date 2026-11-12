@@ -205,10 +205,10 @@ class HostOperationsTest {
         assertTrue(withUser.getMessage().contains("names a user") && !withUser.getMessage().contains("SENTINEL"),
                 withUser.getMessage());
         assertThrows(IllegalArgumentException.class, () -> new HostOperation.SetVariable("x = 1; DROP TABLE t"));
-        assertEquals("CREATE OR REPLACE TABLE \"db\".\"s\".\"t\" AS SELECT * REPLACE (CAST(x AS VARCHAR) AS \"x\") FROM (SELECT 1 AS x)",
+        assertEquals("CREATE OR REPLACE TABLE \"db\".\"s\".\"t\" AS SELECT * REPLACE (CAST(x AS VARCHAR) AS \"x\") FROM \"u\"",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, new HostOperation.Name("db", "s", "t", false), true,
                         null, List.of(new HostOperation.Conversion("x", "CAST(x AS VARCHAR)")),
-                        new HostOperation.Source.Query("SELECT 1 AS x"))));
+                        new HostOperation.Source.Relation(HostOperation.Name.of("u")))));
         assertEquals("INSERT INTO PARTY.PARTY (ID, NAME, \"order\") SELECT \"ID\", \"first name\", \"order\" FROM read_csv(?, header = true, all_varchar = true)",
                 one(new HostOperation.Insert(HostOperation.Name.declared("PARTY", "PARTY"),
                         List.of(new HostOperation.Column("ID", "ID"), new HostOperation.Column("NAME", "first name"),
@@ -254,14 +254,15 @@ class HostOperationsTest {
                             new HostOperation.Source.Relation(t)),
                     new HostOperation.MakeSchema(null, "firm"),
                     new HostOperation.MakeRelation(HostOperation.Kind.VIEW, new HostOperation.Name(null, "firm", "v", false), false,
-                            null, List.of(), new HostOperation.Source.Query("SELECT ID FROM people")))) {
+                            null, List.of(), new HostOperation.Source.Relation(t)))) {
                 for (String sql : DUCK.statements(op)) {
                     st.execute(sql);
                 }
             }
             assertEquals(List.of("ADA", "GRACE"), rows(st, "SELECT \"first name\" FROM people ORDER BY ID"));
             assertEquals(List.of("2"), rows(st, one(new HostOperation.Count(new HostOperation.Source.Relation(t)))));
-            assertEquals(List.of("2"), rows(st, one(new HostOperation.Count(new HostOperation.Source.Query("SELECT * FROM firm.v")))));
+            assertEquals(List.of("2"), rows(st, one(new HostOperation.Count(new HostOperation.Source.Relation(
+                    new HostOperation.Name(null, "firm", "v", false))))));
             assertEquals(List.of("1"), rows(st, one(new HostOperation.NameTaken("PEOPLE"))));
             assertEquals(List.of("1"), rows(st, one(new HostOperation.RelationExists(new HostOperation.Name(null, "FIRM", "V", false)))));
             assertEquals(List.of("1"), rows(st, one(new HostOperation.SchemaExists(null, "Firm"))));
@@ -344,14 +345,18 @@ class HostOperationsTest {
         }
     }
 
+    /** Postgres writes no host operation (the final audit, 2026-11-12: its one, a planner's query counted, went with
+     *  {@code Source.Query}): a count, an extension, each refused by name, and no transaction declared. */
     @Test
-    void postgresCountsWithTheAliasItAsksFor() {
+    void postgresRefusesEveryOperationByName() {
         HostOperations pg = HostOperations.of(new Postgres());
-        assertEquals(List.of("SELECT count(*) AS n FROM (SELECT 1) AS counted"),
-                pg.statements(new HostOperation.Count(new HostOperation.Source.Query("SELECT 1"))));
+        DialectCapability count = assertThrows(DialectCapability.class, () -> pg.statements(
+                new HostOperation.Count(new HostOperation.Source.Relation(HostOperation.Name.of("t")))));
+        assertTrue(count.getMessage().contains("Count on Postgres is not built"), count.getMessage());
         DialectCapability refused = assertThrows(DialectCapability.class,
                 () -> pg.statements(new HostOperation.Extensions(List.of("httpfs"))));
         assertTrue(refused.getMessage().contains("Extensions on Postgres is not built"), refused.getMessage());
+        assertEquals(null, pg.transaction());
         assertThrows(DialectCapability.class, () -> HostOperations.of(new H2()).statements(new HostOperation.CurrentDatabase()));
     }
 

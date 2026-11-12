@@ -46,8 +46,6 @@ test_suite(
         # the #SQL{}# island's cases on the embedded Postgres 16: Postgres's own answers, and the islands through the
         # Postgres dialect
         "//core:sql_island_postgres_test",
-        # Snap's preflight count as Postgres's host operations write it, on the embedded Postgres 16 (D5)
-        "//core:host_operations_postgres_test",
         # a CSV file's load on the embedded Postgres 16, its own reader or a refusal by name (A3, 2026-11-10)
         "//core:data_loads_postgres_test",
         # the data delivery matrix on the embedded Postgres 16, unprivileged: every door's data kinds and failure cells

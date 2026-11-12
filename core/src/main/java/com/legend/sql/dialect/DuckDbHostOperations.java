@@ -221,7 +221,6 @@ final class DuckDbHostOperations implements HostOperations {
                     case ICEBERG -> "iceberg_scan(" + at + ")";
                 };
             }
-            case HostOperation.Source.Query q -> "(" + q.sql() + ")";
         };
     }
 

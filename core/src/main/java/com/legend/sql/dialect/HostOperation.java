@@ -12,8 +12,10 @@ import java.util.Map;
  * dialect program's decision D5): what the tab and Python's host used to spell as SQL themselves -- a file read into a
  * table, a remote file mounted, a copy made, rows counted, an extension, a secret, a catalog question. A host names the
  * operation and its data; the database's {@link HostOperations} writes the statements (names quoted, values written as
- * literals), and a database without one refuses it by name. Data only: no SQL text here, but a query a planner wrote
- * ({@link Source.Query}) and a select list a planner wrote ({@link MakeRelation#selectList}).
+ * literals), and a database without one refuses it by name. Data only: no SQL text here, but a select list a planner
+ * wrote ({@link MakeRelation#selectList}). A query is no source of an operation (the final audit, 2026-11-12, the
+ * user's ruling: {@code Source.Query} deleted): a pull is planned, its copy one plan ({@code Boundary.snapCopy}), its
+ * count a Pure query's plan.
  */
 public sealed interface HostOperation {
 
@@ -68,10 +70,6 @@ public sealed interface HostOperation {
                 java.util.Objects.requireNonNull(location, "location");
                 java.util.Objects.requireNonNull(format, "format");
             }
-        }
-
-        /** A query a planner wrote, for this database. */
-        record Query(String sql) implements Source {
         }
     }
 

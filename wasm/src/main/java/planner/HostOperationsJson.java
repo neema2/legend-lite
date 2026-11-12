@@ -102,9 +102,11 @@ final class HostOperationsJson {
                     + " operation");
         }
         if (o.has("query")) {
-            return new HostOperation.Source.Query(string(o, "query"));
+            // a host hands an operation no SQL (the final audit, 2026-11-12, the user's ruling): a pull is planned
+            throw new IllegalArgumentException("a query is planned from its pull (snapCopy, or a Pure query's plan),"
+                    + " never handed to a host operation");
         }
-        throw new IllegalArgumentException("a source is a relation or a query");
+        throw new IllegalArgumentException("a source is a relation");
     }
 
     private static List<HostOperation.Conversion> conversions(Json.Obj o) {
