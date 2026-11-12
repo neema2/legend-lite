@@ -225,10 +225,14 @@ class CodeShapeGuardrailTest {
             "ArrowWriter.encoders",
             "PureV1Writer.order", "PureV1Writer.rows",
             // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the execution the run names
-            // before its columns (ResultSink.execution), which the answer's activity reports -- the sink protocol's
-            // state, scoped to one result's stream as the columns are; the service runner's receiver holds it until its
-            // shape makes the writer it hands it to
-            "PureV1Writer.execution", "ArrowWriter.execution", "ServiceTestRunner.execution",
+            // before its columns (ResultSink.execution) -- the sink protocol's state, scoped to one result's stream as
+            // the columns are; the service runner's receiver holds it until its shape makes the writer it hands it to.
+            // The same day (the exec-id item, C4): the engine's writers are MADE for their execution (the door's id,
+            // Output.writerFor), PureV1Writer's final and ArrowWriter's gone, so they left this list
+            "ServiceTestRunner.execution",
+            // the collector's, the same day (C4: PCT's plan route writes a collected relation later, through a writer
+            // whose activity names the execution the run named to the collector)
+            "Collector.execution",
             // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
             // columns as announced, whether the one value column is to-one, the row count for the comma and the
             // to-one refusal

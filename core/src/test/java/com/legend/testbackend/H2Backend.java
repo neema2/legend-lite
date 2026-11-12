@@ -3,7 +3,6 @@
 
 package com.legend.testbackend;
 
-import com.legend.exec.H2Connector;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
 import java.sql.Connection;
@@ -13,7 +12,7 @@ import java.sql.Statement;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** H2's sessions, lite's H2 (2.5.252): a private in-memory instance each, with the engine's session settings
- *  ({@code H2Connector.SETTINGS}). A corpus workspace on H2 carries the engine's extension functions
+ *  ({@code TestBackends.h2UrlSettings}). A corpus workspace on H2 carries the engine's extension functions
  *  ({@link H2ExtensionFunctions}) as it did when it was also the replay referee's session; the referee is legend-engine's
  *  own H2 since 2026-11-05 ({@link EngineH2Referee}), and the H2 lane's goldens replay on its mirror as every lane's. */
 final class H2Backend extends InProcessBackend {
@@ -38,7 +37,7 @@ final class H2Backend extends InProcessBackend {
 
     /** A session of lite's H2 named {@code name}, with the engine's extension functions. */
     private static Connection withExtensions(String name) throws SQLException {
-        Connection referee = DriverManager.getConnection("jdbc:h2:mem:" + name + H2Connector.SETTINGS, "sa", "");
+        Connection referee = DriverManager.getConnection("jdbc:h2:mem:" + name + TestBackends.h2UrlSettings(), "sa", "");
         // the engine's H2 test database carries its extension functions, and the corpus's raw text may call them
         // (legend_h2_extension_*)
         try (Statement st = referee.createStatement()) {

@@ -55,7 +55,7 @@ final class TestRunTest {
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
         target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of(), null);
+                List.of(), List.of(), null, null);
     }
 
     @AfterAll
@@ -183,7 +183,7 @@ final class TestRunTest {
     }
 
     private static void run(TestPlan plan, PlanSessions.Source sessions, Recording sink) throws IOException {
-        TestRun.run(plan, Map.of(), sessions, com.legend.executionplan.DataStores.none(), step -> null, sink, sink);
+        TestRun.run(plan, Map.of(), sessions, com.legend.executionplan.DataStores.none(), step -> null, sink, sink, java.util.UUID.randomUUID());
     }
 
     @Test

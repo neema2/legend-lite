@@ -32,9 +32,14 @@ import java.util.Set;
  *       MongoDB's operators, or a refusal by name -- never a fallback;</li>
  *   <li>SQL's three-valued comparisons over BSON's total ones (D7): an operator whose answer MongoDB defines over
  *       null is written through a null guard ({@link MongoJson#guarded}) where an operand may be null;</li>
- *   <li>a plan parameter as a marker document the connector replaces in place ({@code {"$legendParam": "?"}}),
- *       bound by its place among the markers as every dialect's parameters are (a per-key region's copies are
- *       copies of its text, so a marker names no index: 2026-10-20);</li>
+ *   <li>a plan parameter as the pipeline variable {@code "$$lpN"} ({@link #parameter}: N its place among the
+ *       statement's parameters, from 1, in document order), which the session binds through the aggregate command's
+ *       {@code let} and never writes into the pipeline (the C checkpoint's NOTE, 2026-11-12; until then a marker
+ *       document the session replaced in place). A variable is read only where MongoDB evaluates an expression:
+ *       every value this dialect writes is one, a {@code $match}'s under {@code $expr}; {@code $limit} and
+ *       {@code $skip} take the select's counts, which are never a parameter. A dynamic pivot's key cell is the one
+ *       marker left ({@link #KEY_MARKER}): the runner writes the per-key region once per key, the charter's A3(a),
+ *       and the session binds each copy's key at its marker;</li>
  *   <li>an aggregate as a {@code $group} accumulator and the read of its field ({@link #accumulator}): the native
  *       accumulators where MongoDB has one, else the group's values pushed and reduced at the read (a distinct or
  *       ordered aggregate, a median, a quantile, a string aggregate);</li>
@@ -71,9 +76,10 @@ public final class MongoDb extends AnsiSqlRenderer {
     /** A group key's read after the group stage ({@code _id.k0}). */
     private static final String GROUP_KEY = "_id.k";
 
-    /** A plan parameter's place in a command: the marker document the connector replaces by the value of the slot at
-     *  its place among the markers (the connector's {@code MongoDbStatements}), as SQL's {@code ?}. */
-    private static final String MARKER = "{\"$legendParam\": \"?\"}";
+    /** A dynamic pivot's key cell in a copy of the per-key region: the marker document the session replaces by the
+     *  copy's key (the connector's {@code MongoDbStatements}), as SQL's {@code ?} is bound to it. A plan parameter is
+     *  a pipeline variable ({@link #parameter}), never a marker. */
+    private static final String KEY_MARKER = "{\"$legendParam\": \"?\"}";
 
     private static final String RAISE_SENTINEL = "\u001f";
     private static final String POSITION_DIVIDER = "\u001e";
@@ -229,7 +235,7 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + t.tempTableName() + "' reached an executable dialect — plan-text vocabulary only");
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
             // a dynamic pivot's probe plan: each copy of the per-key region binds its key's text
-            case SqlExpr.KeyCell k -> writer.bindKey(MARKER, k.cell());
+            case SqlExpr.KeyCell k -> writer.bindKey(KEY_MARKER, k.cell());
             case SqlExpr.RowOrder r -> throw new DialectCapability("a physical row order reached MongoDb: a"
                     + " collection's documents have no row order to read");
             case SqlExpr.Column c -> column(writer, c);
@@ -369,11 +375,26 @@ public final class MongoDb extends AnsiSqlRenderer {
         return writer.append("\"$" + (under == null ? "" : under + ".") + "_pk").counter().append("_" + name + "\"");
     }
 
-    /** A plan parameter: a marker the connector replaces in place by the bound value, by its place among the
-     *  statement's markers. */
+    /** A plan parameter: its pipeline variable ({@link #parameter}). */
     @Override
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
-        return writer.bind(MARKER, scalarBind(p));
+        return parameter(writer, scalarBind(p));
+    }
+
+    /**
+     * {@code bind}'s pipeline variable, {@code "$$lpN"}: N its place among the statement's plan parameters, from 1, in
+     * document order (a key's cell not counted). The session binds {@code lpN} to the N-th parameter's slot through the
+     * aggregate command's {@code let} ({@code MongoDbStatements}), so the pipeline is sent as the plan holds it. A
+     * parameter inside a dynamic pivot's per-key region is refused by name: the region's copies would each bind it
+     * again, and a pipeline variable is bound once.
+     */
+    private static SqlWriter parameter(SqlWriter writer, RenderedStatement.Bind bind) {
+        if (writer.inRegion()) {
+            throw new DialectCapability("plan parameter '" + bind.parameter() + "' inside a dynamic pivot's per-key"
+                    + " region reached MongoDb: the region's copies would each bind it again, and a pipeline variable"
+                    + " is bound once (no shape yet)");
+        }
+        return writer.bind(MongoJson.string("$$" + MongoJson.parameterVariable(writer.boundParameters() + 1)), bind);
     }
 
     /** A parameter written where ONE value goes: a list parameter is bound only as a whole list. */
@@ -938,8 +959,8 @@ public final class MongoDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         if (m.collection() instanceof SqlExpr.PlanParam p) {
-            return MongoJson.guarded(writer, List.of(m.needle()), x -> x.append("{\"$in\": [" + G0 + ", ")
-                    .bind(MARKER, listBind(p)).append("]}"));
+            return MongoJson.guarded(writer, List.of(m.needle()), x -> parameter(x.append("{\"$in\": [" + G0 + ", "),
+                    listBind(p)).append("]}"));
         }
         return MongoJson.guardedOp(writer, "$in", List.of(m.needle(), m.collection()));
     }
@@ -2473,6 +2494,11 @@ public final class MongoDb extends AnsiSqlRenderer {
         return null;   // its errors carry a raise's text
     }
 
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** The BSON type name a cast converts to, a refusal where MongoDB has no such type. */
     @Override
     protected String scalarTypeName(SqlType.Scalar s) {
@@ -2762,6 +2788,10 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.DateLit d -> writer.append(MongoJson.dateLiteral(d.iso()));
             case SqlExpr.TimestampLit t -> writer.append(MongoJson.dateLiteral(t.iso()));
             case SqlExpr.Cast c -> value(writer, c.value());
+            // a parameter is a pipeline variable, which only an aggregate command's let binds: an insert takes none
+            case SqlExpr.PlanParam p -> throw new DialectCapability("plan parameter '" + p.name() + "' in an insert"
+                    + " command reached MongoDb: a parameter is a pipeline variable, which only an aggregate command's"
+                    + " let binds");
             default -> throw new DialectCapability("a row's cell is " + cell.getClass().getSimpleName()
                     + ": a MongoDb insert holds values, not expressions");
         };

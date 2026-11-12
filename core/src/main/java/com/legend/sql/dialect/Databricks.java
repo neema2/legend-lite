@@ -81,6 +81,11 @@ public final class Databricks extends AnsiSqlRenderer {
         return null;   // its errors carry a raise's text
     }
 
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** The most characters of parameters one statement binds (its driver's refusal: "the combined size of parameters
      *  is N, exceeding the limit of 1048576 characters", measured by the Databricks lane, 2026-11-11,
      *  docs/data-delivery-homework/probes/DatabricksDelivery2.java.txt). */

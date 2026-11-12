@@ -37,13 +37,14 @@ public final class ProductRun {
 
     /** {@code plan} run, its answer written in {@code output} -- the writer made from the plan before any statement
      *  runs, so a format that has no form for the answer refuses it untouched: a program's writes never land behind a
-     *  refused answer. Returns the plan that ran. */
+     *  refused answer. Returns the plan that ran. {@code execution}: the id its door minted for this execution (exec
+     *  makes no value of its own; 2026-11-12). */
     public static ExecutionPlan run(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
-            Establish establish, Output output, int batchRows) throws IOException {
+            Establish establish, Output output, int batchRows, java.util.UUID execution) throws IOException {
         // a receiver of the caller's is told the answer here, before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack()) {
-            ResultSink sink = output.writerFor(plan);
-            runCalledBack(plan, sessions, planSessions, establish, sink, batchRows);
+            ResultSink sink = output.writerFor(plan, execution);
+            runCalledBack(plan, sessions, planSessions, establish, sink, batchRows, execution);
         }
         return plan;
     }
@@ -52,37 +53,38 @@ public final class ProductRun {
      *  answer's target's project database, established first as legend-engine establishes a connection on every
      *  acquisition (its declared test data run on it); a program that writes on the plan's own shared sessions. Its
      *  answer written in {@code output}, in the stream's default batches. */
-    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, Output output) throws IOException {
+    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, Output output, java.util.UUID execution)
+            throws IOException {
         return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.shared(), Establish.DECLARED_SETUP, output,
-                com.legend.result.Batcher.DEFAULT_CAPACITY);
+                com.legend.result.Batcher.DEFAULT_CAPACITY, execution);
     }
 
-    /** {@link #onProjectDatabases(ExecutionPlan, Output)}, its live sources read under the fence the server's
+    /** {@link #onProjectDatabases(ExecutionPlan, Output, java.util.UUID)}, its live sources read under the fence the server's
      *  configuration names ({@link SourceAdmission#configured}: null, any file; validated where the server starts),
      *  a refusal under it in the server's words ({@link SourceAdmission#onTheServer}). */
     public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, @com.legend.base.Nullable String admittedSources,
-            Output output) throws IOException {
+            Output output, java.util.UUID execution) throws IOException {
         return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.admitting(PlanSessions.shared(),
                 SourceAdmission.configured(admittedSources).onTheServer()), Establish.DECLARED_SETUP, output,
-                com.legend.result.Batcher.DEFAULT_CAPACITY);
+                com.legend.result.Batcher.DEFAULT_CAPACITY, execution);
     }
 
     /** {@link #run} inside the scope that refuses planning while the caller's sessions are opened. */
     private static void runCalledBack(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
-            Establish establish, ResultSink sink, int batchRows) throws IOException {
+            Establish establish, ResultSink sink, int batchRows, java.util.UUID execution) throws IOException {
         // a write on the caller's session, its declared setup established, is established as a read is: the program's
         // target's acquisition loads run on the session first (A5, 2026-11-10: until then the caller's session refused
         // them, so a write never read its declared test data)
         boolean establishedOnTheCallers = establish == Establish.DECLARED_SETUP
                 && sessions instanceof SessionSource.Given;
         if (!plan.writes() && !plan.sendsTheAnswer()) {
-            PlanRunner.stream(plan, Map.of(), NOTHING_SENT, sink, batchRows);
+            PlanRunner.stream(plan, Map.of(), NOTHING_SENT, sink, batchRows, execution);
             return;
         }
         ExecutionPlan.Target target = plan.writes() ? home(plan) : plan.answerSql().target();
         if (plan.writes() && !establishedOnTheCallers
                 && !(target.database() instanceof ExecutionPlan.Database.System)) {
-            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows);
+            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows, execution);
             return;
         }
         if (target.database() instanceof ExecutionPlan.Database.System) {
@@ -91,7 +93,7 @@ public final class ProductRun {
             // caller's session, which holds no catalog
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(PlanSessions.system(leases),
-                        planSessions.admitted()), sink, batchRows);
+                        planSessions.admitted()), sink, batchRows, execution);
             }
             return;
         }
@@ -113,7 +115,7 @@ public final class ProductRun {
                 }
             };
             // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10)
-            PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows);
+            PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows, execution);
         }
     }
 

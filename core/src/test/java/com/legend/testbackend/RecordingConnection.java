@@ -37,7 +37,10 @@ public final class RecordingConnection {
                             && args[0] instanceof String sql) {
                         return recording(p, PreparedStatement.class, sql, into);
                     }
-                    if (out instanceof Statement s && !(out instanceof PreparedStatement)) {
+                    // a plain statement, whatever class the driver makes it of (DuckDB's createStatement answers a
+                    // PreparedStatement: until 2026-11-12, C4, its executes went unrecorded, and every proof that read
+                    // this list was blind to DuckDB's session statements, effects and load statements)
+                    if (out instanceof Statement s && method.getName().equals("createStatement")) {
                         return recording(s, Statement.class, null, into);
                     }
                     return out;

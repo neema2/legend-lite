@@ -158,7 +158,7 @@ class TestDoorTest {
                     @Override
                     public void end() {
                     }
-                });
+                }, java.util.UUID.randomUUID());
         return rows;
     }
 

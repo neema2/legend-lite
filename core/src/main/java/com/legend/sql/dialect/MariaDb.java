@@ -238,6 +238,11 @@ public class MariaDb extends AnsiSqlRenderer {
         return new RaiseReadBack("SELECT @legend_raise", "SET @legend_raise = NULL");
     }
 
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override

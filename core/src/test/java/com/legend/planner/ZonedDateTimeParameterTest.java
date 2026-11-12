@@ -72,7 +72,7 @@ class ZonedDateTimeParameterTest {
                         @Override
                         public void end() {
                         }
-                    }, 16);
+                    }, 16, java.util.UUID.randomUUID());
         }
         assertEquals(1, cells.size(), "one cell: " + cells);
         return cells.get(0);

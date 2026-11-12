@@ -53,8 +53,8 @@ final class JdbcDecodeCases {
         // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
             st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
-                    List.of(), List.of(), null));
-            st.rows(sql, List.of(), List.of(), columns, out::add);
+                    List.of(), List.of(), null, null));
+            st.rows(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), columns, out::add);
         }
         return out;
     }

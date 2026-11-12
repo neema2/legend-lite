@@ -1434,6 +1434,11 @@ final class ArchitectureTest {
             // metamodel store runs on the process's in-process catalog; the host's system connections deleted)
             "com.legend.ExecuteOptions#stores");
 
+    /** The one value a door makes (2026-11-12, the user's ruling "Do the exec id as part of C"; the C4 exec-id item):
+     *  its execution's id, minted once per method and passed into the run -- exec makes none
+     *  ({@link #execMakesNoValueOfItsOwn}). */
+    private static final String DOOR_MINT_CALL = "java.util.UUID#randomUUID";
+
     private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
             "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",
             "com.legend.testexec.TestRunner#runOpening");
@@ -1446,6 +1451,8 @@ final class ArchitectureTest {
      * overload. It reads no field but an enum's constant. Its source is one statement per method, with no branch, loop,
      * lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}: the bytecode shows neither a branch nor
      * which call comes first in one expression) -- so the run is the statement's outermost call, its plan an argument. A line cap would only measure it; this says what it may do.
+     * Since 2026-11-12 (the exec-id item, C4) a method may also mint ONE execution id ({@link #DOOR_MINT_CALL}), the
+     * run's argument: the door is where an execution starts, so its id is made there and nowhere in exec.
      */
     @Test
     void theDoorsOnlyCompose() {
@@ -1467,16 +1474,22 @@ final class ArchitectureTest {
                     continue;
                 }
                 int runs = 0;
+                int mints = 0;
                 for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
                     String target = call.getTargetOwner().getName() + "#" + call.getName();
                     if (DOOR_RUN_CALLS.contains(target) || call.getTargetOwner().getName().equals(top)) {
                         runs++;
+                    } else if (target.equals(DOOR_MINT_CALL)) {
+                        mints++;
                     } else if (!DOOR_PLANNING_CALLS.contains(target)) {
                         found.add(u.getFullName() + " calls " + target);
                     }
                 }
                 if (runs > 1) {
                     found.add(u.getFullName() + " runs " + runs + " times");
+                }
+                if (mints > 1) {
+                    found.add(u.getFullName() + " mints " + mints + " execution ids: one run, one id");
                 }
                 if (!u.getMethodReferencesFromSelf().isEmpty() || !u.getConstructorReferencesFromSelf().isEmpty()) {
                     found.add(u.getFullName() + " makes a method reference");
@@ -2027,6 +2040,98 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /** EXEC MAKES NO VALUE OF ITS OWN (the rule of {@link #execMakesNoValueOfItsOwn}). */
+    static final com.tngtech.archunit.lang.ArchRule EXEC_MAKES_NO_VALUE = noClasses()
+            .that().resideInAnyPackage("com.legend.exec..", "com.legend.base..")
+            .should().callMethod(java.util.UUID.class, "randomUUID")
+            .orShould().callMethod(Math.class, "random")
+            .orShould().callMethod(StrictMath.class, "random")
+            // SecureRandom and ThreadLocalRandom are Randoms
+            .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
+            .as("exec makes no value of its own: an execution's id is its door's (Execution, TestExecution), passed in"
+                    + " and bound, never minted by exec or by the run's scope");
+
+    /**
+     * EXEC MAKES NO VALUE OF ITS OWN (the user's ruling of 2026-11-12, "Do the exec id as part of C"; earlier, no
+     * caller-supplied ids): an execution's id is minted by the DOOR that starts the run ({@code Execution}'s methods,
+     * the server's routes through them, {@code TestExecution}'s), one per plan run, and passed into exec explicitly
+     * ({@code PlanRunner.stream}, {@code ProgramRunner.run}), which binds it ({@code Sql.stamp}) and names it to the
+     * listener ({@code ResultSink.execution}). No class of exec or of base (the run's scope, {@code RunScope}, which
+     * minted it until then) calls {@code UUID.randomUUID} or {@code Math.random}, or reaches a {@code Random}
+     * ({@code SecureRandom}, {@code ThreadLocalRandom}). {@link #theNoValueRuleBitesAPlantedRandomUuid} shows it bites.
+     */
+    @Test
+    void execMakesNoValueOfItsOwn() {
+        EXEC_MAKES_NO_VALUE.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #execMakesNoValueOfItsOwn} fails on a class of exec's package that mints an id
+     *  ({@code exec.PlantedRandomUuid}, a test class planted for this alone). */
+    @Test
+    void theNoValueRuleBitesAPlantedRandomUuid() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> EXEC_MAKES_NO_VALUE.check(
+                new ClassFileImporter().importClasses(com.legend.exec.PlantedRandomUuid.class)));
+    }
+
+    /**
+     * THE BRAND'S MINT (the C checkpoint's MUST-FIX 1, 2026-11-12, the user's "are we provably totally separated?"): a
+     * {@link com.legend.executionplan.PlannedSql} -- the only text a session's statements take ({@code exec.Statements}:
+     * {@link #aSessionsStatementsTakeNoText}) -- is minted where a plan is READ, and nowhere else: by the plan's own
+     * records ({@code com.legend.executionplan}: a statement, a target's session statements and error read-back, a
+     * load's statements and a file's reading, a script's bracket and abort), by the test plan's
+     * ({@code com.legend.testexecutionplan}: a savepoint's), and by the runner's keyed expansion
+     * ({@code PlanRunner.expand}: a keyed body's regions once per key, the charter's A3(a), the one sanctioned writing at
+     * run). So exec sends a plan's text and nothing else, by type: a runner that writes a statement, or a comment in
+     * front of one, must mint it, and this rule names everyone who may. A call and a method reference alike.
+     */
+    @Test
+    void onlyThePlansReadersMintPlannedSql() {
+        noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a PlannedSql minted outside the plan's readers"
+                    + " (com.legend.executionplan, com.legend.testexecutionplan) and PlanRunner.expand") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    if (!access.getTargetOwner().isEquivalentTo(com.legend.executionplan.PlannedSql.class)
+                            || !(access.getName().equals("fromPlan") || access.getName().equals("allFromPlan"))) {
+                        return false;
+                    }
+                    com.tngtech.archunit.core.domain.JavaCodeUnit origin = access.getOrigin();
+                    String pkg = origin.getOwner().getPackageName();
+                    if (pkg.equals("com.legend.executionplan") || pkg.equals("com.legend.testexecutionplan")) {
+                        return false;
+                    }
+                    return !(origin.getOwner().isEquivalentTo(com.legend.exec.PlanRunner.class)
+                            && origin.getName().equals("expand"));
+                }
+            })
+            .as("the brand's mint: a PlannedSql, the one text a session is sent, is minted by the plan's readers and the"
+                    + " keyed expansion alone")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * A SESSION'S STATEMENTS TAKE NO TEXT BUT THE PLAN'S (the C checkpoint's MUST-FIX 1, 2026-11-12): every method of
+     * {@code exec.Statements} that sends a statement takes a {@link com.legend.executionplan.PlannedSql}, and none takes
+     * a {@code String} -- but {@code readsFile}'s second argument, the runner's verified copy's path, which the
+     * statement's one {@code ?} binds (a value, never text sent). An overload taking a {@code String} would let a runner
+     * send its own text past {@link #onlyThePlansReadersMintPlannedSql}.
+     */
+    @Test
+    void aSessionsStatementsTakeNoText() {
+        java.util.List<String> textual = new java.util.ArrayList<>();
+        for (java.lang.reflect.Method m : com.legend.exec.Statements.class.getMethods()) {
+            Class<?>[] ps = m.getParameterTypes();
+            for (int i = 0; i < ps.length; i++) {
+                if (ps[i] == String.class && !(m.getName().equals("readsFile") && i == 1)) {
+                    textual.add(m.getName() + "#" + i);
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), textual,
+                "a session's statements take a PlannedSql, never a String");
+    }
+
     /** Grammar cursors and section parsers are parse-time machinery. */
     @Test
     void parseMachineryIsUsedOnlyWhereSanctioned() {
@@ -2202,7 +2307,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.base.RunScope.PLANNING", StaticKind.RUN_GUARD),
             java.util.Map.entry("com.legend.base.RunScope.JUDGING", StaticKind.RUN_GUARD),
             // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the running execution's id, set
-            // as a run enters and cleared as it closes -- the run scope's own state, beside its depth
+            // as a run enters and cleared as it closes -- the run scope's own state, beside its depth. Kept the same day
+            // (the exec-id item, C4): it now holds the id the run's DOOR minted and passed in (RunScope.enter(id)), read
+            // three calls deep by the statements' stamps and the trace; it mints none (execMakesNoValueOfItsOwn)
             java.util.Map.entry("com.legend.base.RunScope.EXECUTION", StaticKind.RUN_GUARD),
             // the databases the process keeps: the server's project databases, the plans' own and named ones
             java.util.Map.entry("com.legend.exec.PlanSessions.SHARED", StaticKind.RESOURCE),

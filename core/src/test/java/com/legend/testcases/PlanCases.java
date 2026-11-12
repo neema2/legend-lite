@@ -248,7 +248,7 @@ public final class PlanCases {
      *  {@code null}: the value text a judge of a value compares. */
     public static String pureText(ExecutionPlan plan, Connection c) throws java.io.IOException {
         com.legend.exec.PlanRunner.Rows rows = com.legend.exec.PlanRunner.rows(plan, java.util.Map.of(),
-                com.legend.exec.PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()));
+                com.legend.exec.PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()), java.util.UUID.randomUUID());
         StringBuilder out = new StringBuilder();
         for (List<Object> row : rows.rows()) {
             out.append(out.isEmpty() ? "" : "\n");
@@ -279,7 +279,7 @@ public final class PlanCases {
                     writerOf) throws java.io.IOException {
         java.io.StringWriter out = new java.io.StringWriter();
         com.legend.exec.PlanRunner.stream(plan, values,
-                com.legend.exec.PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()), writerOf.apply(out, plan.answerShape()));
+                com.legend.exec.PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()), writerOf.apply(out, plan.answerShape()), java.util.UUID.randomUUID());
         return out.toString();
     }
 

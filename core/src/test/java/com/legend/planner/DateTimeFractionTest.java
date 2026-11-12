@@ -299,7 +299,7 @@ class DateTimeFractionTest {
                         @Override
                         public void end() {
                         }
-                    }, 16);
+                    }, 16, java.util.UUID.randomUUID());
         }
         return out;
     }

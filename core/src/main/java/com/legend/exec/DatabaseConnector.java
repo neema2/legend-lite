@@ -35,10 +35,20 @@ public interface DatabaseConnector {
      *  engine's catalog). Each connector answers: a default would make a catalog on a server. */
     boolean inProcess();
 
-    /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine);
-     *  refused by name for a database with none ({@link #inProcess} false). */
-    default Connection openPrivate() throws SQLException {
+    /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine),
+     *  made with {@code settings}, the ones the plan's target says its database must have (null for none: the C
+     *  checkpoint's SHOULD-FIX 3, 2026-11-12); refused by name for a database with none ({@link #inProcess} false). */
+    default Connection openPrivate(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
         throw new com.legend.error.NotImplementedException("no in-memory instance of database type '" + type() + "'");
+    }
+
+    /** {@code settings} refused by name for a database whose instance takes none where it is opened: only a target
+     *  that declares none opens it. */
+    static void noSettings(com.legend.executionplan.DatabaseType type, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        if (settings != null) {
+            throw new com.legend.error.NotImplementedException("a " + type + " database is opened with no settings, and"
+                    + " the plan's target declares " + settings.required() + ": never opened without them");
+        }
     }
 
     // (raiseRecovery, the two statements that read back a raise a session holds: the PLAN's since C2, 2026-11-12 --
@@ -104,17 +114,18 @@ public interface DatabaseConnector {
      *  database keeps one by name. */
     interface NamedMemory {
 
-        /** A connection to the named in-memory database {@code name}, which outlives it. */
-        Connection openNamed(String name) throws SQLException;
+        /** A connection to the named in-memory database {@code name}, which outlives it, with {@code settings} (the
+         *  plan's target's; null for none). */
+        Connection openNamed(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException;
 
         /** A connection to the named in-memory database {@code name}, which lives only while a connection to it is
          *  open: its opener keeps this one, and when that one closes with no other open, the database is gone. */
-        Connection openKept(String name) throws SQLException;
+        Connection openKept(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException;
 
         /** Another connection to the kept database {@code name} ({@link #openKept}), which must still be open: one
          *  whose keeper closed is gone, and connecting fails by name rather than making an empty database of that
          *  name. */
-        Connection joinKept(String name) throws SQLException;
+        Connection joinKept(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException;
     }
 
     /** {@code def}'s specification, refused: this database is not opened from it. */

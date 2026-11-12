@@ -1030,6 +1030,8 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@mongodb_driver_core//jar",
         "@mongodb_driver_sync//jar",
+        # the connector's statements, compiled against: the sent command checked against the plan's (C4, 2026-11-12)
+        ":mongodb_connector",
     ],
     visibility = ["//gates:__pkg__"],
 )

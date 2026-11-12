@@ -13,17 +13,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * H2's sessions: a file, a server, or an in-memory database that outlives its connections by NAME
- * ({@link Sessions.Opening.Named}). Every in-memory H2 session the platform opens, named or private, takes
- * {@link #SETTINGS} (moved here from {@code H2Settings}, the dialect program's Phase 5, 2026-10-16); a file's or a
- * server's URL is opened as the connection declares it.
+ * ({@link Sessions.Opening.Named}). Every in-memory H2 database the platform opens, named or private, is opened with
+ * the settings the plan's target declares ({@link #url}: the H2 dialect's {@code MODE=LEGACY} and
+ * {@code DEFAULT_NULL_ORDERING=HIGH}, plan data since the C checkpoint's SHOULD-FIX 3, 2026-11-12; until then this
+ * connector's {@code SETTINGS}, outside every plan, with the non-keywords that are now the dialect's session
+ * statement); a file's or a server's URL is opened as the connection declares it, and the session checked against the
+ * target's settings ({@code JdbcStatements.check}).
  *
  * <p>THE H2 session — the engine's own, VERBATIM (convergence batch C,
  * user-ratified "converge directly", landed 2026-08-29): H2Defaults
  * from legend-engine-xt-relationalStore-h2-execution-2.1.214 —
  * case-SENSITIVE identifiers, no DATABASE_TO_UPPER override, the
  * engine's NON_KEYWORDS list (incl OVER), MODE=LEGACY. ONE definition
- * shared by every H2 session opener so all targets open IDENTICAL
- * sessions.
+ * (the H2 dialect's, written into every plan's target) so all targets
+ * open IDENTICAL sessions.
  *
  * <p>HISTORY: this constant used to add CASE_INSENSITIVE_IDENTIFIERS
  * + DATABASE_TO_UPPER=false — session-level compensation for OUR OWN
@@ -40,26 +43,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class H2Connector implements DatabaseConnector, DatabaseConnector.NamedMemory {
 
     static final H2Connector INSTANCE = new H2Connector();
-
-    /** JDBC-URL suffix, {@code ;KEY=VALUE} form — the engine's own H2
-     *  connection settings (H2Manager / H2Defaults, 4.145.0), so a golden
-     *  replayed here orders as it did in the engine's run:
-     *  {@code DEFAULT_NULL_ORDERING=HIGH} is the engine's canonical null
-     *  placement (null is largest — ASC nulls last, DESC nulls first; batch
-     *  8, the eleven testGroupBy.pure desc sorts) which its printer leaves
-     *  BARE on H2 2.x because the session already orders that way. */
-    // NOT a compile-time constant (String.join, not a literal): a literal
-    // would be INLINED into every class that reads it — the spec module's
-    // test classes kept the pre-4.145.0 value across a core install until
-    // a clean (batch 8: two chains chased a null-ordering divergence that
-    // was a stale inlined string)
-    public static final String SETTINGS = String.join("",
-            ";NON_KEYWORDS=ANY,ASYMMETRIC,AUTHORIZATION,CAST,",
-            "CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,ELSE,END,HOUR,KEY,",
-            "MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,",
-            "SYSTEM_USER,TO,UESCAPE,USER,VALUE,WHEN,YEAR,OVER",
-            ";MODE=LEGACY",
-            ";DEFAULT_NULL_ORDERING=HIGH");
 
     private static final AtomicInteger PRIVATE_IDS = new AtomicInteger();
 
@@ -103,8 +86,28 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     }
 
     @Override
-    public Connection openPrivate() throws SQLException {
-        return DriverManager.getConnection("jdbc:h2:mem:private" + PRIVATE_IDS.getAndIncrement() + SETTINGS, "sa", "");
+    public Connection openPrivate(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
+        return DriverManager.getConnection("jdbc:h2:mem:private" + PRIVATE_IDS.getAndIncrement() + url(settings), "sa",
+                "");
+    }
+
+    /** {@code settings} on an in-memory database's URL, each {@code ;NAME=VALUE}, as the plan's target declares them (the
+     *  C checkpoint's SHOULD-FIX 3, 2026-11-12: H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}, the database's,
+     *  whose {@code SET} would commit a caller's transaction); none for null. A name or value that is not a plain word
+     *  is refused by name: it would write another setting. */
+    static String url(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        if (settings == null) {
+            return "";
+        }
+        StringBuilder url = new StringBuilder();
+        for (com.legend.executionplan.ExecutionPlan.Setting s : settings.required()) {
+            if (!s.name().matches("[A-Za-z_][A-Za-z0-9_]*") || !s.value().matches("[A-Za-z0-9_]+")) {
+                throw new IllegalArgumentException("an H2 database setting is a name and a value, each a plain word: "
+                        + s);
+            }
+            url.append(';').append(s.name()).append('=').append(s.value());
+        }
+        return url.toString();
     }
 
     @Override
@@ -113,22 +116,23 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     }
 
     @Override
-    public Connection openNamed(String name) throws SQLException {
-        return named(name, ";DB_CLOSE_DELAY=-1");
+    public Connection openNamed(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
+        return named(name, ";DB_CLOSE_DELAY=-1", settings);
     }
 
     @Override
-    public Connection openKept(String name) throws SQLException {
-        return named(name, "");
+    public Connection openKept(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
+        return named(name, "", settings);
     }
 
     @Override
-    public Connection joinKept(String name) throws SQLException {
-        return named(name, ";IFEXISTS=TRUE");
+    public Connection joinKept(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
+        return named(name, ";IFEXISTS=TRUE", settings);
     }
 
-    private static Connection named(String name, String closeDelay) throws SQLException {
-        return DriverManager.getConnection("jdbc:h2:mem:" + name + closeDelay + SETTINGS);
+    private static Connection named(String name, String closeDelay, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings)
+            throws SQLException {
+        return DriverManager.getConnection("jdbc:h2:mem:" + name + closeDelay + url(settings));
     }
 
     /** {@inheritDoc} No: H2 rolls back the failed statement alone; its transaction goes on. */

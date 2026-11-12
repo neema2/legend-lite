@@ -46,7 +46,8 @@ final class DuckDbConnector implements DatabaseConnector {
     }
 
     @Override
-    public Connection openPrivate() throws SQLException {
+    public Connection openPrivate(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
+        DatabaseConnector.noSettings(type(), settings);
         return DriverManager.getConnection("jdbc:duckdb:");
     }
 

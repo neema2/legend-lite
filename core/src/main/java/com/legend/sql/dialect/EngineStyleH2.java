@@ -45,6 +45,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return null;   // its errors carry a raise's text
     }
 
+    /** {@inheritDoc} H2's ({@code H2.SESSION_SETUP}): a plan this text is written into runs on the same H2. */
+    @Override
+    public java.util.List<String> sessionSetup() {
+        return H2.SESSION_SETUP;
+    }
+
+    /** {@inheritDoc} H2's ({@code H2.DATABASE_SETTINGS}): the engine's H2 session, the same database. */
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return H2.DATABASE_SETTINGS;
+    }
+
     /** None: this text is the engine's goldens', which no database executes, so no {@code data:} payload is delivered
      *  through it: refused by name, never a delivery borrowed from H2's. */
     @Override

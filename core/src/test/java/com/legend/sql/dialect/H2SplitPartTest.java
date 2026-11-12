@@ -36,7 +36,8 @@ class H2SplitPartTest {
             """;
 
     private static List<String> run(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:splitpart" + System.nanoTime())) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:splitpart" + System.nanoTime()
+                + com.legend.testbackend.TestBackends.h2UrlSettings())) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE t (id INTEGER, s VARCHAR(32))");
                 st.execute("INSERT INTO t VALUES (1, 'a,,b'), (2, ',x,'), (3, 'solo'), (4, 'p;q,r')");

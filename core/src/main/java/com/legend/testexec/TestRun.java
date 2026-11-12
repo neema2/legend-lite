@@ -61,10 +61,10 @@ final class TestRun {
      *  our text under (an engine-text assert's, M10c item 8), or null. */
     static void run(TestPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             com.legend.executionplan.DataStores stores, IntFunction<@Nullable StatementOrigin> textOrigin,
-            Judges judges, ProgramRunner.ProgramSink sink) throws IOException {
+            Judges judges, ProgramRunner.ProgramSink sink, java.util.UUID execution) throws IOException {
         Handler handler = new Handler(plan, judges);
         try {
-            ProgramRunner.run(program(plan, textOrigin), values, sessions, stores, handler, sink);
+            ProgramRunner.run(program(plan, textOrigin), values, sessions, stores, handler, sink, execution);
         } finally {
             judges.reader(null);
         }
@@ -286,7 +286,7 @@ final class TestRun {
     private static ProgramRunner.@Nullable Savepoint guard(TestPlan.Verdicts group, ProgramRunner.OpenProgram open) {
         TestPlan.Verdicts.Savepoint sp = group.savepoint();
         return sp != null && open.insideATransaction()
-                ? new ProgramRunner.Savepoint(sp.set(), sp.rollbackTo(), sp.release()) : null;
+                ? new ProgramRunner.Savepoint(sp.plannedSet(), sp.plannedRollbackTo(), sp.plannedRelease()) : null;
     }
 
     /** {@code each}'s base sides read for the host judge, in the base's order. */

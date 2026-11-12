@@ -110,11 +110,11 @@ class DataSourceServersTest {
         StringWriter out = new StringWriter();
         if (type == DatabaseType.MongoDB) {
             PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), PlanCases.Written.JSON.writer(out,
-                    plan.answerShape()));
+                    plan.answerShape()), java.util.UUID.randomUUID());
         } else {
             try (java.sql.Connection c = backend.open()) {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                        PlanCases.Written.JSON.writer(out, plan.answerShape()));
+                        PlanCases.Written.JSON.writer(out, plan.answerShape()), java.util.UUID.randomUUID());
             }
         }
         return out.toString();
