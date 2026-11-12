@@ -47,14 +47,15 @@ public final class TestRunner {
      * caller's own session, {@code SessionSource.given}, is a view: closing it closes nothing). The test door's
      * {@code runProgram}: no fixture is provided between the body's plan and its run.
      */
-    public static void runOpening(MintedPlan minted, com.legend.exec.SessionSource sessions,
+    public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
             com.legend.executionplan.DataStores stores, @Nullable Edge edge,
-            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer) {
+            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer,
+            java.util.UUID execution) {
         lites(answer);
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
-                Sessions.Session session = sessions.open(minted.plan().session())) {
-            run(minted, session, stores, edge, callers, referee, answer, StatementOrigin.OTHER);
+                Sessions.Session session = sessions.open(plan.session())) {
+            run(plan, session, stores, edge, callers, referee, answer, StatementOrigin.OTHER, execution);
         }
     }
 
@@ -66,16 +67,14 @@ public final class TestRunner {
      * by the {@code referee}; its statements counted under {@code origin} (a fixture's seeding: SEED). No compiled
      * model: the system database's sessions are found by the plan's own targets (hole 2, 2026-11-08) and an appeal's
      * enums are the plan's (hole 1). A plan naming an appeal it does not carry is refused before anything runs,
-     * whoever made it (the slice 3 invariant audit, 2026-11-08; the door checked it until slice 5). {@code minted}: the
-     * plan with the executions the test door minted for this run (the body's own id, which the run and the appeals
-     * decided after it name, and one per {@code execute()} it declares: the execution id as upstream, 2026-11-12).
+     * whoever made it (the slice 3 invariant audit, 2026-11-08; the door checked it until slice 5). {@code execution}:
+     * the id the test door minted for this run (the body's, or a fixture's: each its own execution; 2026-11-12), which
+     * the run and the appeals decided after it name.
      */
-    public static void run(MintedPlan minted, Sessions.Session session,
+    public static void run(TestPlan plan, Sessions.Session session,
             com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
-            @Nullable Output answer, com.legend.exec.StatementOrigin origin) {
-        TestPlan plan = minted.plan();
-        com.legend.base.Executions execution = minted.executions();
+            @Nullable Output answer, com.legend.exec.StatementOrigin origin, java.util.UUID execution) {
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
         lites(answer);
         // the caller's answer sink and listener are called back during the run, and before its plan's run scope opens

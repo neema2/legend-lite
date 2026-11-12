@@ -61,16 +61,8 @@ public final class PlanRunner {
      */
     public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             java.util.UUID execution) throws IOException {
-        return rows(plan, values, sessions, com.legend.base.Executions.one(execution));
-    }
-
-    /** {@link #rows(ExecutionPlan, Map, PlanSessions.Source, java.util.UUID)} as {@code executions}: a test body's
-     *  plan read again after its run (an appeal's side), its stamps each bound to its own execution's id (the re-audit's
-     *  SHOULD-FIX 1, 2026-11-12). */
-    public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            com.legend.base.Executions executions) throws IOException {
         Collector collector = new Collector();
-        stream(plan, values, sessions, collector, com.legend.result.Batcher.DEFAULT_CAPACITY, executions);
+        stream(plan, values, sessions, collector, com.legend.result.Batcher.DEFAULT_CAPACITY, execution);
         Collector.Collected c = collector.collected();
         return new Rows(c.columns(), c.rows());
     }
@@ -93,15 +85,8 @@ public final class PlanRunner {
      */
     public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             ResultSink sink, int capacity, java.util.UUID execution) throws IOException {
-        stream(plan, values, sessions, sink, capacity, com.legend.base.Executions.one(execution));
-    }
-
-    /** {@link #stream(ExecutionPlan, Map, PlanSessions.Source, ResultSink, int, java.util.UUID)} as
-     *  {@code executions}, as the run's door minted them. */
-    public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            ResultSink sink, int capacity, com.legend.base.Executions executions) throws IOException {
         // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
-        try (var run = com.legend.base.RunScope.enter(executions)) {
+        try (var run = com.legend.base.RunScope.enter(execution)) {
             streamRun(plan, values, sessions, sink, capacity);
         }
     }
@@ -815,21 +800,20 @@ public final class PlanRunner {
 
     /** {@code values} with the execution id of every stamp {@code nodes}' statements read ({@link ExecutionPlan.Sql#stamp},
      *  and a slot's): legend-engine's
-     *  execution-trace comment of the execution the stamp names -- a product plan's one execution, every statement of
-     *  it the same, as upstream's {@code execID} is; a test body's {@code execute()}'s own, as upstream's interpreted
-     *  execute mints one per query ({@link com.legend.base.RunScope#execution(String)}, the door's: the execution id as
-     *  upstream, 2026-11-12; until 2026-11-12 a fresh id per statement) -- bound under its name (R17 C4):
+     *  execution-trace comment of the run's one execution -- every statement of a plan's run the same, as upstream's
+     *  plan run fills its one {@code execID} into every node, a test body's as a product query's
+     *  ({@link com.legend.base.RunScope#execution()}, the door's; the user's ruling of 2026-11-12; until 2026-11-12 a
+     *  fresh id per statement) -- bound under its name (R17 C4):
      *  the activity rows the plan's statements write read it as a bound value. The statement itself is sent as the plan
      *  wrote it, no comment in front of it (C1, 2026-11-12, the user's ruling of 2026-11-10, "Agree with all": the
      *  database receives exactly the plan's text; upstream writes the comment into the text at run, register S304). */
     static Map<String, PlanParameters.Checked> executionsBound(Map<String, PlanParameters.Checked> values,
             List<ExecutionPlan.Node> nodes) {
-        // every execution the run's statements read -- a statement's own stamp and each one a slot reads (an activity
-        // row's comment) -- bound once, at the run's start, to the id its door minted for it: a product run's one, a
-        // test body's execute()'s own (the execution id as upstream, 2026-11-12; the re-audit's notes 3 and 4: until
-        // then each query and check bound its stamps as it was sent, copying the values for every statement, and a
-        // keyed statement or a write that read one found none). An execution the run does not hold is refused by name
-        // here, before anything is sent (Executions.of)
+        // every stamp the run's statements read -- a statement's own and each one a slot reads (an activity row's
+        // comment) -- bound once, at the run's start, to the run's one id, its door's (the user's ruling of 2026-11-12:
+        // one id per plan run, a test body's as a product query's; the re-audit's notes 3 and 4: until then each query
+        // and check bound its stamps as it was sent, copying the values for every statement, and a keyed statement or a
+        // write that read one found none)
         java.util.Set<String> read = new java.util.LinkedHashSet<>();
         for (ExecutionPlan.Node node : nodes) {
             ExecutionPlan.stamps(node, read);
@@ -839,8 +823,7 @@ public final class PlanRunner {
         }
         Map<String, PlanParameters.Checked> out = new HashMap<>(values);
         for (String execution : read) {
-            out.put(execution,
-                    new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution(execution))));
+            out.put(execution, new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution())));
         }
         return out;
     }

@@ -1437,11 +1437,9 @@ final class ArchitectureTest {
     /** The one value a door makes (2026-11-12, the user's ruling "Do the exec id as part of C"; the C4 exec-id item):
      *  its execution's id, minted once per method and passed into the run -- exec makes none
      *  ({@link #execMakesNoValueOfItsOwn}). */
-    /** A door's one mint: a run's id, or (2026-11-12, the execution id as upstream: a test body declares one execution
-     *  per execute(), and a door's one statement holds no loop) the test door's mint of the run's id and one per
-     *  declared execution, {@code com.legend.ExecutionIds.minted}. */
-    private static final java.util.Set<String> DOOR_MINT_CALLS = java.util.Set.of("java.util.UUID#randomUUID",
-            "com.legend.ExecutionIds#minted");
+    /** A door's one mint: its run's id (2026-11-12, the user's ruling: one execution id per plan run, a test body's as
+     *  a product query's -- the test door's mint of one id per execute(), ExecutionIds.minted, went with it). */
+    private static final java.util.Set<String> DOOR_MINT_CALLS = java.util.Set.of("java.util.UUID#randomUUID");
 
     private static final java.util.Set<String> DOOR_RUN_CALLS = java.util.Set.of("com.legend.exec.ProductRun#run",
             "com.legend.exec.ProductRun#onProjectDatabases", "com.legend.testexec.TestRunner#run",
@@ -1455,9 +1453,8 @@ final class ArchitectureTest {
      * overload. It reads no field but an enum's constant. Its source is one statement per method, with no branch, loop,
      * lambda or {@code new} ({@code JavaEvalLedgerTest.theDoorsHoldNoLogic}: the bytecode shows neither a branch nor
      * which call comes first in one expression) -- so the run is the statement's outermost call, its plan an argument. A line cap would only measure it; this says what it may do.
-     * Since 2026-11-12 (the exec-id item, C4) a method may also mint ONCE ({@link #DOOR_MINT_CALLS}): the run's id,
-     * or the test door's ids of its run and of each execution its plan declares -- the door is where an execution
-     * starts, so its id is made there and nowhere in exec.
+     * Since 2026-11-12 (the exec-id item, C4) a method may also mint ONCE ({@link #DOOR_MINT_CALLS}): the run's id --
+     * the door is where an execution starts, so its id is made there and nowhere in exec.
      */
     @Test
     void theDoorsOnlyCompose() {
