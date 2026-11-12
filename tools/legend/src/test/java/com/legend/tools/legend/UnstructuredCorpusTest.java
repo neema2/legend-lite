@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.result.Collector;
+import com.legend.result.Output;
 import com.legend.server.ConnectionResolver;
 import com.legend.testing.Runfile;
 import java.io.IOException;
@@ -64,7 +65,7 @@ class UnstructuredCorpusTest {
 
     private static List<List<Object>> run(String query) throws IOException {
         Collector collector = new Collector();
-        ConnectionResolver.RUNNER.run(Compiler.query(context, query), RUNTIME, plan -> collector);
+        ConnectionResolver.RUNNER.run(Compiler.query(context, query), RUNTIME, new Output.Rows(collector));
         return collector.collected().rows();
     }
 
