@@ -42,6 +42,16 @@ public sealed interface Output
     record Rows(ResultSink sink) implements Output {
     }
 
+    /** The execution a run named before its columns, refused by name where it named none: an answer's activity reports
+     *  the execution that ran its SQL. */
+    private static java.util.UUID ran(java.util.@com.legend.base.Nullable UUID execution) {
+        if (execution == null) {
+            throw new IllegalStateException("the run named no execution before its columns: the activity reports the"
+                    + " execution that ran its SQL (ResultSink.execution)");
+        }
+        return execution;
+    }
+
     /** The writer of {@code plan}'s answer in this format, made before any of the plan's statements runs. */
     default ResultSink writerFor(ExecutionPlan plan) {
         ExecutionPlan.TdsResult.Shape shape = plan.answerShape();
@@ -70,9 +80,16 @@ public sealed interface Output
                     java.util.List<ExecutionPlan.Column> stated = plan.answerColumns();
                     // the JSON route's rule (Engine above): the metadata from the plan's stated columns before any
                     // statement runs; from the announced columns only where the plan states none
-                    yield stated == null
-                            ? new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, columns))
-                            : new ArrowWriter(a.out(), PureV1Writer.arrowMetadata(a.facts(), sql, stated));
+                    // the metadata's activity names the execution the run names before its columns (C1's second half)
+                    if (stated == null) {
+                        yield new ArrowWriter(a.out(), (java.util.function.BiFunction<java.util.List<ExecutionPlan.Column>,
+                                java.util.UUID, java.util.Map<String, String>>) (columns, execution) ->
+                                PureV1Writer.arrowMetadata(a.facts(), sql, columns, ran(execution)));
+                    }
+                    PureV1Writer.envelope(a.facts(), sql, stated);
+                    yield new ArrowWriter(a.out(), (java.util.function.BiFunction<java.util.List<ExecutionPlan.Column>,
+                            java.util.UUID, java.util.Map<String, String>>) (columns, execution) ->
+                            PureV1Writer.arrowMetadata(a.facts(), sql, stated, ran(execution)));
                 }
                 case VALUE -> throw new com.legend.error.NotImplementedException(a.facts().valueRefusal());
             };

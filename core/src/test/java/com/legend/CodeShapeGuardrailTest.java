@@ -224,6 +224,11 @@ class CodeShapeGuardrailTest {
             // (track A, 2026-10-29): the sink protocol's state, as the other writers' columns are
             "ArrowWriter.encoders",
             "PureV1Writer.order", "PureV1Writer.rows",
+            // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the execution the run names
+            // before its columns (ResultSink.execution), which the answer's activity reports -- the sink protocol's
+            // state, scoped to one result's stream as the columns are; the service runner's receiver holds it until its
+            // shape makes the writer it hands it to
+            "PureV1Writer.execution", "ArrowWriter.execution", "ServiceTestRunner.execution",
             // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
             // columns as announced, whether the one value column is to-one, the row count for the comma and the
             // to-one refusal

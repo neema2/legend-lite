@@ -2201,6 +2201,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.base.RunScope.DEPTH", StaticKind.RUN_GUARD),
             java.util.Map.entry("com.legend.base.RunScope.PLANNING", StaticKind.RUN_GUARD),
             java.util.Map.entry("com.legend.base.RunScope.JUDGING", StaticKind.RUN_GUARD),
+            // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the running execution's id, set
+            // as a run enters and cleared as it closes -- the run scope's own state, beside its depth
+            java.util.Map.entry("com.legend.base.RunScope.EXECUTION", StaticKind.RUN_GUARD),
             // the databases the process keeps: the server's project databases, the plans' own and named ones
             java.util.Map.entry("com.legend.exec.PlanSessions.SHARED", StaticKind.RESOURCE),
             java.util.Map.entry("com.legend.exec.PlanSessions.NAMED", StaticKind.RESOURCE),

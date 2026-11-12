@@ -156,6 +156,17 @@ class RaiseReadBackTest {
         assertEquals(1, statements.getSuppressed().length, "the read's failure kept beside the statement's");
     }
 
+    /** No target is made without saying its read-back (the C checkpoint's code audit, SHOULD-FIX 3, 2026-11-12, invariant
+     *  4): the constructor that defaulted it to none -- and so lost a MariaDB target's raise text silently, as
+     *  Synthesize's did -- is gone, and stays gone. */
+    @Test
+    void aTargetIsMadeOnlyBySayingItsReadBack() {
+        java.lang.reflect.Constructor<?>[] made = ExecutionPlan.Target.class.getDeclaredConstructors();
+        assertEquals(1, made.length, "one constructor: the record's own");
+        assertEquals(List.of(ExecutionPlan.Database.class, List.class, List.class, ExecutionPlan.RaiseReadBack.class),
+                List.of(made[0].getParameterTypes()), "the read-back is said, never defaulted");
+    }
+
     @Test
     void theSessionIsAskedOnlyWhereTheErrorsOwnTextCarriesNoRaise() {
         int[] asked = {0};
