@@ -110,20 +110,25 @@ final class GeneratedTestData {
         return changed ? n.withChildren(next) : n;
     }
 
-    /** The user's query lowered as a product query over {@code mapping} on the body's runtime: its last statement read
-     *  {@code ->from(mapping, runtime)}, typed, inlined, resolved and lowered by the planner (the seed carries its
-     *  keys through it). */
+    /** The user's query lowered as a product query on the body's runtime, which must declare {@code mapping} (the
+     *  runtime's mappings resolve its classes, as the pure/v1 execute route lowers a query): typed, inlined, resolved
+     *  and lowered by the planner (the seed carries its keys through it). A runtime that does not declare a mapping
+     *  that maps anything is refused by name, never guessed. */
     static TestDataPlanner.Queries queries(TypedQuery typed, String mapping,
             @com.legend.base.Nullable String runtimeFqn) {
         return q -> {
             String runtime = java.util.Objects.requireNonNull(runtimeFqn,
                     "the seed's query is planned on the body's runtime, and the body names none");
-            List<ValueSpecification> body = new ArrayList<>(q.body());
-            ValueSpecification last = body.remove(body.size() - 1);
-            body.add(new com.legend.protocol.spec.AppliedFunction("from", List.of(last,
-                    new PackageableElementPtr(mapping), new PackageableElementPtr(runtime)), List.of()));
-            TypedQuery t = com.legend.Compiler.query(typed.context(), q.withBody(body));
-            return t.lower(runtime, false).plan();
+            List<String> mappings = typed.context().findRuntime(runtime).map(r -> r.mappings()).orElse(List.of());
+            boolean mapsClasses = typed.context().findMapping(mapping).map(m -> !m.classBindings().isEmpty()
+                    || !m.associationBindings().isEmpty() || !m.includes().isEmpty()).orElse(true);
+            // a mapping that maps nothing (a TDS query's EmptyMapping) resolves nothing: any runtime runs the query
+            if (mapsClasses && !mappings.contains(mapping)) {
+                throw new com.legend.error.NotImplementedException("the seed's query over the mapping " + mapping
+                        + " on the runtime " + runtime + ", which declares " + mappings + ": not planned (B2d.3 plans"
+                        + " the seed on the body's runtime, whose mappings resolve the query)");
+            }
+            return com.legend.Compiler.query(typed.context(), q).lower(runtime, false).plan();
         };
     }
 

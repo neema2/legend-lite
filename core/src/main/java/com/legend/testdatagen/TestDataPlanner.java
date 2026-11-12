@@ -1112,9 +1112,7 @@ public final class TestDataPlanner {
             SqlSelect rows = g == null
                     ? new SqlSelect(ps, false, new SqlSource.Dual(), new SqlExpr.BoolLit(false), List.of(), null,
                             null, List.of(), null, null, List.of())
-                    // its fetches' distinct rows, each then as the reload reads it -- no DISTINCT after: a keyless
-                    // table's ('', 1) and (NULL, 1) are two rows upstream's reload inserts (the audit's G4)
-                    : new SqlSelect(ps, false, new SqlSource.Subselect(inline(fetchedRows(g.clauses()), inlined), "_u",
+                    : new SqlSelect(ps, true, new SqlSource.Subselect(inline(fetchedRows(g.clauses()), inlined), "_u",
                             null), null, List.of(), null, null, List.of(), null, null, List.of());
             out.put(e.getKey(), rows);
         }

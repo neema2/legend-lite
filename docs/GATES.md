@@ -21435,3 +21435,24 @@ Tests: `TestDataPlannerTest.theSeedSpreadsItsTenKeys` (DuckDB, H2, SQLite):
 
 The corpus lanes: `testGenerateSeedDataWithQuotedColumns` passes on both (3 quoted key columns, 4 rows), off both
 accepted rosters.
+
+## 2026-11-12 — G4 reverted (a pruning interaction found); B2d.3c's two guard findings fixed
+
+- **G4 reverted.** The full corpus runs after 6563a7506 lost 10 passing generator tests on both lanes: every reload
+  over a table the slice holds (the milestoning three, the two union-to-union, the five views). The cause:
+  - without the slice's outer DISTINCT, the lowering's `SubselectPrune` drops the slice statement's plain
+    projections whose label the query does not read by its EXACT name;
+  - the slice labels a fetched column as a fetch does (`tempColumn`: `FIRMID`), while the query reads the store's
+    spelling (`FirmID`);
+  - the two meet only by the database's case folding, and the DISTINCT was what kept the prune off.
+
+  Measured: G4 undone alone, `testUnionToUnionMultipleLevels` passes again. G4's change, its test and its guard pin
+  (`FixtureWriteCensusTest` 908 -> 907) are reverted; G2 stays.
+- **The real fix**, posted to the orchestrator: the slice's columns labelled as the swapped table's own outputs are
+  spelled (the pruner's and every dialect's names agreeing), then G4's DISTINCT dropped.
+- **B2d.3c's guard findings:**
+  - L7 step 3 and the protocol-construction ratchet: the seed lowered its query through a hand-built
+    `->from(mapping, runtime)` call. It now lowers the query on the body's runtime, whose mappings resolve it, as the
+    pure/v1 execute route does. A runtime that does not declare a mapping that maps anything is refused by name; a
+    mapping that maps nothing (a TDS query's `EmptyMapping`) needs none.
+  - Invariant 7: the seed string's planned value is minted in the compiler layer (`GeneratorSplice.plannedValue`).

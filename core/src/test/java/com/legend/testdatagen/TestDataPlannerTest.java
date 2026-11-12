@@ -222,44 +222,6 @@ class TestDataPlannerTest {
         assertEquals(java.util.Set.of("t::One|S.T"), TestDataPlanner.reads(ctx, "t::One"));
     }
 
-    /** The reload's rows as upstream's table holds them (the B checkpoint audit's G4, 2026-11-11): the slice's rows are
-     *  its fetches' distinct rows, each empty or ---null--- text cell then NULL -- upstream inserts each row, so a
-     *  keyless table's ('', 1) and (NULL, 1) are two rows, not one. */
-    @ParameterizedTest
-    @MethodSource("inMemory")
-    void theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual(DatabaseType type) throws Exception {
-        SqlDialect dialect = Databases.dialect(type);
-        ModelContext ctx = Compiler.compileModel("""
-                ###Relational
-                Database t::DB ( Table K (NAME VARCHAR(10), N INTEGER) )
-                ###Pure
-                Class t::K { name: String[0..1]; n: Integer[0..1]; }
-                ###Mapping
-                Mapping t::M ( t::K: Relational { ~mainTable [t::DB]K name: [t::DB]K.NAME, n: [t::DB]K.N } )
-                """);
-        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
-            try (Statement s = c.createStatement()) {
-                // the table and its NULL row from the data (an empty cell is NULL); the empty text no CSV can load
-                for (String sql : CsvSeed.sqls("default\nK\nNAME,N\n,1\n", "t::DB", ctx, dialect)) {
-                    s.execute(sql);
-                }
-                s.execute("INSERT INTO K VALUES ('', 1)");
-            }
-            TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx,
-                    query("|t::K.all()->project([k|$k.name, k|$k.n], ['a', 'b'])"), "t::M",
-                    List.of(new TestDataGenerator.TableRowIds("default", "K", List.of(
-                            new TestDataGenerator.RowId(List.of("N"), List.of(1L))))), null, false, PlannerViews.of(ctx));
-            com.legend.sql.SqlQuery k = TestDataPlanner.slice(planned, ctx, "t::DB").get("K");
-            int rows = 0;
-            try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(k))) {
-                while (r.next()) {
-                    rows++;
-                }
-            }
-            assertEquals(2, rows, dialect.render(k));
-        }
-    }
-
     /** The seed (B2d.3): the starting table's keys carried through the query, distinct, sorted by key, and -- the user's
      *  ruling R2, register S198 -- all of them where there are 10 or fewer, else the 10 at rows 1 + floor(i*(n-1)/9):
      *  the first, the last and 8 evenly between; the seed string writes them as upstream's Pure code, a text key's
