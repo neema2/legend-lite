@@ -12,11 +12,30 @@ import { runHostOperations, type HostOperationsSource } from './host-operations.
 import { ConnectionSettings } from './connection-settings.ts';
 import type { PlannedSql } from './planned-sql.ts';
 
-/** A tab's file registry: a file's text or bytes registered by name, and let go of. */
-export interface TabFiles {
-  registerFileText(name: string, text: string): Promise<void>;
-  registerFileBuffer(name: string, buffer: Uint8Array): Promise<void>;
-  dropFile(name: string): Promise<void>;
+/**
+ * A tab's file registry: a file's text or bytes registered by name, and let go of -- and nothing else of the database,
+ * whose connections run any text. A class with a private field, so its type is its own (the C final audit's H11,
+ * 2026-11-12: as an interface, the raw AsyncDuckDB satisfied it, and `db: db` handed the database out again with every
+ * check green); test/planned-sql.test.ts holds the database itself to be no TabFiles.
+ */
+export class TabFiles {
+  readonly #db: Pick<duckdb.AsyncDuckDB, 'registerFileText' | 'registerFileBuffer' | 'dropFile'>;
+
+  constructor(db: Pick<duckdb.AsyncDuckDB, 'registerFileText' | 'registerFileBuffer' | 'dropFile'>) {
+    this.#db = db;
+  }
+
+  registerFileText(name: string, text: string): Promise<void> {
+    return this.#db.registerFileText(name, text);
+  }
+
+  registerFileBuffer(name: string, buffer: Uint8Array): Promise<void> {
+    return this.#db.registerFileBuffer(name, buffer);
+  }
+
+  async dropFile(name: string): Promise<void> {
+    await this.#db.dropFile(name);
+  }
 }
 
 export interface DuckDbInTab {
@@ -87,11 +106,7 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
       registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
       dropFile: async (name) => { await db.dropFile(name); },
     },
-    db: {
-      registerFileText: (name, text) => db.registerFileText(name, text),
-      registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
-      dropFile: async (name) => { await db.dropFile(name); },
-    },
+    db: new TabFiles(db),
     connect,
     settings,
   };

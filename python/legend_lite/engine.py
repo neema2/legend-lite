@@ -86,6 +86,10 @@ _WAREHOUSE = '/warehouse.json'
 # a grid's Snap on a page Python serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its base query copied into a
 # table of the frames' database of its own -- a frame's, a page's file's, or a warehouse table's -- and let go of
 _SNAP = '/snap.json'
+# What a table's model answer keeps from the page: its accessor (the page reads the table by its source), and its copy
+# select list -- the planner's instruction Python applied as it made the table, a statement's text the page never sends
+# (2026-11-12, the C final audit's H5: the page read it into a PlannedSql field by a cast of the answer's JSON)
+_NOT_THE_PAGES = frozenset({'accessor', 'copySelectList'})
 # the id a page open on another asks by (follower=): a tab's or a notebook widget's, made by DataCube's code
 _FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
 
@@ -1109,7 +1113,7 @@ class Engine:
             _on_compiler_threads(spare.close)
         if refusal is not None:
             return _said(409, refusal)
-        said = {k: v for k, v in written.items() if k != 'accessor'}
+        said = {k: v for k, v in written.items() if k not in _NOT_THE_PAGES}
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
 
     def _snap_said(self, body: str) -> Answer:
@@ -1146,7 +1150,7 @@ class Engine:
             made = self.copy_of(table) if isinstance(table, str) else None
             if made is None:
                 return _said(404, f'{table!r} is no copy this engine holds')
-            said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': table}
+            said = {**{k: v for k, v in made.items() if k not in _NOT_THE_PAGES}, 'table': table}
             return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
         if not all(isinstance(asked.get(k), str) for k in ('model', 'runtime', 'pull')):
             return _said(400, 'a snap is {"model", "runtime", "pull"}, the pull its lambda as JSON')
@@ -1419,7 +1423,7 @@ class Engine:
         except Exception as failure:
             return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
                               f'{failure}')
-        said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': name, 'rowCount': rows,
+        said = {**{k: v for k, v in made.items() if k not in _NOT_THE_PAGES}, 'table': name, 'rowCount': rows,
                 **({'pulledBy': receipt} if receipt is not None else {})}
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
 

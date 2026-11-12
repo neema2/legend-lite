@@ -8,7 +8,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type { ArrowishConnection, DuckDbEngine, HeldConnection } from '../src/duckdb.ts';
+import type { TabFiles } from '../src/duckdb-tab.ts';
+import type { AsyncDuckDB } from '../src/duckdb-wasm.ts';
 import type { QueryEngine } from '../src/engine.ts';
+import type { HostOperation, HostSource, SnapStreamRequest } from '../src/host-operations.ts';
 import { allFromPlan, fromPlan, type PlannedSql } from '../src/planned-sql.ts';
 import type { Plan } from '../src/relation-type.ts';
 import { allUnplanned, unplanned } from './unplanned.ts';
@@ -33,8 +36,41 @@ export function handWrittenSqlDoesNotCompile(engine: DuckDbEngine, query: QueryE
   // a statement edited after it was read is a string again
   // @ts-expect-error concatenated, it is no plan's
   void engine.run(fromPlan('SELECT 1') + ' UNION ALL SELECT 2', 0);
+  // a host operation's planner text is the planner's (the C final audit's H2, 2026-11-12): its source query,
+  // @ts-expect-error a host's own query is not
+  const source: HostSource = { query: 'SELECT 1' };
+  const relation: HostOperation = {
+    op: 'relation', kind: 'table', target: { name: 't' }, from: { relation: { name: 's' } },
+    // @ts-expect-error its select list,
+    selectList: '*',
+  };
+  const replaced: HostOperation = {
+    op: 'relation', kind: 'table', target: { name: 't' }, from: { relation: { name: 's' } },
+    // @ts-expect-error and each replacement's expression
+    replacing: [{ column: 'a', sql: 'a' }],
+  };
+  // @ts-expect-error a snapshot's stream runs the remote plane's planner's statement alone (H3)
+  const snap: SnapStreamRequest = { databaseType: 'DuckDB', plane: 'warehouse', sql: 'DROP TABLE t', table: 't' };
   void statement;
   void plan;
+  void [source, relation, replaced, snap];
+}
+
+/** Never called: the tab's file registry is no database (duckdb-tab.ts TabFiles; the C final audit's H11, 2026-11-12):
+ *  the raw database, whose connections run any text, is never handed out as one. */
+export function theDatabaseIsNoFileRegistry(db: AsyncDuckDB): TabFiles {
+  // @ts-expect-error the database itself is not the tab's file registry
+  return db;
+}
+
+/** Never called: JSON is read as `unknown` (engine-client/src/json-unknown.ts; the C final audit's H5, 2026-11-12), so a
+ *  parsed text is never a plan, nor anything holding a plan's statement, unread. */
+export async function jsonIsReadAsUnknown(response: Response): Promise<void> {
+  // @ts-expect-error a parsed text is unknown, never a plan
+  const parsed: Plan = JSON.parse('{"sql":"DROP TABLE t","columns":[]}');
+  // @ts-expect-error and a response's JSON is too
+  const fetched: Plan = await response.json();
+  void [parsed, fetched];
 }
 
 describe("a plan's statement", () => {

@@ -42,7 +42,8 @@ filegroup(
 filegroup(
     name = "main_srcs",
     srcs = glob(["src/main/**"], exclude = ["**/*.md"]),
-    visibility = ["//spec:__pkg__"],
+    # the planned-SQL guard reads who reaches the authored door (the C final audit's H1, 2026-11-12)
+    visibility = ["//spec:__pkg__", "//tools/guards:__pkg__"],
 )
 
 # the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
@@ -559,6 +560,9 @@ legend_java_library(
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             # a data: source on every server database is :data_source_servers_test's alone (2026-11-11)
             "src/test/java/com/legend/exec/DataSourceServersTest.java",
+            # the keyed expansion's one fixture is :keyed_expansion_conformance_test's alone: it reads the fixture
+            # (the C final audit's H8, 2026-11-12)
+            "src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java",
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
@@ -1037,6 +1041,25 @@ junit_test(
         ":mongodb_connector",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# THE KEYED EXPANSION'S ONE FIXTURE (the total wall's C final audit, H8, 2026-11-12): Java's PlanRunner.expand writes
+# each case of engine-client/test/fixtures/keyed-expansion.json as the tab's expandKeyed and Python's _keyed_text do
+junit_test(
+    name = "keyed_expansion_conformance_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/keyed-expansion.json"],
+    jvm_flags = ["-Dkeyed.fixture=$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)"],
+    select = ["--select-class=com.legend.exec.KeyedExpansionConformanceTest"],
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":core",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 # A data: source on every server database this session runs (the user, 2026-11-11: JSON on every database;

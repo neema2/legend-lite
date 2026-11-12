@@ -75,7 +75,11 @@ class Answered:
     dynamic pivot's body) is kept as its regions: the text sent is that body written for some number of keys, exactly
     as the runner writes it (plan-runner.ts ``expandKeyed``, the charter's A3(a)), never a text the planner wrote whole.
     Bounded: the most recent :data:`CAPACITY` statements and :data:`KEYED_CAPACITY` keyed bodies, each refreshed when
-    read; an older one is asked of the planner again, as the query that needs it is."""
+    read; an older one is asked of the planner again, as the query that needs it is -- and never fewer than one answer
+    carries (the C final audit's NOTE, 2026-11-12: an answer of more than CAPACITY statements evicted its own first ones
+    before any was sent), so the newest answer is always kept whole. Not kept, being no statement this database runs (the
+    audit's H3): a stream step's ``sql``, the REMOTE plane's statement, which this database never runs; an update step's
+    ``count``, the name of a value a later step binds."""
 
     CAPACITY = 4096
     KEYED_CAPACITY = 256
@@ -85,15 +89,33 @@ class Answered:
     _STATEMENT_FIELDS = frozenset({'statement', 'sql', 'statements', 'after', 'session', 'read', 'reset', 'prepare',
                                    'count', 'begin', 'commit', 'rollback'})
 
+    # per step kind, the fields that hold no statement of this database's (H3)
+    _NOT_HERE = {'stream': frozenset({'sql'}), 'update': frozenset({'count'})}
+
     def __init__(self) -> None:
         self._texts: OrderedDict[str, None] = OrderedDict()
         self._keyed: OrderedDict[str, tuple[dict, ...]] = OrderedDict()
+        # what the answer being recorded carries: never evicted by its own size (the NOTE)
+        self._this: set[str] = set()
+        self._this_keyed: set[str] = set()
 
     def record(self, kind: str, answer: str) -> None:
         """The statements the planner's ``answer`` to a request of ``kind`` carries, kept; a refusal carries none."""
         tag, _, payload = answer.partition('\n')
         if tag != 'OK':
             return
+        self._this, self._this_keyed = set(), set()
+        try:
+            self._record(kind, payload)
+        finally:
+            # the oldest let go, never below what this answer carries: an answer is kept whole (each of its statements
+            # moved to the newest end as it was kept)
+            while len(self._texts) > max(self.CAPACITY, len(self._this)):
+                self._texts.popitem(last=False)
+            while len(self._keyed) > max(self.KEYED_CAPACITY, len(self._this_keyed)):
+                self._keyed.popitem(last=False)
+
+    def _record(self, kind: str, payload: str) -> None:
         if kind == 'catalogColumnsSql':
             self._add(payload)
         elif kind == 'sessionSetup':
@@ -137,10 +159,9 @@ class Answered:
     def _add(self, text: object) -> None:
         if not isinstance(text, str):
             raise ValueError(f"a planner's statement is text, not {type(text).__name__}")
+        self._this.add(text)
         self._texts[text] = None
         self._texts.move_to_end(text)
-        while len(self._texts) > self.CAPACITY:
-            self._texts.popitem(last=False)
 
     def _all(self, texts: object) -> None:
         if not isinstance(texts, list):
@@ -158,16 +179,16 @@ class Answered:
             return
         regions = node.get('regions')
         if isinstance(node.get('statement'), str) and regions:
+            self._this_keyed.add(node['statement'])
             self._keyed[node['statement']] = tuple(regions)
             self._keyed.move_to_end(node['statement'])
-            while len(self._keyed) > self.KEYED_CAPACITY:
-                self._keyed.popitem(last=False)
         if 'steps' in node and isinstance(node.get('content'), dict):
             # a load's bundle: each statements blob its steps read, by digest (DataRef.Statements: a JSON list)
             for blob in node['content'].values():
                 self._all(json.loads(blob))
+        not_here = self._NOT_HERE.get(node.get('_type'), frozenset())
         for key, value in node.items():
-            if key in ('tree', 'content', 'regions'):
+            if key in ('tree', 'content', 'regions') or key in not_here:
                 continue
             if key in self._STATEMENT_FIELDS and isinstance(value, str):
                 if not (key == 'statement' and regions):

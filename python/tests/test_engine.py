@@ -14,7 +14,7 @@ import threading
 import time
 import unittest
 
-from legend_lite._planned import Database
+from legend_lite._planned import Database, from_plan
 import unittest.mock
 from unittest import mock
 from pathlib import Path
@@ -312,8 +312,9 @@ class ProjectQueries(Served):
                     yield c
 
         def plan(table, schema='main'):
-            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': 'SELECT * FROM t',
-                                         'schema': schema, 'table': table})
+            # the remote plane's statement, as its planner's plan carries it (the C final audit's H3: a PlannedSql)
+            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse',
+                                         'sql': from_plan('SELECT * FROM t'), 'schema': schema, 'table': table})
 
         con = duckdb.connect()
         exists = lambda t: con.execute('SELECT count(*) FROM duckdb_tables() WHERE table_name = ?', [t]).fetchone()[0]

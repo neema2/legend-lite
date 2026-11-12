@@ -8,6 +8,12 @@
 // red unseen): a test runs its own SQL on it -- a fixture's table, a planner's statement it checks -- which the product's
 // host never takes. So the lane's runner (test/headless/run.py, TestHost) adds calls of its own for it, `testQuery`,
 // `testStatement` and `testRegisterFile`, on the same global; the product's bundle has none of them.
+//
+// AND THE PRODUCT'S STATEMENTS CROSS THE PRODUCT'S BRIDGE (the C final audit's H7, 2026-11-12: every statement went to
+// the test calls, so the lane no longer exercised the bridge it was made to test): a statement the test typed as its
+// own (engine-client/test/unplanned.ts) goes to the test calls; every other one -- a plan's, the planner's answer -- to
+// the host's own `query` and `statement` (as src/headless/host.ts hostDatabase calls them), which admit only what the planner
+// answered (_planned.py across_the_bridge), exactly as the product's bundle sends it.
 
 import { arrowIpcTable } from '../../../engine-client/src/arrow-ipc.ts';
 import type { ArrowishConnection, ArrowishTable } from '../../../engine-client/src/duckdb.ts';
@@ -16,6 +22,7 @@ import { hostCalls, hostWorker } from '../../src/headless/host.ts';
 import { base64, fromBase64 } from '../../src/headless/web.ts';
 import type { LitePlannerOptions } from '../../src/lite-planner.ts';
 import type { TestDatabase } from './node.ts';
+import { isTestsOwn } from '../../../engine-client/test/unplanned.ts';
 
 export type { TestDatabase };
 
@@ -46,12 +53,15 @@ export function plannerOptions(): Pick<LitePlannerOptions, 'assetBaseUrl' | 'wor
  *  per-test databases did not. */
 export async function openDatabase(): Promise<TestDatabase> {
   const calls = testCalls();
+  // the product's own calls of the host's database (hostDatabase's): its statements cross the bridge, as the bundle's do
+  const product = hostCalls();
   const connection: ArrowishConnection = {
     async query(sql: PlannedSql): Promise<ArrowishTable> {
-      return arrowIpcTable(fromBase64(await calls.testQuery(sql)));
+      return arrowIpcTable(fromBase64(await (isTestsOwn(sql) ? calls.testQuery(sql) : product.query(sql))));
     },
     prepare: (sql: PlannedSql) => ({
-      query: async (...params: unknown[]): Promise<ArrowishTable> => arrowIpcTable(fromBase64(await calls.testStatement(sql, JSON.stringify(params)))),
+      query: async (...params: unknown[]): Promise<ArrowishTable> => arrowIpcTable(fromBase64(await (isTestsOwn(sql)
+        ? calls.testStatement(sql, JSON.stringify(params)) : product.statement(sql, JSON.stringify(params))))),
     }),
   };
   return {

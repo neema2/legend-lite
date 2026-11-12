@@ -227,7 +227,7 @@ export class SnapManager implements Snaps {
    * Check size before materialising anything, so the user is told
    * "this is 40 million rows" instead of watching a tab die.
    */
-  async preflight(sourceSql: string, epoch: number, params: readonly string[] = []): Promise<PreflightEstimate> {
+  async preflight(sourceSql: PlannedSql, epoch: number, params: readonly string[] = []): Promise<PreflightEstimate> {
     // counted where the rows are: the remote live plane when there is one, by its own database's statement (a
     // warehouse catalog that is Postgres, Postgres's: D5) -- the live plan's values bound to its `?`s, which the count
     // keeps in their order (a remote plane takes none: refused by name, WarehouseEngine)
@@ -253,7 +253,7 @@ export class SnapManager implements Snaps {
    * refresh, snapped or not, so nothing about them is captured here.
    */
   async snap(
-    sourceSql: string,
+    sourceSql: PlannedSql,
     epoch: number,
     options: {
       readonly label?: string;

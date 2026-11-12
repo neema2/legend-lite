@@ -949,7 +949,9 @@ public final class PlanRunner {
     }
 
     /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order (a key
-     *  cell's slot the plan's own {@link ExecutionPlan.Binding.Key}, its value the key's text). */
+     *  cell's slot the plan's own {@link ExecutionPlan.Binding.Key}, its value the key's text). Package-private, so the
+     *  keyed expansion's one fixture holds it to the other runners' (KeyedExpansionConformanceTest; the C final audit's
+     *  H8, 2026-11-12). */
     record Expanded(PlannedSql statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
     }
