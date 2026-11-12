@@ -831,7 +831,11 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  {@code EXCEL}). A record may be as long as the load admits a file ({@code max_line_size}, the load's size limit:
      *  DuckDB's default, 2 MB, refused a 3 MB record, measured 2026-11-10 on 1.5.6; the limit allocates no buffer of its
      *  size: 200 loads of a small file read at 500 MB and at 2 MB measured alike, 340 ms and 308 ms, the process's peak
-     *  resident memory 103 MB and 105 MB, the correctness audit's note, 2026-11-10). Where its rule is not upstream's (a
+     *  resident memory 103 MB and 105 MB, the correctness audit's note, 2026-11-10). Its read buffer ({@code buffer_size})
+     *  is the same size, said: left unsaid DuckDB reserves sixteen times the line limit, 7.8 GiB for 500 MB, against its
+     *  memory limit (80% of the machine's), and a 7 GB macOS runner refused every load before reading a byte ("could
+     *  not allocate block of size 7.8 GiB", PR #95's CI, 2026-11-12); DuckDB refuses a buffer smaller than the line
+     *  limit, so the two are equal (measured on 1.5.6 at a 2 GB memory limit: unsaid refused, equal loads). Where its rule is not upstream's (a
      *  blank line skipped, a quote after a space read as quoted, mixed line breaks refused, a record wide by one EMPTY
      *  cell loaded) is a register row (S184), pinned by {@code DataLoadsTest}. A3's one try at refusing that last case
      *  in DuckDB's SQL (one column more, {@code null_padding}, a record check) works only where the file holds no quoted
@@ -847,8 +851,8 @@ public final class DuckDb extends AnsiSqlRenderer {
         String quote = stringLit(String.valueOf(load.quote()));
         return new CsvLoad(java.util.List.of(csvInsertInto(load) + " SELECT * FROM read_csv(?, header = true, delim = "
                 + delimiter + ", quote = " + quote + ", escape = " + quote + ", auto_detect = false, strict_mode = true,"
-                + " nullstr = '', max_line_size = " + (long) load.sizeLimitMegabytes() * 1024 * 1024 + ", columns = {"
-                + columns + "})"), java.util.List.of());
+                + " nullstr = '', max_line_size = " + (long) load.sizeLimitMegabytes() * 1024 * 1024 + ", buffer_size = "
+                + (long) load.sizeLimitMegabytes() * 1024 * 1024 + ", columns = {" + columns + "})"), java.util.List.of());
     }
 
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's
