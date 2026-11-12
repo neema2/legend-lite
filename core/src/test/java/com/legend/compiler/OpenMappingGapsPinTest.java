@@ -8,7 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.exec.PlanSessions;
+import com.legend.exec.SessionSource;
 import com.legend.result.Collector;
+import com.legend.result.Output;
 import com.legend.testbackend.TestBackends;
 import com.legend.testbackend.TestSessions;
 import java.sql.Connection;
@@ -116,8 +118,8 @@ class OpenMappingGapsPinTest {
             statement.execute("INSERT INTO ITEM VALUES ('a', 'Blue')");
             Collector collector = new Collector();
             var plan = Execution.run(model, "gap::Item.all()->project(~[id:i|$i.id, color:i|$i.color])", "gap::R",
-                    Execution.Source.given(TestSessions.over(connection)),
-                    PlanSessions.of(TestSessions.over(connection)), ran -> collector);
+                    SessionSource.given(TestSessions.over(connection)),
+                    PlanSessions.of(TestSessions.over(connection)), new Output.Rows(collector));
             assertTrue(plan.toString().contains("ELSE NULL"), plan.toString());
             List<List<Object>> rows = new ArrayList<>(collector.collected().rows());
             assertEquals(List.of(Arrays.asList("a", null)), rows,
