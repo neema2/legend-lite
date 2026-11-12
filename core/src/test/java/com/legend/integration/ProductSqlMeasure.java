@@ -43,6 +43,10 @@ public final class ProductSqlMeasure {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 2 && args[0].equals("probe")) {
+            probe(Path.of(args[1]));
+            return;
+        }
         if (args.length != 3 || !(args[0].equals("measure") || args[0].equals("time") || args[0].equals("mixed"))) {
             throw new IllegalArgumentException("usage: measure <cases.jsonl> <out> | time <pairs dir> <out>"
                     + " | mixed <lean-sql dir> <out>");
@@ -97,6 +101,29 @@ public final class ProductSqlMeasure {
                     sizes.write(rows.toString());
                     Files.writeString(out.resolve("sql-" + type + ".jsonl"), sql, StandardCharsets.UTF_8);
                 }
+            }
+        }
+    }
+
+    /** {@code probe <file>}: each line of {@code file} (a statement; {@code #} a comment) run on every in-process
+     *  database, its rows or its error printed (P1a.2's homework: what a database evaluates of a one-row derived
+     *  table). */
+    static void probe(Path file) throws Exception {
+        for (TestBackend backend : TestBackends.inProcess()) {
+            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+                if (line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
+                String sql = line.replace("{RAISE}", backend.type().name().equals("H2") ? "SIGNAL('45000', 'raised')"
+                        : backend.type().name().equals("SQLite") ? "json_extract('{}', '$raised')"
+                        : "error('raised')");
+                String answer;
+                try (java.sql.Connection c = backend.open()) {
+                    answer = "rows " + rows(c, sql);
+                } catch (java.sql.SQLException e) {
+                    answer = "RAISED " + String.valueOf(e.getMessage()).lines().findFirst().orElse("");
+                }
+                System.out.println("[probe] " + backend.type() + " | " + sql + " | " + answer);
             }
         }
     }

@@ -293,6 +293,23 @@ applied, with the same rows before and after:
 > **What is left for P1b and P1a.2.** A repeat that reads a row, a lambda's parameter or a correlated alias is
 > P1b's, as is a repeat inside a guard's raising branch. An eager let is P1a.2's.
 
+> **P1a.2, eager lets (RULED 2026-11-12: "lets bind eagerly, as Pure does"), the homework, measured in process**
+> (`bazel run //core:product_sql_measure -- probe <file>`, each database's own raise: DuckDB `error(...)`, SQLite a bad
+> JSON path, H2 `SIGNAL`):
+>
+> | database | an unreferenced column of the one-row derived table | read only in an untaken branch | forced: `WHERE l IS NULL OR l IS NOT NULL` | a `MATERIALIZED` CTE |
+> |---|---|---|---|---|
+> | DuckDB 1.5 | not evaluated: `let x = 1/0; 2` would answer 2 | not evaluated | raises | raises, even unreferenced |
+> | SQLite | not evaluated | raises | raises | raises |
+> | H2 2.5 | raises: a constant raise is folded at prepare time (a non-constant one is to be measured) | raises | raises | no such syntax |
+>
+> - So an eager let needs FORCING wherever a raising value is bound. The `WHERE` reference raises on all three, so it
+>   is the portable candidate.
+> - Next: the server and cloud dialects measured on their lanes (to ask) with the same probe file.
+> - Then a raising let is bound with its forcing `WHERE` on the root select, and an unreferenced one raises as Pure's
+>   would.
+> - A database with no forcing form refuses an unreferenced raising let by name, as ruled.
+
 **P1b, an expression binding (`SqlExpr.Let(name, value, body)`).** For a repeat that reads a row or a lambda's
 parameter: a guard's operand, a percentile's list inside a `map`, an object's properties per row. Each dialect
 renders it in its best form, decided by measurement before it lands:

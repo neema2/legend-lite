@@ -1,0 +1,14 @@
+# the raise alone: each database raises
+SELECT {RAISE} AS value
+# an unreferenced column of a one-row derived table
+SELECT 2 AS value FROM (SELECT {RAISE} AS l0) AS lets
+# referenced in a branch never taken
+SELECT CASE WHEN 1 = 0 THEN lets.l0 ELSE 2 END AS value FROM (SELECT {RAISE} AS l0) AS lets
+# forced: compared with itself
+SELECT CASE WHEN lets.l0 IS NULL OR lets.l0 IS NOT NULL THEN 2 END AS value FROM (SELECT {RAISE} AS l0) AS lets
+# forced: a WHERE the optimizer cannot drop
+SELECT 2 AS value FROM (SELECT {RAISE} AS l0) AS lets WHERE lets.l0 IS NULL OR lets.l0 IS NOT NULL
+# forced: coalesce with the answer
+SELECT coalesce(CAST(lets.l0 AS VARCHAR), '') || '' AS x, 2 AS value FROM (SELECT {RAISE} AS l0) AS lets
+# a CTE marked materialized
+WITH lets AS MATERIALIZED (SELECT {RAISE} AS l0) SELECT 2 AS value FROM lets
