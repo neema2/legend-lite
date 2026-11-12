@@ -21,6 +21,22 @@ import {
   snapRefusal,
 } from '../src/snap.ts';
 import { unplanned } from './unplanned.ts';
+import type { QueryEngine, RawTable } from '../src/engine.ts';
+
+/** The tab's engine, each statement first offered to `over`: what it answers (a table, or a failure) instead of the
+ *  database's -- a count that answers no row, a drop that fails -- else the database's own answer. */
+const answering = (over: (sql: string) => RawTable | Error | undefined): QueryEngine & { readonly databaseType: string } => ({
+  name: engine.name,
+  databaseType: engine.databaseType,
+  execute: (plan, epoch, signal) => engine.execute(plan, epoch, signal),
+  stream: (plan, epoch, onChunk, signal) => engine.stream(plan, epoch, onChunk, signal),
+  run: async (sql, epoch, signal, params) => {
+    const said = over(sql);
+    if (said instanceof Error) throw said;
+    return said ?? engine.run(sql, epoch, signal, params);
+  },
+  close: async () => {},
+});
 
 let engine: DuckDbEngine;
 
@@ -119,6 +135,29 @@ describe('SnapManager', () => {
     );
     // Refused means nothing was created and we are still live.
     assert.equal(s.isSnapped, false);
+  });
+
+  it("refuses a count that answers no rows' count, by name, nothing copied (the orchestrator's item 4: never `?? 0`)", async () => {
+    const copied: string[] = [];
+    const s = new SnapManager(answering((sql) => {
+      if (/count\(/i.test(sql)) return { columns: [], rowCount: 0, epoch: 1, elapsedMs: 0 };
+      copied.push(sql);
+      return undefined;
+    }), null, planner);
+    await assert.rejects(() => s.snap(unplanned('SELECT * FROM trades'), 1, { target: target('snap_uncounted') }),
+      (e: unknown) => e instanceof SnapRefusal && /the snap's count answered undefined, not a count: nothing is copied/.test(e.message));
+    assert.deepEqual(copied, [], 'nothing is copied');
+    assert.equal(s.isSnapped, false);
+  });
+
+  it("says a drop of the copy that fails with the failure that dropped it, never swallowed (the orchestrator's item 4)", async () => {
+    const s = new SnapManager(answering((sql) => (/^DROP TABLE/i.test(sql.trim()) ? new Error('the drop was refused') : undefined)), null, planner);
+    await assert.rejects(() => s.snap(unplanned('SELECT * FROM trades'), 1, { target: { table: 'snap_unmodelled', landed: async () => { throw new Error('no model of it'); } } }),
+      (e: unknown) => e instanceof Error && /no model of it -- and dropping the copy snap_unmodelled failed: the drop was refused/.test(e.message));
+    // the database dropped nothing: the copy is still there, and said so
+    const left = await engine.run(unplanned("SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap_unmodelled'"), 0);
+    assert.equal(Number(left.columns[0]!.values[0]), 1);
+    await engine.run(unplanned('DROP TABLE snap_unmodelled'), 0);
   });
 
   it('gives each snap its own table so two can coexist', async () => {
