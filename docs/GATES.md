@@ -21350,3 +21350,24 @@ The corpus lanes, measured (both judges, both lanes alike):
   rostered), the skipped and unordered registers, the strength floors.
 - **Guards:** none moved. The view fetch's typed swap is minted in the compiler layer (`GeneratorSplice.overSlice`),
   per invariant 7; the planner only lowers it (`BodyPlanner.viewFetch`, which replaces the dead `viewSql`).
+
+## 2026-11-12 — B2d.3b: the test-data census as a planning constant (S143 narrowed)
+
+The B2d.3 design's §3.2. Upstream's `getRelationalCSVDataFromQuery(query, mapping)` (`testDataGeneration.pure:753-777`)
+is a fact of the model: the tables a query reads through its mapping, and per table the columns a test's data for it
+needs.
+- **Where it is computed:** at planning, from lite's one lineage (`TestDataCensus`, over `ScanRelations.relTree`). The
+  checker's carrier is replaced by the `RelationalCSVData` instance it is, before the body is classed
+  (`GeneratedTestData.withCensus`), so the body's navigation and asserts read constants. Nothing is executed; the
+  charter's "build-time model text -> typed constants".
+- **Upstream's order:** per table, its primary key sorted by name, then the columns read of it sorted by name (a value,
+  both sides of a join), then its milestoning date columns sorted by name, without repeats; the tables sorted by schema
+  and name.
+
+Tests: `TestDataPlannerTest.theCensusIsAModelFact`.
+
+The corpus lanes, measured (DuckDB's host judge at this commit, `corpus_one`; both lanes' full runs reported with the next slice):
+- **Pass now (3):** `testGenerateNecessaryTableColumnsForSingleTable`, `...ForMultiTables` and `...ForMilestoningTable`.
+  They leave both accepted rosters.
+- **Unchanged:** both fail rosters, the other registers, the strength floors.
+- **Guards:** none moved.

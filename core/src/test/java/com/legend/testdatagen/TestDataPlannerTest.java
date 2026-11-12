@@ -176,6 +176,18 @@ class TestDataPlannerTest {
         }
     }
 
+    /** The census ({@code getRelationalCSVDataFromQuery}, B2d.3) is a model fact: per table reached, its primary key,
+     *  then the columns read of it (a value, both sides of a join), each sorted by name; the tables by schema and
+     *  name. Upstream's order, no database. */
+    @org.junit.jupiter.api.Test
+    void theCensusIsAModelFact() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        List<TestDataCensus.Table> census = TestDataCensus.of(ctx,
+                query("|t::Person.all()->project([p|$p.name, p|$p.bicycles.id], ['n', 'b'])"), "t::M");
+        assertEquals(List.of(new TestDataCensus.Table("default", "BICYCLE", List.of("ID", "PERSONID")),
+                new TestDataCensus.Table("default", "PERSON", List.of("ID", "NAME"))), census);
+    }
+
     /** No identifiers for a starting table -- the root, a view's main table: upstream's error, its example's keys not
      *  read (the user's ruling R3, 2026-11-11; register S300). */
     @ParameterizedTest

@@ -15,6 +15,7 @@ import com.legend.protocol.spec.ValueSpecification;
 import com.legend.setup.CsvSeed;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.SqlDialect;
+import com.legend.testdatagen.TestDataCensus;
 import com.legend.testdatagen.TestDataGenerationNatives;
 import com.legend.testdatagen.TestDataGenerator;
 import com.legend.testdatagen.TestDataPlanner;
@@ -35,9 +36,11 @@ final class GeneratedTestData {
     private GeneratedTestData() {
     }
 
-    /** {@code typed} with each test-data generator it binds planned, or {@code typed} itself where it binds none;
+    /** {@code given} with each census replaced by its constant and each test-data generator it binds planned, or as
+     *  it is where it holds neither;
      *  statements written in {@code dialect}, the body's, whose runtime is {@code runtimeFqn}. */
-    static TypedQuery planned(TypedQuery typed, SqlDialect dialect, @com.legend.base.Nullable String runtimeFqn) {
+    static TypedQuery planned(TypedQuery given, SqlDialect dialect, @com.legend.base.Nullable String runtimeFqn) {
+        TypedQuery typed = withCensus(given);
         if (!GeneratorSplice.holdsAGenerator(typed.body())) {
             return typed;
         }
@@ -61,6 +64,38 @@ final class GeneratedTestData {
                         TestDataPlanner.slice(((Generated) generated).planned(), ctx, dbFqn));
             }
         }));
+    }
+
+    /** {@code typed} with each test-data census ({@code getRelationalCSVDataFromQuery}, the checker's
+     *  {@link com.legend.compiler.spec.typed.TypedCsvCensus}) the instance it is, a planning constant
+     *  ({@link TestDataCensus}, B2d.3): a model fact, nothing executed. */
+    private static TypedQuery withCensus(TypedQuery typed) {
+        List<TypedSpec> body = new ArrayList<>(typed.body().size());
+        boolean changed = false;
+        for (TypedSpec s : typed.body()) {
+            TypedSpec r = census(s, typed.context());
+            changed |= r != s;
+            body.add(r);
+        }
+        return changed ? typed.withBody(body) : typed;
+    }
+
+    private static TypedSpec census(TypedSpec n, ModelContext ctx) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedCsvCensus c) {
+            return TestDataCensus.constant(ctx, c.query(), c.mappingFqn());
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> next = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = census(k, ctx);
+            changed |= r != k;
+            next.add(r);
+        }
+        return changed ? n.withChildren(next) : n;
     }
 
     /** Whether the loads of {@code planned}'s text and of the test-data text {@code expected} on {@code dbFqn} are the
