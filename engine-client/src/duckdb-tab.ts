@@ -12,13 +12,22 @@ import { runHostOperations, type HostOperationsSource } from './host-operations.
 import { ConnectionSettings } from './connection-settings.ts';
 import type { PlannedSql } from './planned-sql.ts';
 
+/** A tab's file registry: a file's text or bytes registered by name, and let go of. */
+export interface TabFiles {
+  registerFileText(name: string, text: string): Promise<void>;
+  registerFileBuffer(name: string, buffer: Uint8Array): Promise<void>;
+  dropFile(name: string): Promise<void>;
+}
+
 export interface DuckDbInTab {
   readonly engine: DuckDbEngine;
   /** Where a person's files go: a file's bytes registered by name, and let go of (a put's statements are its planned
    *  load's, on the connection that holds them: model-data.ts loadFileTable). */
   readonly data: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>;
-  /** The database itself: what a host registers a person's file on, and lets go of it (DataCube's upload.ts). */
-  readonly db: duckdb.AsyncDuckDB;
+  /** Where a host registers a person's file, and lets go of it (DataCube's upload.ts, its DuckDbFiles): the database's
+   *  file registry alone -- never the database itself, whose connections run any text (2026-11-12, the C checkpoint's
+   *  second audit: the raw AsyncDuckDB was handed out, its `connect().query(string)` outside the PlannedSql brand). */
+  readonly db: TabFiles;
   /**
    * Another connection to the same database, set up as the first (its extensions from the site, its session the
    * planner's): what a project's own database is queried on (project-data.ts), its names pointed there alone.
@@ -78,7 +87,11 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
       registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
       dropFile: async (name) => { await db.dropFile(name); },
     },
-    db,
+    db: {
+      registerFileText: (name, text) => db.registerFileText(name, text),
+      registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
+      dropFile: async (name) => { await db.dropFile(name); },
+    },
     connect,
     settings,
   };
