@@ -154,7 +154,9 @@ RUNNERS = {'projects.py': 1, 'engine.py': 1, 'frames.py': 1}
 RUNNER_NAMES = {'run_load', 'run_host_load'}
 
 AUTHORED_NAMES = {'authored', 'lite_authored'}
-AUTHORED = {'_planner.py': 2, '_library.py': 1}
+# 2026-11-12 (the orchestrator's ruling: the unwalked door deleted -- its KINDS row, its arity, the native export):
+# _planner.py names the kind once, among the kinds this host refuses by name (REFUSED)
+AUTHORED = {'_planner.py': 1}
 
 
 def _named_or_compared(call: ast.Call, parents: dict) -> bool:
