@@ -105,6 +105,9 @@ class CompatSpellingGuardTest {
             "compiler/spec/TdsDesugars.java | TDS_NULL_CELL | 2 | D1.3",
             "compiler/spec/TdsDesugars.java | trying to get an element at offset | 1 | D1.6",
             "exec/PlanParameters.java | Missing external parameter(s) | 1 | D1.6",
+            // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
+            // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
+            "exec/ProgramRunner.java | traceComment | 1 | D1.4",
             "exec/PlanRunner.java | traceComment | 1 | D1.4",
             "executionplan/ExecutionPlan.java | executionTraceID | 1 | D1.4",
             "executionplan/ExecutionPlan.java | traceComment | 1 | D1.4",
@@ -261,7 +264,6 @@ class CompatSpellingGuardTest {
             "testexecutionplan/HostJudgment.java | EngineText | 2 | D1.7",
             "testexecutionplan/PlannedAppeals.java | EngineText | 1 | D1.7",
             "testexecutionplan/Verdicts.java | EngineText | 1 | D1.7",
-            "testplan/ActivityComments.java | traceComment | 1 | D1.4",
             "testplan/AgreementAsserts.java | EngineText | 1 | D1.7",
             "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             "testplan/BodyDriver.java | EnginePlans | 1 | D1.7",
