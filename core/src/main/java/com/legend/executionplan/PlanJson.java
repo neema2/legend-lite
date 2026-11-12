@@ -140,7 +140,8 @@ public final class PlanJson {
      *  since 2026-11-12 (the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling: bumped): a target may carry
      *  {@code settings}, the {@code required} settings its database must have (each a {@code name} and {@code value})
      *  and their {@code readBack} statement (H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}), written only where a
-     *  target declares them. */
+     *  target declares them. Still 49 (not on main), 2026-11-12, the third re-audit's MUST-FIX 2: {@code required} may
+     *  be empty, with no {@code readBack} -- a declared database run as it is, none of its settings written or read. */
     public static final int VERSION = 49;
 
     private PlanJson() {
@@ -750,7 +751,10 @@ public final class PlanJson {
                 one.put("value", s.value());
                 return one;
             }).toList());
-            settings.put("readBack", t.settings().readBack());
+            // none for a declared database run as it is (its required list empty: the third re-audit's MUST-FIX 2)
+            if (t.settings().readBack() != null) {
+                settings.put("readBack", t.settings().readBack());
+            }
             to.put("settings", settings);
         }
         return to;
@@ -1242,7 +1246,7 @@ public final class PlanJson {
                 only(one, "a database setting", "name", "value");
                 required.add(new ExecutionPlan.Setting(one.getString("name"), one.getString("value")));
             }
-            settings = new ExecutionPlan.DatabaseSettings(required, o.getString("readBack"));
+            settings = new ExecutionPlan.DatabaseSettings(required, o.has("readBack") ? o.getString("readBack") : null);
         }
         return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads, readBack, settings);
     }

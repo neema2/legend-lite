@@ -170,33 +170,29 @@ final class JdbcStatements implements Statements {
         com.legend.base.RunScope.statement("a declared error read-back");   // the charter's A3(c), a run's act
         PlannedSql read = readBack.plannedRead();
         PlannedSql reset = readBack.plannedReset();
-        try (Statement st = c.createStatement()) {
-            String held;
+        String held;
+        try {
+            StatementOrigin.sent(StatementOrigin.SESSION, read.text());
+            List<String> texts = send(c, read, Send.TEXT_QUERY, Bind.NOTHING, a -> texts(rowsOf(a)));
+            held = texts.isEmpty() ? null : texts.get(0);
+        } catch (SQLException unread) {
             try {
-                StatementOrigin.sent(StatementOrigin.SESSION, read.text());
-                try (ResultSet rs = st.executeQuery(read.text())) {
-                    List<String> texts = texts(rs);
-                    held = texts.isEmpty() ? null : texts.get(0);
-                }
-            } catch (SQLException unread) {
-                try {
-                    StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
-                    st.execute(reset.text());
-                } catch (SQLException unreset) {
-                    unread.addSuppressed(unreset);
-                    state.raiseUnreset(String.valueOf(unreset.getMessage()));
-                }
-                throw unread;
-            }
-            StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
-            try {
-                st.execute(reset.text());
+                StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
+                send(c, reset, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
             } catch (SQLException unreset) {
-                failure.addSuppressed(unreset);
+                unread.addSuppressed(unreset);
                 state.raiseUnreset(String.valueOf(unreset.getMessage()));
             }
-            return held;
+            throw unread;
         }
+        StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
+        try {
+            send(c, reset, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
+        } catch (SQLException unreset) {
+            failure.addSuppressed(unreset);
+            state.raiseUnreset(String.valueOf(unreset.getMessage()));
+        }
+        return held;
     }
 
     @Override
@@ -217,7 +213,9 @@ final class JdbcStatements implements Statements {
                             : " declares no settings, and this one declares " + settings.required())
                     + ": never run on other semantics");
         }
-        if (settings != null && !state.holdsSettings(settings)) {
+        // a declared database run as it is (the third re-audit's MUST-FIX 2, 2026-11-12): nothing written, nothing
+        // read back
+        if (settings != null && !settings.theDatabasesOwn() && !state.holdsSettings(settings)) {
             verifySettings(c, settings);
             state.settingsHeld(settings);
         }
@@ -235,8 +233,8 @@ final class JdbcStatements implements Statements {
         PlannedSql read = settings.plannedReadBack();
         List<String> otherwise;
         StatementOrigin.sent(StatementOrigin.SESSION, read.text());
-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(read.text())) {
-            otherwise = texts(rs);
+        try {
+            otherwise = send(c, read, Send.TEXT_QUERY, Bind.NOTHING, a -> texts(rowsOf(a)));
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
@@ -261,8 +259,8 @@ final class JdbcStatements implements Statements {
     @Override
     public boolean execute(PlannedSql statement) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (Statement st = c.createStatement()) {
-            return st.execute(statement.text());
+        try {
+            return send(c, statement, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
         } catch (SQLException e) {
             throw failed(e);
         }
@@ -272,11 +270,8 @@ final class JdbcStatements implements Statements {
     public long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement.text())) {
-            for (int i = 0; i < slots.size(); i++) {
-                bind(st, i + 1, slots.get(i), values.get(i));
-            }
-            return st.executeUpdate();
+        try {
+            return send(c, statement, Send.UPDATE, st -> bindAll(st, slots, values), JdbcStatements::countOf);
         } catch (SQLException e) {
             throw naming(e, failed(e), slots);
         }
@@ -285,8 +280,8 @@ final class JdbcStatements implements Statements {
     @Override
     public List<Reported> columns(PlannedSql statement) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement.text())) {
-            return reported(rs.getMetaData());
+        try {
+            return send(c, statement, Send.TEXT_QUERY, Bind.NOTHING, a -> reported(rowsOf(a).getMetaData()));
         } catch (SQLException e) {
             throw failed(e);
         }
@@ -295,9 +290,11 @@ final class JdbcStatements implements Statements {
     @Override
     public List<Reported> describe(PlannedSql statement) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement.text())) {
-            java.sql.ResultSetMetaData md = st.getMetaData();
-            return md == null ? List.of() : reported(md);
+        try {
+            return send(c, statement, Send.DESCRIBE, Bind.NOTHING, a -> {
+                java.sql.ResultSetMetaData md = describedOf(a);
+                return md == null ? List.<Reported>of() : reported(md);
+            });
         } catch (SQLException e) {
             throw failed(e);
         }
@@ -316,12 +313,13 @@ final class JdbcStatements implements Statements {
     @Override
     public void readsFile(PlannedSql statement, String path) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement.text())) {
+        try {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
-            if (st.getParameterMetaData().getParameterCount() == 1) {
-                st.setString(1, path);
-            }
-            st.execute();
+            send(c, statement, Send.EXECUTE, st -> {
+                if (st.getParameterMetaData().getParameterCount() == 1) {
+                    st.setString(1, path);
+                }
+            }, JdbcStatements::executedOf);
         } catch (SQLException e) {
             throw failed(e);
         }
@@ -369,15 +367,14 @@ final class JdbcStatements implements Statements {
     public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement.text())) {
-            for (int i = 0; i < slots.size(); i++) {
-                bind(st, i + 1, slots.get(i), values.get(i));
-            }
-            try (ResultSet rs = st.executeQuery()) {
+        try {
+            send(c, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
+                ResultSet rs = rowsOf(a);
                 while (rs.next()) {
                     rows.row(rs.getString(1));
                 }
-            }
+                return Boolean.TRUE;   // the rows went to the act's sink
+            });
         } catch (SQLException e) {
             throw naming(e, failed(e), slots);
         }
@@ -390,16 +387,14 @@ final class JdbcStatements implements Statements {
     public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement.text())) {
-            for (int i = 0; i < slots.size(); i++) {
-                bind(st, i + 1, slots.get(i), values.get(i));
-            }
-            DatabaseConnector.Decoding driver = this.driver;
-            if (driver == null) {
-                throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
-                        + " how its driver answers is its database's fact");
-            }
-            try (ResultSet rs = st.executeQuery()) {
+        DatabaseConnector.Decoding driver = this.driver;
+        if (driver == null) {
+            throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                    + " how its driver answers is its database's fact");
+        }
+        try {
+            send(c, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
+                ResultSet rs = rowsOf(a);
                 int answered = rs.getMetaData().getColumnCount();
                 if (answered == 0 && driver.failedWithoutColumns()) {
                     // a failing statement's result opened with no columns: the first read raises its own error (the
@@ -430,7 +425,8 @@ final class JdbcStatements implements Statements {
                 while (rs.next()) {
                     cells.row(reader.row(rs));
                 }
-            }
+                return Boolean.TRUE;   // the rows went to the act's sink
+            });
         } catch (SQLException e) {
             throw naming(e, failed(e), slots);
         }
@@ -441,16 +437,14 @@ final class JdbcStatements implements Statements {
     public void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) throws IOException {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement.text())) {
-            for (int i = 0; i < slots.size(); i++) {
-                bind(st, i + 1, slots.get(i), values.get(i));
-            }
-            DatabaseConnector.Decoding driver = this.driver;
-            if (driver == null) {
-                throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
-                        + " how its driver answers is its database's fact");
-            }
-            try (ResultSet rs = st.executeQuery()) {
+        DatabaseConnector.Decoding driver = this.driver;
+        if (driver == null) {
+            throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                    + " how its driver answers is its database's fact");
+        }
+        try {
+            send(c, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
+                ResultSet rs = rowsOf(a);
                 List<ExecutionPlan.Column> reported = new java.util.ArrayList<>();
                 for (Reported r : reported(rs.getMetaData())) {
                     reported.add(WireTypes.column(r));
@@ -460,7 +454,8 @@ final class JdbcStatements implements Statements {
                 while (rs.next()) {
                     cells.row(reader.row(rs));
                 }
-            }
+                return Boolean.TRUE;   // the rows went to the act's sink
+            });
         } catch (SQLException e) {
             throw naming(e, failed(e), slots);
         }
@@ -541,6 +536,129 @@ final class JdbcStatements implements Statements {
             c.setTransactionIsolation(isolation);
         }
         c.setAutoCommit(autoCommit);
+    }
+
+    /** How {@link #send} sends a statement: PREPARED, its slots bound -- a query's rows, an update's count, an
+     *  execution, a description -- or as its TEXT alone, unprepared -- a statement binding nothing that each act sent so
+     *  before the choke point (an effect's, which may hold several; a column read's; a read-back's; a settings check's). */
+    private enum Send { QUERY, UPDATE, EXECUTE, DESCRIBE, TEXT_QUERY, TEXT_EXECUTE }
+
+    /** What a send answered, handed to its answer while the result is open. */
+    private sealed interface Answered permits Answered.Rows, Answered.Count, Answered.Executed, Answered.Described {
+        /** A query's open result. */
+        record Rows(ResultSet rows) implements Answered {
+        }
+
+        /** An update's count. */
+        record Count(long count) implements Answered {
+        }
+
+        /** Whether an execution answered a result. */
+        record Executed(boolean results) implements Answered {
+        }
+
+        /** A prepared statement's description of its result; null where the driver gives none. */
+        record Described(java.sql.@com.legend.base.Nullable ResultSetMetaData description) implements Answered {
+        }
+    }
+
+    /** A prepared statement's slots bound: setters only, nothing sent. */
+    @FunctionalInterface
+    private interface Bind {
+        void bind(PreparedStatement st) throws SQLException;
+
+        /** Binds nothing. */
+        Bind NOTHING = st -> { };
+    }
+
+    /** What an act reads of a send's answer. */
+    @FunctionalInterface
+    private interface Answer<T, X extends Exception> {
+        T of(Answered answered) throws SQLException, X;
+    }
+
+    /**
+     * THE ONE PLACE A JDBC SESSION IS SENT A STATEMENT (the third re-audit's MUST-FIX 1, 2026-11-12, as MongoDB's
+     * {@code MongoDbStatements.send}): the plan's statement as the plan holds it ({@link PlannedSql}), prepared and bound
+     * by {@code bind} or sent as its text ({@link Send}), its answer read by {@code answer} while it is open. Every
+     * {@code Connection.createStatement}, {@code prepareStatement} and {@code prepareCall}, and every
+     * {@code Statement.execute*} and {@code addBatch}, of the product is here and nowhere else
+     * ({@code ArchitectureTest.jdbcSendsAtOneChokePoint}): until then each act prepared and executed for itself, so a
+     * helper beside them could have sent text of its own with every guard green.
+     */
+    private static <T, X extends Exception> T send(Connection c, PlannedSql statement, Send how, Bind bind,
+            Answer<T, X> answer) throws SQLException, X {
+        if (how == Send.TEXT_QUERY || how == Send.TEXT_EXECUTE) {
+            try (Statement st = c.createStatement()) {
+                if (how == Send.TEXT_EXECUTE) {
+                    return answer.of(new Answered.Executed(st.execute(statement.text())));
+                }
+                try (ResultSet rs = st.executeQuery(statement.text())) {
+                    return answer.of(new Answered.Rows(rs));
+                }
+            }
+        }
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
+            bind.bind(st);
+            switch (how) {
+                case QUERY -> {
+                    try (ResultSet rs = st.executeQuery()) {
+                        return answer.of(new Answered.Rows(rs));
+                    }
+                }
+                case UPDATE -> {
+                    return answer.of(new Answered.Count(st.executeUpdate()));
+                }
+                case EXECUTE -> {
+                    return answer.of(new Answered.Executed(st.execute()));
+                }
+                case DESCRIBE -> {
+                    return answer.of(new Answered.Described(st.getMetaData()));
+                }
+                case TEXT_QUERY, TEXT_EXECUTE -> throw new IllegalStateException("not reached: sent as its text above");
+            }
+            throw new IllegalStateException("not reached: every send is an arm above");
+        }
+    }
+
+    /** A query's open result; any other answer is a defect, said by name. */
+    private static ResultSet rowsOf(Answered a) {
+        if (a instanceof Answered.Rows r) {
+            return r.rows();
+        }
+        throw new IllegalStateException("a query's send answered " + a);
+    }
+
+    /** An update's count. */
+    private static long countOf(Answered a) {
+        if (a instanceof Answered.Count n) {
+            return n.count();
+        }
+        throw new IllegalStateException("an update's send answered " + a);
+    }
+
+    /** Whether an execution answered a result. */
+    private static boolean executedOf(Answered a) {
+        if (a instanceof Answered.Executed e) {
+            return e.results();
+        }
+        throw new IllegalStateException("an execution's send answered " + a);
+    }
+
+    /** A description. */
+    private static java.sql.@com.legend.base.Nullable ResultSetMetaData describedOf(Answered a) {
+        if (a instanceof Answered.Described d) {
+            return d.description();
+        }
+        throw new IllegalStateException("a description's send answered " + a);
+    }
+
+    /** Every slot bound to its value, in order. */
+    private void bindAll(PreparedStatement st, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+            throws SQLException {
+        for (int i = 0; i < slots.size(); i++) {
+            bind(st, i + 1, slots.get(i), values.get(i));
+        }
     }
 
     /** Slot {@code index} bound to its parameter's checked value, as the slot says: one value (an absent one a null of

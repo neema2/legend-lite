@@ -528,17 +528,22 @@ public final class Sessions {
         return Connectors.of(def.databaseType()).opening(def);
     }
 
-    /** Opens {@code url}, the URL {@code connector}'s opening built, with {@code settings} written where the database
-     *  is opened ({@link DatabaseConnector#urlWith}; the plan's target's, null for none): an owned session holding
-     *  them, as {@link #openNamed}'s is (the C final audit's J1, 2026-11-12: until then the URL carried none, and an H2
-     *  file's or server's session was read back as H2's defaults and refused). A failure of the open is a
+    /** Opens {@code url}, the URL {@code connector}'s opening built for a DECLARED database (a file, a server), as the
+     *  connection declares it: the user's database, never modified -- its target declares no settings or the
+     *  database's own ({@code DatabaseSettings.THE_DATABASES_OWN}), and one that declares settings to write is refused
+     *  by name (the third re-audit's MUST-FIX 2, 2026-11-12: the C final audit's J1 wrote H2's on the URL, and H2
+     *  applies them to the whole open database, every other client's null order with it). A failure of the open is a
      *  {@link com.legend.error.DataError}, as every opener's is since D70. */
     public static Session open(Opening.Url url, DatabaseConnector connector,
             com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
-        String withSettings = connector.urlWith(url.url(), settings);
+        if (settings != null && !settings.theDatabasesOwn()) {
+            throw new IllegalStateException("a " + connector.type() + " database a connection declares is opened as"
+                    + " declared and never modified, and the plan's target declares settings to write on it "
+                    + settings.required() + ": a planner defect");
+        }
         try {
-            return opened(DriverManager.getConnection(withSettings), settings);
+            return opened(DriverManager.getConnection(url.url()), settings);
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }

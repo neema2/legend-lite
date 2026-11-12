@@ -17,7 +17,8 @@ import java.util.function.Function;
  * {@code ArchitectureTest.theRunSideRuleBitesAPlantedPlanText} shows
  * {@code ArchitectureTest.theRunSideMakesNoPlanRecordThatCarriesText} fails on {@link Factory}, {@link Constructs},
  * {@link ByReference}, and (the re-audit's note 7, 2026-11-12) {@link Derives}, {@link DerivesByReference},
- * {@link ReadsAPlan} and {@link ReadsATestPlan}, and passes {@link ReadsOnly}. Test classes: the rules' real checks read
+ * {@link ReadsAPlan} and {@link ReadsATestPlan}, and (SHOULD-FIX 3) {@link ReadsANode} and {@link MakesAPlan}, and passes
+ * {@link ReadsOnly}. Test classes: the rules' real checks read
  * the product's classes, never these.
  */
 public final class PlantedPlanText {
@@ -103,6 +104,26 @@ public final class PlantedPlanText {
 
         public static com.legend.testexecutionplan.TestPlan read(String json) {
             return com.legend.testexecutionplan.TestPlanJson.read(json);
+        }
+    }
+
+    /** Reads a plan's node from its JSON on the run side (the third re-audit's SHOULD-FIX 3, 2026-11-12). */
+    public static final class ReadsANode {
+        private ReadsANode() {
+        }
+
+        public static ExecutionPlan.Node read(com.legend.json.Json.Obj json) {
+            return com.legend.executionplan.PlanJson.nodeOf(json);
+        }
+    }
+
+    /** Makes a plan of a writing node by a static. */
+    public static final class MakesAPlan {
+        private MakesAPlan() {
+        }
+
+        public static ExecutionPlan made(ExecutionPlan.Node root) {
+            return ExecutionPlan.writing(List.of(), root);
         }
     }
 
