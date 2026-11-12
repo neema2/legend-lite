@@ -231,7 +231,14 @@ public final class TypedQuery {
      * value the program wrote) is refused by name: its text would not be what runs.
      */
     public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime) {
-        com.legend.executionplan.ExecutionPlan plan = executionPlan(runtime);
+        return plan(runtime, com.legend.database.Databases.DIALECTS);
+    }
+
+    /** {@link #plan(String)} with its statement written in {@code dialects}' dialects (the spelling hook, D1.0:
+     *  pure/v1's generatePlan, at the edge). */
+    public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime,
+            com.legend.database.DialectSource dialects) {
+        com.legend.executionplan.ExecutionPlan plan = executionPlan(runtime, java.util.Set.of(), dialects);
         if (!plan.answers() || !plan.sendsTheAnswer() || plan.root() instanceof com.legend.executionplan.ExecutionPlan.Sequence) {
             throw new com.legend.error.NotImplementedException("a text plan is the statement that answers, and this"
                     + " query's execution plan " + (!plan.answers() ? "answers nothing"

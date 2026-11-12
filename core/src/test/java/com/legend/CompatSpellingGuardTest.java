@@ -179,7 +179,6 @@ class CompatSpellingGuardTest {
             "result/TdsObjectsWriter.java | presentedName | 1 | D1.4",
             "server/PureV1Api.java | Missing external parameter(s) | 1 | D1.6",
             "server/PureV1Api.java | PureV1Writer | 17 | D1.8",
-            "server/PureV1Api.java | executionTraceID | 1 | D1.4",
             "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.3",
             "sql/SqlFn.java | FLOAT_CANON | 1 | JUDGE",
             "sql/SqlFn.java | FLOAT_PRINT | 1 | D1.2",

@@ -16,7 +16,7 @@ import java.util.Objects;
  * ({@code ModelFromProtocol}) -- never printed and parsed again. A context of another kind (a pointer the engine loads
  * from an SDLC) is refused by name.
  */
-sealed interface ModelInput {
+public sealed interface ModelInput {
 
     /** A {@code PureModelContextText}: the model's code. */
     record Text(String code) implements ModelInput {

@@ -112,7 +112,11 @@ exec_program	base error exec execution_plan result
 # codec, a file's bytes verified against the plan's reference.
 # 2026-11-12 (phase D's D1.0, the spelling hook): it reaches `database` (the DialectSource it supplies) and `model` (the
 # declared database type it answers a dialect for): the edge's dialects, com.legend.edge.PureText.
-edge	base database execution_plan json model sql_dialect test_plan
+# 2026-11-12 (phase D's D1.0b): legend-engine's pure/v1 routes and the test-data routes are the edge's -- over the
+# product's API kit (pure_v1), its compiler, protocol, planner and generator -- and the shipped server's root is
+# `edge_server`, lite's server with those routes mounted, its run the product's door in the edge's dialects.
+edge	arrow_ipc base compiler compiler_element_type database error execution_plan json model parser plan planner protocol pure_v1 result sql sql_dialect test_plan testdatagen
+edge_server	base edge execution pure_v1 saved_queries server_lib
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its

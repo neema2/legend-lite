@@ -47,11 +47,15 @@ public final class Boundary {
      * format that is served.
      */
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
-        return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
-                (query, runtime, output) -> {
-                    throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
-                            + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
-                }, HELD);
+        com.legend.server.PureV1Api.Runner noRun = (query, runtime, output) -> {
+            throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
+                    + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
+        };
+        // legend-engine's routes are the edge's, lite's own the product's (phase D's D1.0b, 2026-11-12): routed by the
+        // path's prefix, as the server mounts them
+        return path.startsWith(com.legend.edge.PureV1Routes.PREFIX)
+                ? com.legend.edge.PureV1Routes.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD)
+                : com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD);
     }
 
     /** A request's model given as text: the one this host holds for that text, compiled no more, else compiled for the

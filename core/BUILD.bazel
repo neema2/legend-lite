@@ -342,7 +342,6 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
-        "src/main/java/com/legend/server/TestDataRoutes.java",
     ],
     deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
 )
@@ -357,7 +356,6 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
-            "src/main/java/com/legend/server/TestDataRoutes.java",
         ],
     ),
     # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
@@ -444,13 +442,28 @@ legend_java_library(
 # edge (G5): only the harnesses that run under the compatibility rules do.
 legend_java_library(
     name = "edge",
-    srcs = glob(["src/main/java/com/legend/edge/*.java"]),
-    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = ["src/main/java/com/legend/edge/EdgeServer.java"]),
+    # //wasm (D1.0b, 2026-11-12): the compiler's boundary answers legend-engine's routes in the tab and Python
+    visibility = ["//spec:__pkg__", "//pct:__pkg__", "//wasm:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
     resource_strip_prefix = "core/src/main/edge",
     # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec;
     # the dialect source and the declared database type (D1.0, 2026-11-12): the edge's dialects, PureText
-    deps = ["//base", "//json", ":database", ":execution_plan", ":model", ":sql_dialect", ":test_plan"],
+    # pure/v1's upstream routes (D1.0b, 2026-11-12): legend-engine's API, planned through the edge's dialects over the
+    # product's API kit (pure_v1) and its compiler, protocol and test-data generator
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error",
+            ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":sql",
+            ":sql_dialect", ":test_plan", ":testdatagen"],
+)
+
+# THE SHIPPED SERVER'S ROOT (phase D's D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside
+# it (edge/EdgeServer.java), its run the product's door in the edge's dialects. Its own target: the edge's routes are
+# the plan side's (the compiler's boundary answers them in the tab and Python), the root runs a server.
+legend_java_library(
+    name = "edge_server",
+    srcs = ["src/main/java/com/legend/edge/EdgeServer.java"],
+    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    deps = ["//base", ":edge", ":execution", ":pure_v1", ":saved_queries", ":server_lib"],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
@@ -494,13 +507,16 @@ legend_java_library(
 
 # THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
 # the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
-# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship.
+# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship. Its root is the edge's (phase D's
+# D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside it (edge/EdgeServer.java); lite's own
+# server alone is com.legend.server.LegendHttpServer's main.
 legend_java_binary(
     name = "server",
-    main_class = "com.legend.server.LegendHttpServer",
+    main_class = "com.legend.edge.EdgeServer",
     runtime_deps = [
         ":core",
         ":drivers",
+        ":edge_server",
     ],
     visibility = [
         "//:__pkg__",
@@ -624,6 +640,8 @@ legend_java_library(
     ],
     deps = [
         ":edge",
+        # the shipped server's root (D1.0b, 2026-11-12): the HTTP tests start the server legend-engine's clients call
+        ":edge_server",
         ":core",
         ":test_backends",
         ":test_cases",
