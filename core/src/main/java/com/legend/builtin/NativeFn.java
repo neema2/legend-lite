@@ -347,8 +347,13 @@ public final class NativeFn {
 
         private static final Map<com.legend.model.FunctionId, LowererForm> BY_ID = indexById(values());
 
-        /** rowMapper / wavgRowMapper — the bi-variate aggregate map bodies. */
+        /** rowMapper / wavgRowMapper — the bi-variate aggregate map bodies. THE INVARIANT (2026-11-12, the owner's
+         *  ruling on slice 1b's report: the one family predicate whose id is not {@code @Nullable}, by design): a
+         *  resolved native callee's id, never null -- its one caller (the lowering's aggregate map body) passes
+         *  {@code TypedFunction.id()}, which throws rather than answer null; a null here is refused, never read as
+         *  "not a map". */
         public static boolean isBivariateMap(com.legend.model.FunctionId id) {
+            java.util.Objects.requireNonNull(id, "isBivariateMap takes a resolved callee's id");
             LowererForm f = BY_ID.get(id);
             return f == ROW_MAPPER || f == WAVG_ROW_MAPPER;
         }
