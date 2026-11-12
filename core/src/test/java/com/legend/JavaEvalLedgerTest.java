@@ -1212,8 +1212,13 @@ class JavaEvalLedgerTest {
                     // the typed seam (2026-10-18, the plan path program's step 7,
                     // docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3 and §4): JdbcDecode reads a row's cells from
                     // the driver by the plan's columns, one carrier conversion each (the legacy executor's fetch
-                    // and unwrap rules, the slot first); nothing computed, nothing compared. RowDecode (step 6)
-                    // stays for a document's row and a JSON-carried cell
+                    // and unwrap rules, the slot first). CORRECTED 2026-11-12 (E2; docs/LEAN_PRODUCT_P3_2026_11_10.md
+                    // §9 item 1: "nothing computed, nothing compared" was false): its carrier reads AND the P3 residue
+                    // it still holds -- a REAL respelled through its four-byte text (site 1), BigQuery's decimal zeros
+                    // padded (site 2), a BC year's era repaired (site 4), each going after D1 -- are counted by name in
+                    // WriterCarriageGuardTest's register, which now scans exec; the zone shift (site 3) and the kinds
+                    // chosen from a cell's text (site 5) are deleted. RowDecode (step 6) stays for a document's row
+                    // and a JSON-carried cell, under the same guard
                     "JdbcDecode.java",
                     // the JSON a database writes with a bare token for a double that is not finite (2026-10-27,
                     // the result boundary program's phase 5; DatabaseConnector.decoding().nonFiniteJson): the typed

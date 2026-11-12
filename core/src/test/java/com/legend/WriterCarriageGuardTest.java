@@ -28,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * cover the case (the midnight rule 6811256b fixed was caught by PCT only by the luck of a fixture).
  *
  * <p>The scan: the result package's sources ({@code core/src/main/java/com/legend/result}, the typed batch, the row
- * decode, the cell texts and the three writers), comments and string literals stripped, searched for the vocabulary of
+ * decode, the cell texts and the three writers) and exec's in every source tree ({@link #EXEC}: the driver decodes and
+ * the statements, E2, 2026-11-12), comments and string literals stripped, searched for the vocabulary of
  * value arithmetic and comparison and of conversion between kinds as Java spells it ({@link #VOCABULARY}). ZERO is
  * allowed. What stands is REGISTERED by name, per file and spelling, exact both ways ({@link #REGISTERED}): each a
  * representation operation -- digits chosen for a value held whole (a Float's shortest digits, a Float held exactly
@@ -50,6 +51,13 @@ class WriterCarriageGuardTest {
 
     private static final String RESULT = "core/src/main/java/com/legend/result";
 
+    /** Exec's decoders and statements, in each source tree that holds them (E2, 2026-11-12: G3's guard, "the writer
+     *  guard extended to exec's decode"; until then only {@link #RESULT} was scanned, and the decoders' zone shift, era
+     *  repair and kind-from-text stood unseen). */
+    private static final List<String> EXEC = List.of("core/src/main/java/com/legend/exec",
+            "core/src/main/mongodb/com/legend/exec", "core/src/main/duckdb/com/legend/exec",
+            "core/src/main/postgres/com/legend/exec");
+
     /** The vocabulary, each match named by its method ({@code group 1}: a number's or a date's instance method --
      *  arithmetic, comparison, scale, a clock's fields, a kind conversion, a precision read), {@code Math.}, a number
      *  built from another kind ({@code new BigDecimal(}), or a static read of one ({@code BigDecimal.valueOf},
@@ -58,14 +66,23 @@ class WriterCarriageGuardTest {
             "\\.(subtract|multiply|divide|remainder|pow|negate|signum|abs|compareTo|setScale|stripTrailingZeros"
             + "|toBigInteger|toBigIntegerExact|bitLength|doubleValue|longValue|intValue|floatValue|scale"
             + "|getHour|getMinute|getSecond|getNano|getYear|getMonthValue|getDayOfMonth|isBefore|isAfter|plusDays"
-            + "|minusDays|atLeast|toInstantFloor|presentedAt|trimmed)\\("
+            + "|minusDays|atLeast|toInstantFloor|presentedAt|trimmed"
+            // the decoder's words (E2, 2026-11-12, docs/LEAN_PRODUCT_P3_2026_11_10.md §8: the vocabulary written for
+            // writers missed a decoder's zone shift, era repair and kind-from-text): a zone or a calendar moved
+            + "|withOffsetSameInstant|withOffsetSameLocal|withZoneSameInstant|withYear|withNano|atZone|atOffset)\\("
             + "|\\b(Math)\\.\\w+\\("
             + "|\\bnew (BigDecimal|BigInteger)\\("
             + "|\\b(BigDecimal|Double|Float|Long|Integer)\\.(valueOf|parseDouble|parseInt|parseLong|isFinite|isNaN"
-            + "|isInfinite)\\(");
+            + "|isInfinite)\\("
+            // a calendar's fields, and a REAL respelled through its four-byte shortest text (E2, 2026-11-12)
+            + "|\\b(Calendar\\.|Float\\.toString\\()"
+            // a text tested against a literal (comments and literals are stripped first, so the literal reads ""):
+            // a kind chosen from a cell's text is one (E2, 2026-11-12); a plan fact's own name (a slot word, a Pure
+            // type's path) tested is registered by name as one
+            + "|\\.(startsWith|endsWith|contains|indexOf)\\(\"\"\\)");
 
     /** What stands, by file and spelling, with its reason; exact both ways (a shrink re-pins, with its date). */
-    private static final Map<String, Map<String, Integer>> REGISTERED = Map.of(
+    private static final Map<String, Map<String, Integer>> REGISTERED = Map.ofEntries(Map.entry(
             "CellText.java", Map.ofEntries(
                     // a Float's text (R5, the Float rule of 2026-10-26): Double.toString's shortest digits laid out
                     // positionally through a BigDecimal of that text, its mantissa's trailing zero stripped (1.0E-4 is
@@ -100,8 +117,14 @@ class WriterCarriageGuardTest {
                     Map.entry("toInstantFloor", 1),
                     Map.entry("getYear", 1),
                     Map.entry("getMonthValue", 1),
-                    Map.entry("getDayOfMonth", 1)),
-            "ArrowWriter.java", Map.ofEntries(
+                    Map.entry("getDayOfMonth", 1),
+                    // text tests (E2, 2026-11-12, the vocabulary extended): a slot's own word (a structure's closing
+                    // '>'), a pivot column's name holding the separator and its quotes (D1's edge, P3-R5), and a
+                    // Float's own digits laid out (the '.' a whole double's text gains)
+                    Map.entry("contains(\"\")", 3),
+                    Map.entry("endsWith(\"\")", 2),
+                    Map.entry("startsWith(\"\")", 1))),
+            Map.entry("ArrowWriter.java", Map.ofEntries(
                     // Arrow's representation of a value held whole (track A, 2026-10-29): a decimal's unscaled digits
                     // AT THE COLUMN'S SCALE (setScale adds zeros to a cell written at fewer places; a cell with more
                     // is refused, never rounded: scale read twice to decide), the 128-bit fit (bitLength); a day as
@@ -117,8 +140,12 @@ class WriterCarriageGuardTest {
                     // a date's own precision, carried in the value: whether it has a time of day (a timestamp's
                     // cell), as CellText reads it (2 until track F, 2026-10-29: the union's member was inferred from
                     // the carrier's precision; the batch's tag names it now, D58 (3))
-                    Map.entry("atLeast", 1)),
-            "RowDecode.java", Map.ofEntries(
+                    Map.entry("atLeast", 1),
+                    // text tests (E2, 2026-11-12, the vocabulary extended): the plan's Pure type's own name (Decimal,
+                    // DateTime with its precision, a class's path) and a decimal's own digits' sign
+                    Map.entry("startsWith(\"\")", 3),
+                    Map.entry("contains(\"\")", 1))),
+            Map.entry("RowDecode.java", Map.ofEntries(
                     // a decode's carrier reads (the plan path program's step 6; moved here 2026-10-27): a JSON token as
                     // the number its slot says, one conversion each, nothing computed -- a long or a double from a
                     // Json.Num; a decimal from its own digits (new BigDecimal of the token, exact) or the double's where
@@ -143,17 +170,94 @@ class WriterCarriageGuardTest {
                     // instant (presentedAt; docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) -- the data carrying a
                     // precision, read
                     Map.entry("Integer.parseInt", 1),
-                    Map.entry("presentedAt", 1)));
+                    Map.entry("presentedAt", 1),
+                    // E2, 2026-11-12 (the vocabulary extended): the REAL's Float.toString beside its Double.parseDouble
+                    // above (site 1, P3-R1, after D1); text tests of the plan's Pure type and slot names (Decimal,
+                    // DateTime(n), a structure's slot word), and a Float literal token's own D suffix
+                    Map.entry("Float.toString", 1),
+                    Map.entry("startsWith(\"\")", 4),
+                    Map.entry("endsWith(\"\")", 3))),
+            // EXEC (E2, 2026-11-12, G3's guard: today's hits, each registered by name; the P3 items take theirs with
+            // them -- site 1 the Float.toString and Double.parseDouble, site 2 the setScale, scale and Integer.parseInt,
+            // site 4 the getYear, withYear and Calendar)
+            Map.entry("JdbcDecode.java", Map.ofEntries(
+                    // carrier reads: a driver's number as the carrier its slot says, one conversion each (a long from
+                    // a BigInteger that fits, bitLength; an integral decimal as its integer; a decimal from a long, a
+                    // double or its own digits; a Float slot's decimal as the double it is)
+                    Map.entry("BigDecimal.valueOf", 4),
+                    Map.entry("new BigDecimal", 3),
+                    Map.entry("new BigInteger", 1),
+                    Map.entry("bitLength", 3),
+                    Map.entry("longValue", 3),
+                    Map.entry("doubleValue", 2),
+                    Map.entry("Double.valueOf", 1),
+                    Map.entry("stripTrailingZeros", 1),
+                    Map.entry("toBigIntegerExact", 1),
+                    Map.entry("intValue", 1),
+                    // SQLite's date-time text read as the database's timestamp (the floor of its instant)
+                    Map.entry("toInstantFloor", 1),
+                    // site 1 (a REAL's four-byte shortest text, P3-R1): after D1
+                    Map.entry("Float.toString", 5),
+                    Map.entry("Double.parseDouble", 3),
+                    // site 2 (BigQuery's dropped decimal zeros padded to the slot's scale, P3-R2): after D1
+                    Map.entry("setScale", 1),
+                    Map.entry("scale", 2),
+                    Map.entry("Integer.parseInt", 1),
+                    // site 4 (a BC year's era repair, P3-R4): after D1
+                    Map.entry("getYear", 2),
+                    Map.entry("withYear", 2),
+                    Map.entry("Calendar.", 1),
+                    // text tests of the plan's slot and Pure type names (DECIMAL(p,s), Decimal(p,s)), never a cell
+                    Map.entry("startsWith(\"\")", 2),
+                    Map.entry("endsWith(\"\")", 1))),
+            Map.entry("MongoDbDecode.java", Map.ofEntries(
+                    // MongoDB's carriers (a BSON number as its slot's carrier; Decimal128 as its exact decimal, its
+                    // integral form as its integer; a negative zero's sign read, negate)
+                    Map.entry("BigDecimal.valueOf", 4),
+                    Map.entry("longValue", 4),
+                    Map.entry("scale", 2),
+                    Map.entry("stripTrailingZeros", 2),
+                    Map.entry("toBigIntegerExact", 2),
+                    Map.entry("bitLength", 1),
+                    Map.entry("doubleValue", 1),
+                    Map.entry("intValue", 1),
+                    Map.entry("negate", 1),
+                    Map.entry("new BigDecimal", 1),
+                    Map.entry("new BigInteger", 1),
+                    Map.entry("Double.valueOf", 1),
+                    // the plan's Pure type name (Decimal(p,s))
+                    Map.entry("startsWith(\"\")", 1))),
+            Map.entry("PlanParameters.java", Map.ofEntries(
+                    // a parameter's checks before it binds: a year outside 1-9999 refused, a non-finite Float refused,
+                    // a decimal's negative scale written as its plain digits, a multiplicity's upper bound read
+                    Map.entry("getYear", 4),
+                    Map.entry("Double.isFinite", 1),
+                    Map.entry("Integer.valueOf", 1),
+                    Map.entry("scale", 1),
+                    Map.entry("setScale", 1))),
+            // a raised error's planned position (line:column) read from the sentinel-delimited message the plan wrote
+            Map.entry("RaisedErrors.java", Map.of("Integer.parseInt", 2)),
+            // a list parameter's date-time finer than its database keeps refused, never cut (S181)
+            Map.entry("JdbcStatements.java", Map.of("getNano", 1)),
+            // a date-time parameter finer than milliseconds refused (S181), and the server's reported version's major
+            Map.entry("MongoDbStatements.java", Map.of("getNano", 1, "Integer.parseInt", 1)),
+            // a source's scheme (file:), a location, never a cell
+            Map.entry("SourceAdmission.java", Map.of("startsWith(\"\")", 1)),
+            // a reported decimal's scale floored at zero; a reported type NAME tested for a zone (E1 item 3)
+            Map.entry("WireTypes.java", Map.of("Math.", 1, "startsWith(\"\")", 1, "contains(\"\")", 1,
+                    "endsWith(\"\")", 2)));
 
     @Test
     void theWritersCarryAndDecideNothing() throws IOException {
         List<Path> files = new java.util.ArrayList<>(
-                SourceFiles.under(RESULT).stream().filter(p -> p.toString().endsWith(".java")).toList());
+                SourceFiles.under(RESULT, EXEC.toArray(String[]::new)).stream()
+                        .filter(p -> p.toString().endsWith(".java")).toList());
         // track Z, 2026-10-29 (the final audit's finding 2): the service test runner spelled a program's last side
         // itself; since door 1 (2026-10-29) it reads its answer from the boundary's writers -- scanned here with an
         // empty register so that it never spells a cell again
         files.add(SourceFiles.file("core/src/main/java/com/legend/test/ServiceTestRunner.java"));
-        GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 10);
+        // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
+        GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();
         for (Path f : files) {
             String name = f.getFileName().toString();
@@ -201,7 +305,13 @@ class WriterCarriageGuardTest {
         if (m.group(3) != null) {
             return "new " + m.group(3);
         }
-        return m.group(4) + "." + m.group(5);
+        if (m.group(4) != null) {
+            return m.group(4) + "." + m.group(5);
+        }
+        if (m.group(6) != null) {
+            return m.group(6).endsWith("(") ? m.group(6).substring(0, m.group(6).length() - 1) : m.group(6);
+        }
+        return m.group(7) + "(\"\")";
     }
 
     /** The source without its comments and string literals (a word inside either is no call). */

@@ -166,6 +166,57 @@ class JdbcDecodeH2Test {
         }
     }
 
+    /** A zoned date-time the driver hands is carried as the UTC wall clock it is, and any other offset refused by
+     *  name, never shifted in Java (E1 item 3, 2026-11-12: until then {@code withOffsetSameInstant} moved it). H2
+     *  hands a TIMESTAMP WITH TIME ZONE as an OffsetDateTime at its own offset. */
+    @Test
+    void aZonedDateTimeIsCarriedAtUtc_andRefusedAtAnyOtherOffset() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecodezoned" + com.legend.testbackend.TestBackends.h2UrlSettings())) {
+            List<Object> utc = JdbcDecodeCases.row(c, H2,
+                    "SELECT TIMESTAMP WITH TIME ZONE '2024-01-02 10:30:00+00:00' AS TS",
+                    List.of(JdbcDecodeCases.col("TS", "DateTime", "TIMESTAMP")));
+            assertEquals(PureDateLiteral.parse("2024-01-02T10:30:00.000000000"), utc.get(0));
+            var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> JdbcDecodeCases.row(c, H2,
+                    "SELECT TIMESTAMP WITH TIME ZONE '2024-01-02 10:30:00+05:00' AS TS",
+                    List.of(JdbcDecodeCases.col("TS", "DateTime", "TIMESTAMP"))));
+            assertTrue(refused.getMessage().contains("offset +05:00, not UTC"), refused.getMessage());
+        }
+    }
+
+    /** A raw grid's zoned column is refused by the type the database reports, before any row: pgjdbc reports a
+     *  timestamptz as TIMESTAMP (93), so the name decides (E1 item 3, 2026-11-12). A naive one is read. */
+    @Test
+    void aRawGridsZonedColumnIsRefusedByItsReportedName() {
+        for (String zoned : List.of("timestamptz", "TIMESTAMP WITH TIME ZONE", "timestamp(3) with time zone",
+                "TIMESTAMPTZ", "TIMESTAMPLTZ", "TIMESTAMP_TZ", "TIMESTAMP_LTZ")) {
+            var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> WireTypes.column(
+                    new Statements.Reported("at", zoned, com.legend.sql.SqlType.Scalar.TIMESTAMP, true)));
+            assertTrue(refused.getMessage().contains("zoned type " + zoned), refused.getMessage());
+        }
+        for (String naive : List.of("timestamp", "TIMESTAMP_NTZ", "TIMESTAMP(6)")) {
+            assertEquals("DateTime", WireTypes.column(
+                    new Statements.Reported("at", naive, com.legend.sql.SqlType.Scalar.TIMESTAMP, true)).type());
+        }
+    }
+
+    /** A slotless column's kind is never chosen from its cell's text (E1 item 5, Q5, 2026-11-12): a Number the
+     *  driver hands as text is refused by name, and an Any's text is the String it is, a brace or a bracket
+     *  included (until then a '.' or 'e' chose a Decimal, and a leading '{' or '[' parsed a structure). */
+    @Test
+    void aSlotlessColumnsKindIsNeverChosenFromItsText() throws Exception {
+        DatabaseConnector.Decoding driver = new DatabaseConnector.Decoding(false, false, false, false);
+        var number = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> JdbcDecode.decode("1.5", JdbcDecodeCases.col("N", "Number", null), driver));
+        assertTrue(number.getMessage().contains("declared Number with no slot"), number.getMessage());
+        assertThrows(com.legend.error.NotImplementedException.class,
+                () -> JdbcDecode.decode("15", JdbcDecodeCases.col("N", "Number", null), driver));
+        assertEquals("{\"k\": 1}", JdbcDecode.decode("{\"k\": 1}", JdbcDecodeCases.col("A", "Any", null), driver));
+        assertEquals("[1, 2]", JdbcDecode.decode("[1, 2]", JdbcDecodeCases.col("A", "Any", null), driver));
+        // a Number the driver hands as a number is the number it is
+        assertEquals(15L, JdbcDecode.decode(15L, JdbcDecodeCases.col("N", "Number", null), driver));
+        assertEquals(new BigDecimal("1.5"), JdbcDecode.decode(new BigDecimal("1.5"), JdbcDecodeCases.col("N", "Number", null), driver));
+    }
+
     /** {@code rs}, each getter it answers recorded in {@code calls} by name (and a typed getObject's class). */
     private static java.sql.ResultSet recording(java.sql.ResultSet rs, List<String> calls) {
         return (java.sql.ResultSet) java.lang.reflect.Proxy.newProxyInstance(
