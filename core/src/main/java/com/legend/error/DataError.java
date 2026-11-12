@@ -18,13 +18,31 @@ package com.legend.error;
  */
 public final class DataError extends RuntimeException {
 
+    /** The product raise's kind (phase D's D1.1), or null: a database's own error, the edge's sentence, a user's
+     *  {@code fail} message. */
+    private final @com.legend.base.Nullable ErrorKind kind;
+
     public DataError(String message, Throwable cause) {
         super(message, cause);
+        this.kind = null;
+    }
+
+    /** A product raise of {@code kind}: its message the kind's sentence, spelled here, the error layer's
+     *  ({@link ErrorKind#sentence}). */
+    public DataError(ErrorKind kind, Throwable cause) {
+        super(kind.sentence(), cause);
+        this.kind = kind;
+    }
+
+    /** The product raise's kind, or null where the error is not one ({@link #DataError(String, Throwable)}). */
+    public @com.legend.base.Nullable ErrorKind kind() {
+        return kind;
     }
 
     /** An error decided at planning, raised at its turn from the test plan's data (docs/PLAN_AS_DATA_2026_11_07.md
      *  2.4, 2026-11-08): the message as it was planned, no cause (planning sends no statement). */
     public DataError(String message) {
         super(message);
+        this.kind = null;
     }
 }

@@ -221,7 +221,7 @@ class AuditRound3Test {
     void addOutOfBoundsIsLoud() throws Exception {
         var ex = assertThrows(Exception.class,
                 () -> scalar("|[1,2]->meta::pure::functions::collection::add(9, 99)"));
-        assertTrue(String.valueOf(ex.getMessage()).contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.INSERT_OUT_OF_BOUNDS)), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains(com.legend.error.ErrorKind.INSERT_OUT_OF_BOUNDS.sentence()), ex.getMessage());
         assertEquals("a", scalar(
                 "|['a','b']->meta::pure::functions::collection::add(1, 'c')").toString());
     }

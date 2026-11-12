@@ -104,7 +104,7 @@ class MultiplicityStrictnessTest {
             Exception e = assertThrows(Exception.class,
                     () -> Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{| [1,2]->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
-                            .contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
+                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e.getMessage());
             // the singleton extracts — the guard is size-exact
             var ok = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{| [7]->toOne() }", StorelessRuntime.RUNTIME, c);
@@ -118,7 +118,7 @@ class MultiplicityStrictnessTest {
         try (Connection c = TestBackends.platform().open()) {
             Exception e = assertThrows(Exception.class, () -> Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{| [1,2,3]->filter(x|$x > 10)->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
-                            .contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
+                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e.getMessage());
         }
     }
@@ -135,7 +135,7 @@ class MultiplicityStrictnessTest {
                             + "->filter(r|$r.x > 5)->map(r|$r.x)->toOne() }", StorelessRuntime.RUNTIME,
                     c));
             assertTrue(String.valueOf(e.getMessage())
-                            .contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
+                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e.getMessage());
             // control: a satisfied promise still flows
             var ok = Lean.run(StorelessRuntime.with("", Databases.PLATFORM),
@@ -148,7 +148,7 @@ class MultiplicityStrictnessTest {
                     "{| #TDS\n  x:Integer\n  1\n  2\n#"
                             + "->map(r|$r.x)->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e2.getMessage())
-                            .contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
+                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e2.getMessage());
         }
     }

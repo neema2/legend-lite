@@ -86,7 +86,7 @@ class AuditTier1PipelineTest {
                         "{|[1, 2, 3]->filter(x | $x > 10)->toOneMany();}", StorelessRuntime.RUNTIME,
                         conn));
         assertTrue(String.valueOf(e.getMessage())
-                        .contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
+                        .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                 "expected pure's size-0 cast error, got: "
                 + e.getMessage());
     }

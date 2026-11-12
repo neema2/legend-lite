@@ -45,7 +45,7 @@ class RelationToOneGuardTest {
     private static void assertSizeError(String model, Connection c, String query, int size) {
         Exception e = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
         // the product's kind, in lite's words (D1.1): the size is legend-pure's sentence's, the edge's
-        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)), query + " (size " + size + "): "
+        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()), query + " (size " + size + "): "
                 + e.getMessage());
     }
 

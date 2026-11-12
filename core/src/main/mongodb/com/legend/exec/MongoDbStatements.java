@@ -284,8 +284,7 @@ final class MongoDbStatements implements Statements {
 
     /** The server's failure as the platform's data error: a raise's message unwrapped from the server's text. */
     private static com.legend.error.DataError failure(MongoException e) {
-        String unwrapped = RaisedErrors.unwrap(e.getMessage());
-        return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
+        return RaisedErrors.dataError(String.valueOf(e.getMessage()), e);
     }
 
     /** A key slot's value: the key's text, as the runner's expansion gives it (J7, 2026-11-12). */

@@ -71,7 +71,7 @@ class Part1SemanticsTest {
             Exception to = assertThrows(Exception.class,
                     () -> scalar("{|[]->first()->toOne()}", conn));
             assertTrue(String.valueOf(to.getMessage()).contains(
-                            com.legend.exec.RaisedErrors.sentence(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY)),
+                            com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     "value-lane toOne over empty must raise: "
                             + to.getMessage());
             assertEquals("1",
