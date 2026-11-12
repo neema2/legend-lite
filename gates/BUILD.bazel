@@ -435,6 +435,11 @@ test_suite(
         # bridge's answered set, a host operation's planner text typed -- ran in the warehouse lane alone, so a session's
         # gate never saw it; it shares the native library the lane above builds
         "//python:planned_test",
+        # 2026-11-12 (the orchestrator's item 3): a page's grid run by DataCube's own code in V8 on Python -- the product's
+        # bridge (the answered set, a hosted fetch's statement, a host operation's texts), the planner's kinds and the
+        # snapshot's pull -- ran in the warehouse lane alone; it shares the native library and the bundle the lanes
+        # above build
+        "//python:headless_test",
     ],
 )
 
