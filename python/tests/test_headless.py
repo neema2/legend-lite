@@ -1170,13 +1170,19 @@ class IntentCalls(unittest.TestCase):
         for gone in ('query', 'statement', 'registerFile'):
             self.assertIsNone(self.headless.evaluate(f'legendLiteHost.{gone} ?? null'), gone)
 
-    def test_a_file_is_loaded_by_pythons_plan_its_path_bound_and_the_catalog_and_count_asked_by_name(self):
+    def test_a_file_is_loaded_by_pythons_plan_held_by_its_handle_and_the_catalog_and_count_asked_by_name(self):
         path = self.folder / 'upload_t_in.csv'
         path.write_text('id,name\n1,a\n2,b\n3,c\n', encoding='utf-8')
         data = path.read_bytes()
         held = {'name': path.name, 'digest': hashlib.sha256(data).hexdigest(), 'size': len(data)}
         load = json.dumps({'fileLoad': {'databaseType': 'DuckDB', 'file': {**held, 'format': 'csv'}, 'into': {'table': 't_in'}}})
-        self.assertIsNone(self.call('load', load, json.dumps({'files': [{**held, 'at': str(path)}]})))
+        # the file named by the handle this host issued, never by its path (the orchestrator's ruling of 2026-11-12)
+        handle = self.headless.hand_out(path)
+        self.assertNotIn(str(path), handle)
+        for unknown in (str(path), 'file-none'):
+            with self.subTest(unknown), self.assertRaisesRegex(Exception, 'is no file this host handed out'):
+                self.call('load', load, json.dumps({'files': [{**held, 'handle': unknown}]}))
+        self.assertIsNone(self.call('load', load, json.dumps({'files': [{**held, 'handle': handle}]})))
         said = json.loads(self.call('catalog', 'main', 't_in'))
         at = said['columns'].index('column_name')
         self.assertEqual([r[at] for r in said['rows']], ['id', 'name'])
@@ -1184,7 +1190,11 @@ class IntentCalls(unittest.TestCase):
         self.assertEqual(counted, [[[3]]])
         # a file the holds do not name is refused by name, nothing read
         with self.assertRaisesRegex(Exception, "is not one this load holds"):
-            self.call('load', load.replace('t_in', 't_other'), json.dumps({'files': [{**held, 'digest': '0' * 64, 'at': str(path)}]}))
+            self.call('load', load.replace('t_in', 't_other'), json.dumps({'files': [{**held, 'digest': '0' * 64, 'handle': handle}]}))
+        # a handle taken back names no file
+        self.headless.take_back(handle)
+        with self.assertRaisesRegex(Exception, 'is no file this host handed out'):
+            self.call('load', load.replace('t_in', 't_again'), json.dumps({'files': [{**held, 'handle': handle}]}))
         self.assertEqual(self.raw.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 't_other'").fetchone(), (0,))
 
     def test_operations_run_in_order_and_a_read_takes_counts_alone(self):

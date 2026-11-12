@@ -157,12 +157,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         sources: tables.map((table) => ({ table, convertible: true })),
         held: (table) => tablesTaken?.(table) ?? true,
         models: local.tables,
-        writing: heldTableWriting({
-          databaseType: engine.databaseType,
-          models: local.tables,
-          hold: (work) => engine.exclusive!(work),
-          planOf: (query) => planner.plan(query),
-          executionPlan: async (model, runtime, program) => {
+        writing: heldTableWriting({ databaseType: engine.databaseType, exclusive: (work) => engine.exclusive!(work) }, local.tables,
+          (query) => planner.plan(query), async (model, runtime, program) => {
             const p = local.another(model, runtime);
             try {
               if (p.executionPlan === undefined) throw new Error("this page's planner plans no write");
@@ -170,8 +166,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             } finally {
               p.dispose?.();
             }
-          },
-        }),
+          }),
       });
       // its table this tab's from now on: no file read in after takes its name (and replaces it)
       tableWritten?.(output.name);

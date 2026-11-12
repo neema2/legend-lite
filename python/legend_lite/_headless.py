@@ -33,6 +33,7 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from collections.abc import Callable, Coroutine, Iterator
 from pathlib import Path
 from typing import Any
@@ -147,6 +148,8 @@ class Headless:
         self._over: Any = None
         # the settings of the connection each mount made, by its view, as this host's runner kept them (``settings_of``)
         self._settings: dict[str, tuple[dict[str, Any], ...]] = {}
+        # the files handed out to DataCube's code, each by the handle issued for it (``hand_out``): what a load's holds name
+        self._handed: dict[str, Path] = {}
         # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
         # a warehouse table opened under the session it holds), over the call's read, given by the engine's owner as a
         # weak reference to them (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone:
@@ -209,7 +212,8 @@ class Headless:
         asks it -- ``{"fileLoad": ...}``, a file this host holds read into a table of its own; ``{"remoteMount": ...}``, a
         remote file's access, or its view -- planned by this host's planner (``compiler.file_load``, ``remote_mount``)
         and run by its runner on its database (``projects.run_host_load``), binding what ``holds`` names: its files
-        (``{"name", "digest", "size", "at"}``: where its database reads each) and its keys and bearer URLs by name. A
+        (``{"name", "digest", "size", "handle"}``: each by the handle this host issued, ``hand_out``, resolved here) and
+        its keys and bearer URLs by name. A
         mount's settings of the connection are kept here by its view (``settings_of``), never handed back. In no read."""
         self._writing('a load')
         asked, held = json.loads(request), json.loads(holds)
@@ -220,11 +224,31 @@ class Headless:
         else:
             raise ValueError(f'a load is a file read in (fileLoad) or a remote file mounted (remoteMount), not {sorted(asked)}')
         files = None if 'files' not in held else tuple(
-            projects.HostFile(f['name'], f['digest'], f['size'], f['at']) for f in held['files'])
+            projects.HostFile(f['name'], f['digest'], f['size'], str(self._resolved(f['handle']))) for f in held['files'])
         ran = projects.run_host_load(plan, self._db, files=files, secrets=held.get('secrets'))
         view = asked.get('remoteMount', {}).get('view')
         if view is not None:
             self._settings[view] = ran.settings
+
+    def hand_out(self, path: str | Path) -> str:
+        """A file this host hands DataCube's code to read, by a HANDLE issued for it here (the orchestrator's ruling of
+        2026-11-12: the path gap closed structurally): DataCube's code names the file in a load's holds by that handle
+        alone, and this host resolves it (``_load``) -- never a path DataCube's code sends back. Taken back with
+        ``take_back`` once the read is over."""
+        handle = f'file-{uuid.uuid4().hex}'
+        self._handed[handle] = Path(path)
+        return handle
+
+    def take_back(self, handle: str) -> None:
+        """A handed-out file's handle let go: a load naming it after is refused."""
+        self._handed.pop(handle, None)
+
+    def _resolved(self, handle: Any) -> Path:
+        path = self._handed.get(handle) if isinstance(handle, str) else None
+        if path is None:
+            raise ValueError(f"{handle!r} is no file this host handed out: a load holds a file by the handle the host "
+                             'issued for it')
+        return path
 
     def settings_of(self, view: str) -> tuple[dict[str, Any], ...]:
         """The settings of the connection the last mount of ``view`` made (a bearer URL's session variable: its statement

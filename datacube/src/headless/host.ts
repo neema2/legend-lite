@@ -12,7 +12,8 @@
 import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import type { PythonLink } from '../services/python-host.ts';
-import { catalogColumnsRead, type DataHost, type Rows } from '../data-host.ts';
+import type { DataHost, Rows } from '../data-host.ts';
+import { catalogColumnsRead } from '../upload.ts';
 import type { TableWriteHost } from '../table-output.ts';
 import { hostCalls, type HostCalls } from './calls.ts';
 import { fromBase64 } from './web.ts';

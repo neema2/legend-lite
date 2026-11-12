@@ -57,8 +57,7 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
-import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
-import { heldDataHost } from '../data-host.ts';
+import { dataHost, formatOf, modelLanded, tableNameOf } from '../upload.ts';
 import type { GridStartOpened, JoinRead, JoinSourcesHost } from './join-sources.ts';
 import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
 import { lazily } from '../lazily.ts';
@@ -575,7 +574,7 @@ export function pageSources(d: SourcesOf): PageSources {
       return {
         table,
         landed: async () => {
-          const m = await modelLanded(heldDataHost(l.engine, l.tables), l.tables, table);
+          const m = await modelLanded((await dataHost()).heldDataHost(l.engine, l.tables), l.tables, table);
           planner = l.another(m.model, m.runtime, { bitColumns: m.bitColumns });
           return { source: m.source, planner };
         },

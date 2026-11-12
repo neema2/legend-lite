@@ -13,10 +13,11 @@ import { dropFileTable, modelLanded, mountRemoteView, readFileInto, tableNameOf,
 import { hostCalls, hostData, hostWorker } from './host.ts';
 import type { HostLeaf } from './host-tables.ts';
 
-/** A file as Python hands it in: where its DuckDB reads it, its name as picked (its format), the table to read it into
+/** A file as Python hands it in: the handle Python issued for it (a name in its registry of the files it handed out,
+ *  never a path: the orchestrator's ruling of 2026-11-12), its name as picked (its format), the table to read it into
  *  -- and, as the host read its bytes, their size and lower-case hex SHA-256, by which a page names the file. */
 export interface IngestSpec {
-  readonly path: string;
+  readonly file: string;
   readonly name: string;
   readonly table: string;
   readonly size: number;
@@ -40,11 +41,12 @@ async function using<T>(use: (o: { host: DataHost; writer: LitePlanner }) => Pro
 export async function ingest(spec: string): Promise<string> {
   const s = JSON.parse(spec) as IngestSpec;
   return using(async ({ host, writer }) => {
-    // the plan names the file by the table's upload name, Python's SHA-256 and size of the bytes it wrote; Python's path
-    // is bound to the statement's ?, never written (B3: a planned load, the file a pointer), Python's planner planning
-    // the load and its runner running it (the #6 bridge)
+    // the plan names the file by the table's upload name, Python's SHA-256 and size of the bytes it wrote; the load holds
+    // it by the handle Python issued, which Python alone resolves to what its DuckDB reads, bound to the statement's ?
+    // (B3: a planned load, the file a pointer), Python's planner planning the load and its runner running it (the #6
+    // bridge)
     const read = await readFileInto(host, {
-      at: s.path, name: uploadFileName(s.table, s.name), digest: s.sha256, size: s.size, fileName: s.name, table: s.table,
+      handle: s.file, name: uploadFileName(s.table, s.name), digest: s.sha256, size: s.size, fileName: s.name, table: s.table,
     }, writer);
     // the file as a page's cube names it (host-tables.ts HostLeaf): what the host serves the table by
     const leaf: HostLeaf = { _type: 'file', name: s.name, size: s.size, sha256: s.sha256 };

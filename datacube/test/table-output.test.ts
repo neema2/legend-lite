@@ -32,13 +32,8 @@ describe('a box written into a table of its host\'s database, in one transaction
     sources: [{ table: 'tw_src', convertible: true }],
     held: (t) => t === 'tw_src',
     models,
-    writing: heldTableWriting({
-      databaseType: 'DuckDB',
-      models,
-      hold: (work) => engine.exclusive(work),
-      planOf: (q) => planner(model.model, model.runtime).plan(q),
-      executionPlan: (m, r, program) => planner(m, r).executionPlan(program),
-    }),
+    writing: heldTableWriting(engine, models, (q) => planner(model.model, model.runtime).plan(q),
+      (m, r, program) => planner(m, r).executionPlan(program)),
   });
   /** The box's rows: the source's, or those `keep` holds for. */
   const rowsOf = (keep?: (x: ValueSpecification) => ValueSpecification): Lambda =>

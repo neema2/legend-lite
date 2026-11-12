@@ -16,18 +16,21 @@ import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
 import type { ConnectionSettings, PlanValue } from '../../engine-client/src/plan-runner.ts';
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
+import { catalogColumnsRead, columnOf } from './upload.ts';
 
 /** What a host is asked to load, as its planner is asked for the plan: a file it holds read into a table of its own
  *  (`fileLoad`), or a remote file's access or its view (`remoteMount`). */
 export type LoadRequest = { readonly fileLoad: FileLoadRequest } | { readonly remoteMount: RemoteMountRequest };
 
-/** A file the host holds, as a load's plan names it (its name, size and SHA-256), and where its database reads it (`at`:
- *  bound to the reading statement's `?`, never written into one). */
+/** A file the host holds, as a load's plan names it (its name, size and SHA-256), and the HANDLE the host issued for it
+ *  (the orchestrator's ruling of 2026-11-12, the path gap closed structurally): the host's own name for the file, which
+ *  only the host resolves to what its database reads -- the tab's, the name DuckDB-WASM registered it under; Python's, a
+ *  name in its registry of the files it handed out, never a path DataCube's code sends back. */
 export interface HeldFile {
   readonly name: string;
   readonly digest: string;
   readonly size: number;
-  readonly at: string;
+  readonly handle: string;
 }
 
 /** What a load binds by name, never written into its plan: the files it reads, and the keys and bearer URLs it is
@@ -64,36 +67,16 @@ export function secretStore(secrets: NonNullable<LoadHolds['secrets']>): SecretS
   return store;
 }
 
-/** The host's files, as the hosts' runner locates the one a plan names: by its name, size and digest, else refused by
- *  name (Python's runner says the same: projects.py `located`). */
+/** The tab's files, as the hosts' runner locates the one a plan names: by its name, size and digest, else refused by
+ *  name (Python's runner says the same: projects.py `located`) -- its handle, the name DuckDB-WASM reads it by. */
 export function heldFiles(files: readonly HeldFile[]): { located(ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string> } {
   return {
     located: async (ref) => {
       const f = files.find((h) => h.name === ref.name && h.digest === ref.digest && h.size === ref.size);
       if (f === undefined) throw new Error(`the file '${ref.name}' (${ref.size} bytes of digest ${ref.digest}) is not one this load holds`);
-      return f.at;
+      return f.handle;
     },
   };
-}
-
-/** A table's columns, from the catalog's answer read column by column (`column`: the answer's values of a column, by
- *  its name): each one's canonical type and a DECIMAL's precision and scale as data, no type string parsed. */
-export function catalogColumnsRead(column: (name: string) => readonly unknown[]): CatalogColumn[] {
-  const names = column('column_name');
-  const types = column('data_type');
-  const logical = column('logical_type');
-  const precision = column('numeric_precision');
-  const scale = column('numeric_scale');
-  const notNull = column('not_null');
-  const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
-  return names.map((n, i) => ({
-    name: String(n),
-    dataType: String(types[i]),
-    logicalType: logical[i] === null || logical[i] === undefined ? null : String(logical[i]),
-    precision: num(precision[i]),
-    scale: num(scale[i]),
-    notNull: notNull[i] === true,
-  }));
 }
 
 /** A RawTable's rows, each its values by column. */
@@ -157,11 +140,4 @@ export function heldDataHost(database: HeldDatabase,
       database.settings?.forget(view);
     },
   };
-}
-
-/** One column of a RawTable, by name. */
-export function columnOf(t: RawTable, name: string): readonly unknown[] {
-  const col = t.columns.find((c) => c.name === name);
-  if (!col) throw new Error(`the catalog did not return ${name} — got ${t.columns.map((c) => c.name).join(', ')}`);
-  return col.values;
 }

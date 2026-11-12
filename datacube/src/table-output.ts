@@ -93,17 +93,17 @@ export async function writeTable(rows: Lambda, output: TableOutput, host: TableW
  * relation operation, the query's own values (a data: payload: M3) bound to the one statement that reads it; the program
  * planned (`executionPlan`) and run by the hosts' runner joining the transaction (runPlan).
  */
-export function heldTableWriting(o: {
-  readonly databaseType: string;
-  readonly models: Pick<TableModels, 'catalogColumnsSql' | 'hostOperations'>;
-  /** The host's database held for the write alone (duckdb.ts exclusive). */
-  hold<T>(work: (held: HeldConnection) => Promise<T>): Promise<T>;
+export function heldTableWriting(
+  /** The host's database: its type, and its connection held for the write alone (duckdb.ts exclusive). */
+  database: { readonly databaseType: string; exclusive<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> },
+  models: Pick<TableModels, 'catalogColumnsSql' | 'hostOperations'>,
   /** A query over the box's own model planned: its SQL and the values it binds (the create's columns, its rows none). */
-  planOf(query: Lambda): Promise<Plan>;
+  planOf: (query: Lambda) => Promise<Plan>,
   /** A program planned over `model` as an execution plan (PlanJson's text). */
-  executionPlan(model: string, runtime: string, program: Lambda): Promise<string>;
-}): TableWriteHost['writing'] {
-  return (work) => o.hold(async (held) => {
+  executionPlan: (model: string, runtime: string, program: Lambda) => Promise<string>,
+): TableWriteHost['writing'] {
+  const o = { databaseType: database.databaseType, models, planOf, executionPlan };
+  return (work) => database.exclusive(async (held) => {
     const session = await hostSession(o.databaseType, held.rows, o.models);
     await session.transaction('begin');
     try {

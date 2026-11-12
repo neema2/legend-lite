@@ -931,8 +931,13 @@ class Engine:
         size, sha256 = _bytes_of(path)
         # its turn first, then the frames held: no one holds the frames waiting for a turn (D15)
         with headless.turn(), self.frames.reading_file(asked) as table:
-            read: dict[str, Any] = json.loads(headless.call('ingest', json.dumps(
-                {'path': str(path), 'name': name, 'table': table, 'size': size, 'sha256': sha256})))
+            # the file handed to DataCube's code by a handle this host issued, never its path (headless.hand_out)
+            handle = headless.hand_out(path)
+            try:
+                read: dict[str, Any] = json.loads(headless.call('ingest', json.dumps(
+                    {'file': handle, 'name': name, 'table': table, 'size': size, 'sha256': sha256})))
+            finally:
+                headless.take_back(handle)
             # the bytes the database read are the bytes the plan names (the tenets audit's LOW 9, 2026-11-11): the plan
             # names the file by the digest taken before the read, and DuckDB reads the path, so the file is hashed again
             # once read -- one changed meanwhile is refused, its table dropped (reading_file), never kept as the file

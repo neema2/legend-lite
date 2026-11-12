@@ -8535,6 +8535,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/upload.ts",
         "src/value-filter.ts",
     ],
     "runner": [
