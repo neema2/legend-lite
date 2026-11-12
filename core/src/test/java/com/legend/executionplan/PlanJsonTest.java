@@ -135,6 +135,27 @@ class PlanJsonTest {
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
+    /** The settings a target's database must have (the C checkpoint's SHOULD-FIX 3, 2026-11-12: H2's MODE and null
+     *  ordering, the database's, whose SET would commit a caller's transaction) are the plan's data: each a name and a
+     *  value, with the statement that reads them back; written only where a target declares them. */
+    @Test
+    void aTargetsDatabaseSettingsReadBack_writtenOnlyWhereDeclared() {
+        ExecutionPlan.DatabaseSettings settings = new ExecutionPlan.DatabaseSettings(List.of(
+                new ExecutionPlan.Setting("A_SETTING", "ON"), new ExecutionPlan.Setting("B_SETTING", "HIGH")),
+                "SELECT NAME, VALUE FROM SETTINGS");
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
+                List.of(), List.of(), null, settings);
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+                new Sql("select 1", List.of(), t, null)));
+        String json = PlanJson.write(plan);
+        assertEquals(plan, PlanJson.read(json));
+        assertTrue(json.contains("\"settings\":{\"required\":[{\"name\":\"A_SETTING\",\"value\":\"ON\"},"
+                + "{\"name\":\"B_SETTING\",\"value\":\"HIGH\"}],\"readBack\":\"SELECT NAME, VALUE FROM SETTINGS\"}"), json);
+        Target none = new Target(t.database(), List.of(), List.of(), null, null);
+        assertTrue(!PlanJson.writeTarget(none).contains("settings"), PlanJson.writeTarget(none));
+        assertTrue(!PlanJson.writeTarget(none).equals(PlanJson.writeTarget(t)), "two targets whose settings differ");
+    }
+
     @Test
     void theGraphsSystemDatabaseReadsBack() {
         // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system

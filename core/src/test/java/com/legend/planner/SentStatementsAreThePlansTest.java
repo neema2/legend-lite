@@ -211,7 +211,13 @@ class SentStatementsAreThePlansTest {
     /** {@code target}'s texts in the order a session acquired for it sends them: its session statements, then each
      *  load's statements and staging. */
     private static List<String> targetTexts(ExecutionPlan.Target target) {
-        List<String> out = new ArrayList<>(target.session());
+        List<String> out = new ArrayList<>();
+        // a session the runner did not open is read back for the settings its database must have (H2's: the C
+        // checkpoint's SHOULD-FIX 3), the target's own statement
+        if (target.settings() != null) {
+            out.add(target.settings().readBack());
+        }
+        out.addAll(target.session());
         for (ExecutionPlan.Load load : target.loads()) {
             out.addAll(load.target().session());
             for (ExecutionPlan.LoadStep step : load.steps()) {
