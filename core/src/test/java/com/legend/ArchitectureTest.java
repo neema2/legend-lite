@@ -600,15 +600,24 @@ final class ArchitectureTest {
      */
     @Test
     void plannerIsExecutionFree() {
-        noClasses()
+        PLANNER_IS_EXECUTION_FREE.check(CORE_PROD_CLASSES);
+    }
+
+    /** STEP C (the rule of {@link #plannerIsExecutionFree}). */
+    static final com.tngtech.archunit.lang.ArchRule PLANNER_IS_EXECUTION_FREE = noClasses()
             .that().resideInAPackage("com.legend.planner")
             .or().haveFullyQualifiedName("com.legend.Compiler")
             .or().haveFullyQualifiedName("com.legend.TypedQuery")
             .or().haveFullyQualifiedName("com.legend.HeldModels")
             .should().dependOnClassesThat().resideInAnyPackage("com.legend.testplan", "com.legend.exec..",
                     "com.legend.testexec")
-            .as("step C: planning never touches the test's planner, the runtime or the test's run")
-            .check(CORE_PROD_CLASSES);
+            .as("step C: planning never touches the test's planner, the runtime or the test's run");
+
+    /** {@link #plannerIsExecutionFree} fails on a planner class that runs a plan ({@code planner.PlantedPlanRun}, a test
+     *  class planted for this alone; C's self-audit, check 6, 2026-11-12: until then the rule had none). */
+    @Test
+    void thePlannerRuleBitesAPlantedRun() {
+        bites(PLANNER_IS_EXECUTION_FREE, com.legend.planner.PlantedPlanRun.class);
     }
 
     /**
@@ -3198,14 +3207,23 @@ final class ArchitectureTest {
     /** Exec makes no load and no load step: it runs the plan's (the wall's data half; P2, 2026-11-09). */
     @Test
     void execMakesNoLoad() {
-        noClasses()
+        EXEC_MAKES_NO_LOAD.check(CORE_PROD_CLASSES);
+    }
+
+    /** P2 (the rule of {@link #execMakesNoLoad}). */
+    static final com.tngtech.archunit.lang.ArchRule EXEC_MAKES_NO_LOAD = noClasses()
             .that().resideInAnyPackage("com.legend.exec..", "com.legend.testexec..")
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
                                     .nameMatching("com\\.legend\\.executionplan\\.ExecutionPlan\\$(Load|LoadStep\\$.*)"))))
-            .as("P2: exec runs a plan's loads and makes none")
-            .check(CORE_PROD_CLASSES);
+            .as("P2: exec runs a plan's loads and makes none");
+
+    /** {@link #execMakesNoLoad} fails on a class of exec's package that makes a load's step ({@code exec.PlantedLoad},
+     *  a test class planted for this alone; C's self-audit, check 6, 2026-11-12: until then the rule had none). */
+    @Test
+    void theLoadRuleBitesAPlantedLoad() {
+        bites(EXEC_MAKES_NO_LOAD, com.legend.exec.PlantedLoad.class);
     }
 
     /** The run side (core-layers' run-side libraries: exec, the test's run, the result library, and the base and
