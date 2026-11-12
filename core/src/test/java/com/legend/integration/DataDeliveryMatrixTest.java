@@ -384,7 +384,7 @@ class DataDeliveryMatrixTest {
         try (Connection c = session(db)) {
             Collector collector = new Collector();
             ProductRun.run(back, SessionSource.given(TestSessions.over(c)), PlanSessions.of(TestSessions.over(c)),
-                    ProductRun.Establish.DECLARED_SETUP, new Output.Rows(collector), 1024);
+                    ProductRun.Establish.DECLARED_SETUP, new Output.Rows(collector), 1024, java.util.UUID.randomUUID());
             return strings(collector);
         }
     }

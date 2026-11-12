@@ -18,16 +18,16 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * AN EXECUTION'S TRACE (C1's second half, the user's ruling of 2026-11-10, "Agree with all"; built 2026-11-12 by the C
- * checkpoint's code audit, SHOULD-FIX 4): each execution mints one id, as upstream's {@code ExecutionState} mints its
+ * checkpoint's code audit, SHOULD-FIX 4): each execution has one id, as upstream's {@code ExecutionState} has its
  * {@code execID}; it is the id the run names to its listener before its columns, the id its statements' stamps bind,
- * and the id the answer's activity reports.
+ * and the id the answer's activity reports. The id is its DOOR's (the user's ruling of 2026-11-12, "Do the exec id as
+ * part of C"): minted where the run starts ({@code Execution}, {@code TestExecution}) and passed into exec, which makes
+ * none; here the test is the door, and passes the id it chooses.
  */
 class ExecutionTraceTest {
 
@@ -67,16 +67,48 @@ class ExecutionTraceTest {
         }
     }
 
+    private static final UUID ONE = UUID.fromString("00000000-0000-4000-8000-000000000001");
+    private static final UUID TWO = UUID.fromString("00000000-0000-4000-8000-000000000002");
+
     @Test
-    void anExecutionNamesItsIdToItsListenerFirst_andItsStampBindsTheSameId() throws IOException {
+    void anExecutionNamesItsDoorsIdToItsListenerFirst_andItsStampBindsThatId() throws IOException {
         Told first = new Told();
-        PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), first);
-        UUID id = assertInstanceOf(UUID.class, first.told.get(0), "the execution's id, before its columns");
-        assertEquals(List.of(id, "columns", ExecutionPlan.traceComment(id), "end"), first.told,
-                "the statement's stamp is the execution's own id: the one the listener was told");
+        PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), first, ONE);
+        assertEquals(List.of(ONE, "columns", ExecutionPlan.traceComment(ONE), "end"), first.told,
+                "the door's id, before the columns, and the statement's stamp bound to it");
         Told second = new Told();
-        PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), second);
-        assertNotEquals(id, second.told.get(0), "each execution mints its own");
+        PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), second, TWO);
+        assertEquals(List.of(TWO, "columns", ExecutionPlan.traceComment(TWO), "end"), second.told,
+                "another execution, the id its door passed");
+    }
+
+    /** A door that passes a fixed id gets the same activity report, byte for byte: exec adds no value of its own. */
+    @Test
+    void aFixedIdWritesADeterministicActivityReport() throws IOException {
+        List<String> reports = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            StringWriter out = new StringWriter();
+            PureV1Writer writer = PureV1Writer.relation(out, columns -> new PureV1Writer.Envelope(
+                    "{\"_type\":\"tdsBuilder\",\"columns\":[]}", "SELECT 1", List.of("n")));
+            PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), writer, ONE);
+            reports.add(out.toString());
+        }
+        assertEquals(reports.get(0), reports.get(1), "one id, one report");
+        assertTrue(reports.get(0).contains(ONE.toString()), reports.get(0));
+    }
+
+    /** The run's scope carries the id its door passed and mints none: a run of one statement, which reads none, has
+     *  none. */
+    @Test
+    void theRunsScopeCarriesTheDoorsIdAndMintsNone() {
+        try (var run = com.legend.base.RunScope.enter(ONE)) {
+            assertEquals(ONE, com.legend.base.RunScope.execution());
+        }
+        try (var run = com.legend.base.RunScope.enter()) {
+            assertEquals(null, com.legend.base.RunScope.currentExecution());
+            assertThrows(IllegalStateException.class, com.legend.base.RunScope::execution);
+        }
+        assertThrows(NullPointerException.class, () -> com.legend.base.RunScope.enter(null));
     }
 
     @Test
@@ -108,7 +140,7 @@ class ExecutionTraceTest {
                 writer.end();
             }
         };
-        PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), recording);
+        PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), recording, ONE);
         assertTrue(out.toString().contains("\"comment\":\"-- \\\"executionTraceID\\\" : \\\"" + told[0] + "\\\"\""),
                 "the activity's comment names the run's execution: " + out);
     }

@@ -54,7 +54,7 @@ class TypedPlanTest {
         // the plan reads back from its JSON as it was made (format 12: the typed result's shape)
         assertEquals(PlanJson.write(plan), PlanJson.write(PlanJson.read(PlanJson.write(plan))));
         try (Connection c = TestBackends.of(type).open()) {
-            return PlanRunner.rows(plan, Map.of(), PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), target(plan)));
+            return PlanRunner.rows(plan, Map.of(), PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), target(plan)), java.util.UUID.randomUUID());
         }
     }
 
@@ -155,7 +155,7 @@ class TypedPlanTest {
                 public void end() {
                     events.add("end");
                 }
-            }, 2);
+            }, 2, java.util.UUID.randomUUID());
         }
         assertEquals(List.of("columns [ID, NAME]", "batch 2 1", "batch 1 3", "end"), events);
     }

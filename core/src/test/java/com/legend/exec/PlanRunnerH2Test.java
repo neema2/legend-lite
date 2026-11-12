@@ -133,7 +133,7 @@ class PlanRunnerH2Test {
                     new ExecutionPlan.Sql("SELECT CAST(? AS BIGINT) AS N, 'a' AS S, DATE '2024-01-02' AS D",
                             List.of(new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null))), target,
                             null)));
-            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)));
+            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)), java.util.UUID.randomUUID());
             assertEquals(List.of(List.of(7L, "a", com.legend.values.PureDateLiteral.parse("2024-01-02"))), rows.rows());
             assertEquals(List.of("N", "S", "D"), rows.columns().stream().map(ExecutionPlan.Column::name).toList());
         }

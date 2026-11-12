@@ -100,7 +100,7 @@ class MongoDbPlanTest {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT");
         com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
         StringWriter out = new StringWriter();
-        PlanRunner.stream(plan, values, PlanSessions.shared(), written.writer(out, plan.answerShape()));
+        PlanRunner.stream(plan, values, PlanSessions.shared(), written.writer(out, plan.answerShape()), java.util.UUID.randomUUID());
         return out.toString();
     }
 

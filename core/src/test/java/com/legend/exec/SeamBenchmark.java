@@ -324,7 +324,7 @@ final class SeamBenchmark {
                 }
             }
         };
-        PlanRunner.stream(plan, Map.of(), sessions, counting);
+        PlanRunner.stream(plan, Map.of(), sessions, counting, java.util.UUID.randomUUID());
         return new Drained(n[0], written == null ? 0 : written.getAsLong());
     }
 

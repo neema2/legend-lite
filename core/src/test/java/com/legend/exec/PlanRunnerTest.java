@@ -177,7 +177,7 @@ class PlanRunnerTest {
         ExecutionPlan given = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)),
                 counting(inMemory("s::C", Databases.PLATFORM, new ConnectionSpecification.InMemory()), "UNOPENED_T").root());
         var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.rows(given, Map.of("n", "1"),
-                com.legend.exec.PlanSessions.refusing("a session was opened")));
+                com.legend.exec.PlanSessions.refusing("a session was opened"), java.util.UUID.randomUUID()));
         assertEquals(invalid("parameter 'n' (Integer[1]): given \"1\" (String): an Integer is a Long"),
                 refused.getMessage());
     }
@@ -191,7 +191,7 @@ class PlanRunnerTest {
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
         var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(),
-                com.legend.exec.PlanSessions.refusing("a session was opened")));
+                com.legend.exec.PlanSessions.refusing("a session was opened"), java.util.UUID.randomUUID()));
         assertEquals("slot of 'n': its null type 'NOT_A_TYPE' is no JDBC type", refused.getMessage());
     }
 
@@ -220,7 +220,7 @@ class PlanRunnerTest {
     /** {@link #run(ExecutionPlan, PlanSessions.Source)} with {@code values}. */
     static @com.legend.base.Nullable String run(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions)
             throws Exception {
-        List<List<Object>> rows = PlanRunner.rows(plan, values, sessions).rows();
+        List<List<Object>> rows = PlanRunner.rows(plan, values, sessions, java.util.UUID.randomUUID()).rows();
         assertEquals(1, rows.size(), "one row");
         return (String) rows.get(0).get(0);
     }

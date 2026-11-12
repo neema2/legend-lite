@@ -60,7 +60,7 @@ class ProductStatementsTest {
         try (Connection c = TestBackends.platform().open()) {
             return PlanRunner.rows(plan, Map.of(), plan.sendsTheAnswer()
                     ? PlanSessions.acquired(TestSessions.over(c), plan.answerSql().target())
-                    : PlanSessions.of(TestSessions.over(c))).rows();
+                    : PlanSessions.of(TestSessions.over(c)), java.util.UUID.randomUUID()).rows();
         }
     }
 
@@ -202,7 +202,7 @@ class ProductStatementsTest {
                     public void end() throws java.io.IOException {
                         collector.end();
                     }
-                });
+                }, java.util.UUID.randomUUID());
         assertEquals(List.of(List.of("alone")), collector.collected().rows());
     }
 

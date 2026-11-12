@@ -59,19 +59,19 @@ public final class PlanRunner {
      * writer, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R8): each row's cells read by the session's typed method
      * ({@link Statements#rows}: from the driver by the plan's columns).
      */
-    public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions)
-            throws IOException {
+    public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
+            java.util.UUID execution) throws IOException {
         Collector collector = new Collector();
-        stream(plan, values, sessions, collector);
+        stream(plan, values, sessions, collector, execution);
         Collector.Collected c = collector.collected();
         return new Rows(c.columns(), c.rows());
     }
 
-    /** {@link #stream(ExecutionPlan, Map, PlanSessions.Source, com.legend.result.ResultSink, int)} in batches of
-     *  {@link com.legend.result.Batcher#DEFAULT_CAPACITY} rows. */
+    /** {@link #stream(ExecutionPlan, Map, PlanSessions.Source, com.legend.result.ResultSink, int, java.util.UUID)} in
+     *  batches of {@link com.legend.result.Batcher#DEFAULT_CAPACITY} rows. */
     public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            ResultSink sink) throws IOException {
-        stream(plan, values, sessions, sink, Batcher.DEFAULT_CAPACITY);
+            ResultSink sink, java.util.UUID execution) throws IOException {
+        stream(plan, values, sessions, sink, Batcher.DEFAULT_CAPACITY, execution);
     }
 
     /**
@@ -79,19 +79,21 @@ public final class PlanRunner {
      * to {@code sink} once the statement has answered, then its rows in batches of up to {@code capacity} as they
      * arrive, then the end (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R8). A tabular result streams; a keyed plan's
      * body streams once its keys are read; a plan of several steps holds its answer until its changes have committed,
-     * then hands it on (no answer leaves for a change rolled back).
+     * then hands it on (no answer leaves for a change rolled back). {@code execution}: the id of this execution, which
+     * its DOOR minted (exec makes no value of its own; the user's ruling of 2026-11-12, "Do the exec id as part of C"):
+     * what the statements' stamps bind and the sink is told before the columns.
      */
     public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            ResultSink sink, int capacity) throws IOException {
+            ResultSink sink, int capacity, java.util.UUID execution) throws IOException {
         // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
-        try (var run = com.legend.base.RunScope.enter()) {
+        try (var run = com.legend.base.RunScope.enter(execution)) {
             streamRun(plan, values, sessions, sink, capacity);
         }
     }
 
     private static void streamRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             ResultSink sink, int capacity) throws IOException {
-        // the execution's id, to the run's listener before anything else (RunScope.execution: the writers' activity reports it)
+        // the execution's id, its door's, to the run's listener before anything else (the writers' activity reports it)
         sink.execution(com.legend.base.RunScope.execution());
         Map<String, PlanParameters.Checked> checked = admitSources(PlanParameters.check(plan.parameters(), values),
                 List.of(plan.root()), sessions.admitted());

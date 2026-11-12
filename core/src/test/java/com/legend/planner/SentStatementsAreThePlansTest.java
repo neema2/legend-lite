@@ -143,7 +143,7 @@ class SentStatementsAreThePlansTest {
                         com.legend.exec.PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), target),
                         DataStores.resources(dir), (id, open) -> {
                             throw new IllegalStateException("no callback in this program");
-                        }, sink(rows));
+                        }, sink(rows), java.util.UUID.randomUUID());
             }
             assertEquals(List.of(List.of("Joe", 21L), List.of("Jill", 31L)), rows, b.name() + ": the file was read");
             List<String> planned = new ArrayList<>();

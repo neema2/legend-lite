@@ -49,12 +49,13 @@ public final class TestRunner {
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
             com.legend.executionplan.DataStores stores, @Nullable Edge edge,
-            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer) {
+            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer,
+            java.util.UUID execution) {
         lites(answer);
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
-            run(plan, session, stores, edge, callers, referee, answer, StatementOrigin.OTHER);
+            run(plan, session, stores, edge, callers, referee, answer, StatementOrigin.OTHER, execution);
         }
     }
 
@@ -66,12 +67,14 @@ public final class TestRunner {
      * by the {@code referee}; its statements counted under {@code origin} (a fixture's seeding: SEED). No compiled
      * model: the system database's sessions are found by the plan's own targets (hole 2, 2026-11-08) and an appeal's
      * enums are the plan's (hole 1). A plan naming an appeal it does not carry is refused before anything runs,
-     * whoever made it (the slice 3 invariant audit, 2026-11-08; the door checked it until slice 5).
+     * whoever made it (the slice 3 invariant audit, 2026-11-08; the door checked it until slice 5). {@code execution}:
+     * the id the test door minted for this run (the body's, or a fixture's: each its own execution; 2026-11-12), which
+     * the run and the appeals decided after it name.
      */
     public static void run(TestPlan plan, Sessions.Session session,
             com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
-            @Nullable Output answer, com.legend.exec.StatementOrigin origin) {
+            @Nullable Output answer, com.legend.exec.StatementOrigin origin, java.util.UUID execution) {
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
         lites(answer);
         // the caller's answer sink and listener are called back during the run, and before its plan's run scope opens
@@ -79,7 +82,7 @@ public final class TestRunner {
         try (var callbacks = com.legend.base.RunScope.callingBack()) {
             // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
             // judges tell the caller's listener through it, its reports kept back while an appeal is held
-            Appeals appeals = new Appeals(callers);
+            Appeals appeals = new Appeals(callers, execution);
             // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
             BodyRun run = new BodyRun(appeals);
             AssertListener listener = appeals.listener();
@@ -99,7 +102,7 @@ public final class TestRunner {
                                 golden, ours, textEqual, referee, l, reader, sessions);
                 PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, systemSessions), origin);
                 try {
-                    TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved);
+                    TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved, execution);
                 } catch (RuntimeException runFailed) {
                     // the run failed after the appeals it held: an appeal precedes the failure, so a failed appeal is
                     // the body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a

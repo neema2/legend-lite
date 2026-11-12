@@ -146,13 +146,15 @@ public final class ProgramRunner {
      * Runs {@code program}: its steps in order on one session, in one transaction where one changes the database (a
      * keyed step's or a declared keyed read's snapshot the same), each callback at its place, and the program's answer
      * -- its one result step's typed rows, if it has one -- streamed to the sink once the steps have run. A load's
-     * data references resolve through {@code stores} (data: docs/DATA_IN_THE_PLAN_2026_11_09.md 2.7).
+     * data references resolve through {@code stores} (data: docs/DATA_IN_THE_PLAN_2026_11_09.md 2.7). {@code execution}:
+     * the id of this execution, which its DOOR minted (exec makes no value of its own; 2026-11-12).
      */
     public static void run(Program program, Map<String, ?> values, PlanSessions.Source sessions,
-            com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
+            com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink, java.util.UUID execution)
+            throws IOException {
         // the runtime wall (the deep audit, 2026-11-05): while the program runs, nothing on this thread plans
-        try (var run = com.legend.base.RunScope.enter()) {
-            // the execution's id, to the run's listener before anything else (RunScope.execution: a writer's activity reports it)
+        try (var run = com.legend.base.RunScope.enter(execution)) {
+            // the execution's id, its door's, to the run's listener before anything else (a writer's activity reports it)
             sink.execution(com.legend.base.RunScope.execution());
             programRun(program, values, sessions, stores, callbacks, sink);
         }

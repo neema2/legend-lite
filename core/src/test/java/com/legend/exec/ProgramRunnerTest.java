@@ -175,7 +175,7 @@ final class ProgramRunnerTest {
 
     private static Recording run(ProgramRunner.Program program) throws IOException {
         Recording sink = new Recording();
-        ProgramRunner.run(program, Map.of(), sessions(), DataStores.none(), NONE, sink);
+        ProgramRunner.run(program, Map.of(), sessions(), DataStores.none(), NONE, sink, java.util.UUID.randomUUID());
         return sink;
     }
 
@@ -198,7 +198,7 @@ final class ProgramRunnerTest {
                     if (id == 1) {
                         read.add(o.read(declared, null, Map.of()).rows().get(0).get(0));
                     }
-                }, sink);
+                }, sink, java.util.UUID.randomUUID());
         assertEquals(List.of(5L), read);
         assertTrue(open[0] == open[1], "one open program for the whole program");
         assertEquals(List.of("columns", "batch", "end"), sink.events);
@@ -216,7 +216,7 @@ final class ProgramRunnerTest {
                 List.of(col("value", "Integer", "INTEGER")));
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> ProgramRunner.run(
                 new ProgramRunner.Program(List.of(), List.of(new ProgramRunner.Callback(1, List.of(declared), null))),
-                Map.of(), sessions(), DataStores.none(), (id, o) -> o.read(other, null, Map.of()), new Recording()));
+                Map.of(), sessions(), DataStores.none(), (id, o) -> o.read(other, null, Map.of()), new Recording(), java.util.UUID.randomUUID()));
         assertTrue(e.getMessage().contains("no step of the program declared"), e.getMessage());
     }
 
@@ -246,7 +246,7 @@ final class ProgramRunnerTest {
                         raised.add(e instanceof com.legend.error.DataError ? "raised" : "other: " + e);
                         return null;
                     });
-                }, new Recording());
+                }, new Recording(), java.util.UUID.randomUUID());
         assertEquals(List.of("raised"), raised);
         assertEquals(List.of("set", "release", "set", "rollbackTo"), column("SELECT step FROM m3c_sp"));
     }

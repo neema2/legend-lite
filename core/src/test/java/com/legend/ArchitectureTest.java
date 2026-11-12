@@ -2027,6 +2027,39 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /** EXEC MAKES NO VALUE OF ITS OWN (the rule of {@link #execMakesNoValueOfItsOwn}). */
+    static final com.tngtech.archunit.lang.ArchRule EXEC_MAKES_NO_VALUE = noClasses()
+            .that().resideInAnyPackage("com.legend.exec..", "com.legend.base..")
+            .should().callMethod(java.util.UUID.class, "randomUUID")
+            .orShould().callMethod(Math.class, "random")
+            .orShould().callMethod(StrictMath.class, "random")
+            // SecureRandom and ThreadLocalRandom are Randoms
+            .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
+            .as("exec makes no value of its own: an execution's id is its door's (Execution, TestExecution), passed in"
+                    + " and bound, never minted by exec or by the run's scope");
+
+    /**
+     * EXEC MAKES NO VALUE OF ITS OWN (the user's ruling of 2026-11-12, "Do the exec id as part of C"; earlier, no
+     * caller-supplied ids): an execution's id is minted by the DOOR that starts the run ({@code Execution}'s methods,
+     * the server's routes through them, {@code TestExecution}'s), one per plan run, and passed into exec explicitly
+     * ({@code PlanRunner.stream}, {@code ProgramRunner.run}), which binds it ({@code Sql.stamp}) and names it to the
+     * listener ({@code ResultSink.execution}). No class of exec or of base (the run's scope, {@code RunScope}, which
+     * minted it until then) calls {@code UUID.randomUUID} or {@code Math.random}, or reaches a {@code Random}
+     * ({@code SecureRandom}, {@code ThreadLocalRandom}). {@link #theNoValueRuleBitesAPlantedRandomUuid} shows it bites.
+     */
+    @Test
+    void execMakesNoValueOfItsOwn() {
+        EXEC_MAKES_NO_VALUE.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #execMakesNoValueOfItsOwn} fails on a class of exec's package that mints an id
+     *  ({@code exec.PlantedRandomUuid}, a test class planted for this alone). */
+    @Test
+    void theNoValueRuleBitesAPlantedRandomUuid() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> EXEC_MAKES_NO_VALUE.check(
+                new ClassFileImporter().importClasses(com.legend.exec.PlantedRandomUuid.class)));
+    }
+
     /**
      * THE BRAND'S MINT (the C checkpoint's MUST-FIX 1, 2026-11-12, the user's "are we provably totally separated?"): a
      * {@link com.legend.executionplan.PlannedSql} -- the only text a session's statements take ({@code exec.Statements}:
@@ -2261,7 +2294,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.base.RunScope.PLANNING", StaticKind.RUN_GUARD),
             java.util.Map.entry("com.legend.base.RunScope.JUDGING", StaticKind.RUN_GUARD),
             // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the running execution's id, set
-            // as a run enters and cleared as it closes -- the run scope's own state, beside its depth
+            // as a run enters and cleared as it closes -- the run scope's own state, beside its depth. Kept the same day
+            // (the exec-id item, C4): it now holds the id the run's DOOR minted and passed in (RunScope.enter(id)), read
+            // three calls deep by the statements' stamps and the trace; it mints none (execMakesNoValueOfItsOwn)
             java.util.Map.entry("com.legend.base.RunScope.EXECUTION", StaticKind.RUN_GUARD),
             // the databases the process keeps: the server's project databases, the plans' own and named ones
             java.util.Map.entry("com.legend.exec.PlanSessions.SHARED", StaticKind.RESOURCE),

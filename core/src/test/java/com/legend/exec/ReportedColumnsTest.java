@@ -59,7 +59,7 @@ final class ReportedColumnsTest {
                 @Override
                 public void end() {
                 }
-            });
+            }, java.util.UUID.randomUUID());
         }
         assertEquals(List.of("N", "S"), columns.stream().map(ExecutionPlan.Column::name).map(String::toUpperCase)
                 .toList());
