@@ -43,12 +43,15 @@ public final class ProductSqlMeasure {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 3 || !(args[0].equals("measure") || args[0].equals("time"))) {
-            throw new IllegalArgumentException("usage: measure <cases.jsonl> <out> | time <pairs dir> <out>");
+        if (args.length != 3 || !(args[0].equals("measure") || args[0].equals("time") || args[0].equals("mixed"))) {
+            throw new IllegalArgumentException("usage: measure <cases.jsonl> <out> | time <pairs dir> <out>"
+                    + " | mixed <lean-sql dir> <out>");
         }
         Path out = Path.of(args[2]);
         Files.createDirectories(out);
-        if (args[0].equals("measure")) {
+        if (args[0].equals("mixed")) {
+            mixed(Path.of(args[1]), out);
+        } else if (args[0].equals("measure")) {
             measure(Path.of(args[1]), out);
         } else {
             time(Path.of(args[1]), out, Integer.getInteger("legend.measure.runs", 7));
@@ -96,6 +99,98 @@ public final class ProductSqlMeasure {
                 }
             }
         }
+    }
+
+    /** {@code mixed <lean-sql dir> <out>} (the orchestrator's question, 2026-11-12, facts only): which queries of the
+     *  lean-SQL sets hold a collection LITERAL whose elements' types differ -- {@code numbers} (Integer, Float,
+     *  Decimal, Number), {@code dates} (StrictDate, DateTime, Date), else {@code mixed} -- and their product SQL's
+     *  characters per database, beside every query's. Writes {@code mixed.tsv}: set, database, kind, queries,
+     *  characters. (A list mixed by an expression rather than a literal -- a concatenation, a map -- is not seen.) */
+    static void mixed(Path dir, Path out) throws IOException {
+        Map<String, long[]> totals = new java.util.TreeMap<>();
+        // channel A on every database
+        List<String> a = Files.readAllLines(dir.resolve("channel_a.jsonl"), StandardCharsets.UTF_8);
+        for (DatabaseType type : com.legend.database.Databases.implemented()) {
+            if (com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).ownSessions()) {
+                continue;
+            }
+            for (String line : a) {
+                Json.Obj c = Json.parseObject(line);
+                tally(totals, "channel_a", type.name(), () -> Compiler.query(Compiler.compileModel(
+                        withRuntime(((Json.Str) c.get("model")).value(), type)),
+                        ((Json.Str) c.get("expression")).value()), StorelessRuntime.RUNTIME);
+            }
+        }
+        // core's on their own runtimes
+        Map<Long, com.legend.compiler.element.ModelContext> models = new java.util.HashMap<>();
+        Map<Long, String> texts = new java.util.HashMap<>();
+        for (String line : Files.readAllLines(dir.resolve("core.jsonl"), StandardCharsets.UTF_8)) {
+            Json.Obj c = Json.parseObject(line);
+            long id = ((Json.Num) c.get("model_id")).longValue();
+            if (c.has("model")) {
+                texts.put(id, ((Json.Str) c.get("model")).value());
+                continue;
+            }
+            String rt = ((Json.Str) c.get("runtime")).value();
+            tally(totals, "core", null, () -> Compiler.query(models.computeIfAbsent(id,
+                    k -> Compiler.compileModel(texts.get(k))), ((Json.Str) c.get("query")).value()),
+                    rt.isEmpty() ? null : rt);
+        }
+        StringBuilder b = new StringBuilder("set\tdatabase\tkind\tqueries\tchars\n");
+        totals.forEach((k, v) -> b.append(k).append('\t').append(v[0]).append('\t').append(v[1]).append('\n'));
+        Files.writeString(out.resolve("mixed.tsv"), b, StandardCharsets.UTF_8);
+        System.err.print(b);
+    }
+
+    private static void tally(Map<String, long[]> totals, String set, @com.legend.base.Nullable String database,
+            java.util.function.Supplier<com.legend.TypedQuery> typed, @com.legend.base.Nullable String runtime) {
+        try {
+            com.legend.TypedQuery q = typed.get();
+            String kind = "none";
+            for (com.legend.compiler.spec.typed.TypedSpec s : q.body()) {
+                kind = worse(kind, mixedKind(s));
+            }
+            ExecutionPlan plan = q.executionPlan(runtime,
+                    Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING));
+            List<String[]> statements = new ArrayList<>();
+            collect(plan.root(), statements);
+            long chars = statements.stream().mapToLong(x -> x[1].length()).sum();
+            String db = database != null ? database : plan.answers() && plan.sendsTheAnswer()
+                    ? plan.answerSql().target().database().type().name() : "constant";
+            for (String k : List.of(kind, "all")) {
+                long[] t = totals.computeIfAbsent(set + "\t" + db + "\t" + k, x -> new long[2]);
+                t[0]++;
+                t[1] += chars;
+            }
+        } catch (RuntimeException | StackOverflowError e) {
+            // refused at planning: not counted (the baseline counts refusals)
+        }
+    }
+
+    private static final List<String> ORDER = List.of("none", "numbers", "dates", "mixed");
+
+    private static String worse(String a, String b) {
+        return ORDER.indexOf(a) >= ORDER.indexOf(b) ? a : b;
+    }
+
+    /** The worst mixed collection literal in {@code s}'s tree: none, numbers, dates or mixed. */
+    static String mixedKind(com.legend.compiler.spec.typed.TypedSpec s) {
+        String kind = "none";
+        if (s instanceof com.legend.compiler.spec.typed.TypedCollection c && c.elements().size() > 1) {
+            java.util.Set<String> types = new java.util.TreeSet<>();
+            for (com.legend.compiler.spec.typed.TypedSpec e : c.elements()) {
+                types.add(e.info().type().typeName());
+            }
+            if (types.size() > 1) {
+                java.util.Set<String> numbers = java.util.Set.of("Integer", "Float", "Decimal", "Number");
+                java.util.Set<String> dates = java.util.Set.of("StrictDate", "DateTime", "Date");
+                kind = numbers.containsAll(types) ? "numbers" : dates.containsAll(types) ? "dates" : "mixed";
+            }
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec k : s.children()) {
+            kind = worse(kind, mixedKind(k));
+        }
+        return kind;
     }
 
     /** {@code model} with the storeless runtime on {@code type}: its in-process declaration where the connector has

@@ -164,6 +164,48 @@ to code by a read-only survey of lowering and the dialects, with file:line:
   the test road. On the product path the same printer is reached by `toString`, `format` and a guard's message over
   a Float: 1x per use, about 3-4 KB each.
 
+### 4.1 Mixed lists, measured (facts only, the orchestrator's question, 2026-11-12)
+
+The question: which queries of the fixed sets hold a collection LITERAL whose elements' types differ, and what share
+of each database's product SQL they make. Measured with `bazel run //core:product_sql_measure -- mixed
+core/src/test/resources/lean-sql <out>`; a query counts once, under its worst literal. The kinds:
+- **numbers:** Integer, Float, Decimal, Number;
+- **dates:** StrictDate, DateTime, Date;
+- **truly mixed:** anything else.
+
+A list mixed by an expression (a concatenation, a map) rather than a literal is not seen. Each cell gives the queries,
+then that kind's share of the database's product characters.
+
+| set | database | numbers: queries, % of chars | dates | truly mixed | all queries |
+|---|---|---|---|---|---|
+| channel_a | BigQuery | 32, 1.6% | 12, 0.7% | 68, 7.4% | 2,357 (1,235,651 chars) |
+| channel_a | ClickHouse | 32, 1.5% | 12, 0.7% | 74, 3.6% | 2,434 (1,819,026 chars) |
+| channel_a | Databricks | 32, 1.6% | 12, 1.0% | 74, 4.9% | 2,369 (777,755 chars) |
+| channel_a | DuckDB | 32, 1.4% | 12, 1.0% | 74, 3.6% | 2,442 (655,187 chars) |
+| channel_a | H2 | 14, 0.2% | 0, 0.0% | 43, 10.6% | 1,887 (550,036 chars) |
+| channel_a | MariaDB | 32, 1.4% | 12, 0.5% | 74, 9.2% | 2,366 (2,060,278 chars) |
+| channel_a | MySQL | 32, 1.6% | 12, 0.4% | 74, 9.4% | 2,367 (2,779,588 chars) |
+| channel_a | Postgres | 32, 1.2% | 12, 0.7% | 74, 6.7% | 2,366 (1,160,996 chars) |
+| channel_a | SQLite | 32, 1.2% | 12, 0.5% | 74, 9.2% | 2,438 (1,778,534 chars) |
+| channel_a | Snowflake | 32, 2.8% | 12, 0.8% | 74, 10.9% | 2,442 (995,481 chars) |
+| channel_a | Trino | 32, 1.6% | 12, 1.1% | 74, 4.6% | 2,442 (1,098,766 chars) |
+| core | BigQuery | 0, 0.0% | 0, 0.0% | 0, 0.0% | 39 (3,769 chars) |
+| core | ClickHouse | 0, 0.0% | 0, 0.0% | 4, 68.4% | 44 (40,245 chars) |
+| core | Databricks | 0, 0.0% | 0, 0.0% | 4, 78.8% | 44 (18,992 chars) |
+| core | DuckDB | 33, 1.3% | 3, 0.3% | 21, 2.4% | 2,570 (665,815 chars) |
+| core | H2 | 13, 1.6% | 0, 0.0% | 4, 0.3% | 306 (70,404 chars) |
+| core | MariaDB | 0, 0.0% | 0, 0.0% | 4, 98.3% | 42 (191,390 chars) |
+| core | MySQL | 0, 0.0% | 0, 0.0% | 4, 98.9% | 40 (278,123 chars) |
+| core | Postgres | 0, 0.0% | 0, 0.0% | 4, 75.5% | 78 (40,155 chars) |
+| core | SQLite | 5, 0.3% | 0, 0.0% | 5, 49.1% | 244 (230,139 chars) |
+| core | Snowflake | 0, 0.0% | 0, 0.0% | 4, 97.4% | 44 (123,838 chars) |
+| core | Trino | 0, 0.0% | 0, 0.0% | 4, 89.6% | 44 (33,028 chars) |
+
+- In channel A, the truly mixed literals are 74 queries, about 3% of the queries. They make 3.6% (DuckDB) to 10.9%
+  (Snowflake) of the product characters.
+- In core's set, 4 truly mixed queries make 98% of MariaDB's and MySQL's product characters (188,118 of 191,390), 97%
+  of Snowflake's and 76% of Postgres's. On those databases core plans few queries (40-78), so the 4 dominate.
+
 ## 5. The principles
 
 ### 5.1 P1: bind a repeated expression once
