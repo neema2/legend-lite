@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _host
-from ._planned import across_the_bridge, answered_texts, send
+from ._planned import Answered, across_the_bridge, send
 from ._library import Library, library
 from ._pool import library_thread
 
@@ -143,8 +143,8 @@ class Headless:
         # the read the call in its turn was made in (Frames.reading), if any: what its queries and its asks of the engine
         # read through
         self._over: Any = None
-        # every text this session's planner answered: what DataCube's code may hand the database (_planned.py)
-        self._answered: set[str] = set()
+        # the statements this session's planner answered: what DataCube's code may hand the database (_planned.py)
+        self._answered = Answered()
         # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
         # a warehouse table opened under the session it holds), over the call's read, given by the engine's owner as a
         # weak reference to them (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone:
@@ -180,16 +180,18 @@ class Headless:
     # ---- the calls out of V8, each on the engine's loop
 
     async def _planner(self, request: str) -> str:
-        answered = answer(self._lib, json.loads(request))
-        # what DataCube's code may hand the database from now on: every text the planner answered (_planned.py)
+        asked = json.loads(request)
+        answered = answer(self._lib, asked)
+        # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
+        # request's kind (_planned.Answered)
         if answered.get('ok'):
-            answered_texts(answered['answer'], self._answered)
+            self._answered.record(asked['kind'], answered['answer'])
         return json.dumps(answered)
 
     @property
     def answered(self) -> Container[str]:
-        """Every text this session's planner answered: the statements DataCube's hosted code may hand Python's
-        database (across_the_bridge)."""
+        """The statements this session's planner answered: what DataCube's hosted code may hand Python's database
+        (across_the_bridge)."""
         return self._answered
 
     async def _query(self, sql: str) -> str:

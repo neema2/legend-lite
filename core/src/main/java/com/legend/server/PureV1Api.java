@@ -526,8 +526,8 @@ public final class PureV1Api {
                     com.legend.executionplan.PlanJson.readColumns(Json.toCompact(resultColumns));
             Map<String, String> metadata = new LinkedHashMap<>();
             metadata.put("legend.builder", Json.toCompact(builder));
-            metadata.put("legend.activities",
-                    Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(sql.value(), false))));
+            metadata.put("legend.activities", Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(
+                    sql.value(), false, hostExecution(planned)))));
             metadata.put("legend.columns", Json.toCompact(names));
             try {
                 com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out, metadata));
@@ -625,8 +625,9 @@ public final class PureV1Api {
             }
             Map<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("legend.builder", Json.toCompact(tdsBuilder(plan)));
-            metadata.put("legend.activities",
-                    Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(plan.sql(), false))));
+            // the host's execution: it keeps no trace of its own, so its id is minted with the plan half it runs
+            metadata.put("legend.activities", Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(
+                    plan.sql(), false, java.util.UUID.randomUUID()))));
             metadata.put("legend.columns", Json.toCompact(columnNames(plan)));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", plan.sql());
@@ -698,8 +699,12 @@ public final class PureV1Api {
             } else {
                 com.legend.result.PureV1Writer.Envelope e = com.legend.result.PureV1Writer.envelope(
                         facts(hosted.query()), statement, result.columns());
+                // the host's execution: it keeps no trace of its own, so its id is minted with the plan half it runs,
+                // and the answer the server writes from its rows (jsonAnswer, arrowAnswer) reports the same id
+                java.util.UUID execution = java.util.UUID.randomUUID();
+                out.put("execution", execution.toString());
                 out.put("builder", Json.parse(e.builder()));
-                out.put("activities", Json.parse(e.activities()));
+                out.put("activities", Json.parse(e.activities(execution)));
                 out.put("columns", e.names());
             }
             return Json.toCompact(out);
@@ -750,9 +755,13 @@ public final class PureV1Api {
                         }
                         labels.add(name.value());
                     }
+                    if (!(planned.has("sql") && planned.get("sql") instanceof Json.Str sql)) {
+                        throw new IllegalArgumentException("the plan answers no sql: it is not jsonPlan's");
+                    }
                     com.legend.result.PureV1Writer.Envelope envelope = new com.legend.result.PureV1Writer.Envelope(
-                            Json.toCompact(builder), Json.toCompact(activities), labels);
+                            Json.toCompact(builder), sql.value(), labels);
                     sink = com.legend.result.PureV1Writer.relation(out, announced -> envelope);
+                    sink.execution(hostExecution(planned));
                 }
                 default -> throw new IllegalArgumentException("the plan's shape '" + shape.value()
                         + "' is none jsonPlan answers");
@@ -764,6 +773,15 @@ public final class PureV1Api {
             }
             return out.toString();
         });
+    }
+
+    /** The host's execution, as {@link #jsonPlan} minted it and handed it back in its answer: what the answer's activity
+     *  reports (C1's second half, 2026-11-12). A plan half without it is refused: it is not jsonPlan's. */
+    private static java.util.UUID hostExecution(Json.Obj planned) {
+        if (!(planned.has("execution") && planned.get("execution") instanceof Json.Str id)) {
+            throw new IllegalArgumentException("the plan answers no execution: it is not jsonPlan's");
+        }
+        return java.util.UUID.fromString(id.value());
     }
 
     /** An {@code ExecuteInput} read and its parameters bound, for a host that runs only {@code models}: its query

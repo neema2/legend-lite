@@ -13,7 +13,7 @@ import { ProjectDatabases, ProjectRunner } from '../../../engine-client/src/proj
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, WorkerPort } from '../backend/planner.ts';
 import { queryBuilder, type BuilderSession } from '../backend/query-builder.ts';
-import { runner, type RunSession } from '../backend/run.ts';
+import { playground, runner, type RunSession } from '../backend/run.ts';
 import { connect, type StudioConfig } from '../backend/sdlc.ts';
 import { clear, h } from '../ui/dom.ts';
 import { renderEditor } from '../ui/editor.ts';
@@ -43,6 +43,8 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   const user = config.user?.userId ?? 'local';
   const session: RunSession & BuilderSession = inTab ? inTabSession(inTab, config.vendor, user) : serverSession(config.engine!, user);
   const run = runner(session);
+  // upstream's SQL playground: a person's own SQL, the one statement no plan carries, handed to the editor alone
+  const sqlPlayground = playground(session);
   // the query builder (plan A5): Query's, over the same session
   const builder = queryBuilder(session);
   let dispose: (() => void) | undefined;
@@ -62,13 +64,13 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
       if (view) {
         const project = view[1]!;
         dispose = await renderEditor(root, {
-          client, depot, compiler, run, builder, monaco, project, workspace: 'view', view: { version: view[2] },
+          client, depot, compiler, run, playground: sqlPlayground, builder, monaco, project, workspace: 'view', view: { version: view[2] },
           back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
         });
       } else if (edit) {
         const project = edit[1]!;
         dispose = await renderEditor(root, {
-          client, depot, compiler, run, builder, monaco, project, workspace: edit[2]!,
+          client, depot, compiler, run, playground: sqlPlayground, builder, monaco, project, workspace: edit[2]!,
           back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
         });
       } else {

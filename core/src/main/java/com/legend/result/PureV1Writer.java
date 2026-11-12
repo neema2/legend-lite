@@ -20,12 +20,21 @@ import java.util.List;
  */
 public final class PureV1Writer implements ResultSink {
 
-    /** A relation's envelope: the TDS builder's JSON (each column's name, Pure type and relational spelling), the
-     *  activities' JSON (the relational activity carrying the SQL), and the columns' names in the engine's order, the
-     *  order each row's values are written in. */
-    public record Envelope(String builder, String activities, List<String> names) {
+    /** A relation's envelope: the TDS builder's JSON (each column's name, Pure type and relational spelling), the SQL
+     *  the relational activity carries, and the columns' names in the engine's order, the order each row's values are
+     *  written in. The activity itself names its execution (its comment, {@link #activities}): written when the run
+     *  has said which ({@link ResultSink#execution}; 2026-11-12, C1's second half: until then a random id the run never
+     *  saw). */
+    public record Envelope(String builder, String sql, List<String> names) {
         public Envelope {
+            java.util.Objects.requireNonNull(sql, "sql");
             names = List.copyOf(names);
+        }
+
+        /** The activities' JSON for {@code execution}: the relational activity carrying the SQL, its comment the
+         *  execution's trace id, as the JSON answer writes them. */
+        public String activities(java.util.UUID execution) {
+            return Json.toCompact(List.of(activity(sql, true, execution)));
         }
     }
 
@@ -102,32 +111,34 @@ public final class PureV1Writer implements ResultSink {
         java.util.Map<String, Object> builder = new java.util.LinkedHashMap<>();
         builder.put("_type", "tdsBuilder");
         builder.put("columns", builderColumns);
-        return new Envelope(Json.toCompact(builder), Json.toCompact(List.of(activity(sql, true))), names);
+        return new Envelope(Json.toCompact(builder), sql, names);
     }
 
     /** The Arrow answer's schema metadata for the columns the run announced (measured against legend-engine 4.145.0,
      *  2026-10-08): {@code legend.builder}, the TDS builder as the JSON answer's; {@code legend.activities}, the
      *  activities WITHOUT their {@code _type}; {@code legend.columns}, the column names. */
     public static java.util.Map<String, String> arrowMetadata(Facts facts, String sql,
-            List<ExecutionPlan.Column> columns) {
+            List<ExecutionPlan.Column> columns, java.util.UUID execution) {
         Envelope e = envelope(facts, sql, columns);
         java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
         m.put("legend.builder", e.builder());
-        m.put("legend.activities", Json.toCompact(List.of(activity(sql, false))));
+        m.put("legend.activities", Json.toCompact(List.of(activity(sql, false, execution))));
         m.put("legend.columns", Json.toCompact(e.names()));
         return m;
     }
 
     /**
      * The relational activity, carrying the SQL: with its {@code _type} first, as the JSON answer writes it, or
-     * without, as the Arrow answer's metadata does (measured, 4.145.0).
+     * without, as the Arrow answer's metadata does (measured, 4.145.0). Its comment names {@code execution}, the
+     * execution that ran the SQL, as upstream's {@code RelationalExecutionActivity(sqlQuery, sqlComment)} carries the
+     * comment processed with its {@code execID} ({@code RelationalExecutor.java:332,351}).
      */
-    public static java.util.Map<String, Object> activity(String sql, boolean typed) {
+    public static java.util.Map<String, Object> activity(String sql, boolean typed, java.util.UUID execution) {
         java.util.Map<String, Object> activity = new java.util.LinkedHashMap<>();
         if (typed) {
             activity.put("_type", "relational");
         }
-        activity.put("comment", "-- \"executionTraceID\" : \"" + java.util.UUID.randomUUID() + "\"");
+        activity.put("comment", ExecutionPlan.traceComment(execution));
         activity.put("sql", sql);
         return activity;
     }
@@ -145,6 +156,7 @@ public final class PureV1Writer implements ResultSink {
     private final ExecutionPlan.TdsResult.Shape shape;
     private final java.util.function.Function<List<ExecutionPlan.Column>, Envelope> envelope;
     private List<ExecutionPlan.Column> columns = List.of();
+    private java.util.@com.legend.base.Nullable UUID execution;
     private int[] order = new int[0];
     private long rows;
     private @com.legend.base.Nullable String firstObject;
@@ -171,6 +183,11 @@ public final class PureV1Writer implements ResultSink {
     }
 
     @Override
+    public void execution(java.util.UUID id) {
+        execution = id;
+    }
+
+    @Override
     public void columns(List<ExecutionPlan.Column> columns) throws IOException {
         this.columns = List.copyOf(columns);
         if (shape == ExecutionPlan.TdsResult.Shape.OBJECTS) {
@@ -193,7 +210,12 @@ public final class PureV1Writer implements ResultSink {
                         + columns.stream().map(ExecutionPlan.Column::name).toList());
             }
         }
-        out.write("{\"builder\": " + e.builder() + ", \"activities\": " + e.activities()
+        java.util.UUID ran = execution;
+        if (ran == null) {
+            throw new IllegalStateException("the run named no execution before its columns: the activity reports the"
+                    + " execution that ran its SQL (ResultSink.execution)");
+        }
+        out.write("{\"builder\": " + e.builder() + ", \"activities\": " + e.activities(ran)
                 + ", \"result\" : {\"columns\" : " + Json.toCompact(names) + ", \"rows\" : [");
     }
 

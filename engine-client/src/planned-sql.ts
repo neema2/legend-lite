@@ -11,7 +11,9 @@
 // typed by the test-only `unplanned` (engine-client/test/unplanned.ts), which no product source imports.
 //
 // What a host still sends that no plan carries is NAMED, one call of `notPlanned` each, and the guard pins the list
-// (PlannedSqlTest.NOT_PLANNED): it only shrinks.
+// (PlannedSqlTest.NOT_PLANNED): it only shrinks. The guard reads every import of this module, in any form: a value of it
+// (a mint, plannedProjectData, notPlanned) is imported by name, unaliased, only in the files it pins (2026-11-12, the C
+// checkpoint's code audit, MUST-FIX 1); a type is free.
 
 import type { ProjectDataStatements } from './project-data.ts';
 
@@ -33,9 +35,9 @@ export function allFromPlan(texts: readonly string[]): PlannedSql[] {
 
 /**
  * NOT from a plan: a statement a host sends that no plan carries, named by `why` where it is sent. The guard pins each
- * caller (tools/guards/PlannedSqlTest.java, NOT_PLANNED; the total wall's C3, 2026-11-12): Studio's SQL
- * playground (a person's own SQL, run as typed) and Query's demo warehouse fixture (its seed files' statements). Both
- * were reported to the orchestrator for a ruling: plan each, or keep it named.
+ * caller and its reason (tools/guards/PlannedSqlTest.java, NOT_PLANNED; the total wall's C3, 2026-11-12): Studio's SQL
+ * playground alone (a person's own SQL, run as typed), kept named by the orchestrator's ruling of 2026-11-12. (Query's
+ * demo warehouse fixture was the other until that day: its warehouse is now made by the project's planned Data load.)
  */
 export function notPlanned(why: string, text: string): PlannedSql {
   if (why.trim() === '') throw new Error('a statement no plan carries is sent only by name');
@@ -44,7 +46,8 @@ export function notPlanned(why: string, text: string): PlannedSql {
 
 /** The planner's answer for a project's database (Boundary.projectData), its statements typed as the planner wrote
  *  them: what WasmGrammar and DataCube's planner client read it as. Here, beside the mints, so a planner client that
- *  reads it carries no project database's code (project-data.ts imports the plan runner). */
+ *  reads it carries no project database's code (project-data.ts imports the plan runner). A mint like the others: the
+ *  guard holds its importers to the planner clients (PlannedSqlTest.MINTS, MINT_NAMES). */
 export function plannedProjectData(answer: unknown): ProjectDataStatements {
   const a = answer as { name: string; open: string[]; use: string[]; load?: unknown; close: string[] };
   return { name: a.name, open: allFromPlan(a.open), use: allFromPlan(a.use), ...(a.load === undefined ? {} : { load: a.load }),

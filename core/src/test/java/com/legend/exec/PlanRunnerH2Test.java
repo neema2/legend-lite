@@ -67,7 +67,7 @@ class PlanRunnerH2Test {
      *  ({@code cast}: H2's, D1, P4) -- the statement the plan's own, never written at run. */
     private static ExecutionPlan declaredCast(String type, String cast, ExecutionPlan.@com.legend.base.Nullable AsText asText) {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
-                H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of());
+                H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null);
         return ExecutionPlan.reading(List.of(declared("v", type, 0, 1)), PlanRunnerTest.cell(
                 new ExecutionPlan.Sql("SELECT CAST(CAST(? AS " + cast + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
                         new ExecutionPlan.Binding.One("DECIMAL", asText))), target, null)));
@@ -121,7 +121,7 @@ class PlanRunnerH2Test {
     void typedRowsAreReadFromTheDriverByThePlansColumns() throws Exception {
         try (Connection h2 = TestBackends.of(H2).open()) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
-                    H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of());
+                    H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null);
             ExecutionPlan plan = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
                     ExecutionPlan.TdsResult.Shape.RELATION,
                     List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null,

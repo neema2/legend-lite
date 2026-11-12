@@ -572,11 +572,14 @@ class PureV1ApiTest {
         PureV1Api.Answer a = PureV1Api.jsonPlan(hostedRequest, List.of(hosted));
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
-        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder", "activities", "columns"),
+        // 2026-11-12 (C1's second half): the host's execution's id, minted with the plan half it runs ("execution")
+        assertEquals(List.of("sql", "run", "shape", "resultColumns", "execution", "builder", "activities", "columns"),
                 new ArrayList<>(plan.fields().keySet()));
         assertEquals("RELATION", plan.getString("shape"));
         Json.Obj activity = (Json.Obj) plan.getArr("activities").items().get(0);
         assertEquals(plan.getString("sql"), activity.getString("sql"));
+        assertEquals("-- \"executionTraceID\" : \"" + plan.getString("execution") + "\"", activity.getString("comment"),
+                "the plan half's activity names the host's execution");
         // the run statement on the same database the server's runner reads: its rows, as a host's driver reads them,
         // written by the server's writer, are the server's text
         List<String> setup = sqlNode(Json.parseObject(resource("upstream-api/e9-groupby-sort.json")))
@@ -585,6 +588,8 @@ class PureV1ApiTest {
         String hostRows = hostRows(setup, plan.getString("run"));
         PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), hostRows);
         assertEquals(200, answered.status(), answered.json());
+        assertTrue(answered.json().contains(plan.getString("execution")),
+                "the answer written from the host's rows reports the same execution: " + answered.json());
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
         // its host's models only, as the Arrow half

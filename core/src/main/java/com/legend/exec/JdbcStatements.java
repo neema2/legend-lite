@@ -139,11 +139,11 @@ final class JdbcStatements implements Statements {
     }
 
     /** The raise held, by {@code readBack}'s statements -- exactly the plan's, sent as written: the read's one text (its
-     *  first row's first column; null for no row), then the reset. One {@code getString}: the database's own text
-     *  passed on unread. A run's act (THE WALL's rule 3). Both are counted as the session's statements
-     *  ({@link StatementOrigin#SESSION}: the target's, not the runner's), and the reset is sent whatever the read did
-     *  (the C checkpoint's NOTE, 2026-11-12: a raise left held would be told with a LATER statement's failure); a reset
-     *  that fails after a read that failed is kept beside it, never in its place. */
+     *  first row's first column; null for no row), then the reset, sent WHATEVER the read did, so a raise held now never
+     *  attaches to a later failure (a reset that fails after a failed read is kept beside it). Each counted as a
+     *  session's statement ({@link StatementOrigin#SESSION}; the C checkpoint's code audit, 2026-11-12: until then the
+     *  read-back was sent uncounted and its reset skipped on a failed read). One {@code getString}: the database's own
+     *  text passed on unread. A run's act (THE WALL's rule 3). */
     static @com.legend.base.Nullable String held(Connection c,
             ExecutionPlan.@com.legend.base.Nullable RaiseReadBack readBack) throws SQLException {
         if (readBack == null) {
@@ -153,26 +153,23 @@ final class JdbcStatements implements Statements {
         PlannedSql read = readBack.plannedRead();
         PlannedSql reset = readBack.plannedReset();
         try (Statement st = c.createStatement()) {
-            String held = null;
-            SQLException readFailed = null;
-            StatementOrigin.sent(StatementOrigin.SESSION, read.text());
-            try (ResultSet rs = st.executeQuery(read.text())) {
-                held = rs.next() ? rs.getString(1) : null;
-            } catch (SQLException e) {
-                readFailed = e;
+            String held;
+            try {
+                StatementOrigin.sent(StatementOrigin.SESSION, read.text());
+                try (ResultSet rs = st.executeQuery(read.text())) {
+                    held = rs.next() ? rs.getString(1) : null;
+                }
+            } catch (SQLException unread) {
+                try {
+                    StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
+                    st.execute(reset.text());
+                } catch (SQLException unreset) {
+                    unread.addSuppressed(unreset);
+                }
+                throw unread;
             }
             StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
-            try {
-                st.execute(reset.text());
-            } catch (SQLException e) {
-                if (readFailed == null) {
-                    throw e;
-                }
-                readFailed.addSuppressed(e);
-            }
-            if (readFailed != null) {
-                throw readFailed;
-            }
+            st.execute(reset.text());
             return held;
         }
     }

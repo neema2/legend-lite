@@ -28,8 +28,6 @@ export interface Runner {
    * `values`: each parameter's value as Pure text (`'GB'`, `42`, `%2024-06-01`), parsed by the compiler.
    */
   run(fileText: string, modelText: string, values?: ReadonlyMap<string, string>): Promise<ExecutionResult>;
-  /** SQL on the tab's DuckDB, with the model's own test data loaded (upstream's SQL playground); refused on a server. */
-  sql(statement: string, modelText: string): Promise<RawTable>;
   /** Every table the model's Databases declare: where its rows in the tab are from, and how many (plan A2). */
   tables(modelText: string): Promise<TableState[]>;
   /** A table filled from a person's file (.csv or .parquet), kept over the model's test data until reset. */
@@ -83,6 +81,30 @@ function lambdaOf(own: PureModelContextData): Lambda {
   throw new Error('this element is neither a function nor a service: Run runs those');
 }
 
+/**
+ * UPSTREAM'S SQL PLAYGROUND: a person's own SQL on the tab's DuckDB, the model's own test data loaded first; refused on a
+ * server. The one statement a host sends that no plan carries (planned-sql.ts notPlanned; the orchestrator's ruling of
+ * 2026-11-12: kept, named). An object of its own, apart from the Runner every run is handed (the C checkpoint's code
+ * audit, SHOULD-FIX 5, 2026-11-12): the app makes it once and hands it to the editor's SQL playground alone
+ * (EditorContext.playground), so nothing else holds a way to send unplanned SQL (tools/guards/PlannedSqlTest.java).
+ */
+export interface Playground {
+  /** `statement`, as the person typed it, over `modelText`'s own test data. */
+  sql(statement: string, modelText: string): Promise<RawTable>;
+}
+
+export function playground(session: RunSession): Playground {
+  return {
+    async sql(statement, modelText) {
+      if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
+      const engine = await session.sqlEngine();
+      if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
+      // a person's own SQL, run as typed: no plan carries it (planned-sql.ts, NOT_PLANNED)
+      return engine.run(notPlanned('the SQL playground', statement), 0);
+    },
+  };
+}
+
 export function runner(session: RunSession): Runner {
   return {
     async parameters(fileText) {
@@ -107,13 +129,6 @@ export function runner(session: RunSession): Runner {
       const engine = await session.engine();
       if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
       return engine.execute({ function: lambda, model: { _type: 'text', code: modelText }, parameterValues });
-    },
-    async sql(statement, modelText) {
-      if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
-      const engine = await session.sqlEngine();
-      if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
-      // a person's own SQL, run as typed: no plan carries it (planned-sql.ts, NOT_PLANNED)
-      return engine.run(notPlanned('the SQL playground', statement), 0);
     },
     async tables(modelText) {
       const { tabs, model } = await tablesOf(modelText);

@@ -504,6 +504,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         private final java.io.Writer out;
         private final String format;
         private com.legend.result.@com.legend.base.Nullable ResultSink writer;
+        private java.util.@com.legend.base.Nullable UUID execution;
 
         ServiceAnswer(java.io.Writer out, @com.legend.base.Nullable String format) {
             this.out = out;
@@ -523,6 +524,12 @@ public final class ServiceTestRunner implements AutoCloseable {
             writer = new com.legend.result.TdsObjectsWriter(out, shape);
         }
 
+        @Override
+        public void execution(java.util.UUID id) {
+            // told before its shape: handed on to the writer the shape makes
+            execution = id;
+        }
+
         private com.legend.result.ResultSink writer() {
             com.legend.result.ResultSink w = writer;
             if (w == null) {
@@ -534,6 +541,9 @@ public final class ServiceTestRunner implements AutoCloseable {
         @Override
         public void columns(java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns)
                 throws java.io.IOException {
+            if (execution != null) {
+                writer().execution(execution);
+            }
             writer().columns(columns);
         }
 

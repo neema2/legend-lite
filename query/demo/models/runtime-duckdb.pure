@@ -1,7 +1,8 @@
 // Where the trading demo runs in the BROWSER: DuckDB (DuckDB-WASM in the tab, or the warehouse,
 // which is DuckDB on a server). legend-lite's planner writes DuckDB SQL for this connection; in the
-// tab the rows are the project's Data (trading-data.pure, C5), on the warehouse its fixture's
-// (trading-seed.sql). The server's H2 twin is runtime-h2.pure.
+// tab the rows are the project's Data (trading-data.pure, C5), and the warehouse is made with the
+// same Data by its planned load (query/demo/main.ts; its SQL file, trading-seed.sql, deleted
+// 2026-11-12). The server's H2 twin is runtime-h2.pure.
 
 ###Connection
 RelationalDatabaseConnection demo::trading::Connection

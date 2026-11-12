@@ -152,6 +152,8 @@ public final class ProgramRunner {
             com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
         // the runtime wall (the deep audit, 2026-11-05): while the program runs, nothing on this thread plans
         try (var run = com.legend.base.RunScope.enter()) {
+            // the execution's id, to the run's listener before anything else (RunScope.execution: a writer's activity reports it)
+            sink.execution(com.legend.base.RunScope.execution());
             programRun(program, values, sessions, stores, callbacks, sink);
         }
     }

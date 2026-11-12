@@ -935,11 +935,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
         }
 
-        /** A target whose database's errors carry a raise's text: no read-back is declared. */
-        public Target(Database database, List<String> session, List<Load> loads) {
-            this(database, session, loads, null);
-        }
-
         /** This target with no load: where its loads load. */
         public Target bare() {
             return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack);
