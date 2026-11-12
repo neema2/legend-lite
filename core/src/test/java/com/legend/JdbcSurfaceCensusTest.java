@@ -213,8 +213,8 @@ class JdbcSurfaceCensusTest {
                     Act.CHECKS),
             names("core/src/main/java/com/legend/exec/DatabaseConnector.java",
                     "the connector contract: the openers' shapes (a private instance, a named memory) return the"
-                    + " driver's Connection, the raise recovery is two statements declared as data (D65); each"
-                    + " connector opens"),
+                    + " driver's Connection (the raise recovery went to the plan with C2, 2026-11-12: the dialect"
+                    + " declares it, the target carries it); each connector opens"),
             row("core/src/main/java/com/legend/exec/DuckDbConnector.java",
                     "the in-process database's private instance (DriverManager)", Act.OPENS),
             row("core/src/main/java/com/legend/exec/H2Connector.java",
@@ -230,8 +230,9 @@ class JdbcSurfaceCensusTest {
             row("core/src/main/java/com/legend/exec/JdbcStatements.java",
                     "the one JDBC sender (2026-10-17, D12, the Statements seam): prepare, bind, execute; the one"
                     + " getString of the plan path (carriage, C1.2) and a result's columns as the driver reports"
-                    + " them; the transaction bracket; a MariaDB raise read back from the two statements its"
-                    + " connector declares (D65); its bulk load went with the plan's rows step (A2, 2026-11-10)",
+                    + " them; the transaction bracket; a MariaDB raise read back by the two statements the plan's"
+                    + " target declares (C2, 2026-11-12, the charter's A3(c)); its bulk load went with the plan's"
+                    + " rows step (A2, 2026-11-10)",
                     Act.SENDS, Act.DECODES, Act.TRANSACTS),
             row("core/src/main/mongodb/com/legend/exec/MongoDbStatements.java",
                     "the pipeline through the driver's cursor and a command run, each row's cells by the plan's"

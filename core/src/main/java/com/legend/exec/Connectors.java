@@ -107,11 +107,6 @@ public final class Connectors {
         }
 
         @Override
-        public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-            throw unbuilt();
-        }
-
-        @Override
         public boolean abortsTransactionOnError() {
             throw unbuilt();   // refused by name, as every fact of an unbuilt connector
         }

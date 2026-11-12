@@ -76,6 +76,11 @@ public final class Databricks extends AnsiSqlRenderer {
         return 6;
     }
 
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
     /** The most characters of parameters one statement binds (its driver's refusal: "the combined size of parameters
      *  is N, exceeding the limit of 1048576 characters", measured by the Databricks lane, 2026-11-11,
      *  docs/data-delivery-homework/probes/DatabricksDelivery2.java.txt). */

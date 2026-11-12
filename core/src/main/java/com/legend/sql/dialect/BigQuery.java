@@ -124,6 +124,11 @@ public final class BigQuery extends AnsiSqlRenderer {
         return 6;
     }
 
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
     /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
      *  2026-11-11, on round 2's measurement, probes/BigQueryDelivery2.java.txt): it reads 100,000 records (7.6 s) where
      *  the statement's own rows are refused, past BigQuery's 1 MB of query text; a {@code TEMP} table needs a session,

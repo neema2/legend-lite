@@ -80,6 +80,10 @@ class CodeShapeGuardrailTest {
             // query's minted stamp, JdbcStatements.reserved and ExecutionTrace.reserved, went with C1, 2026-11-12: the
             // database receives exactly the plan's text, the execution id the runner's bound value.)
             "JdbcStatements.driver", "Sessions.version",
+            // 2026-11-12, C2 (D4): the error read-back the plan's target declared when it last checked the session, a
+            // session's fact as its checked driver is -- what the seam sends after a statement, or a bracket's commit,
+            // fails on it (the charter's A3(c))
+            "SessionState.raiseReadBack",
             // 2026-11-10, the A checkpoint's tenets audit (2): the session's checked target's connector, learned at
             // check as the driver's decoding is, whose facts (a transaction taken, an error aborting it) a run acts on
             "JdbcStatements.declared",

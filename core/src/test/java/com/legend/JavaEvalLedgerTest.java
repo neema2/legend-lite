@@ -1481,6 +1481,9 @@ class JavaEvalLedgerTest {
                     // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L2 (P2): the one place a plan's load is made and the
                     // one identity scheme (a digest of the steps' content, every digest in it); data in, no value computed
                     "LoadPlanner.java",
+                    // 2026-11-12, C2 (D4, the charter's A3(c)): a target as its dialect writes it -- the database, the
+                    // session setup and the error read-back the dialect declares, copied into the plan; nothing evaluated
+                    "Targets.java",
                     // 2026-11-10, docs/DATA_IN_THE_PLAN_2026_11_09.md L6b: a query's data: sources as one load into
                     // session tables named by their content's digest, the payload split into its elements verbatim
                     // (build-time model text, compared never computed) and the source read as its table

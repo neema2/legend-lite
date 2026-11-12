@@ -58,12 +58,6 @@ public final class MongoDbConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: no JDBC session is a MongoDB's ({@link #ownSessions}), and its errors carry their text. */
-    @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
-    }
-
     /** {@inheritDoc} No: a MongoDB session holds no SQL transaction the platform opens. */
     @Override
     public boolean abortsTransactionOnError() {

@@ -2458,6 +2458,11 @@ public final class MongoDb extends AnsiSqlRenderer {
         return 3;
     }
 
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
     /** The BSON type name a cast converts to, a refusal where MongoDB has no such type. */
     @Override
     protected String scalarTypeName(SqlType.Scalar s) {

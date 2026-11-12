@@ -426,7 +426,7 @@ public final class Sessions {
             unwind(session, state, failure);
             throw failure;
         } catch (SQLException e) {
-            com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> JdbcStatements.held(session, e));
+            com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> JdbcStatements.held(session, state, e));
             unwind(session, state, failure);
             throw failure;
         }

@@ -227,10 +227,12 @@ wins.
   - **(c) Declared error read-back.** After a statement fails, exec sends the statements the plan's target declares for
     reading the error back (MariaDB and MySQL keep a raised Pure message in a session variable).
 
-  Nothing else is allowed. Exec writes no other SQL text: the type hole is deleted (D1, P4, 2026-11-09). PENDING
-  (corrected 2026-11-09 by the tenets re-audit's B-3: this line said both were done): the per-execution trace comment is
-  still written at run (`JdbcStatements.stamped`, D3), and MariaDB's read-back is still the connector's, not the plan's
-  declared statements (D4); both land in the total wall's M5. Exec sends no statement the plan does not contain.
+  Nothing else is allowed. Exec writes no other SQL text: the type hole is deleted (D1, P4, 2026-11-09); the
+  per-execution trace comment is no longer written at run (`JdbcStatements.stamped` deleted, D3, C1, 2026-11-12: the
+  execution id a bound value, register S304); MariaDB's read-back is the plan's declared statements, not the
+  connector's (D4, C2, 2026-11-12: `SqlDialect.raiseReadBack`, carried by the target, sent as written). (Until C the
+  line read PENDING for both, corrected 2026-11-09 by the tenets re-audit's B-3.) Exec sends no statement the plan does
+  not contain.
 - **A4 — The guards' text matches the code.** `JavaEvalLedgerTest`'s javadoc names classes that are gone, and says the
   decode cluster computes nothing, which was false for five sites on 2026-11-07. AGENTS.md invariant 3 described the
   type hole until 2026-11-09, when the hole was deleted (P4) and the text corrected. Both are corrected as the code

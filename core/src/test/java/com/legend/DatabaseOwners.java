@@ -174,8 +174,9 @@ final class DatabaseOwners {
             "core/src/test/java/com/legend/exec/ConnectorsTest.java",
             // 2026-10-29 (D65, the three routings): the raise recovery's test, which compares every connector's
             // declared recovery by design (MariaDB's and MySQL's the two statements, every other none) and measures
-            // the seam's read on H2's own session variables
-            "core/src/test/java/com/legend/exec/RaiseRecoveryTest.java",
+            // the seam's read on H2's own session variables -- RaiseReadBackTest since C2 (2026-11-12): every
+            // DIALECT's declared read-back, a MariaDB and a MySQL plan's target carrying it, the seam's sends on H2
+            "core/src/test/java/com/legend/exec/RaiseReadBackTest.java",
             // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A1: the data delivery matrix, which runs every door and
             // data kind on each in-process database (and its Postgres leg) by design, its expectations each database's
             // reading of a file or a payload, as ConnectorsTest compares their connectors
@@ -188,7 +189,7 @@ final class DatabaseOwners {
             "core/src/test/java/com/legend/setup/RowLoadCellsTest.java",
             // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A4 (rule 3): the catalog turn's failure, which compares
             // a database that aborts its transaction on an error (DuckDB) with one that rolls back the statement alone
-            // (H2) by design, as RaiseRecoveryTest compares the connectors' recoveries
+            // (H2) by design, as RaiseReadBackTest compares the dialects' read-backs
             "core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java",
             // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A6 (the correctness audit's S3, the tenets audit's M-6):
             // a zoned connection's DateTime parameter and a Decimal's text, each answered alike on DuckDB and H2 by design

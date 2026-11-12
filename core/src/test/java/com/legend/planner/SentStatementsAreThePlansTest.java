@@ -67,6 +67,11 @@ class SentStatementsAreThePlansTest {
         ExecutionPlan.Target target = plan.answerSql().target();
         out.add(plan.answerSql().statement());
         out.addAll(target.session());
+        // the error read-back the target declares, sent after a failure (C2, 2026-11-12: MariaDB's and MySQL's)
+        if (target.raiseReadBack() != null) {
+            out.add(target.raiseReadBack().read());
+            out.add(target.raiseReadBack().reset());
+        }
         for (ExecutionPlan.Load load : target.loads()) {
             out.addAll(load.target().session());
             for (ExecutionPlan.LoadStep step : load.steps()) {

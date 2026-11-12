@@ -36,12 +36,6 @@ final class SnowflakeConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code Snowflake}'s errors carry their raise. */
-    @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
-    }
-
     /** {@inheritDoc} No: Snowflake rolls back the failed statement alone; its transaction goes on. */
     @Override
     public boolean abortsTransactionOnError() {

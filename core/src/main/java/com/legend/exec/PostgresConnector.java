@@ -46,12 +46,6 @@ final class PostgresConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code Postgres}'s errors carry their raise. */
-    @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
-    }
-
     /** {@inheritDoc} Yes: Postgres aborts the transaction on a failed statement ("current transaction is aborted, commands ignored until end of transaction block"). */
     @Override
     public boolean abortsTransactionOnError() {

@@ -55,12 +55,6 @@ final class SqliteConnector implements DatabaseConnector {
         return "specification: SQLite { };\n  auth: Test";
     }
 
-    /** {@inheritDoc} None: {@code SQLite}'s errors carry their raise. */
-    @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
-    }
-
     /** {@inheritDoc} No: SQLite rolls back the failed statement alone; its transaction goes on. */
     @Override
     public boolean abortsTransactionOnError() {

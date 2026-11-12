@@ -71,9 +71,9 @@ public final class LoadPlanner {
         if (fill.isEmpty()) {
             return null;
         }
-        ExecutionPlan.Target database = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type,
+        ExecutionPlan.Target database = Targets.of(new ExecutionPlan.Database.Platform(type,
                 new ExecutionPlan.Project(Hash.ofUtf8(com.legend.setup.ProjectData.contentKey(ctx)).hex(), null)),
-                dialect.sessionSetup(), List.of());
+                dialect);
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.ONCE, fill, database));
     }
 
@@ -191,8 +191,7 @@ public final class LoadPlanner {
                 steps.statement(sql);
             }
         }
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null),
-                dialect.sessionSetup(), List.of());
+        ExecutionPlan.Target target = Targets.of(new ExecutionPlan.Database.Platform(type, null), dialect);
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps.build(), target));
     }
 
@@ -240,8 +239,7 @@ public final class LoadPlanner {
                 transaction(host, com.legend.sql.dialect.HostOperation.Transaction.Step.COMMIT),
                 transaction(host, com.legend.sql.dialect.HostOperation.Transaction.Step.ROLLBACK));
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps,
-                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null), dialect.sessionSetup(),
-                        List.of())));
+                Targets.of(new ExecutionPlan.Database.Platform(type, null), dialect)));
     }
 
     private static List<String> transaction(com.legend.sql.dialect.HostOperations host,
@@ -292,8 +290,7 @@ public final class LoadPlanner {
             steps.statement(sql);
         }
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps.build(),
-                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null), dialect.sessionSetup(),
-                        List.of())));
+                Targets.of(new ExecutionPlan.Database.Platform(type, null), dialect)));
     }
 
     /** Where a secret's keys apply: its address as a prefix of the URLs it is used for -- cut before a glob, an Iceberg
@@ -394,8 +391,7 @@ public final class LoadPlanner {
         };
         // the host's own file, read by its database's statements (setup.LoadSteps: the planner's makers make a step)
         steps.addAll(com.legend.setup.LoadSteps.hostFile(file, host.statements(read)).steps());
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null),
-                dialect.sessionSetup(), List.of());
+        ExecutionPlan.Target target = Targets.of(new ExecutionPlan.Database.Platform(type, null), dialect);
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps, target, content));
     }
 
@@ -409,7 +405,8 @@ public final class LoadPlanner {
 
     /** {@code target} establishing {@code steps} on acquisition (none: the target as it is). */
     public static ExecutionPlan.Target withLoads(ExecutionPlan.Target target, com.legend.setup.LoadSteps steps) {
-        return new ExecutionPlan.Target(target.database(), target.session(), targetLoads(steps, target));
+        return new ExecutionPlan.Target(target.database(), target.session(), targetLoads(steps, target),
+                target.raiseReadBack());
     }
 
     /** {@link #withLoads(ExecutionPlan.Target, com.legend.setup.LoadSteps)} for steps that read no blob. */

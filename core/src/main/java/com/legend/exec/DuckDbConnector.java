@@ -55,12 +55,6 @@ final class DuckDbConnector implements DatabaseConnector {
         return "specification: DuckDB { };\n  auth: Test";
     }
 
-    /** {@inheritDoc} None: {@code DuckDB}'s errors carry their raise. */
-    @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
-    }
-
     /** {@inheritDoc} Yes: DuckDB aborts the whole transaction on a failed statement and refuses every statement after it until a rollback (measured: "Current transaction is aborted (please ROLLBACK)"). */
     @Override
     public boolean abortsTransactionOnError() {

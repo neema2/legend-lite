@@ -42,14 +42,6 @@ class MariaDbConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} A MariaDB statement cannot raise an error of its own text, so the dialect keeps the message in the
-     *  session's user variable {@code @legend_raise} before it fails ({@code sql.dialect.MariaDb}'s raise, and
-     *  MySQL's): one fixed read of the session's state, and its reset, never a query of the user's. */
-    @Override
-    public RaiseRecovery raiseRecovery() {
-        return new RaiseRecovery("SELECT @legend_raise", "SET @legend_raise = NULL");
-    }
-
     /** {@inheritDoc} No: MariaDB and MySQL roll back the failed statement alone; the transaction goes on. */
     @Override
     public boolean abortsTransactionOnError() {
