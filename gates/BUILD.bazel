@@ -106,8 +106,10 @@ test_suite(
         # no SQL spelled by the tab's apps or Python's host, two halves of one rule (D5, tools/guards/host_sql.txt)
         "//tools/guards:host_sql_test",
         "//python:host_sql_test",
-        # a host sends only a plan's statement: where that type is made, pinned (the total wall's C3, 2026-11-12)
+        # a host sends only a plan's statement: where that type is made, pinned (the total wall's C3, 2026-11-12); its
+        # Python half read by Python's parser (2026-11-12, the C checkpoint's code audit SHOULD-FIX 2)
         "//tools/guards:planned_sql_test",
+        "//python:planned_guard_test",
         "//tools/browser:revision_test",
         "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",

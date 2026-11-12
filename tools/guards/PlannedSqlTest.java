@@ -26,8 +26,10 @@ import org.junit.jupiter.api.Test;
  * where a plan is READ, and nowhere else: this guard pins where.
  *
  * <p>Read over every .ts of the repository (the inventory's files; the product's folders are host_sql.txt's, one list
- * with the host-SQL guard) and every module of Python's host. Each list below moves only with a dated justification
- * naming the task (AGENTS.md, guard files), and shrinks: a site that is gone is taken out (the stale checks).
+ * with the host-SQL guard). Python's host is the other half's, read by Python's own parser
+ * (python/tests/test_planned_guard.py, //python:planned_guard_test; 2026-11-12, the C checkpoint's code audit). Each
+ * list below moves only with a dated justification naming the task (AGENTS.md, guard files), and shrinks: a site that
+ * is gone is taken out (the stale checks).
  */
 class PlannedSqlTest {
 
@@ -72,33 +74,10 @@ class PlannedSqlTest {
     /** The two files that may cast to PlannedSql: the type's own mints, and the tests' (engine-client/test). */
     static final Set<String> CASTS = Set.of("engine-client/src/planned-sql.ts", "engine-client/test/unplanned.ts");
 
-    /** The Python modules that make a PlannedSql from a plan's text (from_plan, all_from_plan). 2026-11-12 (C3): the
-     *  compiler's readers (compiler.py), the load runners (projects.py: a load's steps), and execute's plan half read
-     *  by the engine (engine.py: its {@code run}). */
-    static final Set<String> PYTHON_MINTS = Set.of(
-            "python/legend_lite/compiler.py",
-            "python/legend_lite/projects.py",
-            "python/legend_lite/engine.py");
-
-    /**
-     * The statements DataCube's hosted code hands Python's database across the V8 bridge ({@code across_the_bridge}):
-     * PlannedSql on that side, text on the bridge. Each module and how many calls. 2026-11-12 (C3): the hosted
-     * DataCube's query and statement (_headless.py), and a remote file's settings its plan runner kept (engine.py).
-     * Reported to the orchestrator: typed again by name at the crossing, not checked against the planner's answers.
-     */
-    static final Map<String, Integer> BRIDGE = Map.of(
-            "python/legend_lite/_headless.py", 2,
-            "python/legend_lite/engine.py", 1);
-
-    /**
-     * Each {@code .execute(} a module of Python's host writes, by its receiver: the one send ({@code _planned.send}'s
-     * {@code target}), a read's own method that calls it (frames.py {@code self.execute}, Reading.execute) and a
-     * docstring's Pure query ({@code trades.execute}). 2026-11-12 (C3).
-     */
-    static final Set<String> PYTHON_EXECUTES = Set.of(
-            "python/legend_lite/_planned.py target",
-            "python/legend_lite/frames.py self",
-            "python/legend_lite/frames.py trades");
+    // (PYTHON_MINTS, BRIDGE and PYTHON_EXECUTES, the Python half by regular expression: MOVED 2026-11-12, the C
+    // checkpoint's code audit SHOULD-FIX 2, to python/tests/test_planned_guard.py, which reads every module with
+    // Python's own parser -- an alias, a qualified call, a subclass, a send on any receiver are what a regular
+    // expression passed)
 
     /** What a mint file may import from planned-sql.ts: the functions that type a plan's text or a planner's answer. */
     static final Set<String> MINT_NAMES = Set.of("fromPlan", "allFromPlan", "plannedProjectData");
@@ -127,11 +106,6 @@ class PlannedSqlTest {
     private static final Pattern PLAYGROUND_READ = Pattern.compile("\\.\\s*playground\\b|\\[\\s*['\"`]playground['\"`]\\s*\\]"
             + "|\\{[^{}]*\\bplayground\\b[^{}]*\\}\\s*=(?!=)");
     private static final Pattern UNPLANNED_IMPORT = Pattern.compile("from\\s*'[^']*test/unplanned\\.ts'");
-    private static final Pattern PY_MINT = Pattern.compile("(?<![\\w.])(?:from_plan|all_from_plan)\\(");
-    private static final Pattern PY_BRIDGE = Pattern.compile("(?<![\\w.])across_the_bridge\\(");
-    private static final Pattern PY_CONSTRUCT = Pattern.compile("(?<![\\w.])PlannedSql\\(");
-    private static final Pattern PY_EXECUTE = Pattern.compile("(\\w+)\\s*\\.\\s*execute(?:many)?\\(");
-    private static final Pattern PY_OTHER_SENDS = Pattern.compile("\\bduckdb\\s*\\.\\s*(?:sql|execute|query)\\(");
 
     /** host_sql.txt's [typescript] and [python] folders: the product's, one list with the host-SQL guard. */
     private static Map<String, List<String>> folders() throws IOException {
@@ -392,49 +366,5 @@ class PlannedSqlTest {
         }
         assertEquals(List.of(), found, "a product source imports the tests' `unplanned`: a host sends only what a plan"
                 + " carries");
-    }
-
-    @Test
-    void pythonsHostSendsOnlyThroughTheOneSend() throws IOException {
-        List<String> python = folders().get("python");
-        List<String> modules = inventory().stream().filter(f -> f.endsWith(".py") && under(f, python)).toList();
-        assertTrue(modules.size() > 10, "the guard read too few Python modules: " + modules.size());
-        Set<String> executes = new TreeSet<>();
-        Set<String> mints = new TreeSet<>();
-        Map<String, Integer> bridge = new TreeMap<>();
-        List<String> constructed = new ArrayList<>();
-        List<String> otherSends = new ArrayList<>();
-        for (String file : modules) {
-            String src = read(file);
-            Matcher e = PY_EXECUTE.matcher(src);
-            while (e.find()) {
-                executes.add(file + " " + e.group(1));
-            }
-            if (!file.endsWith("/_planned.py") && PY_MINT.matcher(src).find()) {
-                mints.add(file);
-            }
-            Matcher b = PY_BRIDGE.matcher(src);
-            int calls = 0;
-            while (b.find()) {
-                calls++;
-            }
-            if (!file.endsWith("/_planned.py") && calls > 0) {
-                bridge.put(file, calls);
-            }
-            if (!file.endsWith("/_planned.py") && PY_CONSTRUCT.matcher(src).find()) {
-                constructed.add(file);
-            }
-            if (PY_OTHER_SENDS.matcher(src).find()) {
-                otherSends.add(file);
-            }
-        }
-        assertEquals(new TreeSet<>(PYTHON_EXECUTES), executes, "a statement Python's host runs goes through"
-                + " _planned.send, which refuses any text no plan carries (PlannedSqlTest.PYTHON_EXECUTES)");
-        assertEquals(new TreeSet<>(PYTHON_MINTS), mints, "a PlannedSql is made only where a plan or the planner's answer"
-                + " is read (PlannedSqlTest.PYTHON_MINTS)");
-        assertEquals(new TreeMap<>(BRIDGE), bridge, "the statements the hosted DataCube hands across are typed at the"
-                + " named crossings alone (PlannedSqlTest.BRIDGE)");
-        assertEquals(List.of(), constructed, "PlannedSql is made by _planned.py's functions alone");
-        assertEquals(List.of(), otherSends, "duckdb's module-level sends reach the default connection outside the one send");
     }
 }
