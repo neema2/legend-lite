@@ -120,6 +120,14 @@ public final class ProductSqlMeasure {
                 String answer;
                 try (java.sql.Connection c = backend.open()) {
                     answer = "rows " + rows(c, sql);
+                    // the best of three runs, after the first (E-5's homework: a staged Float canon against the inline)
+                    long best = Long.MAX_VALUE;
+                    for (int i = 0; i < 3; i++) {
+                        long t0 = System.nanoTime();
+                        rows(c, sql);
+                        best = Math.min(best, System.nanoTime() - t0);
+                    }
+                    answer += " (" + best / 1_000_000 + " ms)";
                 } catch (java.sql.SQLException e) {
                     answer = "RAISED " + String.valueOf(e.getMessage()).lines().findFirst().orElse("");
                 }

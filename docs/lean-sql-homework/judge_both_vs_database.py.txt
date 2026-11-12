@@ -1,0 +1,59 @@
+import sys, re, collections
+ARGS = sys.argv[1:]
+sys.path.insert(0, '.')
+import importlib.util, importlib.machinery
+spec = importlib.util.spec_from_file_location("j", "docs/lean-sql-homework/judge_sql.py.txt", loader=importlib.machinery.SourceFileLoader("j","docs/lean-sql-homework/judge_sql.py.txt"))
+j = importlib.util.module_from_spec(spec); sys.argv=['x']; spec.loader.exec_module(j)
+def load(p):
+    t = open(p, encoding='utf-8', errors='replace').read()
+    sizes = [l.split(' ',3) for l in t.splitlines() if l.startswith('[sql-size] ')]
+    st = j.dumps(t)
+    assert len(st) == len(sizes), (len(st), len(sizes))
+    return [(s[2], o, q) for s, (o, q) in zip(sizes, st)]
+both = load(ARGS[0]); db = load(ARGS[1])
+dbset = collections.Counter(q for _, o, q in db if o == 'body')
+fused = [q for _, o, q in both if q in dbset]
+print('BOTH statements identical to a DATABASE verdict:', len(fused), sum(map(len, fused)))
+rest = [(t, q) for t, o, q in both if o == 'other' and q not in dbset]
+print('BOTH other statements:', len(rest), sum(len(q) for _, q in rest))
+dup = 0; dupc = 0
+pert = collections.defaultdict(collections.Counter)
+for t, q in rest: pert[t][q] += 1
+for t, c in pert.items():
+    for q, n in c.items():
+        if n > 1: dup += n-1; dupc += (n-1)*len(q)
+print('identical statement re-sent within a test:', dup, dupc)
+# shape of rest: first words
+shape = collections.Counter(re.sub(r"'(?:[^']|'')*'", "'?'", q)[:60] for _, q in rest)
+for s, n in shape.most_common(12): print(n, s)
+lens = sorted(len(q) for _, q in rest)
+print('rest len median', lens[len(lens)//2], 'p90', lens[int(len(lens)*.9)])
+LITONLY = re.compile(r"^SELECT (?:'(?:[^']|'')*'|-?\d+(?:\.\d+)?|TRUE|FALSE|NULL|DATE '[^']*'|TIMESTAMP '[^']*'|CAST\(NULL AS \w+\)|-?\d+(?:\.\d+)?::\w+(?:\(\d+, ?\d+\))?) AS value$", re.S)
+kinds = collections.Counter(); kc = collections.Counter()
+for t, q in rest:
+    if LITONLY.match(q): k = 'side: a literal'
+    elif q.startswith('WITH __se_') or q.startswith('WITH __p_') or q.startswith('WITH __e_') or '__verdict' in q: k = 'verdict wrapper'
+    else: k = 'side: computed'
+    kinds[k] += 1; kc[k] += len(q)
+for k in kinds: print(f"{k:18} {kinds[k]:6} {kc[k]:9}")
+# verdict wrappers in BOTH vs DATABASE fused
+# canon written once per side: in each wrapper, the select list of each side CTE repeats one expression (the canon);
+# count the text of every occurrence after the first of the longest repeated group per CTE
+def cte_waste(q):
+    w = 0
+    for m in re.finditer(r"__s[ea]_\d+ AS \(SELECT (.*?)\n  FROM", q, re.S):
+        w += j.repeated_waste(m.group(1), 24)
+    return w
+wr = [q for _, q in rest if q.startswith('WITH __se_')] + [q for _, o, q in db if o=='body']
+for name, qs in (('BOTH wrappers', [q for _, q in rest if q.startswith('WITH __')]), ('DATABASE verdicts', [q for _, o, q in db if o=='body'])):
+    tot = sum(map(len, qs)); cw = sum(cte_waste(q) for q in qs); rw = sum(j.repeated_waste(q) for q in qs)
+    print(f"{name}: {len(qs)} statements, {tot} chars; canon-once saves {cw} ({100*cw/tot:.1f}%); any bind-once saves {rw} ({100*rw/tot:.1f}%)")
+# sides whose text recurs inside the same test's later wrapper
+pert2 = collections.defaultdict(list)
+for t, o, q in both: pert2[t].append(q)
+twice = 0; twicec = 0
+for t, qs in pert2.items():
+    for i, q in enumerate(qs):
+        if q.startswith('SELECT') and any(q[len('SELECT '):] in q2 for q2 in qs[i+1:] if q2.startswith('WITH')):
+            twice += 1; twicec += len(q)
+print('BOTH side statements whose query runs again inside a later verdict of the test:', twice, twicec)

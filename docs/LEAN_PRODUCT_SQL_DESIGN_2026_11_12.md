@@ -535,6 +535,97 @@ Two things to settle first:
   records are rebuilt in about 18 switch sites).
 - **D's share.** The print forms and the raise sentences are D's; they are counted, marked D and left to D.
 
+### 5.9 E-5, the test road's speed: measured, and the design (the user's ruling of 2026-11-12; BUILD after the A/B/C merge)
+
+> **The ruling:**
+> - The judges reuse P1a's bind-once construct.
+> - A value's printed text is written once per verdict.
+> - Fewer statements per test: BOTH reads the database judge's fused program (§7.6 items 1-2 of
+>   `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`).
+> - The judge's SQL is pinned as a second shrink-only set.
+
+**Measured** (2026-11-12, PCT channel B essential on DuckDB, in process, 343 tests, all passing; `-Dlegend.diagnostics=sql-sizes,dump-sql`,
+`-Dpct.channelb.judge=BOTH|DATABASE`; analysed by `docs/lean-sql-homework/judge_sql.py.txt`):
+
+| Judge | Statements | Per test | Characters | Per test |
+|---|---|---|---|---|
+| DATABASE | 701 (343 session, 358 verdict) | 2.0 | 2,483,655 | 7,241 |
+| BOTH | 2,762 (343 session, 2,419 other) | 8.1 | 2,814,871 | 8,207 |
+
+BOTH's 2,419 other statements, by kind:
+
+| Kind | Statements | Characters |
+|---|---|---|
+| a verdict statement identical to the DATABASE judge's | 182 | 492,798 |
+| a verdict wrapper of BOTH's own (not the DATABASE judge's text) | 676 | 2,125,086 |
+| a host side that is a literal (`SELECT 'x' AS value`, `SELECT 1 AS value`, ...) | 654 | 18,572 |
+| a host side that computes | 907 | 172,241 |
+
+- **The same statement sent twice in one test:** 354 times, 170,715 characters.
+- **A side's query run twice:** 1,525 host-side statements whose query runs again inside a later verdict statement of
+  the same test (153,864 characters).
+
+So BOTH does every side's work twice: once for the host and once inside the database's verdict.
+
+**Where the characters are: the Float canon.**
+- The verdict statements' repeated text was found by greedy bind-once of every repeated bracketed group: 52% of the
+  DATABASE judge's characters (31.6% of BOTH's wrappers).
+- Nearly all of it is ONE expression, `SqlFn.FLOAT_CANON` spelled by `sql/dialect/FloatCanonText`.
+  - That is Pure's literal spelling of a Float, the exponent unfolded as text.
+  - Each canon is 4,124 characters.
+  - It reads the double's text (`CAST(value AS VARCHAR)`) 43 times, the mantissa's `regexp_extract` 24 times, the
+    exponent 6 times and the point's position 6 times.
+- 171 canons in 34 of the 358 verdict statements are **28% of the DATABASE judge's characters** (25% of BOTH's).
+- The same expression prints a Float on the product path (`toString`, a Float in a string).
+
+**E-5a, the Float canon staged (a dialect change, not testplan's):**
+- The text, the mantissa, the exponent and the point are bound once, as columns of nested one-row derived tables under
+  the scalar subquery `FloatCanonText.Expansion` already writes for SQLite and BigQuery (`bindsFloatText`, which binds
+  the text alone today).
+- The canon becomes 665 characters over its four columns, plus about 300 characters of shells: 4,124 -> about 1,000.
+- Probed (`product_sql_measure probe`, 2026-11-12):
+  - **DuckDB:** the staged form answers every row as the inline form does. That held over 301,001 doubles (tiny,
+    1e290-scale, thirds and NULL): 0 rows differ. Over 200,000 rows it ran **166 ms -> 52 ms** (3.2x).
+  - **SQLite:** the correlated nesting works at depth 2, as its depth-1 binding does today.
+  - **H2:** refuses an outer column inside a derived table at any depth (`Column "V" not found`, as P1a met). H2 keeps
+    the inline form.
+- Expected: about -21% of the essential suite's DATABASE-judge characters on DuckDB, and the product's Float printing
+  smaller and faster on every dialect that binds. The server dialects are probed on `//core:data_source_servers_test`
+  and the lanes.
+
+**E-5b, a value's printed text once per verdict** (testplan/VerdictSql; after the merge):
+- A side's CTE writes its canon three times: `__text`, `__nulls`, and `__trees`.
+- It becomes one inner select computing `__c`, with the three read off `__c`. This is P1a's bind-once, applied at the
+  side's CTE.
+- Measured saving: 5.8% of the DATABASE judge's characters, 6.5% of BOTH's wrappers (smaller than E-5a, because the
+  canon's own inside dominates).
+
+**E-5c, BOTH reads the fused program** (testplan; after the merge):
+- BOTH plans the DATABASE judge's fused verdict and nothing of its own.
+- The host judge reads each side's typed value from it: per side, a typed column of the fused statement beside
+  `__expected`/`__actual`.
+- That brings BOTH from 8.1 to about 2 statements per test, and its characters to the DATABASE judge's plus the typed
+  columns.
+- The literal sides (654 statements) go with it.
+- Until then, a literal side is a `Side.Constant` (no statement), if the host judge may read a planned literal. That is
+  a question for the orchestrator: G6 says the database does the work, and a literal's printed text is the database's
+  today.
+
+**E-5d, the judge's pin** (after the merge):
+- The corpus's `judge-sql.tsv` (today written unguarded) becomes `rcorpus/lean-sql-judge-baseline.tsv`.
+- It is held by the same rule as the product's (growth fails; a shrink past 1% re-pins).
+- PCT channel B gets the same pin per suite, under the judge mode the lane runs.
+- It lands after the merge, so the merge does not re-pin it.
+
+**The order:**
+1. E-5a: a dialect, not testplan. It can be built now if the orchestrator agrees; its pins move down on the product
+   set too.
+2. E-5d's pin, at the merge.
+3. E-5b.
+4. E-5c.
+
+Each one is measured by this section's commands before and after.
+
 ## 6. The guard: a product-SQL size baseline, shrink-only (G3)
 
 > **BUILT (2026-11-12, ruled by the orchestrator: its own target in `//gates:local`, all 11 dialects).**
