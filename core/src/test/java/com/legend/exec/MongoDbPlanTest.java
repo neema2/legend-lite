@@ -118,6 +118,72 @@ class MongoDbPlanTest {
                         PlanCases.Written.JSON, Map.of()));
     }
 
+    /**
+     * WHAT MONGODB IS SENT IS THE PLAN'S COMMAND (the C checkpoint's MUST-FIX 1, 2026-11-12, "as far as it goes"): the
+     * aggregate command the server receives -- read by the driver's own command listener -- is the plan's statement with
+     * each parameter marker ({@code {"$legendParam": "?"}}) replaced, in place and in order, by its slot's bound value,
+     * and nothing else: MongoDB's one run-time writing, the binding its driver has no protocol for (AGENTS.md
+     * invariant 3). The session's statements take the plan's text by type ({@code PlannedSql}); this is the run's
+     * witness of what it sends.
+     */
+    @Test
+    void theCommandSentIsThePlansWithItsMarkersBound() throws Exception {
+        String query = "{n: Integer[1] | #>{test::Store.people}#->filter(x | $x.age > $n)->select(~[name])}";
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT");
+        ExecutionPlan.Sql sql = plan.answerSql();
+        assertEquals(1, sql.slots().size(), "one slot, the parameter n's");
+        List<org.bson.BsonDocument> sent = new java.util.ArrayList<>();
+        com.mongodb.event.CommandListener listener = new com.mongodb.event.CommandListener() {
+            @Override
+            public void commandStarted(com.mongodb.event.CommandStartedEvent e) {
+                if (e.getCommandName().equals("aggregate")) {
+                    sent.add(e.getCommand().clone());
+                }
+            }
+        };
+        EmbeddedMongoDb db = EmbeddedMongoDb.shared();
+        com.mongodb.MongoClientSettings settings = com.mongodb.MongoClientSettings.builder()
+                .applyToClusterSettings(c -> c.hosts(List.of(new com.mongodb.ServerAddress("127.0.0.1", db.port()))))
+                .credential(com.mongodb.MongoCredential.createCredential(EmbeddedMongoDb.USER, EmbeddedMongoDb.DATABASE,
+                        EmbeddedMongoDb.PASSWORD.toCharArray()))
+                .addCommandListener(listener)
+                .build();
+        List<List<Object>> rows = new java.util.ArrayList<>();
+        try (MongoClient client = com.mongodb.client.MongoClients.create(settings);
+                var run = com.legend.base.RunScope.enter()) {
+            Statements st = new MongoDbStatements(client.getDatabase(EmbeddedMongoDb.DATABASE));
+            st.rows(sql.planned(), sql.slots(), List.of(PlanParameters.check(plan.parameters(), Map.of("n", 40L))
+                    .get("n")), ((ExecutionPlan.TdsResult) plan.root()).columns(), rows::add);
+        }
+        assertEquals(List.of(List.of("Cy")), rows);
+        assertEquals(1, sent.size(), "one aggregate command");
+        // the plan's command, its one marker replaced by the bound 40: the server's aggregate and pipeline exactly
+        org.bson.BsonDocument planned = org.bson.BsonDocument.parse(sql.statement());
+        org.bson.BsonDocument bound = (org.bson.BsonDocument) replaceMarker(planned, new org.bson.BsonInt64(40));
+        assertEquals(bound.get("aggregate"), sent.get(0).get("aggregate"));
+        assertEquals(bound.get("pipeline"), sent.get(0).get("pipeline"));
+        assertTrue(!sent.get(0).toJson().contains("$legendParam"), "no marker reaches the server");
+    }
+
+    /** {@code v} with its one marker document replaced by {@code value}, wherever it stands. */
+    private static org.bson.BsonValue replaceMarker(org.bson.BsonValue v, org.bson.BsonValue value) {
+        if (v.isDocument()) {
+            org.bson.BsonDocument d = v.asDocument();
+            if (d.size() == 1 && d.containsKey("$legendParam")) {
+                return value;
+            }
+            org.bson.BsonDocument out = new org.bson.BsonDocument();
+            d.forEach((k, x) -> out.append(k, replaceMarker(x, value)));
+            return out;
+        }
+        if (v.isArray()) {
+            org.bson.BsonArray out = new org.bson.BsonArray();
+            v.asArray().forEach(x -> out.add(replaceMarker(x, value)));
+            return out;
+        }
+        return v;
+    }
+
     @Test
     void aParameterIsBoundInPlace() throws Exception {
         assertEquals("[{\"name\":\"Cy\"}]",

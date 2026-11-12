@@ -38,10 +38,12 @@ class FixtureWriteCensusTest {
     private static final List<String> ROOTS = List.of("core/src/test/java", "spec/src", "testing/src/main/java",
             "warehouse/src/test");
 
-    /** A send whose text is a literal, and the literal's first word. */
+    /** A send whose text is a literal, and the literal's first word: a JDBC send's, or a test's own text typed for a
+     *  session's statements ({@code testbackend.Unplanned.sql}: since the C checkpoint's MUST-FIX 1, 2026-11-12, a
+     *  session takes a PlannedSql, and a test's literal written through it is a send all the same). */
     private static final Pattern SEND = Pattern.compile(
-            "\\.(execute|executeUpdate|executeLargeUpdate|addBatch|executeQuery|prepareStatement)\\s*\\(\\s*(\"\"\"|\")"
-                    + "\\s*(\\w+)");
+            "(?:\\.(execute|executeUpdate|executeLargeUpdate|addBatch|executeQuery|prepareStatement)\\s*\\(|Unplanned"
+                    + "\\.sql\\()\\s*(\"\"\"|\")\\s*(\\w+)");
 
     /** The words that write. */
     private static final Set<String> WRITES = Set.of("CREATE", "INSERT", "DROP", "UPDATE", "DELETE", "ALTER", "COPY",
@@ -63,8 +65,11 @@ class FixtureWriteCensusTest {
      *  empty cell as NULL); the table and its NULL row are its CSV. 908 -> 909 (2026-11-12, the B2d.3 audit's M4): the
      *  seed's COLLATE "C" on Postgres is shown on a column collated otherwise (PostgresArmTest, 1: one ALTER, the
      *  column's own collation, which no model or CSV can declare -- the embedded server's initdb --no-locale makes the
-     *  database's own binary); the table and its rows are its CSV. */
-    private static final int CEILING = 909;
+     *  database's own binary); the table and its rows are its CSV. 909 -> 912 (2026-11-12, the C checkpoint's MUST-FIX
+     *  1): a session's statements take a PlannedSql, a test's own text typed by {@code Unplanned.sql}, which this census
+     *  counts as a send (CatalogTurnFailureTest's 6 kept); ProgramRunnerTest's savepoint stand-ins, three INSERTs a
+     *  {@code Savepoint} record held as strings this census did not see, are counted now (3). */
+    private static final int CEILING = 912;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -78,6 +83,8 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java", 6),
             Map.entry("core/src/test/java/com/legend/exec/ContainsOverloadTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/DataLoadsTest.java", 6),
+            // 2026-11-12, the C checkpoint's MUST-FIX 1: the savepoint's three stand-in texts, typed by Unplanned.sql
+            Map.entry("core/src/test/java/com/legend/exec/ProgramRunnerTest.java", 3),
             // 2026-11-11, the B2a audit's S3: a user's table of a session table's name (the ceiling's note)
             // 2026-11-11, the B2a audit's S4: a user's table of a session table's name on Postgres (the ceiling's note)
             Map.entry("core/src/test/java/com/legend/exec/ExecuteFrameTest.java", 2),
