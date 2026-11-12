@@ -89,7 +89,7 @@ class ExecutionTraceTest {
         for (int i = 0; i < 2; i++) {
             StringWriter out = new StringWriter();
             PureV1Writer writer = PureV1Writer.relation(out, columns -> new PureV1Writer.Envelope(
-                    "{\"_type\":\"tdsBuilder\",\"columns\":[]}", "SELECT 1", List.of("n")));
+                    "{\"_type\":\"tdsBuilder\",\"columns\":[]}", "SELECT 1", List.of("n")), ONE);
             PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), writer, ONE);
             reports.add(out.toString());
         }
@@ -116,7 +116,7 @@ class ExecutionTraceTest {
         StringWriter out = new StringWriter();
         UUID[] told = {null};
         PureV1Writer writer = PureV1Writer.relation(out, columns -> new PureV1Writer.Envelope(
-                "{\"_type\":\"tdsBuilder\",\"columns\":[]}", "SELECT 1", List.of("n")));
+                "{\"_type\":\"tdsBuilder\",\"columns\":[]}", "SELECT 1", List.of("n")), ONE);
         // the writer, the id it is told recorded on the way
         ResultSink recording = new ResultSink() {
             @Override
@@ -145,13 +145,28 @@ class ExecutionTraceTest {
                 "the activity's comment names the run's execution: " + out);
     }
 
+    /** A writer of the engine's answer is made for an execution, its door's id: made for none, it is refused by name,
+     *  where it is made -- before the run, or after it (PCT's route, a host's answer) -- so no writer reports none. */
     @Test
-    void aWriterToldOfNoExecutionRefusesToReportOne() {
-        PureV1Writer writer = PureV1Writer.relation(new StringWriter(), columns -> new PureV1Writer.Envelope(
-                "{}", "SELECT 1", List.of("n")));
-        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> writer.columns(List.of(
-                new ExecutionPlan.Column("n", "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null, null))));
+    void aWriterMadeForNoExecutionIsRefusedByName() {
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> PureV1Writer.relation(
+                new StringWriter(), columns -> new PureV1Writer.Envelope("{}", "SELECT 1", List.of("n")), null));
         assertTrue(refused.getMessage().contains("the run named no execution"), refused.getMessage());
+        ExecutionPlan relation = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
+                ExecutionPlan.TdsResult.Shape.RELATION, List.of(), stampReader().answerSql()));
+        IllegalStateException arrow = assertThrows(IllegalStateException.class, () -> new com.legend.result.Output.Arrow(
+                new java.io.ByteArrayOutputStream(), null).writerFor(relation, null));
+        assertTrue(arrow.getMessage().contains("the run named no execution"), arrow.getMessage());
+    }
+
+    /** One answer is one execution's: a writer made for one, told another by the run, refuses by name. */
+    @Test
+    void aWriterToldAnotherExecutionRefusesByName() {
+        PureV1Writer writer = PureV1Writer.relation(new StringWriter(), columns -> new PureV1Writer.Envelope(
+                "{}", "SELECT 1", List.of("n")), ONE);
+        writer.execution(ONE);
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> writer.execution(TWO));
+        assertTrue(refused.getMessage().contains("one answer is one execution's"), refused.getMessage());
     }
 
     @Test

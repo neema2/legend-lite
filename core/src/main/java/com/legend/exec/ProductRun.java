@@ -43,7 +43,7 @@ public final class ProductRun {
             Establish establish, Output output, int batchRows, java.util.UUID execution) throws IOException {
         // a receiver of the caller's is told the answer here, before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack()) {
-            ResultSink sink = output.writerFor(plan);
+            ResultSink sink = output.writerFor(plan, execution);
             runCalledBack(plan, sessions, planSessions, establish, sink, batchRows, execution);
         }
         return plan;

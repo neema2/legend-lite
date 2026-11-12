@@ -55,11 +55,9 @@ final class PctPlanRoute {
             // a relation crosses as legend-engine's PCT adapter reads one (the result boundary program's stage 1, step
             // 3): the server's own writer of the engine's answer, written from the rows the run collected, after it
             // (2026-11-09: a tee the run called back until then)
+            // made after the run for the execution that ran the SQL, its door's id as the run named it to the collector
             com.legend.result.ResultSink engine = new com.legend.result.Output.Engine(json,
-                    com.legend.server.PureV1Api.facts(query)).writerFor(plan);
-            // the execution that ran the SQL, as the run named it to the collector: the engine's activity names it
-            // (ResultSink.execution, 2026-11-12; unsaid, the writer refused every relation by name)
-            engine.execution(java.util.Objects.requireNonNull(collector.execution(), "the run named no execution"));
+                    com.legend.server.PureV1Api.facts(query)).writerFor(plan, collector.execution());
             com.legend.result.Batcher batcher = new com.legend.result.Batcher(c.columns(), engine,
                     com.legend.result.Batcher.DEFAULT_CAPACITY);
             batcher.start();

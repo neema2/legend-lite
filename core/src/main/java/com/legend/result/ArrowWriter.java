@@ -43,21 +43,15 @@ import java.util.function.IntFunction;
 public final class ArrowWriter implements ResultSink {
 
     private final OutputStream out;
-    private final java.util.function.BiFunction<List<ExecutionPlan.Column>, java.util.UUID, Map<String, String>> metadata;
-    private java.util.@com.legend.base.Nullable UUID execution;
+    private final java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> metadata;
     private List<Enc> encoders = List.of();
 
     /** Onto {@code out}; {@code schemaMetadata} the stream's custom metadata (key to value), in order, made from the
-     *  columns the result announces (an envelope of a dynamic pivot's columns is known only then). */
+     *  columns the result announces (an envelope of a dynamic pivot's columns is known only then). An activity in it
+     *  names the execution its maker was given (the door's id, {@code Output.writerFor}: 2026-11-12, the exec-id item --
+     *  until then the run told this writer, and a writer made after the run was told nothing). */
     public ArrowWriter(OutputStream out,
             java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> schemaMetadata) {
-        this(out, (columns, execution) -> schemaMetadata.apply(columns));
-    }
-
-    /** Onto {@code out}, the metadata made from the announced columns and the execution the run named
-     *  ({@link #execution}: an activity in the metadata names it; 2026-11-12, C1's second half). */
-    public ArrowWriter(OutputStream out,
-            java.util.function.BiFunction<List<ExecutionPlan.Column>, java.util.UUID, Map<String, String>> schemaMetadata) {
         this.out = out;
         this.metadata = schemaMetadata;
     }
@@ -65,11 +59,6 @@ public final class ArrowWriter implements ResultSink {
     /** Onto {@code out} with a fixed metadata. */
     public ArrowWriter(OutputStream out, Map<String, String> schemaMetadata) {
         this(out, columns -> schemaMetadata);
-    }
-
-    @Override
-    public void execution(java.util.UUID id) {
-        execution = id;
     }
 
     @Override
@@ -82,7 +71,7 @@ public final class ArrowWriter implements ResultSink {
             fields.add(e.field());
         }
         encoders = encs;
-        out.write(ArrowIpc.schema(fields, new LinkedHashMap<>(metadata.apply(columns, execution))));
+        out.write(ArrowIpc.schema(fields, new LinkedHashMap<>(metadata.apply(columns))));
     }
 
     @Override

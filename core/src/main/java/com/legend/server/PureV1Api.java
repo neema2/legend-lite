@@ -760,8 +760,8 @@ public final class PureV1Api {
                     }
                     com.legend.result.PureV1Writer.Envelope envelope = new com.legend.result.PureV1Writer.Envelope(
                             Json.toCompact(builder), sql.value(), labels);
-                    sink = com.legend.result.PureV1Writer.relation(out, announced -> envelope);
-                    sink.execution(hostExecution(planned));
+                    // the execution jsonPlan named, its door's id, carried by the plan the host ran
+                    sink = com.legend.result.PureV1Writer.relation(out, announced -> envelope, hostExecution(planned));
                 }
                 default -> throw new IllegalArgumentException("the plan's shape '" + shape.value()
                         + "' is none jsonPlan answers");

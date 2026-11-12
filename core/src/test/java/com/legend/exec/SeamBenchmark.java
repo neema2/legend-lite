@@ -134,7 +134,7 @@ final class SeamBenchmark {
             CountingWriter w = new CountingWriter();
             return productDrain(c, plan, com.legend.result.PureV1Writer.relation(w, columns ->
                     new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
-                            columns.stream().map(ExecutionPlan.Column::name).toList())), w::count);
+                            columns.stream().map(ExecutionPlan.Column::name).toList()), java.util.UUID.randomUUID()), w::count);
         });
         measure(db, "9 product runner + ArrowWriter (bytes)", rows, mustDrain, () -> {
             CountingStream o = new CountingStream();
@@ -220,7 +220,7 @@ final class SeamBenchmark {
                 CountingWriter w = new CountingWriter();
                 return productDrain(c, plan, com.legend.result.PureV1Writer.relation(w, columns ->
                         new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
-                                columns.stream().map(ExecutionPlan.Column::name).toList())), crc ? w::count : null);
+                                columns.stream().map(ExecutionPlan.Column::name).toList()), java.util.UUID.randomUUID()), crc ? w::count : null);
             });
             paths.put("9 + ArrowWriter", crc -> () -> {
                 CountingStream o = new CountingStream();
