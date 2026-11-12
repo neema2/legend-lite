@@ -11,7 +11,7 @@ import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { fn, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import type { TableOutput } from '../src/layout/flow.ts';
-import { writeTable, type TableWriteHost } from '../src/table-output.ts';
+import { heldTableWriting, writeTable, type TableWriteHost } from '../src/table-output.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { unplanned } from '../../engine-client/test/unplanned.ts';
@@ -32,9 +32,13 @@ describe('a box written into a table of its host\'s database, in one transaction
     sources: [{ table: 'tw_src', convertible: true }],
     held: (t) => t === 'tw_src',
     models,
-    hold: (work) => engine.exclusive(work),
-    planOf: (q) => planner(model.model, model.runtime).plan(q),
-    executionPlan: (m, r, program) => planner(m, r).executionPlan(program),
+    writing: heldTableWriting({
+      databaseType: 'DuckDB',
+      models,
+      hold: (work) => engine.exclusive(work),
+      planOf: (q) => planner(model.model, model.runtime).plan(q),
+      executionPlan: (m, r, program) => planner(m, r).executionPlan(program),
+    }),
   });
   /** The box's rows: the source's, or those `keep` holds for. */
   const rowsOf = (keep?: (x: ValueSpecification) => ValueSpecification): Lambda =>

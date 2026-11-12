@@ -22,13 +22,9 @@
 // autoload and fails. Offering it would be offering an action that
 // cannot work -- the same rule the menu follows elsewhere.
 
-import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
-import {
-  SecretStore, type RemoteMountRequest, type RemoteMountSource, type SecretField, type SecretValue,
-} from '../../engine-client/src/host-operations.ts';
-import { heldTexts, type ConnectionSettings, type KeptSetting } from '../../engine-client/src/connection-settings.ts';
-import type { PlanValue } from '../../engine-client/src/plan-runner.ts';
-import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
+import type { RemoteMountRequest, SecretField, SecretValue } from '../../engine-client/src/host-operations.ts';
+import { heldTexts } from '../../engine-client/src/connection-settings.ts';
+import type { DataHost, LoadHolds } from './data-host.ts';
 
 export type RemoteFormat = 'parquet' | 'csv' | 'iceberg';
 
@@ -159,14 +155,14 @@ export function mountRequest(databaseType: string, source: RemoteSource, creds: 
   };
 }
 
-/** The host's store for one source: its S3 values under its secret's name, its bearer URL under its own -- what the
- *  plan's held binds name, bound by the hosts' runner, never written. */
-export function sourceStore(source: RemoteSource, creds: S3Credentials | undefined): SecretStore {
-  const store = new SecretStore();
+/** What one source's mount binds by name: its S3 values under its secret's name, its bearer URL under its own -- what
+ *  the plan's held binds name, bound by the host's runner, never written (data-host.ts LoadHolds). */
+export function sourceSecrets(source: RemoteSource, creds: S3Credentials | undefined): NonNullable<LoadHolds['secrets']> {
+  const out: Record<string, Readonly<Partial<Record<SecretField, SecretValue>>>> = {};
   const values = credentialValues(creds);
-  if (values.size > 0) store.hold(secretName(source.name), values);
-  if (isBearer(source.url)) store.hold(bearerName(source.name), new Map([['URL', scanUrl(source.url)]]));
-  return store;
+  if (values.size > 0) out[secretName(source.name)] = Object.fromEntries(values);
+  if (isBearer(source.url)) out[bearerName(source.name)] = { URL: scanUrl(source.url) };
+  return out;
 }
 
 /**
@@ -198,68 +194,30 @@ export function redactSecrets(
   return out;
 }
 
-/** The engine a remote source is mounted on: its database's type, its queue's run (a statement that binds nothing),
- *  its connection held for a statement that binds (DuckDbEngine.exclusive), and where it keeps a mount's connection
- *  settings for the connections its host opens (the tab's: DuckDbEngine.settings), if anywhere. */
-export interface RemoteEngine {
-  readonly databaseType: string;
-  run(sql: PlannedSql, epoch: number): Promise<unknown>;
-  exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
-  readonly settings?: ConnectionSettings | undefined;
-}
-
-/** One source mounted: its name, and the settings its mount made on the connection, which a host that opens other
- *  connections to its database replays on each (a bearer URL's session variable; the plan's held binds, no value). */
-export interface Mounted {
-  readonly name: string;
-  readonly settings: readonly KeptSetting[];
-}
-
 /**
- * Point the engine's connection at remote data, each source by its PLANNED LOAD (B3's Q3: the planner's remoteMount,
- * run by the hosts' runner): its extensions, its S3 secret and its bearer URL bound from the host's store by name, its
- * view -- no credential and no token in any statement or in the plan. Its connection settings are kept where the
- * engine keeps them (the tab's), and answered.
+ * Point the host's database at remote data, each source by its PLANNED LOAD (B3's Q3: the planner's remoteMount, run by
+ * the host's runner): its extensions, its S3 secret and its bearer URL bound from what the host is given by name, its
+ * view -- no credential and no token in any statement or in the plan. Its connection settings are the host's to keep
+ * and replay (data-host.ts: the #6 bridge, 2026-11-12).
  *
  * Runs before the first query. Failures are rethrown with the credentials and the bearer URL stripped, and name the
  * source rather than the statement, because "could not mount TRADES" is actionable where a redacted CREATE SECRET is not.
  */
-export async function mountRemote(
-  engine: RemoteEngine,
-  planner: RemoteMountSource,
-  options: RemoteOptions,
-): Promise<Mounted[]> {
-  const mounted: Mounted[] = [];
-  for (const source of options.sources) {
-    const settings = await runMount(engine, planner, source, options.s3, true);
-    engine.settings?.keep(source.name, settings, sourceStore(source, options.s3));
-    mounted.push({ name: source.name, settings });
-  }
-  return mounted;
+export async function mountRemote(host: DataHost, options: RemoteOptions): Promise<void> {
+  for (const source of options.sources) await runMount(host, source, options.s3, true);
 }
 
-/** The engine's connection given the sources' extensions and credentials, no view yet: its access alone (Python's,
+/** The host's database given the sources' extensions and credentials, no view yet: its access alone (Python's,
  *  before it checks an Iceberg table's files: R4). */
-export async function accessRemote(engine: RemoteEngine, planner: RemoteMountSource,
-  options: RemoteOptions): Promise<void> {
-  for (const source of options.sources) await runMount(engine, planner, source, options.s3, false);
+export async function accessRemote(host: DataHost, options: RemoteOptions): Promise<void> {
+  for (const source of options.sources) await runMount(host, source, options.s3, false);
 }
 
-/** One source's mount planned and run, its failures redacted: its connection settings. */
-async function runMount(engine: RemoteEngine, planner: RemoteMountSource, source: RemoteSource,
-  creds: S3Credentials | undefined, view: boolean): Promise<readonly KeptSetting[]> {
-  const redacted = (cause: unknown): Error =>
-    new Error(`could not mount remote data: ${redactSecrets(cause instanceof Error ? cause.message : String(cause), creds, [source.url])}`);
+/** One source's mount, planned and run by the host, its failures redacted. */
+async function runMount(host: DataHost, source: RemoteSource, creds: S3Credentials | undefined, view: boolean): Promise<void> {
   try {
-    const plan = await planner.remoteMount(mountRequest(engine.databaseType, source, creds, view));
-    // the hosts' plan runner, fetched with the first mount (a grid-only page carries none of it)
-    const { runLoad } = await import('../../engine-client/src/plan-runner.ts');
-    // a statement that binds nothing runs as every query runs (DuckDbEngine.run: B3.1's fix, the demo's cube over a
-    // remote Parquet); one that binds, on the held connection
-    const run = (sql: PlannedSql, params: readonly PlanValue[]): Promise<unknown> =>
-      (params.length === 0 ? engine.run(sql, 0) : engine.exclusive((held) => held.rows(sql, params)));
-    return (await runLoad(plan, run, { secrets: sourceStore(source, creds) })).settings;
+    await host.load({ remoteMount: mountRequest(host.databaseType, source, creds, view) }, { secrets: sourceSecrets(source, creds) });
   } catch (cause) {
-    throw redacted(cause);
+    throw new Error(`could not mount remote data: ${redactSecrets(cause instanceof Error ? cause.message : String(cause), creds, [source.url])}`);
   }
 }

@@ -7,6 +7,8 @@ The bundles are //datacube:headless_test_bundles (the test files, bundled with t
 node:test and node:assert stand-ins); the product's is //datacube:headless_bundle.
 """
 
+import base64
+import io
 import json
 import os
 import sys
@@ -36,6 +38,43 @@ TMP = Path(os.environ['TEST_TMPDIR'])
 from legend_lite._headless import KINDS, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
 from legend_lite._library import library  # noqa: E402
 
+# the product host's calls (calls.ts HostCalls): intent alone, each planned and run by Python -- no statement, no plan
+PRODUCT_CALLS = ['planner', 'load', 'operations', 'catalog', 'create', 'write', 'digest', 'fetch', 'engine']
+
+
+class TestHost(Headless):
+    """THE LANE'S HOST: the product's, and a test's own database beside it (test/host/headless.ts, the #6 bridge,
+    2026-11-12) -- a test runs its own SQL on Python's DuckDB as written (a fixture's table, a planner's statement it
+    checks), which the product's host never takes; and registers a file its database reads by name. Its calls are the
+    lane's, on the same global; the product's bundle has none of them."""
+
+    def _calls(self):
+        return {**super()._calls(), 'testQuery': self._test_query, 'testStatement': self._test_statement,
+                'testRegisterFile': self._test_register_file}
+
+    def _arrow(self, result):
+        import pyarrow as pa
+
+        table = result.to_arrow_table() if result.description is not None else pa.table({})
+        sink = io.BytesIO()
+        with pa.ipc.new_stream(sink, table.schema) as writer:
+            writer.write_table(table)
+        return base64.b64encode(sink.getvalue()).decode('ascii')
+
+    async def _test_query(self, sql):
+        return self._arrow(self._db._con.execute(sql))
+
+    async def _test_statement(self, sql, params):
+        return self._arrow(self._db._con.execute(sql, json.loads(params)))
+
+    async def _test_register_file(self, name, data):
+        root = self.folder
+        target = (root / name).resolve()
+        if root not in target.parents:
+            raise ValueError(f"a registered file stays in the engine's folder: {name!r} does not")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(base64.b64decode(data))
+
 
 class Host(unittest.TestCase):
     """The host over the product's bundle."""
@@ -57,11 +96,15 @@ class Host(unittest.TestCase):
             self.assertEqual(h.evaluate("[typeof TextEncoder, typeof URL, typeof AbortController, typeof crypto.subtle.digest]"),
                              ['function'] * 4)
 
-    def test_a_plan_through_the_worker_runs_on_the_database(self):
+    def test_the_planner_answers_through_the_worker_and_the_database_is_asked_intent_alone(self):
+        # the #6 bridge (2026-11-12): the product host's calls carry intent, each planned and run by Python -- a planner
+        # request through the worker answered (a refusal is an answer, not a failure), a table's catalog and a count
+        # asked of the database by name; no call takes a statement
         model = ('###Relational\nDatabase a::DB ( Table t ( x INTEGER, s VARCHAR(8) ) )\n###Connection\n'
                  'RelationalDatabaseConnection a::C { store: a::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n'
                  '###Runtime\nRuntime a::RT { mappings: []; connections: [ a::DB: [ c: a::C ] ]; }')
-        with Headless(PRODUCT, folder=TMP) as h:
+        with TestHost(PRODUCT, folder=TMP) as h:
+            h.evaluate("legendLiteHost.testQuery(\"CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(x, s)\")")
             h.execute("globalThis.planned = (async (model) => {"
                       " const w = legendLite.worker();"
                       " const ask = (m) => new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.postMessage(m); });"
@@ -69,14 +112,20 @@ class Host(unittest.TestCase):
                       " const handle = Number(held.answer.split('\\n')[1]);"
                       " const plan = await ask({ id: 2, kind: 'plan', handle, query: '|#>{a::DB.t}#->filter(r|$r.x > 1)->select(~[s])', runtime: 'a::RT' });"
                       " const refused = await ask({ id: 3, kind: 'plan', handle, query: '|#>{a::DB.t}#', runtime: 'a::NoSuch' });"
-                      " const db = legendLite.database.connection;"
-                      " await db.query(\"CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(x, s)\");"
-                      " const t = await db.query(JSON.parse(plan.answer.slice(3)).sql);"
-                      " const rows = []; for (let i = 0; i < t.numRows; i++) rows.push(t.getChildAt(0).get(i));"
-                      " return { rows, refused: [refused.ok, refused.answer.split('\\n')[0]] };"
+                      " const columns = (await legendLite.data.catalog('main', 't')).map((c) => [c.name, c.dataType]);"
+                      " const [count] = await legendLite.data.operations([{ op: 'count', from: { relation: { name: 't' } } }]);"
+                      " return { planned: plan.answer.split('\\n')[0], refused: [refused.ok, refused.answer.split('\\n')[0]], columns, count };"
                       f" }})({json.dumps(model)});")
-            self.assertEqual(h.evaluate('planned'), {'rows': ['b', 'c'], 'refused': [True, 'ERR']},
-                             "planned by the native library, run on Python's DuckDB; a refusal is an answer, not a failure")
+            self.assertEqual(h.evaluate('planned'), {'planned': 'OK', 'refused': [True, 'ERR'],
+                                                     'columns': [['x', 'INTEGER'], ['s', 'VARCHAR']], 'count': [[3]]})
+
+    def test_the_product_hosts_calls_are_intent_alone(self):
+        # no call of the product's host takes a statement or a plan: the lane's own (TestHost) are not the product's
+        with Headless(PRODUCT, folder=TMP) as h:
+            self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'), PRODUCT_CALLS)
+        with TestHost(PRODUCT, folder=TMP) as h:
+            self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'),
+                             [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile'])
 
     def test_every_timeout_fires_as_a_browsers_does(self):
         # HTML's setTimeout: no delay, 0 and a negative one are all 0 (mini-racer's own throws or never fires for them,
@@ -105,10 +154,10 @@ class Host(unittest.TestCase):
             self.assertEqual(h.evaluate('1 + 1'), 2)
 
     def test_a_registered_file_stays_in_the_folder(self):
-        with Headless(PRODUCT, folder=TMP / 'files') as h:
-            refused = h.evaluate("legendLite.database.registerFileText('../out.csv', 'a').then(() => 'written', (e) => String(e))")
+        with TestHost(PRODUCT, folder=TMP / 'files') as h:
+            refused = h.evaluate("legendLiteHost.testRegisterFile('../out.csv', btoa('a')).then(() => 'written', (e) => String(e))")
             self.assertIn("stays in the engine's folder", refused)
-            self.assertEqual(h.evaluate("legendLite.database.registerFileText('in.csv', 'a\\n1\\n').then(() => 'written')"), 'written')
+            self.assertEqual(h.evaluate("legendLiteHost.testRegisterFile('in.csv', btoa('a\\n1\\n')).then(() => 'written')"), 'written')
         self.assertEqual((TMP / 'files' / 'in.csv').read_text(), 'a\n1\n')
 
 
@@ -128,7 +177,7 @@ class DataCubeTests(unittest.TestCase):
             os.chdir(folder)
             start = time.monotonic()
             with self.subTest(name):
-                with Headless(bundle.read_text(encoding='utf-8'), folder=folder) as h:
+                with TestHost(bundle.read_text(encoding='utf-8'), folder=folder) as h:
                     results = h.evaluate('legendLiteHeadless.run()')
                 counts = {s: sum(1 for r in results if r['status'] == s) for s in total}
                 for s in total:

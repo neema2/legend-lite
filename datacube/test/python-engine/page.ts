@@ -39,6 +39,7 @@ import { askedOffers, askedSettings, pythonDatabase, pythonRunner, pythonService
 import { browserBasics } from '../../src/services/browser-basics.ts';
 import type { Services } from '../../src/app/services.ts';
 import { dropFileTable, ingestFile, modelLanded, mountRemoteView } from '../../src/upload.ts';
+import { heldDataHost } from '../../src/data-host.ts';
 import { SnapManager } from '../../../engine-client/src/snap.ts';
 import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
@@ -274,7 +275,7 @@ async function run(): Promise<void> {
     if (python.mountRemote === undefined) throw new CheckFailed('Python\'s engine reads no remote file');
     const all = (source: unknown): Lambda => ({ _type: 'lambda', parameters: [], body: [source] }) as unknown as Lambda;
     const snapshot = CASES[0]!.snapshot;
-    const here = await mountRemoteView(local, planner, { url: served.remote, name: 'remote_books' });
+    const here = await mountRemoteView(heldDataHost(local, planner), planner, { url: served.remote, name: 'remote_books' });
     const there = await python.mountRemote(served.remote, undefined, 'remote_books');
     const tabRows = await new PlanThenRun(planner.withModel(here.model, here.runtime), local).run(all(here.source), snapshot);
     const pythonRows = await pythonRunner(link, there.model, there.runtime).run(all(there.source), snapshot);
@@ -283,7 +284,7 @@ async function run(): Promise<void> {
     equal(shape(tabRows.rows, false), 'book:String,pages:Integer\n["Dune",412]\n["Emma",474]\n["Ulysses",730]', 'its rows:');
     // the tab's view dropped; Python keeps a remote file's view by its URL, as for its pages (a later mount of the same
     // URL takes its place), and offers a page no way to drop one
-    await dropFileTable(local, planner, 'remote_books', true);
+    await dropFileTable(heldDataHost(local, planner), 'remote_books', true);
   });
 
   // A SNAP, BOTH WAYS (L12: the tab's copy and Python's, an implementation each): the frame's every column copied by
@@ -304,7 +305,7 @@ async function run(): Promise<void> {
     let landed: Awaited<ReturnType<typeof modelLanded>> | undefined;
     const snaps = new SnapManager(local, null, planner);
     await snaps.snap((await planner.plan(pull)).sql, 0, { target: { table: 'snap_parity', landed: async () => {
-      landed = await modelLanded(local, planner, 'snap_parity');
+      landed = await modelLanded(heldDataHost(local, planner), planner, 'snap_parity');
       return landed.source;
     } } });
     const ours = new PlanThenRun(planner.withModel(landed!.model, landed!.runtime), local);

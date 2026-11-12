@@ -5,12 +5,12 @@
 // reads them, and hands in only that path, the file's name and the table Python chose: the bytes never cross into the
 // engine, and the SQL is DataCube's, never the page's (R4).
 
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { accessRemote, bearerName, inferFormat, isBearer, scanUrl, type S3Credentials } from '../remote.ts';
 import { lastSegment } from '../cube-document.ts';
-import { dropFileTable, modelLanded, mountedView, readFileInto, tableNameOf, uploadFileName } from '../upload.ts';
-import { hostCalls, hostDatabase, hostWorker } from './host.ts';
+import type { DataHost } from '../data-host.ts';
+import { dropFileTable, modelLanded, mountRemoteView, readFileInto, tableNameOf, uploadFileName } from '../upload.ts';
+import { hostCalls, hostData, hostWorker } from './host.ts';
 import type { HostLeaf } from './host-tables.ts';
 
 /** A file as Python hands it in: where its DuckDB reads it, its name as picked (its format), the table to read it into
@@ -23,13 +23,14 @@ export interface IngestSpec {
   readonly sha256: string;
 }
 
-/** The host's database and legend-lite's model writer over the host's planner, for one call. */
-async function using<T>(use: (o: { engine: DuckDbEngine; writer: LitePlanner }) => Promise<T>): Promise<T> {
+/** The host's database, as DataCube's data flows ask of it (each ask planned and run by the host: data-host.ts), and
+ *  legend-lite's model writer over the host's planner, for one call. */
+async function using<T>(use: (o: { host: DataHost; writer: LitePlanner }) => Promise<T>): Promise<T> {
   const calls = hostCalls();
   // the model writer needs no model of its own: it writes one (the worker's tableModel)
   const writer = new LitePlanner({ model: '', runtime: '', worker: () => hostWorker(calls) });
   try {
-    return await use({ engine: new DuckDbEngine(hostDatabase(calls).connection), writer });
+    return await use({ host: hostData(calls), writer });
   } finally {
     writer.dispose();
   }
@@ -38,10 +39,11 @@ async function using<T>(use: (o: { engine: DuckDbEngine; writer: LitePlanner }) 
 /** The file read into its table: what arrived, as upload.ts says it (its model, runtime, source and row count), JSON. */
 export async function ingest(spec: string): Promise<string> {
   const s = JSON.parse(spec) as IngestSpec;
-  return using(async ({ engine, writer }) => {
+  return using(async ({ host, writer }) => {
     // the plan names the file by the table's upload name, Python's SHA-256 and size of the bytes it wrote; Python's path
-    // is bound to the statement's ?, never written (B3: a planned load, the file a pointer)
-    const read = await readFileInto(engine, {
+    // is bound to the statement's ?, never written (B3: a planned load, the file a pointer), Python's planner planning
+    // the load and its runner running it (the #6 bridge)
+    const read = await readFileInto(host, {
       at: s.path, name: uploadFileName(s.table, s.name), digest: s.sha256, size: s.size, fileName: s.name, table: s.table,
     }, writer);
     // the file as a page's cube names it (host-tables.ts HostLeaf): what the host serves the table by
@@ -65,21 +67,21 @@ export function tableFor(name: string | null): string {
  */
 export async function landed(spec: string): Promise<string> {
   const s = JSON.parse(spec) as { readonly table: string };
-  return using(async ({ engine, writer }) => JSON.stringify(await modelLanded(engine, writer, s.table)));
+  return using(async ({ host, writer }) => JSON.stringify(await modelLanded(host, writer, s.table)));
 }
 
 /** A remote file mounted as the view Python named, through the httpfs extension Python's DuckDB carries, by its planned
- *  load (B3's Q3): its model, as the tab's mount says it, the settings its mount made on the connection (a bearer
- *  URL's session variable, its binds by name: Python replays them on each read's cursor) and -- a bearer URL -- the name
- *  it is held under (`bearer`: Python binds the URL to that held bind alone, the tenets audit's LOW 6), JSON. Python
- *  checked its URL is remote before anything ran. */
+ *  load (B3's Q3), Python's planner planning it and its runner running it (the #6 bridge: the settings the mount made on
+ *  the connection, a bearer URL's session variable, kept there, which Python replays on each read's cursor): its model,
+ *  as the tab's mount says it, and -- a bearer URL -- the name it is held under (`bearer`: Python binds the URL to that
+ *  held bind alone, the tenets audit's LOW 6), JSON. Python checked its URL is remote before anything ran. */
 export async function mount(spec: string): Promise<string> {
   const s = JSON.parse(spec) as { readonly url: string; readonly name: string; readonly s3?: S3Credentials };
-  return using(async ({ engine, writer }) => {
-    const { model, settings } = await mountedView(engine, writer, { url: s.url, name: s.name, ...(s.s3 ? { s3: s.s3 } : {}) });
+  return using(async ({ host, writer }) => {
+    const model = await mountRemoteView(host, writer, { url: s.url, name: s.name, ...(s.s3 ? { s3: s.s3 } : {}) });
     // the remote file as a page's cube names it (host-tables.ts HostLeaf): what the host serves the view by
     const leaf: HostLeaf = { _type: 'remoteFile', name: lastSegment(s.url), url: s.url };
-    return JSON.stringify({ ...model, leaf, settings, ...(isBearer(s.url) ? { bearer: bearerName(s.name) } : {}) });
+    return JSON.stringify({ ...model, leaf, ...(isBearer(s.url) ? { bearer: bearerName(s.name) } : {}) });
   });
 }
 
@@ -88,8 +90,8 @@ export async function mount(spec: string): Promise<string> {
  *  it reads by path, which Python checks are remote too before it mounts the table (R4). */
 export async function remoteAccess(spec: string): Promise<string> {
   const s = JSON.parse(spec) as { readonly url: string; readonly name: string; readonly s3?: S3Credentials };
-  return using(async ({ engine, writer }) => {
-    await accessRemote(engine, writer, { sources: [{ name: s.name, url: s.url }], ...(s.s3 ? { s3: s.s3 } : {}) });
+  return using(async ({ host }) => {
+    await accessRemote(host, { sources: [{ name: s.name, url: s.url }], ...(s.s3 ? { s3: s.s3 } : {}) });
     return JSON.stringify({ format: inferFormat(s.url), url: scanUrl(s.url) });
   });
 }
@@ -98,5 +100,5 @@ export async function remoteAccess(spec: string): Promise<string> {
  *  again. */
 export async function forget(spec: string): Promise<void> {
   const s = JSON.parse(spec) as { readonly table: string; readonly view?: boolean };
-  await using(async ({ engine, writer }) => dropFileTable(engine, writer, s.table, s.view === true));
+  await using(async ({ host }) => dropFileTable(host, s.table, s.view === true));
 }

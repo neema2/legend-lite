@@ -10,7 +10,9 @@ text by name; this pins, over every module of the package, where the type is mad
   `x.__class__(...)`, no `__new__`.
 - A send -- `.execute`, `.executemany`, `.sql`, `.query`, `.from_query` on ANY receiver -- is _planned.send's, or pinned
   by its module and receiver (SENDS).
-- The bridge's crossings (`across_the_bridge`), counted by module (BRIDGE).
+- No statement crosses the V8 bridge: DataCube's hosted code asks Python for intent, which Python plans and runs (the #6
+  bridge, the user's go of 2026-11-12); the crossing's check and its set (`across_the_bridge`, `Answered`) are deleted,
+  and refused by name should either come back (GONE).
 
 Its TypeScript half is tools/guards/PlannedSqlTest.java. Each list moves only with a dated justification naming the task
 (AGENTS.md, guard files), and shrinks."""
@@ -29,10 +31,12 @@ FILES = runfiles.Create()
 # send, the bridge's check or the type's check (require).
 IMPORTS = {
     # 2026-11-12 (the second audit): the host's Database (connect, Database, Result) where a database is made or held
-    '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect', 'send'},
+    # 2026-11-12 (the #6 bridge): the bridge's check and set deleted; the type, for what the host's calls run
+    '_headless.py': {'Database', 'PlannedSql', 'connect', 'send'},
     '_host.py': {'PlannedSql', 'send'},
     'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan'},
-    'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan', 'send'},
+    # 2026-11-12 (the #6 bridge): a mount's settings are the host runner's own, never crossed back
+    'engine.py': {'PlannedSql', 'connect', 'from_plan', 'send'},
     'frames.py': {'Database', 'PlannedSql', 'Result', 'connect', 'send'},
     'projects.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'send'},
     'warehouse.py': {'PlannedSql', 'require'},
@@ -50,9 +54,9 @@ SENDS = {
     ('_headless.py', 'execute', 'self._over'),
 }
 
-# The bridge's crossings by module. 2026-11-12 (C3): the hosted DataCube's query and statement (_headless.py), and a
-# remote file's settings its plan runner kept (engine.py).
-BRIDGE = {'_headless.py': 2, 'engine.py': 1}
+# Names that must not come back. 2026-11-12 (the #6 bridge): the crossing that admitted DataCube's statements by the set
+# its planner had answered, deleted with the calls that carried them (calls.ts query, statement).
+GONE = {'across_the_bridge', 'Answered'}
 
 # Each call of a value's own type, by module and text: none makes a PlannedSql. 2026-11-12: a database error rebuilt of
 # its own type with a held value taken out of its words (frames.py redacted), never a statement.
@@ -66,12 +70,11 @@ MINT_NAMES = {'from_plan', 'all_from_plan'}
 
 
 def census(name: str, source: str) -> dict:
-    """One module, read: the names it imports from _planned, each form the guard refuses, its sends and its crossings."""
+    """One module, read: the names it imports from _planned, each form the guard refuses, and its sends."""
     tree = ast.parse(source)
     imported: set[str] = set()
     refused: list[str] = []
     sends: set[tuple[str, str, str]] = set()
-    crossings = 0
     own = name == '_planned.py'
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -116,9 +119,11 @@ def census(name: str, source: str) -> dict:
                 refused.append(f'line {node.lineno}: duckdb.connect(): a database is the host\'s Database (_planned.connect)')
             if isinstance(f, ast.Attribute) and f.attr in SEND_METHODS:
                 sends.add((name, f.attr, ast.unparse(f.value)))
-            if isinstance(f, ast.Name) and f.id == 'across_the_bridge':
-                crossings += 1
-    return {'imported': imported, 'refused': refused, 'sends': sends, 'crossings': crossings}
+        if (isinstance(node, ast.Name) and node.id in GONE or isinstance(node, (ast.FunctionDef, ast.ClassDef))
+                and node.name in GONE or isinstance(node, ast.alias) and node.name in GONE):
+            refused.append(f"line {getattr(node, 'lineno', '?')}: {getattr(node, 'id', None) or node.name}: the bridge's "
+                           'statement check is deleted -- DataCube asks Python for intent (the #6 bridge)')
+    return {'imported': imported, 'refused': refused, 'sends': sends}
 
 
 class PlannedGuardTest(unittest.TestCase):
@@ -138,6 +143,9 @@ class PlannedGuardTest(unittest.TestCase):
             'PlannedSql("SELECT 1")',
             'duckdb.connect()',
             'frames.connection._con.execute(q)',
+            'across_the_bridge(text, what, answered)',
+            'class Answered:\n    pass',
+            'from ._planned import Answered',
         ]:
             self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
         self.assertEqual({'from_plan', 'send'}, census('m.py', 'from ._planned import from_plan, send')['imported'])
@@ -156,15 +164,12 @@ class PlannedGuardTest(unittest.TestCase):
         imports: dict[str, set[str]] = {}
         refused: list[str] = []
         sends: set[tuple[str, str, str]] = set()
-        bridge: dict[str, int] = {}
         for m in modules:
             c = census(m.name, m.read_text(encoding='utf-8'))
             refused += [f'{m.name}: {r}' for r in c['refused']]
             if c['imported']:
                 imports[m.name] = c['imported']
             sends |= c['sends']
-            if c['crossings'] and m.name != '_planned.py':
-                bridge[m.name] = c['crossings']
         self.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
         self.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
                                           ' or the planner\'s answer is read, the one send, the bridge\'s check')
@@ -172,8 +177,6 @@ class PlannedGuardTest(unittest.TestCase):
                          {'compiler.py', 'projects.py', 'engine.py'}, 'the mints, by module')
         self.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
                                        ' any text no plan carries (SENDS)')
-        self.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'
-                                         ' crossings alone (BRIDGE)')
 
 
 if __name__ == '__main__':

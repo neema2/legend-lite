@@ -8,12 +8,13 @@
 // everything, the table made among it.
 //
 // One writer for the tab (app.ts writeOutput) and Python's flow.run (headless gridWriteTable). PURE: no DOM; a host gives
-// its database, held for the write, and its planner.
+// the write's transaction, each of its steps the host's to plan and run (heldTableWriting, the tab's; headless/host.ts
+// hostTableWriting, Python's: the #6 bridge, 2026-11-12).
 
 import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
 import { hostSession, runPlan } from '../../engine-client/src/plan-runner.ts';
 import { colSpecs, fn, lambda, lit, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { ModelTable, TableModels } from './infer.ts';
+import type { CatalogColumn, ModelTable, TableModels } from './infer.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
 import type { TableOutput } from './layout/flow.ts';
 import { CubeRefusal } from './snapshot.ts';
@@ -31,13 +32,24 @@ export interface TableWriteHost {
   readonly sources: readonly { readonly table: string; readonly convertible: boolean; readonly pkg?: string }[];
   /** Tables of the host's database no Output may write: the page's own (its files, its copies). */
   readonly held: (table: string) => boolean;
-  readonly models: Pick<TableModels, 'tablesModel' | 'catalogColumnsSql' | 'hostOperations'>;
-  /** The host's database held for the write alone (duckdb.ts exclusive). */
-  hold<T>(work: (held: HeldConnection) => Promise<T>): Promise<T>;
-  /** A query over the box's own model planned: its SQL and the values it binds (the create's columns, its rows none). */
-  planOf(query: Lambda): Promise<Plan>;
-  /** A program planned over `model` as an execution plan (PlanJson's text). */
-  executionPlan(model: string, runtime: string, program: Lambda): Promise<string>;
+  /** legend-lite's model writer: the one model of the box's tables and the target, from what the catalog says. */
+  readonly models: Pick<TableModels, 'tablesModel'>;
+  /** ONE TRANSACTION on the host's database, begun before `work` and committed after it -- rolled back, all of it, the
+   *  table made among it, when anything in it fails: each of its steps the host's to plan and run (the #6 bridge,
+   *  2026-11-12: DataCube's code decides the steps, never hands a host their statements). */
+  writing<T>(work: (w: TableWriting) => Promise<T>): Promise<T>;
+}
+
+/** The steps of a write, each planned and run by the host in the write's transaction. */
+export interface TableWriting {
+  /** `table` made for the box's rows (`rows`: their query, with no row of them), its columns as the database types
+   *  them -- replacing one of its name (`replace`), or not. */
+  create(table: string, replace: boolean, rows: Lambda): Promise<void>;
+  /** A table's columns as the catalog says them now, in this transaction (a table made in it among them). */
+  catalog(schema: string, table: string): Promise<CatalogColumn[]>;
+  /** `program` planned over `model` through `runtime` and run in this transaction, joining it: its answer, lite's JSON
+   *  rows (the count the database wrote). */
+  run(model: string, runtime: string, program: Lambda): Promise<string>;
 }
 
 /**
@@ -53,43 +65,67 @@ export async function writeTable(rows: Lambda, output: TableOutput, host: TableW
   }
   const body = rows.body[0];
   if (rows.parameters.length > 0 || rows.body.length !== 1 || body === undefined) throw new Error("an output's rows are one query of no parameter");
-  // the create's statement asked first: its columns the database's, as the box's rows type them, none of its rows -- the
-  // query's own values (a data: payload: M3) bound to its `?`s, which the create's statement keeps in their order
-  const shape = output.mode === 'create' || output.mode === 'overwrite'
-    ? await host.planOf(lambda([], fn('limit', body, lit.integer(0)))) : undefined;
-  const made = shape !== undefined
-    ? await host.models.hostOperations(host.databaseType, [{
-      op: 'relation', kind: 'table', target: { name: output.name }, replace: output.mode === 'overwrite',
-      from: { query: shape.sql },
-    }]) : [];
-  return host.hold(async (held) => {
-    const session = await hostSession(host.databaseType, held.rows, host.models);
+  return host.writing(async (w) => {
+    // the table made first: its columns the database's, as the box's rows type them, none of its rows
+    if (output.mode === 'create' || output.mode === 'overwrite') {
+      await w.create(output.name, output.mode === 'overwrite', lambda([], fn('limit', body, lit.integer(0))));
+    }
+    // one model of its tables and the target, each read off the catalog as it is now (the target made just now, in
+    // the same transaction)
+    const tables: ModelTable[] = [];
+    for (const s of [...new Set(host.sources.map((x) => x.table))]) {
+      const given = host.sources.find((x) => x.table === s)!;
+      tables.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
+        columns: await w.catalog(SCHEMA, s) });
+    }
+    const target = await w.catalog(SCHEMA, output.name);
+    if (target.length === 0) throw new CubeRefusal(`this page's database has no table '${output.name}': write it with Create a new table first`);
+    tables.push({ table: output.name, convertible: false, columns: target });
+    const model = await host.models.tablesModel(tables, host.databaseType);
+    const into = model.tables.at(-1)!.source;
+    return countOf(await w.run(model.model, model.runtime, lambda([], ...program(body, into, output))));
+  });
+}
+
+/**
+ * A WRITE ON A DATABASE RUN IN THIS PROCESS (the tab's): its connection held for the whole write (duckdb.ts exclusive),
+ * the transaction's statements the planner's (hostSession); the table made from the box's rows' plan and the planner's
+ * relation operation, the query's own values (a data: payload: M3) bound to the one statement that reads it; the program
+ * planned (`executionPlan`) and run by the hosts' runner joining the transaction (runPlan).
+ */
+export function heldTableWriting(o: {
+  readonly databaseType: string;
+  readonly models: Pick<TableModels, 'catalogColumnsSql' | 'hostOperations'>;
+  /** The host's database held for the write alone (duckdb.ts exclusive). */
+  hold<T>(work: (held: HeldConnection) => Promise<T>): Promise<T>;
+  /** A query over the box's own model planned: its SQL and the values it binds (the create's columns, its rows none). */
+  planOf(query: Lambda): Promise<Plan>;
+  /** A program planned over `model` as an execution plan (PlanJson's text). */
+  executionPlan(model: string, runtime: string, program: Lambda): Promise<string>;
+}): TableWriteHost['writing'] {
+  return (work) => o.hold(async (held) => {
+    const session = await hostSession(o.databaseType, held.rows, o.models);
     await session.transaction('begin');
     try {
-      const params = shape?.params ?? [];
-      // the values bind the one statement that reads the query; a create of several statements binds none of them
-      if (params.length > 0 && made.flat().length !== 1) {
-        throw new CubeRefusal(`'${output.name}' is made by ${made.flat().length} statements, and its rows' query binds a data: payload one of them reads: not written here`);
-      }
-      for (const statement of made.flat()) await held.rows(statement, params);
-      // one model of its tables and the target, each read off the catalog as it is now (the target made just now, in
-      // the same transaction)
       const engine = { run: (sql: PlannedSql) => held.table(sql) };
-      const tables: ModelTable[] = [];
-      for (const s of [...new Set(host.sources.map((x) => x.table))]) {
-        const given = host.sources.find((x) => x.table === s)!;
-        tables.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
-          columns: await catalogColumnsOf(engine, host.models, SCHEMA, s) });
-      }
-      const target = await catalogColumnsOf(engine, host.models, SCHEMA, output.name);
-      if (target.length === 0) throw new CubeRefusal(`this page's database has no table '${output.name}': write it with Create a new table first`);
-      tables.push({ table: output.name, convertible: false, columns: target });
-      const model = await host.models.tablesModel(tables, host.databaseType);
-      const into = model.tables.at(-1)!.source;
-      const plan = await host.executionPlan(model.model, model.runtime, lambda([], ...program(body, into, output)));
-      const answer = await runPlan(plan, session, { joined: true });
+      const done = await work({
+        create: async (table, replace, rows) => {
+          const shape = await o.planOf(rows);
+          const made = (await o.models.hostOperations(o.databaseType, [{
+            op: 'relation', kind: 'table', target: { name: table }, replace, from: { query: shape.sql },
+          }])).flat();
+          const params = shape.params ?? [];
+          // the values bind the one statement that reads the query; a create of several statements binds none of them
+          if (params.length > 0 && made.length !== 1) {
+            throw new CubeRefusal(`'${table}' is made by ${made.length} statements, and its rows' query binds a data: payload one of them reads: not written here`);
+          }
+          for (const statement of made) await held.rows(statement, params);
+        },
+        catalog: (schema, table) => catalogColumnsOf(engine, o.models, schema, table),
+        run: async (model, runtime, program) => runPlan(await o.executionPlan(model, runtime, program), session, { joined: true }),
+      });
       await session.transaction('commit');
-      return countOf(answer);
+      return done;
     } catch (e) {
       await session.transaction('rollback').catch(() => {});
       throw e;

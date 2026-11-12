@@ -15,6 +15,7 @@ import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
 import type { TableModels } from '../src/infer.ts';
 import { mountRemote, type RemoteSource } from '../src/remote.ts';
+import { heldDataHost } from '../src/data-host.ts';
 import { loadModel } from './boot.ts';
 import { plannerFor } from './planners.ts';
 import type { Planner } from '../src/cube.ts';
@@ -38,7 +39,7 @@ const ready = boot();
 window.remoteTest = async (source: RemoteSource) => {
   const { engine, tables, planner } = await ready;
   if (source.name !== 'TRADES') throw new Error(`the harness plans over the model's table TRADES, not '${source.name}'`);
-  await mountRemote(engine, tables, { sources: [source] });
+  await mountRemote(heldDataHost(engine, tables), { sources: [source] });
 
   // The planner's own query: a grouped aggregate over the table
   // NAME, with no idea the rows are coming over the network (a host

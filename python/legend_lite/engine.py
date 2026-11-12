@@ -42,7 +42,7 @@ import socketserver
 import sys
 import threading
 import traceback
-from collections.abc import Callable, Container, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 from pathlib import Path
@@ -58,7 +58,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
-from ._planned import PlannedSql, across_the_bridge, connect, from_plan, send
+from ._planned import PlannedSql, connect, from_plan, send
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
@@ -257,10 +257,11 @@ def _bytes_of(path: Path) -> tuple[int, str]:
     return path.stat().st_size, digest.hexdigest()
 
 
-def _connection_settings(settings: Any, url: str, bearer: str | None, answered: Container[str]) -> tuple[
+def _connection_settings(settings: Any, url: str, bearer: str | None) -> tuple[
         tuple[tuple[PlannedSql, tuple[Any, ...]], ...], tuple[str, ...]]:
-    """A remote file's settings of the connection, as its planned mount answers them (B3's Q3: a bearer URL's session
-    variable -- its statement, and its binds by name, never a value), each with its values: what this engine holds for
+    """A remote file's settings of the connection, as this host's runner kept them from its planned mount (B3's Q3: a
+    bearer URL's session variable -- its statement, and its binds by name, never a value; ``Headless.settings_of``, the
+    #6 bridge, 2026-11-12), each with its values: what this engine holds for
     the mount -- the URL the page gave, under the name the mount holds it by (``bearer``, the mount's answer) and the
     field ``URL`` -- or the plan's own value as it is; and the values held so (what a failure's words are cleared of:
     M2). Every read's cursor runs them (``Frames.reading``): a variable is one connection's. A bind this engine holds
@@ -281,10 +282,8 @@ def _connection_settings(settings: Any, url: str, bearer: str | None, answered: 
             else:
                 raise ValueError(f"a remote file's setting binds {bind.get('name')}.{bind.get('field')}, which this engine"
                                  ' holds nothing for')
-        # the setting's statement, as DataCube's plan runner kept it (a PlannedSql there: planned-sql.ts), typed again
-        # at the crossing (_planned.py)
-        out.append((across_the_bridge(setting['sql'], "a remote file's setting of the connection", answered),
-                    tuple(params)))
+        # the setting's statement, as this host's runner read it from the mount's plan
+        out.append((setting['sql'], tuple(params)))
     return tuple(out), tuple(held)
 
 
@@ -776,8 +775,7 @@ class Engine:
                 if refused is not None:
                     raise ValueError(refused)
             said: dict[str, Any] = json.loads(headless.call('mount', json.dumps(mount)))
-            settings, held = _connection_settings(said.pop('settings', []), url, said.pop('bearer', None),
-                                                  headless.answered)
+            settings, held = _connection_settings(headless.settings_of(name), url, said.pop('bearer', None))
             self.frames.keep_file(name, said, view=True, settings=settings, held=held)
         return {**said, 'table': name}
 

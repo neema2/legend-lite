@@ -17,6 +17,7 @@ import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesRequest } fro
 import type { SynthesizeSource } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataSource } from '../../engine-client/src/project-data.ts';
 import { mountRemote, shownAddress } from '../src/remote.ts';
+import { heldDataHost } from '../src/data-host.ts';
 import { isPageFragment } from '../src/share/link.ts';
 import type { TableModels } from '../src/infer.ts';
 import { pageConfig } from './page-config.ts';
@@ -308,6 +309,9 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       engineReady.then((p) => p.tables.hostOperations(databaseType, operations)),
     // a remote file's mount, as a planned load (B3's Q3)
     remoteMount: (request: Parameters<TableModels['remoteMount']>[0]) => engineReady.then((p) => p.tables.remoteMount(request)),
+    // what the tab's host plans beside a mount (data-host.ts heldDataHost): a file's load, a table's catalog
+    fileLoad: (request: Parameters<TableModels['fileLoad']>[0]) => engineReady.then((p) => p.tables.fileLoad(request)),
+    catalogColumnsSql: (schema: string, table: string) => engineReady.then((p) => p.tables.catalogColumnsSql(schema, table)),
     // the sample's rows, made by the database as a planned load (SYNTHESIZE, S303)
     synthesize: (request: Parameters<TableModels['synthesize']>[0]) => engineReady.then((p) => p.tables.synthesize(request)),
   };
@@ -332,7 +336,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   if (start.kind === 'sample' && remote) {
     status.textContent = `mounting ${shownAddress(remote)}…`;
     const format = params.get('format');
-    await mountRemote(duck.engine, planned, {
+    await mountRemote(heldDataHost(duck.engine, planned), {
       sources: [{
         name: 'trades',
         url: remote,

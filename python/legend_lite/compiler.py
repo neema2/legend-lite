@@ -289,6 +289,31 @@ def snap_stream(request: dict[str, Any]) -> dict[str, Any]:
     return _json.loads(_answer(library().call('lite_snap_stream', _json.dumps(request))))
 
 
+def file_load(request: dict[str, Any]) -> dict[str, Any]:
+    """A FILE THIS HOST HOLDS READ INTO A TABLE OF ITS OWN, as a plan (the native library's Boundary.fileLoad, the tab's
+    planner's ``fileLoad``): ``request`` is ``{"databaseType", "file": {"name", "digest", "size", "format"}, "into":
+    {"table"}}`` -- the file named, never its path. The plan: one HOST_SESSION load whose file step
+    ``projects.run_host_load`` runs, binding the path this host holds the file at (the #6 bridge, 2026-11-12)."""
+    return _json.loads(_answer(library().call('lite_file_load', _json.dumps(request))))
+
+
+def remote_mount(request: dict[str, Any]) -> dict[str, Any]:
+    """A REMOTE FILE MOUNTED, as a plan (the native library's Boundary.remoteMount, the tab's planner's
+    ``remoteMount``): names and fields only -- a bearer URL by the name this host holds it under, a key by its name and
+    fields. The plan: one HOST_SESSION load whose bound steps ``projects.run_host_load`` runs, binding what this host
+    holds by name (the #6 bridge, 2026-11-12)."""
+    return _json.loads(_answer(library().call('lite_remote_mount', _json.dumps(request))))
+
+
+def execution_plan(model: str, tree: Tree, runtime: str) -> dict[str, Any]:
+    """A PROGRAM planned against ``model`` through ``runtime`` as an execution plan (PlanJson, parsed: the tab's
+    planner's ``executionPlan``) -- a write's: its updates and its answer in one sequence, which
+    ``projects.run_plan`` runs in its caller's transaction (the #6 bridge, 2026-11-12)."""
+    with HeldModel(model) as held:
+        return _json.loads(_answer(library().call('lite_execution_plan_json_held', held.handle, _json.dumps(tree),
+                                                  runtime)))
+
+
 def frame_load(request: dict[str, Any]) -> dict[str, Any]:
     """A HOST'S VALUE READ AS A RELATION, as a plan (the native library's Boundary.frameLoad; the user's ruling of
     2026-11-11: a frame named, attached at run): ``request`` is ``{"databaseType", "held", "as", "live", "schema"?,

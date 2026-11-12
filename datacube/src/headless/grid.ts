@@ -78,7 +78,6 @@ import { handedOnTable, outputCsv, outputQuery } from '../flow-output.ts';
 import { outputProblem, readOutput } from '../layout/flow.ts';
 import { writeTable } from '../table-output.ts';
 import { pureSteps } from '../pure-import.ts';
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { lackingCheck, lackingWords } from '../cross-tab.ts';
 import { lensed, type PlanAndRun, type QueryLens, type QueryRunner } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
@@ -93,7 +92,7 @@ import {
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
-import { hostCalls, hostDatabase, hostEngine, hostWords, hostWorker } from './host.ts';
+import { hostCalls, hostEngine, hostTableWriting, hostWords, hostWorker } from './host.ts';
 import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows, openedLeaves } from '../join-open.ts';
 import { boxRows, pureChecked, pureFrom, pureInput, pureShown, pureText } from '../pure-box.ts';
@@ -1632,22 +1631,23 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
       if (problem !== undefined) throw new CubeRefusal(problem);
       const given = JSON.parse(tables) as { readonly tables: readonly { readonly table: string; readonly pkg?: string }[]; readonly held: readonly string[] };
       const calls = hostCalls();
-      const engine = new DuckDbEngine(hostDatabase(calls).connection);
       const rows = await writeTable(fromJson(query) as unknown as Lambda, out, {
-        databaseType: engine.databaseType,
+        databaseType: 'DuckDB',
         sources: given.tables.map((t) => ({ table: t.table, convertible: true, ...(t.pkg !== undefined ? { pkg: t.pkg } : {}) })),
         held: (t) => given.held.some((h) => h.toLowerCase() === t.toLowerCase()),
         models: o.planner,
-        hold: (work) => engine.exclusive(work),
-        planOf: (q) => o.planner.plan(q),
-        executionPlan: async (model, runtime, program) => {
-          const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });
-          try {
-            return await p.executionPlan(program);
-          } finally {
-            p.dispose();
-          }
-        },
+        // each step planned and run by the host (the #6 bridge): the rows' query and the program sent as plan requests
+        writing: hostTableWriting(calls, {
+          rows: (q) => o.planner.planRequest(q),
+          program: async (model, runtime, program) => {
+            const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });
+            try {
+              return await p.planRequest(program);
+            } finally {
+              p.dispose();
+            }
+          },
+        }),
       });
       return JSON.stringify({ rows });
     } catch (e) {

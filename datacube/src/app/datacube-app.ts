@@ -151,23 +151,27 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (local === undefined || engine?.exclusive === undefined || tables === undefined || tables.length === 0 || place.runner || place.snapTarget) return undefined;
     const planner = place.planner ?? local.planner;
     return async (rows, output) => {
-      const { writeTable } = await import('../table-output.ts');
+      const { heldTableWriting, writeTable } = await import('../table-output.ts');
       const wrote = await writeTable(rows, output, {
         databaseType: engine.databaseType,
         sources: tables.map((table) => ({ table, convertible: true })),
         held: (table) => tablesTaken?.(table) ?? true,
         models: local.tables,
-        hold: (work) => engine.exclusive!(work),
-        planOf: (query) => planner.plan(query),
-        executionPlan: async (model, runtime, program) => {
-          const p = local.another(model, runtime);
-          try {
-            if (p.executionPlan === undefined) throw new Error("this page's planner plans no write");
-            return await p.executionPlan(program);
-          } finally {
-            p.dispose?.();
-          }
-        },
+        writing: heldTableWriting({
+          databaseType: engine.databaseType,
+          models: local.tables,
+          hold: (work) => engine.exclusive!(work),
+          planOf: (query) => planner.plan(query),
+          executionPlan: async (model, runtime, program) => {
+            const p = local.another(model, runtime);
+            try {
+              if (p.executionPlan === undefined) throw new Error("this page's planner plans no write");
+              return await p.executionPlan(program);
+            } finally {
+              p.dispose?.();
+            }
+          },
+        }),
       });
       // its table this tab's from now on: no file read in after takes its name (and replaces it)
       tableWritten?.(output.name);
