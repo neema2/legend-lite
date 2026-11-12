@@ -51,7 +51,9 @@ public final class PeRatchets {
                     + " remote mount's and host file's tests)",
             "own_corpus.matched 3137 -> 3140 (2026-11-11, the B checkpoint's audit fixes on claude/total-wall: M1, C1/C9,"
                     + " C3, LOW 8): their tests' models (a Databricks runtime with a declared parameter, the catalog's"
-                    + " staged reads, the text plan's catalog read)");
+                    + " staged reads, the text plan's catalog read)",
+            "own_corpus.matched 3140 -> 3142 (2026-11-12, SYNTHESIZE's simple slice, register S303): DuckDbSynthesizeTest's"
+                    + " two models (its every-type table's Database; the demo's TRADES Database)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

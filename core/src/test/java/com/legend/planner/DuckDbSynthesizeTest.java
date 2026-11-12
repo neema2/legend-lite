@@ -89,16 +89,19 @@ class DuckDbSynthesizeTest {
     @Test
     void eachTypeHasItsFormula() {
         // AT is a reserved word: DuckDB's own spelling of the declared name quotes it
+        // the turn columns (NAME's five texts, FLAG's two) the row number's digits in mixed radix, NAME's first; each
+        // spread column its own multiplier, 742938285^(j + 1) mod (2^31 - 1) for the j-th
         assertEquals("INSERT INTO ALL_TYPES (ID, NAME, SMALL, AMOUNT, RATE, DAY, \"AT\", FLAG) SELECT"
-                + " (0 + ((i * 2147483647) % (CAST(round((9999 - 0) / 1) AS BIGINT) + 1)) * 1),"
+                + " (0 + (((i * 742938285) % 2147483647) % (CAST(round((9999 - 0) / 1) AS BIGINT) + 1)) * 1),"
                 + " 'NAME_' || CAST((i % 5) + 1 AS VARCHAR),"
-                + " (0 + ((i * 2147483647) % (CAST(round((99 - 0) / 1) AS BIGINT) + 1)) * 1),"
-                + " (0 + ((i * 2147483647) % (CAST(round((9999.99 - 0) / 0.01) AS BIGINT) + 1)) * 0.01),"
-                + " (0 + ((i * 2147483647) % (CAST(round((9999.99 - 0) / 0.01) AS BIGINT) + 1)) * 0.01),"
-                + " (DATE '2021-01-01' + CAST((i * 2147483647) % (DATE '2025-12-31' - DATE '2021-01-01' + 1) AS INTEGER)),"
-                + " (CAST(DATE '2021-01-01' AS TIMESTAMP) + to_seconds((i * 2147483647) % ((DATE '2025-12-31'"
-                + " - DATE '2021-01-01' + 1) * 86400))),"
-                + " ((i % 2) = 0)"
+                + " (0 + (((i * 1710921057) % 2147483647) % (CAST(round((99 - 0) / 1) AS BIGINT) + 1)) * 1),"
+                + " (0 + (((i * 1796558312) % 2147483647) % (CAST(round((9999.99 - 0) / 0.01) AS BIGINT) + 1)) * 0.01),"
+                + " (0 + (((i * 1943891214) % 2147483647) % (CAST(round((9999.99 - 0) / 0.01) AS BIGINT) + 1)) * 0.01),"
+                + " (DATE '2021-01-01' + CAST(((i * 1800077045) % 2147483647) % (DATE '2025-12-31' - DATE '2021-01-01'"
+                + " + 1) AS INTEGER)),"
+                + " (CAST(DATE '2021-01-01' AS TIMESTAMP) + to_seconds(((i * 693830668) % 2147483647) % ((DATE"
+                + " '2025-12-31' - DATE '2021-01-01' + 1) * 86400))),"
+                + " (((i // 5) % 2) = 0)"
                 + " FROM range(10) AS t(i)", fill(plan(MODEL, "x::DB", "ALL_TYPES", 10, Map.of())));
     }
 
@@ -110,10 +113,14 @@ class DuckDbSynthesizeTest {
         knobs.put("AMOUNT", new Synthesize.Knob.Range("-5", "5", 1));
         knobs.put("DAY", new Synthesize.Knob.Range("2024-02-01", "2024-02-29", null));
         String sql = fill(plan(MODEL, "x::DB", "ALL_TYPES", 3, knobs));
-        assertTrue(sql.contains("([7, -1])[(i % 2) + 1], (['a', 'o''b'])[(i % 2) + 1]"), sql);
-        assertTrue(sql.contains("(-5 + ((i * 2147483647) % (CAST(round((5 - -5) / 0.1) AS BIGINT) + 1)) * 0.1)"), sql);
-        assertTrue(sql.contains("(DATE '2024-02-01' + CAST((i * 2147483647) % (DATE '2024-02-29' - DATE '2024-02-01'"
-                + " + 1) AS INTEGER))"), sql);
+        // ID's values the first digit, NAME's the next (worth 2), FLAG's the third (worth 4); AMOUNT the second spread
+        // column, DAY the fourth
+        assertTrue(sql.contains("([7, -1])[(i % 2) + 1], (['a', 'o''b'])[((i // 2) % 2) + 1]"), sql);
+        assertTrue(sql.contains("(-5 + (((i * 1710921057) % 2147483647) % (CAST(round((5 - -5) / 0.1) AS BIGINT) + 1))"
+                + " * 0.1)"), sql);
+        assertTrue(sql.contains("(DATE '2024-02-01' + CAST(((i * 1943891214) % 2147483647) % (DATE '2024-02-29'"
+                + " - DATE '2024-02-01' + 1) AS INTEGER))"), sql);
+        assertTrue(sql.endsWith("(((i // 4) % 2) = 0) FROM range(3) AS t(i)"), sql);
     }
 
     /** DataCube's demo table, 200,000 rows on DuckDB, its knobs today's domains: every aggregate exactly the formulas'
@@ -129,19 +136,10 @@ class DuckDbSynthesizeTest {
                     s.execute(((ExecutionPlan.LoadStep.Statement) step).sql());
                 }
             }
-            long p = 2_147_483_647L;
-            long years = 0;
-            long qty = 0;
-            long notional = 0;
-            long pnl = 0;
-            for (long i = 0; i < n; i++) {
-                years += 2021 + i * p % 5;
-                qty += 1 + i * p % 97;
-                notional += i * p % 1_000_000;
-                pnl += -100_000 + i * p % 200_000;
-            }
-            assertEquals(List.of(List.of(String.valueOf(n), "3", "5", "4", "4", String.valueOf(years), "2021", "2025",
-                    String.valueOf(qty), "1", "97", String.valueOf(notional), String.valueOf(pnl), "-1000.0", "999.99")),
+            // the sums the formulas give, computed apart from the planner (a script over the same formulas,
+            // 2026-11-12): year, qty, notional in cents, pnl in cents
+            assertEquals(List.of(List.of(String.valueOf(n), "3", "5", "4", "4", "404599991", "2021", "2025",
+                    "9801576", "1", "97", "99978808963", "324675", "-1000.0", "999.98")),
                     rows(c, "SELECT count(*), count(DISTINCT region), count(DISTINCT desk), count(DISTINCT book),"
                             + " count(DISTINCT qtr), sum(year), min(year), max(year), sum(qty), min(qty), max(qty),"
                             + " sum(CAST(round(notional * 100) AS BIGINT)), sum(CAST(round(pnl * 100) AS BIGINT)),"
@@ -149,6 +147,29 @@ class DuckDbSynthesizeTest {
             // the value lists in turn: row i's region is the (i mod 3)-th
             assertEquals(List.of(List.of("AMER", "66667"), List.of("APAC", "66666"), List.of("EMEA", "66667")),
                     rows(c, "SELECT region, count(*) FROM TRADES GROUP BY region ORDER BY region"));
+            // every pair of columns covers its product: the four lists' 240 combinations each 833 or 834 times, so the
+            // demo's pivots (year by desk, quarter by book) are full grids, never diagonals; two spread columns are
+            // not tied (their correlation near 0)
+            assertEquals(List.of(List.of("15", "25", "16", "240", "485", "75", "20")),
+                    rows(c, "SELECT count(DISTINCT (region, desk)), count(DISTINCT (desk, year)),"
+                            + " count(DISTINCT (qtr, book)), count(DISTINCT (region, desk, book, qtr)),"
+                            + " count(DISTINCT (year, qty)), count(DISTINCT (year, region, desk)),"
+                            + " count(DISTINCT (year, qtr)) FROM TRADES"));
+            assertEquals(List.of(List.of("833", "834")), rows(c, "SELECT min(n), max(n) FROM (SELECT count(*) AS n"
+                    + " FROM TRADES GROUP BY region, desk, book, qtr)"));
+            assertEquals(List.of(List.of("true", "true", "true")), rows(c, "SELECT abs(corr(notional, pnl)) < 0.01,"
+                    + " abs(corr(year, qty)) < 0.01, abs(corr(notional, year)) < 0.01 FROM TRADES"));
+            // the first rows too: 1,000 of them, made afresh
+            try (Statement s = c.createStatement()) {
+                for (ExecutionPlan.LoadStep step : load(plan(TRADES, "trades::DB", "TRADES", 1_000, tradeKnobs()))
+                        .steps()) {
+                    s.execute(((ExecutionPlan.LoadStep.Statement) step).sql());
+                }
+            }
+            assertEquals(List.of(List.of("1000", "true", "true", "15", "25", "16")),
+                    rows(c, "SELECT count(*), abs(corr(notional, pnl)) < 0.1, abs(corr(year, qty)) < 0.1,"
+                            + " count(DISTINCT (region, desk)),"
+                            + " count(DISTINCT (desk, year)), count(DISTINCT (qtr, book)) FROM TRADES"));
         }
     }
 
@@ -193,6 +214,14 @@ class DuckDbSynthesizeTest {
         IllegalArgumentException textRange = assertThrows(IllegalArgumentException.class,
                 () -> plan(MODEL, "x::DB", "ALL_TYPES", 10, Map.of("NAME", new Synthesize.Knob.Range("a", "z", null))));
         assertTrue(textRange.getMessage().contains("a range for the text column NAME"), textRange.getMessage());
+        IllegalArgumentException wide = assertThrows(IllegalArgumentException.class,
+                () -> plan(MODEL, "x::DB", "ALL_TYPES", 10, Map.of("AMOUNT", new Synthesize.Knob.Range("0", "100000000",
+                        2))));
+        assertTrue(wide.getMessage().contains("the range of AMOUNT has 10000000001 values, more than the 2147483647"),
+                wide.getMessage());
+        IllegalArgumentException many = assertThrows(IllegalArgumentException.class,
+                () -> plan(MODEL, "x::DB", "ALL_TYPES", (1L << 32) + 1, Map.of()));
+        assertTrue(many.getMessage().contains("4294967297 rows, more than the 4294967296"), many.getMessage());
         IllegalArgumentException notANumber = assertThrows(IllegalArgumentException.class,
                 () -> plan(MODEL, "x::DB", "ALL_TYPES", 10, Map.of("ID", new Synthesize.Knob.Values(List.of("one")))));
         assertTrue(notANumber.getMessage().contains("takes no value 'one'"), notANumber.getMessage());

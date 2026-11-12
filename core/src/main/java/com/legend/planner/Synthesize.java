@@ -33,6 +33,13 @@ import java.util.Map;
  *   <li>a BIT: true and false in turn;</li>
  *   <li>a knob's values for any of them, in turn.</li>
  * </ul>
+ * The columns taken in turn (a list's values, a text's five, a BIT's two) are the row number's digits in mixed radix,
+ * in declaration order: the first's index is {@code i mod k1}, the next's {@code (i / k1) mod k2}, and so on, so every
+ * combination of their values occurs once the count reaches the product of their sizes (the orchestrator's fix of
+ * 2026-11-12: one index for all of them paired the demo's four quarters with its four books, four pairs of sixteen).
+ * A spread column's offset is the row number times its own multiplier modulo the prime 2^31 - 1, then modulo its
+ * range's size, so no spread column moves with another or with a turn column. A range of more values than that prime,
+ * and more than 2^32 rows, are refused by name.
  * No column is made NULL in this slice, a nullable one included. Any other type (binary, JSON, an array, a time) is
  * refused by name; so is a knob for a column the table does not declare, and any database but DuckDB (its host
  * operations refuse {@link HostOperation.Synthesize} by name).
@@ -77,9 +84,30 @@ public final class Synthesize {
                         + table.table() + " does not declare");
             }
         }
+        if (count > HostOperation.Formula.MOST_ROWS) {
+            throw new IllegalArgumentException("synthesize: " + count + " rows, more than the "
+                    + HostOperation.Formula.MOST_ROWS + " one fill makes");
+        }
         List<HostOperation.Formula> formulas = new ArrayList<>(def.columns().size());
+        // the turn columns are the row number's digits in mixed radix, in declaration order: radix is the product of
+        // the earlier ones' sizes (at most MOST_ROWS: a digit worth more is 0 on every row); each spread column takes
+        // the next multiplier
+        long radix = 1;
+        int spreads = 0;
         for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
-            formulas.add(formula(c, knobs.get(c.name()), table.table()));
+            HostOperation.Formula f = formula(c, knobs.get(c.name()), table.table(), radix, multiplier(spreads));
+            int k = switch (f) {
+                case HostOperation.Formula.Cycle cycle -> cycle.values().size();
+                case HostOperation.Formula.Numbered numbered -> numbered.k();
+                case HostOperation.Formula.Alternate alternate -> 2;
+                case HostOperation.Formula.Spread spread -> 1;
+                case HostOperation.Formula.Days days -> 1;
+            };
+            if (f instanceof HostOperation.Formula.Spread || f instanceof HostOperation.Formula.Days) {
+                spreads++;
+            }
+            radix = radix > HostOperation.Formula.MOST_ROWS / k ? HostOperation.Formula.MOST_ROWS : radix * k;
+            formulas.add(f);
         }
         HostOperation.Synthesize fill = new HostOperation.Synthesize(
                 HostOperation.Name.declared(table.schema(), table.table()), count, formulas);
@@ -102,9 +130,21 @@ public final class Synthesize {
                 target));
     }
 
-    /** {@code c}'s formula: its knob's, or its declared type's default. */
+    /** A primitive root of {@link HostOperation.Formula#MODULUS} (Fishman and Moore's first): the spread column at
+     *  position j (0, 1, ...) multiplies by its (j + 1)-th power, so no two spread columns share a multiplier, and none
+     *  lies near a small fraction of the modulus (a multiplier near one moves with the row number for millions of
+     *  rows, as the primes just below 2^31 do). */
+    private static final long ROOT = 742_938_285L;
+
+    private static long multiplier(int position) {
+        return java.math.BigInteger.valueOf(ROOT).modPow(java.math.BigInteger.valueOf(position + 1L),
+                java.math.BigInteger.valueOf(HostOperation.Formula.MODULUS)).longValueExact();
+    }
+
+    /** {@code c}'s formula: its knob's, or its declared type's default; a turn column's digit worth {@code every}, a
+     *  spread column's {@code multiplier}. */
     private static HostOperation.Formula formula(DatabaseDefinition.ColumnDefinition c,
-            @com.legend.base.Nullable Knob knob, String table) {
+            @com.legend.base.Nullable Knob knob, String table, long every, long multiplier) {
         String name = c.name();
         RelationalDataType t = c.dataType();
         Kind kind = kind(t, name, table);
@@ -116,7 +156,7 @@ public final class Synthesize {
                 }
                 values.add(new HostOperation.Literal(value, kind == Kind.NUMBER));
             }
-            return new HostOperation.Formula.Cycle(name, values);
+            return new HostOperation.Formula.Cycle(name, values, every);
         }
         if (knob instanceof Knob.Range r) {
             return switch (kind) {
@@ -132,7 +172,8 @@ public final class Synthesize {
                         throw new IllegalArgumentException("synthesize: the whole-number column " + name + " at scale "
                                 + scale);
                     }
-                    yield new HostOperation.Formula.Spread(name, lo, hi, scale);
+                    within(hi.subtract(lo).movePointRight(scale), name);
+                    yield new HostOperation.Formula.Spread(name, lo, hi, scale, multiplier);
                 }
                 case DATE, TIMESTAMP -> {
                     java.time.LocalDate from = date(r.lo(), name);
@@ -141,18 +182,22 @@ public final class Synthesize {
                         throw new IllegalArgumentException("synthesize: the range of " + name + " runs from " + from
                                 + " back to " + to);
                     }
-                    yield new HostOperation.Formula.Days(name, from.toString(), to.toString(), kind == Kind.TIMESTAMP);
+                    within(BigDecimal.valueOf(java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1)
+                            .multiply(BigDecimal.valueOf(kind == Kind.TIMESTAMP ? 86_400 : 1)).subtract(BigDecimal.ONE),
+                            name);
+                    yield new HostOperation.Formula.Days(name, from.toString(), to.toString(), kind == Kind.TIMESTAMP,
+                            multiplier);
                 }
                 case TEXT, BOOLEAN -> throw new IllegalArgumentException("synthesize: a range for the " + kind.name()
                         .toLowerCase(java.util.Locale.ROOT) + " column " + name + ": give its values");
             };
         }
         return switch (kind) {
-            case TEXT -> new HostOperation.Formula.Numbered(name, name + "_", 5);
-            case NUMBER -> new HostOperation.Formula.Spread(name, BigDecimal.ZERO, defaultHigh(t), scale(t));
-            case DATE -> new HostOperation.Formula.Days(name, FROM, TO, false);
-            case TIMESTAMP -> new HostOperation.Formula.Days(name, FROM, TO, true);
-            case BOOLEAN -> new HostOperation.Formula.Alternate(name);
+            case TEXT -> new HostOperation.Formula.Numbered(name, name + "_", 5, every);
+            case NUMBER -> new HostOperation.Formula.Spread(name, BigDecimal.ZERO, defaultHigh(t), scale(t), multiplier);
+            case DATE -> new HostOperation.Formula.Days(name, FROM, TO, false, multiplier);
+            case TIMESTAMP -> new HostOperation.Formula.Days(name, FROM, TO, true, multiplier);
+            case BOOLEAN -> new HostOperation.Formula.Alternate(name, every);
         };
     }
 
@@ -216,6 +261,15 @@ public final class Synthesize {
         }
         // the top whole value and its last step: 9999.99 at two places
         return top.add(BigDecimal.ONE).subtract(BigDecimal.ONE.movePointLeft(scale)).max(BigDecimal.ZERO);
+    }
+
+    /** A range's steps past its first, refused by name beyond the modulus (its offsets lie below it). */
+    private static BigDecimal within(BigDecimal steps, String column) {
+        if (steps.compareTo(BigDecimal.valueOf(HostOperation.Formula.MODULUS - 1)) > 0) {
+            throw new IllegalArgumentException("synthesize: the range of " + column + " has " + steps.add(BigDecimal.ONE)
+                    .toPlainString() + " values, more than the " + HostOperation.Formula.MODULUS + " one column spreads");
+        }
+        return steps;
     }
 
     private static BigDecimal number(String text, String column) {
