@@ -9,6 +9,7 @@ import { describe, it } from 'node:test';
 
 import type { ArrowishConnection, DuckDbEngine, HeldConnection } from '../src/duckdb.ts';
 import type { QueryEngine } from '../src/engine.ts';
+import type { HostOperation, HostSource, SnapStreamRequest } from '../src/host-operations.ts';
 import { allFromPlan, fromPlan, type PlannedSql } from '../src/planned-sql.ts';
 import type { Plan } from '../src/relation-type.ts';
 import { allUnplanned, unplanned } from './unplanned.ts';
@@ -33,8 +34,24 @@ export function handWrittenSqlDoesNotCompile(engine: DuckDbEngine, query: QueryE
   // a statement edited after it was read is a string again
   // @ts-expect-error concatenated, it is no plan's
   void engine.run(fromPlan('SELECT 1') + ' UNION ALL SELECT 2', 0);
+  // a host operation's planner text is the planner's (the C final audit's H2, 2026-11-12): its source query,
+  // @ts-expect-error a host's own query is not
+  const source: HostSource = { query: 'SELECT 1' };
+  const relation: HostOperation = {
+    op: 'relation', kind: 'table', target: { name: 't' }, from: { relation: { name: 's' } },
+    // @ts-expect-error its select list,
+    selectList: '*',
+  };
+  const replaced: HostOperation = {
+    op: 'relation', kind: 'table', target: { name: 't' }, from: { relation: { name: 's' } },
+    // @ts-expect-error and each replacement's expression
+    replacing: [{ column: 'a', sql: 'a' }],
+  };
+  // @ts-expect-error a snapshot's stream runs the remote plane's planner's statement alone (H3)
+  const snap: SnapStreamRequest = { databaseType: 'DuckDB', plane: 'warehouse', sql: 'DROP TABLE t', table: 't' };
   void statement;
   void plan;
+  void [source, relation, replaced, snap];
 }
 
 describe("a plan's statement", () => {

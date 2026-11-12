@@ -69,11 +69,14 @@ class PlannedSqlTest {
      * gone, moves its count, with a dated note here.
      */
     static final Map<String, Integer> MINT_REFERENCES = Map.of(
-            // 2026-11-12 (the second audit): the hosts' plan runner, each step's statement typed as it is read
-            "engine-client/src/plan-runner.ts", 17,
+            // 2026-11-12 (the second audit): the hosts' plan runner, each step's statement typed as it is read; 17 -> 18
+            // (the C final audit's H9): an authored plan's target's session statements, typed as they are read
+            "engine-client/src/plan-runner.ts", 18,
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
             "engine-client/src/legend/wasm-grammar.ts", 8,
-            "datacube/src/lite-planner.ts", 8,
+            // 2026-11-12, 8 -> 9 (the C final audit's H2): DataCube's table model's copy select list, typed as its answer
+            // is read, since a host operation's selectList takes a PlannedSql alone
+            "datacube/src/lite-planner.ts", 9,
             "datacube/src/planner.ts", 2,
             // the definitions themselves, and the mints' own test
             "engine-client/src/planned-sql.ts", 7,
@@ -97,6 +100,44 @@ class PlannedSqlTest {
             "query/src/app/persist.ts", 1,
             "query/src/ui/columns.ts", 9,
             "studio/src/backend/query-builder.ts", 4);
+
+    /**
+     * THE AUTHORED DOOR (the C final audit's H1, 2026-11-12: "any product file can write
+     * {@code runAuthored(await grammar.authored('DuckDB', text), ...)} and every guard stays green"): a person's own
+     * statement, carried by the planner as written (Boundary.authored) and run by the hosts' runner (runAuthored), is the
+     * SQL playground's alone. Every reference to it in the TypeScript -- the runner {@code runAuthored}, a member or key
+     * {@code authored} or {@code authoredOrError}, and the request kind {@code 'authored'} as a string -- by file,
+     * exactly: the playground (studio run.ts, which runs it; app.ts, which plans it), and the planner's plumbing
+     * (wasm-grammar.ts's client, the protocol's kind, the tab's answer of it, Python's page refusing it unasked).
+     */
+    static final Map<String, Integer> AUTHORED = Map.ofEntries(
+            // 2026-11-12 (H1, measured): the playground's run (its runner's import and call, the session's member, read
+            // twice) and the app's planning of its statement (the member, the client's call)
+            Map.entry("studio/src/backend/run.ts", 5),
+            Map.entry("studio/src/app/app.ts", 2),
+            // the runner's definition; the planner's client (its method and its request's kind); the protocol's kind (in
+            // the kinds' list and the request's type); the tab's answer of it (the export's type, its call, the kind)
+            Map.entry("engine-client/src/plan-runner.ts", 1),
+            Map.entry("engine-client/src/legend/wasm-grammar.ts", 2),
+            Map.entry("engine-client/src/legend/planner-protocol.ts", 2),
+            Map.entry("engine-client/src/legend/planner-answer.ts", 3),
+            // Python's page refuses it by name, unasked (python-host.ts NOT_ASKED)
+            Map.entry("datacube/src/services/python-host.ts", 1),
+            // the tests of it: the runner's (plan-runner.test.ts) and the tab planner's fake module
+            Map.entry("engine-client/test/plan-runner.test.ts", 17),
+            Map.entry("datacube/test/lite-planner.test.ts", 1));
+
+    /**
+     * THE AUTHORED DOOR in Java (H1): the planner's {@code Authored.plan} is reached by the planner boundary alone
+     * (Boundary.authored), and that by the two exports a host asks -- the tab's (TabExports.authoredOrError) and a
+     * headless host's (the native library's lite_authored) -- by file, exactly. Python's request kind is pinned by
+     * python/tests/test_planned_guard.py.
+     */
+    static final Map<String, Integer> AUTHORED_JAVA = Map.of(
+            "wasm/src/main/java/planner/Boundary.java", 1,
+            "wasm/src/main/java/planner/TabExports.java", 2,
+            "native/src/main/java/com/legend/nativelib/Compiler.java", 1);
+    static final List<String> JAVA_PRODUCT = List.of("core/src/main/java", "wasm/src/main/java/planner", "native/src/main/java");
 
     /** The tests' folders, read beside the product's (host_sql.txt's): where a cast would hide a host's own SQL. */
     static final List<String> TESTS = List.of("engine-client/test", "datacube/test", "query/test", "studio/test");
@@ -134,6 +175,13 @@ class PlannedSqlTest {
     private static final Pattern MINT_IDENTIFIER = Pattern.compile(
             "(?<![\\w$])(?:fromPlan|allFromPlan|notPlanned|plannedProjectData)(?![\\w$])");
     private static final Pattern ESCAPE = Pattern.compile("\\bas\\s+(?:never|any)\\b");
+    /** A reference to the authored door, in code: its runner, a member or key named for it, or its export. */
+    private static final Pattern AUTHORED_IDENTIFIER = Pattern.compile("(?<![\\w$])(?:runAuthored|authored|authoredOrError)(?![\\w$])");
+    /** The request kind {@code 'authored'} as a string, in code with its strings kept (any quote). */
+    private static final Pattern AUTHORED_KIND = Pattern.compile("(['\"`])authored\\1");
+    /** Java's reach of the door: the planner's Authored.plan, the boundary's authored, the tab's export. */
+    private static final Pattern AUTHORED_JAVA_REFERENCE = Pattern.compile(
+            "\\bAuthored\\s*\\.\\s*plan\\b|\\bBoundary\\s*\\.\\s*authored\\b|(?<![\\w$])authoredOrError(?![\\w$])");
     private static final Pattern SUPPRESSION = Pattern.compile("@ts-(?:ignore|expect-error|nocheck)");
     private static final Pattern RUN_TS_IMPORT = Pattern.compile(
             "\\bimport\\s*(type\\s+)?\\{([^}]*)\\}\\s*from\\s*['\"`][^'\"`]*backend/run(?:\\.ts)?['\"`]");
@@ -266,6 +314,11 @@ class PlannedSqlTest {
      * {@code ${...}} kept as code -- what an identifier count and a cast count read, prose and messages left out.
      */
     static String code(String src) {
+        return code(src, false);
+    }
+
+    /** {@link #code(String)}, its strings' text kept where {@code strings}: comments alone blanked. */
+    static String code(String src, boolean strings) {
         StringBuilder out = new StringBuilder(src.length());
         java.util.ArrayDeque<int[]> templates = new java.util.ArrayDeque<>();   // each open ${, its brace depth
         int i = 0;
@@ -289,10 +342,10 @@ class PlannedSqlTest {
                 i++;
                 while (i < n && src.charAt(i) != c && src.charAt(i) != '\n') {
                     if (src.charAt(i) == '\\' && i + 1 < n) {
-                        out.append(' ');
+                        out.append(strings ? src.charAt(i) : ' ');
                         i++;
                     }
-                    out.append(' ');
+                    out.append(strings ? src.charAt(i) : ' ');
                     i++;
                 }
                 if (i < n) {
@@ -308,10 +361,10 @@ class PlannedSqlTest {
                 // a template's text, to its end or its next ${
                 while (i < n && src.charAt(i) != '`' && !(src.charAt(i) == '$' && i + 1 < n && src.charAt(i + 1) == '{')) {
                     if (src.charAt(i) == '\\' && i + 1 < n) {
-                        out.append(' ');
+                        out.append(strings ? src.charAt(i) : ' ');
                         i++;
                     }
-                    out.append(src.charAt(i) == '\n' ? '\n' : ' ');
+                    out.append(strings || src.charAt(i) == '\n' ? src.charAt(i) : ' ');
                     i++;
                 }
                 if (i < n && src.charAt(i) == '`') {
@@ -388,6 +441,60 @@ class PlannedSqlTest {
         assertEquals(List.of(), grew, "a new `as never`, `as any` or suppressed check in the product's TypeScript: it"
                 + " satisfies the PlannedSql brand as a cast does (PlannedSqlTest.ESCAPES, shrink-only)");
         assertEquals(List.of(), shrank, "an escape gone: lower its file's count in PlannedSqlTest.ESCAPES, dated");
+    }
+
+    /** {@code src}'s references to the authored door (H1): identifiers in its code, the kind as a string in its code. */
+    static int authoredReferences(String src) {
+        return count(AUTHORED_IDENTIFIER, code(src)) + count(AUTHORED_KIND, code(src, true));
+    }
+
+    @Test
+    void theAuthoredDoorIsReachedFromThePlaygroundAndItsPlumbingAlone() throws IOException {
+        List<String> product = folders().get("typescript");
+        List<String> read = new ArrayList<>(product);
+        read.addAll(TESTS);
+        Map<String, Integer> found = new TreeMap<>();
+        Map<String, Integer> java = new TreeMap<>();
+        for (String file : inventory()) {
+            if (file.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$") && under(file, read)) {
+                int refs = authoredReferences(read(file));
+                if (refs > 0) {
+                    found.put(file, refs);
+                }
+            } else if (file.endsWith(".java") && under(file, JAVA_PRODUCT)) {
+                int refs = count(AUTHORED_JAVA_REFERENCE, code(read(file)));
+                if (refs > 0) {
+                    java.put(file, refs);
+                }
+            }
+        }
+        assertEquals(new TreeMap<>(AUTHORED), found, "a person's own statement is the SQL playground's alone: every"
+                + " reference to runAuthored, an `authored` member or the 'authored' request kind is pinned by file"
+                + " (PlannedSqlTest.AUTHORED, the C final audit's H1)");
+        assertEquals(new TreeMap<>(AUTHORED_JAVA), java, "the planner's Authored.plan is reached by Boundary.authored"
+                + " alone, and that by the tab's export and the native library's (PlannedSqlTest.AUTHORED_JAVA)");
+    }
+
+    /** Each way of reaching the door is counted (H1's planted violators): a census that stops seeing one is red. */
+    @Test
+    void theAuthoredCensusSeesEveryForm() {
+        for (String planted : List.of(
+                "import { runAuthored } from '../../engine-client/src/plan-runner.ts';",
+                "import { runAuthored as go } from './plan-runner.ts'; go(p, r);",
+                "const plan = await grammar.authored('DuckDB', text);",
+                "const { authored } = grammar;",
+                "const ask = grammar['authored'];",
+                "port.ask({ kind: \"authored\", request });",
+                "port.ask({ kind: `authored`, request });",
+                "m.exports.authoredOrError(r)")) {
+            assertTrue(authoredReferences(planted) > 0, "the authored census does not see: " + planted);
+        }
+        // prose and messages are not references
+        assertEquals(0, authoredReferences("// runAuthored, grammar.authored('x') in a comment\n"
+                + "const m = 'an authored statement'; /* kind: 'authored' */"));
+        assertTrue(count(AUTHORED_JAVA_REFERENCE, code("return Authored.plan(d, t, text);")) == 1);
+        assertTrue(count(AUTHORED_JAVA_REFERENCE, code("a = Folded.of(() -> Boundary.authored(r));")) == 1);
+        assertEquals(0, count(AUTHORED_JAVA_REFERENCE, code("/** {@code Boundary.authored} */ String s = \"Authored.plan\";")));
     }
 
     @Test
@@ -482,7 +589,7 @@ class PlannedSqlTest {
         int factory = backend.indexOf("export function playground(session: RunSession): Playground {");
         int runner = backend.indexOf("export function runner(session: RunSession): Runner {");
         assertTrue(factory >= 0 && runner > factory, "run.ts's playground() and runner() moved: " + PLAYGROUND);
-        int send = backend.indexOf("return runAuthored(plan, (sql) => engine.run(sql, 0));");
+        int send = backend.indexOf("return runAuthored(plan, { databaseType, run: (sql) => engine.run(sql, 0) });");
         assertTrue(send > factory && send < runner, "the playground's send is the Playground object's, and no other's");
         int planned = backend.indexOf("const plan = await session.authored(statement);");
         assertTrue(planned > factory && planned < send, "the playground sends the plan's one statement: the person's"

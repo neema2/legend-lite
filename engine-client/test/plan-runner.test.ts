@@ -25,6 +25,7 @@ import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { arrowIpcStream } from '../src/arrow-ipc.ts';
 import type { Receipt } from '../src/receipt.ts';
 import { unplanned } from './unplanned.ts';
+import type { PlannedSql } from '../src/planned-sql.ts';
 
 const MODEL = `###Relational
 Database w::DB
@@ -577,22 +578,40 @@ describe("a person's own statement, carried by the WASM planner as written and r
     const root = (JSON.parse(plan) as { root: { _type: string; shape: string; columns: unknown[]; sql: { statement: string; slots: unknown[] } } }).root;
     assert.deepEqual([root._type, root.shape, root.columns, root.sql.statement, root.sql.slots], ['tdsResult', 'RELATION', [], text, []]);
     const sent: string[] = [];
-    await runAuthored(plan, async (sql) => { sent.push(sql); return engine.run(sql, 0); });
+    const recording = { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { sent.push(sql); return engine.run(sql, 0); } };
+    await runAuthored(plan, recording, { established: true });
     assert.deepEqual(sent, [text], 'the one statement, as the person wrote it');
-    const read = await runAuthored(authored('SELECT n, n + 1 AS m FROM playground_t'), (sql) => engine.run(sql, 0));
+    const read = await runAuthored(authored('SELECT n, n + 1 AS m FROM playground_t'), { databaseType: 'DuckDB', run: (sql) => engine.run(sql, 0) });
     assert.deepEqual(read.columns.map((c) => [c.name, c.values.map(String)]), [['n', ['1']], ['m', ['2']]]);
   });
 
   it("a text the database cannot take is the database's own error; an empty one is refused by name", async () => {
-    await assert.rejects(() => runAuthored(authored('SELEC 1'), (sql) => engine.run(sql, 0)), /syntax error/i);
+    await assert.rejects(() => runAuthored(authored('SELEC 1'), { databaseType: 'DuckDB', run: (sql) => engine.run(sql, 0) }), /syntax error/i);
     assert.throws(() => authored('   '), /an authored statement is the person's text, and this one is empty/);
+  });
+
+  it("is run as every plan is: its target's session first, its database's type checked, its columns required (the C final audit's H9)", async () => {
+    const plan = authored('SELECT 1 AS one');
+    const target = (JSON.parse(plan) as { root: { sql: { target: { session: string[] } } } }).root.sql.target;
+    assert.ok(target.session.length > 0, 'a DuckDB target sets its session up (Boundary.sessionSetup)');
+    const sent: string[] = [];
+    await runAuthored(plan, { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { sent.push(sql); return engine.run(sql, 0); } });
+    assert.deepEqual(sent, [...target.session, 'SELECT 1 AS one'], "the target's session statements, then the person's text");
+    const none: string[] = [];
+    await assert.rejects(() => runAuthored(plan, { databaseType: 'Postgres', run: async (sql: PlannedSql) => { none.push(sql); } }),
+      (e: unknown) => e instanceof PlanRefusal && /a plan of a DuckDB database is not run on this Postgres one/.test(e.message));
+    const unstated = JSON.parse(plan) as { root: { columns?: unknown } };
+    delete unstated.root.columns;
+    await assert.rejects(() => runAuthored(JSON.stringify(unstated), { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { none.push(sql); } }),
+      (e: unknown) => e instanceof PlanRefusal && /carries its result's columns, and this one has none/.test(e.message));
+    assert.deepEqual(none, [], 'nothing sent for a plan refused');
   });
 
   it('a plan that is not an authored statement is refused by name, nothing sent', async () => {
     const sent: string[] = [];
     const load = ok(answer(m, { kind: 'snapStream', request: JSON.stringify({ databaseType: 'DuckDB', plane: 'warehouse',
       sql: 'SELECT 1', table: 't' }) }));
-    await assert.rejects(() => runAuthored(load, async (sql) => { sent.push(sql); }), /an authored statement's plan answers the relation its database reports, not a load/);
+    await assert.rejects(() => runAuthored(load, { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { sent.push(sql); } }), /an authored statement's plan answers the relation its database reports, not a load/);
     assert.deepEqual(sent, []);
   });
 });

@@ -42,7 +42,8 @@ filegroup(
 filegroup(
     name = "main_srcs",
     srcs = glob(["src/main/**"], exclude = ["**/*.md"]),
-    visibility = ["//spec:__pkg__"],
+    # the planned-SQL guard reads who reaches the authored door (the C final audit's H1, 2026-11-12)
+    visibility = ["//spec:__pkg__", "//tools/guards:__pkg__"],
 )
 
 # the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads

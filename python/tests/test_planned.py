@@ -105,6 +105,28 @@ class OneSendTest(unittest.TestCase):
         self.assertIn('the warehouse', str(refused.exception))
 
 
+class HostOperationsTextTest(unittest.TestCase):
+    """THE C FINAL AUDIT'S H2 (2026-11-12): a host operation's planner text -- a source query, a select list, a
+    replacement -- is a PlannedSql, made where its plan or the planner's answer was read; a host's own text is refused by
+    name before the planner is asked, so it is never pasted into a statement."""
+
+    def test_a_hosts_own_text_in_an_operation_is_refused_by_name(self):
+        for op in ({'op': 'count', 'from': {'query': 'SELECT 1'}},
+                   {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*', 'from': {'relation': {'name': 's'}}},
+                   {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
+                    'replacing': [{'column': 'a', 'sql': 'a'}]}):
+            with self.subTest(op=op), self.assertRaises(NotPlanned):
+                compiler.host_operations('DuckDB', [op])
+        (counted,) = compiler.host_operations('DuckDB', [{'op': 'count', 'from': {'query': from_plan('SELECT 1 AS a')}}])
+        self.assertIn('SELECT 1 AS a', counted[0])
+
+    def test_the_planners_copy_select_list_is_typed_as_its_answer_is_read(self):
+        model = compiler.table_model({'table': 't', 'convertible': True, 'databaseType': 'DuckDB', 'columns': [
+            {'name': 'big', 'dataType': 'UBIGINT', 'logicalType': 'UBIGINT'}]})
+        self.assertIsInstance(model['copySelectList'], PlannedSql)
+        self.assertIn('DECIMAL(20,0)', model['copySelectList'])
+
+
 class TheBridgeTest(unittest.TestCase):
     """THE V8 BRIDGE (the orchestrator's ruling of 2026-11-12): what DataCube's hosted code hands Python's database crosses
     as text, and is sent only if this session's planner answered it -- every text its answers carried, a plan's steps
@@ -161,6 +183,41 @@ class TheBridgeTest(unittest.TestCase):
             self.assertIn(text, answered)
         for text in ('DROP TABLE t', 'DELETE FROM t', 'TRUNCATE t', 'DROP TABLE u', 'String', 'legend-lite-plan'):
             self.assertNotIn(text, answered)
+
+    def test_a_stream_steps_remote_statement_and_an_updates_count_are_not_this_databases(self):
+        """The C final audit's H3 (2026-11-12): a snapshot's stream step carries the REMOTE plane's statement (its
+        ``sql``) and an update step names the value a later step binds (its ``count``): neither is a statement this
+        database runs, so neither is admitted -- the stream's own local statements are."""
+        sent = from_plan('SELECT * FROM remote_t')
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': sent, 'table': 'snap_t'})
+        answered = Answered()
+        answered.record('snapStream', 'OK\n' + json.dumps(plan))
+        stream = plan['root']['steps'][0]
+        self.assertEqual(stream['_type'], 'stream')
+        self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
+        for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
+            self.assertIn(local, answered, local)
+        answered.record('executionPlan', 'OK\n' + json.dumps({'root': {'_type': 'sequence', 'steps': [
+            {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}))
+        self.assertIn('INSERT INTO t SELECT 1', answered)
+        self.assertNotIn('written', answered, "an update's count names a value, never a statement")
+
+    def test_a_snapshots_stream_takes_the_planes_statement_alone(self):
+        # H3: the plane's statement is a PlannedSql, made where its plan was read; any other text is refused by name
+        with self.assertRaisesRegex(NotPlanned, "a snapshot's stream"):
+            compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': 'DROP TABLE t', 'table': 'snap_t'})
+
+    def test_an_answer_bigger_than_the_bound_is_kept_whole(self):
+        """The audit's NOTE: an answer of more than CAPACITY statements evicted its own first ones before any was sent;
+        now the newest answer is kept whole, and the next one trims the set back to its bound."""
+        answered = Answered()
+        many = [f'SELECT {i}' for i in range(Answered.CAPACITY + 10)]
+        answered.record('hostOperations', 'OK\n' + json.dumps([many]))
+        self.assertEqual(len(answered), Answered.CAPACITY + 10)
+        self.assertIn('SELECT 0', answered)
+        answered.record('catalogColumnsSql', 'OK\nSELECT -1')
+        self.assertEqual(len(answered), Answered.CAPACITY)
+        self.assertIn('SELECT -1', answered)
 
     def test_the_set_is_bounded(self):
         answered = Answered()

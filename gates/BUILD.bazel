@@ -428,6 +428,10 @@ test_suite(
         # lane ran in the warehouse lane alone and a session's gate never ran it. It builds the compiler's native
         # library (a few minutes, cached after); its test host is the lane's own (datacube/test/headless/run.py)
         "//datacube:headless_test",
+        # 2026-11-12 (the C final audit's H6): the one send's own test -- a statement no plan carries refused by name, the
+        # bridge's answered set, a host operation's planner text typed -- ran in the warehouse lane alone, so a session's
+        # gate never saw it; it shares the native library the lane above builds
+        "//python:planned_test",
     ],
 )
 

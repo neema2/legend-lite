@@ -190,10 +190,21 @@ function targetOf(plan: ReadPlan): Target | undefined {
   return sqls[0]!.target as Target;
 }
 
+/**
+ * A field a plan of this version always carries (Java's PlanJson writes it, and reads it as required: a target's
+ * `session` and `loads`, the plan's `loads` section, a payload slot's `digest`, a statement's `content` where a slot
+ * binds a payload), refused by name where it is missing -- never read as empty (G7: no defaulting; the C final audit's
+ * H10, 2026-11-12).
+ */
+function required<T>(value: T | undefined | null, what: string): T {
+  if (value === undefined || value === null) throw new PlanRefusal(`a plan of version ${PLAN_VERSION} carries ${what}, and this one has none`);
+  return value;
+}
+
 /** `target`'s loads from `plan`'s load section, in the target's order: one the section lacks refused by name. */
 function loadsOf(plan: ReadPlan, target: Target): Load[] {
-  const section = new Map((plan.loads ?? []).map((l) => [l.identity, l]));
-  return (target.loads ?? []).map((identity) => {
+  const section = new Map(required(plan.loads, 'its loads section').map((l) => [l.identity, l]));
+  return required(target.loads, "its target's loads").map((identity) => {
     const load = section.get(identity);
     if (load === undefined) throw new PlanRefusal(`a target names the load ${identity}, which its plan does not hold`);
     return load;
@@ -208,8 +219,8 @@ function loadsOf(plan: ReadPlan, target: Target): Load[] {
  */
 export function targetKey(plan: string): string | null {
   const target = targetOf(read(plan));
-  if (target === undefined || (target.loads ?? []).length === 0) return null;
-  return JSON.stringify({ database: target.database, session: target.session ?? [], loads: target.loads });
+  if (target === undefined || required(target.loads, "its target's loads").length === 0) return null;
+  return JSON.stringify({ database: target.database, session: required(target.session, "its target's session"), loads: target.loads });
 }
 
 /** `text`'s SHA-256, lowercase hex, and its length in UTF-8 bytes: WebCrypto's in every host (the tab, Node, and
@@ -412,7 +423,7 @@ export async function establish(plan: string, session: PlanSession): Promise<voi
   const p = read(plan);
   const target = targetOf(p);
   if (target === undefined) return;
-  for (const statement of target.session ?? []) await session.run(fromPlan(statement), []);
+  for (const statement of required(target.session, "its target's session")) await session.run(fromPlan(statement), []);
   const loads = loadsOf(p, target);
   for (const l of loads) {
     if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE or PER_ACQUISITION, not ${l.cadence}`);
@@ -469,7 +480,7 @@ export async function runPlan(plan: string, session: PlanSession,
     // a pivot whose columns the data names: its keys read first, then its body per key (B3: the hosts run it)
     const keyed = root as Keyed;
     checkTarget(keyed.keys, session, o);
-    if (o.established !== true) for (const statement of (keyed.keys.target as Target).session ?? []) await session.run(fromPlan(statement), []);
+    if (o.established !== true) for (const statement of required((keyed.keys.target as Target).session, "its target's session")) await session.run(fromPlan(statement), []);
     return keyedRows(keyed, session);
   }
   const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
@@ -511,11 +522,11 @@ export async function runPlan(plan: string, session: PlanSession,
   }
   const changes = steps.some((s) => s._type === 'update') && o.joined !== true;
   // the target's session statements: run by `establish` on a session established for it, else here
-  if (o.established !== true) for (const statement of t.session ?? []) await session.run(fromPlan(statement), []);
+  if (o.established !== true) for (const statement of required(t.session, "its target's session")) await session.run(fromPlan(statement), []);
   const values = new Map<string, PlanValue>();
   const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
     // its payload's text from the statement's content, checked against its digest
-    if (slot.binding._type === 'payload') return payloadValue(s.content ?? {}, slot.binding.digest ?? '');
+    if (slot.binding._type === 'payload') return payloadValue(required(s.content, "a payload slot's statement content"), required(slot.binding.digest, "a payload slot's digest"));
     if (!values.has(slot.parameter)) throw new PlanRefusal(`'${slot.parameter}' is bound before any step gives it`);
     return values.get(slot.parameter)!;
   });
@@ -548,17 +559,26 @@ export async function runPlan(plan: string, session: PlanSession,
 /**
  * A STATEMENT A PERSON WROTE, run (Studio's SQL playground: Boundary.authored, the user's ruling of 2026-11-12): the
  * plan's one statement -- the person's text as the planner carried it, never parsed, rewritten or split -- sent as
- * written by `run`, its answer the database's own (the relation it reports, its columns as it says them). A text the
- * database cannot take is its own error, passed on. Any other plan is refused by name.
+ * written by `on.run`, its answer the database's own (the relation it reports, its columns as it says them). A text the
+ * database cannot take is its own error, passed on. Run as every plan is (the C final audit's H9, 2026-11-12): its
+ * target's database of `on`'s type, its target's session statements first (unless `established`), a target that
+ * loads data refused, its columns read as the plan states them (none: the relation the database reports). Any other
+ * plan is refused by name.
  */
-export async function runAuthored<T>(plan: string, run: (sql: PlannedSql) => Promise<T>): Promise<T> {
+export async function runAuthored<T>(plan: string, on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T> },
+  o: { readonly established?: boolean } = {}): Promise<T> {
   const root = read(plan).root;
   const result = root as { readonly _type?: string; readonly shape?: string; readonly columns?: readonly Column[]; readonly sql?: Sql } | undefined;
-  if (result?._type !== 'tdsResult' || result.shape !== 'RELATION' || (result.columns ?? []).length > 0 || result.sql === undefined) {
+  if (result?._type !== 'tdsResult' || result.shape !== 'RELATION' || result.sql === undefined) {
     throw new PlanRefusal(`an authored statement's plan answers the relation its database reports, not a ${String(result?._type)}`);
   }
+  if (required(result.columns, "its result's columns").length > 0) {
+    throw new PlanRefusal("an authored statement's plan answers the relation its database reports, not declared columns");
+  }
   if (result.sql.slots.length > 0) throw new PlanRefusal("an authored statement binds no value: it is the person's text, as written");
-  return run(fromPlan(result.sql.statement));
+  const t = checkTarget(result.sql, { databaseType: on.databaseType, run: async () => [], transaction: async () => {} }, o);
+  if (o.established !== true) for (const statement of required(t.session, "its target's session")) await on.run(fromPlan(statement));
+  return on.run(fromPlan(result.sql.statement));
 }
 
 /** A per-key region of a keyed body (ExecutionPlan.Region): the text [start, end) written once per key. */
