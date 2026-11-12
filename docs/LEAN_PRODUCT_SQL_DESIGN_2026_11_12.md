@@ -724,6 +724,50 @@ So BOTH does every side's work twice: once for the host and once inside the data
   a question for the orchestrator: G6 says the database does the work, and a literal's printed text is the database's
   today.
 
+> **E-5c, DESIGNED (docs only, 2026-11-12; built after the A/B/C merge, since it changes the plan's shape and its
+> version):**
+> - **What BOTH does today** (`testplan/AgreementAsserts`):
+>   - It holds no batch across asserts.
+>   - Each assert is its own step: the host judge's base sides, each one statement, then the database judge's wrapper
+>     over the same side queries.
+> - **The measure** (PCT channel B essential, DuckDB, after E-5a):
+>   - 1,587 side statements; 1,540 of them (97%) are ONE value with no FROM (`SELECT <expr> AS value`).
+>   - 3 are one value over a FROM, and 44 (3%) are rows: a grid, or several columns.
+> - **The design:**
+>   1. **BOTH plans the DATABASE judge's segments unchanged**: the same fused statement per segment, the same root
+>      loops, the same savepoints. BOTH stops planning statements of its own.
+>   2. **Each verdict's single-value sides become typed COLUMNS of its fused row**, beside `__expected`/`__actual`:
+>      - one column per side, typed by the side's own SQL type (a list is one LIST-typed column on a dialect that has
+>        one);
+>      - read by the host judge through the same typed row decoder (`result/RowDecode`) it reads a side statement with
+>        today.
+>      - The host judges typed values, never the canon's text. A literal side (`SELECT 'x' AS value`, 654 of them) is
+>        a projection the database types, not a plan constant: G6, and the ruling on Q-E5c.
+>   3. **Grid sides (3%) keep their own statements.** A relation is rows, not a column. The host reads them as today,
+>      and the database's verdict reads them as its CTE.
+>   4. **Raising sides keep the database judge's rules.**
+>      - An `assertError`'s verdict (`raises`, S135) is its own statement already, and stays so.
+>      - A side that raises inside a fused statement fails the statement. The segment's savepoint and the per-verdict
+>        rerun the database judge already has (`Verdicts.Savepoint`) decide it.
+>   5. **The plan as data.**
+>      - Each `Verdict` gains `hostColumns`: per base side, the fused row's column it is read from, and its declared
+>        type.
+>      - No code in the plan; the runner reads columns by name.
+>      - A plan-format bump, taken after D's (the routing ruled 2026-11-12).
+> - **Expected:**
+>   - Statements per test go from 8.1 to about 2.1: the session's, the fused one, and 44 grid statements over 343 tests.
+>   - Characters go from BOTH's 2,294,218 to about the DATABASE judge's 1,994,616 plus the typed columns (estimated at
+>     a few percent; measured at the build).
+>   - The lanes' time is to be measured, not guessed. Snowflake charges about 0.26-0.44 s a statement, and BOTH today
+>     is 708 s for essential (§7.6 of the PCT close-out).
+> - **What the agreement judge keeps, and what it gives up.**
+>   - Both judges now read ONE evaluation of each side, so they judge the same values. That is the agreement they
+>     exist to check (the two judges' RULES over the same rows).
+>   - What is given up: today's incidental check that two separate executions of a side agree, i.e. the side's
+>     determinism. That is G10's, and it belongs to its own guard (a re-run of the plan), not to the judge.
+> - **E-5b and E-5d are unchanged.** E-5b (the canon once per side) still shrinks the database judge's comparison
+>   text, and E-5d pins the judge's SQL, now one set for both modes.
+
 **E-5d, the judge's pin** (after the merge):
 - The corpus's `judge-sql.tsv` (today written unguarded) becomes `rcorpus/lean-sql-judge-baseline.tsv`.
 - It is held by the same rule as the product's (growth fails; a shrink past 1% re-pins).
