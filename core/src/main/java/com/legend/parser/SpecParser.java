@@ -136,7 +136,7 @@ import java.util.Objects;
  *       remaining tokens trip the trailing-tokens check.</li>
  *   <li><strong>Code blocks</strong> &mdash; semicolon-separated
  *       sequences of statements, exposed via
- *       {@link #parseCodeBlock(String, Dialect)}. The braced lambda body
+ *       {@link #parseCodeBlock(String, GrammarLevel)}. The braced lambda body
  *       uses the same machinery internally.</li>
  * </ul>
  *
@@ -184,12 +184,12 @@ import java.util.Objects;
  *
  * <h2>Entry points</h2>
  * <ul>
- *   <li>{@link #parse(String, Dialect)} / {@link #parse(TokenStream, Dialect)} &mdash;
+ *   <li>{@link #parse(String, GrammarLevel)} / {@link #parse(TokenStream, GrammarLevel)} &mdash;
  *       parse a single program line (one expression or one
  *       let-binding). Convenience entry for tests, embedded
  *       expressions (e.g. property defaults), and any context that
  *       admits exactly one statement.</li>
- *   <li>{@link #parseCodeBlock(String, Dialect)} /
+ *   <li>{@link #parseCodeBlock(String, GrammarLevel)} /
  *       {@link #parseCodeBlock(TokenStream)} &mdash; parse a
  *       semicolon-separated sequence of statements, returning a
  *       {@code List<ValueSpecification>}. Used for function bodies
@@ -213,13 +213,13 @@ public final class SpecParser implements TokenStreamCursor {
 
     /** Body-level dialect constructs ({@code .allVersionsInRange},
      *  function-type literals, m2 forms) gate on the THREE-LEVEL
-     *  {@link Dialect} — always via the PRECISE predicate
+     *  {@link GrammarLevel} — always via the PRECISE predicate
      *  ({@code refusesPlatformDialect} vs {@code refusesLiteExtensions});
      *  the old two-valued {@code legendStrict} conflated them. */
-    private final Dialect dialect;
+    private final GrammarLevel dialect;
 
     @Override
-    public Dialect dialect() {
+    public GrammarLevel dialect() {
         return dialect;
     }
 
@@ -232,12 +232,12 @@ public final class SpecParser implements TokenStreamCursor {
     private final boolean instanceData;
 
     private SpecParser(TokenStream tokens, String spanSourceId,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         this(tokens, spanSourceId, dialect, false);
     }
 
     private SpecParser(TokenStream tokens, String spanSourceId,
-            Dialect dialect, boolean instanceData) {
+            GrammarLevel dialect, boolean instanceData) {
         this.tokens = Objects.requireNonNull(tokens, "tokens");
         this.spanSourceId = spanSourceId;
         this.dialect = dialect;
@@ -295,7 +295,7 @@ public final class SpecParser implements TokenStreamCursor {
     // -------------------------------------------------------------------
 
     /** Lex {@code source} and parse the result as a single expression. */
-    public static ValueSpecification parse(String source, Dialect dialect) {
+    public static ValueSpecification parse(String source, GrammarLevel dialect) {
         return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")),
                 dialect);
     }
@@ -308,7 +308,7 @@ public final class SpecParser implements TokenStreamCursor {
      * source location.
      */
     public static ValueSpecification parse(TokenStream tokens,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         return new SpecParser(tokens, "", dialect).wholeLine();
     }
 
@@ -317,7 +317,7 @@ public final class SpecParser implements TokenStreamCursor {
      *  all its tokens, as legend-engine wraps it. */
     public static LambdaFunction parseLambda(String source) {
         SpecParser parser = new SpecParser(Lexer.tokenize(Objects.requireNonNull(source, "source")),
-                "", Dialect.LEGEND_ENGINE);
+                "", GrammarLevel.LEGEND_ENGINE);
         ValueSpecification v = parser.wholeLine();
         return v instanceof LambdaFunction lf ? lf
                 : new LambdaFunction(List.of(), List.of(v), parser.spanOf(0, parser.pos - 1));
@@ -355,22 +355,22 @@ public final class SpecParser implements TokenStreamCursor {
      * braced lambda form to parse the body between {@code {...|...}}.
      */
     public static List<ValueSpecification> parseCodeBlock(String source,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         return parseCodeBlock(Lexer.tokenize(source), "", dialect);
     }
 
-    /** Token-stream variant of {@link #parseCodeBlock(String, Dialect)},
+    /** Token-stream variant of {@link #parseCodeBlock(String, GrammarLevel)},
      *  at the NAMED dialect level — there is no default. Consumes the
      *  entire stream; trailing tokens after the last statement raise a
      *  fail-fast error. */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         return parseCodeBlock(tokens, "", dialect);
     }
 
     /** As above with a span source id (mapping test-suite lambdas). */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
-            String spanSourceId, Dialect dialect) {
+            String spanSourceId, GrammarLevel dialect) {
         return parseCodeBlock(new SpecParser(tokens, spanSourceId, dialect));
     }
 
@@ -380,7 +380,7 @@ public final class SpecParser implements TokenStreamCursor {
      * walker -- a binding's value is never cut to its first expression here ({@link #parseKeyValue}).
      */
     public static List<ValueSpecification> parseInstanceData(TokenStream tokens,
-            String spanSourceId, Dialect dialect) {
+            String spanSourceId, GrammarLevel dialect) {
         return parseCodeBlock(new SpecParser(tokens, spanSourceId, dialect, true));
     }
 
@@ -1021,7 +1021,7 @@ public final class SpecParser implements TokenStreamCursor {
             // LEGEND_PLATFORM and LEGEND_LITE validate at parse — the
             // product surface must not ship a date the database later
             // refuses with an unattributed conversion error.
-            return new CDate(PureDateLiteral.parse(value, dialect != Dialect.LEGEND_ENGINE),
+            return new CDate(PureDateLiteral.parse(value, dialect != GrammarLevel.LEGEND_ENGINE),
                     value, spanOf(datePos, datePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, datePos,

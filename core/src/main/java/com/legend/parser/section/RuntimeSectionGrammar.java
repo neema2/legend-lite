@@ -42,7 +42,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
         var c = new SliceCursor(Lexer.tokenize(src.text()), // SPI overlay hosting = the drop-in seam: engine grammar
-                com.legend.parser.Dialect.LEGEND_ENGINE);
+                com.legend.parser.GrammarLevel.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
                 SectionImports.parseImport(c);
@@ -192,16 +192,16 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
     private static final class SliceCursor implements TokenStreamCursor {
 
         private final com.legend.lexer.TokenStream tokens;
-        private final com.legend.parser.Dialect dialect;
+        private final com.legend.parser.GrammarLevel dialect;
         private int pos;
 
-        SliceCursor(com.legend.lexer.TokenStream tokens, com.legend.parser.Dialect dialect) {
+        SliceCursor(com.legend.lexer.TokenStream tokens, com.legend.parser.GrammarLevel dialect) {
             this.tokens = tokens;
             this.dialect = dialect;
         }
 
         @Override
-        public com.legend.parser.Dialect dialect() {
+        public com.legend.parser.GrammarLevel dialect() {
             return dialect;
         }
 
@@ -336,7 +336,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
      *  CONTENT-anchored (first..last content token). */
     public static Protocol.PEmbeddedRuntime parseEmbeddedBody(
             String islandText, int baseLine, int baseColumn,
-            com.legend.parser.Dialect dialect) {
+            com.legend.parser.GrammarLevel dialect) {
         var tokens = com.legend.lexer.Lexer.tokenize(islandText);
         var ic = new SliceCursorOffset(tokens, baseLine - 1, baseColumn - 1,
                 dialect);
@@ -362,13 +362,13 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
     private static final class SliceCursorOffset implements TokenStreamCursor {
 
         private final com.legend.lexer.TokenStream tokens;
-        private final com.legend.parser.Dialect dialect;
+        private final com.legend.parser.GrammarLevel dialect;
         private int pos;
         private final int lineOffset;
         private final int colOffset;
 
         SliceCursorOffset(com.legend.lexer.TokenStream tokens, int lineOffset,
-                int colOffset, com.legend.parser.Dialect dialect) {
+                int colOffset, com.legend.parser.GrammarLevel dialect) {
             this.tokens = tokens;
             this.lineOffset = lineOffset;
             this.colOffset = colOffset;
@@ -376,7 +376,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
         }
 
         @Override
-        public com.legend.parser.Dialect dialect() {
+        public com.legend.parser.GrammarLevel dialect() {
             return dialect;
         }
 

@@ -4,7 +4,7 @@
 package com.legend.testing;
 
 import com.legend.model.ParsedModel;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import com.legend.parser.SpecParser;
 import com.legend.protocol.spec.ValueSpecification;
@@ -35,7 +35,7 @@ public final class Own {
      * sites, which is the design: a platform-behavior test declares
      * itself.
      */
-    public static final Dialect SUITE = Dialect.LEGEND_LITE;
+    public static final GrammarLevel SUITE = GrammarLevel.LEGEND_LITE;
 
     private Own() {
     }

@@ -110,7 +110,7 @@ public class SpecBodyCensusTest {
                     String text = Files.readString(f, StandardCharsets.UTF_8);
                     sources.add(new Compiler.ModelSource(repo + ":" + slash(root.relativize(f)), text));
                     for (PackageableElement el : com.legend.door.ModelFromText.parse(text,
-                            com.legend.parser.Dialect.LEGEND_PLATFORM).elements()) {
+                            com.legend.parser.GrammarLevel.LEGEND_PLATFORM).elements()) {
                         if (el instanceof com.legend.model.Function fn) {
                             engineHalfIds.add(com.legend.model.SignatureMangle.mangle(fn));
                         }
@@ -125,7 +125,7 @@ public class SpecBodyCensusTest {
             List<String> parseWalls = new ArrayList<>();
             Compiler.ParsedModule module = Compiler.parseSources(sources,
                     (name, err) -> parseWalls.add(name + ": PARSE " + first(err)),
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             // the spec's native declarations are the SPEC of natives the
             // registry defines — the registry is the definition; they drop
             List<PackageableElement> kept = module.model().elements().stream()

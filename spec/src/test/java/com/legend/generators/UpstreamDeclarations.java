@@ -5,7 +5,7 @@ package com.legend.generators;
 
 import com.legend.model.Function;
 import com.legend.model.PackageableElement;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import com.legend.model.FunctionId;
 
@@ -61,7 +61,7 @@ final class UpstreamDeclarations {
                 List<PackageableElement> elements;
                 try {
                     elements = ModelFromText.parse(Files.readString(f, StandardCharsets.UTF_8),
-                            Dialect.LEGEND_PLATFORM).elements();
+                            GrammarLevel.LEGEND_PLATFORM).elements();
                 } catch (RuntimeException e) {
                     out.unreadable.add(root.relativize(f) + "\t" + SpecBodyCensusTest.first(e.getMessage()));
                     continue;

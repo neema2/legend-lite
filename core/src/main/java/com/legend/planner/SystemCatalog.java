@@ -34,8 +34,8 @@ public final class SystemCatalog {
     /** The dialect a statement on {@code runtime}'s database that reads the catalog is written in: its catalog's
      *  engine's ({@link #engine}). */
     public static com.legend.sql.dialect.SqlDialect dialect(com.legend.executionplan.DatabaseType runtime,
-            com.legend.database.DialectSource dialects) {
-        return dialects.dialect(ConnectionPlans.model(engine(runtime)));
+            com.legend.database.SqlSpelling spelling) {
+        return spelling.dialect(ConnectionPlans.model(engine(runtime)));
     }
 
     /**

@@ -4,7 +4,7 @@
 package com.legend.testing;
 
 import com.legend.lexer.TokenStream;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import com.legend.parser.ElementParser;
 
@@ -16,7 +16,7 @@ import com.legend.parser.ElementParser;
 public final class Engine {
 
     /** The engine-wire regime's level. */
-    public static final Dialect SUITE = Dialect.LEGEND_ENGINE;
+    public static final GrammarLevel SUITE = GrammarLevel.LEGEND_ENGINE;
 
     private Engine() {
     }

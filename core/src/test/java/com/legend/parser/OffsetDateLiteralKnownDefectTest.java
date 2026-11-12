@@ -24,7 +24,7 @@ class OffsetDateLiteralKnownDefectTest {
     void offsetDateWithUnvalidatedDayParsesOrRefusesWithPosition() {
         ValueSpecification v;
         try {
-            v = SpecParser.parse("%2024-02-30T10:00+0500", Dialect.LEGEND_ENGINE);
+            v = SpecParser.parse("%2024-02-30T10:00+0500", GrammarLevel.LEGEND_ENGINE);
         } catch (ParseException refused) {
             assertEquals(1, refused.line(), "a refusal must be positioned");
             assertEquals(1, refused.column(), "a refusal must be positioned at the literal");

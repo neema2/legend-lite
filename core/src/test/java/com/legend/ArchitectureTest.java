@@ -1552,10 +1552,10 @@ final class ArchitectureTest {
 
     /**
      * ONLY THE EDGE SPELLS A PLAN UPSTREAM'S WAY (phase D's D1.0, guard (b), 2026-11-12): the doors that take a
-     * {@link com.legend.database.DialectSource} -- {@code TypedQuery.executionPlan}/{@code projectPlan},
+     * {@link com.legend.database.SqlSpelling} -- {@code TypedQuery.executionPlan}/{@code projectPlan},
      * {@code Execution.run}/{@code runOnProjectDatabases}, {@code ExecuteOptions}/{@code PlanningOptions.withDialects}
      * -- are called from the edge alone (the harnesses outside core call them too; they are not product). The product's
-     * doors plan with the product's dialects ({@code Databases.DIALECTS}) and nothing in the product picks another
+     * doors plan with the product's dialects ({@code Databases.PRODUCT_SPELLING}) and nothing in the product picks another
      * source; {@code ExecuteOptions.withDialects} hands its argument to the planning half's. A lambda passed as a source
      * is a call's argument, never a call of these: the rule pins the callers.
      * {@link #theSpellingDoorRuleBitesAPlantedCaller} shows it bites.
@@ -1575,15 +1575,15 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.TypedQuery")
             .and().doNotHaveFullyQualifiedName("com.legend.Execution")
             .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a DialectSource") {
+                    com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a SqlSpelling") {
                 @Override
                 public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
                     return SPELLING_DOOR_OWNERS.contains(call.getTargetOwner().getFullName())
                             && call.getTarget().getRawParameterTypes().stream().anyMatch(
-                                    t -> t.isEquivalentTo(com.legend.database.DialectSource.class));
+                                    t -> t.isEquivalentTo(com.legend.database.SqlSpelling.class));
                 }
             })
-            .as("only the edge spells a plan upstream's way: the doors taking a DialectSource are the edge's to call");
+            .as("only the edge spells a plan upstream's way: the doors taking a SqlSpelling are the edge's to call");
 
     /** {@link #onlyTheEdgeCallsTheSpellingDoors} fails on a product class calling such a door
      *  ({@code planner.PlantedDialect.Spells}, a test class planted for this alone). */

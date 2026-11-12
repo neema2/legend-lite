@@ -18,11 +18,11 @@ public record PlanningOptions(
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
         com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules,
-        com.legend.database.DialectSource dialects) {
+        com.legend.database.SqlSpelling spelling) {
 
     public PlanningOptions {
         java.util.Objects.requireNonNull(stores, "stores");
-        java.util.Objects.requireNonNull(dialects, "dialects");
+        java.util.Objects.requireNonNull(spelling, "spelling");
         features = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(features));
         if (edge != null && judgingRules != com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
             // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
@@ -40,7 +40,7 @@ public record PlanningOptions(
 
     /** These options under lite's own rules or backwards compatibility's ({@link #rules}). */
     public PlanningOptions withEngineCompat(boolean on) {
-        return new PlanningOptions(edge, stores, features, judgeMode, rules(on), dialects);
+        return new PlanningOptions(edge, stores, features, judgeMode, rules(on), spelling);
     }
 
     /** The assert judge of a RUN (docs/JUDGING_TWO_MODES): HOST -- the verdict of record, judged in Java over each
@@ -52,16 +52,16 @@ public record PlanningOptions(
     public enum JudgeMode { HOST, DATABASE, BOTH }
 
     public PlanningOptions withJudgeMode(JudgeMode mode) {
-        return new PlanningOptions(edge, stores, features, mode, judgingRules, dialects);
+        return new PlanningOptions(edge, stores, features, mode, judgingRules, spelling);
     }
 
     public PlanningOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new PlanningOptions(edge, stores, f, judgeMode, judgingRules, dialects);
+        return new PlanningOptions(edge, stores, f, judgeMode, judgingRules, spelling);
     }
 
     /** These options with the program's statements written in {@code d}'s dialects (the spelling hook, D1.0: the
      *  compatibility edge's, {@code com.legend.edge.PureText}, for PCT and the corpus). */
-    public PlanningOptions withDialects(com.legend.database.DialectSource d) {
+    public PlanningOptions withSpelling(com.legend.database.SqlSpelling d) {
         return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, d);
     }
 }

@@ -3,7 +3,7 @@
 
 package com.legend.protocol;
 
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.parser.PmcdParser;
 import com.legend.protocol.Protocol.PureModelContextData;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class EngineDropsTest {
             """;
 
     /** The text's records at {@code dialect}, after asserting that a JSON hop gives the same records. */
-    private static PureModelContextData hopped(String text, Dialect dialect) {
+    private static PureModelContextData hopped(String text, GrammarLevel dialect) {
         PureModelContextData records = PmcdParser.parse(text, dialect).model();
         assertEquals(records.elements(), ModelReader.read(ProtocolEmitter.emit(records)).elements(),
                 "the records written as JSON and read back");
@@ -44,11 +44,11 @@ class EngineDropsTest {
     }
 
     private static String engineJson(String text) {
-        return ProtocolEmitter.emit(hopped(text, Dialect.LEGEND_ENGINE));
+        return ProtocolEmitter.emit(hopped(text, GrammarLevel.LEGEND_ENGINE));
     }
 
     private static void refusedAtLitesDialect(String text, String what) {
-        PureModelContextData lite = PmcdParser.parse(text, Dialect.LEGEND_LITE).model();
+        PureModelContextData lite = PmcdParser.parse(text, GrammarLevel.LEGEND_LITE).model();
         UnsupportedOperationException e = assertThrows(UnsupportedOperationException.class,
                 () -> ProtocolEmitter.emit(lite));
         assertTrue(e.getMessage().startsWith(what + " is not written as legend-engine's JSON"), e.getMessage());
@@ -59,7 +59,7 @@ class EngineDropsTest {
         String text = CLASSES + "function a::f(v: String[1]): a::P[1]\n{\n  ^a::P(s = 'a' + $v)\n}\n";
         assertFalse(engineJson(text).contains("\"function\":\"plus\""), "the engine keeps 'a' alone");
         // lite's dialect writes the whole chain (the engine's JSON has room for it) and reads it back exactly
-        assertTrue(ProtocolEmitter.emit(hopped(text, Dialect.LEGEND_LITE)).contains("\"function\":\"plus\""));
+        assertTrue(ProtocolEmitter.emit(hopped(text, GrammarLevel.LEGEND_LITE)).contains("\"function\":\"plus\""));
     }
 
     @Test
@@ -81,7 +81,7 @@ class EngineDropsTest {
     void anAddingBindingIsAnAssignmentAtTheEnginesDialect_andAddsAtLites() {
         String text = CLASSES + "function a::f(): a::P[1]\n{\n  ^a::P(s += 'x')\n}\n";
         assertTrue(engineJson(text).contains("\"add\":false"));
-        assertTrue(ProtocolEmitter.emit(hopped(text, Dialect.LEGEND_LITE)).contains("\"add\":true"));
+        assertTrue(ProtocolEmitter.emit(hopped(text, GrammarLevel.LEGEND_LITE)).contains("\"add\":true"));
     }
 
     @Test
@@ -99,7 +99,7 @@ class EngineDropsTest {
         assertTrue(engineJson(text).contains("\"postConstraints\":[],\"preConstraints\":[]"));
         // legend-pure's split: the condition reading $return is a post-condition; written as the engine's compiler
         // reads them, and read back to the same records
-        String lite = ProtocolEmitter.emit(hopped(text, Dialect.LEGEND_LITE));
+        String lite = ProtocolEmitter.emit(hopped(text, GrammarLevel.LEGEND_LITE));
         assertTrue(lite.contains("\"postConstraints\":[{"), lite);
         assertTrue(lite.contains("\"preConstraints\":[{"), lite);
     }
@@ -112,7 +112,7 @@ class EngineDropsTest {
         // one substitution is the engine's own (sourceDatabasePath, targetDatabasePath), at either dialect
         String one = "###Mapping\nMapping a::M\n(\n  include a::Base[a::db1 -> a::db3]\n)\n";
         assertTrue(engineJson(one).contains("\"sourceDatabasePath\":\"a::db1\""));
-        hopped(one, Dialect.LEGEND_LITE);
+        hopped(one, GrammarLevel.LEGEND_LITE);
     }
 
     @Test
@@ -121,7 +121,7 @@ class EngineDropsTest {
                 + "    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(p1, p2)\n"
                 + "  }\n)\n";
         assertFalse(engineJson(text).contains("extendsClassMappingId"));
-        assertTrue(ProtocolEmitter.emit(hopped(text, Dialect.LEGEND_LITE)).contains("\"extendsClassMappingId\":\"base\""));
+        assertTrue(ProtocolEmitter.emit(hopped(text, GrammarLevel.LEGEND_LITE)).contains("\"extendsClassMappingId\":\"base\""));
     }
 
     @Test
@@ -135,7 +135,7 @@ class EngineDropsTest {
     void aServiceStoresDescriptionIsDroppedAtTheEnginesDialect_andWrittenFromLites() {
         String text = "###ServiceStore\nServiceStore a::S\n(\n  description : 'my store';\n)\n";
         assertFalse(engineJson(text).contains("description"));
-        assertTrue(ProtocolEmitter.emit(hopped(text, Dialect.LEGEND_LITE)).contains("\"description\":\"my store\""));
+        assertTrue(ProtocolEmitter.emit(hopped(text, GrammarLevel.LEGEND_LITE)).contains("\"description\":\"my store\""));
     }
 
     @Test
@@ -144,7 +144,7 @@ class EngineDropsTest {
                 + "      ^a::P(s = 'x', n = -1)\n    ]\n  }#\n}\n";
         String engine = engineJson(text);
         assertTrue(engine.contains("\"value\":-1"), engine);
-        hopped(text, Dialect.LEGEND_LITE);
+        hopped(text, GrammarLevel.LEGEND_LITE);
     }
 
     private static String data(String instance) {
@@ -156,9 +156,9 @@ class EngineDropsTest {
         // +1 is one literal too (the data walker's PLUS arms); a long's least value stays a long, so a JSON hop gives
         // the same records (2026-10-21, the independent audit)
         assertTrue(engineJson(data("^a::P(s = 'x', n = +1)")).contains("\"value\":1"));
-        hopped(data("^a::P(s = 'x', n = -9223372036854775808)"), Dialect.LEGEND_LITE);
+        hopped(data("^a::P(s = 'x', n = -9223372036854775808)"), GrammarLevel.LEGEND_LITE);
         // a float's exact digits stay on the record, negated as written (its JSON, a double as the engine's, has none)
-        assertTrue(PmcdParser.parse(data("^a::P(s = 'x', n = -1.0000000000000000001)"), Dialect.LEGEND_LITE).model()
+        assertTrue(PmcdParser.parse(data("^a::P(s = 'x', n = -1.0000000000000000001)"), GrammarLevel.LEGEND_LITE).model()
                 .toString().contains("exact=-1.0000000000000000001"));
     }
 
@@ -167,17 +167,17 @@ class EngineDropsTest {
         // '+=' has no meaning in data and its JSON keeps none: refused at every dialect, never written as '='; a
         // dotted key or an operator is refused at the engine's dialect, whose data grammar reads neither
         // (ModelStoreDataParserGrammar; 2026-10-21, the independent audit)
-        for (Dialect d : new Dialect[] {Dialect.LEGEND_ENGINE, Dialect.LEGEND_LITE}) {
+        for (GrammarLevel d : new GrammarLevel[] {GrammarLevel.LEGEND_ENGINE, GrammarLevel.LEGEND_LITE}) {
             com.legend.parser.ParseException add = assertThrows(com.legend.parser.ParseException.class,
                     () -> PmcdParser.parse(data("^a::P(s += 'x')"), d));
             assertTrue(add.getMessage().contains("'+=' is not model store data's"), add.getMessage());
         }
         com.legend.parser.ParseException op = assertThrows(com.legend.parser.ParseException.class,
-                () -> PmcdParser.parse(data("^a::P(s = 'a' + 'b')"), Dialect.LEGEND_ENGINE));
+                () -> PmcdParser.parse(data("^a::P(s = 'a' + 'b')"), GrammarLevel.LEGEND_ENGINE));
         assertTrue(op.getMessage().contains("model store data takes a literal"), op.getMessage());
         // a list of literals, an enumeration value and a nested instance are the grammar's own
         PmcdParser.parse(CLASSES + "Enum a::E\n{\n  X\n}\nClass a::R\n{\n  ss: String[*];\n  e: a::E[1];\n"
                 + "  p: a::P[1];\n}\n###Data\nData a::D\n{\n  ModelStore #{\n    a::R: [\n"
-                + "      ^a::R(ss = ['a', 'b'], e = a::E.X, p = ^a::P(s = 'x'))\n    ]\n  }#\n}\n", Dialect.LEGEND_ENGINE);
+                + "      ^a::R(ss = ['a', 'b'], e = a::E.X, p = ^a::P(s = 'x'))\n    ]\n  }#\n}\n", GrammarLevel.LEGEND_ENGINE);
     }
 }

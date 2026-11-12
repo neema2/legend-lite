@@ -31,7 +31,7 @@ public interface ElementwiseSectionGrammar extends LexableSectionGrammar {
             com.legend.spi.ElementSink out) {
         var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()),
                 // SPI overlay hosting = the drop-in seam: engine grammar
-                com.legend.parser.Dialect.LEGEND_ENGINE);
+                com.legend.parser.GrammarLevel.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
                 SectionImports.parseImport(c);

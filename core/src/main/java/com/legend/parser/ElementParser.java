@@ -64,7 +64,7 @@ public final class ElementParser implements TokenStreamCursor {
     // had zero readers and were whitelisted PAST the mutable-field guardrail,
     // adversarial audit EP finding 8)
 
-    ElementParser(TokenStream tokens, Dialect dialect) {
+    ElementParser(TokenStream tokens, GrammarLevel dialect) {
         this.tokens = tokens;
         this.pos = 0;
         this.dialect = dialect;
@@ -84,10 +84,10 @@ public final class ElementParser implements TokenStreamCursor {
      *  multiplicity parameters on classes/functions) even though legend-lite's own
      *  dialect supports them. ON for the drop-in surface ({@link #at}), OFF for the
      *  internal pipeline. */
-    private final Dialect dialect;
+    private final GrammarLevel dialect;
 
     @Override
-    public Dialect dialect() {
+    public GrammarLevel dialect() {
         return dialect;
     }
 
@@ -96,7 +96,7 @@ public final class ElementParser implements TokenStreamCursor {
      *  pass LEGEND_ENGINE; SpecParser's decoration sub-parse passes its
      *  own host dialect). */
     public static ElementParser at(TokenStream tokens, int tokenIndex,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         ElementParser p = new ElementParser(tokens, dialect);
         p.pos = tokenIndex;
         return p;
@@ -148,7 +148,7 @@ public final class ElementParser implements TokenStreamCursor {
      * it the compiler's model.
      */
     public static Protocol.Element parseSingle(TokenStream slice,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         ElementParser parser = new ElementParser(slice, dialect);
         Protocol.Element element = parser.parseSingleElement();
         if (!parser.atEnd()) {
@@ -159,7 +159,7 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** Parse one {@code import path::* ;} statement from a token-stream slice. */
     public static String parseSingleImport(TokenStream slice,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         ElementParser parser = new ElementParser(slice, dialect);
         String imp = parser.parseImportStatement();
         if (!parser.atEnd()) {

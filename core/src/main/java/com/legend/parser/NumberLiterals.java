@@ -32,7 +32,7 @@ final class NumberLiterals {
      * extension: the ENGINE surface refuses it (G6 run 1081 caught the
      * over-wide legendStrict gate).
      */
-    static CInteger integer(String text, SourceInfo span, Dialect dialect, TokenStream tokens, int tok) {
+    static CInteger integer(String text, SourceInfo span, GrammarLevel dialect, TokenStream tokens, int tok) {
         try {
             return new CInteger(Long.parseLong(text), span);
         } catch (NumberFormatException overflow) {
@@ -54,7 +54,7 @@ final class NumberLiterals {
      * the decimal-exact value). An optional {@code f}/{@code F} suffix is
      * Pure's, not Java's.
      */
-    static ValueSpecification floating(String text, SourceInfo span, Dialect dialect) {
+    static ValueSpecification floating(String text, SourceInfo span, GrammarLevel dialect) {
         if (!text.isEmpty()) {
             char last = text.charAt(text.length() - 1);
             if (last == 'f' || last == 'F') {

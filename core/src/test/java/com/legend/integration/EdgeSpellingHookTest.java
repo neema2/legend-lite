@@ -5,7 +5,7 @@ package com.legend.integration;
 
 import com.legend.Compiler;
 import com.legend.database.Databases;
-import com.legend.database.DialectSource;
+import com.legend.database.SqlSpelling;
 import com.legend.edge.PureText;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.PlanJson;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE SPELLING HOOK (phase D's D1.0, the design the orchestrator approved 2026-11-12): a plan's dialect comes from the
- * door's {@link DialectSource} -- the product's own ({@code Databases::dialect}) or the edge's ({@link PureText}).
+ * door's {@link SqlSpelling} -- the product's own ({@code Databases::dialect}) or the edge's ({@link PureText}).
  * Pinned here: a plan made through one door is never served to the other (the orchestrator's addition 1: a memo of
  * anything a dialect wrote keys on its dialect); the edge's dialects are the product's own, subclassed, overriding ONLY
  * the arms the pin names (addition 2: shrink-only toward the floor compatibility needs -- D1.2 to D1.5 grow it, each
@@ -62,7 +62,7 @@ class EdgeSpellingHookTest {
         }
     }
 
-    private static final DialectSource LOWER = type -> type == DatabaseType.DuckDB ? new Lower()
+    private static final SqlSpelling LOWER = type -> type == DatabaseType.DuckDB ? new Lower()
             : Databases.dialect(type);
 
     private static String sql(ExecutionPlan plan) {

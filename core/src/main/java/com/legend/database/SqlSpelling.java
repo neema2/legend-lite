@@ -17,7 +17,7 @@ import com.legend.sql.dialect.SqlDialect;
  * caches' rule, the orchestrator's addition 1).
  */
 @FunctionalInterface
-public interface DialectSource {
+public interface SqlSpelling {
 
     /** The dialect a statement on {@code type} is written in; a database with none refused by name, as
      *  {@link Databases#dialect} refuses it. */

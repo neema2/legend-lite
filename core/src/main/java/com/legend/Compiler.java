@@ -36,14 +36,14 @@ public final class Compiler {
      *  router: which level users get is decided HERE. */
     public static ParsedModel parseModel(String source) {
         return ModelFromText.parse(source,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     /** Parse one query/expression at the PRODUCT level. */
     public static com.legend.protocol.spec.ValueSpecification
             parseQuery(String query) {
         return com.legend.parser.SpecParser.parse(query,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
 
@@ -75,7 +75,7 @@ public final class Compiler {
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
         return buildPositioned(ModelFromText.parse(model,
-                com.legend.parser.Dialect.LEGEND_LITE));
+                com.legend.parser.GrammarLevel.LEGEND_LITE));
     }
 
     /**
@@ -163,7 +163,7 @@ public final class Compiler {
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink) {
         return parseSources(sources, parseWallSink,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     /** As above, DIALECT-EXPLICIT: the caller declares its sources'
@@ -171,7 +171,7 @@ public final class Compiler {
      *  LEGEND_PLATFORM; user batches are LEGEND_LITE). */
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink,
-            com.legend.parser.Dialect dialect) {
+            com.legend.parser.GrammarLevel dialect) {
         Objects.requireNonNull(sources, "sources");
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
         java.util.Map<String, Integer> offsets = new java.util.HashMap<>();

@@ -15,7 +15,7 @@ import com.legend.model.EnumDefinition;
 import com.legend.model.ImportScope;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import com.legend.parser.ElementParser;
 import com.legend.protocol.DerivedPropertyDefinition;
@@ -780,7 +780,7 @@ public final class PreludeGenerator {
         String module = sb.toString();
         // the whole module parses as ONE model, sections and imports included,
         // to exactly the wanted declarations
-        ParsedModel whole = ModelFromText.parse(module, Dialect.LEGEND_PLATFORM);
+        ParsedModel whole = ModelFromText.parse(module, GrammarLevel.LEGEND_PLATFORM);
         Set<String> parsedFqns = new TreeSet<>();
         int parsedFunctions = 0;
         for (PackageableElement e : whole.elements()) {
@@ -857,7 +857,7 @@ public final class PreludeGenerator {
                 return;
             }
             String text = m3Decls.get(fqn);
-            ParsedModel one = ModelFromText.parse(text, Dialect.LEGEND_PLATFORM);
+            ParsedModel one = ModelFromText.parse(text, GrammarLevel.LEGEND_PLATFORM);
             if (one.elements().size() != 1) {
                 throw new IllegalStateException("m3 reader: '" + fqn + "' printed as "
                         + one.elements().size() + " elements: " + text);
@@ -896,7 +896,7 @@ public final class PreludeGenerator {
                     List<String> parseWalls = new ArrayList<>();
                     ParsedModel parsed = Compiler.parseSources(sources,
                             (name, err) -> parseWalls.add(name + " => " + err),
-                            Dialect.LEGEND_PLATFORM).model();
+                            GrammarLevel.LEGEND_PLATFORM).model();
                     if (!parseWalls.isEmpty()) {
                         throw new IllegalStateException("prelude generator: spec files that do not"
                                 + " parse (a parser gap to fix, never a hand copy): " + parseWalls);
@@ -1478,7 +1478,7 @@ public final class PreludeGenerator {
                 String text = Files.readString(f, StandardCharsets.UTF_8);
                 List<String> parseWalls = new ArrayList<>();
                 Compiler.parseSources(List.of(new Compiler.ModelSource(f.toString(), text)),
-                        (n, e) -> parseWalls.add(n + ": " + e), Dialect.LEGEND_PLATFORM);
+                        (n, e) -> parseWalls.add(n + ": " + e), GrammarLevel.LEGEND_PLATFORM);
                 if (!parseWalls.isEmpty()) {
                     walls.add(parseWalls.get(0));
                     continue;
@@ -1531,7 +1531,7 @@ public final class PreludeGenerator {
                         String slice = text.substring(ts.start(declTok), ts.end(semi));
                         com.legend.model.ParsedModel one;
                         try {
-                            one = ModelFromText.parse(slice, Dialect.LEGEND_PLATFORM);
+                            one = ModelFromText.parse(slice, GrammarLevel.LEGEND_PLATFORM);
                         } catch (com.legend.parser.ParseException e) {
                             throw new IllegalStateException("prelude generator: native slice at "
                                     + f + " token " + k + ": " + e.getMessage(), e);
@@ -1559,7 +1559,7 @@ public final class PreludeGenerator {
                     if (ts.type(k) != TokenType.FUNCTION || !atStart) {
                         continue;
                     }
-                    ElementParser p = ElementParser.at(ts, declTok, Dialect.LEGEND_PLATFORM);
+                    ElementParser p = ElementParser.at(ts, declTok, GrammarLevel.LEGEND_PLATFORM);
                     Protocol.PFunction fn;
                     try {
                         fn = p.parseFunctionProtocol();
@@ -1612,7 +1612,7 @@ public final class PreludeGenerator {
         if (i < 0) {
             throw new IllegalStateException("prelude generator: no token starts at offset " + offset);
         }
-        ElementParser p = ElementParser.at(tokens, i, Dialect.LEGEND_PLATFORM);
+        ElementParser p = ElementParser.at(tokens, i, GrammarLevel.LEGEND_PLATFORM);
         switch (kind) {
             case EnumDefinition e -> p.parseEnumDefinition();
             case com.legend.model.ProfileDefinition pr -> p.parseProfileDefinition();
