@@ -403,6 +403,7 @@ py_test(
         "//datacube:test/fixtures/chart-rules.json",
         "//datacube:test/fixtures/pages/trades.page.json",
         "//engine-client:test/fixtures/run-load-conformance.json",
+        "//engine-client:test/fixtures/run-plan-conformance.json",
         "//native:compiler",
         "//warehouse:sqlapi_corpus",
     ],
@@ -417,6 +418,8 @@ py_test(
         "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
         # the load runners' shared conformance fixture (B3): the tab's runLoad runs it too (engine-client)
         "LEGEND_LITE_RUN_LOAD_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-load-conformance.json)",
+        # the write runners' shared conformance fixture (the #6 bridge): the tab's runPlan runs it too (engine-client)
+        "LEGEND_LITE_RUN_PLAN_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-plan-conformance.json)",
     },
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,

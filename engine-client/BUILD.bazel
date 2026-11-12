@@ -70,9 +70,10 @@ esbuild_bundle(
     ],
 )
 
-# the load runners' shared conformance fixture (B3, 2026-11-11): the tab's runLoad and Python's run_load run it alike
+# the load runners' shared conformance fixture (B3, 2026-11-11): the tab's runLoad and Python's run_load run it alike;
+# and the write runners' (the #6 bridge, 2026-11-12): the tab's runPlan, joined, and Python's run_plan
 exports_files(
-    ["test/fixtures/run-load-conformance.json"],
+    ["test/fixtures/run-load-conformance.json", "test/fixtures/run-plan-conformance.json"],
     visibility = ["//python:__pkg__"],
 )
 
@@ -242,11 +243,15 @@ node_test(
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/fixtures/run-load-conformance.json",
+        "test/fixtures/run-plan-conformance.json",
         "test/planner.ts",
     ],
     entry_point = "test/plan-runner.test.ts",
-    # the load runners' shared conformance fixture (B3): Python's engine test runs it too
-    env = {"RUN_LOAD_FIXTURE": "$(rlocationpath test/fixtures/run-load-conformance.json)"},
+    # the runners' shared conformance fixtures (B3; the write's, the #6 bridge): Python's engine test runs them too
+    env = {
+        "RUN_LOAD_FIXTURE": "$(rlocationpath test/fixtures/run-load-conformance.json)",
+        "RUN_PLAN_FIXTURE": "$(rlocationpath test/fixtures/run-plan-conformance.json)",
+    },
     wasm = True,
 )
 

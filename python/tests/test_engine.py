@@ -283,6 +283,33 @@ class ProjectQueries(Served):
         self.assertEqual(str(refused.exception), words)
         self.assertEqual(sent, [])
 
+    def test_the_write_runners_shared_conformance_fixture(self):
+        # the #6 bridge (2026-11-12): Python's run_plan and the tab's runPlan, joined (engine-client plan_runner_test), run
+        # one write's plan inside a transaction their caller began -- the same count, the same rows, the same refusal
+        import duckdb
+        from legend_lite import compiler, projects
+        from legend_lite._planned import Database, send
+        with open(os.environ['LEGEND_LITE_RUN_PLAN_FIXTURE'], encoding='utf-8') as f:
+            fixture = json.load(f)
+        plan = compiler.execution_plan(fixture['model'], fixture['program'], fixture['runtime'])
+        raw = duckdb.connect()
+        for sql in fixture['setup']:
+            raw.execute(sql)
+        db = Database(raw)
+
+        def run(sql, params):
+            result = send(db, sql, params)
+            return result.fetchall() if result.description is not None else []
+
+        raw.execute('BEGIN TRANSACTION')
+        self.assertEqual(projects.run_plan(plan, run, fixture['databaseType']), fixture['answer'])
+        raw.execute('COMMIT')
+        self.assertEqual([list(r) for r in raw.execute(fixture['check']).fetchall()], fixture['rows'])
+        sent = []
+        with self.assertRaises(projects.PlanRefused) as refused:
+            projects.run_plan(plan, lambda sql, params: sent.append(sql) or [], fixture['refused']['databaseType'])
+        self.assertEqual(str(refused.exception), fixture['refused']['words'])
+        self.assertEqual(sent, [])
     def test_a_snaps_stream_lands_exactly_in_one_transaction_and_a_cut_or_tampered_one_rolls_back(self):
         # the user's ruling of 2026-11-11: a snapshot from a remote plane is a planned load whose source is a stream --
         # the plan names the plane, its statement and the table; the chunks are read as one Arrow stream by the
