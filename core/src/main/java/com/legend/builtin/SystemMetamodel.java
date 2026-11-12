@@ -132,6 +132,10 @@ public final class SystemMetamodel {
             sb.append("                Filter Act").append(k[1])
                     .append("(metamodel.activities.kind = '").append(k[1]).append("')\n");
         }
+        // no line terminator after the last filter, as the source's other builders end (String.join): the text
+        // block's own line ends it (2026-11-12, the owner's ruling on slice 1b's report: the two made a blank line
+        // before the Database block's ")")
+        sb.setLength(sb.length() - 1);
         return sb.toString();
     }
 
@@ -533,7 +537,10 @@ public final class SystemMetamodel {
         return String.join(",\n", lines);
     }
 
-    /** Schema (charter &sect;4 + step 3); grow BY WITNESS ONLY. */
+    /** Schema (charter &sect;4 + step 3); grow BY WITNESS ONLY. A Pure string's line break is Pure's escape,
+     *  written {@code \\n} here so the text block hands Pure the two characters (2026-11-12, the owner's ruling on
+     *  slice 1b's report: a bare {@code \n} gave Pure a raw line break inside the literal; upstream's own
+     *  relationTreeAsString spells it {@code '\n'}, scanRelations.pure). */
     private static final String SOURCE = """
             ###Relational
             Database meta::lite::metamodel::MetamodelStore
@@ -1170,7 +1177,7 @@ public final class SystemMetamodel {
             }
             function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[1]
             {
-                $t->meta::lite::lineage::relationTreeLines($withJoin)->joinStrings('', '\n', '\n')
+                $t->meta::lite::lineage::relationTreeLines($withJoin)->joinStrings('', '\\n', '\\n')
             }
             function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], space:String[1]):String[1]
             {
@@ -1178,7 +1185,7 @@ public final class SystemMetamodel {
             }
             function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1], space:String[1]):String[1]
             {
-                $t->meta::lite::lineage::relationTreeLines($withJoin)->map(l|$space + $l)->joinStrings('', '\n', '\n')
+                $t->meta::lite::lineage::relationTreeLines($withJoin)->map(l|$space + $l)->joinStrings('', '\\n', '\\n')
             }
             function meta::lite::lineage::relationTreeLines(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[*]
             {
