@@ -164,6 +164,10 @@ final class DatabaseOwners {
             MAIN + "edge/PureText.java",
             TEST + "integration/EdgeSpellingHookTest.java",
             TEST + "planner/PlantedDialect.java",
+            // 2026-11-12 (phase D's guards): the test classes planted for the dialect-blind rule and the edge's
+            // spelling-only rule, each naming a dialect class by design
+            TEST + "lowering/PlantedDialectBranch.java",
+            TEST + "edge/PlantedEdgeDecision.java",
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",

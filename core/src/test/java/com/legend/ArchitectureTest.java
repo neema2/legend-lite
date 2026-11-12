@@ -1947,22 +1947,32 @@ final class ArchitectureTest {
      */
     @Test
     void compileSideLayersAreDialectBlind() {
-        noClasses()
+        COMPILE_SIDE_DIALECT_BLIND.check(CORE_PROD_CLASSES);
+    }
+
+    // the Scalars exemption removed 2026-11-12 (phase D, the orchestrator's guard addition, the user's "everyone was
+    // using dialect in IF statements in the compiler"): Scalars reaches no sql.dialect class any more, so the rule is
+    // total, as its javadoc says
+    static final com.tngtech.archunit.lang.ArchRule COMPILE_SIDE_DIALECT_BLIND = noClasses()
             .that().resideInAnyPackage("com.legend.parser..",
                     "com.legend.compiler..", "com.legend.lowering..",
                     "com.legend.resolver..", "com.legend.normalizer..",
                     "com.legend.lineage..", "com.legend.plan..",
                     "com.legend.protocol..", "com.legend.model..",
                     "com.legend.door..")
-            .and().haveNameNotMatching(
-                    "com\\.legend\\.lowering\\.Scalars(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("com.legend.sql.dialect..")
             .as("single-compiler tenet: compile-side layers are"
                     + " DIALECT-BLIND — backend differences are dialect"
                     + " rewrite/render rules, never branches in the"
-                    + " compiler (zero exceptions since Phase 1)")
-            .check(CORE_PROD_CLASSES);
+                    + " compiler (zero exceptions since Phase 1)");
+
+    /** {@link #compileSideLayersAreDialectBlind} fails on a lowering class that asks a dialect
+     *  ({@code lowering.PlantedDialectBranch}, a test class planted for this alone; 2026-11-12). */
+    @Test
+    void theDialectBlindRuleBitesAPlantedBranch() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> COMPILE_SIDE_DIALECT_BLIND.check(
+                new ClassFileImporter().importClasses(com.legend.lowering.PlantedDialectBranch.class)));
     }
 
     /**

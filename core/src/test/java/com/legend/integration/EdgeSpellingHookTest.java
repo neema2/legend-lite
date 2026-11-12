@@ -108,6 +108,50 @@ class EdgeSpellingHookTest {
             Map.entry("MongoDb", D1_1), Map.entry("MySql", D1_1), Map.entry("Postgres", D1_1),
             Map.entry("SQLite", D1_1), Map.entry("Snowflake", D1_1), Map.entry("Trino", D1_1)));
 
+    /** The methods {@code c} declares that override a product dialect's method which is neither a
+     *  {@link com.legend.sql.dialect.SpellingArm} nor an {@link com.legend.sql.dialect.EdgeMayOverride}: a decision the
+     *  edge must not take. */
+    static List<String> decisionsOverridden(Class<?> c) {
+        List<String> out = new java.util.ArrayList<>();
+        for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
+            if (m.isSynthetic() || java.lang.reflect.Modifier.isStatic(m.getModifiers())) {
+                continue;
+            }
+            java.lang.reflect.Method overridden = null;
+            for (Class<?> up = c.getSuperclass(); up != null && overridden == null; up = up.getSuperclass()) {
+                try {
+                    overridden = up.getDeclaredMethod(m.getName(), m.getParameterTypes());
+                } catch (NoSuchMethodException next) {
+                    // keep climbing
+                }
+            }
+            if (overridden == null || !(overridden.isAnnotationPresent(com.legend.sql.dialect.SpellingArm.class)
+                    || overridden.isAnnotationPresent(com.legend.sql.dialect.EdgeMayOverride.class))) {
+                out.add(c.getSimpleName() + "." + m.getName());
+            }
+        }
+        return out;
+    }
+
+    /** The edge overrides SPELLING, never a DECISION (the orchestrator's guard, 2026-11-12): each method an edge dialect
+     *  declares overrides a product method marked {@code @SpellingArm} or {@code @EdgeMayOverride}. */
+    @Test
+    void theEdgesDialectsOverrideSpellingOnly() {
+        List<String> decisions = new java.util.ArrayList<>();
+        for (Class<?> c : PureText.class.getDeclaredClasses()) {
+            decisions.addAll(decisionsOverridden(c));
+        }
+        assertEquals(List.of(), decisions, "an edge dialect overriding a decision: planning would be a mode");
+    }
+
+    /** The rule bites an edge class overriding a decision ({@code edge.PlantedEdgeDecision}, a test class planted for
+     *  this alone: the raise read-back). */
+    @Test
+    void theSpellingOnlyRuleBitesAPlantedDecision() {
+        assertEquals(List.of("PlantedEdgeDecision.raiseReadBack"),
+                decisionsOverridden(com.legend.edge.PlantedEdgeDecision.class));
+    }
+
     @Test
     void theEdgesDialectsOverrideOnlyThePinnedArms() {
         Map<String, Set<String>> found = new TreeMap<>();

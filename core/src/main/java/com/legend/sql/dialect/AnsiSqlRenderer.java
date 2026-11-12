@@ -1087,6 +1087,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * message. exec types the raise by that name and words it ({@code exec.RaisedErrors}). The compatibility edge's
      * dialects override this alone, writing legend-pure's sentence from the operands ({@code edge.PureMessages}).
      */
+    @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
         return r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? r.operands().get(0)
                 : new SqlExpr.StringLit(r.kind().name());
