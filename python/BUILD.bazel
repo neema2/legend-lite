@@ -244,8 +244,9 @@ py_test(
         "tests/test_planned.py",
     ],
     args = ["test_planned"],
-    data = ["//native:compiler"],
-    env = _ENV,
+    # the keyed expansion's one fixture (the C final audit's H8, 2026-11-12), read by Java's and the tab's runners too
+    data = ["//engine-client:test/fixtures/keyed-expansion.json", "//native:compiler"],
+    env = _ENV | {"LEGEND_LITE_KEYED_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)"},
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
     deps = [

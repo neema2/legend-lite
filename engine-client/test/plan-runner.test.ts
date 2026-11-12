@@ -10,7 +10,7 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { ConnectionSettings, establish, hostSession, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { ConnectionSettings, establish, expandKeyed, hostSession, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams } from '../src/plan-params.ts';
 import { relationColumns } from '../src/relation-type.ts';
@@ -80,6 +80,43 @@ const rows = async (): Promise<string> => {
   return t.map((r) => r.map(String).join(':')).join(' ');
 };
 
+/**
+ * Every statement a plan's JSON carries for its steps, in the order it is written -- a node's `statement` or `sql`
+ * text, a list of them, a statements step's blob (read by its digest) -- its typed trees and its target passed over:
+ * what a run of it sends after its target's session, and in that order (the C final audit's H8, 2026-11-12).
+ */
+const statementsOf = (node: unknown, content: Readonly<Record<string, string>> = {}): string[] => {
+  if (Array.isArray(node)) return node.flatMap((n) => statementsOf(n, content));
+  if (node === null || typeof node !== 'object') return [];
+  const here = node as Readonly<Record<string, unknown>>;
+  const blobs = typeof here['content'] === 'object' && here['content'] !== null ? here['content'] as Record<string, string> : content;
+  if (here['_type'] === 'statements') {
+    const digest = (here['ref'] as { readonly digest: string }).digest;
+    return looseJson(blobs[digest]!) as string[];
+  }
+  const out: string[] = [];
+  for (const [key, value] of Object.entries(here)) {
+    if (['tree', 'content', 'regions', 'target'].includes(key)) continue;
+    if ((key === 'statement' || key === 'sql') && typeof value === 'string') out.push(value);
+    else if (Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === 'string')) out.push(...(value as string[]));
+    else out.push(...statementsOf(value, blobs));
+  }
+  return out;
+};
+
+/** A plan's target's session statements (the first target it names): what a run sends first, once. */
+const sessionOf = (node: unknown): string[] => {
+  if (node === null || typeof node !== 'object') return [];
+  const here = node as Readonly<Record<string, unknown>>;
+  const target = here['target'] as { readonly session?: readonly string[] } | undefined;
+  if (target?.session !== undefined) return [...target.session];
+  for (const value of Object.values(here)) {
+    const found = sessionOf(value);
+    if (found.length > 0) return found;
+  }
+  return [];
+};
+
 before(async () => {
   m = await loadPlannerModule();
   grammar = await loadPlanner();
@@ -130,6 +167,40 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const alone = planned(lit.boolean(true));
     const untouched: PlanSession = { databaseType: 'DuckDB', run: async () => { throw new Error('ran'); }, transaction: async () => { throw new Error('ran'); } };
     assert.deepEqual(looseJson(await runPlan(alone, untouched)), [{ value: true }]);
+  });
+
+  it("sends exactly the plan's statements, in order, inside the planner's transaction (the C final audit's H8)", async () => {
+    await engine.run(unplanned('DELETE FROM T'), 0);
+    const plan = planned(fn('write', src(), target()));
+    const sent: string[] = [];
+    await engine.exclusive(async (held) => runPlan(plan, await hostSession(engine.databaseType,
+      (sql, params) => { sent.push(sql); return held.rows(sql, params); }, grammar)));
+    const [begin, commit] = await grammar.hostOperations(engine.databaseType,
+      [{ op: 'transaction', step: 'begin' }, { op: 'transaction', step: 'commit' }]);
+    const read: unknown = looseJson(plan);
+    assert.deepEqual(sent, [...sessionOf(read), ...begin!, ...statementsOf((read as { root: unknown }).root), ...commit!]);
+  });
+
+  it("refuses by name a plan missing what its version carries, nothing run (the C final audit's H10)", async () => {
+    /** The plan with `key` taken out of every target it names. */
+    const without = (key: string): string => {
+      const read: unknown = looseJson(planned(fn('write', src(), target())));
+      const strip = (node: unknown): void => {
+        if (node === null || typeof node !== 'object') return;
+        const here = node as Record<string, unknown>;
+        if (typeof here['target'] === 'object' && here['target'] !== null) delete (here['target'] as Record<string, unknown>)[key];
+        Object.values(here).forEach(strip);
+      };
+      strip(read);
+      return JSON.stringify(read);
+    };
+    const sent: string[] = [];
+    const session: PlanSession = { databaseType: 'DuckDB', run: async (sql) => { sent.push(sql); return []; }, transaction: async () => {} };
+    await assert.rejects(() => runPlan(without('session'), session),
+      (e: unknown) => e instanceof PlanRefusal && /carries its target's session, and this one has none/.test(e.message));
+    assert.deepEqual(sent, [], 'nothing run');
+    assert.throws(() => targetKey(without('loads')),
+      (e: unknown) => e instanceof PlanRefusal && /carries its target's loads, and this one has none/.test(e.message));
   });
 
   it('refuses by name what a host never plans, nothing run', async () => {
@@ -256,6 +327,24 @@ describe("a plan's loads, established on a database the host made for its target
       { dept: 'A', "'NYC__|__names'": 'x', "'SAN__|__names'": 'y' },
       { dept: 'B', "'NYC__|__names'": 'z', "'SAN__|__names'": null },
     ]);
+    // H8: exactly the plan's statements -- its keys statement, then its body written for the keys read (expandKeyed,
+    // the one form a statement is written at run: test/fixtures/keyed-expansion.json holds it to Java's and Python's)
+    const sent: { readonly sql: string; readonly rows: readonly (readonly unknown[])[] }[] = [];
+    await engine.exclusive(async (held) => runPlan(plan, await hostSession(engine.databaseType, async (sql, params) => {
+      const answered = await held.rows(sql, params);
+      sent.push({ sql, rows: answered });
+      return answered;
+    }, grammar)));
+    const keyed = (looseJson(plan).root) as { keys: { statement: string }; body: Parameters<typeof expandKeyed>[0] };
+    const session = sessionOf(looseJson(plan));
+    assert.deepEqual(sent.slice(0, session.length).map((r) => r.sql), session, "its target's session first");
+    // its keys and body read in one snapshot, the planner's transaction around them
+    const [begin, commit] = await grammar.hostOperations(engine.databaseType,
+      [{ op: 'transaction', step: 'begin' }, { op: 'transaction', step: 'commit' }]);
+    const keys = sent[session.length + begin!.length];
+    assert.ok(keys !== undefined);
+    assert.deepEqual(sent.slice(session.length).map((r) => r.sql), [...begin!, keyed.keys.statement,
+      expandKeyed(keyed.body, keys.rows.map((r) => r.map(String))).statement, ...commit!]);
   });
 });
 
@@ -396,6 +485,27 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
   });
 });
 
+// THE KEYED EXPANSION'S ONE FIXTURE (the C final audit's H8, 2026-11-12): the tab's expandKeyed writes each case as
+// Java's PlanRunner.expand and Python's _keyed_text do (KeyedExpansionConformanceTest, test_planned.py)
+describe("the keyed expansion's one fixture", () => {
+  interface Case {
+    name: string; body: Parameters<typeof expandKeyed>[0]; keys: string[][];
+    statement?: string; params?: string[]; refused?: string;
+  }
+  const cases = (looseJson(readFileSync(runfileFromEnv('KEYED_FIXTURE'), 'utf8')) as { cases: Case[] }).cases;
+
+  it('writes every case as the fixture says, and refuses the one it refuses in its words', () => {
+    assert.ok(cases.length > 3);
+    for (const c of cases) {
+      if (c.refused !== undefined) {
+        assert.throws(() => expandKeyed(c.body, c.keys), (e: unknown) => e instanceof PlanRefusal && e.message === c.refused, c.name);
+      } else {
+        assert.deepEqual(expandKeyed(c.body, c.keys), { statement: c.statement, params: c.params }, c.name);
+      }
+    }
+  });
+});
+
 describe("the load runners' shared conformance fixture", () => {
   interface Fixture {
     model: string; databaseType: string; check: string; rows: unknown[][]; tamper: { from: string; to: string }; refused: string;
@@ -413,6 +523,17 @@ describe("the load runners' shared conformance fixture", () => {
     await runLoad(JSON.stringify(project.load), (sql) => own.run(sql, 0));
     const rows = await own.exclusive((held) => held.rows(unplanned(fixture.check), []));
     assert.deepEqual(rows.map((r) => r.map((v) => (typeof v === 'bigint' ? Number(v) : v))), fixture.rows);
+  });
+
+  it("sends exactly the load's statements, in order (the C final audit's H8)", async () => {
+    const project = planOf();
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+    for (const sql of [...project.open, ...project.use]) await own.run(unplanned(sql), 0);
+    const sent: string[] = [];
+    await runLoad(JSON.stringify(project.load), (sql) => { sent.push(sql); return own.run(sql, 0); });
+    assert.ok(sent.length > 1, sent.join('; '));
+    assert.deepEqual(sent, statementsOf(project.load.root));
   });
 
   it('refuses the tampered blob in the fixture\'s words, nothing run', async () => {

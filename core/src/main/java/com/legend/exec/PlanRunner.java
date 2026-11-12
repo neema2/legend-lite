@@ -935,7 +935,9 @@ public final class PlanRunner {
     }
 
     /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order. */
-    private record Expanded(PlannedSql statement, List<ExecutionPlan.Slot> slots,
+    /** A keyed body written for its keys: package-private, so the keyed expansion's one fixture holds it to the other
+     *  runners' (KeyedExpansionConformanceTest; the C final audit's H8, 2026-11-12). */
+    record Expanded(PlannedSql statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
     }
 
@@ -945,7 +947,7 @@ public final class PlanRunner {
      * counter; with no key, {@code empty}, or the statement refused where it has no form without one); each slot
      * outside a region bound once, each inside one bound in every copy, a key's cell to that key's text.
      */
-    private static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
+    static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
             Map<String, PlanParameters.Checked> checked) {
         String text = sql.statement();
         StringBuilder out = new StringBuilder(text.length() + keys.size() * 64);

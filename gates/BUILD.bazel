@@ -35,6 +35,9 @@ test_suite(
         # //core:duckdb_load_test went with DuckDB's Appender (A2, 2026-11-10: the model's data is statements in the
         # plan, docs/DATA_DELIVERY_DESIGN_2026_11_10.md)
         "//core:section_grammar_registry_test",
+        # the keyed expansion's one fixture, Java's reader (the C final audit's H8, 2026-11-12): the tab's and Python's
+        # read it in //engine-client:plan_runner_test and //python:planned_test
+        "//core:keyed_expansion_conformance_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds
         "//core:corpus_differential_test",
         # the planner on java.base alone (P3-19): seconds

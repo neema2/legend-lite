@@ -105,6 +105,22 @@ class OneSendTest(unittest.TestCase):
         self.assertIn('the warehouse', str(refused.exception))
 
 
+class KeyedExpansionFixtureTest(unittest.TestCase):
+    """THE KEYED EXPANSION'S ONE FIXTURE (the C final audit's H8, 2026-11-12; engine-client/test/fixtures/
+    keyed-expansion.json): the text Python's bridge holds a keyed statement to (_keyed_text) is the text Java's
+    PlanRunner.expand and the tab's expandKeyed write, case by case -- its text alone, the keys' cells being bound."""
+
+    def test_each_case_is_written_as_the_other_runners_write_it(self):
+        import os
+        cases = json.loads(open(os.environ['LEGEND_LITE_KEYED_FIXTURE'], encoding='utf-8').read())['cases']
+        self.assertGreater(len(cases), 3)
+        for case in cases:
+            with self.subTest(case['name']):
+                body = case['body']
+                written = _keyed_text(body['statement'], tuple(body['regions']), len(case['keys']))
+                self.assertEqual(written, case.get('statement'), 'refused: no text' if 'refused' in case else '')
+
+
 class HostOperationsTextTest(unittest.TestCase):
     """THE C FINAL AUDIT'S H2 (2026-11-12): a host operation's planner text -- a source query, a select list, a
     replacement -- is a PlannedSql, made where its plan or the planner's answer was read; a host's own text is refused by
