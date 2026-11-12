@@ -1467,7 +1467,10 @@ class Engine:
         pulled_by: dict[str, Any] = {'plane': 'warehouse'}
 
         def land(connection: Any, target: dict[str, Any]) -> int:
-            snap = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': plan.sql,
+            # the pull, planned again by the planner in the stream's own plan (the user's ruling of 2026-11-12): the
+            # request carries no statement
+            snap = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'model': table.held.model,
+                                         'runtime': table.runtime, 'lambda': asked['pull'],
                                          **({'schema': target['schema']} if 'schema' in target else {}),
                                          'table': target['name']})
             (made,) = run_host_load(snap, connection, planes={'warehouse': table.warehouse}).landed

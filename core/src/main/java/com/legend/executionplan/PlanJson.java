@@ -143,8 +143,10 @@ public final class PlanJson {
      *  target declares them. 50 since 2026-11-12 (the re-audit's S8): a target may carry {@code transaction}, the
      *  {@code begin}, {@code commit} and {@code rollback} statements a host opens, commits and rolls back a transaction
      *  with on its database (DuckDB's), written only where the database has them -- a host's runner reads them from the
-     *  plan, never asking the planner at run. */
-    public static final int VERSION = 50;
+     *  plan, never asking the planner at run. 51 since 2026-11-12 (the user's ruling: "that is a real off platform
+     *  problem"): a stream step's {@code sql} is the planner's own plan of the snapshot's pull (its model, runtime and
+     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. */
+    public static final int VERSION = 51;
 
     private PlanJson() {
     }

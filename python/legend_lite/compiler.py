@@ -303,12 +303,12 @@ def _planned_texts(op: dict[str, Any]) -> None:
 
 def snap_stream(request: dict[str, Any]) -> PlanText:
     """A SNAPSHOT FROM A REMOTE PLANE, as a plan (the native library's Boundary.snapStream; the user's ruling of
-    2026-11-11, "This is the right plan"): ``request`` is ``{"databaseType", "plane", "sql", "schema"?, "table"}`` -- the
-    name this host holds the remote plane under, the statement it runs (the planner's, for the plane's own database), the
-    table of this database it lands in; never a row (any other key is refused by name). The plan: one HOST_SESSION load
-    whose stream step ``projects.run_host_load`` runs in one transaction. ``sql`` is the plane's planner's statement, a
-    PlannedSql made where its plan was read (the C final audit's H3, 2026-11-12): any other text is refused by name."""
-    require(request.get('sql'), "a snapshot's stream (the remote plane's statement)")
+    2026-11-11, "This is the right plan"): ``request`` is ``{"databaseType", "plane", "model", "runtime", "lambda",
+    "schema"?, "table"}`` -- the name this host holds the remote plane under, the PULL (the model's text, its runtime and
+    the query as a lambda's protocol JSON, which the planner plans in this call for the plane's own database: the user's
+    ruling of 2026-11-12, "that is a real off platform problem" -- a request carries no statement), and the table of this
+    database it lands in; never a row, never SQL (any other key is refused by name). The plan: one HOST_SESSION load
+    whose stream step ``projects.run_host_load`` runs in one transaction."""
     # the plan as the planner answered it (the re-audit's M1): what run_host_load takes, and nothing else does
     return plan_from_answer(_answer(library().call('lite_snap_stream', _json.dumps(request))))
 

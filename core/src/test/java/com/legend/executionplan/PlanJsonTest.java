@@ -210,15 +210,16 @@ class PlanJsonTest {
         // (B3): a host's own file (HOST, its upload formats) and the HOST_SESSION load; 48 the same day (the JSON pass,
         // over 47 when the two merged): the payload named by its digest, its text the statement's content; 49 since
         // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3); 50 the same day: a target's
-        // transaction, the statements a host opens one with (the re-audit's S8)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":50,"), json);
+        // transaction, the statements a host opens one with (the re-audit's S8); 51 the same day: a stream step's
+        // statement the planner's own plan of the snapshot's pull (the user's ruling)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":51,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v50 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v51 plan"), refused.getMessage());
     }
 
     /**

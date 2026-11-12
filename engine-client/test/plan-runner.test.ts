@@ -267,7 +267,7 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] })), session), /takes parameters/);
     await assert.rejects(() => runPlan(unplannedPlan('{"format":"other"}'), session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run (the version the runner reads, PLAN_VERSION: the A checkpoint's audit made it 42, 2026-11-10)
-    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 50/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 51/);
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
@@ -615,7 +615,9 @@ describe("the load runners' shared conformance fixture", () => {
 // the table; the runner streams the plane's Arrow chunks in by DuckDB-WASM's own Arrow import in ONE transaction, kept
 // only when the stream completed and the table holds the rows the plane counted -- else rolled back, nothing left
 describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction", () => {
-  const SQL = 'SELECT * FROM "main"."TRADES"';
+  // the request carries the PULL -- its model, runtime and query -- which the planner plans in the call (the user's
+  // ruling of 2026-11-12, "that is a real off platform problem"): never the statement the plane runs
+  const PULL = { model: MODEL, runtime: 'w::RT', lambda: toJson(lambda([], src())) } as const;
   const chunkOf = (from: number, rows: number): Uint8Array => arrowIpcStream(rows, {
     id: { integers: (i) => from + i },
     notional: { doubles: (i) => (from + i) / 4 },
@@ -634,7 +636,7 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     },
   });
   const planOf = (table: string, schema?: string): PlanText => unplannedPlan(ok(answer(m, { kind: 'snapStream', request: JSON.stringify({
-    databaseType: 'DuckDB', plane: 'warehouse', sql: SQL, ...(schema ? { schema } : {}), table }) })));
+    databaseType: 'DuckDB', plane: 'warehouse', ...PULL, ...(schema ? { schema } : {}), table }) })));
   const tableRows = (t: string): Promise<string> => engine.exclusive(async (held) =>
     (await held.rows(unplanned(`SELECT id, notional, region FROM ${t} ORDER BY id`), [])).map((r) => r.map(String).join(':')).join(' '));
   const columns = (t: string): Promise<string> => engine.exclusive(async (held) =>
@@ -652,7 +654,10 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     assert.deepEqual(Object.keys(step).sort(), ['_type', 'count', 'plane', 'prepare', 'schema', 'sql', 'table', 'transaction']);
     const source = plane([chunkOf(1, 4), chunkOf(5, 3)]);
     const { landed } = await snap(plan, source);
-    assert.deepEqual(source.asked, [SQL], 'the plane ran the plan\'s statement');
+    // the plane's statement is the planner's own plan of the pull, made in the call that answered the plan
+    const pulled = ok(answer(m, { kind: 'planJson', handle, lambda: PULL.lambda, runtime: PULL.runtime }));
+    assert.equal(step['sql'], (looseJson(pulled) as { sql: string }).sql);
+    assert.deepEqual(source.asked, [step['sql']], 'the plane ran the plan\'s statement');
     assert.equal(landed.length, 1);
     assert.equal(landed[0]!.rows, 7);
     assert.equal(landed[0]!.receipt.statementId, 's-1');
@@ -689,6 +694,13 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     // a stream whose plane never said it was done is not kept either
     await assert.rejects(() => snap(planOf('unsaid'), plane([chunkOf(1, 7)], { silent: true })), /ended before its plane said it was done/);
     assert.equal(await exists('unsaid'), 0);
+  });
+
+  it('a request carrying a statement is refused by name: the planner plans the pull, never a host\'s text', () => {
+    for (const given of [{ sql: 'DROP TABLE t' }, { ...PULL, sql: 'SELECT 1' }]) {
+      assert.throws(() => ok(answer(m, { kind: 'snapStream', request: JSON.stringify({ databaseType: 'DuckDB', plane: 'warehouse',
+        ...given, table: 't' }) })), /a snapshot's stream has no key sql/);
+    }
   });
 
   it('a plane this host does not hold, and a host that streams none, are refused by name, nothing run', async () => {
@@ -827,7 +839,7 @@ describe("a person's own statement, carried by the WASM planner as written and r
   it('a plan that is not an authored statement is refused by name, nothing sent', async () => {
     const sent: string[] = [];
     const load = ok(answer(m, { kind: 'snapStream', request: JSON.stringify({ databaseType: 'DuckDB', plane: 'warehouse',
-      sql: 'SELECT 1', table: 't' }) }));
+      model: MODEL, runtime: 'w::RT', lambda: toJson(lambda([], src())), table: 't' }) }));
     await assert.rejects(() => runAuthored(unplannedPlan(load), { databaseType: 'DuckDB', run: async (sql: PlannedSql) => { sent.push(sql); } }), /an authored statement's plan answers the relation its database reports, not a load/);
     assert.deepEqual(sent, []);
   });

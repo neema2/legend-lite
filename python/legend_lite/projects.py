@@ -34,7 +34,7 @@ _NOT_A_MODEL = frozenset({'PARSER', 'COMPILATION'})
 # the plan format this host runs: the planner's (PlanJson.VERSION), as the tab's runner's is (plan-runner.ts PLAN_VERSION,
 # held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
 # runs (test_engine) -- so the two cannot drift apart unseen
-PLAN_VERSION = 50
+PLAN_VERSION = 51
 
 
 class LoadRefused(ValueError):

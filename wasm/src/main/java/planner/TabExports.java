@@ -126,7 +126,8 @@ public final class TabExports {
         return Folded.of(() -> Boundary.remoteMount(request));
     }
 
-    /** {@link Boundary#snapStream}: a snapshot from a remote plane, as a plan (the user's ruling of 2026-11-11). */
+    /** {@link Boundary#snapStream}: a snapshot from a remote plane, as a plan (the user's ruling of 2026-11-11) -- its
+     *  request the pull, planned in this call, never a statement (the user's ruling of 2026-11-12). */
     @JSExport
     public static String snapStreamOrError(String request) {
         return Folded.of(() -> Boundary.snapStream(request));

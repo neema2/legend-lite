@@ -40,8 +40,9 @@ public final class TestPlanJson {
      *  (2026-11-11, the JSON pass): no {@code release} -- a body makes no {@code data:} session table to drop, its
      *  payloads bound or inline -- and the product's version 48; 18 (2026-11-12, the C checkpoint's SHOULD-FIX 3): a
      *  target may carry its database's settings, the product's version 49; 19 (2026-11-12, the re-audit's S8): a target
-     *  may carry its database's transaction statements, the product's version 50. */
-    public static final int VERSION = 19;
+     *  may carry its database's transaction statements, the product's version 50; 20 (2026-11-12, the user's ruling on
+     *  a snapshot's pull): the product's version 51. */
+    public static final int VERSION = 20;
 
     private TestPlanJson() {
     }

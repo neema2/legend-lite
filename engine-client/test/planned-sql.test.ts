@@ -50,7 +50,7 @@ export function handWrittenSqlDoesNotCompile(engine: DuckDbEngine, query: QueryE
     // @ts-expect-error and each replacement's expression
     replacing: [{ column: 'a', sql: 'a' }],
   };
-  // @ts-expect-error a snapshot's stream runs the remote plane's planner's statement alone (H3)
+  // @ts-expect-error a snapshot's request carries the pull, never a statement (H3; the user's ruling of 2026-11-12)
   const snap: SnapStreamRequest = { databaseType: 'DuckDB', plane: 'warehouse', sql: 'DROP TABLE t', table: 't' };
   void statement;
   void plan;
@@ -60,7 +60,7 @@ export function handWrittenSqlDoesNotCompile(engine: DuckDbEngine, query: QueryE
 /** Never called: a plan the host wrote is no plan (the re-audit's M1, 2026-11-12): the runners take what the planner
  *  answered (PlanText), so a hand-written plan -- its statements a host's own -- does not compile. */
 export async function aHandWrittenPlanDoesNotRun(session: PlanSession): Promise<void> {
-  const handWritten = '{"format":"legend-lite-plan","version":50,"parameters":[],"root":{"_type":"sequence","steps":[]}}';
+  const handWritten = '{"format":"legend-lite-plan","version":51,"parameters":[],"root":{"_type":"sequence","steps":[]}}';
   // @ts-expect-error a string is not a plan the planner answered
   await runPlan(handWritten, session);
   // @ts-expect-error nor for a load

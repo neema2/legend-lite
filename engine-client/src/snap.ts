@@ -33,7 +33,7 @@
 // its cube behaviour on top): the manager, the stamp it carries, the refusals and the preflight. Where a snap's
 // queries are planned is the app's (DataCube's SnapTarget adds its planner).
 
-import type { HostName, HostOperation, HostOperationsSource, SnapStreamSource } from './host-operations.ts';
+import type { HostName, HostOperation, HostOperationsSource, SnapPull, SnapStreamSource } from './host-operations.ts';
 import type { HostStreams } from './plan-runner.ts';
 import { UI_LOCALE } from './locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
@@ -265,6 +265,9 @@ export class SnapManager implements Snaps {
       readonly target: SnapTable;
       /** The values `sourceSql` binds, in order (a plan's data: payloads: plan-params.ts, M3). */
       readonly params?: readonly string[];
+      /** The pull `sourceSql` was planned from (its planner's planRequest): what a remote plane's snap asks the planner
+       *  to plan again in the stream's own plan, never its statement (the user's ruling of 2026-11-12). */
+      readonly pull?: SnapPull;
     },
   ): Promise<SnapInfo> {
     const params = options.params ?? [];
@@ -293,7 +296,9 @@ export class SnapManager implements Snaps {
       if (typeof store.exclusive !== 'function') {
         throw new SnapRefusal('the local store holds no connection a remote plane\u2019s rows stream into, so a remote live plane cannot be snapped');
       }
-      const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, sql: sourceSql,
+      // the request is the PULL, planned again in this plan for the plane's own database: never the statement it runs
+      if (options.pull === undefined) throw new SnapRefusal('a remote live plane is snapped by its pull, and this snap carries none');
+      const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, ...options.pull,
         ...(schema ? { schema } : {}), table: bare });
       // the hosts' plan runner, fetched with the first snap of a remote plane (a grid-only page carries none of it)
       const { runLoad } = await import('./plan-runner.ts');

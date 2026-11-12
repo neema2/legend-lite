@@ -125,7 +125,9 @@ interface Sql {
 // 50 since 2026-11-12 (the re-audit's S8): a target carries its database's transaction (begin, commit, rollback: DuckDB's)
 // -- what this runner opens one with, around a plan's writes, a target's loads and a keyed snapshot; a plan whose
 // target has none is refused by name where it needs one
-const PLAN_VERSION = 50;
+// 51 since 2026-11-12 (the user's ruling: "that is a real off platform problem"): a stream step's sql is the planner's
+// own plan of the snapshot's pull -- its request carries the pull (model, runtime, lambda), never the statement
+const PLAN_VERSION = 51;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

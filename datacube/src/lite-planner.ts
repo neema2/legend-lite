@@ -34,7 +34,7 @@ import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
+import type { RemoteMountRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
@@ -547,6 +547,18 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     // model it holds of that text (Python's engine: the model admitted by its own rule, the library by its text)
     const library = !this.#ofLibrary && callsLibrary(query) ? { library: await loadLibrary() } : {};
     return { lambda: toJson(this.#overMapping(query)), model, runtime, ...library };
+  }
+
+  /**
+   * What a pull of `query` asks a planner that plans it where its rows are -- a snapshot's stream, which plans it again
+   * in its own plan (Boundary.snapStream; the user's ruling of 2026-11-12: a request carries the pull, never SQL): the
+   * model's text (the library's after it, where the query calls it), its runtime and its lambda.
+   */
+  async pullRequest(query: Lambda): Promise<SnapPull> {
+    const over = await this.#over(query);
+    if (over !== this) return over.pullRequest(query);
+    const { lambda, model, runtime } = await this.planRequest(query);
+    return { lambda, model, runtime };
   }
 
   /** A plan's answer (planJson's, tagged) read as this planner reads its own: its SQL and the compiler's columns. */

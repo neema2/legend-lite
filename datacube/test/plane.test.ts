@@ -28,6 +28,19 @@ import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type ColSpecArrayInstance, type Lambda } from '../../pure-protocol/src/index.ts';
 import { accessor, from } from '../../pure-protocol/src/index.ts';
 import { unplanned } from '../../engine-client/test/unplanned.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
+
+/** The trades table these cubes read, as a model on DuckDB: what a snap's pull is planned over where its rows are (the
+ *  user's ruling of 2026-11-12: a stream's request carries the pull, which the planner plans in the call). */
+const TRADES_MODEL = `###Relational
+Database trades::DB ( Table TRADES ( region VARCHAR(8), notional DOUBLE ) )
+
+###Connection
+RelationalDatabaseConnection trades::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime trades::RT { mappings: []; connections: [ trades::DB: [ c: trades::Conn ] ]; }
+`;
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('trades::DB', 'TRADES') },
@@ -69,6 +82,10 @@ class RecordingPlanner implements Planner {
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
+  }
+  /** The pull a remote plane's snap asks the planner to plan: the trades model, its runtime, the query. */
+  async pullRequest(query: Lambda): Promise<SnapPull> {
+    return { model: TRADES_MODEL, runtime: 'trades::RT', lambda: toJson(query) };
   }
   parse = fakeParse;
   print = fakePrint;
@@ -339,7 +356,10 @@ describe('the snapped plane actually redirects', () => {
     await c.snap(SNAPSHOT, 'test');
     assert.equal(live.queries.length, 1, `the pull is planned once, live: ${live.pure.join(' ;; ')}`);
     assert.equal(selectOf(live.queries[0]!)?.source, toJson(accessor('trades::DB', 'TRADES')));
-    assert.deepEqual(warehouse.pulled, ['SELECT * FROM planned_1'], 'the live plan is what the warehouse ran');
+    // what the warehouse ran is the planner's own plan of the pull, made in the stream's plan (the user's ruling of
+    // 2026-11-12: the request carries the pull, never the statement)
+    const pulled = await plannerFor(TRADES_MODEL, 'trades::RT').plan(live.queries[0]!);
+    assert.deepEqual(warehouse.pulled, [pulled.sql], 'the planner\'s plan of the live pull is what the warehouse ran');
     assert.equal(copy.pure.length, 0, 'nothing is planned for the copy before it exists');
     tab.sql.length = 0;
     await c.run(at(SNAPSHOT));

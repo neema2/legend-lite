@@ -999,8 +999,9 @@ class PlannedSqlTest {
             }
         }
         Set<String> holders = brandHolders(new ArrayList<>(codes.values()));
-        for (String record : List.of("Plan", "HostOperation", "HostSource", "SnapStreamRequest", "InferredModel",
-                "ExecutePlan")) {
+        // 2026-11-12 (the user's ruling, "that is a real off platform problem"): SnapStreamRequest holds no statement
+        // any more -- it carries the pull, which the planner plans in the call -- so it left this list
+        for (String record : List.of("Plan", "HostOperation", "HostSource", "InferredModel", "ExecutePlan")) {
             assertTrue(holders.contains(record), record + " holds a plan's statement, and the census does not see it");
         }
         Map<String, Integer> unknownCasts = new TreeMap<>();

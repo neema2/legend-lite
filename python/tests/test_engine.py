@@ -41,6 +41,25 @@ def trades():
     })
 
 
+
+# A snapshot's pull as its request carries it (the user's ruling of 2026-11-12): the model, its runtime and the query,
+# which the planner plans in the call -- never the statement the plane runs
+_SNAP_MODEL = """###Relational
+Database s::DB ( Table t ( id INTEGER, desk VARCHAR(8), qty DOUBLE ) )
+
+###Connection
+RelationalDatabaseConnection s::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
+"""
+
+
+def _snap_pull() -> dict:
+    return {'model': _SNAP_MODEL, 'runtime': 's::RT',
+            'lambda': json.dumps(ll.compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
+
+
 class Served(unittest.TestCase):
     """An engine over one Live frame, and requests as DataCube's client sends them."""
 
@@ -313,9 +332,9 @@ class ProjectQueries(Served):
                     yield c
 
         def plan(table, schema='main'):
-            # the remote plane's statement, as its planner's plan carries it (the C final audit's H3: a PlannedSql)
-            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse',
-                                         'sql': from_plan('SELECT * FROM t'), 'schema': schema, 'table': table})
+            # the pull, which the planner plans in the call (the user's ruling of 2026-11-12): never the statement
+            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_snap_pull(), 'schema': schema,
+                                         'table': table})
 
         con = duckdb.connect()
         exists = lambda t: con.execute('SELECT count(*) FROM duckdb_tables() WHERE table_name = ?', [t]).fetchone()[0]
@@ -324,7 +343,8 @@ class ProjectQueries(Served):
                          'the plan names the plane, its statement and the table: never a row')
         source = Plane([chunk(1, 4), chunk(5, 3)])
         (made,) = projects.run_host_load(plan('snap', 'copies'), Database(con), planes={'warehouse': source}).landed
-        self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', ['SELECT * FROM t']))
+        self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', [step['sql']]),
+                         "the plane ran the planner's own statement of the pull")
         self.assertEqual(con.execute("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'snap' "
                                      'ORDER BY column_index').fetchall(),
                          [('id', 'INTEGER'), ('desk', 'VARCHAR'), ('qty', 'DOUBLE')])

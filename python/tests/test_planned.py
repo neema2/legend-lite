@@ -13,6 +13,7 @@ from legend_lite._library import library
 from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
                                   from_plan, plan_from_answer, send)
 from legend_lite._planner import answer
+from legend_lite.compiler import LegendError
 from legend_lite.frames import execute_redacted
 
 
@@ -220,13 +221,30 @@ class WitnessTest(unittest.TestCase):
                 on_receipt({'statementId': 's1', 'serverRows': 3, 'as': 'rita', 'where': 'a stand-in'})
                 yield sink.getvalue().to_pybytes()
 
-        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': from_plan('SELECT * FROM t'),
-                                     'table': 'witnessed'})
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'witnessed'})
         step = json.loads(plan)['root']['steps'][0]
         witness = _Witness(duckdb.connect())
         projects.run_host_load(plan, Database(witness), planes={'warehouse': Plane()})
         self.assertEqual(witness.received, [*step['transaction']['begin'], *step['prepare'], '<from_arrow>', step['count'],
                                             *step['transaction']['commit']])
+
+
+# A SNAPSHOT'S PULL (the user's ruling of 2026-11-12, "that is a real off platform problem"): a stream's request carries
+# the model, its runtime and the query, which the planner plans in the call; never the statement the plane runs
+_PULL_MODEL = """###Relational
+Database s::DB ( Table t ( id INTEGER, desk VARCHAR(8), qty DOUBLE ) )
+
+###Connection
+RelationalDatabaseConnection s::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
+"""
+
+
+def _pull() -> dict:
+    """A grid's base query as a snapshot's request carries it: its model, its runtime and its lambda's JSON."""
+    return {'model': _PULL_MODEL, 'runtime': 's::RT', 'lambda': json.dumps(compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
 
 
 class KeyedExpansionFixtureTest(unittest.TestCase):
@@ -328,12 +346,12 @@ class TheBridgeTest(unittest.TestCase):
         """The C final audit's H3 (2026-11-12): a snapshot's stream step carries the REMOTE plane's statement (its
         ``sql``) and an update step names the value a later step binds (its ``count``): neither is a statement this
         database runs, so neither is admitted -- the stream's own local statements are."""
-        sent = from_plan('SELECT * FROM remote_t')
-        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': sent, 'table': 'snap_t'})
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'snap_t'})
         answered = Answered()
         answered.record('snapStream', 'OK\n' + plan)
         stream = json.loads(plan)['root']['steps'][0]
         self.assertEqual(stream['_type'], 'stream')
+        sent = stream['sql']
         self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
         for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
             self.assertIn(local, answered, local)
@@ -342,10 +360,16 @@ class TheBridgeTest(unittest.TestCase):
         self.assertIn('INSERT INTO t SELECT 1', answered)
         self.assertNotIn('written', answered, "an update's count names a value, never a statement")
 
-    def test_a_snapshots_stream_takes_the_planes_statement_alone(self):
-        # H3: the plane's statement is a PlannedSql, made where its plan was read; any other text is refused by name
-        with self.assertRaisesRegex(NotPlanned, "a snapshot's stream"):
-            compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': 'DROP TABLE t', 'table': 'snap_t'})
+    def test_a_snapshots_stream_is_asked_by_its_pull_never_its_statement(self):
+        # the user's ruling of 2026-11-12: the request carries the pull, which the planner plans in the call -- its
+        # stream's statement is the planner's own plan of it, and a request carrying a statement is refused by name
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'snap_t'})
+        pull = _pull()
+        planned = compiler.plan(pull['model'], json.loads(pull['lambda']), pull['runtime'])
+        self.assertEqual(json.loads(plan)['root']['steps'][0]['sql'], str(planned.sql))
+        for given in ({'sql': 'DROP TABLE t'}, {**_pull(), 'sql': str(planned.sql)}):
+            with self.assertRaisesRegex(LegendError, "a snapshot's stream has no key sql"):
+                compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **given, 'table': 'snap_t'})
 
     def test_an_answer_bigger_than_the_bound_is_kept_whole(self):
         """The audit's NOTE: an answer of more than CAPACITY statements evicted its own first ones before any was sent;
