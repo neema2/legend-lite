@@ -123,7 +123,8 @@ class TestDataPlannerTest {
         com.legend.error.AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
-                        List.of(ids("PERSON", "ID", 2L), ids("PERSON", "ID", 3L)), null, false, PlannerViews.of(ctx)));
+                        List.of(ids("PERSON", "ID", 2L), ids("PERSON", "ID", 3L)), null, false, PlannerViews.of(ctx),
+                        TestDataPlanner.Printing.CLEAN));
         assertEquals("Multiple table row identifiers passed for the table: PERSON", e.getMessage());
     }
 
@@ -174,7 +175,8 @@ class TestDataPlannerTest {
                     text(c, dialect, TestDataPlanner.route(ctx, mixed, "t::M", one, null, false).csv()), type.name());
             // the function's text: its header as before (upper-cased plain names, sorted so)
             assertEquals("default\nMIXED\nAGE,FIRSTNAME,ID,last name\n30,ann,1,lee\n40,bob,2,kim\n-----\n",
-                    text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx))
+                    text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx),
+                            TestDataPlanner.Printing.CLEAN)
                             .csv()), type.name());
             // the default seed over an empty table: no key, so every row -- none -- and the block's blank line
             LambdaFunction none = query("|t::None.all()->project([x|$x.n], ['n'])");
@@ -322,7 +324,7 @@ class TestDataPlannerTest {
                 Mapping t::M ( t::X: Relational { ~mainTable [t::DB]T id: [t::DB]T.ID } )
                 """);
         TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query("|t::X.all()->project([x|$x.id], ['i'])"),
-                "t::M", List.of(ids("T", "ID", 1L)), null, false, PlannerViews.of(ctx));
+                "t::M", List.of(ids("T", "ID", 1L)), null, false, PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN);
         TestDataPlanner.Comparison c = TestDataPlanner.same(planned, List.of(new TestDataPlanner.Expected("default", "T",
                 List.of("ID"), List.of(List.of("1")))), ctx, "t::One", "");
         assertEquals("Table \"T\" not found in Schema \"default\" in Database(s) t::One", c.fails());
