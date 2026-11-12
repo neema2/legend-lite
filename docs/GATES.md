@@ -21716,3 +21716,52 @@ database's JSON builder spelled it.
   models).
 - **The corpus lanes** (DuckDB and H2, both judges, under the compatibility rules: COMPAT): unchanged, every roster
   and register as committed (`//spec:corpus_duckdb`, `//spec:corpus_h2`, 12 of 12).
+
+## 2026-11-12 — the B close: the demo on a planned load, the result labels, the lane check (round 37), one gate
+
+The total wall's B closes (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §5.11, §6): the generator's B2d.3 and L9, the
+simple SYNTHESIZE step, the demo made by it, and the result labels merged onto `claude/total-wall`.
+
+- **The demo** (4856d7b0a on `claude/total-wall-b3`, picked as 83ad97a5f; the patch identical): `datacube/demo/boot.ts`
+  fills the start's TRADES table from the planner's plan, one `HOST_SESSION` load (the table made as declared, one
+  `INSERT ... SELECT` over `range(200000)`, no row in the plan), run on the held connection by the hosts' runner.
+  `DuckDbEngine.loadArrow` deleted; census M14's host spellings gain `loadArrow(`, `generateTrades(`, `sampleTrades(`.
+  `DESK_TRADES_FILE` moved once (8,989,263 bytes; the saved page's file written with b58d24265's formulas). Boot, 9
+  cold runs each, alternated: first row median 2041/2135 ms before, 2023/2111 ms after (unchanged within noise).
+- **The result labels** (0276a473e): every root column labeled with its Pure name, as upstream aliases every projected
+  column (`pureToSQLQuery.pure`); a table lite's DDL stored folded answers the name the query asked for. Closes F44.
+- **Round 37 at 5ef3e93a8** (measure only; against bd632536):
+  - Databricks: 15 of 15 (channel A, B under BOTH, B under DATABASE), the 27 error names unchanged.
+  - Trino and H2: 18 of 18, the error sets unchanged.
+  - Postgres, SQLite, MongoDB: 46 of 46, the ten core Postgres targets unprivileged.
+  - BigQuery: 15 of 15, the error sets unchanged test for test.
+  - MariaDB, MySQL, ClickHouse: 43 of 45. ClickHouse relation, channel A (5) and channel B under BOTH (1), new red:
+    "the statement answers 4 columns, and the plan declares 3". Cause: the labels spelled a root star as every
+    source's columns, the ARRAY JOIN's included, after ClickHouse's own pass had named the exploded column after its
+    star (ClickHouse's `*` reads no ARRAY JOIN column). Fixed at the root, 50001a8df: the pass spells that star as a
+    star over each other source (`ClickHouseDialectTest.aStarOverAnArrayJoinNamesEachColumnOnce`);
+    `//pct:pct_clickhouse_relation` and `//pct:pct_channel_b_clickhouse_relation` PASS locally on the fix.
+  - Snowflake: 15 of 15, every census unchanged; every suite 16-29% slower, evenly, and bd6325362 itself about
+    18% slower on the day (back to back); the remainder, 7-9%, is inside the warehouse's variance on one sample (an
+    interleaved A/B is asked of the lane).
+- **S301** (70e530362, the user's ruling: views on the test-data routes and runtimes written out in a request to the
+  later list): `pure/v1`'s execute routes read a runtime written out in the request as none and planned on the query's
+  own `->from` runtime, a silent fallback; now refused by name (`PureV1HttpTest.aRuntimeWrittenOutIsRefusedByName`).
+- **The gate** at 5ef3e93a8 (after `bazel clean`): `//gates:local` with `//spec:corpus_duckdb` and `//spec:corpus_h2`,
+  511 tests: 500 pass, 1 skipped, 10 refused as root (nine Postgres targets and `//datacube:verify_app_test`), 10 of 10
+  pass unprivileged; 55 min. The L9 worker's cross-check at b7a595b94 (the same tree less the labels and the demo):
+  500 pass, 10 of 10 unprivileged, the corpora 12 of 12.
+- **On the delta since** (83ad97a5f..a1d8bb611: the demo, the ClickHouse fix, S301): `//core:core_tests_sql`,
+  `//core:core_tests_server`, `//core:census`, `//core:guardrails`, `//datacube:sample_trades_test`,
+  `//datacube:bundle_budget_test`, `//datacube:typecheck_test`, `//engine-client:tests` (7), `//datacube:verify_app_test`
+  (unprivileged), and the two ClickHouse relation targets: all PASS. The rest of the matrix runs in the PR's CI.
+- **The audit** of the new code (SYNTHESIZE, the labels, the demo, the ClickHouse fix, S301): no MUST-FIX; the wall holds (every synthesized value
+  a formula DuckDB computes in one planned load, no row, path or secret in the plan; the demo loads nothing outside a
+  plan; every guard move dated). SHOULD-FIX, fixed in the commits that follow this entry: (1) the labels pass skipped a
+  source that declares no columns, and left a whole select unlabeled when nothing was spelled (latent: no root reaches
+  it); (2) ClickHouse appended an explosion's columns after every source's star, not in the join's order (predates the
+  fix; no test put a source after an explosion); (3) SYNTHESIZE inputs dropped or unchecked (a stray `scale`, a
+  fractional `count`, a value list on a date, timestamp or bit column); (4) no cap on a value list, so a large one is
+  data in the plan's text. NOTEs: the formulas' comments, a range past (2^31-1)/2, the bounds off the scale's grid,
+  the demo's TypeScript twin of the formulas for a saved page (held equal by its test), `ResultLabelsTest`'s shapes,
+  a guard reason rewritten without a date (`datacube/BUILD.bazel` `_HEADLESS_LEFT_OUT`).

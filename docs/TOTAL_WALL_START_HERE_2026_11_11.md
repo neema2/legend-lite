@@ -773,7 +773,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 | S5, S13 | the date-time arms (§4.4 item 3) | tests; newly refused PCT tests ledgered under S181 | §4.4 |
 | ✔ B | **checkpoint** (§7.4) | census pending 0; two audits with findings fixed; a lane round on every database; the timing; the PR question | |
 | C1 | the trace comment out of the sent text | `JdbcStatements.stamped` and kin deleted | `C_E_BRIEF` §C1 |
-| B (close) | the generator's B2d.3; the simple synthesize step (DuckDB, a declared table filled by one planned statement); the demo on it, `loadArrow` deleted | census: no data enters outside a plan; one audit of the new code; a lane check; the records | §5.11 |
+| ✔ B (close) (2026-11-12, `docs/GATES.md`'s B close entry) | the generator's B2d.3; the simple synthesize step (DuckDB, a declared table filled by one planned statement); the demo on it, `loadArrow` deleted | census: no data enters outside a plan; one audit of the new code; a lane check; the records | §5.11 |
 | PR | **the PR opened after B** (the user, 2026-11-12, §5.11) | `claude/total-wall` into `main` with the template; CI green on every OS | §1 |
 | C1 | the trace comment out of the sent text | `JdbcStatements.stamped` and kin deleted | `C_E_BRIEF` §C1 |
 | C2 | MariaDB's read-back declared by the plan | exec's SQL edits at run read 0 besides the keyed region | `C_E_BRIEF` §C2 |
