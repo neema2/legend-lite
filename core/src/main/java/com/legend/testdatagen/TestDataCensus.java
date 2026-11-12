@@ -101,9 +101,9 @@ public final class TestDataCensus {
                         : TestDataGenerator.findJoin(ctx, child.joinName(), child.db(), rel.db()).operation();
                 TestDataGenerator.collectTableCols(op, table, read, known);
             }
-            // a read name in the store's spelling (a mapping may spell it in another case)
+            // a read name is the model's: the declared column of that exact name (TestDataGenerator.column)
             for (String c : read) {
-                t.read().add(known.stream().filter(k -> k.equalsIgnoreCase(c)).findFirst().orElse(c));
+                t.read().add(TestDataGenerator.column(loc.def(), c).name());
             }
         }
         for (ScanRelations.Rel child : rel.children()) {

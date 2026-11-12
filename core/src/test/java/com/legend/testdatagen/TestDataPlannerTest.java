@@ -430,6 +430,19 @@ class TestDataPlannerTest {
                 + "  ])\n", view.getMessage());
     }
 
+    /** A column resolved by its exact name, as upstream resolves one (the orchestrator's go, 2026-11-12: no case
+     *  leniency): a row identifier's column spelled in another case names no column (upstream's plan form filters the
+     *  table's columns by {@code $x.name == $cv.first}), refused by name -- until then lite matched it in any case. */
+    @org.junit.jupiter.api.Test
+    void aColumnIsResolvedByItsExactName() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> TestDataPlanner.plan(ctx,
+                        query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
+                        List.of(ids("PERSON", "id", 2L)), null, false, PlannerViews.of(ctx)));
+        assertEquals("testDataGen: column 'id' not on table 'PERSON'", e.getMessage());
+    }
+
     /** {@link #VIEW_MODEL} with a runtime on {@code type}'s in-memory database: a view's fetch plans on it. */
     private static String viewModel(DatabaseType type) {
         return VIEW_MODEL + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "

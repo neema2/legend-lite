@@ -282,7 +282,9 @@ public final class TestDataPlanner {
                 DatabaseDefinition.ViewDefinition vd = ScanRelations.viewDef(ctx, parent.db(), name);
                 return c -> {
                     for (DatabaseDefinition.ViewDefinition.ViewColumnMapping m : vd.columnMappings()) {
-                        if (m.name().equals(c) || bareName(m.name()).equalsIgnoreCase(bareName(c))) {
+                        // the view's column of the join's exact name, its quotes aside (no case leniency: upstream
+                        // resolves a view's column by its exact name)
+                        if (bareName(m.name()).equals(bareName(c))) {
                             return SqlExpr.Column.derived(PARENT, m.name());
                         }
                     }

@@ -21619,3 +21619,24 @@ The orchestrator's two calls after G7, no new ruling:
 
 Test: `TestDataTextAsWrittenTest.aHeaderNamesItsColumnAsUpstreamMatchesIt` (DuckDB, H2, SQLite): a padded, re-cased,
 quoted header loads the quoted column `"Name"`; an unknown header is refused with upstream's words.
+
+## 2026-11-12 — the generator resolves a column by its exact name (four case leniencies gone)
+
+The orchestrator's go after the G4 audit. Upstream's compiler resolves a column by its exact name
+(`HelperRelationalBuilder.getColumn`: "Can't find column"), and its plan form matches a row identifier's column the
+same way (`$x.name == $cv.first`). Every name at these four sites is the model's or a row identifier's, never a
+database's folding, so each now resolves exactly, a quoted name's quotes aside:
+- `TestDataGenerator.column`, the planner's column lookup: its any-case fallback is deleted. A name no column holds is
+  refused by name, as before.
+- `TestDataGenerator.mergeCols`: a demanded name is the column of that exact name (`column`).
+- `TestDataCensus`: a read name is the column of that exact name.
+- `TestDataPlanner`'s join on a view's column: the view's column of the join's exact name.
+
+`TestDataPlanner.same`'s header match stays: it is upstream's own rule. So does the connection site's header match,
+which matches as upstream's loader does (the previous entry).
+
+Measured before landing: both corpus lanes (roster shards cached: the judge passes' outputs byte-identical), the three
+core integration lanes, and testdatagen, testplan, server and setup are green. No test changes outcome.
+
+Test: `TestDataPlannerTest.aColumnIsResolvedByItsExactName`: a row identifier's column spelled `id` against `ID` is
+refused by name (until now it was matched in any case).
