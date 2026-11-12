@@ -142,8 +142,9 @@ class PostgresDialectTest {
                 ORDER BY "qualify_src"."sym" NULLS LAST
                 LIMIT 3""", plan("->extend(over(~sym, ~id->descending()), ~[rn:{p,w,r|$p->rowNumber($r)}])"
                 + "->filter(r|$r.rn == 1)->select(~[sym, id])->sort(~sym->ascending())->limit(3)"));
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT *
+                SELECT "qualify_src"."id" AS "id", "qualify_src"."sym" AS "sym", "qualify_src"."rn" AS "rn"
                 FROM (
                   SELECT "t0".id AS "id", "t0".sym AS "sym", ROW_NUMBER() OVER (PARTITION BY "t0".sym ORDER BY "t0".id NULLS LAST) AS "rn"
                   FROM trades AS "t0"
@@ -249,8 +250,9 @@ class PostgresDialectTest {
     void theOtherDialectsAreUntouched() {
         // the same query on a DuckDB runtime: bare identifiers, DuckDB's ROUND_EVEN
         String duck = Compiler.query(Compiler.compileModel(MODEL.replace("type: Postgres", "type: DuckDB")), "#>{pg::DB.trades}#->extend(~[r: r|$r.f8->toOne()->round()])->select(~[id, r])").plan("pg::RT").sql();
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.id, CAST(ROUND_EVEN(t0.f8, 0) AS BIGINT) AS r
+                SELECT t0.id AS id, CAST(ROUND_EVEN(t0.f8, 0) AS BIGINT) AS r
                 FROM trades AS t0""", duck);
         assertEquals("""
                 SELECT "t0".id AS "id", CAST(round(CAST("t0".f8 AS DOUBLE PRECISION)) AS BIGINT) AS "r"

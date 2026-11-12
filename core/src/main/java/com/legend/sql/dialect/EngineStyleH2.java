@@ -548,6 +548,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     private final Map<String, SqlSource.Subselect> subselects =
             new LinkedHashMap<>();
 
+    /** legend-engine's own text labels its columns by its own rule (every projection {@code as "name"}): the result
+     *  labels of AnsiSqlRenderer#labeled are an execution dialect's (2026-11-12). */
+    @Override
+    protected boolean labelsResults() {
+        return false;
+    }
+
     @Override
     public String render(SqlQuery query) {
         SqlQuery planned = planned(query, true);

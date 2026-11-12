@@ -197,14 +197,16 @@ class DataSourcesDeliveryTest {
         List<String> cut = List.of("{\"t\":1}", "{\"t\":\"it's\"}");
         String frame = databricks.render(SqlSelect.starOf(databricks.inlineRows(SqlDialect.DataPayload.alone(
                 source("data:application/json,[{\"t\":1},{\"t\":\"it's\"}]"), cut))));
-        assertEquals("SELECT *\nFROM (SELECT parse_json(legend_rows.col1) AS `data`, legend_rows.col2 AS `u_frame_ord__`"
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
+        assertEquals("SELECT `t0`.`data` AS `data`, `t0`.`u_frame_ord__` AS `u_frame_ord__`\nFROM (SELECT parse_json(legend_rows.col1) AS `data`, legend_rows.col2 AS `u_frame_ord__`"
                 + " FROM VALUES ('{\"t\":1}', 0L), ('{\"t\":\"it\\'s\"}', 1L) AS legend_rows(col1, col2)) AS `t0`", frame);
         List<OutputCol> elementOutputs = List.of(new OutputCol("data", SqlType.Scalar.JSON, true,
                 OutputCol.Origin.DERIVED));
         String elements = databricks.render(SqlSelect.starOf(databricks.inlineRows(SqlDialect.DataPayload.alone(
                 new SqlSource.SourceUrl("data:application/json,[{\"t\":1},{\"t\":\"it's\"}]", "t0", elementOutputs,
                         SqlSource.SourceUrl.Form.ELEMENTS), cut))));
-        assertEquals("SELECT *\nFROM (SELECT parse_json(legend_rows.col1) AS `data` FROM VALUES ('{\"t\":1}'),"
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
+        assertEquals("SELECT `t0`.`data` AS `data`\nFROM (SELECT parse_json(legend_rows.col1) AS `data` FROM VALUES ('{\"t\":1}'),"
                 + " ('{\"t\":\"it\\'s\"}') AS legend_rows(col1)) AS `t0`", elements);
     }
 

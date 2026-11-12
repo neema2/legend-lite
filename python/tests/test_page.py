@@ -5479,12 +5479,12 @@ class PublishedQueries(Paged):
         grid = page.grid(query='trades-1', rows=['desk'], measures={'notional': 'sum'})
         source = page.to_dict()['cubes'][-1]['cube']['source']
         self.assertEqual((source['query']['versionId'], [c['name'] for c in source['columns']]), ('1.0.0', ['desk', 'notional']))
-        # its rows are the version's own (the sample Create a Class… wrote, in the version's database) -- F44, declared:
-        # that database's tables are made by the DuckDB dialect's DDL, which spells an unquoted column upper case
-        # (DuckDb.ddlIdentifier), so a query selecting `t0.desk` unaliased is answered `DESK`, which its plan does not
-        # type. When the dialect line closes F44 this fails: assert the rows instead ({'FX': 100.0, 'Rates': 325.5})
-        with self.assertRaisesRegex(Exception, "the plan does not type the result column 'DESK'"):
-            grid.view()
+        # its rows are the version's own (the sample Create a Class… wrote, in the version's database). F44 closed
+        # 2026-11-12 (the total wall's B): that database's tables are made by the DuckDB dialect's DDL, which spells an
+        # unquoted column upper case (DuckDb.ddlIdentifier), and a query selecting `t0.desk` unlabeled was answered
+        # `DESK`, which its plan does not type; every column a statement answers now carries its Pure name
+        # (AnsiSqlRenderer#labeled)
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'FX': 100.0, 'Rates': 325.5})
 
 
 class CorpusPage(unittest.TestCase):

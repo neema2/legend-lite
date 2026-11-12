@@ -55,8 +55,9 @@ class DuckDbRenderTest {
                 .withLimit(10L)
                 .withOffset(5L);
         String sql = duck.render(s);
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.FIRM, SUM(t0.AGE) AS totalAge
+                SELECT t0.FIRM AS FIRM, SUM(t0.AGE) AS totalAge
                 FROM T_PERSON AS t0
                 WHERE t0.AGE > 30
                 GROUP BY t0.FIRM
@@ -76,8 +77,9 @@ class DuckDbRenderTest {
                         new SqlSelect.Projection(new SqlExpr.Column("t0", "NAME"), null, null),
                         new SqlSelect.Projection(new SqlExpr.Column("t0", "order"), null, null),
                         new SqlSelect.Projection(new SqlExpr.Column("t0", "first name"), null, null)));
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.NAME, t0."order", t0."first name"
+                SELECT t0.NAME AS NAME, t0."order" AS "order", t0."first name" AS "first name"
                 FROM "my table" AS t0""",
                 duck.render(s));
     }
