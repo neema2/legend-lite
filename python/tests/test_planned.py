@@ -3,12 +3,15 @@ a statement a plan carries or the planner wrote -- a ``PlannedSql``, made where 
 other text by name, before the database sees it. Its TypeScript twin is engine-client/test/planned-sql.test.ts; the
 guard pinning where the type is made is tools/guards/PlannedSqlTest.java."""
 
+import json
 import unittest
 
 import duckdb
 
 from legend_lite import _host, compiler, projects, warehouse
-from legend_lite._planned import NotPlanned, PlannedSql, all_from_plan, from_plan, send
+from legend_lite._library import library
+from legend_lite._planned import NotPlanned, PlannedSql, across_the_bridge, all_from_plan, answered_texts, from_plan, send
+from legend_lite._planner import answer
 from legend_lite.frames import execute_redacted
 
 
@@ -83,6 +86,49 @@ class OneSendTest(unittest.TestCase):
         with self.assertRaises(NotPlanned) as refused:
             next(engine.arrow_chunks('SELECT 1'))
         self.assertIn('the warehouse', str(refused.exception))
+
+
+class TheBridgeTest(unittest.TestCase):
+    """THE V8 BRIDGE (the orchestrator's ruling of 2026-11-12): what DataCube's hosted code hands Python's database crosses
+    as text, and is sent only if this session's planner answered it -- every text its answers carried, a plan's steps
+    and a host operation's statements each one -- any other text refused by name."""
+
+    def answered(self, *requests):
+        into: set[str] = set()
+        for request in requests:
+            said = answer(library(), request)
+            self.assertTrue(said['ok'], said)
+            answered_texts(said['answer'], into)
+        return into
+
+    def test_a_host_operations_statements_cross(self):
+        answered = self.answered({'kind': 'hostOperations', 'databaseType': 'DuckDB',
+                                  'operations': json.dumps([{'op': 'count', 'from': {'relation': {'name': 't'}}}])})
+        (count,) = _host.statements({'op': 'count', 'from': {'relation': _host.name('t')}})
+        self.assertIsInstance(across_the_bridge(str(count), "the hosted DataCube's query", answered), PlannedSql)
+
+    def test_a_plans_steps_nested_in_its_text_cross(self):
+        # a load's plan is PlanJson text inside the answer: its steps' statements are read out of it
+        model = '###Relational\nDatabase s::DB ( Table T ( id INTEGER, name VARCHAR(8) ) )\n'
+        answered = self.answered({'kind': 'synthesize', 'request': json.dumps({
+            'databaseType': 'DuckDB', 'model': model, 'database': 's::DB', 'schema': 'default', 'table': 'T', 'count': 3})})
+        inserts = [t for t in answered if t.startswith('INSERT INTO')]
+        self.assertEqual(len(inserts), 1, sorted(answered)[:5])
+        self.assertIsInstance(across_the_bridge(inserts[0], "the hosted DataCube's statement", answered), PlannedSql)
+
+    def test_a_statement_the_planner_did_not_answer_is_refused_by_name(self):
+        answered = self.answered({'kind': 'sessionSetup', 'databaseType': 'DuckDB'})
+        con = _Recording()
+        for text in ('DROP TABLE trades', 'SELECT 1'):
+            with self.assertRaises(NotPlanned) as refused:
+                send(con, across_the_bridge(text, "the hosted DataCube's query", answered))
+            self.assertIn("not a statement this session's planner answered", str(refused.exception))
+            self.assertIn(text, str(refused.exception))
+        self.assertEqual(con.sent, [])
+        # nor is a refusal's text an answer
+        refused_answer: set[str] = set()
+        answered_texts('ERR\nCOMPILATION\nSELECT 1', refused_answer)
+        self.assertEqual(refused_answer, set())
 
 
 if __name__ == '__main__':

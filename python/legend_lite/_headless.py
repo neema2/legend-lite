@@ -33,12 +33,12 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Coroutine, Iterator
+from collections.abc import Callable, Container, Coroutine, Iterator
 from pathlib import Path
 from typing import Any
 
 from . import _host
-from ._planned import across_the_bridge, send
+from ._planned import across_the_bridge, answered_texts, send
 from ._library import Library, library
 from ._pool import library_thread
 
@@ -143,6 +143,8 @@ class Headless:
         # the read the call in its turn was made in (Frames.reading), if any: what its queries and its asks of the engine
         # read through
         self._over: Any = None
+        # every text this session's planner answered: what DataCube's code may hand the database (_planned.py)
+        self._answered: set[str] = set()
         # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
         # a warehouse table opened under the session it holds), over the call's read, given by the engine's owner as a
         # weak reference to them (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone:
@@ -178,13 +180,23 @@ class Headless:
     # ---- the calls out of V8, each on the engine's loop
 
     async def _planner(self, request: str) -> str:
-        return json.dumps(answer(self._lib, json.loads(request)))
+        answered = answer(self._lib, json.loads(request))
+        # what DataCube's code may hand the database from now on: every text the planner answered (_planned.py)
+        if answered.get('ok'):
+            answered_texts(answered['answer'], self._answered)
+        return json.dumps(answered)
+
+    @property
+    def answered(self) -> Container[str]:
+        """Every text this session's planner answered: the statements DataCube's hosted code may hand Python's
+        database (across_the_bridge)."""
+        return self._answered
 
     async def _query(self, sql: str) -> str:
         import pyarrow as pa
 
         # a call made in a read of the frames queries through it: the database as it was when the read began
-        statement = across_the_bridge(sql, "the hosted DataCube's query")
+        statement = across_the_bridge(sql, "the hosted DataCube's query", self._answered)
         result = send(self._db if self._over is None else self._over, statement)
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
@@ -199,7 +211,8 @@ class Headless:
 
         if self._over is not None:
             raise RuntimeError('a write runs in no read of the frames (Frames.reading): its changes are the database\'s own')
-        result = send(self._db, across_the_bridge(sql, "the hosted DataCube's statement"), json.loads(params))
+        result = send(self._db, across_the_bridge(sql, "the hosted DataCube's statement", self._answered),
+                      json.loads(params))
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:

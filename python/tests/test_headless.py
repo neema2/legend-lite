@@ -21,7 +21,7 @@ import legend_lite as ll
 from legend_lite import datacube
 from legend_lite import _pool
 from legend_lite._headless import Headless, bundle
-from legend_lite._planned import PlannedSql
+from legend_lite._planned import PlannedSql, answered_texts
 from legend_lite.engine import Engine
 from legend_lite.frames import Frames
 
@@ -746,13 +746,14 @@ class Remote(unittest.TestCase):
         from legend_lite.engine import _connection_settings
         url = f'{self.base}/trades.parquet?X-Amz-Signature=SENTINEL-name-check'
         setting = {'sql': 'SET VARIABLE v = ?', 'binds': [{'_type': 'held', 'name': 'datacube_url_t', 'field': 'URL'}]}
-        settings, held = _connection_settings([setting], url, 'datacube_url_t')
+        answered = {'SET VARIABLE v = ?'}  # the statement the mount's plan carried (the bridge's membership, _planned.py)
+        settings, held = _connection_settings([setting], url, 'datacube_url_t', answered)
         self.assertEqual((settings, held), ((('SET VARIABLE v = ?', (url,)),), (url,)))
         for bearer, bind in (('datacube_url_other', setting['binds'][0]), (None, setting['binds'][0]),
                              ('datacube_url_t', {'_type': 'held', 'name': 'datacube_url_t', 'field': 'KEY_ID'})):
             with self.subTest(bearer=bearer, bind=bind):
                 with self.assertRaises(ValueError) as refused:
-                    _connection_settings([{'sql': 'SET VARIABLE v = ?', 'binds': [bind]}], url, bearer)
+                    _connection_settings([{'sql': 'SET VARIABLE v = ?', 'binds': [bind]}], url, bearer, answered)
                 self.assertIn(f"binds {bind['name']}.{bind['field']}, which this engine holds nothing for", str(refused.exception))
                 self.assertNotIn('SENTINEL', str(refused.exception))
 
@@ -997,7 +998,10 @@ class OneRead(unittest.TestCase):
         self.addCleanup(self.headless.close)
 
     def rows(self, sql):
-        """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64."""
+        """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64. The test
+        stands in for DataCube's planner: its own question is declared answered first, as the bridge sends only what the
+        session's planner answered (the orchestrator's ruling of 2026-11-12, _planned.py across_the_bridge)."""
+        answered_texts('OK\n' + sql, self.headless._answered)
         said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
         return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
 

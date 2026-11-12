@@ -10,14 +10,17 @@ read (concatenated, stripped, formatted) is a plain ``str`` again, so an edited 
 Two kinds of text reach ``send`` that no reader here made, each by name:
 - DataCube's own code, hosted in V8 (``_headless``): the statements its plan runner and planner client hand to Python's
   database cross the bridge as text. They are ``PlannedSql`` on that side (engine-client's planned-sql.ts: DataCube's
-  TypeScript sends nothing else), and are typed again here at the crossing alone, ``across_the_bridge`` -- the guard
-  (tools/guards/PlannedSqlTest.java) pins its callers.
+  TypeScript sends nothing else), and are checked again here at the crossing alone, ``across_the_bridge``: each must be
+  a text the session's planner answered (``answered_texts``, recorded as the headless engine answers each request), or
+  it is refused by name (the orchestrator's ruling of 2026-11-12). The guard (tools/guards/PlannedSqlTest.java) pins the
+  crossing's callers.
 - Nothing else: Python spells no SQL of its own.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import json
+from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
 
@@ -44,13 +47,54 @@ def all_from_plan(texts: Iterable[str]) -> list[PlannedSql]:
     return [from_plan(t) for t in texts]
 
 
-def across_the_bridge(text: str, what: str) -> PlannedSql:
+def across_the_bridge(text: str, what: str, answered: Container[str]) -> PlannedSql:
     """A statement DataCube's hosted code hands Python's database (``what`` names the call): a PlannedSql on its side
-    (planned-sql.ts), text on the bridge, typed again here. Its callers are pinned by the guard
-    (PlannedSqlTest.BRIDGE)."""
+    (planned-sql.ts), text on the bridge -- typed again here only if the session's planner answered it (``answered``:
+    every text its answers carried, :func:`answered_texts`); any other text is refused by name, never sent. Its callers
+    are pinned by the guard (PlannedSqlTest.BRIDGE)."""
     if not isinstance(text, str):
         raise NotPlanned(f"{what}: a statement is text, not {type(text).__name__}")
+    if text not in answered:
+        shown = text if len(text) <= 120 else text[:117] + '...'
+        raise NotPlanned(f"{what}: not a statement this session's planner answered, so not sent: {shown!r} (a host sends "
+                         'only what a plan carries or the planner wrote: _planned.py)')
     return PlannedSql(text)
+
+
+def answered_texts(answer: str, into: set[str]) -> None:
+    """Every text a planner's answer carries, added to ``into``: the answer's payload after its ``OK`` tag (a refusal
+    carries none), an HTTP answer's body, and each string of its JSON -- a JSON text inside one read again, so a plan's
+    steps, its content's statements and a host operation's statements are each one. What DataCube's hosted code may then
+    hand the database (:func:`across_the_bridge`): every statement it sends is one of these, minted where it read them."""
+    tag, _, payload = answer.partition('\n')
+    if tag == 'OK':
+        _texts(payload, into)
+
+
+def _texts(text: str, into: set[str]) -> None:
+    if text in into:
+        return
+    into.add(text)
+    # an HTTP answer (pure/v1's, execute's plan half): its status, its media type, then its body
+    head = text.split('\n', 2)
+    if len(head) == 3 and head[0].isdigit():
+        _texts(head[2], into)
+    if text[:1] in ('{', '['):
+        try:
+            _strings(json.loads(text), into)
+        except ValueError:
+            pass  # a text that only looks like JSON: itself, kept above
+
+
+def _strings(value: object, into: set[str]) -> None:
+    if isinstance(value, str):
+        _texts(value, into)
+    elif isinstance(value, dict):
+        for v in value.values():
+            _strings(v, into)
+    elif isinstance(value, list):
+        for v in value:
+            _strings(v, into)
 
 
 def require(statement: Any, where: str) -> PlannedSql:

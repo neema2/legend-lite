@@ -42,7 +42,7 @@ import socketserver
 import sys
 import threading
 import traceback
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Container, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 from pathlib import Path
@@ -257,7 +257,7 @@ def _bytes_of(path: Path) -> tuple[int, str]:
     return path.stat().st_size, digest.hexdigest()
 
 
-def _connection_settings(settings: Any, url: str, bearer: str | None) -> tuple[
+def _connection_settings(settings: Any, url: str, bearer: str | None, answered: Container[str]) -> tuple[
         tuple[tuple[PlannedSql, tuple[Any, ...]], ...], tuple[str, ...]]:
     """A remote file's settings of the connection, as its planned mount answers them (B3's Q3: a bearer URL's session
     variable -- its statement, and its binds by name, never a value), each with its values: what this engine holds for
@@ -283,7 +283,8 @@ def _connection_settings(settings: Any, url: str, bearer: str | None) -> tuple[
                                  ' holds nothing for')
         # the setting's statement, as DataCube's plan runner kept it (a PlannedSql there: planned-sql.ts), typed again
         # at the crossing (_planned.py)
-        out.append((across_the_bridge(setting['sql'], "a remote file's setting of the connection"), tuple(params)))
+        out.append((across_the_bridge(setting['sql'], "a remote file's setting of the connection", answered),
+                    tuple(params)))
     return tuple(out), tuple(held)
 
 
@@ -775,7 +776,8 @@ class Engine:
                 if refused is not None:
                     raise ValueError(refused)
             said: dict[str, Any] = json.loads(headless.call('mount', json.dumps(mount)))
-            settings, held = _connection_settings(said.pop('settings', []), url, said.pop('bearer', None))
+            settings, held = _connection_settings(said.pop('settings', []), url, said.pop('bearer', None),
+                                                  headless.answered)
             self.frames.keep_file(name, said, view=True, settings=settings, held=held)
         return {**said, 'table': name}
 
