@@ -48,7 +48,7 @@ import java.util.Set;
  * </ul>
  * No server-side JavaScript is written (D11), and nothing from MongoDB's own documentation or code is copied.
  */
-public final class MongoDb extends AnsiSqlRenderer {
+public class MongoDb extends AnsiSqlRenderer {
 
     /** No quoting: a field or collection name is spelled as a JSON string, never delimited. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of());

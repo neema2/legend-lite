@@ -68,6 +68,27 @@ public final class Execution {
                 batchRows, java.util.UUID.randomUUID());
     }
 
+    /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Set, Output, int)}
+     *  with its statements written in {@code dialects}' dialects: THE SPELLING HOOK (phase D's D1.0), the compatibility
+     *  edge's ({@code com.legend.edge.PureText}) for the harnesses that compare against upstream's texts (PCT's
+     *  channel A). */
+    public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
+            Set<com.legend.platform.Feature> features, com.legend.database.DialectSource dialects, Output output,
+            int batchRows) throws IOException {
+        return ProductRun.run(typed.executionPlan(runtimeFqn, features, dialects), sessions, planSessions, establish,
+                output, batchRows, java.util.UUID.randomUUID());
+    }
+
+    /** {@link #runOnProjectDatabases(TypedQuery, String, String, Output)} with its statements written in
+     *  {@code dialects}' dialects (the spelling hook, D1.0: pure/v1's upstream routes, at the edge). */
+    public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, @com.legend.base.Nullable String admittedSources,
+            com.legend.database.DialectSource dialects, Output output) throws IOException {
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn, dialects), admittedSources, output,
+                java.util.UUID.randomUUID());
+    }
+
     /** A query run as legend-lite's server runs it (legend-engine's {@code pure/v1/execution/execute}): planned, then
      *  run on its project's databases ({@link ProductRun#onProjectDatabases}). pure/v1's execute reaches it through the
      *  runner the server hands the API (slice 5, 2026-11-09: pure/v1 compiles, the door plans and runs -- the API's own

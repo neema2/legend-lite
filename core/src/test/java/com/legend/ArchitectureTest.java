@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 /**
  * The wall, and other structural invariants for {@code core/}.
@@ -1519,6 +1520,73 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackage("com.legend.edge..")
             .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
             .as("G5: the edge depends on the product, never the reverse");
+
+    /**
+     * THE SPELLING HOOK'S DIALECTS (phase D's D1.0, guard (a), 2026-11-12): a dialect is a class of the product's dialect
+     * package or of the edge (its {@code PureText}, the product's dialects subclassed to spell upstream's text) -- no
+     * other product class writes SQL as a dialect, so no compatibility spelling hides in one.
+     * {@link #theDialectRuleBitesAPlantedDialect} shows it bites.
+     */
+    @Test
+    void dialectsAreTheProductsOrTheEdges() {
+        DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES.check(CORE_PROD_CLASSES);
+    }
+
+    static final com.tngtech.archunit.lang.ArchRule DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES = classes()
+            .that().areAssignableTo(com.legend.sql.dialect.SqlDialect.class)
+            .should().resideInAnyPackage("com.legend.sql.dialect..", "com.legend.edge..")
+            .as("a dialect is the product's (sql.dialect) or the edge's (PureText)");
+
+    /** {@link #dialectsAreTheProductsOrTheEdges} fails on a dialect outside both ({@code planner.PlantedDialect}, a test
+     *  class planted for this alone). */
+    @Test
+    void theDialectRuleBitesAPlantedDialect() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES
+                .check(new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.class)));
+    }
+
+    /**
+     * ONLY THE EDGE SPELLS A PLAN UPSTREAM'S WAY (phase D's D1.0, guard (b), 2026-11-12): the doors that take a
+     * {@link com.legend.database.DialectSource} -- {@code TypedQuery.executionPlan}/{@code projectPlan},
+     * {@code Execution.run}/{@code runOnProjectDatabases}, {@code ExecuteOptions}/{@code PlanningOptions.withDialects}
+     * -- are called from the edge alone (the harnesses outside core call them too; they are not product). The product's
+     * doors plan with the product's dialects ({@code Databases.DIALECTS}) and nothing in the product picks another
+     * source; {@code ExecuteOptions.withDialects} hands its argument to the planning half's. A lambda passed as a source
+     * is a call's argument, never a call of these: the rule pins the callers.
+     * {@link #theSpellingDoorRuleBitesAPlantedCaller} shows it bites.
+     */
+    @Test
+    void onlyTheEdgeCallsTheSpellingDoors() {
+        ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS.check(CORE_PROD_CLASSES);
+    }
+
+    private static final java.util.Set<String> SPELLING_DOOR_OWNERS = java.util.Set.of("com.legend.TypedQuery",
+            "com.legend.Execution", "com.legend.ExecuteOptions", "com.legend.testplan.PlanningOptions");
+
+    static final com.tngtech.archunit.lang.ArchRule ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS = noClasses()
+            .that().resideOutsideOfPackage("com.legend.edge..")
+            // the doors' own overloads hand the source on, one door to the next (ExecuteOptions to the planning half's)
+            .and().doNotHaveFullyQualifiedName("com.legend.ExecuteOptions")
+            .and().doNotHaveFullyQualifiedName("com.legend.TypedQuery")
+            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a DialectSource") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    return SPELLING_DOOR_OWNERS.contains(call.getTargetOwner().getFullName())
+                            && call.getTarget().getRawParameterTypes().stream().anyMatch(
+                                    t -> t.isEquivalentTo(com.legend.database.DialectSource.class));
+                }
+            })
+            .as("only the edge spells a plan upstream's way: the doors taking a DialectSource are the edge's to call");
+
+    /** {@link #onlyTheEdgeCallsTheSpellingDoors} fails on a product class calling such a door
+     *  ({@code planner.PlantedDialect.Spells}, a test class planted for this alone). */
+    @Test
+    void theSpellingDoorRuleBitesAPlantedCaller() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS
+                .check(new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.Spells.class)));
+    }
 
     /** {@link #noProductClassReachesTheEdge} fails on a product class that names an edge type
      *  ({@code planner.PlantedEdgeReach}, a test class planted for this alone; phase D step 1, 2026-11-12). */

@@ -32,7 +32,7 @@ import java.util.Set;
  * folds and variant navigation are walls until the jsonb carrier lands (leg P4;
  * POSTGRES_BACKEND.md §5: never Postgres' native ARRAY).
  */
-public final class Postgres extends AnsiSqlRenderer {
+public class Postgres extends AnsiSqlRenderer {
 
     /** PostgreSQL 16+ (2026-10-01 W5.5/P1 Postgres dialect). The {@code Postgres} dialect
      * QUOTES EVERY identifier (Postgres folds an unquoted name to lowercase, so a bare

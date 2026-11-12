@@ -180,7 +180,7 @@ public final class BodyDriver {
             }
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType from = besideCatalog(target);
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType to = besideCatalog(other);
-            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(com.legend.database.Databases.dialect(
+            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(options.dialects().dialect(
                     to != null ? com.legend.planner.ConnectionPlans.model(to)
                             : com.legend.Compiler.executesOn(ctx(), runtimeFqn()).type()));
             return new ExecEnv(p, other, options, activity, verdictBatch, engineText, failureMessage, appealOn,

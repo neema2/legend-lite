@@ -110,7 +110,9 @@ exec_program	base error exec execution_plan result
 # reaches it not at all (G5), the harnesses do. 2026-11-11 (B2b, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): it reaches
 # the plan's records (execution_plan) -- a seed's referee's copy is a load, its steps the plan's, written by the plan's
 # codec, a file's bytes verified against the plan's reference.
-edge	base execution_plan json sql_dialect test_plan
+# 2026-11-12 (phase D's D1.0, the spelling hook): it reaches `database` (the DialectSource it supplies) and `model` (the
+# declared database type it answers a dialect for): the edge's dialects, com.legend.edge.PureText.
+edge	base database execution_plan json model sql_dialect test_plan
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
@@ -146,10 +148,11 @@ pure_v1	arrow_ipc base compiler compiler_element_type database error execution_p
 # planned by its one entry and run by exec's product run -- and reaches no test library; `test_execution` is the test
 # body's door and its options, the one library that sees both halves of a test. `test` (the harness) reaches the test
 # door; the server the product's.
-execution	base compiler exec execution_plan planner platform result
+execution	base compiler database exec execution_plan planner platform result
 # 2026-11-09 (the user's question "why do we have any callbacks?"): the test door takes the answer's Output, the
 # result library's data, where it took a factory of testexec's.
-test_execution	base exec execution_plan planner platform result test_plan testexec testplan
+# 2026-11-12 (phase D's D1.0): the two doors reach `database` -- the spelling hook (DialectSource) a caller hands them.
+test_execution	base database exec execution_plan planner platform result test_plan testexec testplan
 # 2026-10-31, the test-is-the-product plan's M3c (B4 brought forward by R17 C7; brief B12 items 1 and 3): `testplan`, the
 # test-planning library -- the test door and a test's kinds on the product's program road, through the planner's
 # extension point; nothing on the plan side reaches it.

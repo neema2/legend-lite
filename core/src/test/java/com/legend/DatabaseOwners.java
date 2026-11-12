@@ -158,6 +158,12 @@ final class DatabaseOwners {
             // side, com.legend.driver, since step C (D73, 2026-10-30); the planner since the seam program's S2g
             // (2026-10-31: the engine's plan text is planning work; the quarantine names it alone of the planner)
             MAIN + "planner/EngineText.java",
+            // 2026-11-12 (phase D's D1.0, the spelling hook): the edge's dialect registry, Databases' counterpart for
+            // upstream's spellings (a declared type to the edge's subclass of its product dialect), its test, and the
+            // test class planted for the rule that a dialect is the product's or the edge's
+            MAIN + "edge/PureText.java",
+            TEST + "integration/EdgeSpellingHookTest.java",
+            TEST + "planner/PlantedDialect.java",
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",

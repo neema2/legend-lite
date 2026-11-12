@@ -35,6 +35,8 @@ public final class ProgramState {
     private final TypedQuery query;
     private final String runtime;
     private final SqlDialect dialect;
+    /** Where a statement routed off the program's own database takes its dialect (the door's, D1.0). */
+    private final com.legend.database.DialectSource dialects;
     private final ExecutionPlan.Target target;
     private final List<SqlExpr.PlanParam> slots;
     private final Set<Feature> features;
@@ -68,12 +70,14 @@ public final class ProgramState {
     /** The reads this pass admits ({@link CatalogReads}). */
     private final CatalogReads catalogReads;
 
-    ProgramState(TypedQuery query, String runtime, SqlDialect dialect, ExecutionPlan.Target target,
+    ProgramState(TypedQuery query, String runtime, SqlDialect dialect, com.legend.database.DialectSource dialects,
+            ExecutionPlan.Target target,
             List<SqlExpr.PlanParam> slots, Set<Feature> features, CatalogReads catalogReads) {
         this.catalogReads = catalogReads;
         this.query = query;
         this.runtime = runtime;
         this.dialect = dialect;
+        this.dialects = dialects;
         this.target = target;
         this.slots = slots;
         this.features = features;
@@ -92,6 +96,11 @@ public final class ProgramState {
     /** The dialect every statement of the program is written in (the runtime's). */
     public SqlDialect dialect() {
         return dialect;
+    }
+
+    /** Where a statement routed off the program's own database takes its dialect (the door's, D1.0). */
+    com.legend.database.DialectSource dialects() {
+        return dialects;
     }
 
     /** The program's target. */

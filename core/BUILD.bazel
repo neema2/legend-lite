@@ -285,7 +285,7 @@ legend_java_library(
         "src/main/java/com/legend/Execution.java",
         "src/main/java/com/legend/package-info.java",
     ],
-    deps = ["//base", ":compiler", ":exec", ":execution_plan", ":planner", ":platform", ":result"],
+    deps = ["//base", ":compiler", ":database", ":exec", ":execution_plan", ":planner", ":platform", ":result"],
 )
 # THE TEST BODY'S DOOR and its options: a body planned by testplan's entry (TestPlanner), run by testexec's
 # (TestRunner) -- the one library that sees both halves of a test.
@@ -296,8 +296,8 @@ legend_java_library(
         "src/main/java/com/legend/TestExecution.java",
     ],
     deps = [
-        "//base", ":exec", ":execution_plan", ":planner", ":platform", ":result", ":test_plan", ":testexec",
-        ":testplan",
+        "//base", ":database", ":exec", ":execution_plan", ":planner", ":platform", ":result", ":test_plan",
+        ":testexec", ":testplan",
     ],
 )
 # THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
@@ -448,8 +448,9 @@ legend_java_library(
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
     resource_strip_prefix = "core/src/main/edge",
-    # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec
-    deps = ["//base", "//json", ":execution_plan", ":sql_dialect", ":test_plan"],
+    # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec;
+    # the dialect source and the declared database type (D1.0, 2026-11-12): the edge's dialects, PureText
+    deps = ["//base", "//json", ":database", ":execution_plan", ":model", ":sql_dialect", ":test_plan"],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and

@@ -67,7 +67,7 @@ import java.util.Set;
  * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
  * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
-public final class SQLite extends AnsiSqlRenderer {
+public class SQLite extends AnsiSqlRenderer {
 
     /** {@inheritDoc} -- SQLite: half its SQLITE_MAX_SQL_LENGTH (1,000,000 bytes), a margin for multi-byte text. */
     @Override

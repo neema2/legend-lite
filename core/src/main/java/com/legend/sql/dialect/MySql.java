@@ -26,7 +26,7 @@ import java.util.List;
  *   <li>the session: no {@code max_recursive_iterations} ({@code cte_max_recursion_depth}).</li>
  * </ul>
  */
-public final class MySql extends MariaDb {
+public class MySql extends MariaDb {
 
     public MySql() {
         // MariaDB's reserved words and quoting: the same lexicon, named

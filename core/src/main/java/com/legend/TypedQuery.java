@@ -264,7 +264,15 @@ public final class TypedQuery {
      *  it does not survive its JSON (G11) -- a product query pays nothing for the check. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features) {
-        return planned(runtime, features, false);
+        return planned(runtime, features, false, com.legend.database.Databases.DIALECTS);
+    }
+
+    /** {@link #executionPlan(String, Set)} with its statements written in {@code dialects}' dialects: THE SPELLING
+     *  HOOK (phase D's D1.0) -- the compatibility edge's ({@code com.legend.edge.PureText}), for the harnesses and
+     *  routes that answer upstream's texts. The product's own doors plan with the product's dialects, above. */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+            java.util.Set<com.legend.platform.Feature> features, com.legend.database.DialectSource dialects) {
+        return planned(runtime, features, false, dialects);
     }
 
     /** The query planned as the server runs it (legend-engine's {@code pure/v1/execution/execute}): its target names
@@ -272,13 +280,22 @@ public final class TypedQuery {
      *  ({@code ExecutionPlan.Project}). Every other road plans {@link #executionPlan}: the database itself (the full
      *  audit, 2026-11-09). */
     public com.legend.executionplan.ExecutionPlan projectPlan(@com.legend.base.Nullable String runtime) {
-        return planned(runtime, java.util.Set.of(), true);
+        return planned(runtime, java.util.Set.of(), true, com.legend.database.Databases.DIALECTS);
+    }
+
+    /** {@link #projectPlan(String)} with its statements written in {@code dialects}' dialects (the spelling hook,
+     *  D1.0: pure/v1's upstream routes, the edge's). */
+    public com.legend.executionplan.ExecutionPlan projectPlan(@com.legend.base.Nullable String runtime,
+            com.legend.database.DialectSource dialects) {
+        return planned(runtime, java.util.Set.of(), true, dialects);
     }
 
     private com.legend.executionplan.ExecutionPlan planned(@com.legend.base.Nullable String runtime,
-            java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
+            java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase,
+            com.legend.database.DialectSource dialects) {
         try (var planning = com.legend.base.RunScope.plans("a query")) {
-            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase);
+            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase,
+                    dialects);
             if (Boolean.getBoolean("legend.plan.roundtrip")) {
                 com.legend.executionplan.PlanJson.requireRoundTrip(plan);
             }

@@ -72,7 +72,7 @@ import java.util.Set;
  * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling
  * is a silent wrong answer.
  */
-public final class BigQuery extends AnsiSqlRenderer {
+public class BigQuery extends AnsiSqlRenderer {
 
     /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
     @Override

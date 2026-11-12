@@ -44,7 +44,7 @@ import java.util.Set;
  * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
  * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
-public final class Trino extends AnsiSqlRenderer {
+public class Trino extends AnsiSqlRenderer {
 
     /** Trino (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): double quotes; Trino's documented reserved
      *  keywords. The {@code Trino} dialect quotes every identifier, so the list decides no spelling there. */
