@@ -65,6 +65,11 @@ final class DuckDbHostOperations implements HostOperations {
                     + String.join(", ", i.columns().stream().map(c -> physicalName(c.target())).toList())
                     + ") SELECT " + String.join(", ", i.columns().stream().map(c -> quoted(c.from())).toList())
                     + " FROM " + source(i.from()));
+            // the database makes every row: range(count)'s i, each column its formula of i (SYNTHESIZE, register S303)
+            case HostOperation.Synthesize g -> List.of("INSERT INTO " + name(g.target()) + " ("
+                    + String.join(", ", g.columns().stream().map(f -> physicalName(f.column())).toList())
+                    + ") SELECT " + String.join(", ", g.columns().stream().map(DuckDbHostOperations::formula).toList())
+                    + " FROM range(" + g.count() + ") AS t(i)");
             case HostOperation.Drop d -> List.of("DROP " + kind(d.kind()) + " IF EXISTS " + name(d.target()));
             case HostOperation.MakeSchema m -> List.of("CREATE SCHEMA IF NOT EXISTS " + schema(m.database(), m.name()));
             case HostOperation.DropSchema d -> List.of("DROP SCHEMA IF EXISTS " + schema(d.database(), d.name()));
@@ -123,6 +128,45 @@ final class DuckDbHostOperations implements HostOperations {
             case HostOperation.IcebergDataFiles f -> List.of(
                     "SELECT file_path AS path FROM iceberg_metadata(" + literal(f.url()) + ")");
         };
+    }
+
+    /** A column's formula of the row's number {@code i} ({@link HostOperation.Formula}), in DuckDB's arithmetic: BIGINT
+     *  {@code %} and {@code *} (every product below 2^63 for fewer than 2^32 rows), a list indexed from 1, a date plus
+     *  days, a timestamp plus an interval of seconds. */
+    private static String formula(HostOperation.Formula f) {
+        return switch (f) {
+            case HostOperation.Formula.Cycle c -> "([" + String.join(", ", c.values().stream()
+                    .map(v -> v.number() ? v.text() : literal(v.text())).toList()) + "])[" + turn(c.every(),
+                    c.values().size()) + " + 1]";
+            case HostOperation.Formula.Numbered n -> literal(n.prefix()) + " || CAST(" + turn(n.every(), n.k())
+                    + " + 1 AS VARCHAR)";
+            case HostOperation.Formula.Spread r -> {
+                String step = java.math.BigDecimal.ONE.movePointLeft(r.scale()).toPlainString();
+                String lo = r.lo().toPlainString();
+                String n = "(CAST(round((" + r.hi().toPlainString() + " - " + lo + ") / " + step + ") AS BIGINT) + 1)";
+                yield "(" + lo + " + (" + spread(r.multiplier()) + " % " + n + ") * " + step + ")";
+            }
+            case HostOperation.Formula.Days d -> {
+                String days = "(DATE " + literal(d.to()) + " - DATE " + literal(d.from()) + " + 1)";
+                yield d.seconds()
+                        ? "(CAST(DATE " + literal(d.from()) + " AS TIMESTAMP) + to_seconds(" + spread(d.multiplier())
+                                + " % (" + days + " * 86400)))"
+                        : "(DATE " + literal(d.from()) + " + CAST(" + spread(d.multiplier()) + " % " + days
+                                + " AS INTEGER))";
+            }
+            case HostOperation.Formula.Alternate a -> "(" + turn(a.every(), 2) + " = 0)";
+        };
+    }
+
+    /** A turn column's index: the row number's digit of radix {@code k} worth {@code every}, {@code (i // every) % k}
+     *  ({@code //} DuckDB's integer division). */
+    private static String turn(long every, int k) {
+        return every == 1 ? "(i % " + k + ")" : "((i // " + every + ") % " + k + ")";
+    }
+
+    /** A spread column's offset before its range: the row number times its multiplier, modulo the prime. */
+    private static String spread(long multiplier) {
+        return "((i * " + multiplier + ") % " + HostOperation.Formula.MODULUS + ")";
     }
 
     private static String kind(HostOperation.Kind kind) {

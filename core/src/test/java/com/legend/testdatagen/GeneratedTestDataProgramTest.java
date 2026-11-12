@@ -464,6 +464,54 @@ class GeneratedTestDataProgramTest {
     }
 
     /**
+     * A seed string ({@code generateSeedDataString}, B2d.3) read where it is read, as a generator's result is (the
+     * user's ruling of 2026-11-11, "read where read", register S196): a database effect between its let and a read of
+     * it -- directly, or through a let carrying it -- is refused by name, as upstream reads the seed at its let (the B2d.3
+     * audit's M5, 2026-11-12: until then the seed string's statement ran after the effect, unguarded); an effect before
+     * its let, or none, is not refused by this guard.
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void aSeedStringReadAcrossAnEffectIsRefusedByName(TestBackend backend, PlanningOptions.JudgeMode judge)
+            throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String what = backend.name() + " " + judge;
+        String prelude = "let runtime = t::RT.runtimeValue;\n"
+                + "let conn = $runtime.connectionStores.connection->toOne()"
+                + "->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);\n";
+        String let = "let s = meta::relational::testDataGeneration::generateSeedDataString({|t::Person.all()->project("
+                + "[p|$p.name], ['n'])}, t::M, $runtime, ^meta::pure::runtime::ExecutionContext(), [], []);\n";
+        String seed = prelude + let;
+        String effect = "meta::relational::metamodel::execute::executeInDb('DELETE FROM BICYCLE', $conn);\n";
+        StringBuilder lines = new StringBuilder();
+        for (int i = 1; i <= 6; i++) {
+            lines.append(i > 1 ? ",\n" : "").append("       meta::relational::testDataGeneration::createRowIdentifier("
+                    + "['ID'], [").append(i).append("])");
+        }
+        String expected = "\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default',"
+                + " 'PERSON', [\n" + lines + "\n  ])\n";
+        String refused = "NotImplementedException: a database effect between the seed string's let"
+                + " (generateSeedDataString) and a read of it: not planned (B2d.3: the seed string's statement runs"
+                + " where it is read, upstream's at its let, and across the effect the two read different data)";
+        List<String> wrong = new ArrayList<>();
+        expect(wrong, "an effect, then the read", List.of(refused), run(backend, judge, ctx, "{|" + seed + effect
+                + "assertEquals('" + pure(expected) + "', $s);}"));
+        expect(wrong, "a carrier, an effect, then the read", List.of(refused), run(backend, judge, ctx, "{|" + seed
+                + "let t = $s;\n" + effect + "assertEquals('" + pure(expected) + "', $t);}"));
+        // no effect: the seed string, read where it is read
+        expect(wrong, "no effect", List.of("assertEquals true"), run(backend, judge, ctx, "{|" + seed
+                + "assertEquals('" + pure(expected) + "', $s);}"));
+        // an effect before its let, none between: not this guard's (the harness's executeInDb is refused later, at
+        // its own turn, by decision D2's rule for a connection whose text's language is unknown)
+        List<String> before = run(backend, judge, ctx, "{|" + prelude + effect + let + "assertEquals('"
+                + pure(expected) + "', $s);}");
+        if (before.size() != 1 || !before.get(0).startsWith("NotImplementedException: executeInDb over a connection")) {
+            wrong.add("an effect before the let -> " + before);
+        }
+        assertEquals(List.of(), wrong, what);
+    }
+
+    /**
      * The frame program's last statement after its asserts (B2d.2, BodyClass: upstream's loadAndTestExecution ends with
      * its frame's non-empty check): the body is planned whole before anything runs, so a last statement the program
      * road cannot plan refuses the body by name (never a pass); one it plans runs after the asserts, in statement

@@ -21640,6 +21640,45 @@ core integration lanes, and testdatagen, testplan, server and setup are green. N
 
 Test: `TestDataPlannerTest.aColumnIsResolvedByItsExactName`: a row identifier's column spelled `id` against `ID` is
 refused by name (until now it was matched in any case).
+## 2026-11-12 — SYNTHESIZE, the simple slice: a declared table filled by one planned DuckDB statement (S303)
+
+The user's ruling of 2026-11-12 ("Let's do the most simple thing that will work on duckdb for now - can extend later",
+then "Go ahead"), built on `claude/total-wall-synth`: a lite-only scope (register S303, one row; upstream has no
+synthesizer -- its DataCube samples are shipped CSVs).
+
+- **The planner's entry:** `com.legend.planner.Synthesize.plan(SqlDialect, DatabaseType, LoadPlanner.DeclaredTable,
+  long count, Map<String, Synthesize.Knob>)` -- a table the model declares, a row count, an optional knob per column
+  (`Knob.Values`, its values in turn; `Knob.Range`, numbers at a scale or ISO dates). The answer is ONE `HOST_SESSION`
+  load: the table made as declared, empty (`CsvSeed`'s header-only steps), then ONE statement
+  `INSERT INTO <table> (<columns>) SELECT <formula per column> FROM range(N) AS t(i)` -- `HostOperation.Synthesize`,
+  written by `DuckDbHostOperations`; every other database's host operations refuse it by name ("a host's Synthesize on
+  <database> is not built"). Each formula is the dialect's, a function of the row's number the database computes. The
+  columns taken in turn -- a value list, a text without one (`<column>_1`..`<column>_5`), a BIT -- are the row number's
+  digits in mixed radix in declaration order (`[..][((i // every) % k) + 1]`, `every` the product of the earlier ones'
+  sizes), so every combination occurs; a number or a date (a timestamp to the second; the five years ending 2025-12-31
+  by default) is spread over its range as `((i * m_j) % (2^31 - 1)) % n`, each spread column its own multiplier `m_j`
+  (742938285^(j+1) mod 2^31 - 1), so no two columns move together (the orchestrator's fix, the B3 worker's finding:
+  one shared index made the demo's year-by-desk and quarter-by-book pivots diagonals). No NULL in this slice; over
+  2^32 rows and a range of more than 2^31 - 1 values are refused by name. A column of another type (binary, JSON, an array, a time), a knob for an undeclared column, a
+  range on a text column and a value a number column cannot take are refused by name.
+- **The doors:** the WASM planner's `TabExports.synthesizeOrError(request)` (`Boundary.synthesize`; the request
+  `{"databaseType","model","database","schema","table","count","columns"?}`, each column `{"values":[..]}` or
+  `{"range":[lo,hi],"scale"?}`, any other key refused by name), the native library's `lite_synthesize`, Python's
+  `synthesize` planner kind, the TS `LitePlanner.synthesize(SynthesizeRequest)` and `WasmGrammar.synthesize`. The
+  server route and the Pure face are later.
+- **Tests:** `DuckDbSynthesizeTest` (each type's and each knob's statement pinned; the demo's TRADES table filled with
+  200,000 rows on DuckDB and its aggregates exact -- sums, distinct counts, min and max, each region's count, every
+  pair's product covered (region by desk 15, desk by year 25, quarter by book 16, the four lists' 240, each 833 or 834
+  times), the spread columns' correlations near 0 over all the rows and over the first 1,000; the plan's
+  size the count's digits and every step a statement; every other database refused by name, and each refusal above);
+  `plan-runner.test.ts` (the WASM planner's plan run on DuckDB-WASM by the hosts' runner: 100,000 rows, their counts
+  exact; Postgres refused).
+- **Measured:** 200,000 rows planned, made and aggregated on DuckDB (JDBC) in 0.28 s, the test's own time; 100,000
+  rows planned by the WASM planner and run on DuckDB-WASM in 0.13 s; the plan of 200,000 rows is the plan of 10 plus
+  4 bytes (the count's digits).
+- **Guards moved, each with its note:** `JavaEvalLedgerTest` PLANNER_CLASSES registers `Synthesize.java` (S303: it
+  computes no value, it names formulas); parser-equivalence `own_corpus.matched` 3140 -> 3142 (`DuckDbSynthesizeTest`'s
+  two models).
 
 ## 2026-11-12 — L9: the generator prints a timestamp in full in lite's own text, as upstream cuts it in backwards compatibility (S306)
 
@@ -21673,7 +21712,7 @@ database's JSON builder spelled it.
     Pure's; the seed JSON's timestamp key;
   - `GeneratedTestDataPrintingTest`: a test body under each rule set, on each in-process database and judge;
   - `TestDataRoutesTest.theRoutesPrintATimestampAsUpstreamDoes` (DuckDB): the route's text cut, the seed's key whole.
-- **Guards moved, each with its note:** parser-equivalence `own_corpus.matched` 3164 -> 3177 (the three tests'
+- **Guards moved, each with its note:** parser-equivalence `own_corpus.matched` 3179 -> 3192 on the merged tree (the three tests'
   models).
 - **The corpus lanes** (DuckDB and H2, both judges, under the compatibility rules: COMPAT): unchanged, every roster
   and register as committed (`//spec:corpus_duckdb`, `//spec:corpus_h2`, 12 of 12).

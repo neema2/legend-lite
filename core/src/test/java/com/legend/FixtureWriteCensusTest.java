@@ -60,8 +60,11 @@ class FixtureWriteCensusTest {
      *  DataDeliveryMatrixPostgresTest's user's table of the name with it, 4). 907 -> 908 (2026-11-12, the B checkpoint's
      *  G4, the orchestrator's go): the reload keeps a keyless table's ('', 1) and (NULL, 1) as two rows, as upstream
      *  inserts each text row -- TestDataPlannerTest seeds the empty text (1), which no CSV can seed (the reader loads an
-     *  empty cell as NULL); the table and its NULL row are its CSV. */
-    private static final int CEILING = 908;
+     *  empty cell as NULL); the table and its NULL row are its CSV. 908 -> 909 (2026-11-12, the B2d.3 audit's M4): the
+     *  seed's COLLATE "C" on Postgres is shown on a column collated otherwise (PostgresArmTest, 1: one ALTER, the
+     *  column's own collation, which no model or CSV can declare -- the embedded server's initdb --no-locale makes the
+     *  database's own binary); the table and its rows are its CSV. */
+    private static final int CEILING = 909;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -161,7 +164,8 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java", 2),
             Map.entry("core/src/test/java/com/legend/server/CypherParityPostgresTest.java", 3),
             Map.entry("core/src/test/java/com/legend/server/IqParityPostgresTest.java", 2),
-            Map.entry("core/src/test/java/com/legend/server/PostgresArmTest.java", 1),
+            // 2026-11-12, the B2d.3 audit's M4: a column's own collation on Postgres (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/server/PostgresArmTest.java", 2),
             Map.entry("core/src/test/java/com/legend/server/SqlIslandPostgresTest.java", 4),
             Map.entry("core/src/test/java/com/legend/server/SqlParityPostgresTest.java", 2),
             Map.entry("core/src/test/java/com/legend/setup/RowLoadCellsTest.java", 2),

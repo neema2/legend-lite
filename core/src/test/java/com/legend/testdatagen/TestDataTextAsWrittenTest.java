@@ -100,6 +100,70 @@ class TestDataTextAsWrittenTest {
         assertEquals("Column \"NOPE\" not found in Table \"Q\" in Database(s) t::DB", nope.getMessage());
     }
 
+    /** A block of the default schema names a table of the default schema (the B2d.3 audit's L1, 2026-11-12): the
+     *  database's only T is schema S's, so {@code default\nT} names none -- upstream's schema('default')->table('T')
+     *  finds none -- refused with upstream's words; until then a bare lookup found S.T and created T in the default
+     *  schema. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aDefaultSchemaBlockNamesADefaultSchemaTable(DatabaseType type) {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        com.legend.error.AssertFailed e = assertThrows(com.legend.error.AssertFailed.class,
+                () -> CsvSeed.sqls("default\nT\nID\n1\n", "t::DB", ctx, dialect));
+        assertEquals("Table \"T\" not found in Schema \"default\" in Database(s) t::DB", e.getMessage());
+    }
+
+    /** Two databases one connection serves (the B2d.3 audit's M3, 2026-11-12): the connection's test data is loaded
+     *  ONCE, its tables looked up in every database it serves, as upstream's processRuntimeTestConnections loads each
+     *  distinct connection (storeContract.pure ~119-141: setUpDataSQLs(csv, [DB1, DB2])) -- both databases' tables
+     *  loaded, the connection's SQL planned once; a table neither declares refused with upstream's words, naming both. Until
+     *  then lite loaded it per store binding and refused DB2's table against DB1 alone. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aConnectionServingTwoDatabasesLoadsItsDataOnceAgainstBoth(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = """
+                ###Relational
+                Database s::DB1 ( Table A (ID INTEGER PRIMARY KEY, NAME VARCHAR(10)) )
+                Database s::DB2 ( Table B (ID INTEGER PRIMARY KEY, N INTEGER) )
+                ###Connection
+                RelationalDatabaseConnection s::C
+                {
+                    store: s::DB1;
+                    type: H2;
+                    specification: LocalH2 { testDataSetupSqls: ['CREATE TABLE SEEDLOG (ID INTEGER)',
+                        'INSERT INTO SEEDLOG VALUES (1)']; testDataSetupCSV: '%s'; };
+                    auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime s::RT { mappings: []; connections: [ s::DB1: [ a: s::C ], s::DB2: [ b: s::C ] ]; }
+                """;
+        ModelContext ctx = Compiler.compileModel(model.formatted(
+                "default\\nA\\nID,NAME\\n1,ann\\n-----\\ndefault\\nB\\nID,N\\n7,70\\n"));
+        List<CsvSeed.Step> steps = CsvSeed.declaredSteps("s::RT", ctx, dialect);
+        // the connection's two statements once, not once per store it serves (they are H2's text: not run here)
+        assertEquals(2, steps.stream().filter(st -> st instanceof CsvSeed.Step.Sql).count(), type.name());
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (CsvSeed.Step step : steps) {
+                    if (!(step instanceof CsvSeed.Step.Sql)) {
+                        for (String sql : step.texts(dialect)) {
+                            s.execute(sql);
+                        }
+                    }
+                }
+            }
+            assertEquals(List.of("1|ann"), rows(c, "SELECT ID, NAME FROM A"), type.name());
+            assertEquals(List.of("7|70"), rows(c, "SELECT ID, N FROM B"), type.name());
+        }
+        ModelContext undeclared = Compiler.compileModel(model.formatted(
+                "default\\nA\\nID\\n1\\n-----\\ndefault\\nZ\\nID\\n1\\n"));
+        com.legend.error.AssertFailed e = assertThrows(com.legend.error.AssertFailed.class,
+                () -> CsvSeed.declaredSteps("s::RT", undeclared, dialect));
+        assertEquals("Table \"Z\" not found in Schema \"default\" in Database(s) s::DB1, s::DB2", e.getMessage());
+    }
+
     /** {@code sql}'s rows, each its cells joined by {@code |}. */
     private static List<String> rows(Connection c, String sql) throws Exception {
         List<String> out = new ArrayList<>();

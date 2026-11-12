@@ -156,6 +156,73 @@ public sealed interface HostOperation {
         }
     }
 
+    /**
+     * Rows the database GENERATES into a table (the test-data generator's SYNTHESIZE, its simple slice: the user's
+     * ruling of 2026-11-12, "Let's do the most simple thing that will work on duckdb for now - can extend later";
+     * register S303): {@code count} rows, row {@code i} (0, 1, ...) holding each column's {@link Formula} of {@code i},
+     * computed by the database. No row is in the operation, only how each value is made. The planner chooses each
+     * column's formula from its declared type and the request's knob ({@code com.legend.planner.Synthesize}).
+     */
+    record Synthesize(Name target, long count, List<Formula> columns) implements HostOperation {
+        public Synthesize {
+            columns = List.copyOf(columns);
+            if (count < 0 || count > Formula.MOST_ROWS) {
+                throw new IllegalArgumentException("a synthesized table's row count is " + count + ", not 0 to "
+                        + Formula.MOST_ROWS);
+            }
+        }
+    }
+
+    /** A column's value as a formula of the row's number {@code i}, the same on every database that writes it. */
+    sealed interface Formula {
+        /** The prime 2^31 - 1: a spread's row number is first multiplied by its column's multiplier modulo this prime
+         *  (a permutation of the row numbers below it), so no spread column is a function of another's offset or of a
+         *  turn column's index. */
+        long MODULUS = 2_147_483_647L;
+
+        /** The most rows a fill makes: every {@code i * multiplier} stays below 2^63 (a multiplier is below 2^31). */
+        long MOST_ROWS = 1L << 32;
+
+        /** The column the formula fills. */
+        String column();
+
+        /** The values in turn, a digit of the row number in mixed radix: row i's is {@code values[(i / every) mod k]},
+         *  {@code every} the product of the earlier turn columns' sizes. */
+        record Cycle(String column, List<Literal> values, long every) implements Formula {
+            public Cycle {
+                values = List.copyOf(values);
+                if (values.isEmpty()) {
+                    throw new IllegalArgumentException("a cycle of no value for " + column);
+                }
+            }
+        }
+
+        /** {@code <prefix>1} .. {@code <prefix>k} in turn, as a {@link Cycle} of k values: row i's is
+         *  {@code <prefix>(((i / every) mod k) + 1)}. */
+        record Numbered(String column, String prefix, int k, long every) implements Formula {
+        }
+
+        /** A number over {@code [lo, hi]} in steps of {@code 10^-scale}: row i's is
+         *  {@code lo + (((i * multiplier) mod MODULUS) mod n) * 10^-scale}, n the range's values,
+         *  {@code (hi - lo) * 10^scale + 1}, each spread column its own multiplier. */
+        record Spread(String column, java.math.BigDecimal lo, java.math.BigDecimal hi, int scale, long multiplier)
+                implements Formula {
+        }
+
+        /** A day over {@code [from, to]} (ISO dates): row i's is {@code from + (((i * multiplier) mod MODULUS) mod n)}
+         *  days, n the days of the range; to the second where {@code seconds}, n then the range's seconds. */
+        record Days(String column, String from, String to, boolean seconds, long multiplier) implements Formula {
+        }
+
+        /** true and false in turn, as a {@link Cycle} of two: row i's is {@code ((i / every) mod 2) = 0}. */
+        record Alternate(String column, long every) implements Formula {
+        }
+    }
+
+    /** A value of a {@link Formula.Cycle}, as written: a number's digits, or a text. */
+    record Literal(String text, boolean number) {
+    }
+
     /** A relation dropped, when it is there. */
     record Drop(Kind kind, Name target) implements HostOperation {
     }

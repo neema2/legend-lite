@@ -30,12 +30,15 @@ class TestDataRoutesTest {
                 ###Pure
                 Class model::Firm { legalName: String[1]; }
                 Class model::Person { name: String[1]; firm: model::Firm[0..1]; }
+                Class model::PersonView { name: String[1]; }
 
                 ###Relational
                 Database store::DB (
                     Table PERSON ( ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER )
                     Table FIRM ( ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100) )
                     Join PersonFirm(PERSON.FIRM_ID = FIRM.ID)
+                    Filter Early(PERSON.ID < 4)
+                    View PERSON_VIEW ( ~filter Early ID: PERSON.ID PRIMARY KEY, NAME: PERSON.NAME )
                 )
 
                 ###Mapping
@@ -49,6 +52,10 @@ class TestDataRoutesTest {
                         ~mainTable [store::DB] FIRM
                         legalName: [store::DB] FIRM.LEGAL_NAME
                     }
+                    model::PersonView: Relational {
+                        ~mainTable [store::DB] PERSON_VIEW
+                        name: [store::DB] PERSON_VIEW.NAME
+                    }
                 )
 
                 ###Connection
@@ -61,6 +68,11 @@ class TestDataRoutesTest {
                 ###Runtime
                 Runtime model::RT {
                     mappings: [ model::M ];
+                    connections: [ store::DB: [ c: store::Conn ] ];
+                }
+
+                Runtime model::Unmapped {
+                    mappings: [ ];
                     connections: [ store::DB: [ c: store::Conn ] ];
                 }
                 """.formatted(file.toString().replace("\\", "/"));
@@ -231,6 +243,54 @@ class TestDataRoutesTest {
         PureV1Api.Answer missing = route("execution/testDataGeneration/generateSeedData", input(query, ""));
         assertEquals(500, missing.status(), missing.json());
         assertTrue(missing.json().contains("Missing external parameter(s): name:String[1]"), missing.json());
+    }
+
+    /** A table entry with no {@code rowIdentifiers} field reads as an empty list -- no filter, the table's rows by
+     *  key, at most 20 -- as upstream's reader makes it ({@code HelperTestDataGenerationBuilder}: a null list an empty
+     *  one; then {@code orFilters([])}). The B2d.3 audit's L3, 2026-11-12: read in the pinned sources, lite already
+     *  did so; pinned here. */
+    @Test
+    void aTableEntryWithNoIdentifiersFieldIsNoFilter() {
+        PureV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY,
+                ",\"tableRowIdentifiers\":[{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\","
+                        + "\"database\":\"store::DB\"}}]"));
+        assertEquals(200, a.status(), a.json());
+        assertEquals("default\nFIRM\nID,LEGAL_NAME\n10,Acme\n20,Bolt\n-----\n"
+                + "default\nPERSON\nFIRM_ID,ID,NAME\n10,1,Ann\n10,3,Cy\n20,2,Bob\n---null---,4,Di\n-----\n",
+                a.json());
+    }
+
+    /** The seed route over a view root: the keys of the view's main table the query reaches through the view, as
+     *  upstream's seed plan takes a view root's {@code mainTable()} (TDG:806-808); the test-data routes refuse a view
+     *  by name (register S301's draft). The B2d.3 audit's L8, 2026-11-12: the class doc said every route refused. */
+    @Test
+    void theSeedRouteAdmitsAViewRoot() {
+        String view = "|model::PersonView.all()->project([p|$p.name], ['name'])";
+        PureV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData", input(view, ""));
+        assertEquals(200, seed.status(), seed.json());
+        assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
+                + "\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
+                + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":2}]},"
+                + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]}]}", seed.json());
+        PureV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", input(view, ""));
+        assertEquals(500, data.status(), data.json());
+        assertTrue(data.json().contains("the view 'PERSON_VIEW' in the query's relation tree on the server's route"),
+                data.json());
+    }
+
+    /** The seed's query read through the request's mapping whatever mappings its runtime declares, as upstream
+     *  executes the seed's function with the given mapping (the B2d.3 audit's L5, 2026-11-12): a runtime declaring
+     *  none answers as one declaring it -- until then refused by name. */
+    @Test
+    void theSeedReadsThroughTheGivenMapping() {
+        String query = "|model::Person.all()->filter(p|$p.name != 'Bob')->project([p|$p.name], ['name'])";
+        PureV1Api.Answer a = route("execution/testDataGeneration/generateSeedData", input(query, "")
+                .replace("\"runtime\":\"model::RT\"", "\"runtime\":\"model::Unmapped\""));
+        assertEquals(200, a.status(), a.json());
+        assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
+                + "\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
+                + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]},"
+                + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":4}]}]}", a.json());
     }
 
     /** A runtime given inline: refused by name. */

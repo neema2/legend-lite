@@ -60,7 +60,13 @@ public final class PeRatchets {
                     + " view, GeneratedTestDataProgramTest's lower-case table, TestDataRoutesTest's parameterised query)",
             "own_corpus.matched 3163 -> 3164 (2026-11-12, G7 built as ruled, S302, on claude/total-wall-b2d3):"
                     + " TestDataTextAsWrittenTest's store",
-            "own_corpus.matched 3164 -> 3177 (2026-11-12, L9's printing, S306, on claude/total-wall-b2d3): its tests'"
+            "own_corpus.matched 3164 -> 3166 (2026-11-12, the simple synthesize slice merged, a24f3a5b4):"
+                    + " DuckDbSynthesizeTest's models (its TRADES table and the refusals' tables)",
+            "own_corpus.matched 3166 -> 3179 (2026-11-12, the B2d.3 audit's findings M1-M5, L1-L9): their tests'"
+                    + " models (TestDataPlannerTest's route text, seed shapes, default-schema and view-with-note models,"
+                    + " TestDataTextAsWrittenTest's two-database connection, TestDataRoutesTest's view and unmapped"
+                    + " runtime, PostgresArmTest's seed model)",
+            "own_corpus.matched 3179 -> 3192 (2026-11-12, L9's printing, S306, on claude/total-wall-b2d3): its tests'"
                     + " models (TestDataPlannerTest's timestamp store, GeneratedTestDataPrintingTest's,"
                     + " TestDataRoutesTest's timestamp route)");
 

@@ -107,7 +107,226 @@ class TestDataPlannerTest {
                     List.of())), false, 2, "default\nPERSON\nID,NAME\n1,boss\n2,ann\n3,\"o'neil, jr\"\n4,dan\n"
                             + "5,\"o'neil, \"\"jr\"\"\nthe 2nd\"\n6,---null---\n-----\n"
                             + "default\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,4\n14,5\n-----\n");
+            // a child joining no rows: its block's blank line, as upstream's joinStrings('', '\n', '\n') writes no row
+            // (the B2d.3 audit's M2, 2026-11-12: until then the line was dropped)
+            assertSame(c, ctx, dialect, join, List.of(new TestDataGenerator.TableRowIds("default", "PERSON",
+                    List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))), false, 2,
+                    "default\nPERSON\nID,NAME\n1,boss\n-----\ndefault\nBICYCLE\nID,PERSONID\n\n-----\n");
         }
+    }
+
+    /** Two identifier entries for one table: upstream's assert, by its words (the B2d.3 audit's L2, 2026-11-12:
+     *  getRowIdentifiersForTable, TDG:487 -- until then the last entry was kept, silently). */
+    @org.junit.jupiter.api.Test
+    void twoEntriesForOneTableAreUpstreamsAssert() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        com.legend.error.AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+                        query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
+                        List.of(ids("PERSON", "ID", 2L), ids("PERSON", "ID", 3L)), null, false, PlannerViews.of(ctx),
+                        TestDataPlanner.Printing.CLEAN));
+        assertEquals("Multiple table row identifiers passed for the table: PERSON", e.getMessage());
+    }
+
+    /** The server routes' text as their writer writes it (the B2d.3 audit's M1 and M2, 2026-11-12): the header each
+     *  column's declared name -- its case kept, in double quotes where it holds a space -- the columns sorted by their
+     *  model names case-sensitively, a quoted name with its quotes (upstream's plan form, TDG:885, and
+     *  getQuotedLabelIfContainSpace, TestDataGeneration.java:306: "last name", AGE, ID, firstName), each line's cells
+     *  in that order; the function's text keeps its H2-folded header; the default seed over an empty table a blank
+     *  line (Collectors.joining("\n", "", "\n") of no row). */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theRoutesTextIsItsWriters(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = """
+                ###Relational
+                Database t::DB
+                (
+                  Table MIXED (ID INTEGER PRIMARY KEY, firstName VARCHAR(20), AGE INTEGER, "last name" VARCHAR(20))
+                  Table NONE (ID INTEGER PRIMARY KEY, N INTEGER)
+                )
+                ###Pure
+                Class t::Mixed { firstName: String[0..1]; age: Integer[0..1]; lastName: String[0..1]; }
+                Class t::None { n: Integer[0..1]; }
+                ###Mapping
+                Mapping t::M
+                (
+                  t::Mixed: Relational { ~mainTable [t::DB]MIXED firstName: [t::DB]MIXED.firstName,
+                    age: [t::DB]MIXED.AGE, lastName: [t::DB]MIXED."last name" }
+                  t::None: Relational { ~mainTable [t::DB]NONE n: [t::DB]NONE.N }
+                )
+                ###Connection
+                RelationalDatabaseConnection t::C { store: t::DB; %s }
+                ###Runtime
+                Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }
+                """.formatted(com.legend.testbackend.TestBackends.of(type).connectionBody());
+        ModelContext ctx = Compiler.compileModel(model);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls("default\nMIXED\nID,firstName,AGE,\"last name\"\n1,ann,30,lee\n"
+                        + "2,bob,40,kim\n-----\ndefault\nNONE\nID,N\n", "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            LambdaFunction mixed = query("|t::Mixed.all()->project([m|$m.firstName, m|$m.age, m|$m.lastName],"
+                    + " ['f', 'a', 'l'])");
+            List<TestDataGenerator.TableRowIds> one = List.of(ids("MIXED", "ID", 1L, 2L));
+            assertEquals("default\nMIXED\n\"last name\",AGE,ID,firstName\nkim,40,2,bob\nlee,30,1,ann\n-----\n",
+                    text(c, dialect, TestDataPlanner.route(ctx, mixed, "t::M", one, null, false).csv()), type.name());
+            // the function's text: its header as before (upper-cased plain names, sorted so)
+            assertEquals("default\nMIXED\nAGE,FIRSTNAME,ID,last name\n30,ann,1,lee\n40,bob,2,kim\n-----\n",
+                    text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx),
+                            TestDataPlanner.Printing.CLEAN).csv()), type.name());
+            // the default seed over an empty table: no key, so every row -- none -- and the block's blank line
+            LambdaFunction none = query("|t::None.all()->project([x|$x.n], ['n'])");
+            TestDataPlanner.Seed seed = TestDataPlanner.seed(ctx, none, "t::M", true,
+                    PlannerViews.queries(ctx, "t::M", "t::RT"));
+            assertEquals("default\nNONE\nID,N\n\n-----\n", text(c, dialect,
+                    TestDataPlanner.route(ctx, none, "t::M", List.of(), seed, false).csv()), type.name());
+        }
+    }
+
+    /** The seed's text keys in code-point order on the databases whose texts compare so by default (the B2d.3
+     *  audit's M4, 2026-11-12, measured: DuckDB, H2, SQLite) -- the keys, the seed string's lines and the seed
+     *  route's identifiers {@code B, Z, a, b}, never a case-blind {@code a, B, b, Z} (a database whose binary
+     *  collation is not measured refuses it by name: {@code sql.dialect.BinaryCollateTest}; Postgres's
+     *  {@code COLLATE "C"} is //core:postgres_arm_test's). */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aTextKeyIsOrderedByItsCodePoints(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = SEED_MODEL + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "
+                + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
+                + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+        ModelContext ctx = Compiler.compileModel(model);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls("default\nCODES\nCODE,N\nb,1\nB,2\na,3\nZ,4\n", "t::DB", ctx,
+                        dialect)) {
+                    s.execute(sql);
+                }
+            }
+            TestDataPlanner.Seed seed = TestDataPlanner.seed(ctx, query("|t::C.all()->project([x|$x.n], ['n'])"),
+                    "t::M", false, PlannerViews.queries(ctx, "t::M", "t::RT"));
+            List<String> keys = new java.util.ArrayList<>();
+            try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(seed.rows()))) {
+                while (r.next()) {
+                    keys.add(r.getString(1));
+                }
+            }
+            assertEquals(List.of("B", "Z", "a", "b"), keys, type.name());
+            String line = "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['%s'])";
+            assertEquals("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'CODES', [\n"
+                    + String.join(",\n", line.formatted("B"), line.formatted("Z"), line.formatted("a"),
+                            line.formatted("b")) + "\n  ])\n", text(c, dialect, TestDataPlanner.seedString(ctx, seed)),
+                    type.name());
+            assertTrue(text(c, dialect, TestDataPlanner.seedJson(ctx, seed)).endsWith("\"rowIdentifiers\":["
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"Z\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"b\"}]}]}"), type.name());
+        }
+    }
+
+    /** The seed over the query's shapes (the design's §4.1; the B2d.3 audit's L6): a grouped query, its keys carried
+     *  into its GROUP BY (so regrouped by them, as upstream's recursiveAddColumnsToRoot); a query whose root reads a
+     *  derived table, its keys carried up through it; a table with no primary key, its non-null columns the keys and
+     *  the seed string's names none (upstream's $mainTable.primaryKey, TDG:229; the audit's L4); a table with neither,
+     *  upstream's words; a union, upstream's words; a view root, upstream's words for the seed string (the audit's
+     *  L9: the root node's type, RelationTree). */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theSeedOverTheQuerysShapes(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = SEED_MODEL.replace("  Table CODES", """
+                  Table NOKEY (A INTEGER NOT NULL, B VARCHAR(10) NOT NULL, C INTEGER)
+                  Table NEITHER (A INTEGER, B VARCHAR(10))
+                  Table CODES""").replace("###Mapping", """
+                Class t::NoKey { a: Integer[1]; c: Integer[0..1]; }
+                Class t::Neither { a: Integer[0..1]; }
+                ###Mapping""").replace("  t::C: Relational", """
+                  t::NoKey: Relational { ~mainTable [t::DB]NOKEY a: [t::DB]NOKEY.A, c: [t::DB]NOKEY.C }
+                  t::Neither: Relational { ~mainTable [t::DB]NEITHER a: [t::DB]NEITHER.A }
+                  t::C: Relational""")
+                + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "
+                + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
+                + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+        ModelContext ctx = Compiler.compileModel(model);
+        TestDataPlanner.Queries queries = PlannerViews.queries(ctx, "t::M", "t::RT");
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls("default\nKEYS\nID,NAME\n1,x\n2,x\n3,y\n4,z\n-----\n"
+                        + "default\nNOKEY\nA,B,C\n1,p,10\n1,q,20\n2,p,30\n-----\ndefault\nNEITHER\nA,B\n1,p\n",
+                        "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            // a grouped query: three groups of names, but the keys carried regroup it -- every key the query reaches
+            LambdaFunction grouped = query(
+                    "|t::K.all()->groupBy([k|$k.name], [agg(k|$k.id, y|$y->count())], ['n', 'c'])");
+            assertFalse(((com.legend.sql.SqlSelect) queries.lowered(grouped)).groupBy().isEmpty(), "a grouped root");
+            assertEquals(List.of(1L, 2L, 3L, 4L), keys(c, dialect, TestDataPlanner.seed(ctx, grouped, "t::M", false,
+                    queries)), type.name());
+            // a root reading a derived table (a column extended over a limited projection): the keys carried up
+            // through it
+            LambdaFunction derived = query("|t::K.all()->filter(k|$k.name == 'x')->project([k|$k.name], ['n'])"
+                    + "->limit(10)->extend(~u: r|$r.n->toOne()->toUpper())");
+            assertTrue(((com.legend.sql.SqlSelect) queries.lowered(derived)).from()
+                    instanceof com.legend.sql.SqlSource.Subselect, "a root reading a derived table");
+            assertEquals(List.of(1L, 2L), keys(c, dialect, TestDataPlanner.seed(ctx, derived, "t::M", false,
+                    queries)), type.name());
+            // no primary key: its non-null columns A and B are the keys; the seed string names none
+            TestDataPlanner.Seed noKey = TestDataPlanner.seed(ctx, query("|t::NoKey.all()->project([x|$x.c], ['c'])"),
+                    "t::M", false, queries);
+            assertEquals(List.of("A", "B"), noKey.keys());
+            String line = "       meta::relational::testDataGeneration::createRowIdentifier([], [%s])";
+            assertEquals("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'NOKEY', [\n"
+                    + String.join(",\n", line.formatted("1,'p'"), line.formatted("1,'q'"), line.formatted("2,'p'"))
+                    + "\n  ])\n", text(c, dialect, TestDataPlanner.seedString(ctx, noKey)), type.name());
+            // neither: upstream's words (TDG:272)
+            assertEquals("Table : NEITHER must have atleast 1 primary key or non-null column to utilise this feature",
+                    org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.AssertFailed.class,
+                            () -> TestDataPlanner.seed(ctx, query("|t::Neither.all()->project([x|$x.a], ['a'])"),
+                                    "t::M", false, queries)).getMessage());
+            // a union: two roots, upstream's words -- the seed string's (TDG:221) and the seed route's (TDG:805)
+            LambdaFunction union = query("|t::K.all()->project([k|$k.id], ['i'])->concatenate("
+                    + "t::C.all()->project([x|$x.n], ['i']))");
+            assertEquals("Seed data generation currently supports queries with a single root (got: 2)",
+                    org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.AssertFailed.class,
+                            () -> TestDataPlanner.seed(ctx, union, "t::M", false, queries)).getMessage());
+            assertEquals("Seed data generation currently supports queries with a single root table/view (unions are"
+                    + " not supported)", org.junit.jupiter.api.Assertions.assertThrows(
+                            com.legend.error.AssertFailed.class,
+                            () -> TestDataPlanner.seed(ctx, union, "t::M", true, queries)).getMessage());
+        }
+        // a view root: the seed string's words, upstream's (the audit's L9)
+        ModelContext views = Compiler.compileModel(viewModel(type));
+        assertEquals("Seed data generation currently supports queries with a root table (unions/views are not"
+                + " supported, got: RelationTree)", org.junit.jupiter.api.Assertions.assertThrows(
+                        com.legend.error.AssertFailed.class, () -> TestDataPlanner.seed(views,
+                                query("|t::OrderPnl.all()->project([o|$o.pnl], ['p'])"), "t::M", false,
+                                PlannerViews.queries(views, "t::M", "t::RT"))).getMessage());
+    }
+
+    /** An expected text's default-schema table looked up in the default schema (the B2d.3 audit's L1, 2026-11-12):
+     *  {@code default\nT} names no table of a database whose only T is schema S's -- upstream's schema('default')
+     *  ->table('T') finds none -- so the comparison fails with upstream's words; until then a bare lookup found S.T. */
+    @org.junit.jupiter.api.Test
+    void anExpectedDefaultTableIsLookedUpInTheDefaultSchema() {
+        ModelContext ctx = Compiler.compileModel("""
+                ###Relational
+                Database t::DB ( Table T (ID INTEGER PRIMARY KEY) )
+                Database t::One ( Schema S ( Table T (ID INTEGER PRIMARY KEY) ) )
+                ###Pure
+                Class t::X { id: Integer[1]; }
+                ###Mapping
+                Mapping t::M ( t::X: Relational { ~mainTable [t::DB]T id: [t::DB]T.ID } )
+                """);
+        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query("|t::X.all()->project([x|$x.id], ['i'])"),
+                "t::M", List.of(ids("T", "ID", 1L)), null, false, PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN);
+        TestDataPlanner.Comparison c = TestDataPlanner.same(planned, List.of(new TestDataPlanner.Expected("default", "T",
+                List.of("ID"), List.of(List.of("1")))), ctx, "t::One", "");
+        assertEquals("Table \"T\" not found in Schema \"default\" in Database(s) t::One", c.fails());
     }
 
     /** A view in the query's tree (B2d.3, upstream's orderPnlView shape: a filter, distinct, a column through two
@@ -121,9 +340,11 @@ class TestDataPlannerTest {
               Table ORDERS (ID INTEGER PRIMARY KEY, ACCOUNTID INTEGER)
               Table PNL (ORDER_ID INTEGER PRIMARY KEY, PNL DOUBLE)
               Table ACCOUNT (ID INTEGER PRIMARY KEY, NAME VARCHAR(40))
+              Table NOTE (ORDER_ID INTEGER PRIMARY KEY, TXT VARCHAR(10))
               Join Pnl_Order(PNL.ORDER_ID = ORDERS.ID)
               Join Order_Account(ORDERS.ACCOUNTID = ACCOUNT.ID)
               Join PnlView_Order(PNLVIEW.ORDER_ID = ORDERS.ID)
+              Join PnlView_Note(PNLVIEW.ORDER_ID = NOTE.ORDER_ID)
               Filter NonNegative(PNL.PNL > 0)
               View PNLVIEW
               (
@@ -135,20 +356,24 @@ class TestDataPlannerTest {
               )
             )
             ###Pure
-            Class t::OrderPnl { pnl: Float[1]; accountName: String[0..1]; order: t::Order[0..1]; }
+            Class t::OrderPnl { pnl: Float[1]; accountName: String[0..1]; order: t::Order[0..1];
+              note: t::Note[0..1]; }
             Class t::Order { id: Integer[1]; pnl: t::OrderPnl[0..1]; }
+            Class t::Note { txt: String[0..1]; }
             ###Mapping
             Mapping t::M
             (
               t::OrderPnl: Relational { ~mainTable [t::DB]PNLVIEW pnl: [t::DB]PNLVIEW.pnl,
-                accountName: [t::DB]PNLVIEW.accountName, order: [t::DB]@PnlView_Order }
+                accountName: [t::DB]PNLVIEW.accountName, order: [t::DB]@PnlView_Order, note: [t::DB]@PnlView_Note }
               t::Order: Relational { ~mainTable [t::DB]ORDERS id: [t::DB]ORDERS.ID, pnl: [t::DB]@PnlView_Order }
+              t::Note: Relational { ~mainTable [t::DB]NOTE txt: [t::DB]NOTE.TXT }
             )
             """;
 
     private static final String VIEW_CSV = "default\nORDERS\nID,ACCOUNTID\n1,10\n2,20\n3,10\n4,20\n-----\n"
             + "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,200.0\n3,-5.0\n4,150.0\n-----\n"
-            + "default\nACCOUNT\nID,NAME\n10,acme\n20,zeta\n";
+            + "default\nACCOUNT\nID,NAME\n10,acme\n20,zeta\n-----\n"
+            + "default\nNOTE\nORDER_ID,TXT\n1,n1\n2,n2\n3,n3\n";
 
     @ParameterizedTest
     @MethodSource("inMemory")
@@ -170,9 +395,12 @@ class TestDataPlannerTest {
             assertSame(c, ctx, VIEW_MODEL, dialect, "|t::OrderPnl.all()->project([o|$o.pnl], ['p'])", pnl123, 4,
                     tables);
             // the query's join from the view starts from the view's own rows: order 3's pnl is negative, so the view
-            // drops it and the query's ORDERS fetch reads orders 1 and 2 (their rows already fetched by the web)
+            // drops it and the query's NOTE fetch -- a table the view's web does not fetch -- reads the notes of
+            // orders 1 and 2 alone; a join from the view's main table's rows would read order 3's too (the B2d.3
+            // audit's L7, 2026-11-12: the ORDERS join this case read until then gave the root case's text either way)
             assertSame(c, ctx, VIEW_MODEL, dialect,
-                    "|t::OrderPnl.all()->project([o|$o.pnl, o|$o.order.id], ['p', 'o'])", pnl123, 5, tables);
+                    "|t::OrderPnl.all()->project([o|$o.pnl, o|$o.note.txt], ['p', 'n'])", pnl123, 5, tables
+                            + "default\nNOTE\nORDER_ID,TXT\n1,n1\n2,n2\n-----\n");
             // a child view: its main table's given identifiers start its tree, whatever the parent's rows (TDG:429)
             assertSame(c, ctx, VIEW_MODEL, dialect, "|t::Order.all()->project([o|$o.id, o|$o.pnl.pnl], ['i', 'p'])",
                     List.of(ids("ORDERS", "ID", 4L), ids("PNL", "ORDER_ID", 1L)), 5,

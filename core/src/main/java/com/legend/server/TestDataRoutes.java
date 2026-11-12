@@ -34,9 +34,12 @@ import java.util.Map;
  *       (one statement, where upstream runs two plans).</li>
  *   <li>{@code DONOTUSE_generateTestData}: the census ({@link TestDataCensus}) as upstream's embedded data.</li>
  * </ul>
- * Refused by name: a view in the query's relation tree and a runtime given inline (an {@code engineRuntime}), each
- * pending the user's ruling (register S301's draft, B2d.3e). The query's {@code parameterValues} are bound by name, as
- * {@code execute} binds them.
+ * Refused by name: a view in the query's relation tree on the two test-data routes ({@code generateTestData_WithSeed},
+ * {@code generateTestData_WithDefaultSeed}), and a runtime given inline (an {@code engineRuntime}), each pending the
+ * user's ruling (register S301's draft, B2d.3e). The seed route admits a view ROOT, whose main table's keys it answers,
+ * as upstream's seed plan does ({@code planSeedDataGenerationWithParameterNameValuePairs}, TDG:806-808: a view root's
+ * {@code mainTable()}; the B2d.3 audit's L8, 2026-11-12 -- until then this text said every route refused a view). The
+ * query's {@code parameterValues} are bound by name, as {@code execute} binds them.
  */
 final class TestDataRoutes {
 
@@ -141,11 +144,13 @@ final class TestDataRoutes {
                 + ": not planned (B2d.3e)");
     }
 
-    /** The seed of the request's query, lowered on its runtime. */
+    /** The seed of the request's query, lowered on its runtime through its mapping, whatever mappings the runtime
+     *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
+     *  mapping). */
     private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
-        TestDataPlanner.declares(ctx, r.runtime(), r.mapping());
-        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot,
-                q -> com.legend.Compiler.query(ctx, q).lower(r.runtime(), false).plan());
+        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> com.legend.Compiler.query(ctx,
+                TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery))
+                .lower(r.runtime(), false).plan());
     }
 
     /** The request's {@code tableRowIdentifiers}: each table's identifiers, each a row's column-value pairs. */
