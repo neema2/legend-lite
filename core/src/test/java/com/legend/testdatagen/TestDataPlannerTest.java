@@ -484,7 +484,8 @@ class TestDataPlannerTest {
         ModelContext ctx = Compiler.compileModel(store);
         TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query("|t::X.all()->project([x|$x.n], ['n'])"),
                 "t::M", List.of(new TestDataGenerator.TableRowIds("S1", "T", List.of(
-                        new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))), null, false, PlannerViews.of(ctx));
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))), null, false, PlannerViews.of(ctx),
+                TestDataPlanner.Printing.CLEAN);
         // two schemas' T and the default T: each its own table, none refused as declared twice
         assertEquals(java.util.Set.of("T", "S1.T", "S2.T"), TestDataPlanner.slice(planned, ctx, "t::DB").keySet());
         assertEquals(java.util.Set.of("t::DB|T", "t::DB|S1.T", "t::DB|S2.T"), TestDataPlanner.reads(ctx, "t::DB"));
@@ -520,7 +521,8 @@ class TestDataPlannerTest {
             TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx,
                     query("|t::K.all()->project([k|$k.name, k|$k.n], ['a', 'b'])"), "t::M",
                     List.of(new TestDataGenerator.TableRowIds("default", "K", List.of(
-                            new TestDataGenerator.RowId(List.of("N"), List.of(1L))))), null, false, PlannerViews.of(ctx));
+                            new TestDataGenerator.RowId(List.of("N"), List.of(1L))))), null, false, PlannerViews.of(ctx),
+                    TestDataPlanner.Printing.CLEAN);
             com.legend.sql.SqlQuery k = TestDataPlanner.slice(planned, ctx, "t::DB").get("K");
             int rows = 0;
             try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(k))) {
@@ -615,6 +617,95 @@ class TestDataPlannerTest {
         }
     }
 
+    /** L9's printing (the user's ruling of 2026-11-12: "Our clean sheet lite plan should always do the clean/nice/right
+     *  thing. In backwards compat we can chop the timestamp and we can make float a known divergence"): a timestamp,
+     *  with and without its fraction, NULL; a date; a float (register S306); a timestamp key of the seed's JSON. */
+    private static final String PRINT_MODEL = """
+            ###Relational
+            Database t::DB
+            (
+              Table EVENT (ID INTEGER PRIMARY KEY, STAMP TIMESTAMP, ON_DAY DATE, AMOUNT DOUBLE)
+              Table STAMPS (STAMP TIMESTAMP PRIMARY KEY, N INTEGER)
+            )
+            ###Pure
+            Class t::E { id: Integer[1]; stamp: DateTime[0..1]; day: StrictDate[0..1]; amount: Float[0..1]; }
+            Class t::S { stamp: DateTime[1]; n: Integer[0..1]; }
+            ###Mapping
+            Mapping t::M
+            (
+              t::E: Relational { ~mainTable [t::DB]EVENT id: [t::DB]EVENT.ID, stamp: [t::DB]EVENT.STAMP,
+                day: [t::DB]EVENT.ON_DAY, amount: [t::DB]EVENT.AMOUNT }
+              t::S: Relational { ~mainTable [t::DB]STAMPS stamp: [t::DB]STAMPS.STAMP, n: [t::DB]STAMPS.N }
+            )
+            """;
+
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aTimestampPrintsInFullOrAsUpstreamCutsIt(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = PRINT_MODEL + "\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; "
+                + com.legend.testbackend.TestBackends.of(type).connectionBody() + " }\n###Runtime\n"
+                + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
+        ModelContext ctx = Compiler.compileModel(model);
+        String csv = "default\nEVENT\nID,STAMP,ON_DAY,AMOUNT\n1,2020-01-02 03:04:05.123,2020-01-02,3.14\n"
+                + "2,2020-01-02 03:04:05,2021-02-03,17.0\n3,---null---,---null---,---null---\n"
+                + "4,2020-01-02 03:04:05.123456,2020-01-02,100000000000000000000.0\n"
+                + "5,2020-01-02 03:04:05.5,2020-01-02,0.00001\n-----\n"
+                + "default\nSTAMPS\nSTAMP,N\n2020-01-02 03:04:05.123,1\n2020-01-03 00:00:00,2\n";
+        List<TestDataGenerator.TableRowIds> ids = List.of(new TestDataGenerator.TableRowIds("default", "EVENT",
+                List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L)),
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(2L)),
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(3L)),
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(4L)),
+                        new TestDataGenerator.RowId(List.of("ID"), List.of(5L)))));
+        LambdaFunction q = query("|t::E.all()->project([e|$e.stamp, e|$e.day, e|$e.amount], ['s', 'd', 'a'])");
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls(csv, "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+            }
+            // a float is the database's own text in both printings (register S306, the known divergence): 3.14 and 17.0
+            // as Pure prints them, 1e20 and 0.00001 as the database casts them, never Pure's 100000000000000000000.0
+            String big = cast(c, 4);
+            String small = cast(c, 5);
+            assertFalse(big.equals("100000000000000000000.0") || small.equals("0.00001"), big + " " + small);
+            // lite's own: the timestamp in full, lite's writers' canonical text, on every database
+            assertEquals("default\nEVENT\nAMOUNT,ID,ON_DAY,STAMP\n"
+                    + small + ",5,2020-01-02,2020-01-02T03:04:05.500000000+0000\n"
+                    + "3.14,1,2020-01-02,2020-01-02T03:04:05.123000000+0000\n"
+                    + "17.0,2,2021-02-03,2020-01-02T03:04:05.000000000+0000\n"
+                    + big + ",4,2020-01-02,2020-01-02T03:04:05.123456000+0000\n"
+                    + "---null---,3,---null---,---null---\n-----\n",
+                    text(c, dialect, TestDataPlanner.plan(ctx, q, "t::M", ids, null, false, PlannerViews.of(ctx),
+                            TestDataPlanner.Printing.CLEAN).csv()), type.name());
+            // backwards compatibility: upstream's SimpleDateTimeFormat, the fraction cut
+            assertEquals("default\nEVENT\nAMOUNT,ID,ON_DAY,STAMP\n" + small + ",5,2020-01-02,2020-01-02 03:04:05\n"
+                    + "3.14,1,2020-01-02,2020-01-02 03:04:05\n"
+                    + "17.0,2,2021-02-03,2020-01-02 03:04:05\n" + big + ",4,2020-01-02,2020-01-02 03:04:05\n"
+                    + "---null---,3,---null---,---null---\n-----\n",
+                    text(c, dialect, TestDataPlanner.plan(ctx, q, "t::M", ids, null, false, PlannerViews.of(ctx),
+                            TestDataPlanner.Printing.COMPAT).csv()), type.name());
+            // the seed's JSON: a timestamp key as upstream's ValueTransformer writes it, lite's canonical text
+            TestDataPlanner.Seed stamps = TestDataPlanner.seed(ctx, query("|t::S.all()->project([x|$x.n], ['n'])"),
+                    "t::M", false, PlannerViews.queries(ctx, "t::M", "t::RT"));
+            assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"STAMPS\",\"schema\":\"default\",\"database\":"
+                    + "\"t::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
+                    + "\"2020-01-02T03:04:05.123000000+0000\"}]},{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
+                    + "\"2020-01-03T00:00:00.000000000+0000\"}]}]}", text(c, dialect, TestDataPlanner.seedJson(ctx, stamps)),
+                    type.name());
+        }
+    }
+
+    /** EVENT {@code id}'s AMOUNT as the database casts it to a text. */
+    private static String cast(Connection c, int id) throws Exception {
+        try (Statement s = c.createStatement();
+                ResultSet r = s.executeQuery("SELECT CAST(AMOUNT AS VARCHAR) FROM EVENT WHERE ID = " + id)) {
+            assertTrue(r.next());
+            return r.getString(1);
+        }
+    }
+
     /** The seed's keys, as the database answers its rows statement. */
     private static List<Long> keys(Connection c, SqlDialect dialect, TestDataPlanner.Seed seed) throws Exception {
         List<Long> out = new java.util.ArrayList<>();
@@ -643,14 +734,15 @@ class TestDataPlannerTest {
         com.legend.error.AssertFailed root = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Order.all()->project([o|$o.id], ['i'])"), "t::M", List.of(), null, false,
-                        PlannerViews.of(ctx, "t::RT", Databases.dialect(type))));
+                        PlannerViews.of(ctx, "t::RT", Databases.dialect(type)), TestDataPlanner.Printing.CLEAN));
         assertEquals("Row Identifers should be provided for the root table: t::DB.ORDERS [ID:INT]\nExample:\n"
                 + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'ORDERS', [\n\n"
                 + "  ])\n", root.getMessage());
         com.legend.error.AssertFailed view = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Order.all()->project([o|$o.pnl.pnl], ['p'])"), "t::M",
-                        List.of(ids("ORDERS", "ID", 1L)), null, false, PlannerViews.of(ctx, "t::RT", Databases.dialect(type))));
+                        List.of(ids("ORDERS", "ID", 1L)), null, false, PlannerViews.of(ctx, "t::RT", Databases.dialect(type)),
+                        TestDataPlanner.Printing.CLEAN));
         assertEquals("Row Identifers should be provided for the root table of the view (PNLVIEW): t::DB.PNL"
                 + " [ORDER_ID:INT]\nExample:\n"
                 + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'PNL', [\n\n"
@@ -666,7 +758,7 @@ class TestDataPlannerTest {
         com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
-                        List.of(ids("PERSON", "id", 2L)), null, false, PlannerViews.of(ctx)));
+                        List.of(ids("PERSON", "id", 2L)), null, false, PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN));
         assertEquals("testDataGen: column 'id' not on table 'PERSON'", e.getMessage());
     }
 
@@ -702,7 +794,8 @@ class TestDataPlannerTest {
     private static void assertSame(Connection c, ModelContext ctx, SqlDialect dialect, String query,
             List<TestDataGenerator.TableRowIds> ids, boolean hash, int fetches, String expected,
             TestDataPlanner.Views views) throws Exception {
-        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query(query), "t::M", ids, null, hash, views);
+        TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query(query), "t::M", ids, null, hash, views,
+                TestDataPlanner.Printing.CLEAN);
         String sql = dialect.render(planned.csv());
         assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("CREATE"), sql);
         String text;

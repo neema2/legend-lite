@@ -65,7 +65,10 @@ public final class PeRatchets {
             "own_corpus.matched 3166 -> 3179 (2026-11-12, the B2d.3 audit's findings M1-M5, L1-L9): their tests'"
                     + " models (TestDataPlannerTest's route text, seed shapes, default-schema and view-with-note models,"
                     + " TestDataTextAsWrittenTest's two-database connection, TestDataRoutesTest's view and unmapped"
-                    + " runtime, PostgresArmTest's seed model)");
+                    + " runtime, PostgresArmTest's seed model)",
+            "own_corpus.matched 3179 -> 3192 (2026-11-12, L9's printing merged, 7d1bfcf8e; it measured 3164 -> 3177 on its"
+                    + " branch): its tests' models (TestDataPlannerTest's timestamp store, GeneratedTestDataPrintingTest's,"
+                    + " TestDataRoutesTest's timestamp route)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -155,6 +155,55 @@ class TestDataRoutesTest {
                 + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":4}]}]}", a.json());
     }
 
+    /** The routes print a timestamp as legend-engine does (L9, 2026-11-12: the routes are its API, so backwards
+     *  compatibility's printing): the test data's cut to {@code yyyy-MM-dd HH:mm:ss}, upstream's
+     *  {@code SimpleDateTimeFormat}; the seed's key in full, upstream's {@code ValueTransformer} text. */
+    @Test
+    void theRoutesPrintATimestampAsUpstreamDoes() throws Exception {
+        Path file = Files.createTempFile("tdg-stamps-", ".duckdb");
+        Files.delete(file);
+        String stamps = """
+                ###Pure
+                Class model::E { n: Integer[0..1]; }
+
+                ###Relational
+                Database store::TS ( Table EVENT ( STAMP TIMESTAMP PRIMARY KEY, N INTEGER ) )
+
+                ###Mapping
+                Mapping model::EM ( model::E: Relational { ~mainTable [store::TS] EVENT n: [store::TS] EVENT.N } )
+
+                ###Connection
+                RelationalDatabaseConnection store::TsConn {
+                    type: DuckDB;
+                    specification: DuckDB { path: '%s'; };
+                    auth: Test;
+                }
+
+                ###Runtime
+                Runtime model::ERT {
+                    mappings: [ model::EM ];
+                    connections: [ store::TS: [ c: store::TsConn ] ];
+                }
+                """.formatted(file.toString().replace("\\", "/"));
+        Seed.sql(stamps, "CREATE TABLE EVENT (STAMP TIMESTAMP PRIMARY KEY, N INTEGER)", "model::ERT");
+        Seed.sql(stamps, "INSERT INTO EVENT VALUES (TIMESTAMP '2020-01-02 03:04:05.123', 1),"
+                + " (TIMESTAMP '2020-01-03 00:00:00', 2)", "model::ERT");
+        String in = "{\"clientVersion\":\"vX_X_X\",\"function\":"
+                + PureV1Api.grammarToJsonLambda("|model::E.all()->project([e|$e.n], ['n'])", false).json()
+                + ",\"model\":" + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", stamps))
+                + ",\"mapping\":\"model::EM\",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"model::ERT\"},"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", in);
+        assertEquals(200, data.status(), data.json());
+        assertEquals("default\nEVENT\nN,STAMP\n1,2020-01-02 03:04:05\n2,2020-01-03 00:00:00\n-----\n", data.json());
+        PureV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData", in);
+        assertEquals(200, seed.status(), seed.json());
+        assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"EVENT\",\"schema\":\"default\",\"database\":"
+                + "\"store::TS\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
+                + "\"2020-01-02T03:04:05.123000000+0000\"}]},{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
+                + "\"2020-01-03T00:00:00.000000000+0000\"}]}]}", seed.json());
+    }
+
     /** The census: upstream's embedded data, a model fact (no run). */
     @Test
     void theCensusIsUpstreamsEmbeddedData() {
