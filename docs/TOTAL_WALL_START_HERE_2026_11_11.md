@@ -905,6 +905,18 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
     - the condition's cell is read by its declared type, not by parsing the texts `"true"` and `"false"`
       (`TestRun.taken`);
     - a guard that no product plan carries a branch.
+- **legend-engine plans, in and out** (the user, 2026-11-12: "we still want to be able to load legend-engine plans and
+  also us be able to generate legend-engine plans that engine can read - the nice thing about the java stuff is that we
+  still dont have to do all the crazy floating stuff in SQL both ways"; on the design: "i thought that was perfect ...
+  that was the exact right spirit"). The design is `docs/ENGINE_PLAN_INTEROP_2026_11_12.md`.
+  - Both directions are translations at planning, at the edge. Exec is unchanged: it runs only a lite plan.
+  - Export plans with `PlanStyle.UPSTREAM` and writes engine's format, with parameters as engine's placeholders.
+  - Import turns engine's relational/TDS plan into a lite plan: placeholders become bound parameters; Java nodes and
+    unknown template constructs are refused by name.
+  - Printing a result is the serializer's job, in Java at the edge (G6). Neither direction carries float printing in
+    SQL.
+  - Verified by round trip on the real engine runner. The engine format is 4.145.0's.
+  - D3, after D1 (§6).
 
 ## 6. What remains, in order
 
@@ -924,6 +936,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 | C3 | the hosts' separation proven structurally (the user, 2026-11-12): in TypeScript the statement type the engine accepts is made only by reading a plan; in Python the runner checks each statement it sends came from a plan | a host's hand-written SQL does not compile (TS) or is refused by name (Python); tests | §5.11 |
 | ✔ C | **checkpoint**, then the PR updated and MERGED (the user's final word asked at that moment, CI green on the final head) | built and checked 2026-11-12 (`docs/GATES.md`'s C entry): C1-C3, the two checkpoint audits' fixes, the user's rulings (§5.5); the gate at 970f0a992; rounds 38 and 39 green on every database; the final audit; CI on the final head; then the merge | §5.5 |
 | D1.0-D1.7, D2 | the edge, in this order: the spelling hook first; Raise/RaiseKind (after C2); the text nodes; lists, maps, format; the writers; the decorator; the compile messages; engine text, RawSqlBoundary, the referee and appeals; pure/v1's upstream routes to the edge; then D2's guard | no product SQL or MIR carries a compatibility spelling (D2's guard); PCT green through the hook; `D_BRIEF` §5's register rows | `D_BRIEF`, `COMPAT_IN_PRODUCT_INVENTORY`, `PRINT_FORM_PROBE` |
+| D3 | legend-engine plans in and out (the user, 2026-11-12): export from the edge with `UPSTREAM`, then the Java import (relational/TDS), then the browser's compatibility module | both round trips on the engine runner agree, or each difference is a register row the user ruled; the G5 and refusal guards with planted violators | `ENGINE_PLAN_INTEROP_2026_11_12` |
 | ✔ D | **checkpoint** (print forms checked on every database) | | |
 | E1, E2 | the eight E items | `C_E_BRIEF` §E's pins; register P3-R1 to R5 | `C_E_BRIEF` §E, `LEAN_PRODUCT_P3` §12 |
 | ✔ E | **checkpoint** | | |
