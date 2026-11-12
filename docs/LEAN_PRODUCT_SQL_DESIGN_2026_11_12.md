@@ -463,7 +463,7 @@ one.
 | E-R1 | `[1, 1.0]->removeDuplicates()` | two elements, `1` and `1.0`: Pure's equality tells Integer from Float | one element, `1.0` | one promoted type, IEEE-equal values; the same on every database |
 | E-R2 | `[1, 2.0]->at(0)->type()` (and `toString()`) | `Integer`, `'1'` | `Float`, `'1.0'` | the list's one declared element type, the value matching it |
 | E-R3 | `[%2025-02-10, %2025-02-10T00:00:00]->removeDuplicates()` (and `==` across them) | two elements: a StrictDate is not a DateTime | one element, the DateTime | a date is its midnight at UTC in a DateTime list (ISO 8601) |
-| E-R4 | `['b', 1, 'a']->sort()`, `->min()`, `->max()`, `greatest`, `least` across kinds | ordered by upstream's cross-kind comparison | refused by name ("a list of mixed kinds has no order: sort a list of one kind") | no principled order across kinds; refusal is never a silent answer |
+| E-R4 | `['b', 1, 'a']->sort()`, `->min()`, `->max()`, `greatest`, `least` across kinds | ordered by upstream's cross-kind comparison | **RE-RULED by the user, 2026-11-12: "can we do the sorting like upstream?"** Sorted exactly as upstream: kind rank first (number, date, boolean, string), then the value, in the database. min, max, greatest and least use the same order. No refusal and no register row. (The ruling it replaced was "refused by name".) | upstream's order is total and its own PCT asserts it (`testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes` must pass) |
 | E-R5 | a date inside a truly mixed list read back (`[1, %2025-02-10]->at(1)`) | the StrictDate | the StrictDate, carried in the Variant as `{"date": "..."}` | typed, never a string; listed because the CARRIER changes (a JSON array, not tag+slots), the answer does not |
 
 > **Upstream's answers, READ from the pinned legend-pure sources (2026-11-12, the orchestrator's E-2 ruling: each
@@ -493,7 +493,12 @@ one.
 >   - Upstream's own PCT test depends on it. `testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes`
 >     (`.../essential/collection/transformation/removeDuplicates.pure`) asserts
 >     `[1, 2, 3, '1', '3'] == [1, 2, '1', '3', 1, 3, '3', 2]->removeDuplicates()->sort()`.
->   - **Revised E-R4: no divergence.** The Variant list sorts exactly as upstream: a kind rank (number 0, date 1,
+>   - **RULED by the user, 2026-11-12: "can we do the sorting like upstream?"** Built with E-2, on D's `PlanStyle`
+>     hook.
+>   - **String order follows the database's collation.** Java orders by code point. Where a database's default
+>     collation differs, the product sorts strings by the database's binary or code-point collation. MariaDB's and
+>     MySQL's binary collation is already on the later list.
+>   - **E-R4 as ruled: no divergence.** The Variant list sorts exactly as upstream: a kind rank (number 0, date 1,
 >     boolean 2, string 3) read off each JSON element's type and the date tag, then the value within its kind.
 >     That is two sort keys the database computes.
 >   - `min`, `max`, `greatest` and `least` across kinds follow the same order.

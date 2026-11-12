@@ -146,8 +146,103 @@ public final class CastCaseCensus {
         return out;
     }
 
-    /** {@code bazel run //core:update_cast_case_census}: measured again and written over the source tree's pins. */
+    /** Where the {@code print} nodes sit (the compatibility frame's §6, 2026-11-12; a measurement, unpinned): AT THE
+     *  RESULT -- the top of a root projection's expression, or a chain of print nodes from it (presentation: a writer
+     *  could spell it) -- or INSIDE the query (a filter, a join, a key, a concatenation, an argument: printing the
+     *  query computes with). Per database: {result casts, result cases, inside casts, inside cases}. */
+    public static Map<String, long[]> printPlacement(Path set) throws IOException {
+        Map<String, long[]> out = new TreeMap<>();
+        List<String> lines = Files.readAllLines(set, StandardCharsets.UTF_8);
+        for (DatabaseType type : com.legend.database.Databases.implemented()) {
+            if (!LeanSqlBaseline.relational(type)) {
+                continue;
+            }
+            com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(type);
+            long[] counts = out.computeIfAbsent(type.name(), k -> new long[4]);
+            for (String line : lines) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                Json.Obj c = Json.parseObject(line);
+                SqlQuery passed;
+                try {
+                    TypedQuery q = Compiler.query(Compiler.compileModel(LeanSqlBaseline.withRuntime(
+                            ((Json.Str) c.get("model")).value(), type)), ((Json.Str) c.get("expression")).value());
+                    passed = com.legend.sql.dialect.PassedTrees.passed(dialect, q.lower(StorelessRuntime.RUNTIME,
+                            false, List.of(), java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
+                            .plan());
+                } catch (RuntimeException | StackOverflowError e) {
+                    continue;
+                }
+                java.util.Set<SqlExpr> atResult = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                if (passed instanceof com.legend.sql.SqlSelect root) {
+                    for (com.legend.sql.SqlSelect.Projection p : root.projections()) {
+                        resultChain(p.expr(), atResult);
+                    }
+                }
+                new com.legend.sql.SqlRewriter() {
+                    @Override
+                    protected SqlExpr expr(SqlExpr e) {
+                        if (type.name().equals("DuckDB") && !isPrint(e)) {
+                            for (SqlExpr child : e.children()) {
+                                if (isPrint(child)) {
+                                    String label = switch (e) {
+                                        case SqlExpr.Call k -> "call " + k.fn();
+                                        case SqlExpr.Cast k -> "cast(" + k.reason().code() + ")";
+                                        case SqlExpr.Case k -> "case(" + k.reason().code() + ")";
+                                        default -> e.getClass().getSimpleName();
+                                    };
+                                    HOLDERS.merge(label, 1L, Long::sum);
+                                }
+                            }
+                        }
+                        boolean result = atResult.contains(e);
+                        switch (e) {
+                            case SqlExpr.Cast x when x.reason() == SqlExpr.Reason.PRINT -> counts[result ? 0 : 2]++;
+                            case SqlExpr.Case x when x.reason() == SqlExpr.Reason.PRINT -> counts[result ? 1 : 3]++;
+                            default -> {
+                            }
+                        }
+                        return e;
+                    }
+                }.rewriteRoot(passed);
+            }
+        }
+        return out;
+    }
+
+    /** DuckDB's inside print chains, by the node holding each (a measurement's scratch; the manual mode alone). */
+    private static final Map<String, Long> HOLDERS = new TreeMap<>();
+
+    private static boolean isPrint(SqlExpr e) {
+        return (e instanceof SqlExpr.Cast x && x.reason() == SqlExpr.Reason.PRINT)
+                || (e instanceof SqlExpr.Case y && y.reason() == SqlExpr.Reason.PRINT);
+    }
+
+    /** {@code e} and, while it is a print node, its children: the result's own printing. */
+    private static void resultChain(SqlExpr e, java.util.Set<SqlExpr> into) {
+        boolean print = (e instanceof SqlExpr.Cast x && x.reason() == SqlExpr.Reason.PRINT)
+                || (e instanceof SqlExpr.Case y && y.reason() == SqlExpr.Reason.PRINT);
+        if (!print) {
+            return;
+        }
+        into.add(e);
+        for (SqlExpr child : e.children()) {
+            resultChain(child, into);
+        }
+    }
+
+    /** {@code bazel run //core:update_cast_case_census}: measured again and written over the source tree's pins
+     *  ({@code -- placement}: the print nodes' placement printed instead, nothing written). */
     public static void main(String[] args) throws IOException {
+        if (args.length == 1 && args[0].equals("placement")) {
+            printPlacement(com.legend.testing.Runfile.property("legend.lean_sql.channel_a")).forEach((d, v) ->
+                    System.out.println("print placement " + d + ": at the result " + v[0] + " casts, " + v[1]
+                            + " cases; inside the query " + v[2] + " casts, " + v[3] + " cases"));
+            HOLDERS.entrySet().stream().sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                    .forEach(h -> System.out.println("print held by (DuckDB) " + h.getKey() + ": " + h.getValue()));
+            return;
+        }
         String workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY");
         if (workspace == null) {
             throw new IllegalStateException("run it with bazel run //core:update_cast_case_census");
