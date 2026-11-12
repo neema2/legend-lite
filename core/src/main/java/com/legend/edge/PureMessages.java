@@ -71,9 +71,16 @@ public final class PureMessages {
             // [the constraint's id]: the engine's milestoning/constraint sentence, in a checked graph's defect row
             case CONSTRAINT_UNEVALUABLE -> new SqlExpr.StringLit("Unable to evaluate constraint [" + text(r, 0)
                     + "]: data not available - check your mappings");
-            case MAP_KEYS_MISALIGNED, MAP_KEY_NULL,
-                 MAP_KEYS_NOT_UNIQUE, TEXT_NOT_INTEGER, TEXT_NOT_DATE -> throw new UnsupportedOperationException("a raise of kind " + r.kind()
-                    + " reached the edge: no site raises it yet (phase D's D1.1 moves its sites one family at a time)");
+            // DuckDB's own words, which the reference database's other dialects raise (the D0 inventory's K3)
+            case MAP_KEYS_MISALIGNED -> new SqlExpr.StringLit("The map key list does not align with the map value list.");
+            case MAP_KEY_NULL -> new SqlExpr.StringLit("Map keys can not be NULL.");
+            case MAP_KEYS_NOT_UNIQUE -> new SqlExpr.StringLit("Map keys must be unique.");
+            // [the text]: DuckDB's cast errors
+            case TEXT_NOT_INTEGER -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                    new SqlExpr.StringLit("Could not convert string '"), r.operands().get(0),
+                    new SqlExpr.StringLit("' to INT64"));
+            case TEXT_NOT_DATE -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, new SqlExpr.StringLit("Could not parse '"),
+                    r.operands().get(0), new SqlExpr.StringLit("' as a date"));
         };
     }
 

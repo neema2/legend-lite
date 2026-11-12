@@ -1849,9 +1849,8 @@ public class SQLite extends AnsiSqlRenderer {
         return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(digits)
                 .append(" <> '' AND ").piece(digits).append(" NOT GLOB '*[^0-9]*' AND length(trim(").expr(s, 0)
                 .append(")) - length(").piece(digits).append(") <= 1 THEN CAST(trim(").expr(s, 0)
-                .append(") AS INTEGER) ELSE ").piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT,
-                        new SqlExpr.StringLit("Could not convert string '"), s,
-                        new SqlExpr.StringLit("' to INT64"))))).append(" END)");
+                .append(") AS INTEGER) ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))))).append(" END)");
     }
 
     /** GREATEST/LEAST over the arguments, each replaced by the next non-NULL one when it is NULL: NULL only when every
@@ -2349,9 +2348,8 @@ public class SQLite extends AnsiSqlRenderer {
      *  that is no date raises. */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
         return w -> w.append("(SELECT CASE WHEN date(substr(__pp.t, 1, 10)) = substr(__pp.t, 1, 10) AND (length(__pp.t)"
-                + " = 10 OR substr(__pp.t, 11, 1) = ' ') THEN __pp.t ELSE ").piece(raise(List.of(SqlExpr.Call.of(
-                        SqlFn.CONCAT, new SqlExpr.StringLit("Could not parse '"), x,
-                        new SqlExpr.StringLit("' as a date"))))).append(" END FROM (SELECT ")
+                + " = 10 OR substr(__pp.t, 11, 1) = ' ') THEN __pp.t ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))))).append(" END FROM (SELECT ")
                 .piece(padded(dateTimeText(w2 -> w2.expr(x, 0)))).append(" AS t) AS __pp)");
     }
 

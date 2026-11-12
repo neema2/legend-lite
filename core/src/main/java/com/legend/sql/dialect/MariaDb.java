@@ -2272,8 +2272,8 @@ public class MariaDb extends AnsiSqlRenderer {
     private SqlWriter.Piece parseInt(SqlExpr s) {
         return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN TRIM(").expr(s, 0)
                 .append(") REGEXP '^[+-]?[0-9]+$' THEN CAST(TRIM(").expr(s, 0).append(") AS SIGNED) ELSE ")
-                .piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("Could not convert string '"),
-                        s, new SqlExpr.StringLit("' to INT64"))), SqlType.Scalar.BIGINT)).append(" END)");
+                .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))),
+                        SqlType.Scalar.BIGINT)).append(" END)");
     }
 
     /** GREATEST/LEAST over the arguments, each replaced by the next non-NULL one when it is NULL: NULL only when every
@@ -2782,9 +2782,8 @@ public class MariaDb extends AnsiSqlRenderer {
     /** Pure's parseDate of a text: its date-time ({@link #utcOf}); a text that is no date raises. */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
         return w -> w.append("(CASE WHEN ").expr(x, 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                .piece(utcOf(v -> v.expr(x, 0))).append(", ").piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT,
-                        new SqlExpr.StringLit("Could not parse '"), x, new SqlExpr.StringLit("' as a date"))),
-                        SqlType.Scalar.TIMESTAMP))
+                .piece(utcOf(v -> v.expr(x, 0))).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))), SqlType.Scalar.TIMESTAMP))
                 .append(") END)");
     }
 

@@ -18,7 +18,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -152,6 +151,14 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.CONSTRAINT_UNEVALUABLE, List.of(lit("posInt"))),
                 lit("Unable to evaluate constraint [posInt]: data not available - check your mappings"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.USER_FAIL, List.of(lit("my own words"))), lit("my own words"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.MAP_KEYS_MISALIGNED, List.of()),
+                lit("The map key list does not align with the map value list."));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.MAP_KEY_NULL, List.of()), lit("Map keys can not be NULL."));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.MAP_KEYS_NOT_UNIQUE, List.of()), lit("Map keys must be unique."));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.TEXT_NOT_INTEGER, List.of(a)), SqlExpr.Call.of(SqlFn.CONCAT,
+                lit("Could not convert string '"), a, lit("' to INT64")));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.TEXT_NOT_DATE, List.of(a)), SqlExpr.Call.of(SqlFn.CONCAT,
+                lit("Could not parse '"), a, lit("' as a date")));
         moved.put(new SqlExpr.RaiseText(RaiseKind.VALUE_NOT_HELD, List.of(lit("an integer past 64 bits has no SQLite"
                 + " value"))), lit("an integer past 64 bits has no SQLite value"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.FRACTION_NOT_KEPT, List.of(lit("the second "), a, lit(" has more"))),
@@ -168,12 +175,5 @@ class RaiseTextTest {
                         text(com.legend.edge.PureText.dialect(type), select(e.getKey())), type + ": " + e.getKey());
             }
         }
-    }
-
-    @Test
-    void aKindNoSiteRaisesYetIsRefusedAtTheEdge() {
-        var refused = assertThrows(UnsupportedOperationException.class, () -> com.legend.edge.PureMessages.sentence(
-                new SqlExpr.RaiseText(RaiseKind.MAP_KEY_NULL, List.of())));
-        assertTrue(refused.getMessage().contains("MAP_KEY_NULL"), refused.getMessage());
     }
 }
