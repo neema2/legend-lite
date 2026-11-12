@@ -58,4 +58,19 @@ class NativeRegistryGovernanceTest {
                     g.name());
         }
     }
+
+    /** GroupAggregate has no by-id {@code of}: its call is read by name before typing and its overloads by
+     *  {@code Pure.AT_RELATION_JOIN_STRINGS} -- the member is held to both (2026-11-12, the owner's ruling on slice 1b's
+     *  report). */
+    @Test
+    @DisplayName("GROUP_AGGREGATE rows == the group desugar's name and the lowering's overloads")
+    void groupAggregateIsTheDesugarsNameAndTheLoweringsOverloads() {
+        assertEquals(Set.of(PlatformTypes.RELATION_JOIN_STRINGS),
+                rows(java.util.List.of(com.legend.builtin.NativeFn.GroupAggregate.values())),
+                "GROUP_AGGREGATE rows and GroupLambdaAggs' name drifted");
+        assertEquals(Set.copyOf(com.legend.builtin.Pure.AT_RELATION_JOIN_STRINGS),
+                com.legend.builtin.NativeFn.GroupAggregate.JOIN_STRINGS.overloads().stream()
+                        .map(com.legend.model.FunctionId::of).collect(Collectors.toSet()),
+                "GROUP_AGGREGATE overloads and the lowering's AT_RELATION_JOIN_STRINGS drifted");
+    }
 }

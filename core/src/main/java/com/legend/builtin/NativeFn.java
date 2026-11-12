@@ -494,7 +494,15 @@ public final class NativeFn {
      *  written over the GROUP inside a groupBy/aggregate FuncColSpec
      *  ({@code ~names : g | $g->joinStrings(~name, ',', ~id->ascending())}) and
      *  desugared by GroupLambdaAggs to the map/reduce aggregate form whose
-     *  reducer is the ordered {@code string_agg}. Never lowered as a call. */
+     *  reducer is the ordered {@code string_agg}. Never lowered as a call.
+     *
+     *  <p>NO {@code of} (2026-11-12, the owner's ruling on slice 1b's report: the
+     *  one family with overloads and no id lookup, by design): no resolved callee
+     *  is dispatched through this family -- GroupLambdaAggs reads the call by its
+     *  resolved name ({@code PlatformTypes.RELATION_JOIN_STRINGS}) before typing,
+     *  and the lowering reads its overloads as {@link Pure#AT_RELATION_JOIN_STRINGS}
+     *  (Aggregates, Lowerer). {@code NativeRegistryGovernanceTest} holds the member
+     *  to both, so the three cannot drift. */
     public enum GroupAggregate implements Member {
         JOIN_STRINGS("meta::pure::functions::relation::joinStrings",
                 Pure.JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1,
