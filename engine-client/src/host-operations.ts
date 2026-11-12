@@ -19,15 +19,18 @@ export type HostSource =
   | { readonly relation: HostName }
   // a person's own file is read by a planned load (B3: the planner's fileLoad, run by plan-runner.ts runLoad), never by
   // an operation naming it; a remote file likewise (B3's Q3: the planner's remoteMount)
-  /** A query a planner wrote, for this database. */
-  | { readonly query: string };
+  /** A query a planner wrote, for this database: a PlannedSql, made where its plan was read (the C final audit's H2,
+   *  2026-11-12: until then any text compiled here, and the platform pasted it into the operation's statement). */
+  | { readonly query: PlannedSql };
 
 export type HostOperation =
   /** A relation made: replacing one of its name or not; its columns the planner's copy select list, or every column
    *  with `replacing`'s replaced (the planner's expressions), or every column. */
   | {
     readonly op: 'relation'; readonly kind: 'table' | 'view'; readonly target: HostName; readonly replace?: boolean;
-    readonly selectList?: string; readonly replacing?: readonly { readonly column: string; readonly sql: string }[];
+    // the planner's own text (its table model's copy select list, its expressions): PlannedSql, made where its answer
+    // is read (H2), never a string a host wrote
+    readonly selectList?: PlannedSql; readonly replacing?: readonly { readonly column: string; readonly sql: PlannedSql }[];
     readonly from: HostSource;
   }
   | { readonly op: 'drop'; readonly kind: 'table' | 'view'; readonly target: HostName }
@@ -109,7 +112,9 @@ export interface RemoteMountSource {
 export interface SnapStreamRequest {
   readonly databaseType: string;
   readonly plane: string;
-  readonly sql: string;
+  /** The statement the remote plane runs: its planner's, as its plan carries it (a PlannedSql: the C final audit's H3,
+   *  2026-11-12), never a host's text. */
+  readonly sql: PlannedSql;
   readonly schema?: string;
   readonly table: string;
 }

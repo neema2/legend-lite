@@ -34,6 +34,21 @@ public final class TestBackends {
         return url.toString();
     }
 
+    /** The settings a plan's target on {@code type} declares its database must have, as the planner writes them
+     *  ({@code planner.Targets}: the dialect's; null where it declares none): what a test that builds its own target
+     *  carries (the C final audit's J4, 2026-11-12: a target on H2 that declares none is refused by name). */
+    public static com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings(
+            DatabaseType type) {
+        return com.legend.planner.Targets.of(new com.legend.executionplan.ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(type), null), Databases.dialect(type)).settings();
+    }
+
+    /** {@link #settings(DatabaseType)} by the plan's name for the type. */
+    public static com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings(
+            com.legend.executionplan.DatabaseType type) {
+        return settings(com.legend.planner.ConnectionPlans.model(type));
+    }
+
     /** {@code type}'s backend. */
     public static TestBackend of(DatabaseType type) {
         return switch (type) {

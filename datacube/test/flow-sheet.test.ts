@@ -59,6 +59,10 @@ import { dynamicReplaceCommands, dynamicReplaceProbe, readDynamicReplace, replac
 import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText, readCustomFilter } from '../src/custom-filter.ts';
 import { pastedCells, tableCsv, tableProblem } from '../src/ui/text-input-dialog.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 const COLUMNS = [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
 const FILE: FileSource = {
   _type: 'file', name: 'trades.csv', format: 'csv', size: 120, sha256: 'ab'.repeat(32), columns: COLUMNS,
@@ -156,7 +160,7 @@ describe("a flow's layout (layout/flow.ts)", () => {
     const TESTED = (): PageDraft => apply(FLOW(), addGrid(cube(rows('grid-2'), (q) => ({ ...q, derived: checked.derived, rows: checked.rows })), 'sheet-2', 'grid-2'));
     const d = apply(TESTED(), { kind: 'setStops', grid: 'grid-5', stops: true });
     assert.equal(at(d.page, 'grid-5')?.stops, true);
-    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    assert.equal(pageToJson(readPage(looseJson(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
     refused(() => apply(d, { kind: 'setStops', grid: 'grid-5', stops: true }), /'grid-5' stops a run already/);
     refused(() => apply(TESTED(), { kind: 'setStops', grid: 'grid-5', stops: false }), /'grid-5' stops no run/);
     refused(() => apply(TESTED(), { kind: 'setStops', grid: 'grid-1', stops: true }), /'grid-1' is no box of a flow: a run is a flow's/);
@@ -170,7 +174,7 @@ describe("a flow's layout (layout/flow.ts)", () => {
     const back = applyPlanned({ page: d.page, held: idsOf(d.page) }, pageBetween(d.page, TESTED().page, 'history'), false).draft.page;
     assert.equal(at(back, 'grid-5')?.stops, undefined, 'undone by the commands between');
     // a page whose box stops otherwise is refused as it is read
-    const bad = JSON.parse(pageToJson(d.page));
+    const bad = looseJson(pageToJson(d.page));
     bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-5').stops = false;
     assert.throws(() => readPage(bad), /stops a run \(true\) or is without it, not false/);
   });
@@ -178,7 +182,7 @@ describe("a flow's layout (layout/flow.ts)", () => {
   it('sets a box to cache its rows (setCache, FL10), or no longer; read, written, renamed, undone, kept by Tidy Up', () => {
     const d = apply(FLOW(), { kind: 'setCache', grid: 'grid-2', cache: true });
     assert.equal(at(d.page, 'grid-2')?.cache, true);
-    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    assert.equal(pageToJson(readPage(looseJson(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
     refused(() => apply(d, { kind: 'setCache', grid: 'grid-2', cache: true }), /'grid-2' caches its rows already/);
     refused(() => apply(FLOW(), { kind: 'setCache', grid: 'grid-2', cache: false }), /'grid-2' caches no rows/);
     refused(() => apply(FLOW(), { kind: 'setCache', grid: 'grid-1', cache: true }), /'grid-1' is no box of a flow: a cache is a flow's box's/);
@@ -191,7 +195,7 @@ describe("a flow's layout (layout/flow.ts)", () => {
     // moved, it is still cached (layout/flow.ts moveBox keeps it)
     assert.equal(at(apply(d, { kind: 'placeBox', tile: 'grid-2', x: 40, y: 40 }).page, 'grid-2')?.cache, true);
     // a page whose box caches otherwise is refused as it is read
-    const bad = JSON.parse(pageToJson(d.page));
+    const bad = looseJson(pageToJson(d.page));
     bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-2').cache = 'yes';
     assert.throws(() => readPage(bad), /caches its rows \(true\) or is without it, not "yes"/);
   });
@@ -201,7 +205,7 @@ describe("a flow's layout (layout/flow.ts)", () => {
     const d = apply(FLOW(), { kind: 'setBlocks', grid: 'grid-3', blocks: true }, { kind: 'setMessage', grid: 'grid-3', message: MESSAGE });
     assert.equal(at(d.page, 'grid-3')?.blocks, true);
     assert.deepEqual(at(d.page, 'grid-3')?.message, MESSAGE);
-    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    assert.equal(pageToJson(readPage(looseJson(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
     refused(() => apply(d, { kind: 'setBlocks', grid: 'grid-3', blocks: true }), /'grid-3' blocks a run already/);
     refused(() => apply(FLOW(), { kind: 'setBlocks', grid: 'grid-3', blocks: false }), /'grid-3' blocks no run/);
     refused(() => apply(d, { kind: 'setMessage', grid: 'grid-3', message: MESSAGE }), /'grid-3' says so already/);
@@ -218,7 +222,7 @@ describe("a flow's layout (layout/flow.ts)", () => {
     // a layout told whole keeps them as the page has them (page-rebase.ts rearranged)
     const told = rearranged({ kind: 'layout', sheet: 'sheet-2', layout: { kind: 'flow', boxes: flowOf(FLOW().page).boxes } }, d.page);
     assert.ok(told.kind === 'layout' && told.layout.kind === 'flow' && told.layout.boxes.find((b) => b.tile === 'grid-3')?.blocks === true);
-    const bad = JSON.parse(pageToJson(d.page));
+    const bad = looseJson(pageToJson(d.page));
     bad.sheets[1].layout.boxes.find((b: { tile: string }) => b.tile === 'grid-3').message.when = 'often';
     assert.throws(() => readPage(bad), /a message is said always, rows, noRows, not "often"/);
   });
@@ -777,7 +781,7 @@ describe('a Pure box (pure-box.ts, setPure): its rows a function of its input\'s
     const set = sourceOf(d.page, 'grid-3');
     assert.ok(set._type === 'rows');
     assert.deepEqual(set.pure, pure());
-    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
+    assert.equal(pageToJson(readPage(looseJson(pageToJson(d.page)))), pageToJson(d.page), 'written and read back the same');
     // its box says its Pure first, its own filter after it
     const view = d.page.views.find((v) => v.id === 'grid-3') as { cube: string };
     assert.deepEqual(boxSays(d.page.cubes.find((c) => c.id === view.cube)!.cube), { tool: 'pure', also: ['filter'], says: 'filter → limit' });
@@ -790,7 +794,7 @@ describe('a Pure box (pure-box.ts, setPure): its rows a function of its input\'s
     assert.equal(pageToJson(off.page), pageToJson(FLOW().page), 'taken off: as it was');
     // read as JSON carries it, refused in words
     const c: PageCommand = { kind: 'setPure', grid: 'grid-3', pure: pure() };
-    assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
+    assert.deepEqual(readPageCommand(looseJson(JSON.stringify(c))), c);
     assert.deepEqual(readPageCommand({ kind: 'setPure', grid: 'grid-3', pure: null }), { kind: 'setPure', grid: 'grid-3', pure: null });
     refused(() => readPageCommand({ kind: 'setPure', grid: 'grid-3', pure: 'input|$input' }), /a Pure box's function is a lambda/);
     assert.deepEqual(renamedCommand(c, new Map([['grid-3', 'grid-9']])), { ...c, grid: 'grid-9' });
@@ -1297,7 +1301,7 @@ describe("a page's macros, saved and taken off by its page commands (macros.ts, 
     assert.deepEqual(d.page.macros?.map((m) => m.name), ['Big']);
     d = apply(d, { kind: 'setMacro', name: 'Big', pure: lambda(['input'], fn('limit', variable('input'), lit.integer(5))) });
     assert.equal(d.page.macros?.length, 1, 'its name again: replaced');
-    assert.equal(toJson(readPage(JSON.parse(pageToJson(d.page))).macros![0]!.pure), toJson(d.page.macros![0]!.pure), 'written and read again, exact');
+    assert.equal(toJson(readPage(looseJson(pageToJson(d.page))).macros![0]!.pure), toJson(d.page.macros![0]!.pure), 'written and read again, exact');
     refused(() => apply(d, { kind: 'setMacro', name: 'One', pure: lambda(['input'], lit.integer(1)) }), /One: its Pure never reads \$input/);
     refused(() => apply(d, { kind: 'setMacro', name: 'Nope', pure: null }), /'Nope' is not a macro of the page \(Big\)/);
     d = apply(d, { kind: 'setMacro', name: 'Big', pure: null });
@@ -1312,7 +1316,7 @@ describe("a page's parameters, set and taken off by its page commands (page-para
     assert.deepEqual(d.page.parameters?.map((p) => p.name), ['min', 'region']);
     d = apply(d, { kind: 'setParameter', parameter: { ...min, value: 200 } });
     assert.deepEqual(d.page.parameters?.map((p) => p.value), [200, 'EMEA'], 'its value changed in its place');
-    assert.deepEqual(readPage(JSON.parse(pageToJson(d.page))).parameters, d.page.parameters, 'written and read again');
+    assert.deepEqual(readPage(looseJson(pageToJson(d.page))).parameters, d.page.parameters, 'written and read again');
     refused(() => apply(d, { kind: 'setParameter', parameter: { ...min, value: 'many' } }), /min's value is no Float/);
     refused(() => apply(d, { kind: 'removeParameter', name: 'nope' }), /'nope' is not a parameter of the page \(min, region\)/);
     d = apply(d, { kind: 'removeParameter', name: 'min' }, { kind: 'removeParameter', name: 'region' });
@@ -1587,7 +1591,7 @@ describe("a flow sheet's page commands", () => {
     assert.deepEqual(at(page, 'grid-4'), { tile: 'grid-4', x: MARGIN + BOX_WIDTH + GAP_X, y: MARGIN + BOX_HEIGHT + GAP_Y });
     assert.equal(unnamedLabel(page, page.sheets[1]!), 'Flow 2', 'a flow is called a flow until someone names it');
     // read back whole: the page's own rules hold it
-    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(page)))), pageToJson(page));
+    assert.equal(pageToJson(readPage(looseJson(pageToJson(page)))), pageToJson(page));
   });
 
   it('places a box by hand: a flow\'s alone', () => {
@@ -1603,7 +1607,7 @@ describe("a flow sheet's page commands", () => {
     const d = apply(FLOW(), { kind: 'addText', id: 'text-1', sheet: 'sheet-2', text: 'Trades over 100 only', title: null, columns: null },
       { kind: 'placeBox', tile: 'text-1', x: 600, y: 300 });
     assert.deepEqual(at(d.page, 'text-1'), { tile: 'text-1', x: 600, y: 300 });
-    readPage(JSON.parse(pageToJson(d.page)));
+    readPage(looseJson(pageToJson(d.page)));
     const tidy = tidyCommands(d.page, 'sheet-2');
     const after = tidy.length === 0 ? d.page : apply(d, ...tidy).page;
     assert.deepEqual(at(after, 'text-1'), { tile: 'text-1', x: 600, y: 300 }, 'a comment stays where it was put');
@@ -1620,10 +1624,10 @@ describe("a flow sheet's page commands", () => {
       { ...frame, collapsed: true });
     assert.deepEqual(at(apply(d, { kind: 'placeBox', tile: 'text-1', x: 20, y: 10, frame: null }).page, 'text-1'), { tile: 'text-1', x: 20, y: 10 });
     // saved and read again with its frame; a frame too small, or on a grid, refused
-    assert.deepEqual(at(readPage(JSON.parse(pageToJson(d.page))), 'text-1')?.frame, frame);
+    assert.deepEqual(at(readPage(looseJson(pageToJson(d.page))), 'text-1')?.frame, frame);
     refused(() => apply(d, { kind: 'placeBox', tile: 'text-1', x: 0, y: 0, frame: { w: 50, h: 50 } }), /a frame is at least 200 by 100/);
     refused(() => apply(d, { kind: 'placeBox', tile: 'grid-2', x: 0, y: 0, frame }), /a container is a comment/);
-    assert.throws(() => readPage(JSON.parse(pageToJson(d.page).replace('"tile":"grid-2","x":40,"y":40', '"tile":"grid-2","x":40,"y":40,"frame":{"w":300,"h":200}'))),
+    assert.throws(() => readPage(looseJson(pageToJson(d.page).replace('"tile":"grid-2","x":40,"y":40', '"tile":"grid-2","x":40,"y":40,"frame":{"w":300,"h":200}'))),
       (e: unknown) => e instanceof PageDocumentError && /a container is a comment, not a grid/.test(e.message));
     // the boxes in it: those whose whole place is inside it, below its head
     const flow = flowOf(d.page);
@@ -1635,7 +1639,7 @@ describe("a flow sheet's page commands", () => {
     const inside = { boxes: [{ tile: 'c', x: 20, y: 10, frame: { w: 600, h: 200 } }, { tile: 'a', x: 40, y: 60 }, { tile: 'b', x: 700, y: 60 }] };
     assert.deepEqual(containerMoves(inside, 'c', 120, 30), [{ tile: 'c', x: 120, y: 30 }, { tile: 'a', x: 140, y: 80 }]);
     assert.deepEqual(containerMoves(inside, 'b', 5, 5), [{ tile: 'b', x: 5, y: 5 }], 'a box is itself alone');
-    assert.deepEqual(PAGE_GESTURES['flow.place']({ page: JSON.parse(pageToJson(d.page)), tile: 'text-1', x: 30, y: 20 })
+    assert.deepEqual(PAGE_GESTURES['flow.place']({ page: looseJson(pageToJson(d.page)), tile: 'text-1', x: 30, y: 20 })
       .map((c) => (c as { tile: string }).tile)[0], 'text-1', 'one step: the container first, then its boxes');
     assert.throws(() => containerMoves(inside, 'nope', 0, 0), (e: unknown) => e instanceof FlowRefusal && /'nope' is no box of this flow/.test(e.message));
   });
@@ -1674,12 +1678,12 @@ describe("a flow sheet's page commands", () => {
       assert.deepEqual(source.input.source, FILE);
     }
     // the page read back: no link left to a grid it does not have
-    readPage(JSON.parse(pageToJson(page)));
+    readPage(looseJson(pageToJson(page)));
   });
 
   it('reads and writes its commands, refused in words', () => {
     for (const c of [{ kind: 'addFlow', id: 'sheet-3', name: 'Prep' }, { kind: 'addFlow', name: null }, { kind: 'placeBox', tile: 'grid-2', x: 10, y: 20 }]) {
-      assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
+      assert.deepEqual(readPageCommand(looseJson(JSON.stringify(c))), c);
     }
     assert.throws(() => readPageCommand({ kind: 'placeBox', tile: 'grid-2', x: '10', y: 20 }), /a box's place is two numbers, not \("10", 20\)/);
     assert.throws(() => readPageCommand({ kind: 'placeBox', tile: 'grid-2', x: 1, y: 2, z: 3 }), /z/);
@@ -1721,7 +1725,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     if (s._type !== 'rows' || isLive(s.input)) throw new Error('not frozen');
     assert.equal(s.input.source._type, 'rows', "a copy of the Filter: its source the Filter's, resolved");
     assert.deepEqual(liveGrids(s), []);
-    readPage(JSON.parse(pageToJson(frozen)));
+    readPage(looseJson(pageToJson(frozen)));
   });
 
   it('refuses in words: a cycle, a grid the page has not, a side the source has not, the same input, a board grid frozen twice', () => {
@@ -1751,7 +1755,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     // a box of the join's inputs taken off: the join reads a copy of it, its other input still live (FL6)
     const gone = apply(d, { kind: 'removeTile', tile: 'grid-4' }).page;
     assert.deepEqual(liveGrids(sourceOf(gone, 'grid-5')), ['grid-3']);
-    readPage(JSON.parse(pageToJson(gone)));
+    readPage(looseJson(pageToJson(gone)));
   });
 
   it('a box opened again passes on the columns its input gained, as a saved grid over a file does not', () => {
@@ -1807,7 +1811,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     const gone = apply(d, { kind: 'removeTile', tile: 'grid-5' }).page;
     const frozen = sourceOf(gone, 'grid-6');
     assert.equal(frozen._type === 'rows' && !isLive(frozen.input) ? frozen.input.unmatched?.length : undefined, 1);
-    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(gone)))), pageToJson(gone), 'written and read back the same');
+    assert.equal(pageToJson(readPage(looseJson(pageToJson(gone)))), pageToJson(gone), 'written and read back the same');
     // a join set so that its R pairs nothing is refused while a box reads it, in its words
     refused(() => apply(d, { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' } }), /grid-6: a Union keeps every row of both/);
     refused(() => apply(FLOW(), { kind: 'setInput', grid: 'grid-4', side: 'input', input: { grid: 'grid-3', port: 'left' } }),
@@ -1875,7 +1879,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     const read = resolvedSource(three.page, s3, 'grid-5');
     assert.deepEqual(liveGrids(read), []);
     assert.deepEqual(leavesOf(read), [FILE, FILE, FILE]);
-    assert.equal(pageToJson(readPage(JSON.parse(pageToJson(three.page)))), pageToJson(three.page), 'written and read back the same');
+    assert.equal(pageToJson(readPage(looseJson(pageToJson(three.page)))), pageToJson(three.page), 'written and read back the same');
     // its more1 linked again, frozen; a side past its next refused; one that reads its own rows refused
     const again = sourceOf(apply(three, { kind: 'setInput', grid: 'grid-5', side: 'more1', input: { grid: 'grid-2' } }).page, 'grid-5');
     assert.deepEqual(again._type === 'join' ? again.more : undefined, [{ grid: 'grid-2' }]);
@@ -1912,7 +1916,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     assert.deepEqual(sourceOf(redone, 'grid-5'), sourceOf(four.page, 'grid-5'), 'redone: of four');
     // read, written and renamed as every command is
     const set: PageCommand = { kind: 'setJoin', grid: 'grid-5', how: { form: 'append' }, more: [{ grid: 'grid-4' }] };
-    assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(set))), set);
+    assert.deepEqual(readPageCommand(looseJson(JSON.stringify(set))), set);
     assert.deepEqual(readPageCommand({ kind: 'setInput', grid: 'grid-5', side: 'more2', input: { grid: 'grid-4' } }),
       { kind: 'setInput', grid: 'grid-5', side: 'more2', input: { grid: 'grid-4' } });
     refused(() => readPageCommand({ kind: 'setInput', grid: 'grid-5', side: 'more0', input: null }), /a Union's more1, more2, \.\.\., not "more0"/);
@@ -1925,7 +1929,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
     for (const c of [
       { kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2' } },
       { kind: 'setInput', grid: 'grid-5', side: 'right', input: null },
-    ]) assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
+    ]) assert.deepEqual(readPageCommand(looseJson(JSON.stringify(c))), c);
     assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'top', input: null }), /its input, a join's left or right, or a Union's more1, more2, \.\.\., not "top"/);
     assert.throws(() => readPageCommand({ kind: 'setInput', grid: 'grid-3', side: 'input', input: { grid: 'grid-2', x: 1 } }), /a live input is its grid alone, and its port, not x/);
     const renamed = new Map([['grid-2', 'grid-8'], ['grid-3', 'grid-7']]);
@@ -1964,7 +1968,7 @@ describe("a box's input set (setInput: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2)
 describe('a flow page read, and what it opens as it opens', () => {
   it('refuses a flow\'s tile that is no grid, and a box placed twice or off the canvas', () => {
     const page = FLOW().page;
-    const raw = JSON.parse(pageToJson(page)) as { sheets: { layout: { boxes?: unknown[] } }[]; views: unknown[] };
+    const raw = looseJson(pageToJson(page)) as { sheets: { layout: { boxes?: unknown[] } }[]; views: unknown[] };
     const withBoxes = (boxes: unknown[]): unknown => ({ ...raw, sheets: raw.sheets.map((s, i) => (i === 1 ? { ...s, layout: { ...s.layout, boxes } } : s)) });
     const box = (tile: string, x = 0, y = 0): unknown => ({ tile, x, y });
     assert.throws(() => readPage(withBoxes([box('grid-2'), box('grid-3'), box('grid-4'), box('grid-4', 9, 9)])),

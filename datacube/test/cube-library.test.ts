@@ -9,6 +9,10 @@ import { SAVED_SORTS, savedSearch, type CubeStore, type DataCubeQuery, type Quer
 import { pageSearch } from '../src/headless/page.ts';
 import { CubeLibrary, type CubeLibraryHost } from '../src/ui/cube-library.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 /** A store of two pages, as the window lists them (the store's rules are core's SavedCubes, held to
@@ -103,9 +107,9 @@ describe("the saved pages searched as Open… searches them (savedSearch; Python
   });
 
   it("Python's the same, of as many as the store answers; what is none of a search refused in words", () => {
-    assert.deepEqual(JSON.parse(pageSearch(' Q3 ', null, null)), { spec: { searchTermSpecification: { searchTerm: 'Q3' }, sortByOption: 'SORT_BY_VIEW' } });
-    assert.deepEqual(JSON.parse(pageSearch('', 'SORT_BY_CREATE', 5)), { spec: { sortByOption: 'SORT_BY_CREATE', limit: 5 } });
-    assert.deepEqual(JSON.parse(pageSearch(3, 'byName', 1.5)).problems, [
+    assert.deepEqual(looseJson(pageSearch(' Q3 ', null, null)), { spec: { searchTermSpecification: { searchTerm: 'Q3' }, sortByOption: 'SORT_BY_VIEW' } });
+    assert.deepEqual(looseJson(pageSearch('', 'SORT_BY_CREATE', 5)), { spec: { sortByOption: 'SORT_BY_CREATE', limit: 5 } });
+    assert.deepEqual(looseJson(pageSearch(3, 'byName', 1.5)).problems, [
       'a search is text, not 3',
       'a sort is one of SORT_BY_VIEW, SORT_BY_UPDATE, SORT_BY_CREATE, not "byName"',
       'a limit is a whole number, 0 or more, not 1.5',

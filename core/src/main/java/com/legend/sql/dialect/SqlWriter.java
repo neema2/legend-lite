@@ -140,7 +140,7 @@ final class SqlWriter {
 
     /** Writes {@code placeholder} as this parameter's place and records the bind, as {@link #bind} does with {@code ?}:
      *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's pipeline variable
-     *  {@code "$$pN"}, bound by the aggregate command's {@code let}: the C checkpoint's NOTE, 2026-11-12; until then
+     *  {@code "$$lpN"}, bound by the aggregate command's {@code let}: the C checkpoint's NOTE, 2026-11-12; until then
      *  a marker document the session replaced, docs/MONGODB_PLAN_2026_10_16.md D5), in placeholder order. */
     SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
         sql.append(placeholder);

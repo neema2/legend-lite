@@ -22,7 +22,7 @@ def name(table: str, *, schema: str | None = None, database: str | None = None) 
 
 
 def statements(*operations: dict[str, Any], database_type: str = DUCKDB) -> list[PlannedSql]:
-    """The operations' statements, in order."""
+    """The operations' statements, in order (their planner texts each a PlannedSql: compiler.host_operations)."""
     return [sql for answered in compiler.host_operations(database_type, list(operations)) for sql in answered]
 
 

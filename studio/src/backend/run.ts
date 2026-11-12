@@ -44,7 +44,9 @@ export interface RunSession {
   /** The engine that executes: started the first time it is needed (DuckDB in the tab), then kept. */
   engine(): Promise<Engine>;
   /** The tab's DuckDB itself, for the SQL playground (upstream's: SQL on a connection); a server's has none here. */
-  sqlEngine?(): Promise<QueryEngine>;
+  /** The playground's database: its engine, and its type as the planner names it (what an authored plan's target is
+   *  checked against: plan-runner.ts runAuthored, the C final audit's H9). */
+  sqlEngine?(): Promise<{ readonly engine: QueryEngine; readonly databaseType: string }>;
   /** The person's one statement as the planner carries it on the playground's database, a plan (Boundary.authored: the
    *  playground's, 2026-11-12). */
   authored?(text: string): Promise<string>;
@@ -102,11 +104,11 @@ export function playground(session: RunSession): Playground {
     async sql(statement, modelText) {
       if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
       if (!session.authored) throw new Error('the SQL playground plans the person\'s statement in this tab: this session has no planner of its own');
-      const engine = await session.sqlEngine();
+      const { engine, databaseType } = await session.sqlEngine();
       if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
       // the person's own SQL, carried by the planner as written: the plan's one statement, run as the plan says
       const plan = await session.authored(statement);
-      return runAuthored(plan, (sql) => engine.run(sql, 0));
+      return runAuthored(plan, { databaseType, run: (sql) => engine.run(sql, 0) });
     },
   };
 }

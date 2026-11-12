@@ -134,7 +134,10 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
     lambdaJson: (text) => grammar.lambdaJson(text),
     lambdaText: (lambda, style) => grammar.lambdaText(lambda, style),
     engine: async () => (await start()).engine,
-    sqlEngine: async () => (await start()).sql,
+    sqlEngine: async () => {
+      const tab = await start();
+      return { engine: tab.sql, databaseType: tab.databaseType };
+    },
     // the playground's statement, planned for the tab's own database (Boundary.authored, 2026-11-12)
     authored: async (text) => grammar.authored((await start()).databaseType, text),
     plane: async () => {

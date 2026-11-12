@@ -42,7 +42,8 @@ filegroup(
 filegroup(
     name = "main_srcs",
     srcs = glob(["src/main/**"], exclude = ["**/*.md"]),
-    visibility = ["//spec:__pkg__"],
+    # the planned-SQL guard reads who reaches the authored door (the C final audit's H1, 2026-11-12)
+    visibility = ["//spec:__pkg__", "//tools/guards:__pkg__"],
 )
 
 # the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
@@ -293,6 +294,9 @@ legend_java_library(
     name = "test_execution",
     srcs = [
         "src/main/java/com/legend/ExecuteOptions.java",
+        # the test door's mint: the run's id and one per execution the plan declares (the execution id as upstream,
+        # 2026-11-12)
+        "src/main/java/com/legend/ExecutionIds.java",
         "src/main/java/com/legend/TestExecution.java",
     ],
     deps = [
@@ -573,6 +577,9 @@ legend_java_library(
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             # a data: source on every server database is :data_source_servers_test's alone (2026-11-11)
             "src/test/java/com/legend/exec/DataSourceServersTest.java",
+            # the keyed expansion's one fixture is :keyed_expansion_conformance_test's alone: it reads the fixture
+            # (the C final audit's H8, 2026-11-12)
+            "src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java",
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
@@ -1053,6 +1060,25 @@ junit_test(
         ":mongodb_connector",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# THE KEYED EXPANSION'S ONE FIXTURE (the total wall's C final audit, H8, 2026-11-12): Java's PlanRunner.expand writes
+# each case of engine-client/test/fixtures/keyed-expansion.json as the tab's expandKeyed and Python's _keyed_text do
+junit_test(
+    name = "keyed_expansion_conformance_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/keyed-expansion.json"],
+    jvm_flags = ["-Dkeyed.fixture=$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)"],
+    select = ["--select-class=com.legend.exec.KeyedExpansionConformanceTest"],
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":core",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 # A data: source on every server database this session runs (the user, 2026-11-11: JSON on every database;
@@ -1706,9 +1732,25 @@ junit_test(
         ":core_tests_lib",
         ":duckdb_cells",
         ":mongodb_connector",
+        # the MongoDB choke rule's planted violator, compiled against the driver (the C final audit's J3, 2026-11-12)
+        ":mongodb_planted",
         ":postgres_cells",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# A class planted to send a MongoDB command outside the one method that sends (the C final audit's J3, the user's
+# ruling of 2026-11-12): ArchitectureTest.theMongoDbRuleBitesAPlantedCommand reads it from :guardrails's classpath.
+# Its own library because it is compiled against the driver, which :core_tests_lib is not.
+legend_java_library(
+    name = "mongodb_planted",
+    testonly = True,
+    srcs = ["src/test/mongodb/com/legend/exec/PlantedMongoCommand.java"],
+    deps = [
+        "@bson//jar",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
+    ],
 )
 
 # THE PRODUCT'S JARS, declared: what ArchitectureTest imports and NoEagerTypeReferencesTest loads (Bazel workplan
@@ -2098,6 +2140,7 @@ core_layer_queries(not_layers = {
     "core_next": "core as the generators rewrite it, for the claims generator (spec)",
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
+    "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",

@@ -6,7 +6,6 @@ package com.legend.testdatagen;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
-import com.legend.error.NotImplementedException;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.setup.CsvSeed;
@@ -47,15 +46,15 @@ class ReservedNamesGenerationTest {
             )
             """;
 
-    /** Each database type an in-memory session opens on: {@code Sessions.openPrivate} refuses the rest by name, and a
-     *  type whose opener fails fails here, rather than leaving the test (the PR audit of 2026-10-16). */
-    static List<DatabaseType> inMemory() throws SQLException {
+    /** Each database type an in-memory session opens on, as its connector answers ({@code Sessions.inProcess}): a type
+     *  whose opener fails fails in its case, rather than leaving the test (the PR audit of 2026-10-16; the C final
+     *  audit's J4, 2026-11-12: until then each type was probed by opening it with no settings, which H2 now refuses by
+     *  name -- the probe would have dropped H2 silently). */
+    static List<DatabaseType> inMemory() {
         List<DatabaseType> out = new ArrayList<>();
         for (DatabaseType t : DatabaseType.values()) {
-            try (Connection ignored = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(t)).openPrivate(null)) {
+            if (com.legend.exec.Sessions.inProcess(com.legend.planner.ConnectionPlans.type(t))) {
                 out.add(t);
-            } catch (NotImplementedException refused) {
-                // no in-memory instance of this type
             }
         }
         return out;

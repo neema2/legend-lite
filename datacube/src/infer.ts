@@ -66,7 +66,8 @@ export interface InferredModel {
    * ...)` on DuckDB, or `*`): present when the table is copied, through the snap runtime or rewritten in place
    * (`convertible`); a read-only source with no snap has none.
    */
-  readonly copySelectList?: string;
+  /** The planner's own text (its answer's, typed where it is read: lite-planner.ts tableModel; the C final audit's H2). */
+  readonly copySelectList?: PlannedSql;
   /** Columns left out: the source cannot convert them, or no Database type holds them (bytes). */
   readonly excluded: readonly string[];
   /**

@@ -64,7 +64,8 @@ This file is the state, the rulings and the runbook on top of those documents. I
 
 The goal is **total plan/exec separation (G4)**:
 - The plan is SQL and data only.
-- Exec runs only the plan's statements and edits no SQL at run. A keyed region is the one allowed exception.
+- Exec runs only the plan's statements and edits no SQL at run, beyond the charter's three named forms (A3: keyed
+  regions, planned branches, declared read-backs; §5.5).
 - Data enters a database only through a load the plan carries.
 - Every compatibility spelling lives at the edge, and the product depends on no edge.
 
@@ -159,8 +160,8 @@ C, D and E pile on; the user has not ruled. Ask once at B's checkpoint; without 
   "Census pending" is the PENDING count.
 - **The matrix:** `DataDeliveryMatrixTest` (in process) and `DataDeliveryMatrixPostgresTest`. Every data kind on every
   door and every database. Its `RED` lists the expected-red cells.
-- **Exec's SQL edits:** the edits exec makes to SQL at run, pinned by `SentStatementsAreThePlansTest`. Two are left (D3,
-  D4) besides the keyed region (`PlanRunner.expand`).
+- **Exec's SQL edits:** the edits exec makes to SQL at run, pinned by `SentStatementsAreThePlansTest`. D3 and D4 went
+  with C1 and C2 (2026-11-12); what remains is the charter's three named forms (A3, §5.5).
 
 **Records and sessions**
 
@@ -589,6 +590,45 @@ and the briefs' "RULED" items.
   - MariaDB/MySQL's read-back pair is declared by the plan's target, as `RaiseReadBack` from `SqlDialect.raiseReadBack()`
     (every dialect answers, no default), and sent through a counted, scoped path.
   - `RaiseRecovery` and the connector overrides are deleted.
+- **C3, the hosts (the user, 2026-11-12):** in TypeScript the statement type a host's engine accepts is made only by
+  reading a plan (`planned-sql.ts`, every mint counted by `PlannedSqlTest`); in Python the host's `_planned.Database`
+  sends only a plan's statement (`//python:planned_guard_test`, Python's own parser).
+- **The C checkpoint's findings, as the user ruled them (2026-11-12, "Yes do 5 and 6", "Do the exec id as part of C"):**
+  - **#5 the playground through the planner**: a person's typed SQL is a plan's statement (`com.legend.planner.Authored`:
+    the text as written, never parsed or rewritten, marked as one that may write), run by `runAuthored`; `notPlanned`
+    deleted (85669a3be).
+  - **#6 the bridge on intent**: built on the stacked branch `claude/total-wall-bridge` (77c084e8a: `DataHost` holds
+    load, operations, catalog, forget and the write; file handles), NOT in this PR. Until it lands the bridge admits only
+    the statements a session's planner answered (`_planned.Answered`, eebbbe9b2), and DataCube's headless tests get a
+    database of their own test host (7e273300a). Consolidated with the DataCube engine contract
+    (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`, branch `claude/datacube-engine-contract`, PROPOSED) into the next PR,
+    in parallel with D and E (the user: "we should do this in parallel with D and E").
+  - **MongoDB's parameters bound by the command's `let`** (the probe answered on MongoDB 8.0): a plan parameter is the
+    pipeline variable `$$lpN`, its value `{"$literal": v}`; a server before 5.0, a parameter in a per-key region and a
+    parameter in an insert are refused by name; the session writes nothing into the pipeline (93e318dbf, 041f2f05b).
+  - **The execution id minted by the door, no caller ids** (the user: "Does it simplify if we don't let caller IDs?",
+    then "Do the exec id as part of C"): `Execution`'s run methods and `TestExecution`'s `runProgram`, `runBody`,
+    `runFixture` mint one id per plan run, passed into exec; exec mints nothing (`execMakesNoValueOfItsOwn`); an answer's
+    writer is made for its execution (8ed2114fd, ed7bce10e). S304 amended.
+  - **H2's settings as plan data**: `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` are the target's `settings` (plan
+    version 49, test plan 18), written on an in-memory URL and compared by the database on a borrowed session, a
+    mismatch refused by name; `NON_KEYWORDS` a planned SET. As session statements they were measured and reverted: two of
+    the three commit an open transaction (9a1bf98c4, 947008159).
+  - **G10, found in the hand-back and fixed as part of C**: a test body's plan is the same for the same input
+    (`ActivityComments` derived; `planningMakesNoValueOfItsOwn`; `aBodyPlannedTwiceIsTheSamePlan`, cf56a1e25).
+- **The sanctioned run-time forms after C, and no others** (the user asked "What are all the sanctioned exceptions and
+  why?", then ratified one list, 2026-11-12: "agree with the wording of the 3 exceptions"; the same words in
+  `docs/TENET_CHARTER.md` A3, which says what each is and why, and in AGENTS.md invariant 3):
+  - (a) keyed regions: a dynamic pivot's columns are data, so the runner writes the plan's fragment once per key,
+    each copy's key bound (`PlanRunner.expand`, the hosts' `expandKeyed`);
+  - (b) planned branches: a test body's `if` holding asserts. The database computes the Boolean; the runner sends the
+    named side's planned statements and never the other.
+  - (c) declared read-backs, plan text the target declares and sent as written:
+    - MariaDB's and MySQL's raised error. A SELECT cannot raise our text there: `SIGNAL` runs only in a stored
+      program, and a stored function would be DDL in the user's database. So the message waits in `@legend_raise`
+      and is read back after the failure.
+    - H2's settings, which the database compares on a session lite did not open.
+  - A bound parameter is not an exception: it is a value the plan names, bound at its placeholder.
 
 ### 5.6 pure/v1 and the native protocol (2026-11-11)
 
@@ -728,7 +768,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   let's do it"): B is wrapped, the PR (`claude/total-wall` into `main`) opened; C1, C2 and C3 land on the branch, the PR
   updated; then merged -- the user's final word asked at that moment, CI green on the final head. D, E and F follow as a
   second PR. After C, plan and exec are provably separated: on the Java side by the architecture rules and the sent-text
-  test (the keyed region the one sanctioned expansion); on the hosts by C3.
+  test (the charter's three named forms, A3); on the hosts by C3.
 - **The demo goes through the platform** ("Demo has to go through platform"): its sample is made by the SIMPLE SYNTHESIZE
   step ("Let's do the most simple thing that will work on duckdb for now - can extend later"; "Go ahead"): a table the
   model declares filled by ONE planned DuckDB statement (`INSERT INTO <table> SELECT <a formula of the row number per
@@ -762,6 +802,80 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   `remote.ts` routes them through the queue and `//datacube:verify_remote_test` pins it. The cause inside DuckDB-WASM is
   not traced.
 
+### 5.12 The product is lite's own; D and E start (2026-11-12)
+
+- **The ruling, verbatim** (the user, 2026-11-12, starting D and E in parallel with C's audit fixes): "we really want the
+  most expert lean and fast SQL on the product path and push ALL compatibility to the edge so never have to worry about
+  leaking into product - and that you are full owner and decision maker on Product plans/sql so we can do the right thing
+  for the Product without ever having to think of compatibility - just the best fastest leanest best expert plan/sql with
+  typed output".
+- **What it settles:**
+  - Upstream fidelity (G8) governs the product's ANSWER: values by type and value, and errors by kind and where. It never
+    governs HOW: the plan's shape, the SQL, the statement count, or a value's text.
+  - Everything that exists to match upstream's spelling, print forms, engine text or formats is the edge's (G5, E1-E4),
+    adapting the product's typed answer.
+  - The orchestrator rules on product plan and SQL design. A change to the product's answer, or a divergence, is still
+    posted to the user and ledgered.
+- **E is two tracks.**
+  - E1/E2, as briefed: exec's decoding residue (`C_E_BRIEF` §E).
+  - E3, lean product SQL (new): a product-SQL size baseline and its shrink-only guard (G3's, never built), the causes
+    measured, then a design the orchestrator rules on before product lowering changes.
+  - Its first evidence is the Snowflake lane's baseline at 970f0a992. PCT essential under channel B and BOTH: 7
+    statements a test; 5.07M characters against channel A's 0.31M. The causes:
+    - lowering's Dedup scalar inlined at every reference (8 copies, 90% of a 55K statement);
+    - Snowflake's Float shortest-digits text written 7 times by the judge's canon (97% of a 37K statement);
+    - a floor of about 0.18 s per small statement.
+- **The product may change its answers too** (the user, 2026-11-12: "we do not have to do all the crazy stuff that
+  upstream does on the product path AT ALL - we are allowed to change error message and change sql and change results
+  even change types like IEEE float for example as long as they are typed and sane").
+  - "Sane" means all of these:
+    - typed;
+    - principled: a stated rule, never one database's accident;
+    - the same answer on every database;
+    - no silent loss (G7);
+    - deterministic (G10).
+  - A change to a product answer is written up (the expression, upstream's answer, the new answer, why it is better),
+    ruled by the orchestrator, and made a register row with scope "product"; the user sees the batch.
+  - The compatibility road (PCT and the corpus through the edge door) keeps its pass counts: the edge plans its own SQL
+    where a compatibility client needs upstream's answer.
+- **The cast-and-case rule** (the user, 2026-11-12: "if in the product we are doing any platform CAST (without using
+  asking) or CASE statements that are trying to reconstruct values or string from numbers or any formating of values
+  without user explicit ask is almost certainly WRONG for the Platform/Product 'clean' plan/sql").
+  - Every CAST, CASE and text-building function in product SQL traces to one of two things:
+    - the user's explicit Pure call (`if`, `toString`, `format`, `cast`/`to*`/`parse*`, a string function they
+      called);
+    - a named product rule that keeps the answer typed and the same on every database: a typed-error guard; a cast to
+      the plan's declared type where the database's natural type differs; Pure's operator semantics made uniform
+      across the databases.
+  - Anything else is a defect, deleted or moved to the edge: a value or string rebuilt from parts, a cast to a value's
+    own type, a number or date re-formatted, a CASE ladder that rebuilds upstream's text or quirk.
+  - How it is held:
+    - E3 counts these per family and dialect as a second shrink-only pin, where an unclassified pattern fails by name;
+    - D's shrink-only list marks the sites D owns.
+- **Mixed lists: the hybrid** (the user, 2026-11-12: "hybrid mixed list is good, lets go with that"). On the product
+  path a list has one element type:
+  - Number lists are promoted by a fixed rule (Integer+Decimal -> Decimal, Integer+Float -> Float; integer literals
+    above 2^53 refused);
+  - Date lists: StrictDate+DateTime -> DateTime;
+  - a truly mixed (Any) list is an implicit Variant (a JSON array): kinds kept, a date tagged, sort across kinds
+    refused by name.
+  Today's tagged lists leave the product. Each answer change is a "product" register row. E builds it after P1a.
+- **D starts with a refresh of its brief and inventory against the current head** (both were written before B and C),
+  then the guards (D2's, and G5's ArchUnit rule, each with a planted violator, today's sites a shrink-only list), then
+  D1.0-D1.7.
+- **The planned branch (the charter's A3(b)) re-read** (the user asked "is the planned branches design right?"):
+  - It is right. A test body's `if` holds asserts. Upstream runs one side only, so an assert that would raise in the side
+    not taken never raises.
+  - Folding both sides into one statement under `CASE` or `WHERE` guards would evaluate both sides, and SQL has no
+    portable procedural `IF`.
+  - The plan holds the condition and both sides, fully written. The database computes the Boolean; exec runs the named
+    side's planned statements as written.
+  - It is test-plan only: a product query's `if` stays the database's `CASE`.
+  - Two refinements:
+    - the condition's cell is read by its declared type, not by parsing the texts `"true"` and `"false"`
+      (`TestRun.taken`);
+    - a guard that no product plan carries a branch.
+
 ## 6. What remains, in order
 
 | step | what | done means | read |
@@ -778,7 +892,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 | C1 | the trace comment out of the sent text | `JdbcStatements.stamped` and kin deleted | `C_E_BRIEF` §C1 |
 | C2 | MariaDB's read-back declared by the plan | exec's SQL edits at run read 0 besides the keyed region | `C_E_BRIEF` §C2 |
 | C3 | the hosts' separation proven structurally (the user, 2026-11-12): in TypeScript the statement type the engine accepts is made only by reading a plan; in Python the runner checks each statement it sends came from a plan | a host's hand-written SQL does not compile (TS) or is refused by name (Python); tests | §5.11 |
-| ✔ C | **checkpoint**, then the PR updated and MERGED (the user's final word asked at that moment, CI green on the final head) | | |
+| ✔ C | **checkpoint**, then the PR updated and MERGED (the user's final word asked at that moment, CI green on the final head) | built and checked 2026-11-12 (`docs/GATES.md`'s C entry): C1-C3, the two checkpoint audits' fixes, the user's rulings (§5.5); the gate at 970f0a992; rounds 38 and 39 green on every database; the final audit; CI on the final head; then the merge | §5.5 |
 | D1.0-D1.7, D2 | the edge, in this order: the spelling hook first; Raise/RaiseKind (after C2); the text nodes; lists, maps, format; the writers; the decorator; the compile messages; engine text, RawSqlBoundary, the referee and appeals; pure/v1's upstream routes to the edge; then D2's guard | no product SQL or MIR carries a compatibility spelling (D2's guard); PCT green through the hook; `D_BRIEF` §5's register rows | `D_BRIEF`, `COMPAT_IN_PRODUCT_INVENTORY`, `PRINT_FORM_PROBE` |
 | ✔ D | **checkpoint** (print forms checked on every database) | | |
 | E1, E2 | the eight E items | `C_E_BRIEF` §E's pins; register P3-R1 to R5 | `C_E_BRIEF` §E, `LEAN_PRODUCT_P3` §12 |
@@ -1068,6 +1182,16 @@ Spot-check a MUST-FIX before relaying it. Remove the worktree after.
   backwards compatibility mode the lowerer may render the native dynamic pivot where the dialect can (DuckDB's `PIVOT`,
   as legend-engine's plan shows it). Lite's planning needs a result's columns known before it runs, which a native
   dynamic pivot leaves to the database; today generatePlan shows the keyed plan lite runs (S110).
+- **C's follow-ups (2026-11-12):**
+  - an inline `execute(...)`'s activity frame bound to its segment's stamp, so it names the run's id, not the derived
+    planning handle (C4's G10 hand-back: it reaches the agreement judge's per-assert path);
+  - a TypeScript lint rule against unsafe arguments (`no-unsafe-argument`), so an `any` cannot carry text into a send;
+  - short-lived credentials for the presigned links;
+  - MariaDB's and MySQL's binary collation.
+- **Speed (E's lean SQL, the user's order of 2026-11-06, §7.6 of `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md`):**
+  Snowflake's round is about 66 minutes (rounds 38, 39): ~0.2-0.5 s per statement, channel B under BOTH about 8
+  statements a test, bodies about 12K characters. The baseline at 970f0a992 is measured by the Snowflake lane
+  (2026-11-12).
 - **Programs:** P5 (judge parity on H2); P6 (no fallbacks, honest appeals); the corpus and stress burn-down.
 - **PR #81** (timeseries), in its own session.
 

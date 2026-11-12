@@ -25,6 +25,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class PlanRunnerDuckDbTest {
 
+    /** A target declaring settings on DuckDB, whose database takes none (its connector's {@code takesSettings}), is
+     *  refused by name where a session is checked against it (the C final audit's J4, 2026-11-12), as an H2 target
+     *  declaring none is ({@code DatabaseSettingsH2Test}). */
+    @Test
+    void aTargetDeclaringSettingsOnDuckDbIsRefusedByName() throws Exception {
+        ExecutionPlan.Target duck = com.legend.planner.Targets.of(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(DatabaseType.DuckDB), null), new com.legend.sql.dialect.DuckDb());
+        ExecutionPlan.DatabaseSettings settings = new ExecutionPlan.DatabaseSettings(
+                List.of(new ExecutionPlan.Setting("MODE", "LEGACY")), "SELECT 1 WHERE FALSE");
+        ExecutionPlan.Target withSettings = new ExecutionPlan.Target(duck.database(), duck.session(), List.of(), null,
+                settings);
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.of(DatabaseType.DuckDB).open();
+                var run = com.legend.base.RunScope.enter()) {
+            JdbcStatements st = new JdbcStatements(c, new SessionState());
+            com.legend.error.NotImplementedException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.NotImplementedException.class, () -> st.check(withSettings));
+            assertEquals("a plan's target on DuckDB declares no settings, and this one declares"
+                    + " [Setting[name=MODE, value=LEGACY]]: never run on other semantics", refused.getMessage());
+        }
+    }
+
     /** Two targets are one database only when their content is equal, cell for cell: a cell holding a comma and a
      *  null cell are spelled apart from their look-alikes (the audit's S4: a key of the targets' printed text gave
      *  {@code ["a, b", "c"]} and {@code ["a", "b, c"]} one database). */

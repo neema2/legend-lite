@@ -22,7 +22,8 @@ js_library(
 filegroup(
     name = "planner_java",
     srcs = glob(["src/main/java/planner/*.java"]),
-    visibility = ["//core:__pkg__"],
+    # and the planned-SQL guard: who reaches the authored door (the C final audit's H1, 2026-11-12)
+    visibility = ["//core:__pkg__", "//tools/guards:__pkg__"],
 )
 
 # THE BOUNDARY (planner.Boundary, docs/PROTOCOL_PROGRAM_2026_10_05.md invariant 5): the operations every embedded

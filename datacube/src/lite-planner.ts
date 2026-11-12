@@ -706,10 +706,11 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   async tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel> {
     const table = JSON.stringify({ ...options, columns });
     const answer = await this.#call({ kind: 'tableModel', table });
-    const { source, ...written } = fromJson(decode(answer, `the columns of ${options.table}`)) as
-      Omit<InferredModel, 'source'> & { readonly source: unknown; readonly accessor: string };
+    const { source, copySelectList, ...written } = fromJson(decode(answer, `the columns of ${options.table}`)) as
+      Omit<InferredModel, 'source' | 'copySelectList'> & { readonly source: unknown; readonly accessor: string; readonly copySelectList?: string };
     const { accessor: _accessor, ...model } = written;
-    return { ...model, source: readValueSpecification(source) };
+    // the copy's select list, the planner's own text, typed as its answer is read (the C final audit's H2)
+    return { ...model, ...(copySelectList !== undefined ? { copySelectList: fromPlan(copySelectList) } : {}), source: readValueSpecification(source) };
   }
 
   /**

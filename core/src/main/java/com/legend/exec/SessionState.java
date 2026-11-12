@@ -40,6 +40,13 @@ public final class SessionState {
      *  the run ends, in which a failed statement is rolled back at once ({@link #inTurn}). */
     private final java.util.concurrent.atomic.AtomicBoolean inTurn = new java.util.concurrent.atomic.AtomicBoolean();
 
+    /** How deep this session is in a transaction the SEAM opened ({@code Sessions.inTransaction}'s, a keyed snapshot's;
+     *  a run's turn is {@link #inTurn}): every one of them clears the memo when it rolls back ({@link #rolledBack}), so
+     *  inside it the session statements run once, as outside (the C final audit's J6, 2026-11-12: until then autocommit
+     *  off read as a CALLER's transaction there, and H2's non-keywords were sent before every statement of a program's
+     *  own transaction). */
+    private final java.util.concurrent.atomic.AtomicInteger ownTransactions = new java.util.concurrent.atomic.AtomicInteger();
+
     /** The error read-back the plan's target declared when it last checked this session (C2, 2026-11-12: MariaDB's and
      *  MySQL's, the charter's A3(c)): what the seam sends after a statement, or a bracket's commit, fails on it; null
      *  for a target whose database's errors carry a raise, or before any check. Plan data, never the connector's. */
@@ -128,6 +135,23 @@ public final class SessionState {
         sessionStatementsRun.clear();
         seeded.clear();
         registered.clear();
+    }
+
+    /** A transaction the seam opened on this session began ({@link #ownTransactions}). */
+    void ownTransactionBegan() {
+        ownTransactions.incrementAndGet();
+    }
+
+    /** That transaction ended: committed, or rolled back with the memo cleared. */
+    void ownTransactionEnded() {
+        ownTransactions.decrementAndGet();
+    }
+
+    /** Whether the session is in a transaction the seam opened (its own, or a run's turn on the catalog), where a
+     *  rollback clears the memo, so the session statements are remembered as outside one; a transaction the CALLER
+     *  holds is not (its rollback is unseen). */
+    public boolean inOwnTransaction() {
+        return ownTransactions.get() > 0 || inTurn.get();
     }
 
     /** A run's turn on the catalog began on this session ({@code Sessions.beginTurn}). */

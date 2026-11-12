@@ -23,6 +23,10 @@ import { CubeRefusal, ungroupedDimensions } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, gt, lambda, lit } from '../../pure-protocol/src/index.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 const COLUMNS = [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
 
 const FILE: FileSource = {
@@ -81,7 +85,7 @@ describe('a grid over another grid\'s rows, as its cube writes it', () => {
   });
 
   it('is refused by name when malformed', () => {
-    const raw = (source: unknown): string => JSON.stringify({ ...JSON.parse(cubeToJson(cube(FILE))), source });
+    const raw = (source: unknown): string => JSON.stringify({ ...looseJson(cubeToJson(cube(FILE))), source });
     const read = (source: unknown): unknown => readCube(raw(source));
     assert.throws(() => read({ _type: 'rows', name: '', input: { grid: 'grid-1' }, columns: COLUMNS }),
       (e: unknown) => e instanceof CubeDocumentError && /another grid's rows has no name/.test(e.message));
@@ -107,8 +111,8 @@ describe('a grid over another grid\'s rows, as its cube writes it', () => {
     assert.deepEqual(readCube(cubeToJson(doc)).source, union);
     assert.equal(cubeToJson(readCube(cubeToJson(doc))), cubeToJson(doc));
     assert.deepEqual(liveGrids(union), ['grid-1', 'grid-2', 'grid-3']);
-    const raw = (source: unknown): string => JSON.stringify({ ...JSON.parse(cubeToJson(cube(FILE))), source });
-    const plain = JSON.parse(cubeToJson(doc)).source;
+    const raw = (source: unknown): string => JSON.stringify({ ...looseJson(cubeToJson(cube(FILE))), source });
+    const plain = looseJson(cubeToJson(doc)).source;
     assert.throws(() => readCube(raw({ ...plain, how: { form: 'semi', on: { rows: [] } } })),
       (e: unknown) => e instanceof CubeDocumentError && /a join of two: only a Union takes more inputs/.test(e.message));
     assert.throws(() => readCube(raw({ ...plain, more: [] })), /inputs after its right are a list of inputs, not \[\]/);
@@ -171,9 +175,9 @@ describe('a live input resolved against its page', () => {
     assert.deepEqual(gridInput(flow, 'grid-1').omit, ['notional']);
     // written and read with its copy (a frozen input: FL6)
     const frozen = cube({ _type: 'rows', name: 'trades.csv', input: gridInput(flow, 'grid-1'), columns: COLUMNS });
-    const again = readCube(JSON.parse(cubeToJson(frozen)));
+    const again = readCube(looseJson(cubeToJson(frozen)));
     assert.deepEqual(again.source._type === 'rows' && !('grid' in again.source.input) ? again.source.input.omit : null, ['notional']);
-    assert.throws(() => readCube(JSON.parse(cubeToJson(frozen).replace('"omit":["notional"]', '"omit":"notional"'))),
+    assert.throws(() => readCube(looseJson(cubeToJson(frozen).replace('"omit":["notional"]', '"omit":"notional"'))),
       (e: unknown) => e instanceof CubeDocumentError && /columns left out are a list of names/.test(e.message));
   });
 
@@ -186,9 +190,9 @@ describe('a live input resolved against its page', () => {
     ] } }] };
     assert.deepEqual(gridInput(flow, 'grid-1').rename, [{ from: 'region', to: 'area' }]);
     const frozen = cube({ _type: 'rows', name: 'trades.csv', input: gridInput(flow, 'grid-1'), columns: COLUMNS });
-    const again = readCube(JSON.parse(cubeToJson(frozen)));
+    const again = readCube(looseJson(cubeToJson(frozen)));
     assert.deepEqual(again.source._type === 'rows' && !('grid' in again.source.input) ? again.source.input.rename : null, [{ from: 'region', to: 'area' }]);
-    assert.throws(() => readCube(JSON.parse(cubeToJson(frozen).replace('"rename":[{"from":"region","to":"area"}]', '"rename":["region"]'))),
+    assert.throws(() => readCube(looseJson(cubeToJson(frozen).replace('"rename":[{"from":"region","to":"area"}]', '"rename":["region"]'))),
       (e: unknown) => e instanceof CubeDocumentError && /columns renamed are a list of \{from, to\}/.test(e.message));
   });
 
@@ -201,9 +205,9 @@ describe('a live input resolved against its page', () => {
     ] } }] };
     assert.deepEqual(gridInput(flow, 'grid-1').order, ['notional', 'region']);
     const frozen = cube({ _type: 'rows', name: 'trades.csv', input: gridInput(flow, 'grid-1'), columns: COLUMNS });
-    const again = readCube(JSON.parse(cubeToJson(frozen)));
+    const again = readCube(looseJson(cubeToJson(frozen)));
     assert.deepEqual(again.source._type === 'rows' && !('grid' in again.source.input) ? again.source.input.order : null, ['notional', 'region']);
-    assert.throws(() => readCube(JSON.parse(cubeToJson(frozen).replace('"order":["notional","region"]', '"order":"notional"'))),
+    assert.throws(() => readCube(looseJson(cubeToJson(frozen).replace('"order":["notional","region"]', '"order":"notional"'))),
       (e: unknown) => e instanceof CubeDocumentError && /columns' order is a list of names/.test(e.message));
     // an order its query has already: none written
     const same = page({ 'grid-1': { ...cube(FILE), configuration: { ...cube(FILE).configuration, columnOrder: ['region', 'notional'] } }, 'grid-2': cube(rows('grid-1')) });

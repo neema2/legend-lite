@@ -137,6 +137,31 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         return "-- \"executionTraceID\" : \"" + id + "\"";
     }
 
+    /** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the trace
+     *  comment of the execution it names ({@link Sql#stamp}, and a slot reading one: an activity row's comment). The
+     *  planner's names spell it ({@code planner.ProgramFrames.STAMP}). */
+    public static final String STAMP = "#stamp";
+
+    /** The executions {@code node}'s statements read, by stamp, in the order first met, added to {@code into}: each
+     *  statement's own stamp and every stamp a slot of it reads (the execution id as upstream, 2026-11-12). */
+    public static void stamps(Node node, java.util.Set<String> into) {
+        switch (node) {
+            case Sequence s -> s.steps().forEach(step -> stamps(step, into));
+            case TdsResult t -> t.sql().stamps(into);
+            case Keyed k -> {
+                k.keys().stamps(into);
+                k.body().stamps(into);
+            }
+            case Update u -> u.sql().stamps(into);
+            case Check c -> c.sql().stamps(into);
+            case Effect e -> e.sql().stamps(into);
+            case Load l -> {
+            }
+            case Constant c -> {
+            }
+        }
+    }
+
     /** {@code [lower..upper]}; {@code upper} null is {@code *}. */
     public record Multiplicity(int lower, @com.legend.base.Nullable Integer upper) {
         public Multiplicity {
@@ -726,6 +751,19 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          *  regions is sent as the runner's keyed expansion writes it, never as this. */
         public PlannedSql planned() {
             return PlannedSql.fromPlan(statement);
+        }
+
+        /** The executions this statement reads, added to {@code into}: its own stamp, and each slot's that reads one
+         *  ({@link ExecutionPlan#STAMP}). */
+        public void stamps(java.util.Set<String> into) {
+            if (stamp != null) {
+                into.add(stamp);
+            }
+            for (Slot slot : slots) {
+                if (slot.parameter().startsWith(STAMP)) {
+                    into.add(slot.parameter());
+                }
+            }
         }
 
         /** A statement binding no payload. */

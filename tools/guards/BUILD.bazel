@@ -295,6 +295,10 @@ junit_test(
     srcs = ["PlannedSqlTest.java"],
     data = [
         ":host_sql.txt",
+        # the Java that reaches the authored door (the C final audit's H1, 2026-11-12)
+        "//core:main_srcs",
+        "//native:main_java",
+        "//wasm:planner_java",
         "//datacube:all_files",
         "//depot-client:all_files",
         "//engine-client:all_files",

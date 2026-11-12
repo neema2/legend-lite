@@ -104,7 +104,8 @@ class RaiseReadBackTest {
         List<String> sent = new ArrayList<>();
         try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent)) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                    com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack, null);
+                    com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack,
+                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2));
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
                     PlanSessions.of(Sessions.borrowed(c))));
@@ -130,11 +131,12 @@ class RaiseReadBackTest {
     void theSeamReadsTheHeldTextOnceAndClearsIt() throws SQLException {
         try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter();
                 java.sql.Statement st = c.createStatement()) {
-            assertNull(JdbcStatements.held(c, MARIADB), "nothing held yet");
+            assertNull(JdbcStatements.held(c, MARIADB, statements()), "nothing held yet");
             st.execute("SET @legend_raise = 'Cannot cast a collection of size 0 to multiplicity [1]'");
-            assertEquals("Cannot cast a collection of size 0 to multiplicity [1]", JdbcStatements.held(c, MARIADB));
-            assertNull(JdbcStatements.held(c, MARIADB), "the reset: a later failure reads no stale text");
-            assertNull(JdbcStatements.held(c, (ExecutionPlan.RaiseReadBack) null), "a target that declares none");
+            assertEquals("Cannot cast a collection of size 0 to multiplicity [1]", JdbcStatements.held(c, MARIADB,
+                    statements()));
+            assertNull(JdbcStatements.held(c, MARIADB, statements()), "the reset: a later failure reads no stale text");
+            assertNull(JdbcStatements.held(c, (ExecutionPlan.RaiseReadBack) null, statements()), "a target that declares none");
         }
     }
 
@@ -149,14 +151,39 @@ class RaiseReadBackTest {
         try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent);
                 var run = com.legend.base.RunScope.enter()) {
             long before = StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()];
-            assertThrows(SQLException.class, () -> JdbcStatements.held(c, unreadable));
+            assertThrows(SQLException.class, () -> JdbcStatements.held(c, unreadable, statements()));
             assertEquals(List.of(unreadable.read(), unreadable.reset()), sent, "the reset follows the failed read");
             assertEquals(2, StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()] - before,
                     "the read and the reset, each a session's statement");
             sent.clear();
-            assertNull(JdbcStatements.held(c, MARIADB));
+            assertNull(JdbcStatements.held(c, MARIADB, statements()));
             assertEquals(List.of(MARIADB.read(), MARIADB.reset()), sent, "and after a read that answers");
         }
+    }
+
+    /** A statement's failure, beside which a read-back's own failure is kept. */
+    private static SQLException statements() {
+        return new SQLException("the statement's");
+    }
+
+    /** A reset that fails after a read that answered keeps the text read -- the raise is the error raised -- and its
+     *  own failure beside the statement's (the C final audit's J8, 2026-11-12: until then the text was lost, and the
+     *  statement's own error raised in its place). */
+    @Test
+    void aResetThatFailsAfterAGoodReadKeepsTheText_itsFailureBesideTheStatements() throws Exception {
+        ExecutionPlan.RaiseReadBack unresettable = new ExecutionPlan.RaiseReadBack(MARIADB.read(),
+                "SELECT * FROM NO_SUCH_TABLE");
+        try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter();
+                java.sql.Statement st = c.createStatement()) {
+            st.execute("SET @legend_raise = 'the held text'");
+            SessionState state = new SessionState();
+            state.declareRaiseReadBack(unresettable);
+            SQLException statements = statements();
+            assertEquals("the held text", JdbcStatements.held(c, state, statements));
+            assertEquals(1, statements.getSuppressed().length, "the reset's failure kept beside the statement's");
+        }
+        // and the run's error is the text read
+        assertEquals("the raised text", failure(unresettable, new ArrayList<>()));
     }
 
     @Test

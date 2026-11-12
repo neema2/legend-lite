@@ -182,6 +182,25 @@ class PlanRunnerTest {
                 refused.getMessage());
     }
 
+    /** A key cell's slot in each copy of a per-key region is the PLAN's own key slot, told apart by its type, its value
+     *  the copy's key's text (the C final audit's J7, 2026-11-12: until then exec made a slot of its own for it, its
+     *  type a VARCHAR exec wrote, told apart by an empty name). */
+    @Test
+    void anExpandedKeySlotIsThePlansOwn_itsValueTheKeysText() {
+        String text = "SELECT X FROM T WHERE K IN (?)";
+        int at = text.indexOf('?');
+        ExecutionPlan.Slot key = new ExecutionPlan.Slot("", new ExecutionPlan.Binding.Key(0));
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null,
+                TestBackends.settings(Databases.PLATFORM));
+        ExecutionPlan.Sql sql = new ExecutionPlan.Sql(text, List.of(key), target, null, List.of(
+                new ExecutionPlan.Region(at, at + 1, "", ", ", null, 0, 1, List.of())));
+        PlanRunner.Expanded expanded = PlanRunner.expand(sql, List.of(List.of("a"), List.of("b")), Map.of());
+        assertEquals("SELECT X FROM T WHERE K IN (?, ?)", expanded.statement().text());
+        assertEquals(List.of(key, key), expanded.slots());
+        assertEquals(List.of(new PlanParameters.One("a"), new PlanParameters.One("b")), expanded.values());
+    }
+
     /** A slot's null type is a JDBC type's name, or the plan is refused by name before any session is opened. */
     @Test
     void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
@@ -261,7 +280,8 @@ class PlanRunnerTest {
     }
 
     static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.LoadStep... setup) {
-        return com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(database, List.of(), List.of(), null, null),
+        return com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(database, List.of(), List.of(), null,
+                TestBackends.settings(database.type())),
                 List.of(setup));
     }
 
@@ -292,7 +312,7 @@ class PlanRunnerTest {
         for (var connection : inMemoryConnections()) {
             ExecutionPlan.Target target = com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                    List.of(), List.of(), null, null), com.legend.setup.LoadSteps.of(List.of(statement(
+                    List.of(), List.of(), null, TestBackends.settings(connection.databaseType())), com.legend.setup.LoadSteps.of(List.of(statement(
                             "CREATE TABLE K (A VARCHAR(10), B VARCHAR(10))"))).then(com.legend.setup.LoadSteps.blob(
                             List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "the data of the table K")));
             long before = setupStatements();
@@ -313,7 +333,7 @@ class PlanRunnerTest {
             try (java.sql.Connection c = b.open(); java.sql.Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE WHOLE_K (A VARCHAR(10))");
                 ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(b.planType(),
-                        null), List.of(), List.of(), null, null);
+                        null), List.of(), List.of(), null, TestBackends.settings(b.type()));
                 com.legend.setup.LoadSteps steps = com.legend.setup.LoadSteps.blob(List.of(
                         "INSERT INTO WHOLE_K VALUES ('a')", "INSERT INTO NO_SUCH_TABLE VALUES ('b')"),
                         "the data of the table WHOLE_K");
