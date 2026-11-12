@@ -26,7 +26,9 @@ class ResultLabelsRenderTest {
     void aStarOverASourceThatDeclaresNoColumnsIsKeptWholeAndTheRestLabeled() {
         SqlSource.Table t = new SqlSource.Table("people", "t0", List.of(new OutputCol("region", SqlType.Scalar.VARCHAR,
                 true)), false, Map.of(), com.legend.sql.NameQuoting.BARE);
-        SqlSource.RawSql raw = new SqlSource.RawSql("SELECT 1 AS n", "r", List.of(), "DuckDB");
+        // a source whose columns the plan does not declare (as a person's raw SQL is), here a table read bare
+        SqlSource.Table raw = new SqlSource.Table("undeclared", "r", List.of(), false, Map.of(),
+                com.legend.sql.NameQuoting.BARE);
         SqlSource from = new SqlSource.Join(t, raw, SqlSource.Join.Kind.CROSS, null);
         SqlExpr region = SqlExpr.Column.of("t0", "region", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
         String sql = new DuckDb().render(new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null,
