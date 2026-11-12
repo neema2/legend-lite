@@ -124,7 +124,7 @@ final class JdbcStatements implements Statements {
      *  beside the statement's {@code failure}, never dropped (the A delta audit's 6, 2026-11-11). */
     static @com.legend.base.Nullable String held(Connection c, SessionState state, SQLException failure) {
         try {
-            return held(c, state.raiseReadBack());
+            return held(c, state.raiseReadBack(), failure);
         } catch (SQLException unreadable) {
             failure.addSuppressed(unreadable);
             return null;
@@ -140,12 +140,14 @@ final class JdbcStatements implements Statements {
 
     /** The raise held, by {@code readBack}'s statements -- exactly the plan's, sent as written: the read's one text (its
      *  first row's first column; null for no row), then the reset, sent WHATEVER the read did, so a raise held now never
-     *  attaches to a later failure (a reset that fails after a failed read is kept beside it). Each counted as a
+     *  attaches to a later failure (a reset that fails after a failed read is kept beside it). A reset that fails after
+     *  a read that answered keeps the text read -- the raise, the error raised -- and its own failure beside the
+     *  statement's {@code failure} (the C final audit's J8, 2026-11-12: until then the text was lost). Each counted as a
      *  session's statement ({@link StatementOrigin#SESSION}; the C checkpoint's code audit, 2026-11-12: until then the
      *  read-back was sent uncounted and its reset skipped on a failed read). One {@code getString}: the database's own
      *  text passed on unread. A run's act (THE WALL's rule 3). */
     static @com.legend.base.Nullable String held(Connection c,
-            ExecutionPlan.@com.legend.base.Nullable RaiseReadBack readBack) throws SQLException {
+            ExecutionPlan.@com.legend.base.Nullable RaiseReadBack readBack, SQLException failure) throws SQLException {
         if (readBack == null) {
             return null;
         }
@@ -170,7 +172,11 @@ final class JdbcStatements implements Statements {
                 throw unread;
             }
             StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
-            st.execute(reset.text());
+            try {
+                st.execute(reset.text());
+            } catch (SQLException unreset) {
+                failure.addSuppressed(unreset);
+            }
             return held;
         }
     }
@@ -183,8 +189,16 @@ final class JdbcStatements implements Statements {
         driver = declared.decoding();   // the driver's facts are its connector's (D72)
         // the error read-back the plan's target declares, kept with the session for a failure on it (C2)
         state.declareRaiseReadBack(target.raiseReadBack());
-        // the settings the target's database must have: written where this platform opened it, else read back once
+        // the settings the target's database must have: written where this platform opened it, else read back once;
+        // a target that declares none where its database must have them (H2's), or some where it takes none, is
+        // refused by name (the C final audit's J4, 2026-11-12: until then an H2 target with none ran in H2's defaults)
         ExecutionPlan.DatabaseSettings settings = target.settings();
+        if (declared.takesSettings() != (settings != null)) {
+            throw new com.legend.error.NotImplementedException("a plan's target on " + target.database().type()
+                    + (settings == null ? " declares the settings its database must have, and this one declares none"
+                            : " declares no settings, and this one declares " + settings.required())
+                    + ": never run on other semantics");
+        }
         if (settings != null && !state.holdsSettings(settings)) {
             verifySettings(c, settings);
             state.settingsHeld(settings);
@@ -460,31 +474,37 @@ final class JdbcStatements implements Statements {
         } catch (SQLException e) {
             throw failed(e);
         }
+        // the seam's own transaction: the session statements are remembered inside it (J6); its rollback clears them
+        state.ownTransactionBegan();
         try {
-            work.run();
-            c.commit();
-        } catch (IOException | RuntimeException e) {
-            // the work's own failure is the one told; the session is rolled back and set back as it can be
             try {
-                restore(snapshot, autoCommit, isolation, true);
-            } catch (SQLException restore) {
-                e.addSuppressed(restore);
+                work.run();
+                c.commit();
+            } catch (IOException | RuntimeException e) {
+                // the work's own failure is the one told; the session is rolled back and set back as it can be
+                try {
+                    restore(snapshot, autoCommit, isolation, true);
+                } catch (SQLException restore) {
+                    e.addSuppressed(restore);
+                }
+                throw e;
+            } catch (SQLException e) {
+                // the commit failed: rolled back and set back as it can be, the commit's failure told
+                RuntimeException failure = failed(e);
+                try {
+                    restore(snapshot, autoCommit, isolation, true);
+                } catch (SQLException restore) {
+                    failure.addSuppressed(restore);
+                }
+                throw failure;
             }
-            throw e;
-        } catch (SQLException e) {
-            // the commit failed: rolled back and set back as it can be, the commit's failure told
-            RuntimeException failure = failed(e);
             try {
-                restore(snapshot, autoCommit, isolation, true);
-            } catch (SQLException restore) {
-                failure.addSuppressed(restore);
+                restore(snapshot, autoCommit, isolation, false);
+            } catch (SQLException e) {
+                throw failed(e);
             }
-            throw failure;
-        }
-        try {
-            restore(snapshot, autoCommit, isolation, false);
-        } catch (SQLException e) {
-            throw failed(e);
+        } finally {
+            state.ownTransactionEnded();
         }
     }
 
@@ -557,8 +577,14 @@ final class JdbcStatements implements Statements {
                             + " value of '" + slot.parameter() + "', given a list");
                 }
             }
-            case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
-                    + " cell unexpanded: the runner writes a keyed body for its keys before it is sent");
+            // a key's cell in a copy of a per-key region: that key's text, as the runner's expansion gives it (J7,
+            // 2026-11-12: the plan's own slot, told apart by its type)
+            case ExecutionPlan.Binding.Key key -> {
+                if (!(value instanceof PlanParameters.One one && one.value() instanceof String text)) {
+                    throw new IllegalStateException("slot " + index + " binds a key's cell given no key's text");
+                }
+                st.setString(index, text);
+            }
             // a data: payload's one JSON array, the plan's own value (its statement's content, PlanRunner.value), as its
             // text: the database splits it
             case ExecutionPlan.Binding.Payload payload -> {

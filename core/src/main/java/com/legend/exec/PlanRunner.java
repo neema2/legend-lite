@@ -727,9 +727,17 @@ public final class PlanRunner {
     /** A constant answer's TEXT cells read back by its column's declared type: a String the text, a Boolean
      *  {@code true} or {@code false}; any other type refused by name (the planner writes no other constant). */
     static List<List<Object>> constantRows(ExecutionPlan.Constant c) {
-        String type = c.columns().get(0).type();
-        List<List<Object>> rows = new ArrayList<>(c.cells().size());
-        for (List<String> row : c.cells()) {
+        return constantRows(c.columns(), c.cells());
+    }
+
+    /** {@code cells}, a constant's one column of TEXT cells as the program wrote them, read back by its column's
+     *  declared type ({@code columns}' first): the one decode of a constant -- a product plan's answer, a test body's
+     *  branch condition (the C final audit's J10, 2026-11-12: until then the branch parsed "true" and "false" itself,
+     *  a kind decided from text). */
+    public static List<List<Object>> constantRows(List<ExecutionPlan.Column> columns, List<List<String>> cells) {
+        String type = columns.get(0).type();
+        List<List<Object>> rows = new ArrayList<>(cells.size());
+        for (List<String> row : cells) {
             String text = row.get(0);
             Object cell = text == null ? null : switch (type) {
                 case "String" -> text;
@@ -789,16 +797,22 @@ public final class PlanRunner {
     }
 
     /** {@code sql}'s execution id, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): legend-engine's
-     *  execution-trace comment of THIS execution -- one id per execution, every statement of it the same, as upstream's
-     *  {@code execID} is ({@link com.legend.base.RunScope#execution}; until 2026-11-12 a fresh id per statement) --
-     *  bound under its name (R17 C4):
+     *  execution-trace comment of the execution the stamp names -- a product plan's one execution, every statement of
+     *  it the same, as upstream's {@code execID} is; a test body's {@code execute()}'s own, as upstream's interpreted
+     *  execute mints one per query ({@link com.legend.base.RunScope#execution(String)}, the door's: the execution id as
+     *  upstream, 2026-11-12; until 2026-11-12 a fresh id per statement) -- bound under its name (R17 C4):
      *  the activity rows the plan's statements write read it as a bound value. The statement itself is sent as the plan
      *  wrote it, no comment in front of it (C1, 2026-11-12, the user's ruling of 2026-11-10, "Agree with all": the
      *  database receives exactly the plan's text; upstream writes the comment into the text at run, register S304). */
     private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values) {
-        if (sql.stamp() != null) {
-            values.put(sql.stamp(),
-                    new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution())));
+        // every execution the statement reads -- its own stamp and each one a slot reads (an activity row's comment) --
+        // bound to the id its door minted for it (the execution id as upstream, 2026-11-12: until then the statement's
+        // own stamp alone, a stamp another step bound read from the values that step left)
+        java.util.Set<String> read = new java.util.LinkedHashSet<>();
+        sql.stamps(read);
+        for (String execution : read) {
+            values.put(execution,
+                    new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution(execution))));
         }
     }
 
@@ -934,8 +948,11 @@ public final class PlanRunner {
         return s;
     }
 
-    /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order. */
-    private record Expanded(PlannedSql statement, List<ExecutionPlan.Slot> slots,
+    /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order (a key
+     *  cell's slot the plan's own {@link ExecutionPlan.Binding.Key}, its value the key's text). Package-private, so the
+     *  keyed expansion's one fixture holds it to the other runners' (KeyedExpansionConformanceTest; the C final audit's
+     *  H8, 2026-11-12). */
+    record Expanded(PlannedSql statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
     }
 
@@ -945,7 +962,7 @@ public final class PlanRunner {
      * counter; with no key, {@code empty}, or the statement refused where it has no form without one); each slot
      * outside a region bound once, each inside one bound in every copy, a key's cell to that key's text.
      */
-    private static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
+    static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
             Map<String, PlanParameters.Checked> checked) {
         String text = sql.statement();
         StringBuilder out = new StringBuilder(text.length() + keys.size() * 64);
@@ -979,7 +996,10 @@ public final class PlanRunner {
                     for (int s = r.firstSlot(); s < r.firstSlot() + r.slotCount(); s++) {
                         ExecutionPlan.Slot each = sql.slots().get(s);
                         if (each.binding() instanceof ExecutionPlan.Binding.Key key) {
-                            slots.add(new ExecutionPlan.Slot("", new ExecutionPlan.Binding.One("VARCHAR", null)));
+                            // the plan's own key slot, its value this copy's key's text: a key slot is told apart by
+                            // its type, bound as text by the sender (the C final audit's J7, 2026-11-12: until then exec
+                            // made a slot of its own, typed VARCHAR, told apart by its empty name)
+                            slots.add(each);
                             values.add(new PlanParameters.One(cellText(keys.get(k), key.cell())));
                         } else {
                             slots.add(each);
@@ -1029,10 +1049,8 @@ public final class PlanRunner {
             // every live source the run reads was admitted once, at its entry (admitSources): the path is bound here,
             // never admitted again (the checkpoint tenets audit's 7, 2026-11-10: until then per statement as well)
             Map<String, PlanParameters.Checked> bound = checked;
-            if (sql.stamp() != null) {
-                bound = new HashMap<>(bound);
-                stamp(sql, bound);
-            }
+            bound = new HashMap<>(bound);
+            stamp(sql, bound);
             List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
             for (int i = 0; i < sql.slots().size(); i++) {
                 values.add(value(bound, sql, sql.slots().get(i), i + 1));
@@ -1048,9 +1066,12 @@ public final class PlanRunner {
     /** {@code session}'s statements for {@code target}: checked against it (the database, the server versions the
      *  statements are written for), the target's session statements run -- once per connection (the session's memo,
      *  {@link SessionState#needsSessionStatements}; D66, 2026-10-30: until then they ran before every statement), and
-     *  again after a rollback the seam made. Inside a transaction the CALLER holds (autocommit off before the session
-     *  was handed in) they run before every statement, as before: a caller's rollback undoes what a session statement
-     *  set there (Postgres's {@code SET} is transactional) and the memo cannot see it. The one place a session's
+     *  again after a rollback the seam made, inside a transaction the seam opened as outside one
+     *  ({@link SessionState#inOwnTransaction}; the C final audit's J6, 2026-11-12: until then autocommit off read as the
+     *  caller's, and a program's own transaction sent them before every statement). Inside a transaction the CALLER
+     *  holds (autocommit off before the session was handed in) they run before every statement, as before: a caller's
+     *  rollback undoes what a session statement set there (Postgres's {@code SET} is transactional) and the memo cannot
+     *  see it. The one place a session's
      *  statements are taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}),
      *  on every path: a statement, a schema read, a setup step, a sequence, a keyed plan. */
     static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
@@ -1062,7 +1083,7 @@ public final class PlanRunner {
         Statements st = Statements.marked(session.statements(), mark);
         st.check(target);
         if (!target.session().isEmpty()) {
-            boolean memo = st.ownsTransaction();
+            boolean memo = st.ownsTransaction() || session.state().inOwnTransaction();
             if (!memo || session.state().needsSessionStatements(target.session())) {
                 for (PlannedSql s : target.plannedSession()) {
                     StatementOrigin.sent(StatementOrigin.SESSION, s.text());
@@ -1142,6 +1163,10 @@ public final class PlanRunner {
                         + " by a query's statement, whose run admits it: this statement's run admits no source");
             }
             return admitted;
+        }
+        if (slot.binding() instanceof ExecutionPlan.Binding.Key) {
+            throw new IllegalStateException("slot " + index + " binds a key's cell unexpanded: the runner writes a keyed"
+                    + " body for its keys before it is sent");
         }
         PlanParameters.Checked value = checked.get(slot.parameter());
         if (value == null) {

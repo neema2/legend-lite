@@ -105,6 +105,124 @@ class OneSendTest(unittest.TestCase):
         self.assertIn('the warehouse', str(refused.exception))
 
 
+class _Witness:
+    """A duckdb-python connection that records every text it is handed and every other act asked of it -- what the
+    database itself received, not what a runner said it sent (the unfiltered witness: the C final audit's H8 and H13,
+    2026-11-12). The one Database holds it as it holds duckdb's own."""
+
+    def __init__(self, con):
+        self._con, self.received = con, []
+
+    def execute(self, sql, params=None):
+        self.received.append(str(sql))
+        return self._con.execute(sql) if params is None else self._con.execute(sql, params)
+
+    def __getattr__(self, name):
+        self.received.append(f'<{name}>')
+        return getattr(self._con, name)
+
+
+def _statements_of(node, content=None):
+    """Every statement a plan's JSON carries for its steps, in the order written: a step's ``sql``, a list of them, a
+    statements step's blob read by its digest (the TypeScript twin: plan-runner.test.ts statementsOf)."""
+    if isinstance(node, list):
+        return [s for n in node for s in _statements_of(n, content)]
+    if not isinstance(node, dict):
+        return []
+    blobs = node['content'] if isinstance(node.get('content'), dict) else (content or {})
+    if node.get('_type') == 'statements':
+        return json.loads(blobs[node['ref']['digest']])
+    out = []
+    for key, value in node.items():
+        if key in ('tree', 'content', 'regions', 'target'):
+            continue
+        if key in ('statement', 'sql') and isinstance(value, str):
+            out.append(value)
+        elif isinstance(value, list) and value and all(isinstance(v, str) for v in value):
+            out.extend(value)
+        else:
+            out.extend(_statements_of(value, blobs))
+    return out
+
+
+class WitnessTest(unittest.TestCase):
+    """THE UNFILTERED WITNESS (the C final audit's H8 and H13, 2026-11-12): everything Python's DuckDB receives during a
+    plan's run is the plan's -- its statements in order, and no other text or act."""
+
+    def test_a_load_hands_the_database_its_plans_statements_alone(self):
+        import os
+        fixture = json.loads(open(os.environ['LEGEND_LITE_RUN_LOAD_FIXTURE'], encoding='utf-8').read())
+        project = compiler.project_data(fixture['model'], fixture['databaseType'])
+        witness = _Witness(duckdb.connect())
+        db = Database(witness)
+        for sql in [*project['open'], *project['use']]:
+            send(db, sql)
+        witness.received.clear()
+        projects.run_load(project['load'], lambda statement: send(db, statement))
+        self.assertGreater(len(witness.received), 1)
+        self.assertEqual(witness.received, _statements_of(project['load']['root']))
+
+    def test_a_stream_hands_the_database_its_statements_and_its_import_alone(self):
+        import pyarrow as pa
+        import pyarrow.ipc
+
+        rows = pa.table({'id': pa.array([1, 2, 3], pa.int32())})
+        sink = pa.BufferOutputStream()
+        with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+            w.write_table(rows)
+
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                on_receipt({'statementId': 's1', 'serverRows': 3, 'as': 'rita', 'where': 'a stand-in'})
+                yield sink.getvalue().to_pybytes()
+
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': from_plan('SELECT * FROM t'),
+                                     'table': 'witnessed'})
+        step = plan['root']['steps'][0]
+        witness = _Witness(duckdb.connect())
+        projects.run_host_load(plan, Database(witness), planes={'warehouse': Plane()})
+        self.assertEqual(witness.received, [*step['transaction']['begin'], *step['prepare'], '<from_arrow>', step['count'],
+                                            *step['transaction']['commit']])
+
+
+class KeyedExpansionFixtureTest(unittest.TestCase):
+    """THE KEYED EXPANSION'S ONE FIXTURE (the C final audit's H8, 2026-11-12; engine-client/test/fixtures/
+    keyed-expansion.json): the text Python's bridge holds a keyed statement to (_keyed_text) is the text Java's
+    PlanRunner.expand and the tab's expandKeyed write, case by case -- its text alone, the keys' cells being bound."""
+
+    def test_each_case_is_written_as_the_other_runners_write_it(self):
+        import os
+        cases = json.loads(open(os.environ['LEGEND_LITE_KEYED_FIXTURE'], encoding='utf-8').read())['cases']
+        self.assertGreater(len(cases), 3)
+        for case in cases:
+            with self.subTest(case['name']):
+                body = case['body']
+                written = _keyed_text(body['statement'], tuple(body['regions']), len(case['keys']))
+                self.assertEqual(written, case.get('statement'), 'refused: no text' if 'refused' in case else '')
+
+
+class HostOperationsTextTest(unittest.TestCase):
+    """THE C FINAL AUDIT'S H2 (2026-11-12): a host operation's planner text -- a source query, a select list, a
+    replacement -- is a PlannedSql, made where its plan or the planner's answer was read; a host's own text is refused by
+    name before the planner is asked, so it is never pasted into a statement."""
+
+    def test_a_hosts_own_text_in_an_operation_is_refused_by_name(self):
+        for op in ({'op': 'count', 'from': {'query': 'SELECT 1'}},
+                   {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*', 'from': {'relation': {'name': 's'}}},
+                   {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
+                    'replacing': [{'column': 'a', 'sql': 'a'}]}):
+            with self.subTest(op=op), self.assertRaises(NotPlanned):
+                compiler.host_operations('DuckDB', [op])
+        (counted,) = compiler.host_operations('DuckDB', [{'op': 'count', 'from': {'query': from_plan('SELECT 1 AS a')}}])
+        self.assertIn('SELECT 1 AS a', counted[0])
+
+    def test_the_planners_copy_select_list_is_typed_as_its_answer_is_read(self):
+        model = compiler.table_model({'table': 't', 'convertible': True, 'databaseType': 'DuckDB', 'columns': [
+            {'name': 'big', 'dataType': 'UBIGINT', 'logicalType': 'UBIGINT'}]})
+        self.assertIsInstance(model['copySelectList'], PlannedSql)
+        self.assertIn('DECIMAL(20,0)', model['copySelectList'])
+
+
 class TheBridgeTest(unittest.TestCase):
     """THE V8 BRIDGE (the orchestrator's ruling of 2026-11-12): what DataCube's hosted code hands Python's database crosses
     as text, and is sent only if this session's planner answered it -- every text its answers carried, a plan's steps
@@ -161,6 +279,41 @@ class TheBridgeTest(unittest.TestCase):
             self.assertIn(text, answered)
         for text in ('DROP TABLE t', 'DELETE FROM t', 'TRUNCATE t', 'DROP TABLE u', 'String', 'legend-lite-plan'):
             self.assertNotIn(text, answered)
+
+    def test_a_stream_steps_remote_statement_and_an_updates_count_are_not_this_databases(self):
+        """The C final audit's H3 (2026-11-12): a snapshot's stream step carries the REMOTE plane's statement (its
+        ``sql``) and an update step names the value a later step binds (its ``count``): neither is a statement this
+        database runs, so neither is admitted -- the stream's own local statements are."""
+        sent = from_plan('SELECT * FROM remote_t')
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': sent, 'table': 'snap_t'})
+        answered = Answered()
+        answered.record('snapStream', 'OK\n' + json.dumps(plan))
+        stream = plan['root']['steps'][0]
+        self.assertEqual(stream['_type'], 'stream')
+        self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
+        for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
+            self.assertIn(local, answered, local)
+        answered.record('executionPlan', 'OK\n' + json.dumps({'root': {'_type': 'sequence', 'steps': [
+            {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}))
+        self.assertIn('INSERT INTO t SELECT 1', answered)
+        self.assertNotIn('written', answered, "an update's count names a value, never a statement")
+
+    def test_a_snapshots_stream_takes_the_planes_statement_alone(self):
+        # H3: the plane's statement is a PlannedSql, made where its plan was read; any other text is refused by name
+        with self.assertRaisesRegex(NotPlanned, "a snapshot's stream"):
+            compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': 'DROP TABLE t', 'table': 'snap_t'})
+
+    def test_an_answer_bigger_than_the_bound_is_kept_whole(self):
+        """The audit's NOTE: an answer of more than CAPACITY statements evicted its own first ones before any was sent;
+        now the newest answer is kept whole, and the next one trims the set back to its bound."""
+        answered = Answered()
+        many = [f'SELECT {i}' for i in range(Answered.CAPACITY + 10)]
+        answered.record('hostOperations', 'OK\n' + json.dumps([many]))
+        self.assertEqual(len(answered), Answered.CAPACITY + 10)
+        self.assertIn('SELECT 0', answered)
+        answered.record('catalogColumnsSql', 'OK\nSELECT -1')
+        self.assertEqual(len(answered), Answered.CAPACITY)
+        self.assertIn('SELECT -1', answered)
 
     def test_the_set_is_bounded(self):
         answered = Answered()

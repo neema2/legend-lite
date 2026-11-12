@@ -56,7 +56,7 @@ describe('SnapManager', () => {
   it('freezes rows and reports what was taken, and when', async () => {
     const s = new SnapManager(engine, null, planner);
     const before = Date.now();
-    const info = await s.snap('SELECT * FROM trades', 1, { target: target('snap_a') });
+    const info = await s.snap(unplanned('SELECT * FROM trades'), 1, { target: target('snap_a') });
 
     assert.equal(info.rowCount, 1000);
     assert.ok(info.takenAt.getTime() >= before);
@@ -70,7 +70,7 @@ describe('SnapManager', () => {
     // its own live table, so the row it adds reaches no other test (Bazel workplan P3-10)
     await engine.run(unplanned('CREATE TABLE trades_frozen AS SELECT * FROM trades'), 0);
     const s = new SnapManager(engine, null, planner);
-    const { table: snapped } = await s.snap('SELECT * FROM trades_frozen', 1, { target: target('snap_frozen') });
+    const { table: snapped } = await s.snap(unplanned('SELECT * FROM trades_frozen'), 1, { target: target('snap_frozen') });
 
     // The world moves on underneath.
     await engine.run(
@@ -92,7 +92,7 @@ describe('SnapManager', () => {
 
   it('returns to live on release', async () => {
     const s = new SnapManager(engine, null, planner);
-    await s.snap('SELECT * FROM trades', 1, { target: target('snap_released') });
+    await s.snap(unplanned('SELECT * FROM trades'), 1, { target: target('snap_released') });
     await s.release();
     assert.equal(s.state.mode, 'live');
     assert.equal(s.sourceFor(LIVE), LIVE);
@@ -101,7 +101,7 @@ describe('SnapManager', () => {
   it('refuses a snap beyond the row ceiling, before materialising', async () => {
     const s = new SnapManager(engine, null, planner);
     const estimate = await s.preflight(
-      'SELECT * FROM range(20000000)',
+      unplanned('SELECT * FROM range(20000000)'),
       1,
     );
     assert.equal(estimate.withinLimit, false);
@@ -111,7 +111,7 @@ describe('SnapManager', () => {
       '20,000,000 rows exceeds the 10,000,000 row snap limit. Narrow the filter, or stay live.');
 
     await assert.rejects(
-      () => s.snap('SELECT * FROM range(20000000)', 2, { target: target('snap_huge') }),
+      () => s.snap(unplanned('SELECT * FROM range(20000000)'), 2, { target: target('snap_huge') }),
       (e: unknown) => {
         assert.ok(e instanceof SnapRefusal);
         return true;
@@ -123,8 +123,8 @@ describe('SnapManager', () => {
 
   it('gives each snap its own table so two can coexist', async () => {
     const s = new SnapManager(engine, null, planner);
-    const a = await s.snap('SELECT * FROM trades WHERE region = 0', 1, { target: target('snap_region_0') });
-    const b = await s.snap('SELECT * FROM trades WHERE region = 1', 2, { target: target('snap_region_1') });
+    const a = await s.snap(unplanned('SELECT * FROM trades WHERE region = 0'), 1, { target: target('snap_region_0') });
+    const b = await s.snap(unplanned('SELECT * FROM trades WHERE region = 1'), 2, { target: target('snap_region_1') });
     assert.notEqual(a.table, b.table);
     // Snap A survives taking snap B, which is what makes an
     // as-of-A vs as-of-B comparison possible.
@@ -137,7 +137,7 @@ describe('SnapManager', () => {
 
   it('drops the copy, live still, when the app cannot model what landed (§18.3)', async () => {
     const s = new SnapManager(engine, null, planner);
-    await assert.rejects(s.snap('SELECT * FROM trades WHERE region = 2', 4, {
+    await assert.rejects(s.snap(unplanned('SELECT * FROM trades WHERE region = 2'), 4, {
       target: { table: 'snap_refused', landed: async () => { throw new Error('no model of it'); } },
     }), /no model of it/);
     assert.equal(s.isSnapped, false);

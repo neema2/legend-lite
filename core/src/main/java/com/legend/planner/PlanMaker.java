@@ -247,32 +247,6 @@ public final class PlanMaker {
         }
     }
 
-    /** Every execution-trace stamp a step's statement reads is bound by a step of the program (a frame's run, or the
-     *  statement itself): a stamp nothing binds -- the activity comment of an execute(...) run inside a frame let's
-     *  own query, which the let's run does not stamp -- is refused by name (the MR inventory's latent defect 3, where
-     *  it failed unbound when the plan ran; MR's audit S2: only where it is read). */
-    private static void everyReadStampBound(List<PlannedStep> steps) {
-        Set<String> bound = new HashSet<>();
-        for (PlannedStep step : steps) {
-            for (ExecutionPlan.Sql sql : sqls(step)) {
-                if (sql.stamp() != null) {
-                    bound.add(sql.stamp());
-                }
-            }
-        }
-        for (PlannedStep step : steps) {
-            for (ExecutionPlan.Sql sql : sqls(step)) {
-                for (ExecutionPlan.Slot slot : sql.slots()) {
-                    if (slot.parameter().startsWith(ProgramFrames.STAMP) && !bound.contains(slot.parameter())) {
-                        throw new NotImplementedException("a statement reads the trace stamp '" + slot.parameter()
-                                + "' of an execute(...) run that no step of the program binds (a run inside a frame"
-                                + " let's own query): not designed");
-                    }
-                }
-            }
-        }
-    }
-
     /** Whether {@code step} sends a statement to the process's catalog (a {@code Database.System} target). */
     static boolean readsTheCatalog(PlannedStep step) {
         for (ExecutionPlan.Sql sql : sqls(step)) {
@@ -681,7 +655,9 @@ public final class PlanMaker {
      *  its writes where the dialect drops them with it). */
     private static List<PlannedStep> finished(ProgramState state) {
         List<PlannedStep> steps = withoutUnreadStamps(state.steps());
-        everyReadStampBound(steps);
+        // (everyReadStampBound went 2026-11-12, the execution id as upstream: a stamp a statement reads is an execution
+        // the run binds from the ids its door minted -- the plan's one, or each execute()'s -- so none is unbound; until
+        // then a stamp no step bound, an execute(...) run inside a frame let's own query, was refused here)
         SqlDialect dialect = state.dialect();
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
             steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(

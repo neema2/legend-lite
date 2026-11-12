@@ -14,7 +14,7 @@ from typing import Any
 
 from . import _json
 from ._library import library
-from ._planned import PlannedSql, all_from_plan, from_plan
+from ._planned import PlannedSql, all_from_plan, from_plan, require
 
 Tree = dict[str, Any]
 
@@ -256,8 +256,14 @@ def table_model(table: dict[str, Any]) -> dict[str, Any]:
     "local"), "convertible", "columns"}]}`` instead, the model of SEVERAL tables of one database (a join's inputs, read
     in one place): each package's Database declaring its tables as each one's own model does, one connection, and a
     runtime binding every Database to it. Returns ``{"model", "runtime", "tables": [{"source", "accessor",
-    "conversions", "excluded"}]}``, the tables in the order given; a table given twice is refused."""
-    return _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
+    "conversions", "excluded"}]}``, the tables in the order given; a table given twice is refused.
+
+    ``copySelectList`` is the planner's own text, typed as its answer is read (a PlannedSql: the C final audit's H2,
+    2026-11-12): what a host operation's ``selectList`` takes, and nothing else does."""
+    answered = _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
+    if 'copySelectList' in answered:
+        answered['copySelectList'] = from_plan(answered['copySelectList'])
+    return answered
 
 
 def catalog_columns_sql(schema: str, table: str) -> PlannedSql:
@@ -275,9 +281,24 @@ def session_setup(database_type: str) -> list[PlannedSql]:
 def host_operations(database_type: str, operations: list[dict[str, Any]]) -> list[list[PlannedSql]]:
     """A host's named operations on its own database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5):
     each operation's statements, in order -- what Python's host runs instead of spelling SQL (engine-client's
-    host-operations.ts writes the same operations). One the database has not is refused by name."""
+    host-operations.ts writes the same operations). One the database has not is refused by name. An operation's planner
+    text -- a source ``query``, a ``selectList``, a ``replacing`` expression -- is a PlannedSql, made where its plan or
+    the planner's answer was read (the C final audit's H2, 2026-11-12: until then any text was taken, and the platform
+    pasted it into the statement); any other text is refused by name before the planner is asked."""
+    for op in operations:
+        _planned_texts(op)
     answered = _json.loads(_answer(library().call('lite_host_operations', database_type, _json.dumps(operations))))
     return [all_from_plan(statements) for statements in answered]
+
+
+def _planned_texts(op: dict[str, Any]) -> None:
+    source = op.get('from')
+    if isinstance(source, dict) and 'query' in source:
+        require(source['query'], f"a host operation's ({op.get('op')}) source query")
+    if 'selectList' in op:
+        require(op['selectList'], f"a host operation's ({op.get('op')}) select list")
+    for replaced in op.get('replacing') or []:
+        require(replaced.get('sql'), f"a host operation's ({op.get('op')}) replacement of {replaced.get('column')}")
 
 
 def snap_stream(request: dict[str, Any]) -> dict[str, Any]:
@@ -285,7 +306,9 @@ def snap_stream(request: dict[str, Any]) -> dict[str, Any]:
     2026-11-11, "This is the right plan"): ``request`` is ``{"databaseType", "plane", "sql", "schema"?, "table"}`` -- the
     name this host holds the remote plane under, the statement it runs (the planner's, for the plane's own database), the
     table of this database it lands in; never a row (any other key is refused by name). The plan: one HOST_SESSION load
-    whose stream step ``projects.run_host_load`` runs in one transaction."""
+    whose stream step ``projects.run_host_load`` runs in one transaction. ``sql`` is the plane's planner's statement, a
+    PlannedSql made where its plan was read (the C final audit's H3, 2026-11-12): any other text is refused by name."""
+    require(request.get('sql'), "a snapshot's stream (the remote plane's statement)")
     return _json.loads(_answer(library().call('lite_snap_stream', _json.dumps(request))))
 
 

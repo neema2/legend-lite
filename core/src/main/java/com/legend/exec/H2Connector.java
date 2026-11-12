@@ -17,8 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the settings the plan's target declares ({@link #url}: the H2 dialect's {@code MODE=LEGACY} and
  * {@code DEFAULT_NULL_ORDERING=HIGH}, plan data since the C checkpoint's SHOULD-FIX 3, 2026-11-12; until then this
  * connector's {@code SETTINGS}, outside every plan, with the non-keywords that are now the dialect's session
- * statement); a file's or a server's URL is opened as the connection declares it, and the session checked against the
- * target's settings ({@code JdbcStatements.check}).
+ * statement), and so is a file's or a server's URL ({@link #urlWith}; the C final audit's J1, 2026-11-12: until then it
+ * was opened as the connection declares it, read back as H2's defaults, and refused). A target that declares none is
+ * refused by name: H2's defaults are other semantics (J4).
  *
  * <p>THE H2 session — the engine's own, VERBATIM (convergence batch C,
  * user-ratified "converge directly", landed 2026-08-29): H2Defaults
@@ -91,23 +92,46 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
                 "");
     }
 
-    /** {@code settings} on an in-memory database's URL, each {@code ;NAME=VALUE}, as the plan's target declares them (the
-     *  C checkpoint's SHOULD-FIX 3, 2026-11-12: H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}, the database's,
-     *  whose {@code SET} would commit a caller's transaction); none for null. A name or value that is not a plain word
-     *  is refused by name: it would write another setting. */
+    /** The settings a plan's target may declare for an H2 database: the dialect's two, the database's own (the C final
+     *  audit's J4, 2026-11-12: until then any plain word was written, so a plan could set any of H2's settings). */
+    static final java.util.Set<String> SETTINGS = java.util.Set.of("MODE", "DEFAULT_NULL_ORDERING");
+
+    /** {@code settings} on an H2 database's URL, each {@code ;NAME=VALUE}, as the plan's target declares them (the C
+     *  checkpoint's SHOULD-FIX 3, 2026-11-12: H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}, the database's, whose
+     *  {@code SET} would commit a caller's transaction). Refused by name (the C final audit's J4, 2026-11-12): none at
+     *  all (H2's defaults are other semantics), a name not in {@link #SETTINGS}, a value that is not a plain word (it
+     *  would write another setting). */
     static String url(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         if (settings == null) {
-            return "";
+            throw new com.legend.error.NotImplementedException("an H2 database is opened with the settings the plan's"
+                    + " target declares, and it declares none: H2's own defaults would run the plan with other"
+                    + " semantics");
         }
         StringBuilder url = new StringBuilder();
         for (com.legend.executionplan.ExecutionPlan.Setting s : settings.required()) {
-            if (!s.name().matches("[A-Za-z_][A-Za-z0-9_]*") || !s.value().matches("[A-Za-z0-9_]+")) {
-                throw new IllegalArgumentException("an H2 database setting is a name and a value, each a plain word: "
-                        + s);
+            if (!SETTINGS.contains(s.name())) {
+                throw new IllegalArgumentException("an H2 database setting a plan's target declares is one of "
+                        + new java.util.TreeSet<>(SETTINGS) + ": " + s);
+            }
+            if (!s.value().matches("[A-Za-z0-9_]+")) {
+                throw new IllegalArgumentException("an H2 database setting's value is a plain word: " + s);
             }
             url.append(';').append(s.name()).append('=').append(s.value());
         }
         return url.toString();
+    }
+
+    /** {@inheritDoc} A file's or a server's URL with the target's settings written on it ({@link #url}), as an
+     *  in-memory database's is (the C final audit's J1, 2026-11-12). */
+    @Override
+    public String urlWith(String url, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        return url + url(settings);
+    }
+
+    /** {@inheritDoc} Yes: the H2 dialect's two (J4). */
+    @Override
+    public boolean takesSettings() {
+        return true;
     }
 
     @Override

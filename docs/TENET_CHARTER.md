@@ -218,21 +218,64 @@ wins.
   bound to one. This is the user's ruling of 2026-10-30, "it's okay to join CONSTANT strings only". It is pinned by
   `JavaEvalLedgerTest.theCompilersLiteralFoldJoinsConstantsAlone`, and `LiteralsParityTest` proves it equal to the
   database's answer. It has no run-time effect.
-- **A3 — C1.4, what exec may do beyond sending statements and streaming rows, named.** Three cases are allowed:
-  - **(a) Keyed regions.** The dialect writes, at planning, a fragment of a statement once (the region). At run time the
-    runner writes that fragment once per key a previous step of the plan read from the database, binding each key as a
-    parameter value. It may write the key's position number at places the plan marks, nothing else. This is the dynamic
-    pivot; the user ruled it acceptable on 2026-11-07.
-  - **(b) Planned branches.** Exec chooses a planned branch by a Boolean the database computed (designed 2026-11-04).
-  - **(c) Declared error read-back.** After a statement fails, exec sends the statements the plan's target declares for
-    reading the error back (MariaDB and MySQL keep a raised Pure message in a session variable).
+- **A3 — C1.4, what exec may do beyond sending statements and streaming rows, named.** Three cases are allowed, each
+  because the alternative would make exec plan, or would put the database's work in Java (ratified as one list by the
+  user, 2026-11-12: "agree with the wording of the 3 exceptions"; the same list, in the same words, in AGENTS.md
+  invariant 3 and the total wall's start-here §5.5).
+  - **(a) Keyed regions: a statement whose shape depends on the data.**
+    - What: the dynamic pivot's columns are the distinct values of a column, unknown until the data is read. The plan
+      holds two statements: one reads the keys; the other holds a REGION, a fragment the dialect wrote at planning
+      (one pivot column's expression).
+    - At run, the runner writes that fragment once per key, in the keys' order, and binds each copy's key as a
+      parameter. A key's text is never pasted into SQL. The runner may write the key's position number where the plan
+      marks it, and nothing else.
+    - Why: SQL fixes a statement's columns in its text. The alternatives are worse. Sending the keys back to the
+      planner for a second statement would make the run plan. A database's native dynamic pivot is not portable, and
+      leaves the result's columns unknown to the plan.
+    - The user ruled it acceptable on 2026-11-07. Code: `PlanRunner.expand`; the hosts' `expandKeyed`.
+  - **(b) Planned branches: an `if` in a test body whose sides hold asserts.**
+    - What: the plan holds the condition and both sides, each fully written. The database computes the condition, one
+      Boolean. Exec runs the named side's planned statements as written, and never sends the other side.
+    - Why: Pure evaluates only the side taken, so an assert that would fail or raise in the other side must not run.
+      Folding both sides into one statement under `CASE` or `WHERE` guards would evaluate both. SQL has no portable
+      procedural `IF`.
+    - It is a test plan's step only: a product query's `if` stays the database's `CASE`.
+    - Designed 2026-11-04 (`TestPlan.Branch`, `TestRun.branch`).
+  - **(c) Declared read-backs: statements the plan's target declares, sent as written when the run needs them.**
+    - **MariaDB's and MySQL's raised error.**
+      - Why: a Pure error raised inside a query (a guard's message, `error(...)`) must reach the caller with its text.
+      - MariaDB and MySQL cannot raise an error of our text from a SELECT. `SIGNAL` runs only inside a stored program
+        (a procedure, function or trigger), and a conversion failure inside a SELECT is a warning, not an error.
+      - A stored function that SIGNALs would mean creating an object in the user's database, a DDL privilege a
+        read-only user lacks, on every database lite queries. So that is not done.
+      - Instead, the raising expression stores its message in the session variable `@legend_raise`, then fails with a
+        fixed run-time error (a scalar subquery of two rows), only when evaluated: a `CASE` branch not taken raises
+        nothing (measured).
+      - After a failure, exec sends the target's two declared statements: `SELECT @legend_raise`, then
+        `SET @legend_raise = NULL`. The reset is always sent.
+      - Plan text, counted as the session's (D4, C2, 2026-11-12; until then the connector's). Code:
+        `SqlDialect.raiseReadBack`, `JdbcStatements.held`.
+    - **H2's settings, on a session lite did not open.**
+      - Why: H2 answers some queries differently by its settings (the `MODE`, and the default null ordering). The plan's
+        target declares the settings its SQL assumes. Where lite opens the database, they are written on its URL.
+      - On a session lite did not open (a caller's, a borrowed one), the target's declared read-back statement asks the
+        DATABASE to compare them. One row comes back for each setting it has otherwise, or does not report. Any row
+        refuses the session by name. Exec carries the texts and decides nothing from them.
+      - Plan text, counted as the session's (C4, 2026-11-12). Code: `SqlDialect.databaseSettings`,
+        `JdbcStatements.verifySettings`.
+      - Whether the product needs these settings at all is being measured in D (the edge may own them).
 
-  Nothing else is allowed. Exec writes no other SQL text: the type hole is deleted (D1, P4, 2026-11-09); the
-  per-execution trace comment is no longer written at run (`JdbcStatements.stamped` deleted, D3, C1, 2026-11-12: the
-  execution id a bound value, register S304); MariaDB's read-back is the plan's declared statements, not the
-  connector's (D4, C2, 2026-11-12: `SqlDialect.raiseReadBack`, carried by the target, sent as written). (Until C the
-  line read PENDING for both, corrected 2026-11-09 by the tenets re-audit's B-3.) Exec sends no statement the plan does
-  not contain.
+  Nothing else is allowed. A bound parameter is not an exception: it is a value the plan names, bound at its
+  placeholder. Exec writes no other SQL text:
+  - the type hole is deleted (D1, P4, 2026-11-09);
+  - the per-execution trace comment is no longer written at run (`JdbcStatements.stamped` deleted, D3, C1, 2026-11-12:
+    the execution id is a bound value, register S304);
+  - MariaDB's read-back is the plan's declared statements, not the connector's (D4, C2, 2026-11-12);
+  - MongoDB's version check, a command exec wrote itself, is deleted (C, 2026-11-12: a server before 5.0 refuses the
+    `let` field itself).
+
+  (Until C the line read PENDING for both D3 and D4, corrected 2026-11-09 by the tenets re-audit's B-3.) Exec sends no
+  statement the plan does not contain.
 - **A4 — The guards' text matches the code.** `JavaEvalLedgerTest`'s javadoc names classes that are gone, and says the
   decode cluster computes nothing, which was false for five sites on 2026-11-07. AGENTS.md invariant 3 described the
   type hole until 2026-11-09, when the hole was deleted (P4) and the text corrected. Both are corrected as the code

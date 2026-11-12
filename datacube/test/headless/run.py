@@ -49,9 +49,26 @@ class TestHost(Headless):
     _planned.py across_the_bridge); and registers a file its database reads by name. Its calls are the lane's, on the
     same global; the product's bundle has none of them."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # the product's statements that crossed the product's bridge (the C final audit's H7, 2026-11-12): a test's own
+        # go to the test calls, every other one to the product's `query` and `statement`, checked there as the
+        # bundle's are -- counted, so a lane that stopped crossing it is red (DataCubeTests)
+        self.crossed = 0
+
     def _calls(self):
         return {**super()._calls(), 'testQuery': self._test_query, 'testStatement': self._test_statement,
                 'testRegisterFile': self._test_register_file}
+
+    async def _query(self, sql):
+        answered = await super()._query(sql)
+        self.crossed += 1
+        return answered
+
+    async def _statement(self, sql, params):
+        answered = await super()._statement(sql, params)
+        self.crossed += 1
+        return answered
 
     def _arrow(self, result):
         import pyarrow as pa
@@ -172,6 +189,7 @@ class DataCubeTests(unittest.TestCase):
         self.assertGreater(len(bundles), 40, f'the bundles are not there: {BUNDLES}')
         total = {'pass': 0, 'fail': 0, 'skip': 0}
         failed: list[str] = []
+        crossed = 0
         for bundle in bundles:
             name = bundle.name[:-len('.test.js')]
             folder = TMP / name
@@ -182,6 +200,7 @@ class DataCubeTests(unittest.TestCase):
             with self.subTest(name):
                 with TestHost(bundle.read_text(encoding='utf-8'), folder=folder) as h:
                     results = h.evaluate('legendLiteHeadless.run()')
+                crossed += h.crossed
                 counts = {s: sum(1 for r in results if r['status'] == s) for s in total}
                 for s in total:
                     total[s] += counts[s]
@@ -193,7 +212,14 @@ class DataCubeTests(unittest.TestCase):
                 self.assertEqual(bad, [])
                 # none skipped: a test the lane does not run says why in BUILD (its file left out), never by a skip
                 self.assertEqual([r['name'] for r in results if r['status'] == 'skip'], [], f'{name}: skipped')
-        print(f'\n{len(bundles)} files: {total["pass"]} pass, {total["fail"]} fail, {total["skip"]} skip', flush=True)
+        print(f'\n{len(bundles)} files: {total["pass"]} pass, {total["fail"]} fail, {total["skip"]} skip; '
+              f"{crossed} of the product's statements crossed its bridge", flush=True)
+        # the lane exercises the product's bridge (H7): the product's statements are checked there, as the bundle's are.
+        # Measured 2026-11-12: 205 crossed (0 with every statement sent to the test calls, as before H7); the floor
+        # leaves the tests room to change
+        self.assertGreater(crossed, 150, "the product's statements no longer cross the product's bridge: the lane's "
+                                          'database sends a test\'s own statements alone to the test calls '
+                                          '(test/host/headless.ts)')
         if failed:
             print('\n'.join(failed[:50]), file=sys.stderr)
 

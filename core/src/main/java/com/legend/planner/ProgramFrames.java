@@ -87,7 +87,7 @@ public final class ProgramFrames {
     }
 
     /** The prefix of a stamp parameter's name (a name no Pure parameter can spell, as {@code ExecutionPlan.COUNT}). */
-    public static final String STAMP = "#stamp";
+    public static final String STAMP = com.legend.executionplan.ExecutionPlan.STAMP;
 
     /** A new stamp parameter's name. */
     public String newStamp() {
@@ -331,15 +331,22 @@ public final class ProgramFrames {
                         + " reads an execute(...)'s result through it (->values)");
             }
             FramePlanner.FrameChain fc = FramePlanner.chain(ec, letPrefix, specs, env);
+            // each execute() an execution of its own (the execution id as upstream, 2026-11-12: upstream's interpreted
+            // execute mints a GUID per query it runs) -- the statement's own stamp where this run mints it, else a stamp
+            // of its own (a second execute in the statement, or one beside a lazy frame the statement runs); until then
+            // every execute a statement ran shared the statement's stamp
+            String own = null;
             if (ownStamp == null) {
                 ownStamp = newStamp();
+                own = ownStamp;
             }
-            // this statement's run of the call: its activity rows, its own, record this statement's stamp (a site a
-            // frame let registered keeps the let's rows)
+            // this statement's run of the call: its activity rows, its own, record its stamp (a site a frame let
+            // registered keeps the let's rows)
             String scope = PlanRows.scopeId(fc.source());
             if (!rows.containsKey(scope)) {
                 rows.markOwn(scope);
-                PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null, ownStamp, env);
+                PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null,
+                        own != null ? own : newStamp(), env);
             }
             return new ResultEnvelopeSplice.View(fc.chain(), !fc.legendQuery() && fc.relationRooted(),
                     fc.source());
