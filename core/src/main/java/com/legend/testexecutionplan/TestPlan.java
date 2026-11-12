@@ -241,6 +241,20 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                 Objects.requireNonNull(rollbackTo, "rollbackTo");
                 Objects.requireNonNull(release, "release");
             }
+
+            /** The three statements, as the test plan holds them: what a session sends
+             *  ({@link com.legend.executionplan.PlannedSql}). */
+            public com.legend.executionplan.PlannedSql plannedSet() {
+                return com.legend.executionplan.PlannedSql.fromPlan(set);
+            }
+
+            public com.legend.executionplan.PlannedSql plannedRollbackTo() {
+                return com.legend.executionplan.PlannedSql.fromPlan(rollbackTo);
+            }
+
+            public com.legend.executionplan.PlannedSql plannedRelease() {
+                return com.legend.executionplan.PlannedSql.fromPlan(release);
+            }
         }
     }
 

@@ -2027,6 +2027,65 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /**
+     * THE BRAND'S MINT (the C checkpoint's MUST-FIX 1, 2026-11-12, the user's "are we provably totally separated?"): a
+     * {@link com.legend.executionplan.PlannedSql} -- the only text a session's statements take ({@code exec.Statements}:
+     * {@link #aSessionsStatementsTakeNoText}) -- is minted where a plan is READ, and nowhere else: by the plan's own
+     * records ({@code com.legend.executionplan}: a statement, a target's session statements and error read-back, a
+     * load's statements and a file's reading, a script's bracket and abort), by the test plan's
+     * ({@code com.legend.testexecutionplan}: a savepoint's), and by the runner's keyed expansion
+     * ({@code PlanRunner.expand}: a keyed body's regions once per key, the charter's A3(a), the one sanctioned writing at
+     * run). So exec sends a plan's text and nothing else, by type: a runner that writes a statement, or a comment in
+     * front of one, must mint it, and this rule names everyone who may. A call and a method reference alike.
+     */
+    @Test
+    void onlyThePlansReadersMintPlannedSql() {
+        noClasses()
+            .should().accessTargetWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaAccess<?>>("a PlannedSql minted outside the plan's readers"
+                    + " (com.legend.executionplan, com.legend.testexecutionplan) and PlanRunner.expand") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaAccess<?> access) {
+                    if (!access.getTargetOwner().isEquivalentTo(com.legend.executionplan.PlannedSql.class)
+                            || !(access.getName().equals("fromPlan") || access.getName().equals("allFromPlan"))) {
+                        return false;
+                    }
+                    com.tngtech.archunit.core.domain.JavaCodeUnit origin = access.getOrigin();
+                    String pkg = origin.getOwner().getPackageName();
+                    if (pkg.equals("com.legend.executionplan") || pkg.equals("com.legend.testexecutionplan")) {
+                        return false;
+                    }
+                    return !(origin.getOwner().isEquivalentTo(com.legend.exec.PlanRunner.class)
+                            && origin.getName().equals("expand"));
+                }
+            })
+            .as("the brand's mint: a PlannedSql, the one text a session is sent, is minted by the plan's readers and the"
+                    + " keyed expansion alone")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * A SESSION'S STATEMENTS TAKE NO TEXT BUT THE PLAN'S (the C checkpoint's MUST-FIX 1, 2026-11-12): every method of
+     * {@code exec.Statements} that sends a statement takes a {@link com.legend.executionplan.PlannedSql}, and none takes
+     * a {@code String} -- but {@code readsFile}'s second argument, the runner's verified copy's path, which the
+     * statement's one {@code ?} binds (a value, never text sent). An overload taking a {@code String} would let a runner
+     * send its own text past {@link #onlyThePlansReadersMintPlannedSql}.
+     */
+    @Test
+    void aSessionsStatementsTakeNoText() {
+        java.util.List<String> textual = new java.util.ArrayList<>();
+        for (java.lang.reflect.Method m : com.legend.exec.Statements.class.getMethods()) {
+            Class<?>[] ps = m.getParameterTypes();
+            for (int i = 0; i < ps.length; i++) {
+                if (ps[i] == String.class && !(m.getName().equals("readsFile") && i == 1)) {
+                    textual.add(m.getName() + "#" + i);
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), textual,
+                "a session's statements take a PlannedSql, never a String");
+    }
+
     /** Grammar cursors and section parsers are parse-time machinery. */
     @Test
     void parseMachineryIsUsedOnlyWhereSanctioned() {

@@ -227,8 +227,9 @@ final class ProgramRunnerTest {
         // the savepoint's three texts are stand-ins that log their step (DuckDB has no savepoint)
         exec("CREATE OR REPLACE TABLE m3c_sp (step VARCHAR)");
         exec("CREATE OR REPLACE TABLE m3c_w (a INTEGER)");
-        ProgramRunner.Savepoint sp = new ProgramRunner.Savepoint("INSERT INTO m3c_sp VALUES ('set')",
-                "INSERT INTO m3c_sp VALUES ('rollbackTo')", "INSERT INTO m3c_sp VALUES ('release')");
+        ProgramRunner.Savepoint sp = new ProgramRunner.Savepoint(com.legend.testbackend.Unplanned.sql("INSERT INTO m3c_sp VALUES ('set')"),
+                com.legend.testbackend.Unplanned.sql("INSERT INTO m3c_sp VALUES ('rollbackTo')"),
+                com.legend.testbackend.Unplanned.sql("INSERT INTO m3c_sp VALUES ('release')"));
         ExecutionPlan.TdsResult good = relation("SELECT 5 AS value", List.of(col("value", "Integer", "INTEGER")));
         ExecutionPlan.TdsResult bad = relation("SELECT * FROM no_such_table_m3c",
                 List.of(col("value", "Integer", "INTEGER")));

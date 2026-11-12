@@ -82,9 +82,11 @@ public final class ProgramRunner {
         void step(int id, OpenProgram open) throws IOException;
     }
 
-    /** A savepoint's three statements, as the dialect spells them: set before a statement whose failure the program
-     *  survives, rolled back to where it fails, released where it does not. */
-    public record Savepoint(String set, String rollbackTo, String release) {
+    /** A savepoint's three statements, as the dialect spells them and the test plan carries them (each a
+     *  {@link com.legend.executionplan.PlannedSql}: the plan's text, never the runner's): set before a statement whose
+     *  failure the program survives, rolled back to where it fails, released where it does not. */
+    public record Savepoint(com.legend.executionplan.PlannedSql set, com.legend.executionplan.PlannedSql rollbackTo,
+            com.legend.executionplan.PlannedSql release) {
         public Savepoint {
             Objects.requireNonNull(set, "set");
             Objects.requireNonNull(rollbackTo, "rollbackTo");

@@ -4,6 +4,7 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.PlannedSql;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -146,9 +147,9 @@ final class JdbcStatements implements Statements {
             return null;
         }
         com.legend.base.RunScope.statement("a declared error read-back");   // the charter's A3(c), a run's act
-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(readBack.read())) {
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(readBack.plannedRead().text())) {
             String held = rs.next() ? rs.getString(1) : null;
-            st.execute(readBack.reset());
+            st.execute(readBack.plannedReset().text());
             return held;
         }
     }
@@ -164,20 +165,20 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public boolean execute(String statement) {
+    public boolean execute(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (Statement st = c.createStatement()) {
-            return st.execute(statement);
+            return st.execute(statement.text());
         } catch (SQLException e) {
             throw failed(e);
         }
     }
 
     @Override
-    public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+    public long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -188,9 +189,9 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public List<Reported> columns(String statement) {
+    public List<Reported> columns(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement.text())) {
             return reported(rs.getMetaData());
         } catch (SQLException e) {
             throw failed(e);
@@ -198,9 +199,9 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public List<Reported> describe(String statement) {
+    public List<Reported> describe(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             java.sql.ResultSetMetaData md = st.getMetaData();
             return md == null ? List.of() : reported(md);
         } catch (SQLException e) {
@@ -219,9 +220,9 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void readsFile(String statement, String path) {
+    public void readsFile(PlannedSql statement, String path) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
             if (st.getParameterMetaData().getParameterCount() == 1) {
                 st.setString(1, path);
@@ -271,10 +272,10 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -292,10 +293,10 @@ final class JdbcStatements implements Statements {
      *  column from the i-th result column; a statement answering another number of columns than the plan declares
      *  is refused by name before a row is read. */
     @Override
-    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -343,10 +344,10 @@ final class JdbcStatements implements Statements {
 
     /** {@inheritDoc} Each reported column named by the wire table ({@link WireTypes#column}). */
     @Override
-    public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(statement.text())) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }

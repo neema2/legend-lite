@@ -260,6 +260,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 }
                 Objects.requireNonNull(bracketed, "bracketed");
             }
+
+            /** The bracketed script, as the plan holds it: what a session sends ({@link PlannedSql}). */
+            public PlannedSql plannedBracketed() {
+                return PlannedSql.fromPlan(bracketed);
+            }
+
+            /** The bracket's abort, as the plan holds it; null where the dialect brackets nothing. */
+            public @com.legend.base.Nullable PlannedSql plannedAbort() {
+                return abort == null ? null : PlannedSql.fromPlan(abort);
+            }
         }
     }
 
@@ -275,6 +285,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             java.util.Map<String, String> content) implements Node {
         /** The prefix every load identity carries (the system store's too since L4a, 2026-11-09). */
         public static final String IDENTITY_PREFIX = "load:";
+
+        /** The statements {@code step}'s blob holds in this load's bundle, each as it is written: what a session sends
+         *  ({@link PlannedSql}). The bundle holds every digest its steps read (checked against their bytes where a plan
+         *  is read, {@code PlanJson.read}). */
+        public List<PlannedSql> plannedStatements(LoadStep.Statements step) {
+            return PlannedSql.allFromPlan(DataRef.Statements.decode(Objects.requireNonNull(content.get(
+                    step.ref().digest()), "a load's bundle holds every digest its steps read")));
+        }
 
         /** A load's CANONICAL content, the text its identity digests (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2: one
          *  scheme for every load): its cadence, then each step's content -- a statement's text, a statements blob's
@@ -704,6 +722,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
         }
 
+        /** The statement, as the plan holds it: what a session sends ({@link PlannedSql}). A statement with per-key
+         *  regions is sent as the runner's keyed expansion writes it, never as this. */
+        public PlannedSql planned() {
+            return PlannedSql.fromPlan(statement);
+        }
+
         /** A statement binding no payload. */
         public Sql(String statement, List<Slot> slots, Target target,
                 com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
@@ -920,6 +944,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         public Target bare() {
             return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack);
         }
+
+        /** The session statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
+        public List<PlannedSql> plannedSession() {
+            return PlannedSql.allFromPlan(session);
+        }
     }
 
     /** The two statements a target declares for reading back a raise its database keeps in the session after a
@@ -929,6 +958,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         public RaiseReadBack {
             Objects.requireNonNull(read, "read");
             Objects.requireNonNull(reset, "reset");
+        }
+
+        /** The read, as the plan holds it: what a session sends ({@link PlannedSql}). */
+        public PlannedSql plannedRead() {
+            return PlannedSql.fromPlan(read);
+        }
+
+        /** The reset, as the plan holds it. */
+        public PlannedSql plannedReset() {
+            return PlannedSql.fromPlan(reset);
         }
     }
 
@@ -1011,6 +1050,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             public Statement {
                 Objects.requireNonNull(sql, "sql");
             }
+
+            /** The statement, as the plan holds it: what a session sends ({@link PlannedSql}). */
+            public PlannedSql planned() {
+                return PlannedSql.fromPlan(sql);
+            }
         }
 
         /**
@@ -1077,6 +1121,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                     if (statements.isEmpty()) {
                         throw new IllegalArgumentException("a file's load of no statement");
                     }
+                }
+
+                /** The reading statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
+                public List<PlannedSql> plannedStatements() {
+                    return PlannedSql.allFromPlan(statements);
+                }
+
+                /** The undoing statements, as the plan holds them. */
+                public List<PlannedSql> plannedAfter() {
+                    return PlannedSql.allFromPlan(after);
                 }
             }
         }

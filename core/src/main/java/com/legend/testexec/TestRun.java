@@ -286,7 +286,7 @@ final class TestRun {
     private static ProgramRunner.@Nullable Savepoint guard(TestPlan.Verdicts group, ProgramRunner.OpenProgram open) {
         TestPlan.Verdicts.Savepoint sp = group.savepoint();
         return sp != null && open.insideATransaction()
-                ? new ProgramRunner.Savepoint(sp.set(), sp.rollbackTo(), sp.release()) : null;
+                ? new ProgramRunner.Savepoint(sp.plannedSet(), sp.plannedRollbackTo(), sp.plannedRelease()) : null;
     }
 
     /** {@code each}'s base sides read for the host judge, in the base's order. */

@@ -4,6 +4,7 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.PlannedSql;
 import com.mongodb.MongoException;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -60,7 +61,7 @@ final class MongoDbStatements implements Statements {
     }
 
     @Override
-    public boolean execute(String statement) {
+    public boolean execute(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         run(command(statement));
         return false;
@@ -81,7 +82,7 @@ final class MongoDbStatements implements Statements {
     /** A write plan's step: not designed on MongoDB (its writes are the bulk load alone, docs/MONGODB_PLAN_2026_10_16.md);
      *  refused by name. */
     @Override
-    public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+    public long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a write plan's step on MongoDB: a program that changes a"
                 + " store is not designed for MongoDB (its writes are the bulk load alone)");
@@ -104,14 +105,14 @@ final class MongoDbStatements implements Statements {
     /** A MongoDB session describes no statement before running it: the body driver's schema probes (a raw grid's
      *  roster, a deferred relation's columns, a wire-decided kind) are not designed for MongoDB; refused by name. */
     @Override
-    public List<Reported> columns(String statement) {
+    public List<Reported> columns(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a statement's reported columns asked of a MongoDB session:"
                 + " the body driver's schema probes are not designed for MongoDB");
     }
 
     @Override
-    public List<Reported> describe(String statement) {
+    public List<Reported> describe(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a statement described before running asked of a MongoDB"
                 + " session: the body driver's schema probes are not designed for MongoDB");
@@ -119,7 +120,7 @@ final class MongoDbStatements implements Statements {
 
     /** A raw grid is an authored SQL text: a MongoDB session answers none, so no relation of reported columns. */
     @Override
-    public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             ReportedColumns columns, Cells cells) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a relation of the columns its result reports asked of a"
@@ -128,14 +129,14 @@ final class MongoDbStatements implements Statements {
 
     /** A MongoDB database reads no runner's file: refused by name (a plan loads nothing into a connector's own). */
     @Override
-    public void readsFile(String statement, String path) {
+    public void readsFile(PlannedSql statement, String path) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"
                 + " the connector's own, and a plan loads none");
     }
 
     @Override
-    public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
@@ -150,7 +151,7 @@ final class MongoDbStatements implements Statements {
     /** {@inheritDoc} Each document's fields read by the plan's columns ({@link MongoDbDecode}: a field by its
      *  column's name, its value by the slot and the Pure type). */
     @Override
-    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
@@ -163,7 +164,7 @@ final class MongoDbStatements implements Statements {
     }
 
     /** The aggregate command's cursor: the plan's command with its markers bound, run through the driver. */
-    private MongoCursor<BsonDocument> cursor(String statement, List<ExecutionPlan.Slot> slots,
+    private MongoCursor<BsonDocument> cursor(PlannedSql statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
         int[] next = {0};
         BsonDocument command = bound(command(statement), slots, values, next).asDocument();
@@ -201,9 +202,9 @@ final class MongoDbStatements implements Statements {
         throw new IllegalStateException("the plan's statement wrote a " + v.getBsonType() + ", not text");
     }
 
-    private static BsonDocument command(String statement) {
+    private static BsonDocument command(PlannedSql statement) {
         try {
-            return BsonDocument.parse(statement);
+            return BsonDocument.parse(statement.text());
         } catch (org.bson.json.JsonParseException | org.bson.BsonInvalidOperationException e) {
             throw new IllegalStateException("the plan's statement is not a MongoDB command: " + e.getMessage(), e);
         }

@@ -272,7 +272,7 @@ final class SeamBenchmark {
         out.write(head);
         // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
-        new JdbcStatements(c, new SessionState()).query(sql, List.of(), List.of(), row -> {
+        new JdbcStatements(c, new SessionState()).query(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), row -> {
             try {
                 if (n[0] > 0) {
                     out.write(between);
@@ -508,7 +508,7 @@ final class SeamBenchmark {
         StringBuilder sample = new StringBuilder();
         // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
-        new JdbcStatements(c, new SessionState()).query(sql, List.of(), List.of(), row -> {
+        new JdbcStatements(c, new SessionState()).query(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), row -> {
             if (SAMPLE > 0 && sample.length() < SAMPLE && row != null) {
                 sample.append(row).append('\n');
             }
