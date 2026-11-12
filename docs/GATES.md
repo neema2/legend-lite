@@ -21815,3 +21815,17 @@ merges: 5afc4de7c (C1-C3 from `claude/total-wall-b3` @ d2b92ae80), 5429e6aab (th
 - **CI** at 2d8e991ee (run 43269720233): green but linux-arm's warehouse lane, where `//datacube:headless_test_bundles`
   had never declared `engine-client/test/unplanned.ts`, which C3's tests import (a local sandbox found it anyway):
   declared, 3a20560f9.
+- **C's final audit (three independent read-only audits at 3a20560f9: Java, hosts, tenets).** The tenets audit's
+  verdict was that "provably separated" DID NOT HOLD as worded, though it was close. Each proof could be bypassed, and none
+  had a planted violator:
+  - exec could mint a planned statement through a plan record;
+  - MongoDB's version check was a command exec wrote itself;
+  - the hosts' operations took plain strings, and the playground's door was open to every caller.
+
+  The fixes are with the C4 worker (Java) and the B3 worker (hosts): the user's rulings, and one choke point per
+  transport with an unfiltered witness on every road. The sanctioned run-time forms are ratified as one list (the
+  charter's A3, rewritten with what and why). The audit also found three guard moves justified only in their commit
+  messages, now recorded here: `spec/src/test/resources/rcorpus/h2-fail-roster.txt` gained three
+  `testGenerateNecessaryTableColumns*` rows (0d9353d5a; the roster's format takes no comments); the corpus
+  database-accepted registers gained five P5 rows each, plus the engine-order and outside-body rows (8e5f43c4a,
+  generated); and `//core:fixture_aside_postgres_test` left `gates/BUILD.bazel` (961bf5352).

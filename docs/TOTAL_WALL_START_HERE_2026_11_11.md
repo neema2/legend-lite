@@ -64,7 +64,8 @@ This file is the state, the rulings and the runbook on top of those documents. I
 
 The goal is **total plan/exec separation (G4)**:
 - The plan is SQL and data only.
-- Exec runs only the plan's statements and edits no SQL at run. A keyed region is the one allowed exception.
+- Exec runs only the plan's statements and edits no SQL at run, beyond the charter's three named forms (A3: keyed
+  regions, planned branches, declared read-backs; §5.5).
 - Data enters a database only through a load the plan carries.
 - Every compatibility spelling lives at the edge, and the product depends on no edge.
 
@@ -159,8 +160,8 @@ C, D and E pile on; the user has not ruled. Ask once at B's checkpoint; without 
   "Census pending" is the PENDING count.
 - **The matrix:** `DataDeliveryMatrixTest` (in process) and `DataDeliveryMatrixPostgresTest`. Every data kind on every
   door and every database. Its `RED` lists the expected-red cells.
-- **Exec's SQL edits:** the edits exec makes to SQL at run, pinned by `SentStatementsAreThePlansTest`. Two are left (D3,
-  D4) besides the keyed region (`PlanRunner.expand`).
+- **Exec's SQL edits:** the edits exec makes to SQL at run, pinned by `SentStatementsAreThePlansTest`. D3 and D4 went
+  with C1 and C2 (2026-11-12); what remains is the charter's three named forms (A3, §5.5).
 
 **Records and sessions**
 
@@ -616,10 +617,18 @@ and the briefs' "RULED" items.
   - **G10, found in the hand-back and fixed as part of C**: a test body's plan is the same for the same input
     (`ActivityComments` derived; `planningMakesNoValueOfItsOwn`; `aBodyPlannedTwiceIsTheSamePlan`, cf56a1e25).
 - **The sanctioned run-time forms after C, and no others** (the user asked "What are all the sanctioned exceptions and
-  why?"): (a) the keyed region, written once per key, each copy's key bound (`PlanRunner.expand`, the hosts'
-  `expandKeyed`); (b) MariaDB's and MySQL's error read-back, plan text sent after a failure, its reset always sent; (c)
-  H2's settings comparison on a borrowed session, plan text. A bound parameter is not an exception: it is a value the
-  plan names, bound at its placeholder.
+  why?", then ratified one list, 2026-11-12: "agree with the wording of the 3 exceptions"; the same words in
+  `docs/TENET_CHARTER.md` A3, which says what each is and why, and in AGENTS.md invariant 3):
+  - (a) keyed regions: a dynamic pivot's columns are data, so the runner writes the plan's fragment once per key,
+    each copy's key bound (`PlanRunner.expand`, the hosts' `expandKeyed`);
+  - (b) planned branches: a test body's `if` holding asserts. The database computes the Boolean; the runner sends the
+    named side's planned statements and never the other.
+  - (c) declared read-backs, plan text the target declares and sent as written:
+    - MariaDB's and MySQL's raised error. A SELECT cannot raise our text there: `SIGNAL` runs only in a stored
+      program, and a stored function would be DDL in the user's database. So the message waits in `@legend_raise`
+      and is read back after the failure.
+    - H2's settings, which the database compares on a session lite did not open.
+  - A bound parameter is not an exception: it is a value the plan names, bound at its placeholder.
 
 ### 5.6 pure/v1 and the native protocol (2026-11-11)
 
@@ -759,7 +768,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   let's do it"): B is wrapped, the PR (`claude/total-wall` into `main`) opened; C1, C2 and C3 land on the branch, the PR
   updated; then merged -- the user's final word asked at that moment, CI green on the final head. D, E and F follow as a
   second PR. After C, plan and exec are provably separated: on the Java side by the architecture rules and the sent-text
-  test (the keyed region the one sanctioned expansion); on the hosts by C3.
+  test (the charter's three named forms, A3); on the hosts by C3.
 - **The demo goes through the platform** ("Demo has to go through platform"): its sample is made by the SIMPLE SYNTHESIZE
   step ("Let's do the most simple thing that will work on duckdb for now - can extend later"; "Go ahead"): a table the
   model declares filled by ONE planned DuckDB statement (`INSERT INTO <table> SELECT <a formula of the row number per

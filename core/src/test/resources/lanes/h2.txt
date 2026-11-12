@@ -8,7 +8,8 @@
 # A line whose reason opens 'not run <date>:' PINS its test as not run on the lane (the run says so): a failure that
 # would end the run; it moves only with a dated justification.
 # 2026-11-11 (B2a, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5): 42 lines went -- a data: source (a sourceUrl payload,
-# a JSON connection's frame) is the plan's load into a session table H2 makes (SqlDialect.dataTable), so its tests
+# a JSON connection's frame) is the plan's load into a session table H2 makes (SqlDialect.dataTable, deleted since
+# by the JSON pass, 2026-11-11: the payload is now inline in the plan's statement; noted 2026-11-12, C's final audit), so its tests
 # pass; a file: source's 16 stay (no JSON file reader here, refused by name).
 # 2026-11-11 (B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: the text plan renders from the execution plan): 3 pivot
 # lines went -- a pivot whose columns the data names is the keyed plan the lane runs, its text no longer refused at

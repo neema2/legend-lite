@@ -59,8 +59,9 @@
 > statement a session runs is the plan runner's: the probes, the seeds,
 > the system store's rows, the plan path's and the server's held database's
 > seeds are plan setup steps it sends -- "the doors", 2026-10-29, and the
-> three routings, D65; a raise a MariaDB session holds is read back by the
-> seam from the two statements its connector declares as data; in core's
+> three routings, D65; a raise a MariaDB or MySQL session holds is read
+> back by the seam from the two statements the plan's target declares (C2,
+> 2026-11-12; the charter's A3(c)); in core's
 > main sources the seam `JdbcStatements` is the only JDBC sender (its
 > DuckDB bulk loader went with A2, 2026-11-10), the census's SENDS act -- the warehouse's server
 > and client, the datacube's Postgres tool and the test harnesses send
@@ -298,11 +299,17 @@ pastes (a piece pasted twice would carry its parameter once); a method that only
 returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
 text. E is complete (2026-10-09): every dialect writes all of a query, and DML's rows, into the writer; DDL spells only
 names, types and keywords, so it is text. Never edit rendered SQL after it is written, at planning or at run: the
-runner sends a plan's text as it is, with ONE sanctioned run-time form: a keyed region, which the runner writes once per
-key (`PlanRunner.expand`, the charter's A3(a); the tenets re-audit's B-3, 2026-11-09), each copy's key bound at its
-placeholder. After a failure it sends the error read-back the plan's target declares
-(MariaDB's and MySQL's, `SqlDialect.raiseReadBack`, the charter's A3(c): plan text, sent as written, counted as the
-session's; D4, C2, 2026-11-12, until then the connector's). The per-execution trace comment `JdbcStatements.stamped`
+runner sends a plan's text as it is. Exec may do THREE things beyond that, and nothing else (`docs/TENET_CHARTER.md`
+A3 says what and why; the user ratified the list, 2026-11-12):
+(a) **keyed regions**: a dynamic pivot's columns are data, so the runner writes the plan's fragment once per key read
+by the plan's first statement, each copy's key BOUND (`PlanRunner.expand`; the hosts' `expandKeyed`);
+(b) **planned branches**: a test body's `if` whose sides hold asserts -- the database computes the Boolean, the runner
+sends the named side's planned statements and never the other (a product `if` stays the database's `CASE`);
+(c) **declared read-backs**: statements the plan's target declares, sent as written -- MariaDB's and MySQL's raised
+error (a SELECT cannot raise our text there: `SIGNAL` runs only in a stored program, so the message waits in
+`@legend_raise` and is read back after the failure, `SqlDialect.raiseReadBack`; D4, C2), and H2's settings, which the
+DATABASE compares on a session lite did not open (`JdbcStatements.verifySettings`). A bound parameter is not an
+exception. The per-execution trace comment `JdbcStatements.stamped`
 wrote at run (D3) went with C1, 2026-11-12: the execution id is a bound value, S304. It is proven by type: a session's
 statements take a `PlannedSql` and no `String`, minted only where a plan is read and by `expand`
 (`ArchitectureTest.onlyThePlansReadersMintPlannedSql`, `aSessionsStatementsTakeNoText`; the C checkpoint's MUST-FIX 1,
