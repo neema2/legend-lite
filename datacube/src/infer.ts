@@ -33,6 +33,7 @@ import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
 import type { RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
+import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
 /** One column, as its database's catalog describes it (the catalog question's row). */
 export interface CatalogColumn {
@@ -138,15 +139,15 @@ export interface TableModels {
   /** The model of several tables of a database of `databaseType` (`TablesModel`); a table given twice is refused. */
   tablesModel(tables: readonly ModelTable[], databaseType: string): Promise<TablesModel>;
   /** THE catalog question for one table of a DuckDB: its rows are `tableModel`'s columns (`catalogColumns`). */
-  catalogColumnsSql(schema: string, table: string): Promise<string>;
+  catalogColumnsSql(schema: string, table: string): Promise<PlannedSql>;
   /**
    * What a session of the database runs before it is queried, so that it answers as the planner's SQL expects: the
    * dialect's own setup (`Boundary.sessionSetup`: a DuckDB session in UTC). A host runs it on the database it opens
    * (services/browser.ts `setUpSession`; Python's Frames, from the same function).
    */
-  sessionSetup(databaseType: string): Promise<readonly string[]>;
+  sessionSetup(databaseType: string): Promise<readonly PlannedSql[]>;
   /** A host's named operations on its own database (D5, engine-client's host-operations.ts): each one's statements. */
-  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]>;
+  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]>;
   /** A host's own file read into its database, as a plan (Boundary.fileLoad, B3): PlanJson's text, run by runLoad. */
   fileLoad(request: FileLoadRequest): Promise<string>;
   /** A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): PlanJson's text, run by runLoad. */

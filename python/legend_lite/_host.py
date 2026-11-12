@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import compiler
+from ._planned import PlannedSql, send
 
 DUCKDB = 'DuckDB'
 
@@ -20,7 +21,7 @@ def name(table: str, *, schema: str | None = None, database: str | None = None) 
             **({'database': database} if database is not None else {})}
 
 
-def statements(*operations: dict[str, Any], database_type: str = DUCKDB) -> list[str]:
+def statements(*operations: dict[str, Any], database_type: str = DUCKDB) -> list[PlannedSql]:
     """The operations' statements, in order."""
     return [sql for answered in compiler.host_operations(database_type, list(operations)) for sql in answered]
 
@@ -28,13 +29,13 @@ def statements(*operations: dict[str, Any], database_type: str = DUCKDB) -> list
 def run(connection: Any, *operations: dict[str, Any]) -> None:
     """The operations run on ``connection``, in order."""
     for sql in statements(*operations):
-        connection.execute(sql)
+        send(connection, sql)
 
 
 def ask(connection: Any, operation: dict[str, Any]) -> list[tuple[Any, ...]]:
     """A question's rows (a catalog question, a count): its one statement run on ``connection``."""
     (sql,) = statements(operation)
-    return connection.execute(sql).fetchall()
+    return send(connection, sql).fetchall()
 
 
 def count(connection: Any, operation: dict[str, Any]) -> int:

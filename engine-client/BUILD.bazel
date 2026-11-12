@@ -161,6 +161,7 @@ node_test(
     # 7.5 s measured on a desk, the planner loaded (2026-10-08)
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/planner.ts",
@@ -175,6 +176,7 @@ node_test(
     name = "arrow_ipc_test",
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
     ],
@@ -199,6 +201,7 @@ node_test(
     # 2 s measured on a desk (2026-10-07); the planner loaded since D5 (it writes the copy's statements)
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/planner.ts",
@@ -207,12 +210,35 @@ node_test(
     wasm = True,
 )
 
+# A HOST SENDS ONLY A PLAN'S STATEMENT (the total wall's C3, 2026-11-12): src/planned-sql.ts's PlannedSql, which a
+# hand-written string is not -- the test's `@ts-expect-error` sends are the proof, checked by //datacube:typecheck_test --
+# and the mints themselves (where they are made: //tools/guards:planned_sql_test)
+node_test(
+    name = "planned_sql_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        "test/unplanned.ts",
+    ],
+    entry_point = "test/planned-sql.test.ts",
+)
+
+# A TEST'S OWN STATEMENT, typed as a plan's by name (test/unplanned.ts): DataCube's tests and pages send their fixtures'
+# SQL through it; no product source imports it (//tools/guards:planned_sql_test)
+js_library(
+    name = "unplanned",
+    testonly = True,
+    srcs = ["test/unplanned.ts"],
+    visibility = ["//datacube:__pkg__"],
+)
+
 # A write's execution plan (the planner's executionPlan) run by the host's plan runner on DuckDB-WASM, in one
 # transaction (plan-runner.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6)
 node_test(
     name = "plan_runner_test",
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/fixtures/run-load-conformance.json",
@@ -231,6 +257,7 @@ node_test(
     # medium: it loads the binding's module (WebAssembly), as //query-store:wasm_test does
     size = "medium",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/apache-arrow",
         "//warehouse:sqlapi_corpus",
@@ -297,6 +324,7 @@ test_suite(
         ":model_data_test",
         ":node_duckdb_test",
         ":plan_runner_test",
+        ":planned_sql_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",

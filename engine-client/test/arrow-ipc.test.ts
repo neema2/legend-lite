@@ -9,6 +9,7 @@ import { arrowIpcStream } from '../src/arrow-ipc.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
+import { unplanned } from './unplanned.ts';
 
 let engine: DuckDbEngine;
 
@@ -28,9 +29,9 @@ describe('rows a page makes, as Arrow', () => {
       t: { text: ['é', 'two words', ''], pick: (i) => i % 3 },
     })));
     const types = await engine.run(
-      "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'made' ORDER BY ordinal_position", 0);
+      unplanned("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'made' ORDER BY ordinal_position"), 0);
     assert.deepEqual(types.columns.map((c) => c.values), [['d', 'n', 't'], ['DOUBLE', 'BIGINT', 'VARCHAR']]);
-    const rows = await engine.run('SELECT d, CAST(n AS VARCHAR) AS n, t FROM made', 0);
+    const rows = await engine.run(unplanned('SELECT d, CAST(n AS VARCHAR) AS n, t FROM made'), 0);
     assert.deepEqual(rows.columns.map((c) => c.values),
       [[-0.5, -0.25, 0, 0.25], ['0', '-1', '2147483647', '-2147483648'], ['é', 'two words', '', 'é']]);
   });

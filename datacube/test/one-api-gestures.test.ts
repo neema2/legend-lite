@@ -41,6 +41,7 @@ import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-f
 import { sameButIds } from './page-same.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // -- the page, as DataCube's app wires one another editor serves ----------------------------------------------------
 
@@ -142,7 +143,7 @@ const overRows = (of: string): GridMaker => (gridHost, spawned, start) => {
 };
 
 /** The statement a snap counts its rows by, here: the fixture's engine answers it with the fixture's two rows. */
-const COUNT = 'count the rows';
+const COUNT = unplanned('count the rows');
 class CountingGate extends GateEngine {
   override async answer(sql: string, epoch: number): Promise<ResultTable> {
     if (sql === COUNT) return { columns: [{ name: 'n', type: 'Integer', values: [2] }], rowCount: 1, epoch, elapsedMs: 1 };

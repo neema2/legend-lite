@@ -453,6 +453,8 @@ _SLOW_WALK_TESTS = [
         ":node_modules/jsdom",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
+        # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12)
+        "//engine-client:unplanned",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
         [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
     ) + (
@@ -1047,6 +1049,7 @@ node_test(
     size = "medium",
     data = [
         "test/pivot-rows/pivot-rows.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1063,6 +1066,7 @@ node_test(
     size = "medium",
     data = [
         "test/json-read/json-read.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1096,6 +1100,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1111,6 +1116,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1126,6 +1132,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1144,6 +1151,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/live-snap/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],
@@ -1189,6 +1197,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/python-engine/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],

@@ -45,6 +45,7 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, compiler
+from ._planned import PlannedSql, send
 from .projects import LoadRefused, run_host_load
 from ._types import UnknownType, is_integer
 
@@ -198,7 +199,7 @@ class Table:
             # a frame read once is the database's from now on: its rows are let go
             if not self.live:
                 self._arrow = None
-        rows = con.execute(compiler.catalog_columns_sql('main', self.name)).fetchall()
+        rows = send(con, compiler.catalog_columns_sql('main', self.name)).fetchall()
         written = compiler.table_model({
             'table': self.name,
             'pkg': self.name,
@@ -329,12 +330,12 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
         return duckdb.Error(out)
 
 
-def execute_redacted(connection: Any, sql: str, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
+def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
     """``sql`` run on ``connection``, its ``?``s bound to ``params`` (a plan's payloads: M3), a failure's words with every
     held value taken out (``redacted``)."""
     failure: BaseException | None = None
     try:
-        return connection.execute(sql, list(params)) if params else connection.execute(sql)
+        return send(connection, sql, params)
     except duckdb.Error as e:
         failure = redacted(e, held)
         if failure is None:
@@ -393,7 +394,7 @@ class Reading:
         failure: BaseException | None = None
         try:
             # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
-            return self.cursor.execute(sql, list(params)) if params else self.cursor.execute(sql)
+            return send(self.cursor, sql, params)
         except duckdb.Error as e:
             try:
                 _pin(self.cursor)
@@ -436,7 +437,7 @@ class Frames:
         # a cursor is a session of its own, which a connection's settings do not reach
         self._setup = compiler.session_setup('DuckDB')
         for statement in self._setup:
-            self.connection.execute(statement)
+            send(self.connection, statement)
         self._lock = threading.RLock()
         # each thread's read in progress (``reading``): what DataCube's code, asked a call by it, reads through
         self._local = threading.local()
@@ -755,12 +756,12 @@ class Frames:
             cursor = self.connection.cursor()
             try:
                 for statement in self._setup:
-                    cursor.execute(statement)
+                    send(cursor, statement)
                 # each remote file's settings of the connection, its bound values with it (B3's Q3: a bearer URL's
                 # session variable, which a view of it reads, is one connection's)
                 for kept in self._files.values():
                     for statement, params in kept.settings:
-                        cursor.execute(statement, list(params))
+                        send(cursor, statement, params)
                 # each frame's attachment of the connection, by the name its plan holds it under (a cursor is a
                 # connection of its own): every query reads the frame as it was when this read began
                 for table in self._tables.values():

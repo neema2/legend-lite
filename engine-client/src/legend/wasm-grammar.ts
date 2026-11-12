@@ -12,8 +12,9 @@ import type { RequestBody, Response as PlannerResponse } from './planner-protoco
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
 import type { RemoteMountRequest, SnapStreamRequest } from '../host-operations.ts';
-import type { ProjectDataStatements } from '../project-data.ts';
+import { plannedProjectData, type ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
+import { allFromPlan, fromPlan, type PlannedSql } from '../planned-sql.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -116,8 +117,8 @@ function httpAnswer(folded: string): { status: number; type: string; body: strin
 export interface ExecutePlan {
   /** The plan's statement: what the answer's activity reports. */
   readonly sql: string;
-  /** What the host runs: the same statement, its rows handed back to executeAnswer. */
-  readonly run: string;
+  /** What the host runs: the same statement, its rows handed back to executeAnswer (typed where the answer is read). */
+  readonly run: PlannedSql;
   /** A relation's rows, or a graph fetch's objects. */
   readonly shape: 'RELATION' | 'OBJECTS';
   /** The statement's result columns with their type facts, by which the planner reads the rows back. */
@@ -184,7 +185,9 @@ export class WasmGrammar implements Grammar {
     const model = input.model as { readonly _type?: string; readonly code?: string };
     const models = model._type === 'text' && typeof model.code === 'string' ? [model.code] : [];
     const text = answered(await this.#port.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
-    return { plan: JSON.parse(text) as ExecutePlan, text };
+    const read = JSON.parse(text) as ExecutePlan;
+    // the statement the host runs, as the planner's answer carries it (planned-sql.ts)
+    return { plan: { ...read, run: fromPlan(read.run) }, text };
   }
 
   /**
@@ -199,10 +202,11 @@ export class WasmGrammar implements Grammar {
   /** The SQL a query compiles to on its runtime, the type of its result (upstream's relationType shape), and -- where the
    *  text does not run alone -- the execution plan it renders from, whose data: payloads its `?`s bind (plan-params.ts
    *  reads them: the tenets audit's M3). */
-  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: string; type: unknown; plan?: unknown }> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as {
+  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: PlannedSql; type: unknown; plan?: unknown }> {
+    const read = JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as {
       sql: string; type: unknown; plan?: unknown;
     };
+    return { ...read, sql: fromPlan(read.sql) };
   }
 
   /** The SQL a query compiles to on its runtime -- legend-lite's plan, shown to a person ("Show SQL"). */
@@ -214,8 +218,8 @@ export class WasmGrammar implements Grammar {
    * What a session of the database runs before it is queried, so that it answers as the planner's SQL expects -- the
    * dialect's own setup (Boundary.sessionSetup: a DuckDB session in UTC), as legend-lite's server sets up its own.
    */
-  async sessionSetup(databaseType: string): Promise<readonly string[]> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'sessionSetup', databaseType }))) as string[];
+  async sessionSetup(databaseType: string): Promise<readonly PlannedSql[]> {
+    return allFromPlan(JSON.parse(unfold(await this.#port.ask({ kind: 'sessionSetup', databaseType }))) as string[]);
   }
 
   /**
@@ -223,13 +227,13 @@ export class WasmGrammar implements Grammar {
    * make it, point a connection at it, fill it from the model's Data elements, and drop it.
    */
   async projectData(model: string, databaseType: string): Promise<ProjectDataStatements> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'projectData', model, databaseType }))) as ProjectDataStatements;
+    return plannedProjectData(JSON.parse(unfold(await this.#port.ask({ kind: 'projectData', model, databaseType }))));
   }
 
   /** A host's named operations on a database of that type (D5, Boundary.hostOperations): each one's statements. */
-  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]> {
+  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]> {
     const asked = await this.#port.ask({ kind: 'hostOperations', databaseType, operations: JSON.stringify(operations) });
-    return JSON.parse(unfold(asked)) as string[][];
+    return (JSON.parse(unfold(asked)) as string[][]).map(allFromPlan);
   }
 
   /** Build the planner's boot layer for this model now, before a person waits on it. */

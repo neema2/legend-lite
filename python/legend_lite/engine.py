@@ -58,6 +58,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
+from ._planned import PlannedSql, across_the_bridge, from_plan, send
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
@@ -257,7 +258,7 @@ def _bytes_of(path: Path) -> tuple[int, str]:
 
 
 def _connection_settings(settings: Any, url: str, bearer: str | None) -> tuple[
-        tuple[tuple[str, tuple[Any, ...]], ...], tuple[str, ...]]:
+        tuple[tuple[PlannedSql, tuple[Any, ...]], ...], tuple[str, ...]]:
     """A remote file's settings of the connection, as its planned mount answers them (B3's Q3: a bearer URL's session
     variable -- its statement, and its binds by name, never a value), each with its values: what this engine holds for
     the mount -- the URL the page gave, under the name the mount holds it by (``bearer``, the mount's answer) and the
@@ -280,7 +281,9 @@ def _connection_settings(settings: Any, url: str, bearer: str | None) -> tuple[
             else:
                 raise ValueError(f"a remote file's setting binds {bind.get('name')}.{bind.get('field')}, which this engine"
                                  ' holds nothing for')
-        out.append((setting['sql'], tuple(params)))
+        # the setting's statement, as DataCube's plan runner kept it (a PlannedSql there: planned-sql.ts), typed again
+        # at the crossing (_planned.py)
+        out.append((across_the_bridge(setting['sql'], "a remote file's setting of the connection"), tuple(params)))
     return tuple(out), tuple(held)
 
 
@@ -1495,7 +1498,7 @@ class Engine:
             params = list(plan.params)
             (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}}, database_type='DuckDB')
             try:
-                rows = int(self.frames.connection.execute(counting, params).fetchone()[0])
+                rows = int(send(self.frames.connection, counting, params).fetchone()[0])
             except duckdb.Error as refused:
                 return _said(422, f'the snap could not be counted: {refused}')
             if rows > _MAX_SNAP_ROWS:
@@ -1508,7 +1511,7 @@ class Engine:
                     raise ValueError(f'the copy is made by {len(made)} statements, and the plan binds a data: payload '
                                      'one of them reads')
                 for sql in made:
-                    connection.execute(sql, params)
+                    send(connection, sql, params)
 
             return self._landed(headless, land, rows, None)
 
@@ -1672,7 +1675,7 @@ class Engine:
             except LegendError:
                 return _planned({'plan': planned})
             try:
-                rows = typed_by_plan(project.cursor.execute(plan.sql, list(plan.params)).to_arrow_table(), plan)
+                rows = typed_by_plan(send(project.cursor, plan.sql, plan.params).to_arrow_table(), plan)
             except (duckdb.Error, UntypedColumn) as failure:
                 return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
@@ -1725,7 +1728,7 @@ class Engine:
                 planned = json.loads(answer.body)
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
                 # value this engine holds (a bearer URL: M2)
-                rows = execute_redacted(connection, planned['sql'], self.frames.held_values(),
+                rows = execute_redacted(connection, from_plan(planned['sql']), self.frames.held_values(),
                                         compiler.plan_params(planned.get('plan'))).to_arrow_table()
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
@@ -1743,7 +1746,7 @@ class Engine:
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
                 said = json.loads(planned.body)
-                cursor = execute_redacted(connection, said['run'], self.frames.held_values(),
+                cursor = execute_redacted(connection, from_plan(said['run']), self.frames.held_values(),
                                           compiler.plan_params(said.get('plan')))
                 names = [d[0] for d in cursor.description]
                 rows = compiler.host_rows(names, cursor.fetchall())

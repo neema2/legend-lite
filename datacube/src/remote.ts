@@ -28,6 +28,7 @@ import {
 } from '../../engine-client/src/host-operations.ts';
 import { heldTexts, type ConnectionSettings, type KeptSetting } from '../../engine-client/src/connection-settings.ts';
 import type { PlanValue } from '../../engine-client/src/plan-runner.ts';
+import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
 export type RemoteFormat = 'parquet' | 'csv' | 'iceberg';
 
@@ -202,7 +203,7 @@ export function redactSecrets(
  *  settings for the connections its host opens (the tab's: DuckDbEngine.settings), if anywhere. */
 export interface RemoteEngine {
   readonly databaseType: string;
-  run(sql: string, epoch: number): Promise<unknown>;
+  run(sql: PlannedSql, epoch: number): Promise<unknown>;
   exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
   readonly settings?: ConnectionSettings | undefined;
 }
@@ -255,7 +256,7 @@ async function runMount(engine: RemoteEngine, planner: RemoteMountSource, source
     const { runLoad } = await import('../../engine-client/src/plan-runner.ts');
     // a statement that binds nothing runs as every query runs (DuckDbEngine.run: B3.1's fix, the demo's cube over a
     // remote Parquet); one that binds, on the held connection
-    const run = (sql: string, params: readonly PlanValue[]): Promise<unknown> =>
+    const run = (sql: PlannedSql, params: readonly PlanValue[]): Promise<unknown> =>
       (params.length === 0 ? engine.run(sql, 0) : engine.exclusive((held) => held.rows(sql, params)));
     return (await runLoad(plan, run, { secrets: sourceStore(source, creds) })).settings;
   } catch (cause) {

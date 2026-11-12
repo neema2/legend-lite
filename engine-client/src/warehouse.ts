@@ -26,6 +26,7 @@ import { toRawTable, type ArrowishTable } from './duckdb.ts';
 import { hostOf, type Receipt } from './receipt.ts';
 import type { ResultTable } from './result.ts';
 import { SessionExpired } from './warehouse-session.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** A signed-in session: where the warehouse is, and the bearer token. */
 export interface WarehouseSession {
@@ -365,7 +366,7 @@ export class WarehouseEngine implements QueryEngine {
     }
   }
 
-  async run(sql: string, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable> {
+  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable> {
     refuseParams(sql, params);
     const started = performance.now();
     const batches: RecordBatch[] = [];
@@ -404,7 +405,7 @@ export class WarehouseEngine implements QueryEngine {
    * The statement is closed once every chunk is read, so the server frees it.
    */
   async *arrowChunks(
-    sql: string,
+    sql: PlannedSql,
     signal?: AbortSignal,
     onReceipt?: (receipt: Receipt) => void,
   ): AsyncGenerator<Uint8Array> {

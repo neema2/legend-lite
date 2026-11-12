@@ -21,6 +21,7 @@ import {
 } from '../../pure-protocol/src/index.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { runfileFromEnv, runfileNamed } from '../../tools/js/runfiles.mts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // the trading project as the site serves it (BUILD.bazel `:projects`, from query/demo/models)
 const MODELS = runfileFromEnv('TRADING_PROJECT');
@@ -149,15 +150,15 @@ describe("the trading rows: the project's Data, the warehouse's fixture and the 
     assert.ok(others.trading_h2.length >= 10, `the H2 connection's setup read as ${others.trading_h2.length} statements`);
     try {
       for (const [db, statements] of Object.entries(others)) {
-        await engine.run(`ATTACH ':memory:' AS ${db}`, 0);
-        await engine.run(`USE ${db}`, 0);
-        for (const sql of statements) await engine.run(sql, 0);
+        await engine.run(unplanned(`ATTACH ':memory:' AS ${db}`), 0);
+        await engine.run(unplanned(`USE ${db}`), 0);
+        for (const sql of statements) await engine.run(unplanned(sql), 0);
       }
     } finally {
-      await engine.run(`USE "${projectDb}"`, 0);
+      await engine.run(unplanned(`USE "${projectDb}"`), 0);
     }
     const values = async (sql: string): Promise<string[]> =>
-      (await engine.run(sql, 0)).columns.map((c) => c.values.map(String)).flatMap((v, i, all) => (i === 0 ? v.map((x, r) => [x, ...all.slice(1).map((o) => o[r])].join(' ')) : []));
+      (await engine.run(unplanned(sql), 0)).columns.map((c) => c.values.map(String)).flatMap((v, i, all) => (i === 0 ? v.map((x, r) => [x, ...all.slice(1).map((o) => o[r])].join(' ')) : []));
     const tables = (db: string): Promise<string[]> => values(
       `SELECT table_name FROM duckdb_tables() WHERE database_name = '${db}' AND schema_name = 'TRADING' ORDER BY table_name`);
     const types = (db: string, table: string): Promise<string[]> => values(`SELECT column_name, data_type FROM duckdb_columns()

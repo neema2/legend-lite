@@ -9,20 +9,29 @@
 import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
 import { runLoad } from './plan-runner.ts';
+import { allFromPlan, type PlannedSql } from './planned-sql.ts';
 
 /** The planner's answer for one project's database: its name, and the statements of each step, in order. */
 export interface ProjectDataStatements {
   /** Its name, from what it holds: the model's Databases and Data rows. */
   readonly name: string;
   /** Make it, empty (on any connection). */
-  readonly open: readonly string[];
+  readonly open: readonly PlannedSql[];
   /** Point a connection of its own at it. */
-  readonly use: readonly string[];
+  readonly use: readonly PlannedSql[];
   /** The plan whose root is the ONCE load that makes and fills every table a relational Data element fills (on that
    *  connection), PlanJson's text; absent for a model with no Data rows. */
   readonly load?: unknown;
   /** Drop it, with everything in it (on any connection). */
-  readonly close: readonly string[];
+  readonly close: readonly PlannedSql[];
+}
+
+/** The planner's answer for a project's database (Boundary.projectData), its statements typed as the planner wrote
+ *  them (planned-sql.ts): what WasmGrammar and DataCube's planner client read it as. */
+export function plannedProjectData(answer: unknown): ProjectDataStatements {
+  const a = answer as { name: string; open: string[]; use: string[]; load?: unknown; close: string[] };
+  return { name: a.name, open: allFromPlan(a.open), use: allFromPlan(a.use), ...(a.load === undefined ? {} : { load: a.load }),
+    close: allFromPlan(a.close) };
 }
 
 /** Where a project's database comes from: legend-lite's planner (WasmGrammar.projectData, DataCube's LitePlanner). */
@@ -42,7 +51,7 @@ export interface ProjectHost {
   /** The tab's database type, as the planner names it ('DuckDB'). */
   readonly databaseType: string;
   /** Run a statement on the host's own connection (a project's database is made there). */
-  run(sql: string): Promise<unknown>;
+  run(sql: PlannedSql): Promise<unknown>;
   /** A connection of its own, set up as the host's (duckdb-tab.ts `connect`). */
   connect(): Promise<HeldEngine>;
 }
@@ -160,7 +169,7 @@ export class ProjectDatabases {
 interface Held {
   readonly connection: HeldEngine;
   readonly users: HeldEngine;
-  readonly close: readonly string[];
+  readonly close: readonly PlannedSql[];
 }
 
 /** A kept database's connection for its users: every call but close, which is the keeper's alone. */

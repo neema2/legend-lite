@@ -18,6 +18,7 @@ import { classBasis, classLambda, duplicateLambda, sampleLambda, storeTableOf, t
 import { createClassOf } from '../src/create-class.ts';
 import { SampleRefusal } from '../src/sample-rows.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 describe('the names DataCube offers', () => {
   it('a class from its source: singular, upper camel case', () => {
@@ -141,7 +142,7 @@ describe("the grid's rows, as a class's", () => {
       planner: { source: () => ({ model: 'M', runtime: 'local::R' }) } as never,
       planAndRun: async (query: unknown) => {
         asked.push(toJson(query as never));
-        return { plan: { sql: 'SELECT 1', columns: [] }, rows: { columns: [], rowCount: 0, epoch: 0, elapsedMs: 0 } };
+        return { plan: { sql: unplanned('SELECT 1'), columns: [] }, rows: { columns: [], rowCount: 0, epoch: 0, elapsedMs: 0 } };
       },
       stream: async () => undefined,
     };

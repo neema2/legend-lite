@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _host
+from ._planned import across_the_bridge, send
 from ._library import Library, library
 from ._pool import library_thread
 
@@ -183,7 +184,8 @@ class Headless:
         import pyarrow as pa
 
         # a call made in a read of the frames queries through it: the database as it was when the read began
-        result = self._db.execute(sql) if self._over is None else self._over.execute(sql)
+        statement = across_the_bridge(sql, "the hosted DataCube's query")
+        result = send(self._db if self._over is None else self._over, statement)
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
@@ -197,7 +199,7 @@ class Headless:
 
         if self._over is not None:
             raise RuntimeError('a write runs in no read of the frames (Frames.reading): its changes are the database\'s own')
-        result = self._db.execute(sql, json.loads(params))
+        result = send(self._db, across_the_bridge(sql, "the hosted DataCube's statement"), json.loads(params))
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:

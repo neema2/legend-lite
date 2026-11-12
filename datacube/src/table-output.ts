@@ -18,6 +18,7 @@ import type { Plan } from '../../engine-client/src/relation-type.ts';
 import type { TableOutput } from './layout/flow.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { catalogColumnsOf } from './upload.ts';
+import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
 /** The schema a host's own tables are in (a page's files, a snap's copies): DuckDB's own. */
 const SCHEMA = 'main';
@@ -73,7 +74,7 @@ export async function writeTable(rows: Lambda, output: TableOutput, host: TableW
       for (const statement of made.flat()) await held.rows(statement, params);
       // one model of its tables and the target, each read off the catalog as it is now (the target made just now, in
       // the same transaction)
-      const engine = { run: (sql: string) => held.table(sql) };
+      const engine = { run: (sql: PlannedSql) => held.table(sql) };
       const tables: ModelTable[] = [];
       for (const s of [...new Set(host.sources.map((x) => x.table))]) {
         const given = host.sources.find((x) => x.table === s)!;

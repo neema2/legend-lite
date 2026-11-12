@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import compiler
+from ._planned import PlannedSql, all_from_plan, from_plan, send
 
 # the kinds the compiler names a model's failure to read as a model by (planner.Folded, PureV1Api.refusal): such a
 # model is no project's, and is refused where a model is; any other refusal of a project's database (a Data element
@@ -55,7 +56,7 @@ def _load_of(plan: Any) -> dict[str, Any]:
     return root
 
 
-def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
+def run_load(plan: Any, execute: Callable[[PlannedSql], Any]) -> None:
     """A plan whose root is the ONCE load a project's database is made with (the native library's ``load``: the platform's
     LoadPlanner.projectData, the load a server's project plan carries), run by ``execute`` on the database Python made
     for it: its steps in order -- a statement as it is; a content blob of statements, its bytes checked against the
@@ -69,7 +70,7 @@ def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
     for step in root['steps']:
         kind = step.get('_type')
         if kind == 'statement':
-            execute(step['sql'])
+            execute(from_plan(step['sql']))
         elif kind == 'statements':
             ref, of = step['ref'], step['of']
             text = content.get(ref['digest'])
@@ -83,7 +84,8 @@ def run_load(plan: Any, execute: Callable[[str], Any]) -> None:
             statements = json.loads(text)
             if not isinstance(statements, list) or not statements or not all(isinstance(x, str) for x in statements):
                 raise LoadRefused(f'{of}: a statements blob is a non-empty JSON array of strings')
-            for sql in statements:
+            # the blob's statements, the plan's own (its content, checked against the digest it names above)
+            for sql in all_from_plan(statements):
                 try:
                     execute(sql)
                 except Exception as refused:
@@ -142,7 +144,7 @@ def run_host_load(plan: Any, connection: Any, *, values: Callable[[str], Any] | 
         for step in root['steps']:
             kind = step.get('_type')
             if kind == 'statement':
-                connection.execute(step['sql'])
+                send(connection, from_plan(step['sql']))
             elif kind == 'attach':
                 held, as_, reach = step['held'], step['as'], step['reach']
                 if reach not in ('CONNECTION', 'DATABASE'):
@@ -188,12 +190,12 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
     if not all(_PLAIN.match(n) for n in (table, *(() if schema is None else (schema,)))):
         raise LoadRefused(f"a stream lands in a table this host names plainly (letters, digits, '_'), not {into}")
     receipt: dict[str, Any] = {}
-    for sql in step['transaction']['begin']:
-        connection.execute(sql)
-    chunks = iter(plane.arrow_chunks(step['sql'], receipt.update))
+    for sql in all_from_plan(step['transaction']['begin']):
+        send(connection, sql)
+    chunks = iter(plane.arrow_chunks(from_plan(step['sql']), receipt.update))
     try:
-        for sql in step['prepare']:
-            connection.execute(sql)
+        for sql in all_from_plan(step['prepare']):
+            send(connection, sql)
         first = next(chunks, None)
         if first is None:
             raise LoadRefused(f"no data came back from '{step['plane']}' to load into {into}, not even its columns")
@@ -213,18 +215,18 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
         if expected is None:
             raise LoadRefused(f"'{step['plane']}' did not count its answer, so a stream cut short could not be told: "
                               f'nothing of it is kept in {into}')
-        counted = int(connection.execute(step['count']).fetchone()[0])
+        counted = int(send(connection, from_plan(step['count'])).fetchone()[0])
         if counted != expected:
             raise LoadRefused(f"the stream from '{step['plane']}' landed {counted} rows in {into}, where its plane counted "
                               f'{expected}: nothing of it is kept')
-        for sql in step['transaction']['commit']:
-            connection.execute(sql)
+        for sql in all_from_plan(step['transaction']['commit']):
+            send(connection, sql)
         return Landed(step['plane'], schema, table, counted, dict(receipt))
     except BaseException:
         # the database's own undo: the table made in the transaction goes with it, one there before is as it was
-        for sql in step['transaction']['rollback']:
+        for sql in all_from_plan(step['transaction']['rollback']):
             with contextlib.suppress(Exception):
-                connection.execute(sql)
+                send(connection, sql)
         raise
     finally:
         # a read that ended early lets its plane free the statement (the warehouse's: closed or cancelled)
@@ -296,19 +298,19 @@ class ProjectDatabases:
         cursor = None
         try:
             for sql in statements['open']:
-                self._connection.execute(sql)
+                send(self._connection, sql)
             cursor = self._connection.cursor()
             # a cursor's session is its own: set up as every connection Python plans for is (frames.py)
             for sql in [*compiler.session_setup(self._type), *statements['use']]:
-                cursor.execute(sql)
+                send(cursor, sql)
             # its rows: the plan's load (B3)
-            run_load(statements['load'], cursor.execute)
+            run_load(statements['load'], lambda sql: send(cursor, sql))
         except Exception:
             # a half-made database left behind would be found again by its name: drop it, and let its model go
             if cursor is not None:
                 cursor.close()
             for sql in statements['close']:
-                self._connection.execute(sql)
+                send(self._connection, sql)
             held.close()
             raise
         return _Open(cursor, held)

@@ -6,6 +6,7 @@
 
 import type { HostOperationsSource } from './host-operations.ts';
 import { runLoad, sha256Hex, type PlanValue } from './plan-runner.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** The model JSON parts read here (grammarToJson/model). */
 interface ModelElement {
@@ -103,7 +104,7 @@ export interface FileSink {
   registerFileBuffer(name: string, bytes: Uint8Array): Promise<void>;
   dropFile?(name: string): Promise<void>;
   /** The connection held for `work`: each statement run with its bound values, no other query between them. */
-  hold<T>(work: (run: (sql: string, params: readonly PlanValue[]) => Promise<unknown>) => Promise<T>): Promise<T>;
+  hold<T>(work: (run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>) => Promise<T>): Promise<T>;
 }
 
 /**

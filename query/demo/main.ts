@@ -11,6 +11,7 @@
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
 import { ProjectDatabases, ProjectRunner } from '../../engine-client/src/project-data.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import { notPlanned } from '../../engine-client/src/planned-sql.ts';
 import {
   listObjects, loadWarehouseBinding, signIn, WarehouseEngine, type WarehouseBinding, type WarehouseSession,
 } from '../../engine-client/src/warehouse.ts';
@@ -39,7 +40,8 @@ async function seed(engine: QueryEngine, files: readonly string[]): Promise<void
   for (const f of files) {
     for (const line of (await text(f)).split('\n')) {
       const stmt = line.trim();
-      if (stmt && !stmt.startsWith('--')) await engine.run(stmt, 0);
+      // the demo warehouse's fixture, its seed files' statements: no plan carries them (planned-sql.ts, NOT_PLANNED)
+      if (stmt && !stmt.startsWith('--')) await engine.run(notPlanned('the demo warehouse fixture', stmt), 0);
     }
   }
 }

@@ -21,6 +21,7 @@ import legend_lite as ll
 from legend_lite import datacube
 from legend_lite import _pool
 from legend_lite._headless import Headless, bundle
+from legend_lite._planned import PlannedSql
 from legend_lite.engine import Engine
 from legend_lite.frames import Frames
 
@@ -697,7 +698,8 @@ class Remote(unittest.TestCase):
         # two reads, two cursors: each reads the file through the setting replayed on it
         for _ in range(2):
             with self.frames.reading() as read:
-                self.assertEqual(read.execute('SELECT count(*) FROM remote_signed').fetchone()[0], 3)
+                # the test's own question, no plan's: typed by name as a plan's statement (_planned.py)
+                self.assertEqual(read.execute(PlannedSql('SELECT count(*) FROM remote_signed')).fetchone()[0], 3)
         # a cursor the setting was not replayed on reads nothing
         bare = self.frames.connection.cursor()
         try:
@@ -719,12 +721,12 @@ class Remote(unittest.TestCase):
         answer = self.mount(url, 'remote_expiring')
         self.assertEqual(answer.status, 200, answer.body[:300])
         with self.frames.reading() as read:
-            self.assertEqual(read.execute('SELECT count(*) FROM remote_expiring').fetchone()[0], 3)
+            self.assertEqual(read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()[0], 3)
         # the link no longer answers: the read fails, in DuckDB's words, without the token
         (served / 'expiring.parquet').unlink()
         with self.frames.reading() as read:
             with self.assertRaises(duckdb.Error) as failed:
-                read.execute('SELECT count(*) FROM remote_expiring').fetchone()
+                read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()
         self.assertNotIn(sentinel, str(failed.exception))
         self.assertIsNone(failed.exception.__context__, 'the database\'s own error, which holds the URL, is not chained')
         # a page's mount of a link that does not answer (Page.load): named by its address, the token in no word

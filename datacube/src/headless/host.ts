@@ -13,6 +13,7 @@ import type { PlannerWorker, Request, Response } from '../../../engine-client/sr
 import type { PythonLink } from '../services/python-host.ts';
 import { hostCalls, type HostCalls } from './calls.ts';
 import { base64, fromBase64 } from './web.ts';
+import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
 export { hostCalls, type HostCalls };
 
@@ -110,11 +111,11 @@ export interface HostDatabase {
  */
 export function hostDatabase(calls: HostCalls): HostDatabase {
   const connection: ArrowishConnection = {
-    async query(sql: string): Promise<ArrowishTable> {
+    async query(sql: PlannedSql): Promise<ArrowishTable> {
       return arrowIpcTable(fromBase64(await calls.query(sql)));
     },
     // a write's step, its values bound by the host's database (table-output.ts)
-    prepare: (sql: string) => ({
+    prepare: (sql: PlannedSql) => ({
       query: async (...params: unknown[]): Promise<ArrowishTable> => arrowIpcTable(fromBase64(await calls.statement(sql, JSON.stringify(params)))),
     }),
   };

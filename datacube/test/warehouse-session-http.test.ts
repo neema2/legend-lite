@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 import { WarehouseEngine, connect, loadWarehouseBinding, type WarehouseSession } from '../../engine-client/src/warehouse.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // the one binding's module (//warehouse:sqlapi_page): Node loads the runtime by file URL and the module by path
 const binding = await loadWarehouseBinding(runfileDirUrl('SQLAPI_PAGE'), async (runtimeUrl) => {
@@ -45,7 +46,7 @@ describe('a renewed sign-in reaches the open cube (P2-297)', () => {
   it('after renew, the engine sends the NEW token', async () => {
     const engine = new WarehouseEngine(binding, session('tok1'), 'main', 'DuckDB');
     engine.renew(session('tok2'));
-    await engine.run('SELECT 1', 1).catch(() => {});
+    await engine.run(unplanned('SELECT 1'), 1).catch(() => {});
     assert.ok(sent.length > 0, 'a request was sent');
     assert.ok(sent.every((r) => r.auth === 'Bearer tok2'), sent.map((r) => r.auth).join(', '));
   });

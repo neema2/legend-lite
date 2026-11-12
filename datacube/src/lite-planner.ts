@@ -35,11 +35,12 @@ import { relationColumns, type Plan, type PlanColumn } from '../../engine-client
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
 import type { RemoteMountRequest, SnapStreamRequest } from '../../engine-client/src/host-operations.ts';
-import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
+import { plannedProjectData, type ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
+import { allFromPlan, fromPlan, type PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
 interface TeavmRuntime {
   load(
@@ -132,7 +133,7 @@ interface Transport {
 function textPlan(text: string): Plan {
   const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown };
   const params = planParams(body.plan);
-  return { sql: body.sql, columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
+  return { sql: fromPlan(body.sql), columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
 }
 
 /**
@@ -718,15 +719,15 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** THE catalog question for one table of a DuckDB, its schema and table as SQL string literals. */
-  async catalogColumnsSql(schema: string, table: string): Promise<string> {
+  async catalogColumnsSql(schema: string, table: string): Promise<PlannedSql> {
     const answer = await this.#call({ kind: 'catalogColumnsSql', schema, table });
-    return decode(answer, `the catalog of ${table}`);
+    return fromPlan(decode(answer, `the catalog of ${table}`));
   }
 
   /** What a session of the database runs before it is queried (the dialect's own setup: a DuckDB session in UTC). */
-  async sessionSetup(databaseType: string): Promise<readonly string[]> {
+  async sessionSetup(databaseType: string): Promise<readonly PlannedSql[]> {
     const answer = await this.#call({ kind: 'sessionSetup', databaseType });
-    return JSON.parse(decode(answer, `a ${databaseType} session's setup`)) as string[];
+    return allFromPlan(JSON.parse(decode(answer, `a ${databaseType} session's setup`)) as string[]);
   }
 
   /**
@@ -736,13 +737,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    */
   async projectData(model: string, databaseType: string): Promise<ProjectDataStatements> {
     const answer = await this.#call({ kind: 'projectData', model, databaseType });
-    return JSON.parse(decode(answer, `a project's database on ${databaseType}`)) as ProjectDataStatements;
+    return plannedProjectData(JSON.parse(decode(answer, `a project's database on ${databaseType}`)));
   }
 
   /** A host's named operations on a database of that type (D5, Boundary.hostOperations): each one's statements. */
-  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]> {
+  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]> {
     const answer = await this.#call({ kind: 'hostOperations', databaseType, operations: JSON.stringify(operations) });
-    return JSON.parse(decode(answer, `a host's operations on ${databaseType}`)) as string[][];
+    return (JSON.parse(decode(answer, `a host's operations on ${databaseType}`)) as string[][]).map(allFromPlan);
   }
 
   /**

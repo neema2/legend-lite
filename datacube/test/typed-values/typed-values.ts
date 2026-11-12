@@ -27,6 +27,7 @@ import { toCsv } from '../../src/export.ts';
 import { selectionStats } from '../../src/selection.ts';
 import { accessor, col, fn, lambda, lit, times, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
+import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -83,7 +84,7 @@ class Watched implements QueryEngine {
     return this.#watch(plan.sql, () => this.#inner.execute(plan, epoch, signal));
   }
   async run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable> {
-    return this.#watch(sql, () => this.#inner.run(sql, epoch, signal));
+    return this.#watch(sql, () => this.#inner.run(unplanned(sql), epoch, signal));
   }
   async stream(plan: Plan, epoch: number, onChunk: (chunk: ResultTable) => void, signal?: AbortSignal): Promise<void> {
     return this.#watch(plan.sql, () => this.#inner.stream(plan, epoch, onChunk, signal));
@@ -153,17 +154,17 @@ before(async () => {
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   conn = db.connect() as ArrowishConnection;
   const local = new DuckDbEngine(conn);
-  await local.run(`CREATE TABLE T (region VARCHAR(32), qty INTEGER, big BIGINT, amount DECIMAL(10,2),
-    price DOUBLE, day DATE, ts TIMESTAMP, flag BOOLEAN)`, 0);
-  await local.run(`INSERT INTO T VALUES
+  await local.run(unplanned(`CREATE TABLE T (region VARCHAR(32), qty INTEGER, big BIGINT, amount DECIMAL(10,2),
+    price DOUBLE, day DATE, ts TIMESTAMP, flag BOOLEAN)`), 0);
+  await local.run(unplanned(`INSERT INTO T VALUES
     ('EMEA', 1, 9007199254740993, 10.25, 1.5, DATE '2024-01-02', TIMESTAMP '2024-01-02 03:04:05.123456', true),
     ('EMEA', 2, 1, 20.50, 2.5, DATE '2024-01-03', TIMESTAMP '2024-01-03 00:00:00', false),
-    ('AMER', 3, 2, 30.75, 3.5, DATE '2024-02-01', TIMESTAMP '2024-02-01 12:00:00', true)`, 0);
-  await local.run('CREATE TABLE BIG (id INTEGER, amount DECIMAL(38,2))', 0);
-  await local.run(`INSERT INTO BIG VALUES (1, 12345678901234567.89), (2, 1.01)`, 0);
-  await local.run('CREATE TABLE P (region VARCHAR(32), qty INTEGER, pnl DECIMAL(10,2), big BIGINT)', 0);
-  await local.run(`INSERT INTO P VALUES ('EMEA', 1, -12.50, -9007199254740993), ('EMEA', 2, 0.00, 1),
-    ('AMER', 3, 1234.56, 2)`, 0);
+    ('AMER', 3, 2, 30.75, 3.5, DATE '2024-02-01', TIMESTAMP '2024-02-01 12:00:00', true)`), 0);
+  await local.run(unplanned('CREATE TABLE BIG (id INTEGER, amount DECIMAL(38,2))'), 0);
+  await local.run(unplanned(`INSERT INTO BIG VALUES (1, 12345678901234567.89), (2, 1.01)`), 0);
+  await local.run(unplanned('CREATE TABLE P (region VARCHAR(32), qty INTEGER, pnl DECIMAL(10,2), big BIGINT)'), 0);
+  await local.run(unplanned(`INSERT INTO P VALUES ('EMEA', 1, -12.50, -9007199254740993), ('EMEA', 2, 0.00, 1),
+    ('AMER', 3, 1234.56, 2)`), 0);
   planner = new LitePlanner({ model: MODEL, runtime: 'typed::RT', assetBaseUrl: MODULE_DIR, cache: false });
 });
 
@@ -239,7 +240,7 @@ describe('a source\'s columns come from the compiler', () => {
       ['iv', 'INTERVAL'], ['nested', 'STRUCT(a INTEGER)'], ['j', 'JSON'],
     ];
     const duck = new DuckDbEngine(conn);
-    await duck.run(`CREATE TABLE every_type (${declared.map(([n, t]) => `${n} ${t}`).join(', ')})`, 0);
+    await duck.run(unplanned(`CREATE TABLE every_type (${declared.map(([n, t]) => `${n} ${t}`).join(', ')})`), 0);
     const m = await planner.tableModel(await catalogColumns(duck, planner, 'every_type'), { table: 'every_type', convertible: true, databaseType: 'DuckDB' });
     const own = new LitePlanner({ model: m.model, runtime: m.runtime, assetBaseUrl: MODULE_DIR, cache: false });
     const columns = await sourceColumns(own, m.source, [{ name: 'big', kind: 'dimension' }]);
@@ -264,7 +265,7 @@ describe('a source\'s columns come from the compiler', () => {
     // for each one: declared, left out, or refused with its reason are decisions; "a type this
     // dialect does not read" (CatalogRules.typeOf) is none
     const types = await new DuckDbEngine(conn).run(
-      'SELECT DISTINCT logical_type FROM duckdb_types() WHERE internal AND type_oid IS NOT NULL', 0);
+      unplanned('SELECT DISTINCT logical_type FROM duckdb_types() WHERE internal AND type_oid IS NOT NULL'), 0);
     const undecided: string[] = [];
     for (const t of (types.columns[0]?.values ?? []).map(String).filter((t) => t !== 'DECIMAL')) {
       const column = { name: 'c', dataType: t, logicalType: t, precision: null, scale: null, notNull: false };
@@ -279,10 +280,10 @@ describe('a source\'s columns come from the compiler', () => {
 
   it('a type no Database holds is left out, naming the column', async () => {
     const duck = new DuckDbEngine(conn);
-    await duck.run('CREATE TABLE blobs (id INTEGER, payload BLOB)', 0);
+    await duck.run(unplanned('CREATE TABLE blobs (id INTEGER, payload BLOB)'), 0);
     const blobs = await catalogColumns(duck, planner, 'blobs');
     assert.deepEqual((await planner.tableModel(blobs, { table: 'blobs', convertible: true, databaseType: 'DuckDB' })).excluded, ['payload']);
-    await duck.run('CREATE TABLE only_blobs (payload BLOB)', 0);
+    await duck.run(unplanned('CREATE TABLE only_blobs (payload BLOB)'), 0);
     const onlyBlobs = await catalogColumns(duck, planner, 'only_blobs');
     await assert.rejects(planner.tableModel(onlyBlobs, { table: 'only_blobs', convertible: true, databaseType: 'DuckDB' }),
       /no column of 'only_blobs' can be read from its source: payload/);

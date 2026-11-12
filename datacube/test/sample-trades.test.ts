@@ -11,6 +11,7 @@ import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTrades, sampleTrade
 import { sampleById, sampleFileName } from '../src/samples.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 let engine: DuckDbEngine;
 let files: DuckDbFiles;
@@ -39,16 +40,16 @@ const BEFORE = `CREATE OR REPLACE TABLE before AS
        ((i * 31) % 97) + 1             AS qty
      FROM range(${SAMPLE_TRADES}) t(i)`;
 
-const one = (sql: string): Promise<unknown> => engine.run(sql, 0).then((t) => t.columns[0]?.values[0]);
+const one = (sql: string): Promise<unknown> => engine.run(unplanned(sql), 0).then((t) => t.columns[0]?.values[0]);
 const columns = async (table: string): Promise<string[]> => {
-  const t = await engine.run(`SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = '${table}'
-    ORDER BY column_index`, 0);
+  const t = await engine.run(unplanned(`SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = '${table}'
+    ORDER BY column_index`), 0);
   return t.columns[0]!.values.map((name, i) => `${String(name)} ${String(t.columns[1]!.values[i])}`);
 };
 
 describe("the demo's sample trades", () => {
   it('every row and every column type as the statement before D5 made them', async () => {
-    await engine.run(BEFORE, 0);
+    await engine.run(unplanned(BEFORE), 0);
     await engine.loadArrow({ table: 'made' }, (async function* () { yield sampleTrades(); })());
     assert.deepEqual(await columns('made'), await columns('before'));
     assert.equal(Number(await one('SELECT count(*) FROM made')), SAMPLE_TRADES);

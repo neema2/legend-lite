@@ -20,6 +20,7 @@ import {
   SnapRefusal,
   snapRefusal,
 } from '../src/snap.ts';
+import { unplanned } from './unplanned.ts';
 
 let engine: DuckDbEngine;
 
@@ -31,11 +32,11 @@ before(async () => {
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
   await engine.run(
-    `CREATE TABLE trades AS
+    unplanned(`CREATE TABLE trades AS
        SELECT (i%5) AS region, (i%20) AS book,
               CAST(2020 + (i%4) AS INTEGER) AS year,
               (i*7.5) AS notional
-       FROM range(1000) t(i)`,
+       FROM range(1000) t(i)`),
     0,
   );
 });
@@ -67,22 +68,22 @@ describe('SnapManager', () => {
 
   it('is genuinely frozen: live changes do not reach the snap', async () => {
     // its own live table, so the row it adds reaches no other test (Bazel workplan P3-10)
-    await engine.run('CREATE TABLE trades_frozen AS SELECT * FROM trades', 0);
+    await engine.run(unplanned('CREATE TABLE trades_frozen AS SELECT * FROM trades'), 0);
     const s = new SnapManager(engine, null, planner);
     const { table: snapped } = await s.snap('SELECT * FROM trades_frozen', 1, { target: target('snap_frozen') });
 
     // The world moves on underneath.
     await engine.run(
-      'INSERT INTO trades_frozen SELECT 9, 9, 2024, 1.0',
+      unplanned('INSERT INTO trades_frozen SELECT 9, 9, 2024, 1.0'),
       2,
     );
 
     const fromSnap = await engine.run(
-      `SELECT count(*) AS n FROM ${snapped}`,
+      unplanned(`SELECT count(*) AS n FROM ${snapped}`),
       3,
     );
     const fromLive = await engine.run(
-      'SELECT count(*) AS n FROM trades_frozen',
+      unplanned('SELECT count(*) AS n FROM trades_frozen'),
       4,
     );
     assert.equal(fromSnap.columns[0]?.values[0], 1000, 'snap is stable');
@@ -128,7 +129,7 @@ describe('SnapManager', () => {
     // Snap A survives taking snap B, which is what makes an
     // as-of-A vs as-of-B comparison possible.
     const stillThere = await engine.run(
-      `SELECT count(*) AS n FROM "${a.table}"`,
+      unplanned(`SELECT count(*) AS n FROM "${a.table}"`),
       3,
     );
     assert.equal(stillThere.columns[0]?.values[0], 200);
@@ -140,7 +141,7 @@ describe('SnapManager', () => {
       target: { table: 'snap_refused', landed: async () => { throw new Error('no model of it'); } },
     }), /no model of it/);
     assert.equal(s.isSnapped, false);
-    const left = await engine.run("SELECT count(*) AS n FROM information_schema.tables WHERE table_name = 'snap_refused'", 5);
+    const left = await engine.run(unplanned("SELECT count(*) AS n FROM information_schema.tables WHERE table_name = 'snap_refused'"), 5);
     assert.equal(Number(left.columns[0]?.values[0]), 0, 'the copy is gone');
   });
 });

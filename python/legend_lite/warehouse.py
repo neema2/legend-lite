@@ -24,6 +24,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from ._library import library
+from ._planned import PlannedSql, require
 
 # how long one call may take on the wire: a poll waits up to 10 s on the server (the binding's), a chunk is read whole
 _WIRE_TIMEOUT_S = 120
@@ -244,11 +245,11 @@ class Warehouse:
                 f"{'its rows uncounted' if rows is None else f'{rows:,} rows'}, submitted {found['submittedAt']}")
         return said + (f", finished {found['finishedAt']}" if found.get('finishedAt') else '') + '.'
 
-    def arrow_chunks(self, sql: str, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> Iterator[bytes]:
+    def arrow_chunks(self, sql: PlannedSql, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> Iterator[bytes]:
         """The result of ``sql`` as the server wrote it: one Arrow IPC stream per chunk, in order. The statement is
         closed once every chunk is read, so the server frees it; ``on_receipt`` hears what the server issued for it
-        (its id and its count) before the first chunk."""
-        step = self._call('submit', {'sql': sql, 'catalog': self._catalog})
+        (its id and its count) before the first chunk. Only a plan's statement is sent (_planned.py)."""
+        step = self._call('submit', {'sql': require(sql, 'the warehouse'), 'catalog': self._catalog})
         statement = step.get('statementId')
         # where a read that ends early leaves its statement (the caller stops, or a call fails): still running,
         # cancelled; done, its result closed; read to the end (or failed there), nothing -- the tab's rule

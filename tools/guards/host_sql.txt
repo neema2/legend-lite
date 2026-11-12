@@ -53,5 +53,4 @@ begin\s+transaction
 
 [kept]
 studio/src/ui/editor.ts | "SELECT * FROM \"PARTY\".\"PARTY\"" | the SQL editor's placeholder: an example of the person's own SQL, shown in the empty box, never run
-datacube/demo/remote-harness.ts | "SELECT region, sum(notional) AS m FROM " | a test page's query (verify-remote.mjs), standing in for the planner's over the mount it checks
 query/src/ui/results.ts | "SELECT " | the plan's SQL shown for reading (formatSql): its first keyword written upper case, never run

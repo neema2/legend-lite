@@ -18,6 +18,7 @@ import { DOCS, docHint } from '../src/ui/docs.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 let dom: JSDOM;
 let root: HTMLElement;
@@ -204,7 +205,7 @@ class Engine extends FakeEngine {
   }
 }
 const planner: Planner = {
-  plan: async (): Promise<Plan> => ({ sql: 'SELECT 42', columns: [] }),
+  plan: async (): Promise<Plan> => ({ sql: unplanned('SELECT 42'), columns: [] }),
   relationType: async (): Promise<PlanColumn[]> => [],
   parse: fakeParse,
   print: fakePrint,

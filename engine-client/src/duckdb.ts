@@ -21,6 +21,7 @@ import { QueryError, typedByPlan } from './engine.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
 import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /**
  * The slice of duckdb-wasm's connection we actually use. Declaring it
@@ -29,7 +30,7 @@ import { dayText, decimalText, exactInteger, timeText, timestampText } from './v
  * public surface.
  */
 export interface ArrowishConnection {
-  query(sql: string): ArrowishTable | Promise<ArrowishTable>;
+  query(sql: PlannedSql): ArrowishTable | Promise<ArrowishTable>;
   /**
    * The STREAMING form, and the only real cancellation DuckDB-WASM
    * offers. `query()` runs to completion inside one call and cannot be
@@ -42,7 +43,7 @@ export interface ArrowishConnection {
    * not a fallback anyone falls back to, and a guardrail test pins
    * that so it cannot quietly become one.
    */
-  send?(sql: string): Promise<AsyncIterable<ArrowishTable>>;
+  send?(sql: PlannedSql): Promise<AsyncIterable<ArrowishTable>>;
   /** Cancel a query started with `send()`. True if it was still pending. */
   cancelSent?(): Promise<boolean>;
   /**
@@ -59,7 +60,7 @@ export interface ArrowishConnection {
    * count into the query that answers it: plan-runner.ts). DuckDB-WASM's bindings send the values as JSON, so a value
    * bound is text, a number, true or false, or null.
    */
-  prepare?(sql: string): ArrowishPrepared | Promise<ArrowishPrepared>;
+  prepare?(sql: PlannedSql): ArrowishPrepared | Promise<ArrowishPrepared>;
   close?(): void | Promise<void>;
 }
 
@@ -67,9 +68,9 @@ export interface ArrowishConnection {
 export interface HeldConnection {
   /** A statement's rows, each its values by column; one with values to bind, prepared and run with them (refused by
    *  name where the connection prepares none). */
-  rows(sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
+  rows(sql: PlannedSql, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
   /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
-  table(sql: string): Promise<RawTable>;
+  table(sql: PlannedSql): Promise<RawTable>;
   /**
    * One Arrow IPC stream's rows into `target` by the connection's own Arrow import, no statement spelled: `create` makes
    * the table, else the rows are appended -- a planned stream step's chunks (plan-runner.ts runLoad: a snapshot from a
@@ -459,7 +460,7 @@ export class DuckDbEngine implements QueryEngine {
   }
 
   async run(
-    sql: string,
+    sql: PlannedSql,
     epoch: number,
     signal?: AbortSignal,
     params: readonly string[] = [],
@@ -486,7 +487,7 @@ export class DuckDbEngine implements QueryEngine {
    * the prepared statement streams (DuckDB-WASM's), else whole as one batch -- the prepared statement closed once read.
    * A connection that prepares none refuses it by name.
    */
-  async *#bound(sql: string, params: readonly string[]): AsyncIterable<ArrowishTable> {
+  async *#bound(sql: PlannedSql, params: readonly string[]): AsyncIterable<ArrowishTable> {
     if (this.#conn.prepare === undefined) throw new Error("this database binds no statement's values: a plan's payload is not run here");
     const prepared = await this.#conn.prepare(sql);
     try {
@@ -536,7 +537,7 @@ export class DuckDbEngine implements QueryEngine {
     target: { readonly schema?: string; readonly table: string },
     chunks: AsyncIterable<Uint8Array>,
     /** The planner's statements run first, in the same turn (its schema made, the table there dropped: snap.ts). */
-    prepare: readonly string[] = [],
+    prepare: readonly PlannedSql[] = [],
   ): Promise<void> {
     const insert = this.#conn.insertArrowFromIPCStream;
     if (typeof insert !== 'function') {
@@ -599,7 +600,7 @@ export class DuckDbEngine implements QueryEngine {
   }
 
   async #whole(
-    sql: string,
+    sql: PlannedSql,
     epoch: number,
     signal: AbortSignal | undefined,
     started: number,
@@ -632,7 +633,7 @@ export class DuckDbEngine implements QueryEngine {
    * identical either way; with one, the query is cancelled between batches.
    */
   async #batches(
-    sql: string,
+    sql: PlannedSql,
     signal: AbortSignal | undefined,
     onBatch: (batch: ArrowishTable) => void,
     params: readonly string[] = [],
