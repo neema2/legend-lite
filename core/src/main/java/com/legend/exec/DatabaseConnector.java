@@ -51,6 +51,23 @@ public interface DatabaseConnector {
         }
     }
 
+    /** {@code url}, the URL this connector's {@link #opening} built for a declared connection
+     *  ({@link Sessions.Opening.Url}), with {@code settings} written where the database is opened (the plan's
+     *  target's; null for none: the C final audit's J1, 2026-11-12). Default: a database whose URL takes none, so
+     *  any is refused by name ({@link #noSettings}). */
+    default String urlWith(String url, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        noSettings(type(), settings);
+        return url;
+    }
+
+    /** Whether a plan's target on this database declares the settings its database must have
+     *  ({@code ExecutionPlan.Target.settings}): a session checked against a target that declares none where it must,
+     *  or some where it takes none, is refused by name (the C final audit's J4, 2026-11-12). Default: none (H2's
+     *  dialect alone declares them). */
+    default boolean takesSettings() {
+        return false;
+    }
+
     // (raiseRecovery, the two statements that read back a raise a session holds: the PLAN's since C2, 2026-11-12 --
     // SqlDialect.raiseReadBack, carried by ExecutionPlan.Target.raiseReadBack and sent by the seam after a failure, the
     // charter's A3(c); a connector declares no statement)

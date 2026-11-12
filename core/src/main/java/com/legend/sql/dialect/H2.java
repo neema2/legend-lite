@@ -52,16 +52,22 @@ public class H2 extends AnsiSqlRenderer {
     static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
             new Setting("DEFAULT_NULL_ORDERING", "HIGH")));
 
-    /** {@code required} with the statement answering each of them the database has OTHERWISE, as one text
-     *  ({@code NAME=VALUE}, by name): none where it has them all. Both H2 reports, whatever their values. */
-    private static DatabaseSettings differing(List<Setting> required) {
-        StringBuilder sql = new StringBuilder("SELECT SETTING_NAME || '=' || SETTING_VALUE FROM"
-                + " INFORMATION_SCHEMA.SETTINGS WHERE ");
+    /** {@code required} with the statement answering each of them the database does NOT have, as one text
+     *  ({@code NAME=VALUE}, by name; {@code NAME=(not reported)} for one it does not report at all): none where it has
+     *  them all. The required settings are the statement's own rows, each joined to what the database reports (the C
+     *  final audit's J4, 2026-11-12: until then a setting the database did not report answered no row, so it passed).
+     *  Measured on 2.5.252: a bare database answers {@code DEFAULT_NULL_ORDERING=LOW} and {@code MODE=REGULAR}, a name
+     *  it does not have {@code (not reported)}. */
+    static DatabaseSettings differing(List<Setting> required) {
+        StringBuilder sql = new StringBuilder("SELECT R.SETTING || '=' || COALESCE(S.SETTING_VALUE, '(not reported)')"
+                + " FROM (VALUES ");
         for (int i = 0; i < required.size(); i++) {
-            sql.append(i > 0 ? " OR " : "").append("(SETTING_NAME = '").append(required.get(i).name())
-                    .append("' AND SETTING_VALUE <> '").append(required.get(i).value()).append("')");
+            sql.append(i > 0 ? ", " : "").append("('").append(required.get(i).name()).append("', '")
+                    .append(required.get(i).value()).append("')");
         }
-        return new DatabaseSettings(required, sql.append(" ORDER BY SETTING_NAME").toString());
+        return new DatabaseSettings(required, sql.append(") AS R(SETTING, REQUIRED) LEFT JOIN INFORMATION_SCHEMA.SETTINGS"
+                + " S ON S.SETTING_NAME = R.SETTING WHERE S.SETTING_VALUE IS NULL OR S.SETTING_VALUE <> R.REQUIRED"
+                + " ORDER BY R.SETTING").toString());
     }
 
 

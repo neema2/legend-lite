@@ -61,7 +61,7 @@ final class TestRun {
      *  our text under (an engine-text assert's, M10c item 8), or null. */
     static void run(TestPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             com.legend.executionplan.DataStores stores, IntFunction<@Nullable StatementOrigin> textOrigin,
-            Judges judges, ProgramRunner.ProgramSink sink, java.util.UUID execution) throws IOException {
+            Judges judges, ProgramRunner.ProgramSink sink, com.legend.base.Executions execution) throws IOException {
         Handler handler = new Handler(plan, judges);
         try {
             ProgramRunner.run(program(plan, textOrigin), values, sessions, stores, handler, sink, execution);
@@ -119,7 +119,10 @@ final class TestRun {
         /** A branch: its condition read -- a statement of the body, as a value statement is (a mark in force stands)
          *  -- then the steps of the side it names, and only those: the side not taken is never sent. */
         private void branch(TestPlan.Branch b, ProgramRunner.OpenProgram open) throws IOException {
-            PlanRunner.Rows condition = b.condition() instanceof TestPlan.Side.Constant c ? constantRows(c)
+            // a constant condition read back by its column's declared type, through the one decode of a constant
+            // (J10, 2026-11-12); a statement's by its column's, as every typed row is
+            PlanRunner.Rows condition = b.condition() instanceof TestPlan.Side.Constant c
+                    ? new PlanRunner.Rows(c.columns(), PlanRunner.constantRows(c.columns(), c.cells()))
                     : open.read(statement(b.condition()), StatementOrigin.STATEMENT, Map.of());
             for (TestPlan.TestStep inner : taken(condition) ? b.then() : b.otherwise()) {
                 switch (inner) {
@@ -317,15 +320,17 @@ final class TestRun {
     /** Which side of a branch runs: its condition's one Boolean, as the database answered it or the program wrote it
      *  (a constant's TEXT cell, its Pure spelling). An absent or many-valued condition is refused by name: Pure's
      *  {@code if} takes a {@code Boolean[1]}. */
-    private static boolean taken(PlanRunner.Rows condition) {
+    static boolean taken(PlanRunner.Rows condition) {
         if (condition.rows().size() != 1 || condition.rows().get(0).size() != 1) {
             throw new IllegalStateException("a branch's condition answered " + condition.rows().size() + " rows: an"
                     + " if's condition is one Boolean");
         }
         Object cell = condition.rows().get(0).get(0);
+        // the cell as its column's decode read it: a Boolean (the C final audit's J10, 2026-11-12: until then a text
+        // "true" or "false" was parsed here -- a kind decided from text; a database that answers a Boolean as text is
+        // its decode's to read, never this method's)
         return switch (cell) {
             case Boolean v -> v;
-            case String text when text.equals("true") || text.equals("false") -> Boolean.parseBoolean(text);
             case null -> throw new IllegalStateException("a branch's condition answered no value: an if's condition"
                     + " is one Boolean");
             default -> throw new IllegalStateException("a branch's condition answered a "

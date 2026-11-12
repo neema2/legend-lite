@@ -49,14 +49,7 @@ final class MongoDbStatements implements Statements {
     /** A dynamic pivot's key cell, as the MongoDb dialect writes it in each copy of the per-key region. */
     private static final String KEY_MARKER = "$legendParam";
 
-    /** The first major version of MongoDB whose aggregate command takes a {@code let}, which binds a plan's
-     *  parameters. */
-    static final int LET_SINCE = 5;
-
     private final MongoDatabase database;
-
-    /** Whether the server was found to take an aggregate's {@code let} (read once a session). */
-    private boolean letChecked;
 
     MongoDbStatements(MongoDatabase database) {
         this.database = database;
@@ -70,39 +63,19 @@ final class MongoDbStatements implements Statements {
             throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
                     + " but the session is MongoDB — dialect/connection mismatch");
         }
-        if (!letChecked) {
-            // the server's own report of its version, as JDBC's metadata names a database's (a check, no plan text)
-            BsonValue version = run(new BsonDocument("buildInfo", new org.bson.BsonInt32(1))).get("version");
-            requireLet(version != null && version.isString() ? version.asString().getValue() : String.valueOf(version));
-            letChecked = true;
-        }
-    }
-
-    /** A server of {@code version} refused by name where its aggregate command takes no {@code let} (before 5.0): a
-     *  plan's parameters are bound through it, and the session never runs a plan on a server that would not bind
-     *  them. */
-    static void requireLet(String version) {
-        int major;
-        try {
-            major = Integer.parseInt(version.substring(0, version.indexOf('.') < 0 ? version.length()
-                    : version.indexOf('.')));
-        } catch (NumberFormatException e) {
-            throw new com.legend.error.NotImplementedException("the MongoDB server reports its version as '" + version
-                    + "', which names no major version: a plan's parameters are bound through the aggregate command's"
-                    + " let, which MongoDB takes from " + LET_SINCE + ".0");
-        }
-        if (major < LET_SINCE) {
-            throw new com.legend.error.NotImplementedException("the MongoDB server is " + version + ": a plan's"
-                    + " parameters are bound through the aggregate command's let, which MongoDB takes from "
-                    + LET_SINCE + ".0; the server is refused, never sent a plan");
-        }
+        // no command of the session's own: the server's version is not read (the user's ruling of 2026-11-12, the C
+        // final audit's J3, "delete mongo check for sure": until then buildInfo was sent, a command exec wrote). A
+        // server before 5.0 refuses a pipeline's let with its own error; a pipeline with no parameter sends none
     }
 
     @Override
     public boolean execute(PlannedSql statement) {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        run(command(statement));
-        return false;
+        try (Replies ignored = send(statement, List.of(), List.of())) {
+            return false;
+        } catch (MongoException e) {
+            throw failure(e);
+        }
     }
 
     /** {@inheritDoc} MongoDB: a keyed plan's two commands share no transaction (the dialect says {@code NONE}: a
@@ -177,9 +150,9 @@ final class MongoDbStatements implements Statements {
     public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
-            while (cursor.hasNext()) {
-                rows.row(text(cursor.next()));
+        try (Replies replies = send(statement, slots, values)) {
+            while (replies.hasNext()) {
+                rows.row(text(replies.next()));
             }
         } catch (MongoException e) {
             throw failure(e);
@@ -192,9 +165,9 @@ final class MongoDbStatements implements Statements {
     public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
-        try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
-            while (cursor.hasNext()) {
-                cells.row(MongoDbDecode.row(cursor.next(), columns));
+        try (Replies replies = send(statement, slots, values)) {
+            while (replies.hasNext()) {
+                cells.row(MongoDbDecode.row(replies.next(), columns));
             }
         } catch (MongoException e) {
             throw failure(e);
@@ -202,19 +175,23 @@ final class MongoDbStatements implements Statements {
     }
 
     /**
-     * The aggregate command's cursor, run through the driver: the plan's pipeline as the plan holds it, each plan
-     * parameter's slot bound to its variable through the command's {@code let} ({@code lp1}, {@code lp2}, ... in slot
-     * order, as the MongoDb dialect names them: {@code MongoJson.parameterVariable}), each key cell's slot -- the
-     * runner's, for a copy of a per-key region: no parameter's name -- at its marker, in document order.
+     * THE ONE PLACE THIS SESSION REACHES THE SERVER (the C final audit's J3, the user's question of 2026-11-12: "how do
+     * we stop this from actually being able to be added without loud alarm bells?"): the plan's statement, as the plan
+     * holds it, each slot's value bound -- a plan parameter as its variable in the command's {@code let} ({@code lp1},
+     * {@code lp2}, ... in slot order, as the MongoDb dialect names them: {@code MongoJson.parameterVariable}), a key
+     * cell's slot (the plan's {@code Binding.Key}, once per copy of a per-key region, its value the key's text) at its
+     * marker, in document order. Every call of the MongoDB driver that sends is made here and nowhere else, and it takes
+     * the plan's type, never a document exec built ({@code ArchitectureTest.theMongoDbDriverSendsAtOneChokePoint}): an
+     * aggregate answers its cursor, another command its one reply.
      */
-    private MongoCursor<BsonDocument> cursor(PlannedSql statement, List<ExecutionPlan.Slot> slots,
-            List<PlanParameters.Checked> values) {
+    private Replies send(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
         BsonDocument let = new BsonDocument();
         List<ExecutionPlan.Slot> keySlots = new ArrayList<>();
         List<PlanParameters.Checked> keys = new ArrayList<>();
         for (int i = 0; i < slots.size(); i++) {
             ExecutionPlan.Slot slot = slots.get(i);
-            if (slot.parameter().isEmpty() && slot.binding() instanceof ExecutionPlan.Binding.One) {
+            // a key slot by its type (J7, 2026-11-12: until then by an empty name and a One binding, the runner's own)
+            if (slot.binding() instanceof ExecutionPlan.Binding.Key) {
                 keySlots.add(slot);
                 keys.add(values.get(i));
             } else {
@@ -231,8 +208,16 @@ final class MongoDbStatements implements Statements {
             }
         }
         BsonValue aggregate = command.get("aggregate");
+        if (aggregate == null) {
+            // another command: sent as the plan holds it, and it binds nothing
+            if (!slots.isEmpty()) {
+                throw new IllegalStateException("the plan's statement binds " + slots.size() + " values, and it is no"
+                        + " aggregate command, which alone binds them: " + command.keySet());
+            }
+            return new Replies(List.of(database.runCommand(command, BsonDocument.class)).iterator(), null);
+        }
         BsonValue pipeline = command.get("pipeline");
-        if (aggregate == null || pipeline == null || !pipeline.isArray()) {
+        if (pipeline == null || !pipeline.isArray()) {
             throw new IllegalStateException("the plan's statement is not an aggregate command: " + command.keySet());
         }
         List<BsonDocument> stages = new ArrayList<>();
@@ -242,7 +227,35 @@ final class MongoDbStatements implements Statements {
         AggregateIterable<BsonDocument> run = aggregate.isString()
                 ? database.getCollection(aggregate.asString().getValue(), BsonDocument.class).aggregate(stages)
                 : database.aggregate(stages, BsonDocument.class);
-        return (let.isEmpty() ? run : run.let(let)).iterator();
+        MongoCursor<BsonDocument> cursor = (let.isEmpty() ? run : run.let(let)).iterator();
+        return new Replies(cursor, cursor);
+    }
+
+    /** What a sent command answers: an aggregate's cursor (its continuation and its close the driver's, of the plan's
+     *  own command), or another command's one reply. */
+    private static final class Replies implements AutoCloseable {
+        private final java.util.Iterator<BsonDocument> rows;
+        private final @com.legend.base.Nullable MongoCursor<BsonDocument> cursor;
+
+        Replies(java.util.Iterator<BsonDocument> rows, @com.legend.base.Nullable MongoCursor<BsonDocument> cursor) {
+            this.rows = rows;
+            this.cursor = cursor;
+        }
+
+        boolean hasNext() {
+            return rows.hasNext();
+        }
+
+        BsonDocument next() {
+            return rows.next();
+        }
+
+        @Override
+        public void close() {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
     }
 
     /** The row's one text: its one field, a string or null; anything else is not text, refused by name. */
@@ -269,18 +282,18 @@ final class MongoDbStatements implements Statements {
         }
     }
 
-    private BsonDocument run(BsonDocument command) {
-        try {
-            return database.runCommand(command, BsonDocument.class);
-        } catch (MongoException e) {
-            throw failure(e);
-        }
-    }
-
     /** The server's failure as the platform's data error: a raise's message unwrapped from the server's text. */
     private static com.legend.error.DataError failure(MongoException e) {
         String unwrapped = RaisedErrors.unwrap(e.getMessage());
         return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
+    }
+
+    /** A key slot's value: the key's text, as the runner's expansion gives it (J7, 2026-11-12). */
+    private static BsonValue keyText(PlanParameters.Checked checked, int index) {
+        if (!(checked instanceof PlanParameters.One one && one.value() instanceof String text)) {
+            throw new IllegalStateException("key " + index + " binds a key's cell given no key's text");
+        }
+        return new BsonString(text);
     }
 
     /** {@code v} with each key marker replaced, in place and in document order, by the key of the slot at its place
@@ -296,7 +309,7 @@ final class MongoDbStatements implements Statements {
                     throw new IllegalStateException("the plan's statement holds more key markers than its regions'"
                             + " " + slots.size() + " keys");
                 }
-                return literal(value(slots.get(n), values.get(n), n + 1));
+                return literal(keyText(values.get(n), n + 1));
             }
             BsonDocument out = new BsonDocument();
             for (Map.Entry<String, BsonValue> e : d.entrySet()) {

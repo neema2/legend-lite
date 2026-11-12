@@ -240,7 +240,8 @@ class ConnectorsTest {
                 // its private instance is a session of its own database, whose errors carry their raise: no read-back
                 // declared by any target (the plan's since C2, 2026-11-12), so the seam reads nothing back after a
                 // failure (JdbcStatements.held)
-                try (Connection c = Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate(null)) {
+                try (Connection c = Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate(
+                        com.legend.testbackend.TestBackends.settings(type))) {
                     assertSame(Connectors.of(com.legend.planner.ConnectionPlans.type(type)), Connectors.of(c));
                     assertNull(JdbcStatements.held(c, new SessionState(), new java.sql.SQLException("the statement's")));
                 }

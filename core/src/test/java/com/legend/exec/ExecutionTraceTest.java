@@ -108,7 +108,7 @@ class ExecutionTraceTest {
             assertEquals(null, com.legend.base.RunScope.currentExecution());
             assertThrows(IllegalStateException.class, com.legend.base.RunScope::execution);
         }
-        assertThrows(NullPointerException.class, () -> com.legend.base.RunScope.enter(null));
+        assertThrows(NullPointerException.class, () -> com.legend.base.RunScope.enter((java.util.UUID) null));
     }
 
     @Test

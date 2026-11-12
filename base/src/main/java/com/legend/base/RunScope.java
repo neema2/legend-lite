@@ -52,9 +52,9 @@ public final class RunScope implements AutoCloseable {
         @Nullable String name;
     }
 
-    /** A thread's running execution: its id; null where none runs. */
+    /** A thread's running execution: its executions, as its door minted them; null where none runs. */
     private static final class Execution {
-        java.util.@Nullable UUID id;
+        @Nullable Executions id;
     }
 
     /**
@@ -64,8 +64,16 @@ public final class RunScope implements AutoCloseable {
      */
     public static RunScope enter(java.util.UUID execution) {
         java.util.Objects.requireNonNull(execution, "execution: the run's door mints it");
+        return enter(Executions.one(execution));
+    }
+
+    /** A plan starts running on this thread as {@code executions} -- the run's id and one per execution its plan
+     *  declares, as its door minted them (a test body's: the execution id as upstream, 2026-11-12). Refused as
+     *  {@link #enter()} is. */
+    public static RunScope enter(Executions executions) {
+        java.util.Objects.requireNonNull(executions, "executions: the run's door mints them");
         RunScope scope = enter();
-        EXECUTION.get().id = execution;
+        EXECUTION.get().id = executions;
         return scope;
     }
 
@@ -99,16 +107,27 @@ public final class RunScope implements AutoCloseable {
      *  listener, what the SQL dump prints -- its door's. Refused by name where none runs, or the run is no execution
      *  ({@link #enter()}): an id read there is a defect, never a fresh one. */
     public static java.util.UUID execution() {
-        java.util.UUID id = EXECUTION.get().id;
+        return executions().run();
+    }
+
+    /** The executions running on this thread, as the run's door minted them. Refused by name where none runs. */
+    public static Executions executions() {
+        Executions id = EXECUTION.get().id;
         if (id == null) {
             throw new IllegalStateException("no execution runs on this thread: an execution's id is its run's");
         }
         return id;
     }
 
+    /** The id of the execution the stamp {@code stamp} names, in the run on this thread ({@link Executions#of}). */
+    public static java.util.UUID execution(String stamp) {
+        return executions().of(stamp);
+    }
+
     /** The id of the execution running on this thread, or null where none runs. */
     public static java.util.@Nullable UUID currentExecution() {
-        return EXECUTION.get().id;
+        Executions id = EXECUTION.get().id;
+        return id == null ? null : id.run();
     }
 
     /** The wall's refusal, by type: an {@link Error}, so no {@code catch (RuntimeException)} or {@code catch (Exception)}

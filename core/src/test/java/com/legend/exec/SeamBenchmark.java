@@ -110,11 +110,12 @@ final class SeamBenchmark {
                 () -> productDrain(c, ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                         ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(),
                                 new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
-                                        com.legend.database.Databases.dialect(type).sessionSetup(), List.of(), null, null),
+                                        com.legend.database.Databases.dialect(type).sessionSetup(), List.of(), null,
+                                        com.legend.testbackend.TestBackends.settings(type)),
                                 null))), null, null));
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
-                List.of(), null, null);
+                List.of(), null, com.legend.testbackend.TestBackends.settings(type));
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(plain, List.of(), target,
                         null)));
@@ -192,7 +193,7 @@ final class SeamBenchmark {
         long measureNs = Long.getLong("seam.small.measureMs", 2000L) * 1_000_000L;
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
                 com.legend.database.Databases.dialect(type).sessionSetup(),
-                List.of(), null, null);
+                List.of(), null, com.legend.testbackend.TestBackends.settings(type));
         for (int n : smallSizes()) {
             String sql = "SELECT id, name, CAST(amount AS DECIMAL(18,2)) AS amount, ts, bucket FROM bench WHERE id < "
                     + n;

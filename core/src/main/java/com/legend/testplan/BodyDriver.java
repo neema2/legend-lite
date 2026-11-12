@@ -59,7 +59,6 @@ public final class BodyDriver {
     record ExecEnv(com.legend.planner.PlanEnv plan,
             com.legend.executionplan.ExecutionPlan.Target target,
             PlanningOptions options,
-            ActivityComments activity,
             com.legend.testplan.@com.legend.base.Nullable VerdictBatch verdictBatch,
             SqlTextVerdicts.@com.legend.base.Nullable Collector engineText,
             com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage,
@@ -81,7 +80,7 @@ public final class BodyDriver {
                     tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, com.legend.planner.EngineText.engineText(),
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")), JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
-                    options, new ActivityComments(), null, null, null, null,
+                    options, null, null, null, null,
                     new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
         }
 
@@ -127,17 +126,17 @@ public final class BodyDriver {
         /** The same environment over another planning half. */
         ExecEnv withPlan(com.legend.planner.PlanEnv p) {
             return p == plan ? this
-                    : new ExecEnv(p, target, options, activity, verdictBatch,
+                    : new ExecEnv(p, target, options, verdictBatch,
                             engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.testplan.VerdictBatch b) {
-            return new ExecEnv(plan, target, options, activity, b, engineText,
+            return new ExecEnv(plan, target, options, b, engineText,
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The caller's execute options (the PCT wire render); their features are the planning half's. */
         ExecEnv withOptions(PlanningOptions o) {
-            return new ExecEnv(plan.withFeatures(o.features()), target, o, activity,
+            return new ExecEnv(plan.withFeatures(o.features()), target, o,
                     verdictBatch, engineText, failureMessage, appealOn, verdictIds, appeals);
         }
         /** The executing frame's bound context (post-processors, time zone,
@@ -151,14 +150,14 @@ public final class BodyDriver {
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
         ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
-            return new ExecEnv(plan, target, options, activity, verdictBatch, c,
+            return new ExecEnv(plan, target, options, verdictBatch, c,
                     failureMessage, appealOn, verdictIds, appeals);
         }
         /** The same environment with a caller's failure message for the assert its arm judges (the asserts-as-plan-nodes
          *  program, step 2, 2026-11-04): the database judge's verdict row carries it ({@code DatabaseJudge.runVerdict}),
          *  or none. */
         ExecEnv withFailureMessage(com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage m) {
-            return new ExecEnv(plan, target, options, activity, verdictBatch,
+            return new ExecEnv(plan, target, options, verdictBatch,
                     engineText, m, appealOn, verdictIds, appeals);
         }
         /** The same environment with {@code on} the environment a compatibility APPEAL's rows are planned under (a
@@ -166,7 +165,7 @@ public final class BodyDriver {
          *  body's own environment while its verdict row runs on the program's; the walk deletion's step 3,
          *  2026-11-06), or none: the appeal planned under this environment. */
         ExecEnv withAppealOn(@com.legend.base.Nullable ExecEnv on) {
-            return new ExecEnv(plan, target, options, activity, verdictBatch,
+            return new ExecEnv(plan, target, options, verdictBatch,
                     engineText, failureMessage, on, verdictIds, appeals);
         }
 
@@ -183,7 +182,7 @@ public final class BodyDriver {
             com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(com.legend.database.Databases.dialect(
                     to != null ? com.legend.planner.ConnectionPlans.model(to)
                             : com.legend.Compiler.executesOn(ctx(), runtimeFqn()).type()));
-            return new ExecEnv(p, other, options, activity, verdictBatch, engineText, failureMessage, appealOn,
+            return new ExecEnv(p, other, options, verdictBatch, engineText, failureMessage, appealOn,
                     verdictIds, appeals);
         }
 
@@ -398,10 +397,16 @@ public final class BodyDriver {
         return buildFrame(ec, letPrefix, env.verdictBatch() != null, specs, env, stamp);
     }
 
-    /** The activity's execution-trace comment: under a verdict batch, the comment RESERVED for the body's fused
-     * statement -- the statement that will run the frame. */
-    private static @com.legend.base.Nullable String activityComment(ExecEnv env) {
-        return env.verdictBatch() != null ? env.activity().reserve() : null;
+    /** The stamp of an inline {@code execute(...)}'s activity: an execution of its own (the execution id as upstream,
+     *  the user's ruling of 2026-11-12: upstream's interpreted execute mints a GUID per query it runs), named by its
+     *  call site -- registered on the environment so every statement lowered on it binds it, and bound when the plan
+     *  runs to the id its door minted. Until then ActivityComments' one constant comment under a verdict batch, shared
+     *  by every such execute of every body, and none outside one (an empty comment). */
+    private static String inlineStamp(com.legend.compiler.spec.typed.TypedNativeCall ec, ExecEnv env) {
+        String stamp = com.legend.planner.ProgramFrames.STAMP + ".execute@"
+                + com.legend.plan.PlanRows.scopeId(ec);
+        env.plan().stamp(stamp);
+        return stamp;
     }
 
     private static ExecFrame buildFrame(
@@ -414,8 +419,8 @@ public final class BodyDriver {
                 com.legend.planner.FramePlanner.chain(ec0, letPrefix, specs, env0.plan());
         com.legend.compiler.spec.typed.TypedNativeCall ec = fc.source();
         ExecEnv env = env0.withPlan(fc.env());
-        com.legend.planner.PlanAllocations.registerActivityRows(ec, fc.chain(), letPrefix, specs,
-                stampParameter == null ? activityComment(env) : null, stampParameter, env.plan());
+        com.legend.planner.PlanAllocations.registerActivityRows(ec, fc.chain(), letPrefix, specs, null,
+                stampParameter == null ? inlineStamp(ec, env) : stampParameter, env.plan());
         if (fc.legendQuery()) {
             // the string entry's value is one string: no planned CTE, no read kind
             return new ExecFrame(fc.chain(), false, env.tableReplace(), ec);

@@ -32,7 +32,8 @@ class CatalogTurnFailureTest {
 
     private static Statements statements(Sessions.Session session, DatabaseType type) {
         return PlanRunner.opened(session, new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null, null));
+                com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null,
+                com.legend.testbackend.TestBackends.settings(type)));
     }
 
     @Test
@@ -72,7 +73,8 @@ class CatalogTurnFailureTest {
         try (Connection c = TestBackends.of(type).open()) {
             Sessions.Session session = TestSessions.over(c);
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                    com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null, null);
+                    com.legend.planner.ConnectionPlans.type(type), null), List.of(), List.of(), null,
+                    com.legend.testbackend.TestBackends.settings(type));
             // the catalog's keyed table, made by a load of its own before the turn; the registration's row into it
             ExecutionPlan.Load table = load(ExecutionPlan.Load.Cadence.PER_ACQUISITION, target,
                     "CREATE TABLE REG_T (A INTEGER PRIMARY KEY)");

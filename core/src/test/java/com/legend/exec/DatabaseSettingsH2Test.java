@@ -4,7 +4,10 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.model.AuthenticationSpec;
+import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.model.ConnectionSpecification;
 import com.legend.testbackend.RecordingConnection;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
@@ -13,6 +16,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,7 +71,7 @@ class DatabaseSettingsH2Test {
             session.statements().check(target);
             assertEquals(before, StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()], "no read-back");
         }
-        try (Connection bare = H2Connector.INSTANCE.openPrivate(null);
+        try (Connection bare = DriverManager.getConnection("jdbc:h2:mem:settings_defaults", "sa", "");
                 Connection made = H2Connector.INSTANCE.openPrivate(target.settings())) {
             assertEquals(List.of("DEFAULT_NULL_ORDERING=LOW", "MODE=REGULAR"), reported(bare), "H2's own defaults");
             assertEquals(List.of("DEFAULT_NULL_ORDERING=HIGH", "MODE=LEGACY"), reported(made), "the target's");
@@ -105,5 +110,72 @@ class DatabaseSettingsH2Test {
                     + " DEFAULT_NULL_ORDERING=HIGH): a session this platform did not open is read back, and never runs"
                     + " a plan with other settings", refused.getMessage());
         }
+    }
+
+    /** An H2 target on a connection {@code spec} declares (a file, a server). */
+    private static ExecutionPlan.Target declared(ConnectionSpecification spec) {
+        return com.legend.planner.Targets.of(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(
+                new ConnectionDefinition("s::H2Url", "s::DB", DatabaseType.H2, spec, new AuthenticationSpec.TestAuth())),
+                null), new com.legend.sql.dialect.H2());
+    }
+
+    /** The null ordering the target's database has, read by a plan run on it. */
+    private static String nullOrdering(ExecutionPlan.Target target) throws Exception {
+        return PlanRunnerTest.run(PlanRunnerTest.plan("SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS"
+                + " WHERE SETTING_NAME = 'DEFAULT_NULL_ORDERING'", target), PlanSessions.shared());
+    }
+
+    /** An H2 database reached by a FILE is opened with the target's settings on its URL, as an in-memory one is, and a
+     *  query runs on it (the C final audit's J1, 2026-11-12: until then its URL carried none, so its session was read
+     *  back as H2's defaults and every plan on it refused). */
+    @Test
+    void aFileDatabaseIsOpenedWithThem_andAQueryRunsOnIt() throws Exception {
+        Path dir = Files.createTempDirectory(Path.of(System.getenv("TEST_TMPDIR")), "h2file");
+        assertEquals("HIGH", nullOrdering(declared(new ConnectionSpecification.LocalFile(dir.resolve("db").toString()))));
+    }
+
+    /** So is one reached through a SERVER (an in-process TCP server here). */
+    @Test
+    void aServersDatabaseIsOpenedWithThem_andAQueryRunsOnIt() throws Exception {
+        Path dir = Files.createTempDirectory(Path.of(System.getenv("TEST_TMPDIR")), "h2tcp");
+        org.h2.tools.Server server = org.h2.tools.Server.createTcpServer("-tcpPort", "0", "-baseDir", dir.toString(),
+                "-ifNotExists").start();
+        try {
+            assertEquals("HIGH", nullOrdering(declared(new ConnectionSpecification.StaticDatasource("localhost",
+                    server.getPort(), "j1"))));
+        } finally {
+            server.stop();
+        }
+    }
+
+    /** An H2 target that declares no settings is refused by name, where exec opens its database and where a session is
+     *  checked against it (the C final audit's J4, 2026-11-12: until then H2 opened in its own defaults, other
+     *  semantics). A target declaring settings on a database that takes none: {@code TargetSettingsTest}. */
+    @Test
+    void aTargetWithoutThemIsRefusedByName() throws Exception {
+        com.legend.error.NotImplementedException opened = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> H2Connector.INSTANCE.openPrivate(null));
+        assertEquals("an H2 database is opened with the settings the plan's target declares, and it declares none:"
+                + " H2's own defaults would run the plan with other semantics", opened.getMessage());
+        ExecutionPlan.Target none = new ExecutionPlan.Target(h2Target().database(), h2Target().session(), List.of(),
+                null, null);
+        try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter()) {
+            JdbcStatements st = new JdbcStatements(c, new SessionState());
+            com.legend.error.NotImplementedException refused = assertThrows(
+                    com.legend.error.NotImplementedException.class, () -> st.check(none));
+            assertEquals("a plan's target on H2 declares the settings its database must have, and this one declares"
+                    + " none: never run on other semantics", refused.getMessage());
+        }
+    }
+
+    /** A setting the platform does not write is refused by name where exec would write it on a URL: only the dialect's
+     *  two (J4: until then any plain word). */
+    @Test
+    void aSettingOtherThanTheDialectsIsRefusedByName() {
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> H2Connector.url(
+                new ExecutionPlan.DatabaseSettings(List.of(new ExecutionPlan.Setting("IGNORECASE", "TRUE")),
+                        "SELECT 1")));
+        assertEquals("an H2 database setting a plan's target declares is one of [DEFAULT_NULL_ORDERING, MODE]:"
+                + " Setting[name=IGNORECASE, value=TRUE]", refused.getMessage());
     }
 }
