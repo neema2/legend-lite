@@ -382,10 +382,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
      * the select an exploded column is {@code "t1.key"}, which {@code "t1"."key"} reads, {@link #source}: two
      * explosions in one select may name their columns alike.)
      *
-     * <p>The star itself is spelled as what ClickHouse's {@code *} reads: a star over each source beside the explosions,
-     * in the join's order (round 37, 2026-11-12). A star over the whole FROM means every source's columns, the
-     * explosions' included, once the root's columns are labeled ({@code AnsiSqlRenderer#labeled}, 0276a473e), which
-     * named an exploded column twice ({@code testVariantMapColumn_values_LateralFlatten}: 4 columns for 3).
+     * <p>The star itself is spelled in the join's order: a star over each source that is not an explosion, and each
+     * explosion's columns in its place (round 37, 2026-11-12). A star over the whole FROM means every source's columns,
+     * the explosions' included, once the root's columns are labeled ({@code AnsiSqlRenderer#labeled}, 0276a473e), which
+     * named an exploded column twice ({@code testVariantMapColumn_values_LateralFlatten}: 4 columns for 3); and an
+     * explosion's columns written after every source's star answered a source joined after it out of the plan's order
+     * (the B close's audit, SHOULD-FIX 2: rows are read by position).
      */
     static final class ArrayJoinColumnsNamed extends com.legend.sql.SqlRewriter {
         @Override
@@ -398,20 +400,17 @@ public final class ClickHouse extends AnsiSqlRenderer {
             named.replaceAll((alias, ps) -> ps.stream().map(p -> new SqlSelect.Projection(
                     SqlExpr.Column.derived(alias, ExplosionMarkers.markerColumn(p)), ExplosionMarkers.markerColumn(p),
                     p.out())).toList());
-            List<SqlSelect.Projection> all = named.values().stream().flatMap(List::stream).toList();
-            List<SqlSelect.Projection> stars = new ArrayList<>();
-            besideTheExplosions(s.from(), stars);
+            List<SqlSelect.Projection> inOrder = new ArrayList<>();
+            inJoinOrder(s.from(), named, inOrder);
             List<SqlSelect.Projection> ps = new ArrayList<>();
             if (s.projections().isEmpty()) {
-                ps.addAll(stars);
-                ps.addAll(all);
+                ps.addAll(inOrder);
             }
             for (SqlSelect.Projection p : s.projections()) {
                 if (p.expr() instanceof SqlExpr.Star st && st.table() != null && named.containsKey(st.table())) {
                     ps.addAll(named.get(st.table()));
                 } else if (p.expr() instanceof SqlExpr.Star st && st.table() == null) {
-                    ps.addAll(stars);
-                    ps.addAll(all);
+                    ps.addAll(inOrder);
                 } else if (p.expr() instanceof SqlExpr.StarExcept se) {
                     throw new DialectCapability("a star exclusion over a lateral explosion reached ClickHouse: " + se);
                 } else {
@@ -433,13 +432,16 @@ public final class ClickHouse extends AnsiSqlRenderer {
             }
         }
 
-        /** A star over each source of {@code src} but its explosions, in the join's order: what ClickHouse's {@code *}
-         *  reads there. */
-        private static void besideTheExplosions(SqlSource src, List<SqlSelect.Projection> into) {
+        /** {@code src}'s columns in the join's order: a star over each source that is not an explosion, each
+         *  explosion's named columns ({@code named}, by its alias) in its place. */
+        private static void inJoinOrder(SqlSource src, java.util.Map<String, List<SqlSelect.Projection>> named,
+                List<SqlSelect.Projection> into) {
             if (src instanceof SqlSource.Join j) {
-                besideTheExplosions(j.left(), into);
-                if (!explodes(j)) {
-                    besideTheExplosions(j.right(), into);
+                inJoinOrder(j.left(), named, into);
+                if (explodes(j)) {
+                    into.addAll(named.get(j.right().alias()));
+                } else {
+                    inJoinOrder(j.right(), named, into);
                 }
                 return;
             }

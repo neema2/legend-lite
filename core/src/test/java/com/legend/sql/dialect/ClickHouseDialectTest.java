@@ -160,4 +160,27 @@ class ClickHouseDialectTest {
             assertFalse(head.contains("*"), sql);
         }
     }
+
+    /** A source joined after an explosion keeps its place: the select answers the join's order, as the plan declares
+     *  it, since rows are read by position (the B close's audit, SHOULD-FIX 2, 2026-11-12: the exploded columns were
+     *  written after every source's star). */
+    @Test
+    void aSourceAfterAnArrayJoinKeepsTheJoinsOrder() {
+        SqlType ints = new SqlType.Array(SqlType.Scalar.BIGINT);
+        SqlSource.Table people = new SqlSource.Table("people", "t0", List.of(new OutputCol("id", SqlType.Scalar.BIGINT,
+                true), new OutputCol("xs", ints, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE);
+        SqlSource.Table towns = table("towns", "t2", "town", SqlType.Scalar.VARCHAR);
+        SqlSelect marker = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Call(SqlFn.UNNEST,
+                List.of(col("t0", "xs", ints))), "x", null)), false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        SqlSource exploded = new SqlSource.Join(people, new SqlSource.Subselect(marker, "t1", null),
+                SqlSource.Join.Kind.CROSS_LATERAL, null);
+        SqlSource from = new SqlSource.Join(exploded, towns, SqlSource.Join.Kind.CROSS, null);
+        String sql = render(new SqlSelect(List.of(), false, from, null, List.of(), null, null, List.of(), null, null,
+                List.of()));
+        String head = sql.substring(0, sql.indexOf("FROM"));
+        int id = head.indexOf("AS \"id\""), xs = head.indexOf("AS \"xs\""), x = head.indexOf("AS \"x\""),
+                town = head.indexOf("AS \"town\"");
+        assertTrue(id >= 0 && id < xs && xs < x && x < town, sql);
+    }
 }

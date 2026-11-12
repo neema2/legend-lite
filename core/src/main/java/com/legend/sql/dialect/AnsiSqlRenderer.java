@@ -145,22 +145,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         List<SqlSelect.Projection> out = new java.util.ArrayList<>(ps.size());
         boolean changed = false;
         for (SqlSelect.Projection p : ps) {
-            if (p.expr() instanceof SqlExpr.Star st) {
-                List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
-                starred(s.from(), st.table(), List.of(), false, spelled);
-                if (spelled.isEmpty()) {
-                    return s;
+            List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
+            boolean whole = p.expr() instanceof SqlExpr.Star st
+                    ? starred(s.from(), st.table(), List.of(), false, spelled)
+                    : p.expr() instanceof SqlExpr.StarExcept se
+                            && starred(s.from(), se.table(), se.except(), false, spelled);
+            if (p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.StarExcept) {
+                // a star over a source that declares no columns (a person's raw SQL) answers that source's own names:
+                // it is kept whole, never spelled as the other sources' columns alone, and the select's other columns
+                // are still labeled (the B close's audit, SHOULD-FIX 1, 2026-11-12: until then such a source's columns
+                // dropped out of the spelled star, and a star that spelled nothing left the whole select unlabeled)
+                if (whole && !spelled.isEmpty()) {
+                    out.addAll(spelled);
+                    changed = true;
+                } else {
+                    out.add(p);
                 }
-                out.addAll(spelled);
-                changed = true;
-            } else if (p.expr() instanceof SqlExpr.StarExcept se) {
-                List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
-                starred(s.from(), se.table(), se.except(), false, spelled);
-                if (spelled.isEmpty()) {
-                    return s;
-                }
-                out.addAll(spelled);
-                changed = true;
             } else if (p.alias() == null && !perKey(p) && p.outputName() != null) {
                 out.add(new SqlSelect.Projection(p.expr(), p.outputName(), p.out()));
                 changed = true;
@@ -173,16 +173,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** The columns a star over {@code table} (null: every source) passes through from {@code src}, each a labeled
      *  projection, but those named in {@code except}: a join's sides in turn, a padded side's columns nullable (as the
-     *  select's own outputs expand a star: SqlSelect.expandStar). */
-    private static void starred(SqlSource src, @com.legend.base.Nullable String table, List<String> except,
+     *  select's own outputs expand a star: SqlSelect.expandStar). False when a source it reads declares no columns,
+     *  whose names only the database knows. */
+    private static boolean starred(SqlSource src, @com.legend.base.Nullable String table, List<String> except,
             boolean padded, List<SqlSelect.Projection> into) {
         if (src instanceof SqlSource.Join j) {
-            starred(j.left(), table, except, padded || j.kind().padsLeft(), into);
-            starred(j.right(), table, except, padded || j.kind().padsRight(), into);
-            return;
+            boolean left = starred(j.left(), table, except, padded || j.kind().padsLeft(), into);
+            return starred(j.right(), table, except, padded || j.kind().padsRight(), into) && left;
         }
         if (src instanceof SqlSource.Dual || (table != null && !table.equals(src.alias()))) {
-            return;
+            return true;
+        }
+        if (src.outputs().isEmpty()) {
+            return false;
         }
         for (com.legend.sql.OutputCol c : src.outputs()) {
             if (except.contains(c.name())) {
@@ -192,6 +195,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     ? new com.legend.sql.OutputCol(c.name(), c.type(), true, c.origin()) : c;
             into.add(new SqlSelect.Projection(SqlExpr.Column.of(src.alias(), slot), c.name(), slot));
         }
+        return true;
     }
 
     /** The query after this dialect's passes. */
