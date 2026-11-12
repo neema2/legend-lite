@@ -507,9 +507,10 @@ public final class Boundary {
      * runtime the planner compiles.
      * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
      * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
-     * [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
-     * {@code copySelectList}: the select list the source applies when it is rewritten in place ({@code convertible}),
-     * written by its own database; a read-only source is never rewritten, and has none.
+     * [{"column","sql"}], "excluded": [name], "bitColumns": [name]}} out. A source rewritten in place
+     * ({@code convertible}) is a host operation's copy that names these catalog columns ({@code "convert"}), its select
+     * list written by the platform (the final audit's 1(d), 2026-11-12: until then this answered the select list,
+     * {@code copySelectList}, which the host handed back as text).
      * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
      *
      * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
@@ -545,9 +546,6 @@ public final class Boundary {
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        if (in.getBool("convertible")) {
-            out.put("copySelectList", dialect.copySelectList(db.conversions()));
-        }
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);

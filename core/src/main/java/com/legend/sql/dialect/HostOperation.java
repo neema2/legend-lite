@@ -12,10 +12,11 @@ import java.util.Map;
  * dialect program's decision D5): what the tab and Python's host used to spell as SQL themselves -- a file read into a
  * table, a remote file mounted, a copy made, rows counted, an extension, a secret, a catalog question. A host names the
  * operation and its data; the database's {@link HostOperations} writes the statements (names quoted, values written as
- * literals), and a database without one refuses it by name. Data only: no SQL text here, but a select list a planner
- * wrote ({@link MakeRelation#selectList}). A query is no source of an operation (the final audit, 2026-11-12, the
- * user's ruling: {@code Source.Query} deleted): a pull is planned, its copy one plan ({@code Boundary.snapCopy}), its
- * count a Pure query's plan.
+ * literals), and a database without one refuses it by name. Data only: no SQL text here (the final audit, 2026-11-12,
+ * the user's ruling: until then a query a planner wrote, {@code Source.Query}, and a select list or a column's
+ * conversion a planner wrote, each text a host handed in). A pull is planned -- its copy one plan
+ * ({@code Boundary.snapCopy}), its count a Pure query's plan -- and a copy's conversions are written here from its
+ * columns' catalog ({@link MakeRelation#convert}).
  */
 public sealed interface HostOperation {
 
@@ -128,18 +129,18 @@ public sealed interface HostOperation {
     /** A relation's kind. */
     enum Kind { TABLE, VIEW }
 
-    /** A column replaced as a copy is made (Snap's conversions): its name, and the planner's expression for it. */
-    record Conversion(String column, String sql) {
-    }
-
     /**
-     * A relation made from a source: {@code replace} an existing one of its name or not; its columns the planner's copy
-     * select list ({@code selectList}), or every column with {@code replacing}'s replaced, or every column.
+     * A relation made from a source: {@code replace} an existing one of its name or not; every column of the source, the
+     * ones its database's copy converts converted in place under their names -- {@code convert}, the source's catalog
+     * rows as {@link CatalogModel} reads them (an upload's rewrite, a Snap into the tab: the conversions
+     * {@link CatalogModel#copyConversions}, their select list the database's dialect's, {@link SqlDialect#copySelectList});
+     * empty: every column as it is. Until 2026-11-12 (the final audit's 1(d), the user's ruling) the select list a
+     * planner wrote, or each replaced column's SQL, handed in as text.
      */
-    record MakeRelation(Kind kind, Name target, boolean replace, @com.legend.base.Nullable String selectList,
-            List<Conversion> replacing, Source from) implements HostOperation {
+    record MakeRelation(Kind kind, Name target, boolean replace, List<CatalogModel.Column> convert, Source from)
+            implements HostOperation {
         public MakeRelation {
-            replacing = List.copyOf(replacing);
+            convert = List.copyOf(convert);
         }
     }
 

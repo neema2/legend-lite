@@ -32,6 +32,35 @@ class HostOperationsTakeNoSqlTest {
                 + "\"SELECT 1\"}}]").getMessage());
     }
 
+    /** A relation's select list and a column's replacement were SQL a host handed in (the final audit's 1(d),
+     *  2026-11-12): each key refused by name, nothing written. */
+    @Test
+    void aSelectListOrAReplacementIsRefusedByName() {
+        for (String key : java.util.List.of("selectList", "replacing")) {
+            String value = key.equals("selectList") ? "\"*\"" : "[{\"column\":\"x\",\"sql\":\"CAST(x AS VARCHAR)\"}]";
+            assertEquals("a host operation takes no SQL, and " + key + " is SQL: a copy's conversions are written by the"
+                    + " platform from its columns' catalog (convert)", refused("[{\"op\":\"relation\",\"kind\":"
+                    + "\"table\",\"target\":{\"name\":\"t\"},\"" + key + "\":" + value + ",\"from\":{\"relation\":"
+                    + "{\"name\":\"u\"}}}]").getMessage(), key);
+        }
+    }
+
+    /** A copy names its source's catalog columns as the catalog answers them, and the platform writes their conversions
+     *  (the final audit's 1(d), 2026-11-12): a zoned timestamp and an unsigned 64-bit integer converted, a UUID copied
+     *  as it is. */
+    @Test
+    void aCopyNamesItsColumnsCatalog() {
+        String columns = "[{\"name\":\"id\",\"dataType\":\"BIGINT\",\"logicalType\":\"BIGINT\"},"
+                + "{\"name\":\"at\",\"dataType\":\"TIMESTAMP WITH TIME ZONE\",\"logicalType\":\"TIMESTAMP WITH TIME ZONE\"},"
+                + "{\"name\":\"big\",\"dataType\":\"UBIGINT\",\"logicalType\":\"UBIGINT\"},"
+                + "{\"name\":\"u\",\"dataType\":\"UUID\",\"logicalType\":\"UUID\"}]";
+        assertEquals("[[\"CREATE OR REPLACE TABLE \\\"copy\\\" AS SELECT * REPLACE (CAST(timezone('UTC', \\\"at\\\") AS"
+                + " TIMESTAMP) AS \\\"at\\\", CAST(\\\"big\\\" AS DECIMAL(20,0)) AS \\\"big\\\") FROM \\\"src\\\"\"]]",
+                planner.Boundary.hostOperations("DuckDB", "[{\"op\":\"relation\",\"kind\":\"table\",\"target\":"
+                        + "{\"name\":\"copy\"},\"replace\":true,\"convert\":" + columns + ",\"from\":{\"relation\":"
+                        + "{\"name\":\"src\"}}}]"));
+    }
+
     @Test
     void aSourceIsARelation() {
         assertEquals("a source is a relation", refused("[{\"op\":\"count\",\"from\":{\"table\":\"t\"}}]").getMessage());

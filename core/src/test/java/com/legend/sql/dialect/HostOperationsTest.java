@@ -178,21 +178,25 @@ class HostOperationsTest {
         var file = HostOperation.Name.of("pivot");
         // a host's own file: its ? bound by the host's runner, never its name or path written (B3, 2026-11-11)
         assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT * FROM read_csv(?, AUTO_DETECT=TRUE, HEADER=TRUE)",
-                one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true, null, List.of(),
+                one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true, List.of(),
                         new HostOperation.Source.HostFile(HostOperation.FileFormat.CSV))));
-        assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT \"a\", CAST(\"b\" AS VARCHAR) AS \"b\" FROM \"pivot\"",
-                one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true,
-                        "\"a\", CAST(\"b\" AS VARCHAR) AS \"b\"", List.of(), new HostOperation.Source.Relation(file))));
+        // a copy names its columns' catalog, and the platform writes their conversions (the final audit's 1(d),
+        // 2026-11-12: until then a host handed the select list in, as text)
+        assertEquals("CREATE OR REPLACE TABLE \"pivot\" AS SELECT * REPLACE (CAST(timezone('UTC', \"at\") AS TIMESTAMP) AS"
+                + " \"at\", CAST(\"big\" AS DECIMAL(20,0)) AS \"big\") FROM \"pivot\"",
+                one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, file, true, CatalogModelTest.catalog(
+                        "id BIGINT, \"at\" TIMESTAMP WITH TIME ZONE, big UBIGINT, u UUID"),
+                        new HostOperation.Source.Relation(file))));
         assertEquals("CREATE VIEW \"t\" AS SELECT * FROM \"__reg\"", one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW,
-                HostOperation.Name.of("t"), false, null, List.of(), new HostOperation.Source.Relation(HostOperation.Name.of("__reg")))));
+                HostOperation.Name.of("t"), false, List.of(), new HostOperation.Source.Relation(HostOperation.Name.of("__reg")))));
         assertEquals("CREATE OR REPLACE VIEW \"r\" AS SELECT * FROM iceberg_scan('s3://b/t')", one(new HostOperation.MakeRelation(
-                HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, null, List.of(),
+                HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, List.of(),
                 new HostOperation.Source.Remote(new HostOperation.Location.Url("s3://b/t"), HostOperation.RemoteFormat.ICEBERG))));
         // a bearer URL (B3's Q3): read through the session variable the host binds it to, the view's text holding none
         // the variable the dialect names for the value the host holds under "datacube_url_r": the hex of the name's bytes
         assertEquals("lite_url_6461746163756265" + "5f75726c5f72", HostOperation.variable("datacube_url_r"));
         assertEquals("CREATE OR REPLACE VIEW \"r\" AS SELECT * FROM read_parquet(getvariable('" + HostOperation.variable("datacube_url_r") + "'))",
-                one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, null, List.of(),
+                one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("r"), true, List.of(),
                         new HostOperation.Source.Remote(new HostOperation.Location.Variable("datacube_url_r"),
                                 HostOperation.RemoteFormat.PARQUET))));
         assertEquals("SET VARIABLE " + HostOperation.variable("datacube_url_r") + " = ?", one(new HostOperation.SetVariable("datacube_url_r")));
@@ -205,9 +209,9 @@ class HostOperationsTest {
         assertTrue(withUser.getMessage().contains("names a user") && !withUser.getMessage().contains("SENTINEL"),
                 withUser.getMessage());
         assertThrows(IllegalArgumentException.class, () -> new HostOperation.SetVariable("x = 1; DROP TABLE t"));
-        assertEquals("CREATE OR REPLACE TABLE \"db\".\"s\".\"t\" AS SELECT * REPLACE (CAST(x AS VARCHAR) AS \"x\") FROM \"u\"",
+        assertEquals("CREATE OR REPLACE TABLE \"db\".\"s\".\"t\" AS SELECT * REPLACE (CAST(\"x\" AS DECIMAL(20,0)) AS \"x\") FROM \"u\"",
                 one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, new HostOperation.Name("db", "s", "t", false), true,
-                        null, List.of(new HostOperation.Conversion("x", "CAST(x AS VARCHAR)")),
+                        CatalogModelTest.catalog("x UBIGINT"),
                         new HostOperation.Source.Relation(HostOperation.Name.of("u")))));
         assertEquals("INSERT INTO PARTY.PARTY (ID, NAME, \"order\") SELECT \"ID\", \"first name\", \"order\" FROM read_csv(?, header = true, all_varchar = true)",
                 one(new HostOperation.Insert(HostOperation.Name.declared("PARTY", "PARTY"),
@@ -243,23 +247,23 @@ class HostOperationsTest {
             var t = HostOperation.Name.of("people");
             // the file read as a host's planned load reads it: the statement's ? bound to its path
             try (java.sql.PreparedStatement read = c.prepareStatement(one(new HostOperation.MakeRelation(
-                    HostOperation.Kind.TABLE, t, true, null, List.of(), new HostOperation.Source.HostFile(
+                    HostOperation.Kind.TABLE, t, true, List.of(), new HostOperation.Source.HostFile(
                             HostOperation.FileFormat.CSV))))) {
                 read.setString(1, csv.toString());
                 read.execute();
             }
             for (HostOperation op : List.of(
-                    new HostOperation.MakeRelation(HostOperation.Kind.TABLE, t, true, null,
-                            List.of(new HostOperation.Conversion("first name", "upper(\"first name\")")),
+                    new HostOperation.MakeRelation(HostOperation.Kind.TABLE, t, true,
+                            CatalogModelTest.catalog("ID BIGINT, \"first name\" VARCHAR"),
                             new HostOperation.Source.Relation(t)),
                     new HostOperation.MakeSchema(null, "firm"),
                     new HostOperation.MakeRelation(HostOperation.Kind.VIEW, new HostOperation.Name(null, "firm", "v", false), false,
-                            null, List.of(), new HostOperation.Source.Relation(t)))) {
+                            List.of(), new HostOperation.Source.Relation(t)))) {
                 for (String sql : DUCK.statements(op)) {
                     st.execute(sql);
                 }
             }
-            assertEquals(List.of("ADA", "GRACE"), rows(st, "SELECT \"first name\" FROM people ORDER BY ID"));
+            assertEquals(List.of("Ada", "Grace"), rows(st, "SELECT \"first name\" FROM people ORDER BY ID"));
             assertEquals(List.of("2"), rows(st, one(new HostOperation.Count(new HostOperation.Source.Relation(t)))));
             assertEquals(List.of("2"), rows(st, one(new HostOperation.Count(new HostOperation.Source.Relation(
                     new HostOperation.Name(null, "firm", "v", false))))));
@@ -320,7 +324,7 @@ class HostOperationsTest {
                 set.setString(1, file.toString());
                 set.execute();
             }
-            st.execute(one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("t"), true, null,
+            st.execute(one(new HostOperation.MakeRelation(HostOperation.Kind.VIEW, HostOperation.Name.of("t"), true,
                     List.of(), new HostOperation.Source.Remote(new HostOperation.Location.Variable("datacube_url_t"),
                             HostOperation.RemoteFormat.CSV))));
             assertEquals(List.of("2"), rows(st, "SELECT count(*) FROM \"t\""));
@@ -343,6 +347,32 @@ class HostOperationsTest {
                 assertEquals(List.of("2"), rows(again, "SELECT count(*) FROM \"t\""), "a reset is its own connection's");
             }
         }
+    }
+
+    /** A copy names its source's catalog columns, and the platform writes the select list a host handed in until then
+     *  (the final audit's 1(d), 2026-11-12): from TIMESTAMPTZ, UBIGINT and UUID columns, exactly the list
+     *  {@code Boundary.tableModel} answered ({@code copySelectList}, from a convertible table's conversions), the UUID
+     *  and the BIGINT copied as they are; no column that converts, a plain star. */
+    @Test
+    void aCopysCatalogColumnsWriteTheSelectListTableModelAnswered() {
+        List<CatalogModel.Column> columns = CatalogModelTest.catalog(
+                "id BIGINT, \"at\" TIMESTAMP WITH TIME ZONE, big UBIGINT, u UUID");
+        List<CatalogModel.Conversion> today = CatalogModel.database("local::DB", null, "src", columns, new DuckDb(), true)
+                .conversions();
+        assertEquals(today, CatalogModel.copyConversions(columns, new DuckDb()));
+        assertEquals("CREATE OR REPLACE TABLE \"copy\" AS SELECT * REPLACE (CAST(timezone('UTC', \"at\") AS TIMESTAMP)"
+                + " AS \"at\", CAST(\"big\" AS DECIMAL(20,0)) AS \"big\") FROM \"src\"",
+                one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, HostOperation.Name.of("copy"), true, columns,
+                        new HostOperation.Source.Relation(HostOperation.Name.of("src")))));
+        assertEquals("CREATE OR REPLACE TABLE \"copy\" AS SELECT " + new DuckDb().copySelectList(today) + " FROM \"src\"",
+                one(new HostOperation.MakeRelation(HostOperation.Kind.TABLE, HostOperation.Name.of("copy"), true, columns,
+                        new HostOperation.Source.Relation(HostOperation.Name.of("src")))));
+        assertEquals("CREATE TABLE \"copy\" AS SELECT * FROM \"src\"", one(new HostOperation.MakeRelation(
+                HostOperation.Kind.TABLE, HostOperation.Name.of("copy"), false, CatalogModelTest.catalog("id BIGINT, u UUID"),
+                new HostOperation.Source.Relation(HostOperation.Name.of("src")))));
+        IllegalArgumentException twice = assertThrows(IllegalArgumentException.class, () -> CatalogModel.copyConversions(
+                List.of(columns.get(0), columns.get(0)), new DuckDb()));
+        assertEquals("a copy's columns name 'id' twice", twice.getMessage());
     }
 
     /** Postgres writes no host operation (the final audit, 2026-11-12: its one, a planner's query counted, went with
