@@ -720,6 +720,35 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   by name under S192, the read-only reload ("agree"); per-table state tracking at planning (a full replacement ends the
   swap, a partial write refused) goes to the later list as a follow-up to think about (§10).
 
+### 5.11 The landing order and the demo (2026-11-12)
+
+- **Two PRs, not one** (the user: "Yes let's wrap B then push PR, then we do C with C3, then update PR and merge"; "Yes
+  let's do it"): B is wrapped, the PR (`claude/total-wall` into `main`) opened; C1, C2 and C3 land on the branch, the PR
+  updated; then merged -- the user's final word asked at that moment, CI green on the final head. D, E and F follow as a
+  second PR. After C, plan and exec are provably separated: on the Java side by the architecture rules and the sent-text
+  test (the keyed region the one sanctioned expansion); on the hosts by C3.
+- **The demo goes through the platform** ("Demo has to go through platform"): its sample is made by the SIMPLE SYNTHESIZE
+  step ("Let's do the most simple thing that will work on duckdb for now - can extend later"; "Go ahead"): a table the
+  model declares filled by ONE planned DuckDB statement (`INSERT INTO <table> SELECT <a formula of the row number per
+  column> FROM range(N)`), an optional value list or range per column; no seed, keys, joins or constraints; other
+  databases refused by name; a lite-only feature (one scope row). The full design
+  (`docs/data-delivery-homework/SYNTHESIZE_DESIGN_2026_11_12.md` on `claude/total-wall-b2d3`) is the roadmap: classes (a
+  table named after the class, columns after its properties), seeds, keys, other databases. `DuckDbEngine.loadArrow`
+  goes with the demo's switch: no data enters any database outside a plan.
+- **Planned snapshots and frames, built** ("This is the right plan"): a snapshot from a remote plane is a planned load
+  whose source is the plane's statement streamed into the target in one transaction, kept only when the stream completed
+  and its count matches (no hash: TLS and the count suffice); a Python frame is named in the plan and attached by name at
+  each connection, read live (census M14-snap, M14-frames DELETED).
+- **CSV test data** (S302, "Def want windows files accepted"): values kept exactly as written; a CRLF line ending a line
+  break; everything else as upstream reads it.
+- **Open with the user:** views on legend-engine's test-data server routes (build, about a day, or refuse); inline
+  runtimes across the whole engine-compatible API (recommended: refused now, a later-list item; lite's own clients send
+  none).
+- **Residue, named** (B3.1, 2026-11-11): DuckDB-WASM answers a remote Parquet's cube "Overflow in timestamp subtraction"
+  when a mount's unbound statements run through the held connection's `query()` rather than the queue's `send()`;
+  `remote.ts` routes them through the queue and `//datacube:verify_remote_test` pins it. The cause inside DuckDB-WASM is
+  not traced.
+
 ## 6. What remains, in order
 
 | step | what | done means | read |
@@ -731,14 +760,18 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 | S5, S13 | the date-time arms (§4.4 item 3) | tests; newly refused PCT tests ledgered under S181 | §4.4 |
 | ✔ B | **checkpoint** (§7.4) | census pending 0; two audits with findings fixed; a lane round on every database; the timing; the PR question | |
 | C1 | the trace comment out of the sent text | `JdbcStatements.stamped` and kin deleted | `C_E_BRIEF` §C1 |
+| B (close) | the generator's B2d.3; the simple synthesize step (DuckDB, a declared table filled by one planned statement); the demo on it, `loadArrow` deleted | census: no data enters outside a plan; one audit of the new code; a lane check; the records | §5.11 |
+| PR | **the PR opened after B** (the user, 2026-11-12, §5.11) | `claude/total-wall` into `main` with the template; CI green on every OS | §1 |
+| C1 | the trace comment out of the sent text | `JdbcStatements.stamped` and kin deleted | `C_E_BRIEF` §C1 |
 | C2 | MariaDB's read-back declared by the plan | exec's SQL edits at run read 0 besides the keyed region | `C_E_BRIEF` §C2 |
-| ✔ C | **checkpoint** | | |
+| C3 | the hosts' separation proven structurally (the user, 2026-11-12): in TypeScript the statement type the engine accepts is made only by reading a plan; in Python the runner checks each statement it sends came from a plan | a host's hand-written SQL does not compile (TS) or is refused by name (Python); tests | §5.11 |
+| ✔ C | **checkpoint**, then the PR updated and MERGED (the user's final word asked at that moment, CI green on the final head) | | |
 | D1.0-D1.7, D2 | the edge, in this order: the spelling hook first; Raise/RaiseKind (after C2); the text nodes; lists, maps, format; the writers; the decorator; the compile messages; engine text, RawSqlBoundary, the referee and appeals; pure/v1's upstream routes to the edge; then D2's guard | no product SQL or MIR carries a compatibility spelling (D2's guard); PCT green through the hook; `D_BRIEF` §5's register rows | `D_BRIEF`, `COMPAT_IN_PRODUCT_INVENTORY`, `PRINT_FORM_PROBE` |
 | ✔ D | **checkpoint** (print forms checked on every database) | | |
 | E1, E2 | the eight E items | `C_E_BRIEF` §E's pins; register P3-R1 to R5 | `C_E_BRIEF` §E, `LEAN_PRODUCT_P3` §12 |
 | ✔ E | **checkpoint** | | |
 | F1 | one full run: every database, `//gates:local`, both corpora, both stress suites, H2's PCT, unprivileged Postgres | every break fixed | §8 |
-| F2 | ONE PR into `main` | opened with the template; CI green on all OSes; **never merged by a session** | §1 |
+| F2 | the SECOND PR into `main` (D, E, F after B and C landed by the first, §5.11) | opened with the template; CI green on all OSes; **never merged by a session** without the user's word at that moment | §1 |
 
 E1's items 1, 2 and 4 come after D1.
 
