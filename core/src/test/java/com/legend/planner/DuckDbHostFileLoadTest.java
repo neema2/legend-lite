@@ -68,10 +68,14 @@ class DuckDbHostFileLoadTest {
         String written = "\"transaction\":{\"begin\":[\"BEGIN TRANSACTION\"],\"commit\":[\"COMMIT\"],"
                 + "\"rollback\":[\"ROLLBACK\"]}";
         assertTrue(json.contains(written), json);
-        assertNull(Targets.of(new ExecutionPlan.Database.Platform(DatabaseType.H2, null),
-                new com.legend.sql.dialect.H2()).transaction());
-        assertNull(Targets.of(new ExecutionPlan.Database.Platform(DatabaseType.Postgres, null),
-                new com.legend.sql.dialect.Postgres()).transaction());
+        // every other database lite runs on carries none: no host runs a plan there (each named by the enumeration,
+        // never by this DuckDB owner: DialectOwnerExclusivityTest, the merge of 2026-11-12)
+        for (var other : com.legend.database.Databases.implemented()) {
+            if (other != com.legend.model.ConnectionDefinition.DatabaseType.DuckDB) {
+                assertNull(Targets.of(new ExecutionPlan.Database.Platform(ConnectionPlans.type(other), null),
+                        com.legend.database.Databases.dialect(other)).transaction(), other.name());
+            }
+        }
         var unknown = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(json.replace(written,
                 written.substring(0, written.length() - 1) + ",\"savepoint\":[]}")));
         assertEquals("a target's transaction has no key savepoint", unknown.getMessage());
