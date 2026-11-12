@@ -34,7 +34,7 @@ import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
+import type { RemoteMountRequest, SnapStreamRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
@@ -677,6 +677,14 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    */
   async remoteMount(request: RemoteMountRequest): Promise<string> {
     return decode(await this.#call({ kind: 'remoteMount', request: JSON.stringify(request) }), `the mount of ${request.view ?? 'a remote file'}`);
+  }
+
+  /**
+   * A snapshot from a remote plane, as a plan (Boundary.snapStream, the user's ruling of 2026-11-11): one HOST_SESSION
+   * load whose stream step the hosts' runner runs in one transaction -- PlanJson's text, the plane by name, never a row.
+   */
+  async snapStream(request: SnapStreamRequest): Promise<string> {
+    return decode(await this.#call({ kind: 'snapStream', request: JSON.stringify(request) }), `the snap into ${request.table}`);
   }
 
   /**

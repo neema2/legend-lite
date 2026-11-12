@@ -126,6 +126,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.remoteMount(request));
     }
 
+    /** {@link Boundary#snapStream}: a snapshot from a remote plane, as a plan (the user's ruling of 2026-11-11). */
+    @JSExport
+    public static String snapStreamOrError(String request) {
+        return Folded.of(() -> Boundary.snapStream(request));
+    }
+
     /** {@link Boundary#databaseFromCatalog}. */
     @JSExport
     public static String databaseFromCatalogOrError(String catalogJson) {

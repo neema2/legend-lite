@@ -322,6 +322,23 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                             }
                         }
                     }
+                    case LoadStep.Stream s -> {
+                        // the plane by its name, the statement and the table: never a row
+                        field(field(field(field(sb.append('R'), s.plane()), s.sql()),
+                                s.schema() == null ? "" : s.schema()), s.table()).append(s.prepare().size()).append(':');
+                        for (String statement : s.prepare()) {
+                            field(sb, statement);
+                        }
+                        field(sb, s.count());
+                        for (List<String> part : List.of(s.transaction().begin(), s.transaction().commit(),
+                                s.transaction().rollback())) {
+                            sb.append(part.size()).append(':');
+                            for (String statement : part) {
+                                field(sb, statement);
+                            }
+                        }
+                    }
+                    case LoadStep.Attach a -> field(field(field(sb.append('A'), a.held()), a.as()), a.reach().name());
                 }
             }
             return sb.toString();
@@ -353,9 +370,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             content = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(content));
             java.util.Set<String> named = new java.util.TreeSet<>();
             for (LoadStep step : steps) {
-                if (step instanceof LoadStep.Bound && cadence != Cadence.HOST_SESSION) {
-                    throw new IllegalArgumentException("the load " + identity + " is " + cadence + ": a statement the"
-                            + " host binds from its store is a HOST_SESSION load's alone");
+                if ((step instanceof LoadStep.Bound || step instanceof LoadStep.Stream || step instanceof LoadStep.Attach)
+                        && cadence != Cadence.HOST_SESSION) {
+                    throw new IllegalArgumentException("the load " + identity + " is " + cadence + ": a step the host"
+                            + " runs from what it holds (a bound value, a remote plane's stream, an attached value) is a"
+                            + " HOST_SESSION load's alone");
                 }
                 if (step instanceof LoadStep.File f && f.ref().namespace() == DataRef.Namespace.CONTENT) {
                     named.add(f.ref().digest());
@@ -965,7 +984,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     /** One step of a load or of a target's setup: a statement, the model's data as a content blob of statements (A2,
      *  2026-11-10: until then rows the database's own bulk loader took), or a file by its reference
      *  (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
-    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Statements, LoadStep.File, LoadStep.Bound {
+    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Statements, LoadStep.File, LoadStep.Bound,
+            LoadStep.Stream, LoadStep.Attach {
 
         /** A statement, run as it is. */
         record Statement(String sql) implements LoadStep {
@@ -1063,6 +1083,75 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 }
                 if (binds.isEmpty()) {
                     throw new IllegalArgumentException("a bound statement binds a value: plan a statement: " + sql);
+                }
+            }
+        }
+
+        /**
+         * A REMOTE PLANE'S ANSWER STREAMED INTO A TABLE OF THIS DATABASE (the user's ruling, 2026-11-11, "This is the right
+         * plan": a snapshot from a remote plane is a planned load, nothing lost; the orchestrator's simplification of
+         * 2026-11-12: no hash): {@code plane}, the name the host holds a remote plane under (the warehouse a grid reads);
+         * {@code sql}, the statement that plane runs (the snap's source query, in its own database's SQL);
+         * {@code schema} (none: the database's own) and {@code table}, the table it lands in; {@code prepare}, the
+         * statements run before it in the same transaction (its schema made, the table there before dropped);
+         * {@code count}, the statement that counts the table's rows once they are in it (one row, one column
+         * {@code n}: the database counts them); {@code transaction}, the database's own statements that open, commit
+         * and roll back the transaction (the texts are the dialect's, as an effect script's bracket is: the runner
+         * writes none). Never a row: the host streams the plane's Arrow chunks into the table by its database's Arrow
+         * import, the first making it, in ONE transaction, and commits only when the stream completed (the plane's done
+         * step heard, every chunk it names read) and the table holds exactly the rows the plane counted for its
+         * answer; else it rolls back and nothing is left. A host's step alone ({@link Load.Cadence#HOST_SESSION}).
+         */
+        record Stream(String plane, String sql, @com.legend.base.Nullable String schema, String table,
+                List<String> prepare, String count, Transaction transaction) implements LoadStep {
+            public Stream {
+                Objects.requireNonNull(plane, "plane");
+                Objects.requireNonNull(sql, "sql");
+                Objects.requireNonNull(table, "table");
+                Objects.requireNonNull(count, "count");
+                Objects.requireNonNull(transaction, "transaction");
+                prepare = List.copyOf(prepare);
+                if (!plane.matches("[A-Za-z0-9_]+")) {
+                    throw new IllegalArgumentException("a remote plane is named by the name a host holds it under: "
+                            + plane);
+                }
+                if (sql.strip().isEmpty() || table.isEmpty() || count.strip().isEmpty()) {
+                    throw new IllegalArgumentException("a stream's load names its statement, its table and its count");
+                }
+            }
+
+            /** A database's transaction, as its own statements: each step's, in order (none where it needs none). */
+            public record Transaction(List<String> begin, List<String> commit, List<String> rollback) {
+                public Transaction {
+                    begin = List.copyOf(begin);
+                    commit = List.copyOf(commit);
+                    rollback = List.copyOf(rollback);
+                    if (begin.isEmpty() || commit.isEmpty() || rollback.isEmpty()) {
+                        throw new IllegalArgumentException("a stream lands in one transaction: its database opens,"
+                                + " commits and rolls one back");
+                    }
+                }
+            }
+        }
+
+        /**
+         * A VALUE THE HOST HOLDS, ATTACHED BY NAME (the user's ruling, 2026-11-11, "This is the right plan": a Python
+         * frame is named, never its bytes, and attached at run as a bearer URL's session variable is bound):
+         * {@code held}, the name the host holds the value under (a frame); {@code as}, the relation it is read as.
+         * {@code reach}: {@link ExecutionPlan.Reach#CONNECTION}, kept by the host and attached on every connection or
+         * cursor it opens to the database afterwards, so every query reads the value as it is then;
+         * {@link ExecutionPlan.Reach#DATABASE}, for the load alone (a value read once into a table by the next
+         * statement, let go when the load ends). A host that holds no value of that name refuses it by name. A host's
+         * step alone ({@link Load.Cadence#HOST_SESSION}).
+         */
+        record Attach(String held, String as, Reach reach) implements LoadStep {
+            public Attach {
+                Objects.requireNonNull(held, "held");
+                Objects.requireNonNull(as, "as");
+                Objects.requireNonNull(reach, "reach");
+                if (!held.matches("[A-Za-z0-9_]+") || !as.matches("[A-Za-z0-9_]+")) {
+                    throw new IllegalArgumentException("a held value is attached by its name as a plain relation's: "
+                            + held + " as " + as);
                 }
             }
         }

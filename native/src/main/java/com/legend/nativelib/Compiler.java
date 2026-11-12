@@ -217,6 +217,34 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A snapshot from a remote plane, as a plan ({@code Boundary.snapStream}, the user's ruling of 2026-11-11): the tab's
+     *  {@code snapStreamOrError}, Python's warehouse snap. */
+    @CEntryPoint(name = "lite_snap_stream")
+    static CCharPointer snapStream(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.snapStream(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A host's value read as a relation, as a plan ({@code Boundary.frameLoad}, the user's ruling of 2026-11-11):
+     *  Python's frames. */
+    @CEntryPoint(name = "lite_frame_load")
+    static CCharPointer frameLoad(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.frameLoad(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A Pure Database (model text) written from a table's catalog rows, as DataCube writes one for a file. */
     @CEntryPoint(name = "lite_database_from_catalog")
     static CCharPointer databaseFromCatalog(IsolateThread thread, CCharPointer catalogJson) {

@@ -196,6 +196,106 @@ public final class LoadPlanner {
         return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps.build(), target));
     }
 
+    /**
+     * A SNAPSHOT'S STREAM, as a host asks for its plan: {@code plane}, the name the host holds the remote plane under
+     * (the warehouse a grid reads live); {@code sql}, the statement that plane runs (the snap's source query, written by
+     * the planner for the plane's own database); {@code schema} (none: the database's own) and {@code table}, the table
+     * of the host's database it lands in, a name of the host's own (quoted, whatever it holds).
+     */
+    public record SnapStream(String plane, String sql, @com.legend.base.Nullable String schema, String table) {
+        public SnapStream {
+            java.util.Objects.requireNonNull(plane, "plane");
+            java.util.Objects.requireNonNull(sql, "sql");
+            java.util.Objects.requireNonNull(table, "table");
+        }
+    }
+
+    /**
+     * A SNAPSHOT FROM A REMOTE PLANE, as a plan (the user's ruling of 2026-11-11, "This is the right plan"; the
+     * orchestrator's simplification of 2026-11-12: no hash, the count and the done step guard a stream cut short): one
+     * {@link ExecutionPlan.Load.Cadence#HOST_SESSION} load whose one step streams the plane's answer into the table --
+     * its schema made and the table there before dropped first, the database counting what landed, all in one
+     * transaction the host commits only when the stream completed and the count is the plane's own. The plan names the
+     * plane, its statement and the table; never a row. Until then the tab's DuckDbEngine.loadArrow and Python's landing
+     * table took the rows outside any plan, with no transaction (census, the snapshot rows).
+     */
+    public static ExecutionPlan snapStream(com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.executionplan.DatabaseType type, SnapStream snap) {
+        com.legend.sql.dialect.HostOperations host = com.legend.sql.dialect.HostOperations.of(dialect);
+        com.legend.sql.dialect.HostOperation.Name table = new com.legend.sql.dialect.HostOperation.Name(null,
+                snap.schema(), snap.table(), false);
+        List<String> prepare = new java.util.ArrayList<>();
+        if (snap.schema() != null) {
+            prepare.addAll(host.statements(new com.legend.sql.dialect.HostOperation.MakeSchema(null, snap.schema())));
+        }
+        prepare.addAll(host.statements(new com.legend.sql.dialect.HostOperation.Drop(
+                com.legend.sql.dialect.HostOperation.Kind.TABLE, table)));
+        List<String> count = host.statements(new com.legend.sql.dialect.HostOperation.Count(
+                new com.legend.sql.dialect.HostOperation.Source.Relation(table)));
+        if (count.size() != 1) {
+            throw new IllegalStateException("a stream's table is counted by one statement, not " + count.size());
+        }
+        com.legend.setup.LoadSteps steps = com.legend.setup.LoadSteps.stream(snap.plane(), snap.sql(), snap.schema(),
+                snap.table(), prepare, count.get(0), transaction(host, com.legend.sql.dialect.HostOperation.Transaction.Step.BEGIN),
+                transaction(host, com.legend.sql.dialect.HostOperation.Transaction.Step.COMMIT),
+                transaction(host, com.legend.sql.dialect.HostOperation.Transaction.Step.ROLLBACK));
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps,
+                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null), dialect.sessionSetup(),
+                        List.of())));
+    }
+
+    private static List<String> transaction(com.legend.sql.dialect.HostOperations host,
+            com.legend.sql.dialect.HostOperation.Transaction.Step step) {
+        return host.statements(new com.legend.sql.dialect.HostOperation.Transaction(step));
+    }
+
+    /**
+     * A HOST'S VALUE READ AS A RELATION (a Python frame), as a host asks for its plan: {@code held}, the name the host
+     * holds the value under (the frame's); {@code as}, the relation it is attached as; {@code live}, read at each query
+     * (a view over the attached value, kept on every connection) or once (a table copied from it, let go); and the
+     * {@code schema} (none: the database's own) and {@code relation} it is read through.
+     */
+    public record FrameLoad(String held, String as, boolean live, @com.legend.base.Nullable String schema,
+            String relation) {
+        public FrameLoad {
+            java.util.Objects.requireNonNull(held, "held");
+            java.util.Objects.requireNonNull(as, "as");
+            java.util.Objects.requireNonNull(relation, "relation");
+        }
+    }
+
+    /**
+     * A HOST'S VALUE READ AS A RELATION, as a plan (the user's ruling of 2026-11-11, "This is the right plan": a Python
+     * frame is named, attached at run): one {@link ExecutionPlan.Load.Cadence#HOST_SESSION} load -- the value attached
+     * by name ({@link ExecutionPlan.Reach#CONNECTION} for a live frame, which the host keeps and attaches on every
+     * connection and cursor it opens, so every query reads the frame as it is then; {@link ExecutionPlan.Reach#DATABASE}
+     * for one read once, let go when the load ends), the relation there before dropped, and the view over it or the
+     * table copied from it. The plan names the value, never its bytes. Until then Python registered the frame's Arrow
+     * on the connection and on each read's cursor outside any plan (census, the frames row).
+     */
+    public static ExecutionPlan frameLoad(com.legend.sql.dialect.SqlDialect dialect,
+            com.legend.executionplan.DatabaseType type, FrameLoad frame) {
+        com.legend.sql.dialect.HostOperations host = com.legend.sql.dialect.HostOperations.of(dialect);
+        com.legend.sql.dialect.HostOperation.Kind kind = frame.live() ? com.legend.sql.dialect.HostOperation.Kind.VIEW
+                : com.legend.sql.dialect.HostOperation.Kind.TABLE;
+        com.legend.sql.dialect.HostOperation.Name target = new com.legend.sql.dialect.HostOperation.Name(null,
+                frame.schema(), frame.relation(), false);
+        com.legend.setup.LoadSteps.Builder steps = new com.legend.setup.LoadSteps.Builder();
+        steps.add(com.legend.setup.LoadSteps.attach(frame.held(), frame.as(),
+                frame.live() ? ExecutionPlan.Reach.CONNECTION : ExecutionPlan.Reach.DATABASE));
+        for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.Drop(kind, target))) {
+            steps.statement(sql);
+        }
+        for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.MakeRelation(kind, target, false,
+                null, List.of(), new com.legend.sql.dialect.HostOperation.Source.Relation(
+                        com.legend.sql.dialect.HostOperation.Name.of(frame.as()))))) {
+            steps.statement(sql);
+        }
+        return ExecutionPlan.writing(List.of(), load(ExecutionPlan.Load.Cadence.HOST_SESSION, steps.build(),
+                new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type, null), dialect.sessionSetup(),
+                        List.of())));
+    }
+
     /** Where a secret's keys apply: its address as a prefix of the URLs it is used for -- cut before a glob, an Iceberg
      *  table's metadata folder its table's (its data files lie beside it). */
     static String scope(String address) {

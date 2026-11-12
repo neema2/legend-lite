@@ -11,7 +11,7 @@ import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
-import type { RemoteMountRequest } from '../host-operations.ts';
+import type { RemoteMountRequest, SnapStreamRequest } from '../host-operations.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
 
@@ -261,5 +261,13 @@ export class WasmGrammar implements Grammar {
    */
   async remoteMount(request: RemoteMountRequest): Promise<string> {
     return unfold(await this.#port.ask({ kind: 'remoteMount', request: JSON.stringify(request) }));
+  }
+
+  /**
+   * A snapshot from a remote plane, as a plan (Boundary.snapStream, the user's ruling of 2026-11-11): one HOST_SESSION
+   * load whose stream step the hosts' runner runs in one transaction -- PlanJson's text, the plane by name, never a row.
+   */
+  async snapStream(request: SnapStreamRequest): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'snapStream', request: JSON.stringify(request) }));
   }
 }

@@ -131,7 +131,11 @@ public final class PlanJson {
      *  {@code digest}), the text in its statement's {@code content}, the bundle a load's is -- inline below
      *  {@link #INLINE_LIMIT_BYTES}, a blob beside the plan above, verified against its digest where the plan is read;
      *  and with it no plan carries a {@code release} and no load is {@code SOURCE} or {@code AT_RELEASE}: every payload
-     *  is bound or inline, so no session table is made or dropped. */
+     *  is bound or inline, so no session table is made or dropped. Still 48 (not on main), 2026-11-12, the user's ruling
+     *  of 2026-11-11 ("This is the right plan"): a HOST_SESSION load's step may be {@code stream} (a remote
+     *  {@code plane} by name, its {@code sql}, the {@code schema} and {@code table} it lands in, the {@code prepare}
+     *  statements before it, the {@code count} after it and its {@code transaction}'s statements) or {@code attach} (a {@code held} value by name, attached {@code as} a relation, its
+     *  {@code reach}). */
     public static final int VERSION = 48;
 
     private PlanJson() {
@@ -143,7 +147,7 @@ public final class PlanJson {
 
     enum OutputTag { fixed, perKey }
 
-    enum SetupTag { statement, statements, file, bound }
+    enum SetupTag { statement, statements, file, bound, stream, attach }
 
     enum BindTag { value, held }
 
@@ -840,6 +844,26 @@ public final class PlanJson {
                 }
                 o.put("binds", binds);
             }
+            case LoadStep.Stream s -> {
+                o.put("_type", SetupTag.stream.name());
+                o.put("plane", s.plane());
+                o.put("sql", s.sql());
+                o.put("schema", s.schema());
+                o.put("table", s.table());
+                o.put("prepare", s.prepare());
+                o.put("count", s.count());
+                Map<String, Object> transaction = new LinkedHashMap<>();
+                transaction.put("begin", s.transaction().begin());
+                transaction.put("commit", s.transaction().commit());
+                transaction.put("rollback", s.transaction().rollback());
+                o.put("transaction", transaction);
+            }
+            case LoadStep.Attach a -> {
+                o.put("_type", SetupTag.attach.name());
+                o.put("held", a.held());
+                o.put("as", a.as());
+                o.put("reach", a.reach().name());
+            }
         }
         return o;
     }
@@ -1243,6 +1267,23 @@ public final class PlanJson {
                     });
                 }
                 yield new LoadStep.Bound(o.getString("sql"), binds, ExecutionPlan.Reach.valueOf(o.getString("reach")));
+            }
+            case stream -> {
+                // exactly the writer's keys: a stream names its plane, never a row
+                only(o, "a remote plane's stream", "_type", "plane", "sql", "schema", "table", "prepare", "count",
+                        "transaction");
+                Json.Obj t = o.getObj("transaction");
+                only(t, "a stream's transaction", "begin", "commit", "rollback");
+                Json.Node schema = o.get("schema");
+                yield new LoadStep.Stream(o.getString("plane"), o.getString("sql"),
+                        schema instanceof Json.Str str ? str.value() : null, o.getString("table"),
+                        o.getStringArray("prepare"), o.getString("count"), new LoadStep.Stream.Transaction(
+                                t.getStringArray("begin"), t.getStringArray("commit"), t.getStringArray("rollback")));
+            }
+            case attach -> {
+                only(o, "an attached held value", "_type", "held", "as", "reach");
+                yield new LoadStep.Attach(o.getString("held"), o.getString("as"),
+                        ExecutionPlan.Reach.valueOf(o.getString("reach")));
             }
         };
     }

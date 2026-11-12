@@ -82,6 +82,11 @@ public final class CompatEdge implements Edge {
                 // a host's statement, bound from its own store (B3's Q3): a HOST_SESSION load's alone, never a seed's
                 case ExecutionPlan.LoadStep.Bound b -> throw new IllegalStateException("the referee's copy binds a"
                         + " statement from a host's store, which no seed holds: " + b.sql());
+                // a host's snapshot stream or attached value: HOST_SESSION steps, never a seed's
+                case ExecutionPlan.LoadStep.Stream s -> throw new IllegalStateException("the referee's copy streams the"
+                        + " remote plane " + s.plane() + ", which no seed holds");
+                case ExecutionPlan.LoadStep.Attach a -> throw new IllegalStateException("the referee's copy attaches"
+                        + " the host's value " + a.held() + ", which no seed holds");
             }
         }
     }

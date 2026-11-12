@@ -78,6 +78,24 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
         return of(steps);
     }
 
+    /**
+     * A REMOTE PLANE'S ANSWER STREAMED INTO A TABLE (the user's ruling of 2026-11-11, "This is the right plan": a
+     * snapshot from a remote plane is a planned load whose source is a stream): the plane by the name the host holds it
+     * under, the statement it runs, the table it lands in, and the database's own statements around it -- those before
+     * it ({@code prepare}), the count after it, and its transaction's. Never a row.
+     */
+    public static LoadSteps stream(String plane, String sql, @com.legend.base.Nullable String schema, String table,
+            List<String> prepare, String count, List<String> begin, List<String> commit, List<String> rollback) {
+        return of(List.of(new ExecutionPlan.LoadStep.Stream(plane, sql, schema, table, prepare, count,
+                new ExecutionPlan.LoadStep.Stream.Transaction(begin, commit, rollback))));
+    }
+
+    /** A value the host holds under {@code held} -- a Python frame -- attached as the relation {@code as}, kept for the
+     *  connection or for the load alone ({@code reach}): named, never its bytes (the user's ruling of 2026-11-11). */
+    public static LoadSteps attach(String held, String as, ExecutionPlan.Reach reach) {
+        return of(List.of(new ExecutionPlan.LoadStep.Attach(held, as, reach)));
+    }
+
     /** A value of the plan's own, bound to a host's statement: never a credential (a secret's scope). */
     public static ExecutionPlan.LoadStep.Bind value(String text) {
         return new ExecutionPlan.LoadStep.Bind.Value(text);

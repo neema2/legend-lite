@@ -44,6 +44,8 @@ class DuckDbRemoteMountTest {
             case LoadStep.Bound b -> b.sql();
             case LoadStep.Statements st -> throw new AssertionError("a mount reads no statements blob");
             case LoadStep.File f -> throw new AssertionError("a mount reads no file");
+            case LoadStep.Stream r -> throw new AssertionError("a mount streams no remote plane");
+            case LoadStep.Attach a -> throw new AssertionError("a mount attaches no host's value");
         }).toList();
     }
 

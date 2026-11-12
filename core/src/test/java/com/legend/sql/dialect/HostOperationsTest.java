@@ -100,6 +100,10 @@ class HostOperationsTest {
                             throw new AssertionError("a project's Data is statements: " + file);
                     case com.legend.executionplan.ExecutionPlan.LoadStep.Bound bound ->
                             throw new AssertionError("a project's Data binds nothing from a host: " + bound);
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Stream stream ->
+                            throw new AssertionError("a project's Data streams no remote plane: " + stream);
+                    case com.legend.executionplan.ExecutionPlan.LoadStep.Attach attach ->
+                            throw new AssertionError("a project's Data attaches no host's value: " + attach);
                 }
             }
             assertEquals(List.of("1 Ada", "2 Grace"), rows(st, "SELECT id || ' ' || name FROM firm.Person ORDER BY id"));

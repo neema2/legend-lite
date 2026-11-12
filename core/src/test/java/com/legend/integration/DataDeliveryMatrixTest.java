@@ -852,6 +852,10 @@ class DataDeliveryMatrixTest {
                                         throw new IllegalStateException("a seed's copy reads no file: " + f.ref());
                                 case com.legend.executionplan.ExecutionPlan.LoadStep.Bound b ->
                                         throw new IllegalStateException("a seed's copy binds nothing from a host: " + b.sql());
+                                case com.legend.executionplan.ExecutionPlan.LoadStep.Stream r ->
+                                        throw new IllegalStateException("a seed's copy streams no remote plane");
+                                case com.legend.executionplan.ExecutionPlan.LoadStep.Attach a ->
+                                        throw new IllegalStateException("a seed's copy attaches no host's value");
                             }
                         }
                     }

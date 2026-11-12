@@ -327,6 +327,43 @@ public final class Boundary {
                         credentials)));
     }
 
+    /**
+     * A SNAPSHOT FROM A REMOTE PLANE, AS A PLAN (the user's ruling of 2026-11-11, "This is the right plan"):
+     * {@code request} is {@code {"databaseType", "plane", "sql", "schema"?, "table"}} -- the host's database's type, the
+     * name the host holds the remote plane under, the statement that plane runs (the snap's source query, as the planner
+     * wrote it for the plane's own database), and the table of the host's database it lands in. Any other key is refused
+     * by name, so no row can ride in one. The answer is the plan (PlanJson's): one HOST_SESSION load whose stream step
+     * the host's runner runs in one transaction ({@code LoadPlanner.snapStream}).
+     */
+    public static String snapStream(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a snapshot's stream", "databaseType", "plane", "sql", "schema", "table");
+        String databaseType = in.getString("databaseType");
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.snapStream(
+                dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                new com.legend.planner.LoadPlanner.SnapStream(in.getString("plane"), in.getString("sql"),
+                        in.getStringOr("schema", null), in.getString("table"))));
+    }
+
+    /**
+     * A HOST'S VALUE READ AS A RELATION, AS A PLAN (the user's ruling of 2026-11-11: a Python frame named, attached at
+     * run): {@code request} is {@code {"databaseType", "held", "as", "live", "schema"?, "relation"}} -- the name the host
+     * holds the value under, the relation it is attached as, whether it is read at each query (a view) or once (a
+     * table), and the relation it is read through. Any other key is refused by name, so no value can ride in one. The
+     * answer is the plan (PlanJson's): one HOST_SESSION load the host's runner runs ({@code LoadPlanner.frameLoad}).
+     */
+    public static String frameLoad(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a host value's load", "databaseType", "held", "as", "live", "schema", "relation");
+        String databaseType = in.getString("databaseType");
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.frameLoad(
+                dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                new com.legend.planner.LoadPlanner.FrameLoad(in.getString("held"), in.getString("as"),
+                        in.getBool("live"), in.getStringOr("schema", null), in.getString("relation"))));
+    }
+
     /** {@code o}'s keys among {@code keys}, any other refused by name ({@code what} names the object). */
     private static void only(com.legend.json.Json.Obj o, String what, String... keys) {
         java.util.Set<String> allowed = java.util.Set.of(keys);

@@ -699,6 +699,13 @@ public final class PlanRunner {
                 // never runs; exec holds no host's store
                 case ExecutionPlan.LoadStep.Bound b -> throw new IllegalStateException("the load " + seeds.identity()
                         + " binds a statement from a host's store, which exec holds none of: " + b.sql());
+                // a remote plane's stream and a held value attached by name (a host's snapshot, a Python frame: the
+                // user's ruling of 2026-11-11): HOST_SESSION steps, which exec never runs; exec holds no host's planes
+                // or values
+                case ExecutionPlan.LoadStep.Stream s -> throw new IllegalStateException("the load " + seeds.identity()
+                        + " streams the remote plane " + s.plane() + ", which exec holds none of");
+                case ExecutionPlan.LoadStep.Attach a -> throw new IllegalStateException("the load " + seeds.identity()
+                        + " attaches the host's value " + a.held() + ", which exec holds none of");
             }
         }
     }

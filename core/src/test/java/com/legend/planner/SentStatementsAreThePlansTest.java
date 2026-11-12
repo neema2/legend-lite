@@ -91,6 +91,10 @@ class SentStatementsAreThePlansTest {
                     case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("no file in these plans");
                     case ExecutionPlan.LoadStep.Bound b -> throw new IllegalStateException("no host's bound statement"
                             + " in these plans");
+                    case ExecutionPlan.LoadStep.Stream r -> throw new IllegalStateException("no host's stream in these"
+                            + " plans");
+                    case ExecutionPlan.LoadStep.Attach a -> throw new IllegalStateException("no host's attached value in"
+                            + " these plans");
                 }
             }
         }
