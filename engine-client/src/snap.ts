@@ -234,8 +234,11 @@ export class SnapManager implements Snaps {
     const engine = this.#remote ?? this.#localStore();
     const [count] = await this.#statements(engine.databaseType, [{ op: 'count', from: { query: sourceSql } }]);
     const r = await engine.run(count!, epoch, undefined, params);
-    const raw = r.columns[0]?.values[0] ?? 0;
-    const rowCount = typeof raw === 'number' ? raw : Number(raw);
+    const raw = r.rowCount === 1 ? r.columns[0]?.values[0] : undefined;
+    // the count is the database's one value: none, or one that is no count, is refused by name -- never read as nothing
+    // to copy (G7; the orchestrator's item 4, 2026-11-12: `?? 0` copied on as if the rows were none)
+    const rowCount = raw === null || raw === undefined ? Number.NaN : Number(raw);
+    if (!Number.isSafeInteger(rowCount) || rowCount < 0) throw new SnapRefusal(`the snap's count answered ${String(raw)}, not a count: nothing is copied`);
 
     if (rowCount > MAX_SNAP_ROWS) {
       return {
@@ -325,8 +328,14 @@ export class SnapManager implements Snaps {
     try {
       source = await options.target.landed();
     } catch (e) {
-      for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
-        await engine.run(sql, epoch).catch(() => {});
+      // the copy dropped with it; a drop that fails too is said with the failure, never swallowed (the orchestrator's
+      // item 4, 2026-11-12: the copy was left behind in silence)
+      try {
+        for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
+          await engine.run(sql, epoch);
+        }
+      } catch (d) {
+        throw new Error(`${e instanceof Error ? e.message : String(e)} -- and dropping the copy ${bare} failed: ${d instanceof Error ? d.message : String(d)}`, { cause: e });
       }
       throw e;
     }

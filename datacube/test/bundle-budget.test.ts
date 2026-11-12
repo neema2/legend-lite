@@ -1121,8 +1121,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  447,000 -> 448,000 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
  *  same date). Measured 447,348.
  *  448,000 -> 449,000 (2026-11-11, the tenets audit's M2 -- the engine page's note of the same date). Measured 448,290.
- *  449,000 -> 450,000 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 449,043. */
-const WIDGET_BUDGET = 450_000;
+ *  449,000 -> 450,000 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 449,043.
+ *  450,000 -> 450,500 (2026-11-12, the total wall's B3 items 1 and 4: the user's ruling that a snapshot's request carries
+ *  the pull, never SQL -- the cube asks its planner for the pull, LitePlanner.pullRequest, and a remote snap without one
+ *  is refused by name -- and the snap's count and its copy's drop refused or said by name, never defaulted or swallowed;
+ *  the re-audit's own growth was trimmed back under 450,000 first, c3191d097). Measured 450,200. */
+const WIDGET_BUDGET = 450_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
