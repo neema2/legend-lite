@@ -21456,3 +21456,22 @@ accepted rosters.
     pure/v1 execute route does. A runtime that does not declare a mapping that maps anything is refused by name; a
     mapping that maps nothing (a TDS query's `EmptyMapping`) needs none.
   - Invariant 7: the seed string's planned value is minted in the compiler layer (`GeneratorSplice.plannedValue`).
+
+## 2026-11-12 — B2d.3d: the seven `_Alloy` default-seed rows relabelled with their true reason (S143 narrowed)
+
+The rows are `testAlloyTestDatGenWithQuotedColumns`, `testAlloyTestDatGenWithViewAsDriver`, `alloy::testTableToTDSSimple`,
+`alloy::testTableToTdsWithAppliedFunctions`, `testViewRootWithDefaultSeed_Alloy`, `testViewWithGroupByChild_Alloy` and
+`testViewWithGroupByRoot_Alloy`. They were filed under S143, but none reaches the generator.
+- **Their shape:** each body is lets (the query's lambda, the mapping, the store, the runtime), then
+  `createTablesAndFillDb()`, then `mayExecuteAlloyTest(server, {| true})`. The default-seed call
+  (`alloyGenerateTestDataWithDefaultSeed{Interactive,SemiInteractive}`) and its `assertTestData` sit in the server leg.
+  That leg runs only against an Alloy server, so upstream's own CI passes these tests vacuously.
+- **Lite's refusal:** the body is refused by its class rule. An effect program admits no `let` of a query lambda
+  (measured with `//spec:consumption_probe`: `class(oneJudge)=null`, the `_s1_query` let), the same refusal as before.
+- **The relabel:** both accepted rosters relabel them `not-offered:alloy-shell-body-class`, witness `no class admits
+  the body`. Like the 15 of the 2026-11-07 entry above, their S143 label named a reason they never reached.
+
+The mislabelled refusal is gone: `generateTestData` with no identifiers for a starting table is upstream's error
+(B2d.3a, register S300). The planner's old text, "the default starting rows: B2d's next slice", went with it.
+
+S143 now names, of the generator, the server's routes alone (B2d.3e).

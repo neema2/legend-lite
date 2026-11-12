@@ -2,13 +2,13 @@ meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest ||| e
 meta::pure::tds::tests::extensions::testExtendDigest_Relational ||| engine-golden-defect:digest-joinStrings ||| 9e103ea06a6999b4c5a86cf25d68b083
 meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints ||| engine-golden-defect:isDistinct-in-checked-constraint(upstream-toFix) ||| FIRST DIFF at $ (root array as a multiset) expected 4 element(s), got 4; missing
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| by-design:read-only-reload(S192) ||| after the test-data generator's slice was reloaded
-meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumns ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithViewAsDriver ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testTableToTDSSimple ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithAppliedFunctions ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testViewRootWithDefaultSeed_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByChild_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
-meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByRoot_Alloy ||| not-offered:test-data-generator(S143) ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumns ||| not-offered:alloy-shell-body-class ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithViewAsDriver ||| not-offered:alloy-shell-body-class ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testTableToTDSSimple ||| not-offered:alloy-shell-body-class ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithAppliedFunctions ||| not-offered:alloy-shell-body-class ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testViewRootWithDefaultSeed_Alloy ||| not-offered:alloy-shell-body-class ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByChild_Alloy ||| not-offered:alloy-shell-body-class ||| no class admits the body
+meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByRoot_Alloy ||| not-offered:alloy-shell-body-class ||| no class admits the body
 meta::relational::testDataGeneration::tests::testConstant ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
 meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates ||| by-design:read-only-reload(S192) ||| after the test-data generator's slice was reloaded
 meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
