@@ -389,6 +389,141 @@ public final class Boundary {
     }
 
     /**
+     * A TABLE OUTPUT, AS ONE PLAN (the final audit's item 2, 2026-11-12, the user's ruling (b); B3's contract): a
+     * DataCube box's rows written into a table of the host's own database, made before it runs. {@code request} is
+     * {@code {"databaseType", "tables": [{"table", "convertible", "pkg"?, "columns"}], "output": {"name", "mode",
+     * "keys"?}, "rows", "target"?}} -- the box's tables of the host's database as their catalog answers them (read
+     * before the run), the output's table and how it is written ({@code create}, {@code overwrite}, {@code append},
+     * {@code deleteAppend}, {@code merge} by its keys), the box's rows (a lambda's protocol JSON, a text: one query of
+     * no parameter over the tables' model) and, where the table is there already (append, deleteAppend, merge), its
+     * catalog's columns. Any other key -- a statement ({@code sql}), a shape -- is refused by name. A created table's
+     * columns are the rows' relation type, each Pure type mapped by the database ({@code SqlDialect.createdColumn}).
+     * The answer is the plan (PlanJson's): one writing {@code Sequence} -- the table's DDL where the Output makes it,
+     * then the write the planner plans over one model of the tables and the target -- its answer the write's count
+     * ({@code com.legend.planner.OutputPlan}). Until then the host made the table from {@code rows LIMIT 0} as a host
+     * operation's query, read its catalog, and asked for the write's plan apart.
+     */
+    public static String outputPlan(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a table output", "databaseType", "tables", "output", "rows", "target");
+        String databaseType = in.getString("databaseType");
+        com.legend.json.Json.Obj output = in.getObj("output");
+        only(output, "a table output's output", "name", "mode", "keys");
+        String name = output.getString("name");
+        com.legend.planner.OutputPlan.Mode mode = com.legend.planner.OutputPlan.Mode.named(output.getString("mode"));
+        java.util.List<String> keys = output.has("keys") ? output.getStringArray("keys") : java.util.List.of();
+        if (mode == com.legend.planner.OutputPlan.Mode.MERGE && keys.isEmpty()) {
+            throw new IllegalArgumentException("a merge names its keys: the columns a row is matched by");
+        }
+        if (mode != com.legend.planner.OutputPlan.Mode.MERGE && output.has("keys")) {
+            throw new IllegalArgumentException("an output's keys are a merge's: " + mode.spelled() + " takes none");
+        }
+        java.util.List<com.legend.json.Json.Node> tables = in.getArr("tables").items();
+        if (tables.isEmpty()) {
+            throw new IllegalArgumentException("its rows are read from none of this page's database's tables: a table"
+                    + " output writes its own database");
+        }
+        for (com.legend.json.Json.Node t : tables) {
+            if (t instanceof com.legend.json.Json.Obj o && o.getString("table").equalsIgnoreCase(name)) {
+                throw new IllegalArgumentException("'" + name + "' is one of this page's own tables (a file's, a"
+                        + " copy's): name the output's table another way");
+            }
+        }
+        if (mode.makes() && in.has("target")) {
+            throw new IllegalArgumentException("a created table's columns are its rows' relation type: the request names"
+                    + " no target");
+        }
+        if (!mode.makes() && !in.has("target")) {
+            throw new IllegalArgumentException("this page's database has no table '" + name + "': write it with Create a"
+                    + " new table first");
+        }
+        com.legend.protocol.spec.LambdaFunction rows = com.legend.protocol.ProtocolReader.lambda(in.getString("rows"));
+        if (!rows.parameters().isEmpty() || rows.body().size() != 1) {
+            throw new IllegalArgumentException("an output's rows are one query of no parameter");
+        }
+        String rowsBody = com.legend.json.Json.toCompact(com.legend.json.Json.parseObject(in.getString("rows"))
+                .getArr("body").items().get(0));
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        java.util.List<Object> withTarget = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node t : tables) {
+            withTarget.add(com.legend.json.Json.parse(com.legend.json.Json.toCompact(t)));
+        }
+        java.util.List<Object> targetColumns = new java.util.ArrayList<>();
+        if (mode.makes()) {
+            // the rows typed over the box's tables alone: the created table's columns, as its catalog would answer them
+            String sources = tablesModel(com.legend.json.Json.parseObject(com.legend.json.Json.toCompact(
+                    java.util.Map.of("databaseType", databaseType, "tables", withTarget))));
+            for (com.legend.sql.dialect.CatalogModel.Column c : MODELS.withText(
+                    com.legend.json.Json.parseObject(sources).getString("model"), ctx ->
+                            com.legend.planner.OutputPlan.createdColumns(com.legend.Compiler.query(ctx, rows), dialect))) {
+                java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
+                col.put("name", c.name());
+                col.put("dataType", c.dataType());
+                if (c.logicalType() != null) {
+                    col.put("logicalType", c.logicalType());
+                }
+                if (c.precision() != null) {
+                    col.put("precision", c.precision());
+                    col.put("scale", c.scale());
+                }
+                targetColumns.add(col);
+            }
+        } else {
+            for (com.legend.json.Json.Node c : in.getArr("target").items()) {
+                targetColumns.add(com.legend.json.Json.parse(com.legend.json.Json.toCompact(c)));
+            }
+        }
+        java.util.Map<String, Object> target = new java.util.LinkedHashMap<>();
+        target.put("table", name);
+        target.put("convertible", false);
+        target.put("columns", targetColumns);
+        withTarget.add(target);
+        com.legend.json.Json.Obj model = com.legend.json.Json.parseObject(tablesModel(com.legend.json.Json.parseObject(
+                com.legend.json.Json.toCompact(java.util.Map.of("databaseType", databaseType, "tables", withTarget)))));
+        java.util.List<com.legend.json.Json.Node> modelled = model.getArr("tables").items();
+        String into = com.legend.json.Json.toCompact(((com.legend.json.Json.Obj) modelled.get(modelled.size() - 1))
+                .get("source"));
+        String program = outputProgram(rowsBody, into, mode, keys);
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(model.getString("model"), ctx ->
+                com.legend.planner.OutputPlan.plan(ctx, model.getString("runtime"), program, mode, "local::DB", name,
+                        dialect)));
+    }
+
+    /** The placeholders an output's program's template holds, each a string the template alone writes. */
+    private static final String OUTPUT_ROWS = "__lite_output_rows__";
+    private static final String OUTPUT_INTO = "__lite_output_into__";
+
+    /**
+     * The Pure program that writes {@code rows} into {@code into} (each a protocol node's JSON) as {@code mode} writes,
+     * as a lambda's protocol JSON -- {@code write}, {@code delete} then {@code write}, or {@code merge} by {@code keys}
+     * (as DataCube's table output wrote it) -- its statements the parser's own reading of the program's text, each
+     * placeholder replaced by the rows' or the target's node.
+     */
+    private static String outputProgram(String rows, String into, com.legend.planner.OutputPlan.Mode mode,
+            java.util.List<String> keys) {
+        String r = "'" + OUTPUT_ROWS + "'";
+        String t = "'" + OUTPUT_INTO + "'";
+        String text = switch (mode) {
+            case CREATE, OVERWRITE, APPEND -> "|" + r + "->write(" + t + ")";
+            case DELETE_APPEND -> "{|" + t + "->delete(r|true); " + r + "->write(" + t + ");}";
+            case MERGE -> "|" + r + "->merge(" + t + ", ~[" + String.join(", ", keys.stream()
+                    .map(k -> "'" + k.replace("\\", "\\\\").replace("'", "\\'") + "'").toList()) + "])";
+        };
+        String json = com.legend.parser.SpecParser.lambdaJson(text, false);
+        return placed(placed(json, OUTPUT_ROWS, rows), OUTPUT_INTO, into);
+    }
+
+    /** {@code json} with every string node holding {@code placeholder} replaced by {@code node}. */
+    private static String placed(String json, String placeholder, String node) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{[^{}]*\"value\"\\s*:\\s*\""
+                + placeholder + "\"[^{}]*\\}").matcher(json);
+        if (!m.find()) {
+            throw new IllegalStateException("an output's program holds no " + placeholder + ": " + json);
+        }
+        return m.replaceAll(java.util.regex.Matcher.quoteReplacement(node));
+    }
+
+    /**
      * A STATEMENT A PERSON WROTE, as a plan (the user's ruling of 2026-11-12: Studio's SQL playground goes through the
      * planner): {@code request} is {@code {"databaseType", "text"}}, the database the playground points at and the
      * person's one statement. The answer is the plan (PlanJson's): the text carried as written -- never parsed,

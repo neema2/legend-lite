@@ -247,6 +247,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A DataCube table Output as one plan ({@code Boundary.outputPlan}, the final audit's item 2, 2026-11-12): the tab's
+     *  {@code outputPlanOrError}, Python's headless flow -- the table made before the write, one transaction. */
+    @CEntryPoint(name = "lite_output_plan")
+    static CCharPointer outputPlan(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.outputPlan(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** Rows the database generates into a declared table, as a plan ({@code Boundary.synthesize}: SYNTHESIZE, the user's
      *  ruling of 2026-11-12): the tab's {@code synthesizeOrError}, a headless host's. */
     @CEntryPoint(name = "lite_synthesize")

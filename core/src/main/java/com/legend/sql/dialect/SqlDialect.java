@@ -434,6 +434,19 @@ public interface SqlDialect {
      *  copies run) under its column's name, every other column as it is; {@code *} when no column converts. Refused
      *  where this database cannot replace a column in a star select ({@link DuckDb#copySelectList} can: every host
      *  copies into its own DuckDB, the tab's or Python's). */
+    /**
+     * The column a table this database's host CREATES for rows holds a column of Pure type {@code pureType} in, as the
+     * database's catalog answers it (an Output's created table, the final audit's item 2, 2026-11-12, the user's ruling:
+     * its columns the rows' relation type, each Pure type mapped by its database, a widening of the database's own
+     * types accepted): {@code pureType} a Pure primitive's path, {@code precision} and {@code scale} a Decimal's.
+     * Refused by name where the database's hosts create no table, or no column type holds the Pure type as it is.
+     */
+    default CatalogModel.Column createdColumn(String name, String pureType, @com.legend.base.Nullable Integer precision,
+            @com.legend.base.Nullable Integer scale) {
+        throw new DialectCapability("a created table's column on " + getClass().getSimpleName() + ": every host creates"
+                + " its tables in its own DuckDB");
+    }
+
     default String copySelectList(java.util.List<CatalogModel.Conversion> conversions) {
         if (conversions.isEmpty()) {
             return "*";

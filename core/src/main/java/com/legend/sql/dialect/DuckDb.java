@@ -321,6 +321,37 @@ public final class DuckDb extends AnsiSqlRenderer {
         return true;
     }
 
+    /** {@inheritDoc} DuckDB's: an Integer a BIGINT, a Float a DOUBLE, a Decimal its own DECIMAL(p,s), a String a
+     *  VARCHAR, a Boolean a BOOLEAN, a StrictDate a DATE, a DateTime a TIMESTAMP, a Variant a JSON -- each as its catalog
+     *  answers it, so the table's model declares it as any of DuckDB's tables. A Decimal of no stated precision, an
+     *  abstract type (Number, Date) and any other refused by name. */
+    @Override
+    public CatalogModel.Column createdColumn(String name, String pureType, @com.legend.base.Nullable Integer precision,
+            @com.legend.base.Nullable Integer scale) {
+        String type = switch (pureType) {
+            case "Integer" -> "BIGINT";
+            case "Float" -> "DOUBLE";
+            case "String" -> "VARCHAR";
+            case "Boolean" -> "BOOLEAN";
+            case "StrictDate" -> "DATE";
+            case "DateTime" -> "TIMESTAMP";
+            case "Variant", "meta::pure::metamodel::variant::Variant" -> "JSON";
+            case "Decimal" -> {
+                if (precision == null || scale == null) {
+                    throw new DialectCapability("a created table's column '" + name + "' is a Decimal of no stated"
+                            + " precision and scale: no DECIMAL holds it as it is");
+                }
+                yield null;
+            }
+            default -> throw new DialectCapability("a created table's column '" + name + "' is typed " + pureType
+                    + ": no DuckDB column type holds it as it is");
+        };
+        return type == null
+                ? new CatalogModel.Column(name, "DECIMAL(" + precision + "," + scale + ")", "DECIMAL", precision, scale,
+                        false)
+                : new CatalogModel.Column(name, type, type, null, null, false);
+    }
+
     /** {@inheritDoc} DuckDB's star modifier, {@code * REPLACE (<conversion> AS "<column>", ...)}: an upload's
      *  rewrite, a Snap into the tab, a Python frame. */
     @Override
