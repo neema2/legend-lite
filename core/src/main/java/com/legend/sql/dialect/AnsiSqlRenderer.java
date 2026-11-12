@@ -198,8 +198,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return true;
     }
 
-    /** The query after this dialect's passes. */
-    private SqlQuery passed(SqlQuery query) {
+    /** The query after this dialect's passes (package-private for the cast-and-case census's test-side reader,
+     *  E-4, 2026-11-12: it counts the nodes this dialect's passes made too). */
+    SqlQuery passed(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
@@ -769,7 +770,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                             "Cannot cast a collection of"
                                             + " size 0 to multiplicity "
                                             + bound)))),
-                    co.list()), parentPrec);
+                    co.list(), SqlExpr.Reason.DIALECT), parentPrec);
         }
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
@@ -780,7 +781,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                         new SqlExpr.Cast(SqlExpr.Call.of(
                                         com.legend.sql.SqlFn.COALESCE, len,
                                         new SqlExpr.IntLit(0)),
-                                com.legend.sql.SqlType.Scalar.VARCHAR),
+                                com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT),
                         new SqlExpr.StringLit(" to multiplicity " + bound)));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
@@ -793,7 +794,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                                     .SqlFn.EQUAL, len,
                                             new SqlExpr.IntLit(0))),
                             sizeErr)),
-                    co.list()), parentPrec);
+                    co.list(), SqlExpr.Reason.DIALECT), parentPrec);
         }
         // exactly one: size != 1 raises (audit slice 3 — the old guard
         // tested only >1 and let the empty flow), 1 extracts
@@ -806,7 +807,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                         len, new SqlExpr.IntLit(1))),
                         sizeErr)),
                 SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
-                        co.list(), new SqlExpr.IntLit(1))), parentPrec);
+                        co.list(), new SqlExpr.IntLit(1)), SqlExpr.Reason.DIALECT), parentPrec);
     }
 
     /** PURE-COLLECTION carrier compaction (semantic node, audit §5
@@ -1883,7 +1884,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@code x} as the VARCHAR cast a dialect wrote for a Decimal's or a Number's text until the Lowerer marked it
      *  ({@code SqlFn.DECIMAL_TO_TEXT}, A6, the tenets audit's M-6): every dialect's spelling of it but H2's. */
     protected static SqlExpr varcharCast(SqlExpr x) {
-        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT);
     }
 
     /** A placeholder's declared cast: the SQL type's name, and how the value is bound as text (null: as it is). */
@@ -2195,7 +2196,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
                         true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true));
+                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true), SqlExpr.Reason.DIALECT);
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");

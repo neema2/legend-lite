@@ -42,11 +42,11 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
                     c.args().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(unqualify(c.value()),
-                    c.target(), c.conform());
+                    c.target(), c.reason());
             case SqlExpr.Case c -> new SqlExpr.Case(
                     c.whens().stream().map(w -> new SqlExpr.Case.When(
                             unqualify(w.condition()), unqualify(w.then()))).toList(),
-                    c.otherwise() == null ? null : unqualify(c.otherwise()));
+                    c.otherwise() == null ? null : unqualify(c.otherwise()), c.reason());
             case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
                     a.elements().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.StructGet g ->

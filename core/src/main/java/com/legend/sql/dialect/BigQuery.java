@@ -447,7 +447,7 @@ public class BigQuery extends AnsiSqlRenderer {
      *  casts to JSON and to text this dialect writes {@code TO_JSON_STRING(TO_JSON(key))}. */
     private static SqlExpr partitionKey(SqlExpr key) {
         return typeOf(key) == SqlType.Scalar.DOUBLE
-                ? new SqlExpr.Cast(new SqlExpr.Cast(key, SqlType.Scalar.JSON), SqlType.Scalar.VARCHAR) : key;
+                ? new SqlExpr.Cast(new SqlExpr.Cast(key, SqlType.Scalar.JSON, SqlExpr.Reason.DIALECT), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT) : key;
     }
 
     /** A mode where it is written: the value of its most counted row, the least value on a tie, NULLs ignored --
@@ -484,7 +484,7 @@ public class BigQuery extends AnsiSqlRenderer {
         for (int i = 0; i < s.projections().size(); i++) {
             SqlSelect.Projection p = s.projections().get(i);
             ps.add(nullValued(p.expr())
-                    ? new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), labels.get(i).type()), p.alias(),
+                    ? new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), labels.get(i).type(), SqlExpr.Reason.DIALECT), p.alias(),
                             p.out())
                     : p);
         }
@@ -932,7 +932,7 @@ public class BigQuery extends AnsiSqlRenderer {
             return super.caseExpr(writer, c);
         }
         java.util.function.Function<SqlExpr, SqlExpr> asText = b -> textual(b) || b instanceof SqlExpr.NullLit ? b
-                : new SqlExpr.Cast(b, SqlType.Scalar.VARCHAR);
+                : new SqlExpr.Cast(b, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT);
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
             writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").expr(asText.apply(w.then()), 0);
@@ -1078,7 +1078,7 @@ public class BigQuery extends AnsiSqlRenderer {
             if (typeOf(body) == null) {
                 throw new DialectCapability("a lambda of no known type over the empty list reached BigQuery");
             }
-            return new SqlExpr.Cast(new SqlExpr.NullLit(), java.util.Objects.requireNonNull(typeOf(body)));
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), java.util.Objects.requireNonNull(typeOf(body)), SqlExpr.Reason.DIALECT);
         }
         if (listElement(xs) == SqlType.Scalar.JSON) {
             body = substitute(body, l.params().get(0), SqlExpr.Column.of(null, l.params().get(0),
@@ -1938,7 +1938,7 @@ public class BigQuery extends AnsiSqlRenderer {
                 continue;
             }
             if (conversion == 's' && arg < args.size()) {
-                args.set(arg, new SqlExpr.Cast(args.get(arg), SqlType.Scalar.VARCHAR));
+                args.set(arg, new SqlExpr.Cast(args.get(arg), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT));
             }
             arg++;
         }

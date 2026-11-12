@@ -36,7 +36,7 @@ class SqlTypingTest {
                 t(new SqlExpr.FloatLit(2.5)));
         assertEquals(SqlTyping.typed(SqlType.Scalar.DATE),
                 t(new SqlExpr.Cast(new SqlExpr.StringLit("x"),
-                        SqlType.Scalar.DATE)));
+                        SqlType.Scalar.DATE, SqlExpr.Reason.USER)));
     }
 
     @Test
@@ -73,7 +73,7 @@ class SqlTypingTest {
         // a CASE whose every branch is the NULL value IS the NULL value
         assertEquals(SqlTyping.BOTTOM, t(new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(true),
-                        new SqlExpr.NullLit())), new SqlExpr.NullLit())));
+                        new SqlExpr.NullLit())), new SqlExpr.NullLit(), SqlExpr.Reason.USER)));
     }
 
     @Test
@@ -82,7 +82,7 @@ class SqlTypingTest {
         assertEquals(SqlTyping.typed(SqlType.Scalar.DOUBLE),
                 t(SqlExpr.Call.of(SqlFn.PLUS,
                         new SqlExpr.IntLit(1),
-                        new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE))));
+                        new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER))));
         // a BARE float literal is a DECIMAL (Rule 1): integer + DECIMAL(2,1)
         // is the probed DECIMAL(21,1), not a double
         assertEquals(SqlTyping.typed(new SqlType.Decimal(21, 1)),
@@ -103,13 +103,13 @@ class SqlTypingTest {
         // yields a value, so the family types from the value branch
         SqlExpr carried = new SqlExpr.Cast(
                 new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
-                new SqlType.Array(SqlType.Scalar.VARCHAR));
+                new SqlType.Array(SqlType.Scalar.VARCHAR), SqlExpr.Reason.USER);
         SqlExpr checked = new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(true),
                         SqlExpr.Call.of(SqlFn.ERROR,
                                 new SqlExpr.StringLit("index out of bounds")))),
                 SqlExpr.Call.of(SqlFn.LIST_GET, carried,
-                        new SqlExpr.IntLit(1)));
+                        new SqlExpr.IntLit(1)), SqlExpr.Reason.USER);
         // §E3: LIST_GET is nullable at the node (probed 1.5.0:
         // out-of-range list_extract -> NULL) and the branch family
         // carries it
@@ -120,7 +120,7 @@ class SqlTypingTest {
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(false),
                         SqlExpr.Call.of(SqlFn.ERROR,
                                 new SqlExpr.StringLit("boom")))),
-                new SqlExpr.NullLit())));
+                new SqlExpr.NullLit(), SqlExpr.Reason.USER)));
     }
 
     @Test
@@ -179,8 +179,8 @@ class SqlTypingTest {
         assertEquals(true, nul(SqlExpr.Call.of(SqlFn.LENGTH,
                 new SqlExpr.Column("t", "u"))));
         // Cast TRANSPORTS presence, both directions
-        assertEquals(true, nul(new SqlExpr.Cast(n, SqlType.Scalar.DOUBLE)));
-        assertEquals(false, nul(new SqlExpr.Cast(r, SqlType.Scalar.DOUBLE)));
+        assertEquals(true, nul(new SqlExpr.Cast(n, SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER)));
+        assertEquals(false, nul(new SqlExpr.Cast(r, SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER)));
         // literals are definite values
         assertEquals(false, nul(new SqlExpr.StringLit("a")));
     }
@@ -220,10 +220,10 @@ class SqlTypingTest {
         // branches is not
         assertEquals(true, nul(new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(true), r)),
-                null)));
+                null, SqlExpr.Reason.USER)));
         assertEquals(false, nul(new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(true), r)),
-                r)));
+                r, SqlExpr.Reason.USER)));
         // membership: NULL needle -> NULL, NULL collection -> NULL
         // (the node's probed truth table)
         assertEquals(true, nul(new SqlExpr.Membership(n, arr)));

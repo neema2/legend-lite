@@ -82,7 +82,7 @@ final class CastPolicy {
                 if (value instanceof SqlExpr.ArrayLit lit) {
                     return new SqlExpr.ArrayLit(lit.elements().stream()
                             .map(e -> (SqlExpr) new SqlExpr.Cast(
-                                    e, PureSql.type(c.target())))
+                                    e, PureSql.type(c.target()), SqlExpr.Reason.USER))
                             .toList());
                 }
                 return isMany
@@ -90,15 +90,15 @@ final class CastPolicy {
                                 new SqlExpr.Lambda(List.of("x"),
                                         new SqlExpr.Cast(
                                                 SqlExpr.Column.derived(null, "x"),
-                                                PureSql.type(c.target()))))
-                        : new SqlExpr.Cast(value, PureSql.type(c.target()));
+                                                PureSql.type(c.target()), SqlExpr.Reason.USER)))
+                        : new SqlExpr.Cast(value, PureSql.type(c.target()), SqlExpr.Reason.USER);
             }
             // the []-born Nil cast to a Variant is the TYPED null: the cast is what types the empty (as the
             // typer reads it, Variant[0..0]), and Postgres's jsonb operators refuse an untyped NULL (2026-10-17,
             // the Cypher island's arm of a class lacking a property typed two ways, the study's §12.62)
             if ((value instanceof SqlExpr.NullLit || src instanceof Type.ClassType sn && PlatformTypes.isNil(sn))
                     && c.target() instanceof Type.ClassType tv && PlatformTypes.isVariant(tv)) {
-                return new SqlExpr.Cast(value, SqlType.Scalar.JSON);
+                return new SqlExpr.Cast(value, SqlType.Scalar.JSON, SqlExpr.Reason.USER);
             }
             return value;
         }
@@ -123,7 +123,7 @@ final class CastPolicy {
                     // 'null' vs toVariant([]) = '[]'); the list CONSUMERS
                     // (contains/isEmpty/joinStrings) are null-safe instead.
                     : new SqlExpr.Cast(value,
-                            new SqlType.Array(PureSql.type(c.target())));
+                            new SqlType.Array(PureSql.type(c.target())), SqlExpr.Reason.USER);
         }
         if (c.target() instanceof Type.ClassType tc
                 && !PlatformTypes.isVariant(tc)
@@ -152,7 +152,7 @@ final class CastPolicy {
             return new SqlExpr.Cast(
                     SqlExpr.Call.of(SqlFn.VARIANT_GET, value,
                             new SqlExpr.StringLit("$")),
-                    PureSql.type(c.target()));
+                    PureSql.type(c.target()), SqlExpr.Reason.USER);
         }
         // The dialect may render this cast through its text-extraction idiom
         // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
@@ -162,9 +162,9 @@ final class CastPolicy {
         if ((c.target() == Type.Primitive.DECIMAL)
                 && c.source().info().type() == Type.Primitive.INTEGER) {
             return new SqlExpr.Cast(value,
-                    new com.legend.sql.SqlType.Decimal(38, 0));
+                    new com.legend.sql.SqlType.Decimal(38, 0), SqlExpr.Reason.USER);
         }
-        return new SqlExpr.Cast(value, PureSql.type(c.target()));
+        return new SqlExpr.Cast(value, PureSql.type(c.target()), SqlExpr.Reason.USER);
     }
 
     static SqlExpr castByPolicy(SqlExpr e, Type src, Type target) {
@@ -182,7 +182,7 @@ final class CastPolicy {
         if (isSqlPrimitive(target) && isSqlPrimitive(src)
                 && !isWidening(src, target)
                 && !PureSql.type(src).equals(PureSql.type(target))) {
-            return new SqlExpr.Cast(e, PureSql.type(target));
+            return new SqlExpr.Cast(e, PureSql.type(target), SqlExpr.Reason.USER);
         }
         return e;
     }

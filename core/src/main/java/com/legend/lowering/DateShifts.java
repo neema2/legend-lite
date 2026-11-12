@@ -59,7 +59,7 @@ final class DateShifts {
                 List.of(diff, new SqlExpr.IntLit(0)));
         SqlExpr shifted = new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 new SqlExpr.Call(SqlFn.MINUS,
-                        List.of(diff, new SqlExpr.IntLit(7))))), diff);
+                        List.of(diff, new SqlExpr.IntLit(7))))), diff, SqlExpr.Reason.OPERATOR);
         return new SqlExpr.Call(SqlFn.ADD_INTERVAL_TEMPORAL, List.of(
                 new SqlExpr.DatePartLit(DatePart.DAY), shifted, anchor));
     }
@@ -96,7 +96,7 @@ final class DateShifts {
                                 new SqlExpr.IntLit(1)),
                         SqlExpr.Call.of(SqlFn.LIST_GET, args.get(0),
                                 new SqlExpr.IntLit(1)))),
-                args.size() == 2 ? args.get(1) : new SqlExpr.NullLit());
+                args.size() == 2 ? args.get(1) : new SqlExpr.NullLit(), SqlExpr.Reason.OPERATOR);
     }
 
 
@@ -177,7 +177,7 @@ final class DateShifts {
                             : new SqlExpr.Cast(
                                     SqlExpr.Call.of(SqlFn.STRFTIME, added,
                                             new SqlExpr.FormatLit(fmt)),
-                                    SqlType.Scalar.TEMPORAL_TEXT);
+                                    SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.OPERATOR);
                 }
                 // A source written with MORE subsecond digits than the
                 // TIMESTAMP carrier holds (6): the result keeps the WRITTEN
@@ -194,7 +194,7 @@ final class DateShifts {
                             SqlExpr.Call.of(SqlFn.STRFTIME, added,
                                     new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
                             new SqlExpr.StringLit(sub.subsecond().substring(6))),
-                            SqlType.Scalar.TEMPORAL_TEXT);
+                            SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.OPERATOR);
                 }
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
                 // adjusted by a DAY-or-coarser unit stays a StrictDate.
@@ -205,7 +205,7 @@ final class DateShifts {
                     default -> false;
                 };
                 return strictIn && coarse
-                        ? new SqlExpr.Cast(added, SqlType.Scalar.DATE)
+                        ? new SqlExpr.Cast(added, SqlType.Scalar.DATE, SqlExpr.Reason.OPERATOR)
                         : added;
             });
         }

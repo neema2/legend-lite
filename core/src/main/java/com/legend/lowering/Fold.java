@@ -1492,7 +1492,7 @@ final class Fold {
                     SqlExpr.Call.of(SqlFn.STRFTIME, e,
                             new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE))));
         }
-        return new SqlExpr.Case(arms, iso);
+        return new SqlExpr.Case(arms, iso, SqlExpr.Reason.OPERATOR);
     }
 
 
@@ -1525,7 +1525,7 @@ final class Fold {
         // decimal kind by the database prints 52.0, never 52)
         SqlExpr cell = t == com.legend.compiler.element.type.Type.Primitive.FLOAT
                 ? LiteralSpelling.declaredDouble(v) : v;
-        return new SqlExpr.Cast(cell, com.legend.sql.SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Cast(cell, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR);
     }
 
     /** The whole-row {@code distinct()} directly under a restrict (not the

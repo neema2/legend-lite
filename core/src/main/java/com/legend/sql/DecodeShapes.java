@@ -167,12 +167,12 @@ public final class DecodeShapes {
                 SqlExpr ow = cs.otherwise() == null ? null
                         : stripDecodes(cs.otherwise());
                 ch |= ow != cs.otherwise();
-                return ch ? new SqlExpr.Case(ws, ow) : e;
+                return ch ? new SqlExpr.Case(ws, ow, cs.reason()) : e;
             }
             case SqlExpr.Cast ct -> {
                 SqlExpr v = stripDecodes(ct.value());
                 return v != ct.value()
-                        ? new SqlExpr.Cast(v, ct.target(), ct.conform()) : e;
+                        ? new SqlExpr.Cast(v, ct.target(), ct.reason()) : e;
             }
             case SqlExpr.Group g -> {
                 SqlExpr i = stripDecodes(g.inner());

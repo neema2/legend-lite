@@ -579,6 +579,8 @@ legend_java_library(
             "src/test/java/com/legend/exec/DataSourceServersTest.java",
             # the product-SQL size baseline is :lean_sql_baseline_test's alone (E3, 2026-11-12): 110 s of planning
             "src/test/java/com/legend/leansql/*.java",
+            # the census's reader of a dialect's tree is :lean_sql_baseline_lib's (E-4, 2026-11-12)
+            "src/test/java/com/legend/sql/dialect/PassedTrees.java",
             # the keyed expansion's one fixture is :keyed_expansion_conformance_test's alone: it reads the fixture
             # (the C final audit's H8, 2026-11-12)
             "src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java",
@@ -1929,11 +1931,17 @@ legend_java_library(
     testonly = True,
     # the corpus's set measures with its rule (//spec:lean_sql_corpus_*)
     visibility = ["//spec:__pkg__"],
-    srcs = ["src/test/java/com/legend/leansql/LeanSqlBaseline.java"],
+    srcs = [
+        "src/test/java/com/legend/leansql/CastCaseCensus.java",
+        "src/test/java/com/legend/leansql/LeanSqlBaseline.java",
+        # the census's reader of a dialect's tree after its passes (E-4, 2026-11-12)
+        "src/test/java/com/legend/sql/dialect/PassedTrees.java",
+    ],
     deps = [
         ":core",
         ":test_backends",
         "//json",
+        "//testing",
     ],
 )
 
@@ -2003,6 +2011,44 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# the cast-and-case census (E-4, the user's rule ruled 2026-11-12): every CAST and CASE in channel A's SQL counted by
+# the reason its node names, per database, pinned shrink-only
+junit_test(
+    name = "cast_case_census_test",
+    memory_mb = 3072,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/leansql/CastCaseCensusTest.java"],
+    data = [
+        "src/test/resources/lean-sql/cast-case-census.tsv",
+        "src/test/resources/lean-sql/channel_a.jsonl",
+    ],
+    jvm_flags = [
+        "-Dlegend.lean_sql.cast_case_census=$(rlocationpath src/test/resources/lean-sql/cast-case-census.tsv)",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+    ],
+    select = ["--select-class=com.legend.leansql.CastCaseCensusTest"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+legend_java_binary(
+    name = "update_cast_case_census",
+    testonly = True,
+    data = ["src/test/resources/lean-sql/channel_a.jsonl"],
+    jvm_flags = [
+        "-Xmx3g",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+    ],
+    main_class = "com.legend.leansql.CastCaseCensus",
+    tags = ["manual"],
+    runtime_deps = [":lean_sql_baseline_lib"],
 )
 
 legend_java_binary(

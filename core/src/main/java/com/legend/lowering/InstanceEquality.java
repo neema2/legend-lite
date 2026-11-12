@@ -165,8 +165,8 @@ final class InstanceEquality {
             return null;
         }
         return SqlExpr.Call.of(SqlFn.EQUAL,
-                new SqlExpr.Cast(ca, SqlType.Scalar.VARCHAR),
-                new SqlExpr.Cast(cb, SqlType.Scalar.VARCHAR));
+                new SqlExpr.Cast(ca, SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR),
+                new SqlExpr.Cast(cb, SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR));
     }
 
     private static @com.legend.base.Nullable SqlExpr contains(TypedNativeCall n,
@@ -207,10 +207,10 @@ final class InstanceEquality {
         SqlExpr collE = PureSql.asList(scalar.apply(coll), isMany(coll));
         SqlExpr mapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, collE,
                 new SqlExpr.Lambda(List.of(elemVar),
-                        new SqlExpr.Cast(elemCanon, SqlType.Scalar.VARCHAR)));
+                        new SqlExpr.Cast(elemCanon, SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR)));
         return SqlExpr.Call.of(SqlFn.COALESCE,
                 new SqlExpr.Membership(
-                        new SqlExpr.Cast(needleCanon, SqlType.Scalar.VARCHAR),
+                        new SqlExpr.Cast(needleCanon, SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR),
                         mapped),
                 new SqlExpr.BoolLit(false));
     }
@@ -233,7 +233,7 @@ final class InstanceEquality {
                 throw new com.legend.error.NotImplementedException(operation + " over " + cf
                         + ": its key has no canonical form here");
             }
-            return new SqlExpr.Cast(canon, SqlType.Scalar.VARCHAR);
+            return new SqlExpr.Cast(canon, SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR);
         };
     }
 
@@ -336,7 +336,7 @@ final class InstanceEquality {
         if (lv == null || rv == null || !lf.equals(rf)) {
             return null;
         }
-        SqlExpr empty = new SqlExpr.Cast(CanonicalRenderSql.emptyArray(), new SqlType.Array(SqlType.Scalar.VARCHAR));
+        SqlExpr empty = new SqlExpr.Cast(CanonicalRenderSql.emptyArray(), new SqlType.Array(SqlType.Scalar.VARCHAR), SqlExpr.Reason.OPERATOR);
         return SqlExpr.Call.of(SqlFn.EQUAL,
                 SqlExpr.Call.of(SqlFn.COALESCE, equalValues(PureSql.asList(scalar.apply(l), isMany(l)), lt, lv,
                         freshVar), empty),

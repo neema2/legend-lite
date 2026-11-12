@@ -171,7 +171,7 @@ public interface SqlDialect {
         if (payload.elements().isEmpty()) {
             java.util.List<com.legend.sql.SqlExpr> none = new java.util.ArrayList<>(java.util.List.of(
                     new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.NullLit(),
-                            com.legend.sql.SqlType.Scalar.JSON)));
+                            com.legend.sql.SqlType.Scalar.JSON, com.legend.sql.SqlExpr.Reason.DIALECT)));
             if (u.placed()) {
                 none.add(new com.legend.sql.SqlExpr.IntLit(0));
             }
@@ -183,7 +183,7 @@ public interface SqlDialect {
                 payload.elements().size());
         for (int i = 0; i < payload.elements().size(); i++) {
             com.legend.sql.SqlExpr element = new com.legend.sql.SqlExpr.Cast(
-                    new com.legend.sql.SqlExpr.StringLit(payload.elements().get(i)), com.legend.sql.SqlType.Scalar.JSON);
+                    new com.legend.sql.SqlExpr.StringLit(payload.elements().get(i)), com.legend.sql.SqlType.Scalar.JSON, com.legend.sql.SqlExpr.Reason.DIALECT);
             rows.add(u.placed() ? java.util.List.of(element, new com.legend.sql.SqlExpr.IntLit(i))
                     : java.util.List.of(element));
         }

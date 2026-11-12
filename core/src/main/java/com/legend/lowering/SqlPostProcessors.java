@@ -283,9 +283,9 @@ public final class SqlPostProcessors {
                             expr(w.condition(), m), expr(w.then(), m)))
                             .toList(),
                     cs.otherwise() == null ? null
-                            : expr(cs.otherwise(), m));
+                            : expr(cs.otherwise(), m), cs.reason());
             case SqlExpr.Cast ct -> new SqlExpr.Cast(expr(ct.value(), m),
-                    ct.target());
+                    ct.target(), ct.reason());
             case SqlExpr.Group g -> new SqlExpr.Group(expr(g.inner(), m));
             case SqlExpr.Exists ex -> new SqlExpr.Exists(
                     apply(ex.subquery(), m));

@@ -979,7 +979,7 @@ public class ClickHouse extends AnsiSqlRenderer {
                         new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.AND, List.of(
                                 new SqlExpr.Call(SqlFn.IS_NULL, List.of(v)), someRow(s, w, null))),
                                 new SqlExpr.NullLit())),
-                        new SqlExpr.BoolLit(false));
+                        new SqlExpr.BoolLit(false), SqlExpr.Reason.DIALECT);
                 correlatedExists[0] = true;
                 yield expr(writer, threeValued, parentPrec);
             }
@@ -2073,7 +2073,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             writer.append(", ");
             boolean asText = conversions != null && i - 1 < conversions.size() && conversions.get(i - 1) == 's';
             if (real && asText) {
-                writer.expr(FloatCanonText.of(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE)), 0);
+                writer.expr(FloatCanonText.of(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT)), 0);
             } else if (asText && (typeOf(x) == SqlType.Scalar.BOOLEAN || typeOf(x) == SqlType.Scalar.BIGINT
                     || typeOf(x) == SqlType.Scalar.INTEGER)) {
                 // %s takes only a String (a Bool or an Int64 is refused, measured): its text
@@ -2634,7 +2634,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case SqlType.Scalar.BIGINT, SqlType.Scalar.INTEGER -> new SqlExpr.IntLit(high ? Long.MAX_VALUE : Long.MIN_VALUE);
             // an infinity is no Float literal (a literal is a Decimal of its digits): the text cast
             case SqlType.Scalar.DOUBLE -> new SqlExpr.Cast(new SqlExpr.StringLit(high ? "inf" : "-inf"),
-                    SqlType.Scalar.DOUBLE);
+                    SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
             case SqlType t -> throw new DialectCapability("a RANGE frame of offsets over a " + t + " key reached"
                     + " ClickHouse, whose frame reaches a NULL key from any value");
             case null -> throw new DialectCapability("a RANGE frame of offsets over an untyped key reached ClickHouse");

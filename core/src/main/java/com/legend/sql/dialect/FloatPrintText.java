@@ -65,7 +65,7 @@ final class FloatPrintText {
                     new com.legend.sql.SqlSource.Dual());
             SqlExpr v = column(inner, "v", SqlType.Scalar.DOUBLE);
             com.legend.sql.SqlSelect texted = select(List.of(projection(v, "v", SqlType.Scalar.DOUBLE),
-                    projection(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR), "t", SqlType.Scalar.VARCHAR)),
+                    projection(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), "t", SqlType.Scalar.VARCHAR)),
                     new com.legend.sql.SqlSource.Subselect(value, inner, null));
             SqlExpr spelled = print(column(outer, "v", SqlType.Scalar.DOUBLE),
                     column(outer, "t", SqlType.Scalar.VARCHAR));
@@ -94,7 +94,7 @@ final class FloatPrintText {
 
     /** Pure's print form of the double {@code x}, as SQL over its text. */
     static SqlExpr of(SqlExpr x) {
-        return print(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
+        return print(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
     }
 
     /**
@@ -134,17 +134,17 @@ final class FloatPrintText {
         // otherwise failed the cast of a value the branch never takes (cosh(-100), 1.3E43, out of Decimal(38,18):
         // DECIMAL_OVERFLOW; step 9, 2026-10-19, the ClickHouse lane on the plan route)
         SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(fractionFree, x), SqlType.Scalar.HUGEINT),
-                        SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(fractionFree, x), SqlType.Scalar.HUGEINT, SqlExpr.Reason.PRINT),
+                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit(".0"));
         SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
-                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new SqlType.Decimal(38, 18)),
-                        SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new SqlType.Decimal(38, 18), SqlExpr.Reason.PRINT),
+                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("0"));
         SqlExpr fixed = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
                 SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
-                plain);
+                plain, SqlExpr.Reason.PRINT);
         // a whole value the database writes without a fraction (Postgres's double 3, an integer slot a Float
         // declares) takes Pure's .0: a Float's text always has a fraction (the output layer's step 5, 2026-10-18)
         SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
@@ -154,12 +154,12 @@ final class FloatPrintText {
         whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain));
         whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed));
         whens.add(new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0"))));
-        return new SqlExpr.Case(whens, s);
+        return new SqlExpr.Case(whens, s, SqlExpr.Reason.PRINT);
     }
 
     /** {@code x} where {@code guard} holds, else NULL. */
     private static SqlExpr onlyWhere(SqlExpr guard, SqlExpr x) {
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(guard, x)), null);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(guard, x)), null, SqlExpr.Reason.PRINT);
     }
 
     /** The text of a double that is no number, in Pure's spelling, which is Java's ({@code NaN}, {@code Infinity},

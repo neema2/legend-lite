@@ -535,6 +535,51 @@ Two things to settle first:
   records are rebuilt in about 18 switch sites).
 - **D's share.** The print forms and the raise sentences are D's; they are counted, marked D and left to D.
 
+> **BUILT (E-4, 2026-11-12, on D's RaiseText):**
+> - **The reason lives on the node.** Every `SqlExpr.Cast` and `SqlExpr.Case` carries a `SqlExpr.Reason`, and neither
+>   has a constructor without one: a null reason is refused by name ("a CAST without a reason (E-4)").
+>   - The reasons are a closed enum: `user`, `declared`, `conform`, `operator`, `carrier`, `print`, `raise`,
+>     `dialect`, `judge`.
+>   - `conform` replaces `Cast`'s boolean, and `conform()` reads it.
+>   - A rewriter that rebuilds a node keeps its reason. Some rebuilds (`Windows`, `SqlPostProcessors`,
+>     `FoldToListReduce`) used to drop `conform`; they now carry it.
+>   - The plan carries it: `MirJson` writes `"reason"` and refuses an unknown code by name.
+> - **How reasons were assigned.** About 420 constructor sites were set by their file's role, and the mixed files
+>   (`Scalars`, `Lowerer`, `CastPolicy`) site by site:
+>   - the verdict SQL is `judge`;
+>   - the canon, the literal spelling, the render and `toRepresentation` are `print`;
+>   - the list, JSON, tagged and graph carriers are `carrier`;
+>   - `CastPolicy` and `match` are `user`;
+>   - the natives' semantics are `operator`;
+>   - the declared types of literals, NULLs, loads and keys are `declared`;
+>   - a raise's condition is `raise`;
+>   - a dialect's own pass is `dialect`, except the Float spellings, which are `print`.
+> - **The census.** `leansql.CastCaseCensus` lowers channel A on every relational database, runs each dialect's
+>   passes (`sql/dialect/PassedTrees`, test code) and counts the nodes per reason.
+>   - Pins: `lean-sql/cast-case-census.tsv`, held by `//core:cast_case_census_test` (in `//gates:checks`). A count
+>     that grows fails; a shrink past 1% asks for a re-pin (`bazel run //core:update_cast_case_census`).
+>   - First counts, summed over the 11 databases:
+>
+>     | Reason | Casts | Cases |
+>     |---|---|---|
+>     | declared | 6,461 | 0 |
+>     | carrier | 5,329 | 1,750 |
+>     | print | 4,384 | 3,943 |
+>     | operator | 3,675 | 946 |
+>     | dialect | 1,301 | 1,300 |
+>     | user | 1,325 | 33 |
+>     | raise | 0 | 495 |
+>     | conform, judge | 0 | 0 |
+>
+>     Conform and judge are 0 because channel A has no mapping reads and no verdicts.
+>   - Not counted: a CAST a dialect writes as text inside a render method, never as a node. The text counts above
+>     include those; the node census does not.
+> - **Its cost.** No statement and no SQL character moved. Plan JSON grew about 0.2% (about 15.6K characters per
+>   database on channel A), which is the reason carried in each plan's MIR. The sets were re-pinned with that date.
+> - **What comes next on this census.** `print` and `carrier` are the shrink targets: E-5a, the Float canon staged, and
+>   E-2, the hybrid mixed lists. `declared` is the next one to read case by case: a literal's cast is the plan's
+>   declared type, but a dialect that types a literal by itself does not need one.
+
 ### 5.9 E-5, the test road's speed: measured, and the design (the user's ruling of 2026-11-12; BUILD after the A/B/C merge)
 
 > **The ruling:**

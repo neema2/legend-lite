@@ -56,13 +56,13 @@ final class JsonEmission {
             case ELEMENTS -> SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, src);
             case TEXT -> new SqlExpr.Cast(
                     SqlExpr.Call.of(SqlFn.VARIANT_GET, src, new SqlExpr.StringLit("$")),
-                    PureSql.type(Type.Primitive.STRING));
+                    PureSql.type(Type.Primitive.STRING), SqlExpr.Reason.CARRIER);
             case NUMBER -> new SqlExpr.Cast(
                     SqlExpr.Call.of(SqlFn.VARIANT_GET, src, new SqlExpr.StringLit("$")),
-                    PureSql.type(Type.Primitive.NUMBER));
+                    PureSql.type(Type.Primitive.NUMBER), SqlExpr.Reason.CARRIER);
             case BOOLEAN -> new SqlExpr.Cast(
                     SqlExpr.Call.of(SqlFn.VARIANT_GET, src, new SqlExpr.StringLit("$")),
-                    PureSql.type(Type.Primitive.BOOLEAN));
+                    PureSql.type(Type.Primitive.BOOLEAN), SqlExpr.Reason.CARRIER);
             case IDENTITY -> src;
         };
     }
@@ -80,7 +80,7 @@ final class JsonEmission {
      */
     /** A JSON value as its compact text (the database's own spelling). */
     private static SqlExpr text(SqlExpr json) {
-        return new SqlExpr.Cast(json, PureSql.type(Type.Primitive.STRING));
+        return new SqlExpr.Cast(json, PureSql.type(Type.Primitive.STRING), SqlExpr.Reason.CARRIER);
     }
 
     static SqlExpr result(Lowerer lw, TypedJsonResult jr) {
@@ -107,7 +107,7 @@ final class JsonEmission {
                     new SqlExpr.StringLit("activities"), activities,
                     new SqlExpr.StringLit("objects"),
                     new SqlExpr.Cast(SqlExpr.Column.derived(alias, col),
-                            SqlType.Scalar.JSON)));
+                            SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER)));
         } else {
             SqlSelect rel = lw.relation(jr.chain());
             inner = rel;
@@ -158,7 +158,7 @@ final class JsonEmission {
                 // empty relation is '[]'
                 envelope = new SqlExpr.Call(SqlFn.COALESCE, List.of(
                         new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(rowObject)),
-                        new SqlExpr.Cast(new SqlExpr.StringLit("[]"), SqlType.Scalar.JSON)));
+                        new SqlExpr.Cast(new SqlExpr.StringLit("[]"), SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER)));
             } else if (bareTdsJson) {
                 // the bare toJSON(tds) document: column metadata + rows
                 envelope = new SqlExpr.JsonObject(List.of(
@@ -196,7 +196,7 @@ final class JsonEmission {
         }
         SqlSelect agg = new SqlSelect(
                 List.of(new SqlSelect.Projection(
-                        new SqlExpr.Cast(envelope, PureSql.type(Type.Primitive.STRING)),
+                        new SqlExpr.Cast(envelope, PureSql.type(Type.Primitive.STRING), SqlExpr.Reason.CARRIER),
                         "value", null)),
                 false, new SqlSource.Subselect(inner, alias, null), null, List.of(),
                 null, null, List.of(), null, null, List.of());

@@ -58,7 +58,7 @@ final class SnapshotEnvelope {
         SqlExpr chosen = new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL,
                         List.of(count, new SqlExpr.IntLit(1))), sole)),
-                ja);
+                ja, SqlExpr.Reason.CARRIER);
         return env.withProjections(
                 List.of(new SqlSelect.Projection(chosen, "result",
                         new OutputCol("result",
@@ -84,9 +84,9 @@ final class SnapshotEnvelope {
                         new SqlExpr.Case.When(
                                 SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
                                         new SqlExpr.Cast(v, com.legend.sql
-                                                .SqlType.Scalar.VARCHAR),
+                                                .SqlType.Scalar.VARCHAR, SqlExpr.Reason.CARRIER),
                                         new SqlExpr.StringLit("[]")),
-                                new SqlExpr.NullLit())), v);
+                                new SqlExpr.NullLit())), v, SqlExpr.Reason.CARRIER);
             }
             pieces.add(new SqlExpr.JsonObject(java.util.List.of(k, v)));
         }
@@ -124,7 +124,7 @@ final class SnapshotEnvelope {
                     (i > 0 ? "," : "") + "\"pk$_" + i + "\":"
                             + (strPk ? "\"" : "")));
             parts.add(new SqlExpr.Cast(scalar.apply(k),
-                    com.legend.sql.SqlType.Scalar.VARCHAR));
+                    com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.CARRIER));
             if (strPk) {
                 parts.add(new SqlExpr.StringLit("\""));
             }
@@ -144,7 +144,7 @@ final class SnapshotEnvelope {
                                 new SqlExpr.Cast(
                                         SqlExpr.Call.of(com.legend.sql
                                                 .SqlFn.LENGTH, pkJson),
-                                        com.legend.sql.SqlType.Scalar.VARCHAR),
+                                        com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.CARRIER),
                                 new SqlExpr.IntLit(
                                 com.legend.lowering.AsorRef.SEG_LEN_WIDTH),
                                 new SqlExpr.StringLit("0")),

@@ -35,7 +35,7 @@ class BigQueryDialectTest {
      *  own cast writes seventeen (pi() '3.1415926535897931') and FORMAT's %.17g is not correctly rounded. */
     @Test
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
-        String sql = render(new SqlExpr.Cast(X, SqlType.Scalar.VARCHAR), null);
+        String sql = render(new SqlExpr.Cast(X, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER), null);
         // the value bound once; its exact BIGNUMERIC rounded to 15, 16 and 17 significant digits, each read back
         assertTrue(sql.contains("FROM (SELECT `t`.`x` AS `__fv`)"), sql);
         assertTrue(sql.contains("SAFE_CAST(`__fv` AS BIGNUMERIC) AS `__fn`"), sql);
@@ -86,7 +86,7 @@ class BigQueryDialectTest {
     @Test
     void aTextsFractionIsCutToMicrosecondsForATimestamp() {
         SqlExpr text = SqlExpr.Column.of("t", "s", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
-        String sql = render(new SqlExpr.Cast(text, SqlType.Scalar.TIMESTAMP), null);
+        String sql = render(new SqlExpr.Cast(text, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.USER), null);
         assertTrue(sql.contains("CAST(REGEXP_REPLACE(`t`.`s`, '(\\\\.[0-9]{6})[0-9]+', '\\\\1') AS DATETIME)"), sql);
     }
 

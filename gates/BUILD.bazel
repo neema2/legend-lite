@@ -135,6 +135,7 @@ test_suite(
         "//core:census",
         # the product-SQL size baseline (G3's guard; E3, ruled 2026-11-12): fixed query sets planned on every database,
         # shrink-only pins per set, database and family over the statements, their characters and the plans' JSON
+        "//core:cast_case_census_test",
         "//core:lean_sql_baseline_test",
         # its sets' capture, run with the switch on: text and names only, no plan changed
         "//core:query_capture_test",

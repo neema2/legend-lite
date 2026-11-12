@@ -73,14 +73,14 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.Call call -> new SqlExpr.Call(call.fn(),
                     call.args().stream().map(x -> unwrapElemRefs(x, elem)).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(unwrapElemRefs(c.value(), elem),
-                    c.target());
+                    c.target(), c.reason());
             case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
                     a.elements().stream().map(x -> unwrapElemRefs(x, elem)).toList());
             case SqlExpr.Case cs -> new SqlExpr.Case(
                     cs.whens().stream().map(w -> new SqlExpr.Case.When(
                             unwrapElemRefs(w.condition(), elem),
                             unwrapElemRefs(w.then(), elem))).toList(),
-                    cs.otherwise() == null ? null : unwrapElemRefs(cs.otherwise(), elem));
+                    cs.otherwise() == null ? null : unwrapElemRefs(cs.otherwise(), elem), cs.reason());
             case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
                     .map(fld -> new SqlExpr.StructLit.Field(fld.name(),
                             unwrapElemRefs(fld.value(), elem),

@@ -173,7 +173,7 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
                     // a Decimal(2,0) ClickHouse overflowed, 1e-50 a 51-digit DECIMAL on Trino); a plain one its digits,
                     // an exact decimal the database assigns to the column
                     yield t.indexOf('e') >= 0 || t.indexOf('E') >= 0
-                            ? new SqlExpr.Cast(new SqlExpr.StringLit(t), com.legend.sql.SqlType.Scalar.DOUBLE)
+                            ? new SqlExpr.Cast(new SqlExpr.StringLit(t), com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.DECLARED)
                             : new SqlExpr.DecimalLit(new BigDecimal(t));
                 }
                 // upstream's H2 rule (h2Extension2_1_214.pure's bitValueFromString, read from the pinned sources):
@@ -193,12 +193,12 @@ public record RowLoad(@Nullable String schema, String table, com.legend.sql.Name
                 // cell is parsed by its database (the user's ruling, 2026-11-10, "Yes to both"): Java parses nothing,
                 // and a text the database rejects fails under the load's name
                 case DATE -> DATE.matcher(t).matches() ? new SqlExpr.DateLit(t)
-                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.DATE);
+                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.DATE, SqlExpr.Reason.DECLARED);
                 case TIMESTAMP, TIMESTAMP_NS -> DATE_TIME.matcher(t).matches() ? new SqlExpr.TimestampLit(t)
-                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.TIMESTAMP);
+                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.DECLARED);
                 case TIME -> TIME.matcher(t).matches() ? new SqlExpr.TimeLit(t)
-                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.TIME);
-                case JSON -> new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.JSON);
+                        : new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.TIME, SqlExpr.Reason.DECLARED);
+                case JSON -> new SqlExpr.Cast(new SqlExpr.StringLit(text), com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.DECLARED);
                 case VARCHAR -> new SqlExpr.StringLit(text);
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw unsupported(c, p.kind().name());
             };

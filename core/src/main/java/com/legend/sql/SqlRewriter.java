@@ -235,7 +235,7 @@ public abstract class SqlRewriter {
                 SqlExpr ot = cs.otherwise() == null ? null
                         : rewriteExpr(cs.otherwise());
                 yield ws == cs.whens() && ot == cs.otherwise() ? cs
-                        : new SqlExpr.Case(ws, ot);
+                        : new SqlExpr.Case(ws, ot, cs.reason());
             }
             case SqlExpr.Exists ex -> {
                 SqlQuery sub = rewrite(ex.subquery());
@@ -358,7 +358,7 @@ public abstract class SqlRewriter {
             case SqlExpr.Cast c -> {
                 SqlExpr v = rewriteExpr(c.value());
                 yield v == c.value() ? c
-                        : new SqlExpr.Cast(v, c.target(), c.conform());
+                        : new SqlExpr.Cast(v, c.target(), c.reason());
             }
             case SqlExpr.FoldCall f -> {
                 SqlExpr src = rewriteExpr(f.source());

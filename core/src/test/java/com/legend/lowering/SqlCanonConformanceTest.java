@@ -56,11 +56,11 @@ class SqlCanonConformanceTest {
             // X2: scale-preserving Decimal canon
             assertEquals("8.00", dbCanon(c,
                     new SqlExpr.Cast(new SqlExpr.StringLit("8.00"),
-                            new SqlType.Decimal(10, 2)),
+                            new SqlType.Decimal(10, 2), SqlExpr.Reason.USER),
                     Type.Primitive.DECIMAL));
             assertEquals("3.80", dbCanon(c,
                     new SqlExpr.Cast(new SqlExpr.StringLit("3.80"),
-                            new SqlType.Decimal(10, 2)),
+                            new SqlType.Decimal(10, 2), SqlExpr.Reason.USER),
                     Type.Primitive.DECIMAL));
         }
     }
@@ -120,7 +120,7 @@ class SqlCanonConformanceTest {
             assertEquals("{\"_type\":\"meta::pure::functions::collection"
                     + "::Pair\",\"first\":\"1\",\"second\":\"'a, b'\"}",
                     dbText(c, new SqlExpr.Cast(canon,
-                            SqlType.Scalar.VARCHAR)));
+                            SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)));
         }
     }
 
@@ -142,7 +142,7 @@ class SqlCanonConformanceTest {
             assertEquals("{\"_type\":\"meta::pure::functions::collection"
                     + "::List\",\"values\":[\"1\",\"2\"]}",
                     dbText(c, new SqlExpr.Cast(canon,
-                            SqlType.Scalar.VARCHAR)));
+                            SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)));
         }
     }
 

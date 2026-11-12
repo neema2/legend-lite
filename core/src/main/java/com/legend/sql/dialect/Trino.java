@@ -252,8 +252,8 @@ public class Trino extends AnsiSqlRenderer {
             // a ROW itself (a struct carried as text, a metamodel element by its name, is already text)
             if (label instanceof SqlType.Struct st && typeOf(p.expr()) instanceof SqlType.Struct
                     && !(p.expr() instanceof SqlExpr.StringLit)) {
-                ps.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Cast(p.expr(), st, false),
-                        SqlType.Scalar.JSON, false), name, p.out()));
+                ps.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Cast(p.expr(), st, SqlExpr.Reason.DIALECT),
+                        SqlType.Scalar.JSON, SqlExpr.Reason.DIALECT), name, p.out()));
                 changed = true;
             } else {
                 ps.add(p);

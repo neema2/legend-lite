@@ -209,7 +209,7 @@ final class ValueCollections {
         OutputCol posOut = new OutputCol(SqlExpr.TaggedList.ROW_POSITION, SqlType.Scalar.BIGINT, false);
         OutputCol tagOut = new OutputCol(SqlExpr.TaggedList.ROW_TAG, SqlType.Scalar.INTEGER, false);
         cells.add(new SqlSelect.Projection(pos, posOut.name(), posOut));
-        cells.add(new SqlSelect.Projection(new SqlExpr.Case(tagArms, null), tagOut.name(), tagOut));
+        cells.add(new SqlSelect.Projection(new SqlExpr.Case(tagArms, null, SqlExpr.Reason.CARRIER), tagOut.name(), tagOut));
         cellOuts.add(posOut);
         cellOuts.add(tagOut);
         List<String> rankFields = struct ? List.of("g", "n", "d", "s") : List.of(SqlExpr.TaggedList.ROW_COMPARABLE);
@@ -228,7 +228,7 @@ final class ValueCollections {
             String name = struct ? SqlExpr.TaggedList.ROW_COMPARABLE + "_" + rankFields.get(f)
                     : SqlExpr.TaggedList.ROW_COMPARABLE;
             OutputCol out = new OutputCol(name, rankTypes.get(f), true);
-            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null), rankTypes.get(f)),
+            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null, SqlExpr.Reason.CARRIER), rankTypes.get(f), SqlExpr.Reason.CARRIER),
                     name, out));
             cellOuts.add(out);
         }
@@ -242,7 +242,7 @@ final class ValueCollections {
                 }
             }
             OutputCol chOut = new OutputCol(SqlExpr.TaggedList.ROW_CHANNEL(j), ch.type(), true);
-            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null), ch.type()),
+            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null, SqlExpr.Reason.CARRIER), ch.type(), SqlExpr.Reason.CARRIER),
                     chOut.name(), chOut));
             cellOuts.add(chOut);
         }

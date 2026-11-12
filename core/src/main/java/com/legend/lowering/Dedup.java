@@ -67,7 +67,7 @@ final class Dedup {
                                                 cand)))),
                 new SqlExpr.IntLit(0));
         SqlExpr step = new SqlExpr.Case(List.of(new SqlExpr.Case.When(dup, kept)),
-                SqlExpr.Call.of(SqlFn.LIST_APPEND, kept, cand));
+                SqlExpr.Call.of(SqlFn.LIST_APPEND, kept, cand), SqlExpr.Reason.OPERATOR);
         SqlExpr reduced = SqlExpr.Call.of(SqlFn.LIST_REDUCE, wrapped,
                 new SqlExpr.Lambda(List.of(ra, rx), step));
         // list_reduce rejects the empty list — the empty dedup is itself
@@ -77,7 +77,7 @@ final class Dedup {
                                 SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
                                 new SqlExpr.IntLit(0)),
                         new SqlExpr.IntLit(0)),
-                list)), reduced);
+                list)), reduced, SqlExpr.Reason.OPERATOR);
         return out;
     }
 }

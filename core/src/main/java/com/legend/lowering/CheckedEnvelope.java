@@ -88,7 +88,7 @@ final class CheckedEnvelope {
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.NOT, pred),
                             defect(cc, msg))),
-                    new SqlExpr.NullLit()));
+                    new SqlExpr.NullLit(), SqlExpr.Reason.CARRIER));
         }
         SqlExpr own = cases.isEmpty() ? new SqlExpr.ArrayLit(List.of())
                 : SqlExpr.Call.of(SqlFn.LIST_FILTER,

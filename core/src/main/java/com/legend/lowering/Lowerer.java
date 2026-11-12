@@ -303,7 +303,7 @@ public final class Lowerer {
             return null;
         }
         if (objectIdentity && (!evaluation.complete() || !evaluation.tracked())) {
-            return new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR);
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
         }
         String id = instanceIdOf.apply(evaluation.complete() ? evaluation.site() : node);
         if (evaluation.iterations().isEmpty()) {
@@ -327,7 +327,7 @@ public final class Lowerer {
             }
             String position = iterationPositions.get(k)[1];
             positionsRead.add(position);
-            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived(null, position), SqlType.Scalar.VARCHAR));
+            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived(null, position), SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR));
             from = k + 1;
         }
         return new SqlExpr.Call(SqlFn.CONCAT, parts);
@@ -892,7 +892,7 @@ public final class Lowerer {
         // the tag column is TYPED as the tagged carrier by a cast every dialect writes as the identity (the slot is
         // the wire, SqlTyping.reconcileSlot: a label rides on the expression's own type, as LITERAL's does)
         SqlType.Tagged carrier = new SqlType.Tagged(slots);
-        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null, SqlExpr.Reason.CARRIER), carrier, SqlExpr.Reason.CARRIER), "value",
                 new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
         for (int i = 0; i < slots.size(); i++) {
             List<SqlExpr.Case.When> whens = new ArrayList<>();
@@ -903,10 +903,10 @@ public final class Lowerer {
                 SqlType own = owns.get(k);
                 SqlExpr read = SqlExpr.Column.of(inner, "__c" + k, own, true, OutputCol.Origin.DERIVED);
                 whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
-                        own.equals(slots.get(i).type()) ? read : new SqlExpr.Cast(read, slots.get(i).type())));
+                        own.equals(slots.get(i).type()) ? read : new SqlExpr.Cast(read, slots.get(i).type(), SqlExpr.Reason.CARRIER)));
             }
             String name = SqlType.Tagged.slotColumn("value", i);
-            out.add(new SqlSelect.Projection(new SqlExpr.Case(whens, null), name,
+            out.add(new SqlSelect.Projection(new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER), name,
                     new OutputCol(name, slots.get(i).type(), true)));
         }
         return new SqlSelect(out, false, new SqlSource.Subselect(once, inner, null), null, List.of(), null, null,
@@ -1314,7 +1314,7 @@ public final class Lowerer {
             // constant key is an expression only where it is typed (Postgres,
             // ConstantKeysAsExpressions), and the type is the plan's own
             keys.add(key instanceof SqlExpr.NullLit
-                    ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type())
+                    ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type(), SqlExpr.Reason.DECLARED)
                     : key);
             // a self-aliased key drops the alias (view-frame goldens) —
             // EXCEPT reads of a union frame's outputs, which keep it
@@ -1372,7 +1372,7 @@ public final class Lowerer {
         }
         return s.withProjections(
                 List.of(new SqlSelect.Projection(new SqlExpr.Cast(
-                        p.expr(), SqlType.Scalar.VARCHAR, true),
+                        p.expr(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.CONFORM),
                         p.outputName(), p.out())));
     }
 
@@ -1462,7 +1462,7 @@ public final class Lowerer {
                 whens.add(new SqlExpr.Case.When(member,
                         new SqlExpr.JsonObject(pkv)));
             }
-            obj = new SqlExpr.Case(whens, obj);
+            obj = new SqlExpr.Case(whens, obj, SqlExpr.Reason.CARRIER);
         }
         // CHECKED envelope: {defects: [...], value: obj} — extracted rule
         if (g.checkedConstraints() != null) {
@@ -1886,7 +1886,7 @@ public final class Lowerer {
         // pure percentile RENDERS AS FLOAT (engine golden 12.0, not 12) —
         // the discrete quantile keeps the input's integer type, so cast
         return fn == SqlAgg.Fn.QUANTILE_DISC
-                ? new SqlExpr.Cast(red, SqlType.Scalar.DOUBLE) : red;
+                ? new SqlExpr.Cast(red, SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR) : red;
     }
 
     /**
@@ -3229,7 +3229,7 @@ public final class Lowerer {
                                 windowScalar(i.condition(), base, over),
                                 windowScalar(PureSql.thunkBody(i.thenBranch()), base, over))),
                         i.elseBranch().map(e -> windowScalar(PureSql.thunkBody(e), base, over))
-                                .orElse(new SqlExpr.NullLit()));
+                                .orElse(new SqlExpr.NullLit()), SqlExpr.Reason.USER);
             }
             default -> {
                 return scalar(body, (v, name) -> resolveOrThrow(base, name));
@@ -3249,7 +3249,7 @@ public final class Lowerer {
             List<SqlExpr.Case.When> whens = new ArrayList<>(c.whens().size() + inner.whens().size());
             whens.addAll(c.whens());
             whens.addAll(inner.whens());
-            return new SqlExpr.Case(whens, inner.otherwise());
+            return new SqlExpr.Case(whens, inner.otherwise(), c.reason());
         }
         return e;
     }
@@ -3327,7 +3327,7 @@ public final class Lowerer {
             case com.legend.compiler.spec.typed.TypedCLatestDate ignored ->
                     new SqlExpr.Cast(new SqlExpr.StringLit(
                             "9999-12-31T00:00:00.0000"),
-                            com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT);
+                            com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.DECLARED);
             // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
             // NULL — a [0] value has no cell representation other than null
             // (the mapping enum decode chain's tail: CASE ... ELSE NULL). An empty typed as the Variant
@@ -3336,7 +3336,7 @@ public final class Lowerer {
             // arm of a class lacking a property typed two ways, docs/CYPHER_STUDY_2026_10_15.md §12.62)
             case TypedCollection c when c.elements().isEmpty() ->
                     c.info().type() instanceof Type.ClassType ct && PlatformTypes.isVariant(ct)
-                            ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.JSON) : new SqlExpr.NullLit();
+                            ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.JSON, SqlExpr.Reason.DECLARED) : new SqlExpr.NullLit();
             // A HETEROGENEOUS literal — element LUB Any ([1, 'a']) or a class
             // LUB with NO canonical layout (mixed instance kinds meeting at
             // an abstract ancestor): each element wraps as variant JSON, the
@@ -3502,8 +3502,8 @@ public final class Lowerer {
                 }
                 yield p.info().multiplicity().isMany()
                         ? new SqlExpr.Cast(e,
-                                new SqlType.Array(PureSql.type(leaf)))
-                        : new SqlExpr.Cast(e, PureSql.type(leaf));
+                                new SqlType.Array(PureSql.type(leaf)), SqlExpr.Reason.DECLARED)
+                        : new SqlExpr.Cast(e, PureSql.type(leaf), SqlExpr.Reason.DECLARED);
             }
             case TypedPropertyAccess p when p.source()
                         instanceof TypedNewInstance ni -> {
@@ -4403,7 +4403,7 @@ public final class Lowerer {
                     SqlExpr v = from.equals(tc.type())
                             || !CastPolicy.isSqlPrimitive(tc.type()) || !CastPolicy.isSqlPrimitive(from)
                             ? r.expr()
-                            : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()));
+                            : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()), SqlExpr.Reason.USER);
                     ps.add(new SqlSelect.Projection(v, tc.name(),
                             Fold.slot(tc, sqlTypeOf(tc.type()))));
                 }

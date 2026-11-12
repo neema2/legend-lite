@@ -30,7 +30,7 @@ final class Repr {
             // CAST first: identity for a real string, and keeps a DEAD
             // size-1 branch (assertEquals' %r fast path over a known-many
             // collection) VALID SQL — DuckDB type-checks dead branches
-            SqlExpr sx = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+            SqlExpr sx = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
             SqlExpr esc = SqlExpr.Call.of(SqlFn.REPLACE,
                     SqlExpr.Call.of(SqlFn.REPLACE,
                             SqlExpr.Call.of(SqlFn.REPLACE, sx,
@@ -87,7 +87,7 @@ final class Repr {
         // (assertEquals' %r fast path inlined over a known-many
         // collection) VALID SQL — DuckDB type-checks dead branches
         // (Phase 4 channel B surfaced this on 169 essential tests)
-        SqlExpr se = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);
+        SqlExpr se = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         SqlExpr escaped = SqlExpr.Call.of(SqlFn.REPLACE,
                 SqlExpr.Call.of(SqlFn.REPLACE, se,
                         new SqlExpr.StringLit("\\"),

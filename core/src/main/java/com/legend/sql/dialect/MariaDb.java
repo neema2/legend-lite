@@ -688,7 +688,7 @@ public class MariaDb extends AnsiSqlRenderer {
             return e;
         }
         if (label == SqlType.Scalar.DOUBLE && typeOf(e) != SqlType.Scalar.DOUBLE) {
-            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);
+            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
         }
         // a value that claims no type (an empty list's element: a JSON_TABLE text column, or JSON_VALUE of a NULL,
         // which is binary) is its label's type
@@ -696,7 +696,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 || label == SqlType.Scalar.INTEGER || label == SqlType.Scalar.HUGEINT
                 || label == SqlType.Scalar.BOOLEAN || label == SqlType.Scalar.DATE
                 || label == SqlType.Scalar.TIMESTAMP || label == SqlType.Scalar.VARCHAR)) {
-            return new SqlExpr.Cast(e, label);
+            return new SqlExpr.Cast(e, label, SqlExpr.Reason.DIALECT);
         }
         return e;
     }

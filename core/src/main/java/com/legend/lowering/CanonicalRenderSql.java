@@ -175,7 +175,7 @@ public final class CanonicalRenderSql {
                 lit = lc;
             }
             candidates = List.of(t);
-            canons.add(new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR));
+            canons.add(new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
             literalIndex = 0;
         } else if (instFqn != null
                 && com.legend.compiler.element.type.PlatformTypes
@@ -190,7 +190,7 @@ public final class CanonicalRenderSql {
                         "map-key-shape: " + valueCol.type());
             }
             candidates = List.of(t);
-            canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+            canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
         } else if (t instanceof Type.EnumType aet
                 && "meta::pure::metamodel::type::Enum".equals(aet.fqn())) {
             candidates = List.of(t);
@@ -200,7 +200,7 @@ public final class CanonicalRenderSql {
             // a TYPE / ELEMENT value: the wire holds its bare simple name —
             // the canon IS the name (unquoted: never equal to a string)
             candidates = List.of(t);
-            canons.add(new SqlExpr.Cast(valueRef, SqlType.Scalar.VARCHAR));
+            canons.add(new SqlExpr.Cast(valueRef, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
             literalIndex = 0;
         } else if (instFqn != null
                 && com.legend.compiler.element.type.PlatformTypes.isNil(t)) {
@@ -220,7 +220,7 @@ public final class CanonicalRenderSql {
             candidates = List.of(t);
             canons.add(new SqlExpr.Cast(SqlExpr.StructGet.of(valueRef,
                     com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON),
-                    SqlType.Scalar.VARCHAR));
+                    SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
         } else if (instFqn != null) {
             // X5 — a KEYED instance side: the canon is the key-property
             // render (EqualityUtilities compares keyed classes by key
@@ -243,7 +243,7 @@ public final class CanonicalRenderSql {
                             "keyless-instance: " + instFqn);
                 }
                 candidates = List.of(t);
-                canons.add(new SqlExpr.Cast(idc, SqlType.Scalar.VARCHAR));
+                canons.add(new SqlExpr.Cast(idc, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
             } else {
                 SqlExpr c = instanceCanon(valueRef, instanceKeys,
                         valueCol.type());
@@ -254,7 +254,7 @@ public final class CanonicalRenderSql {
                 candidates = List.of(t);
                 // the ROOT canon is byte text (nested levels stay
                 // JSON-typed so they embed structurally)
-                canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+                canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
             }
         } else {
             // an unrefined NUMBER side whose wire is a concrete numeric SQL
@@ -299,7 +299,7 @@ public final class CanonicalRenderSql {
                     && Type.kindOfSqlType(valueCol.type()) != null) {
                 SqlExpr lit = literalCanon(valueRef, t);
                 if (lit != null) {
-                    canons.add(new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR));
+                    canons.add(new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
                     candidates.add(t);
                     literalIndex = canons.size() - 1;
                 }
@@ -343,7 +343,7 @@ public final class CanonicalRenderSql {
     private static SqlExpr framedEnumCanon(SqlExpr nameText, String enumeration) {
         return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT,
                 new SqlExpr.StringLit(enumeration + "."),
-                new SqlExpr.Cast(nameText, SqlType.Scalar.VARCHAR)), SqlType.Scalar.VARCHAR);
+                new SqlExpr.Cast(nameText, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT)), SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
     }
 
     /** V7 §8 leg 1 — the GRID canon wrap outcome: the plan with a
@@ -470,9 +470,9 @@ public final class CanonicalRenderSql {
             boolean variant = com.legend.compiler.element.type.PlatformTypes.isVariant(kind)
                     && col.type() == SqlType.Scalar.JSON;
             SqlExpr lit = typeValued
-                    ? new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR)
+                    ? new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT)
                     : variant
-                    ? LiteralSpelling.literal(new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR), Type.Primitive.STRING)
+                    ? LiteralSpelling.literal(new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), Type.Primitive.STRING)
                     : LiteralSpelling.literal(
                             kind == Type.Primitive.FLOAT
                                     ? LiteralSpelling.declaredDouble(ref) : ref,
@@ -483,7 +483,7 @@ public final class CanonicalRenderSql {
                                 + kind.typeName());
             }
             SqlExpr cell = SqlExpr.Call.of(SqlFn.COALESCE,
-                    new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR),
+                    new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                     new SqlExpr.StringLit("TDSNull"));
             // the reserved separator POISONS the row canon to NULL (a
             // counted decline at the verdict frame — never a silent
@@ -503,7 +503,7 @@ public final class CanonicalRenderSql {
                                                 new SqlExpr.StringLit(
                                                         TDS_CELL_SEP)),
                                         new SqlExpr.IntLit(0)),
-                                new SqlExpr.NullLit())), cell);
+                                new SqlExpr.NullLit())), cell, SqlExpr.Reason.PRINT);
             } else if (declaredKind == Type.Primitive.STRING && kind == Type.Primitive.INTEGER) {
                 cell = textOrStamp(ref, cell);
             }
@@ -582,13 +582,13 @@ public final class CanonicalRenderSql {
      * integer's spelling, unchanged. A date's JSON form is a string too, so only the integral stamp takes the test.
      */
     private static SqlExpr textOrStamp(SqlExpr ref, SqlExpr stampCell) {
-        SqlExpr text = new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR);
+        SqlExpr text = new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         SqlExpr isText = SqlExpr.Call.of(SqlFn.STARTS_WITH,
-                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.TO_VARIANT, ref), SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.TO_VARIANT, ref), SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("\""));
         SqlExpr quoted = new SqlExpr.Cast(
                 Objects.requireNonNull(LiteralSpelling.literal(text, Type.Primitive.STRING)),
-                SqlType.Scalar.VARCHAR);
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, ref),
                         new SqlExpr.StringLit("TDSNull")),
@@ -597,7 +597,7 @@ public final class CanonicalRenderSql {
                                 SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit(TDS_CELL_SEP)),
                                 new SqlExpr.IntLit(0))),
                         new SqlExpr.NullLit()),
-                new SqlExpr.Case.When(isText, quoted)), stampCell);
+                new SqlExpr.Case.When(isText, quoted)), stampCell, SqlExpr.Reason.PRINT);
     }
 
     /** The plan a {@link #wrapTdsCanon} wrap was built over: its rows, with
@@ -632,7 +632,7 @@ public final class CanonicalRenderSql {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, v),
                 new SqlExpr.NullLit())),
-                identityText(trackedId(v), new SqlExpr.StringLit(fqn)));
+                identityText(trackedId(v), new SqlExpr.StringLit(fqn)), SqlExpr.Reason.PRINT);
     }
 
     /** An identity as Pure's {@code %r} prints an object, {@code <id instanceOf T>}: the canon of a keyless
@@ -641,7 +641,7 @@ public final class CanonicalRenderSql {
      *  on par with the host: the canon was the JSON {@code {"_type", "_id"}}, which the message printed). */
     static SqlExpr identityText(SqlExpr id, SqlExpr type) {
         return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("<"),
-                new SqlExpr.Cast(id, SqlType.Scalar.VARCHAR), new SqlExpr.StringLit(" instanceOf "), type,
+                new SqlExpr.Cast(id, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), new SqlExpr.StringLit(" instanceOf "), type,
                 new SqlExpr.StringLit(">"));
     }
 
@@ -654,7 +654,7 @@ public final class CanonicalRenderSql {
 
     private static SqlExpr tracked(SqlExpr id) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, id),
-                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(UNTRACKED)))), id);
+                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(UNTRACKED)))), id, SqlExpr.Reason.PRINT);
     }
 
     static final String UNTRACKED = "an object's identity is read where the product does not track it: an object read"
@@ -716,7 +716,7 @@ public final class CanonicalRenderSql {
                     new SqlExpr.JsonObject(List.of(
                             new SqlExpr.StringLit("_type"),
                             new SqlExpr.StringLit(keys.classFqn()),
-                            new SqlExpr.StringLit(k.name()), arr)));
+                            new SqlExpr.StringLit(k.name()), arr)), SqlExpr.Reason.PRINT);
         }
         if (!(layout instanceof SqlType.Struct st)) {
             return null;
@@ -776,7 +776,7 @@ public final class CanonicalRenderSql {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, v),
                 new SqlExpr.NullLit())),
-                new SqlExpr.JsonObject(kv));
+                new SqlExpr.JsonObject(kv), SqlExpr.Reason.PRINT);
     }
 
     /** F12 — the MAP canon: entry texts {@code [kLeaf, vLeaf]} built
@@ -817,7 +817,7 @@ public final class CanonicalRenderSql {
                 new SqlExpr.JsonObject(List.of(
                         new SqlExpr.StringLit("_type"),
                         new SqlExpr.StringLit(fqn),
-                        new SqlExpr.StringLit("entries"), entries)));
+                        new SqlExpr.StringLit("entries"), entries)), SqlExpr.Reason.PRINT);
     }
 
     /** One key LEAF: a nested keyed instance recurses (JSON-typed,
@@ -851,7 +851,7 @@ public final class CanonicalRenderSql {
         // parentName of pair($r.values->at(0), $r.values->at(1)) beside
         // the expected ^TDSNull() (bucket 9)
         return lit == null ? null : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.IS_NULL, field), new SqlExpr.NullLit())), lit);
+                SqlExpr.Call.of(SqlFn.IS_NULL, field), new SqlExpr.NullLit())), lit, SqlExpr.Reason.PRINT);
     }
 
     /** The EMPTY key collection (NULL and empty both normalize to it; InstanceEquality's collections of canons too). */
@@ -862,7 +862,7 @@ public final class CanonicalRenderSql {
     /** The empty list of {@code list}'s type (a dialect that types every list literal reads it), else untyped. */
     private static SqlExpr emptyLike(SqlExpr list) {
         return list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array
-                ? new SqlExpr.Cast(emptyArray(), t.type()) : emptyArray();
+                ? new SqlExpr.Cast(emptyArray(), t.type(), SqlExpr.Reason.PRINT) : emptyArray();
     }
 
     static boolean hasCanonField(SqlType.Struct st) {
@@ -956,7 +956,7 @@ public final class CanonicalRenderSql {
         // NULL operand, so an unguarded String spelling read '' — a
         // NULL parentName beside the expected ^TDSNull() (bucket 9)
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit())), lit);
+                SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit())), lit, SqlExpr.Reason.PRINT);
     }
 
     /** A JSON-carried slot's canon: NULL stays NULL; an OBJECT is the
@@ -971,10 +971,10 @@ public final class CanonicalRenderSql {
                 new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON));
         SqlExpr type = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
                 new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)),
-                SqlType.Scalar.VARCHAR);
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         SqlExpr id = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
                 new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)),
-                SqlType.Scalar.VARCHAR);
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         SqlExpr identity = identityText(tracked(id), type);
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
@@ -985,12 +985,12 @@ public final class CanonicalRenderSql {
                 // selfJoin::testSelfJoinPropertyMapping, bucket 9)
                 new SqlExpr.Case.When(isKind(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), com.legend.sql.JsonKind.OBJECT),
                         new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.COALESCE, canon, identity),
-                                SqlType.Scalar.VARCHAR))),
+                                SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT))),
                 objectOnly ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                         isKind(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), com.legend.sql.JsonKind.NULL),
                         new SqlExpr.StringLit("'TDSNull'"))),
-                        new SqlExpr.StringLit(TREE_MARKER))
-                        : anyJsonCanon(v));
+                        new SqlExpr.StringLit(TREE_MARKER), SqlExpr.Reason.PRINT)
+                        : anyJsonCanon(v), SqlExpr.Reason.PRINT);
     }
 
     /** PURE'S OWN LITERAL SPELLING of a scalar (user ruling 2026-08-22
@@ -1029,7 +1029,7 @@ public final class CanonicalRenderSql {
                     : Objects.requireNonNull(literalCanon(ref, MixedEncoding.kindType(slot.kind())));
             whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)), canonOf));
         }
-        SqlExpr canon = new SqlExpr.Case(whens, null);
+        SqlExpr canon = new SqlExpr.Case(whens, null, SqlExpr.Reason.PRINT);
         List<com.legend.sql.SqlSelect.Projection> projections = new java.util.ArrayList<>();
         List<com.legend.sql.OutputCol> outputs = new java.util.ArrayList<>();
         for (com.legend.sql.OutputCol c : plan.outputs()) {
@@ -1069,7 +1069,7 @@ public final class CanonicalRenderSql {
         SqlExpr txt = new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
                         new SqlExpr.StringLit("$")),
-                SqlType.Scalar.VARCHAR);
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         SqlExpr strLit = Objects.requireNonNull(
                 literalCanon(txt, Type.Primitive.STRING));
         SqlExpr floatLit = Objects.requireNonNull(
@@ -1090,7 +1090,7 @@ public final class CanonicalRenderSql {
                         isKind(jt, com.legend.sql.JsonKind.UNSIGNED_INTEGER)), txt),
                 new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.FLOAT), floatLit),
                 new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.BOOLEAN), txt)),
-                new SqlExpr.StringLit(TREE_MARKER));
+                new SqlExpr.StringLit(TREE_MARKER), SqlExpr.Reason.PRINT);
     }
 
     /** {@code jsonType} (a JSON_TYPE call) answers {@code kind}: the kind is typed, its name the dialect's. */

@@ -2553,7 +2553,7 @@ public class Snowflake extends AnsiSqlRenderer {
     private SqlAgg.Reducer doubleArgs(SqlAgg.Reducer r) {
         List<SqlExpr> args = new ArrayList<>();
         for (SqlExpr x : r.args()) {
-            args.add(isDouble(x) ? x : new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
+            args.add(isDouble(x) ? x : new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT));
         }
         return new SqlAgg.Reducer(r.fn(), args, r.distinct(), r.orderBy());
     }
@@ -3296,7 +3296,7 @@ public class Snowflake extends AnsiSqlRenderer {
                         return s;   // COUNT(*)-style using: the writer refuses the pivot by name
                     }
                     args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null));
+                            SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null, SqlExpr.Reason.DIALECT));
                     String name = valueText(v) + "__|__" + u.alias();
                     ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()),
                             name, CarrierStrategies.generatedSlot(p, u, name)));

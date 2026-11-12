@@ -470,7 +470,7 @@ public final class MirJson {
                 tag(o, ExprTag.cast, c.type());
                 o.put("value", expr(c.value()));
                 o.put("target", type(c.target()));
-                o.put("conform", c.conform());
+                o.put("reason", c.reason().code());
             }
             case SqlExpr.FoldCall f -> {
                 tag(o, ExprTag.foldCall, f.type());
@@ -530,6 +530,7 @@ public final class MirJson {
         }
         o.put("whens", whens);
         o.put("otherwise", c.otherwise() == null ? null : expr(c.otherwise()));
+        o.put("reason", c.reason().code());
     }
 
     private static void checkedDefects(Map<String, Object> o, SqlExpr.CheckedDefects d) {
@@ -1001,7 +1002,8 @@ public final class MirJson {
                     whens.add(new SqlExpr.Case.When(readExpr(w.getObj("condition")), readExpr(w.getObj("then"))));
                 }
                 Json.Obj otherwise = objOrNull(o, "otherwise");
-                yield new SqlExpr.Case(whens, otherwise == null ? null : readExpr(otherwise), type);
+                yield new SqlExpr.Case(whens, otherwise == null ? null : readExpr(otherwise),
+                        SqlExpr.Reason.of(o.getString("reason")), type);
             }
             case exists -> new SqlExpr.Exists(readQuery(o.getObj("subquery")), type);
             case inSubquery -> new SqlExpr.InSubquery(readExpr(o.getObj("value")), readQuery(o.getObj("subquery")),
@@ -1050,7 +1052,7 @@ public final class MirJson {
             }
             case lambda -> new SqlExpr.Lambda(strings(o.getArr("params")), readExpr(o.getObj("body")), type);
             case cast -> new SqlExpr.Cast(readExpr(o.getObj("value")), readType(o.getObj("target")),
-                    o.getBool("conform"), type);
+                    SqlExpr.Reason.of(o.getString("reason")), type);
             case foldCall -> new SqlExpr.FoldCall(readExpr(o.getObj("source")),
                     (SqlExpr.Lambda) readExpr(o.getObj("lambda")), readExpr(o.getObj("init")),
                     o.getBool("accIsList"), o.getBool("homogeneous"), type);

@@ -156,7 +156,7 @@ class DuckDbValidityTest {
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER,
                         new SqlExpr.IntLit(20), new SqlExpr.IntLit(18)),
                         new SqlExpr.StringLit("adult"))),
-                new SqlExpr.StringLit("minor"))));
+                new SqlExpr.StringLit("minor"), SqlExpr.Reason.USER)));
 
         // [1,2,3] filtered to elements > 1 → list of size 2
         Object filtered = execExpr(new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(

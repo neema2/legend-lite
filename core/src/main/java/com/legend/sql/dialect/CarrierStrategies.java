@@ -388,7 +388,7 @@ public final class CarrierStrategies extends SqlRewriter {
                 args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                         SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
                                 p.on().get(0), v),
-                        args.get(0))), null));
+                        args.get(0))), null, SqlExpr.Reason.DIALECT));
                 String pname = litText(v) + "__|__" + u.alias();
                 ps.add(new SqlSelect.Projection(
                         new SqlAgg.Reducer(agg.fn(), args, agg.distinct(),
@@ -915,7 +915,7 @@ public final class CarrierStrategies extends SqlRewriter {
                     List<SqlExpr> els = new ArrayList<>(l.size());
                     for (Object el : l) {
                         els.add(new SqlExpr.Cast(new SqlExpr.StringLit(jsonText(el)),
-                                com.legend.sql.SqlType.Scalar.JSON));
+                                com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.DIALECT));
                     }
                     return new SqlExpr.ArrayLit(els);
                 }
@@ -936,7 +936,7 @@ public final class CarrierStrategies extends SqlRewriter {
             return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
                     SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH,
                             new SqlExpr.Cast(tf.args().get(0),
-                                    com.legend.sql.SqlType.Scalar.VARCHAR)),
+                                    com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT)),
                     new SqlExpr.IntLit(10));
         }
         // sorted collect VALUE (R5d, witnessed): LIST_SORT(collect) IS
@@ -1045,9 +1045,9 @@ public final class CarrierStrategies extends SqlRewriter {
                     SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, expr(position), new SqlExpr.IntLit(i + 1)),
                     expr(la.elements().get(i))));
         }
-        SqlExpr pick = new SqlExpr.Case(whens, null);
+        SqlExpr pick = new SqlExpr.Case(whens, null, SqlExpr.Reason.DIALECT);
         // the channel's slot type rides on the pick (a DECIMAL(p,s), a DATE; the L1 audit, 2026-10-29)
-        return element != null ? new SqlExpr.Cast(pick, element) : pick;
+        return element != null ? new SqlExpr.Cast(pick, element, SqlExpr.Reason.DIALECT) : pick;
     }
 
     /** The fused grouped-subselect, or null when the collection operand
@@ -1362,7 +1362,7 @@ public final class CarrierStrategies extends SqlRewriter {
                     s0, sp.args().get(1), idx);
             return i == 1 ? part
                     : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                            missing, new SqlExpr.NullLit())), part);
+                            missing, new SqlExpr.NullLit())), part, SqlExpr.Reason.DIALECT);
         }
         // element pick over a collect: ORDER-carrying LIMIT/OFFSET.
         // i = -1 (last) needs keys to flip; keyless last is undefined
@@ -1429,7 +1429,7 @@ public final class CarrierStrategies extends SqlRewriter {
             return new SqlExpr.BoolLit(b);
         }
         return new SqlExpr.Cast(new SqlExpr.StringLit(jsonText(node)),
-                com.legend.sql.SqlType.Scalar.JSON);
+                com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.DIALECT);
     }
 
     /** Minimal JSON writer for re-emitting folded composite nodes. */
@@ -1487,7 +1487,7 @@ public final class CarrierStrategies extends SqlRewriter {
         }
         return lr.type() instanceof com.legend.sql.TypeFact.Typed t
                 && !(folded.type() instanceof com.legend.sql.TypeFact.Typed f && f.type().equals(t.type()))
-                ? new SqlExpr.Cast(folded, t.type(), false) : folded;
+                ? new SqlExpr.Cast(folded, t.type(), SqlExpr.Reason.DIALECT) : folded;
     }
 
     private static SqlExpr litFold(List<SqlExpr> elements, SqlExpr neutral,
@@ -1507,7 +1507,7 @@ public final class CarrierStrategies extends SqlRewriter {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 java.util.Objects.requireNonNull(allNull),
                 new SqlExpr.NullLit())),
-                java.util.Objects.requireNonNull(chain));
+                java.util.Objects.requireNonNull(chain), SqlExpr.Reason.DIALECT);
     }
 
     private static SqlSelect.SortKey.@com.legend.base.Nullable NullOrder flipNulls(
@@ -1580,7 +1580,7 @@ public final class CarrierStrategies extends SqlRewriter {
                     return null;
                 }
             }
-            return new SqlExpr.Case(whens, otherwise);
+            return new SqlExpr.Case(whens, otherwise, SqlExpr.Reason.DIALECT);
         }
         // a NON-NULL filter over the collection (LIST_FILTER(coll, x -> x
         // IS NOT NULL) — the many-property read's null-drop) is redundant
@@ -1665,7 +1665,7 @@ public final class CarrierStrategies extends SqlRewriter {
                 cond = cond == null ? p : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, cond, p);
             }
             SqlExpr one = new SqlExpr.Case(List.of(new SqlExpr.Case.When(java.util.Objects.requireNonNull(cond),
-                    new SqlExpr.IntLit(1))), new SqlExpr.IntLit(0));
+                    new SqlExpr.IntLit(1))), new SqlExpr.IntLit(0), SqlExpr.Reason.DIALECT);
             sum = sum == null ? one : SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, sum, one);
         }
         return sum == null ? new SqlExpr.IntLit(0) : sum;

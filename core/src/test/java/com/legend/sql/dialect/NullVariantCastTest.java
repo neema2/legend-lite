@@ -21,7 +21,7 @@ class NullVariantCastTest {
     private static SqlSelect select() {
         OutputCol v = new OutputCol("v", SqlType.Scalar.JSON, true, OutputCol.Origin.DERIVED);
         return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(),
-                SqlType.Scalar.JSON), "v", v)), false, new SqlSource.Dual(), null, List.of(), null, null, List.of(),
+                SqlType.Scalar.JSON, SqlExpr.Reason.USER), "v", v)), false, new SqlSource.Dual(), null, List.of(), null, null, List.of(),
                 null, null, List.of(v));
     }
 

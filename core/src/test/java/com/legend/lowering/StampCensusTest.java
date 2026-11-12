@@ -26,7 +26,7 @@ class StampCensusTest {
             new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ZERO_ONE));
 
     private static SqlExpr caseOf(SqlExpr then, SqlExpr otherwise) {
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.BoolLit(true), then)), otherwise);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.BoolLit(true), then)), otherwise, SqlExpr.Reason.USER);
     }
 
     @Test

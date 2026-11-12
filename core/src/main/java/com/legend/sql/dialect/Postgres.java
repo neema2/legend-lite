@@ -1540,7 +1540,7 @@ public class Postgres extends AnsiSqlRenderer {
         }
         if (c.value() instanceof SqlExpr.StringLit && c.target() != SqlType.Scalar.VARCHAR
                 && c.target() != SqlType.Scalar.TEMPORAL_TEXT && c.target() != SqlType.Scalar.DECIMAL_TEXT) {
-            return super.variantAwareCast(writer, new SqlExpr.Cast(typedText(c.value()), c.target()));
+            return super.variantAwareCast(writer, new SqlExpr.Cast(typedText(c.value()), c.target(), c.reason()));
         }
         return super.variantAwareCast(writer, c);
     }
@@ -1554,7 +1554,7 @@ public class Postgres extends AnsiSqlRenderer {
      * Any other value is itself.
      */
     private static SqlExpr typedText(SqlExpr x) {
-        return x instanceof SqlExpr.StringLit ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR) : x;
+        return x instanceof SqlExpr.StringLit ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT) : x;
     }
 
     /** A value to a list of scalars: a Variant array's elements read as the element type, in order (a
@@ -1917,7 +1917,7 @@ public class Postgres extends AnsiSqlRenderer {
             boolean zero = !m.group(2).isEmpty();
             int width = m.group(3).isEmpty() ? 0 : Integer.parseInt(m.group(3));
             char conversion = m.group(5).charAt(0);
-            SqlExpr asText = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+            SqlExpr asText = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT);
             SqlWriter.Piece value = switch (conversion) {
                 case 's', 'd' -> isText(x) ? w -> w.expr(x, 0) : w -> w.expr(asText, 0);
                 case 'f' -> {
@@ -2161,7 +2161,7 @@ public class Postgres extends AnsiSqlRenderer {
     protected SqlWriter hashSigned(SqlWriter writer, List<SqlExpr> a) {
         writer.append("CAST(CAST('x' || left(md5(CAST(json_build_array(");
         writer.join(a, ", ", (w, x) -> w.expr(isText(x) || x instanceof SqlExpr.NullLit ? x
-                : new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR), 0));
+                : new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT), 0));
         return writer.append(") AS TEXT)), 16) AS BIT(64)) AS BIGINT)");
     }
 

@@ -55,7 +55,7 @@ final class FloatCanonText {
                     return known;
                 }
                 String alias = "__fc" + fresh[0]++;
-                SqlExpr text = new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.VARCHAR);
+                SqlExpr text = new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
                 com.legend.sql.OutputCol t = new com.legend.sql.OutputCol("t", SqlType.Scalar.VARCHAR, true);
                 SqlExpr ref = SqlExpr.Column.of(alias, "t", SqlType.Scalar.VARCHAR, true,
                         com.legend.sql.OutputCol.Origin.DERIVED);
@@ -79,7 +79,7 @@ final class FloatCanonText {
 
     /** Pure's literal spelling of the double {@code v}, as SQL over its text. */
     static SqlExpr of(SqlExpr v) {
-        return ofText(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR));
+        return ofText(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
     }
 
     /** The exponent unfolded to fixed point where the text {@code base} carries one, else the text as it is: a
@@ -89,7 +89,7 @@ final class FloatCanonText {
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR, has(base, "e"), has(base, "E")),
                         exponentUnfold(base))),
-                base);
+                base, SqlExpr.Reason.PRINT);
     }
 
     /** Pure's literal spelling of a double over {@code base}, the database's text of it. */
@@ -117,7 +117,7 @@ final class FloatCanonText {
                         has(base, ".")),
                         SqlExpr.Call.of(SqlFn.CONCAT, base,
                                 new SqlExpr.StringLit(".0")))),
-                base);
+                base, SqlExpr.Reason.PRINT);
     }
 
     /**
@@ -134,7 +134,7 @@ final class FloatCanonText {
                 SqlExpr.Call.of(SqlFn.STARTS_WITH, base,
                         new SqlExpr.StringLit("-")),
                 new SqlExpr.StringLit("-"))),
-                new SqlExpr.StringLit(""));
+                new SqlExpr.StringLit(""), SqlExpr.Reason.PRINT);
         // mantissa without sign, e.g. '1.3421'; its digits '13421';
         // intLen = digits before the dot; exp as an integer
         SqlExpr mant = SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, base,
@@ -147,7 +147,7 @@ final class FloatCanonText {
         SqlExpr intLen = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, dotPos, new SqlExpr.IntLit(0)),
                 SqlExpr.Call.of(SqlFn.LENGTH, mant))),
-                SqlExpr.Call.of(SqlFn.MINUS, dotPos, new SqlExpr.IntLit(1)));
+                SqlExpr.Call.of(SqlFn.MINUS, dotPos, new SqlExpr.IntLit(1)), SqlExpr.Reason.PRINT);
         // the exponent digits, NULL when there are none: H2 folds a constant
         // operand at prepare time BRANCH-BLIND (a literal golden cell), so
         // CAST('' AS INTEGER) would raise under the untaken CASE arm
@@ -156,7 +156,7 @@ final class FloatCanonText {
                 new SqlExpr.IntLit(1));
         SqlExpr exp = new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, expText, new SqlExpr.StringLit("")),
-                new SqlExpr.NullLit())), expText), SqlType.Scalar.INTEGER);
+                new SqlExpr.NullLit())), expText, SqlExpr.Reason.PRINT), SqlType.Scalar.INTEGER, SqlExpr.Reason.PRINT);
         SqlExpr pointPos = SqlExpr.Call.of(SqlFn.PLUS, intLen, exp);
         SqlExpr dLen = SqlExpr.Call.of(SqlFn.LENGTH, digits);
         // three shapes by where the point lands
@@ -182,7 +182,7 @@ final class FloatCanonText {
                         pointPos, new SqlExpr.IntLit(0)), tiny),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
                         pointPos, dLen), huge)),
-                mid);
+                mid, SqlExpr.Reason.PRINT);
         return SqlExpr.Call.of(SqlFn.CONCAT, sign, body);
     }
 
@@ -193,7 +193,7 @@ final class FloatCanonText {
                 new SqlExpr.Cast(
                         SqlExpr.Call.of(SqlFn.GREATEST, n,
                                 new SqlExpr.IntLit(0)),
-                        SqlType.Scalar.INTEGER),
+                        SqlType.Scalar.INTEGER, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("0"));
     }
 

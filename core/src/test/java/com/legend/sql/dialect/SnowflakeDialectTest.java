@@ -40,7 +40,7 @@ class SnowflakeDialectTest {
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
         String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR), "s", null)), false, new SqlSource.Table("t", "t",
+                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER), "s", null)), false, new SqlSource.Table("t", "t",
                 List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
         // the value written once; its exact decimal by a power of two's scaling and an exact NUMBER, never its own cast

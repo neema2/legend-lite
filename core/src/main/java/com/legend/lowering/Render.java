@@ -540,7 +540,7 @@ public final class Render {
             whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
                     arm.apply(ref, MixedEncoding.kindType(slot.kind()), slot.type())));
         }
-        return new SqlExpr.Case(whens, null);
+        return new SqlExpr.Case(whens, null, SqlExpr.Reason.PRINT);
     }
 
     @FunctionalInterface
@@ -608,7 +608,7 @@ public final class Render {
                                     new SqlExpr.StringLit("'"),
                                     new SqlExpr.StringLit("\\'")),
                             new SqlExpr.StringLit("'")))),
-                    c);
+                    c, SqlExpr.Reason.PRINT);
         } else if (dateOnly(t, slot)) {
             rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
@@ -640,14 +640,14 @@ public final class Render {
             // INTEGER slots (an all-int Number column) and the VARCHAR
             // mixed-identity carrier keep their own spellings.
             rendered = Scalars.pureToString(Type.Primitive.FLOAT,
-                    new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE));
+                    new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT));
         } else {
             rendered = Scalars.pureToString(t, c);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),
                 new SqlExpr.StringLit(variant ? "'null'" : "null"))),
-                rendered);
+                rendered, SqlExpr.Reason.PRINT);
     }
 
     /** write(rel, accessor)'s observable: the COUNT of rows written
@@ -774,7 +774,7 @@ public final class Render {
             // ABSTRACT Date over a TIMESTAMP slot: the engine's formatDateTime rule, defined over the value
             // (timed); the JSON wires spell the same (dateText)
             rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), dateTimeText(c))),
-                    strictDateText(c));
+                    strictDateText(c), SqlExpr.Reason.PRINT);
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.LATEST_DATE) {
             // the DateTime kinds: Pure's DateTime text (the one owner, 2026-10-18; the engine's own CSV wrote
@@ -786,7 +786,7 @@ public final class Render {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),
                 new SqlExpr.StringLit(renderTdsNull ? "TDSNull" : ""))),
-                rendered);
+                rendered, SqlExpr.Reason.PRINT);
     }
 
     /** THE RFC4180 escape rule ({@code escapeCSVString}), spelled once:
@@ -810,7 +810,7 @@ public final class Render {
                                 new SqlExpr.StringLit("\""),
                                 new SqlExpr.StringLit("\"\"")),
                         new SqlExpr.StringLit("\"")))),
-                s);
+                s, SqlExpr.Reason.PRINT);
     }
 
     private static SqlExpr contains(SqlExpr s, String needle) {

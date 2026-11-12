@@ -147,7 +147,7 @@ final class TaggedLists {
                     SqlExpr.Call.of(SqlFn.IS_NOT_NULL, tl.channelAt(k, pos))));
         }
         return SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),
-                new SqlExpr.Lambda(List.of(p), SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null),
+                new SqlExpr.Lambda(List.of(p), SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER),
                         new SqlExpr.BoolLit(false))));
     }
 
@@ -159,7 +159,7 @@ final class TaggedLists {
             var cell = SqlExpr.Column.lookup(v, cellsOf(tl).outputs());
             return new SqlExpr.ScalarSubquery(new SqlSelect(
                     List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(
-                            new SqlExpr.Cast(new SqlExpr.NullLit(), slot),
+                            new SqlExpr.Cast(new SqlExpr.NullLit(), slot, SqlExpr.Reason.CARRIER),
                             cell.apply(SqlExpr.TaggedList.ROW_POSITION)), "s", null)),
                     false, new SqlSource.Subselect(cellsOf(tl), v, null), null, List.of(), null, null, List.of(),
                     null, null, List.of()));
@@ -171,7 +171,7 @@ final class TaggedLists {
         for (int i = 0; i < ps.elements().size(); i++) {
             nulls.add(new SqlExpr.NullLit());
         }
-        return new SqlExpr.Cast(new SqlExpr.ArrayLit(nulls), new SqlType.Array(slot));
+        return new SqlExpr.Cast(new SqlExpr.ArrayLit(nulls), new SqlType.Array(slot), SqlExpr.Reason.CARRIER);
     }
 
     /** The list on the VARIANT carrier: a JSON array, each element the JSON value of its channel's value (an
@@ -186,7 +186,7 @@ final class TaggedLists {
                     SqlExpr.Call.of(SqlFn.TO_VARIANT, tl.channelAt(k, pos))));
         }
         return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(),
-                new SqlExpr.Lambda(List.of(p), new SqlExpr.Case(whens, null)));
+                new SqlExpr.Lambda(List.of(p), new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER)));
     }
 
     /** The element at 0-based {@code index}, out of bounds raising Pure's own message. */
@@ -295,7 +295,7 @@ final class TaggedLists {
         }
         return SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(p), tl.tagAt(q)),
-                SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null), new SqlExpr.BoolLit(false)));
+                SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER), new SqlExpr.BoolLit(false)));
     }
 
     /** A tagged value equals a value of the static {@code kind}: its tag names that kind's candidate, whose value
@@ -523,7 +523,7 @@ final class TaggedLists {
                         new SqlExpr.IntLit(k)));
             }
             List<SqlSelect.Projection> out = new ArrayList<>();
-            out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+            out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null, SqlExpr.Reason.CARRIER), carrier, SqlExpr.Reason.CARRIER), "value",
                     new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
             for (int k = 0; k < slots.size(); k++) {
                 String name = SqlType.Tagged.slotColumn("value", k);
@@ -543,7 +543,7 @@ final class TaggedLists {
         // position at each read of it (Snowflake, SQLite, MariaDB, MySQL) wrote the position list per channel in a CASE
         SqlExpr index = SqlExpr.Call.of(SqlFn.MINUS, tl.tagAt(p), new SqlExpr.IntLit(1));
         List<SqlSelect.Projection> out = new ArrayList<>();
-        out.add(new SqlSelect.Projection(new SqlExpr.Cast(index, carrier), "value",
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(index, carrier, SqlExpr.Reason.CARRIER), "value",
                 new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
         for (int k = 0; k < slots.size(); k++) {
             String name = SqlType.Tagged.slotColumn("value", k);

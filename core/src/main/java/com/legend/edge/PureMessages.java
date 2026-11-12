@@ -49,7 +49,7 @@ public final class PureMessages {
 
     /** {@code x}'s text as the database casts it ({@code VARCHAR}), as the lowering's own {@code str} does. */
     static SqlExpr str(SqlExpr x) {
-        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
     }
 
 }

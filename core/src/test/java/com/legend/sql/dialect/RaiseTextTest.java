@@ -46,7 +46,7 @@ class RaiseTextTest {
         }
     }
 
-    private static final SqlExpr OPERAND = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.VARCHAR);
+    private static final SqlExpr OPERAND = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
 
     @Test
     void aProductRaiseWritesItsKindAndNoOperand() {
@@ -84,9 +84,9 @@ class RaiseTextTest {
      *  product wrote before the move (PCT's assertErrors compare legend-pure's text). */
     @Test
     void theEdgeWritesLegendPuresSentence() {
-        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT);
+        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT, SqlExpr.Reason.USER);
         SqlExpr before = SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(
-                "Cannot divide "), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR)), new SqlExpr.StringLit(" by zero"));
+                "Cannot divide "), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)), new SqlExpr.StringLit(" by zero"));
         for (DatabaseType type : Databases.implemented()) {
             assertEquals(text(Databases.dialect(type), select(before)), text(com.legend.edge.PureText.dialect(type),
                     select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a)))), type + ": rem's");

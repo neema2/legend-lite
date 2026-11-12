@@ -31,7 +31,7 @@ final class DecimalKindRules {
     static SqlExpr round(TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() == 1) {
             return new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
-                    SqlType.Scalar.BIGINT);
+                    SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR);
         }
         return decimalScaleCast(n, 1,
                 new SqlExpr.Call(SqlFn.ROUND, args));
@@ -77,14 +77,14 @@ final class DecimalKindRules {
             // a bare integral literal types INTEGER — cast keeps it a
             // scale-0 DECIMAL (8D)
             case SqlExpr.IntLit i ->
-                    new SqlExpr.Cast(i, new SqlType.Decimal(38, 0));
+                    new SqlExpr.Cast(i, new SqlType.Decimal(38, 0), SqlExpr.Reason.OPERATOR);
             case SqlExpr.DecimalLit d -> d;
             case SqlExpr.FloatLit fl -> new SqlExpr.DecimalLit(
                     java.math.BigDecimal.valueOf(fl.value()));
             default -> new SqlExpr.Cast(args.get(0),
                     n.args().get(0).info().type() == Type.Primitive.INTEGER
                             ? new SqlType.Decimal(38, 0)
-                            : new SqlType.Decimal(38, 18));
+                            : new SqlType.Decimal(38, 18), SqlExpr.Reason.OPERATOR);
         };
     }
 
@@ -93,7 +93,7 @@ final class DecimalKindRules {
         if (isDecimalStamp(n.info().type())
                 && n.args().get(scaleArgIndex) instanceof TypedCInteger k) {
             return new SqlExpr.Cast(computed,
-                    new SqlType.Decimal(38, k.value().intValue()));
+                    new SqlType.Decimal(38, k.value().intValue()), SqlExpr.Reason.OPERATOR);
         }
         return computed;
     }

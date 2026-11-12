@@ -539,7 +539,7 @@ public final class StableScanOrder extends SqlRewriter {
         com.legend.sql.SqlExpr ord = ords.isEmpty()
                 ? new com.legend.sql.SqlExpr.Cast(
                         new com.legend.sql.SqlExpr.NullLit(),
-                        com.legend.sql.SqlType.Scalar.BIGINT)
+                        com.legend.sql.SqlType.Scalar.BIGINT, com.legend.sql.SqlExpr.Reason.DIALECT)
                 : ords.get(0);
         java.util.List<com.legend.sql.SqlSelect.Projection> ps =
                 new java.util.ArrayList<>(leg.projections());

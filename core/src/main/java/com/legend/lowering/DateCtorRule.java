@@ -116,7 +116,7 @@ final class DateCtorRule {
                                         new SqlExpr.StringLit(".")),
                                 SqlExpr.Call.of(SqlFn.CONCAT, trimmed,
                                         new SqlExpr.StringLit("0")))),
-                        trimmed), SqlType.Scalar.TEMPORAL_TEXT);
+                        trimmed, SqlExpr.Reason.OPERATOR), SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.OPERATOR);
             }
             return new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args);
         }
@@ -126,7 +126,7 @@ final class DateCtorRule {
         for (int i = 0; i < args.size(); i++) {
             SqlExpr part = SqlExpr.Call.of(SqlFn.LPAD,
                     new SqlExpr.Cast(args.get(i),
-                            SqlType.Scalar.VARCHAR),
+                            SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR),
                     new SqlExpr.IntLit(widths[i]), new SqlExpr.StringLit("0"));
             out = out == null ? part
                     : SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT,
@@ -136,7 +136,7 @@ final class DateCtorRule {
         // partial print is TEMPORAL_TEXT-stamped (§4bZ-V B3 — the
         // marker cast never renders)
         return new SqlExpr.Cast(java.util.Objects.requireNonNull(out,
-                "date() with no components"), SqlType.Scalar.TEMPORAL_TEXT);
+                "date() with no components"), SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.OPERATOR);
     }
 
     /** The digits of a second the fractional {@code date()}'s text carrier writes ({@code DateFmt.ISO_MICRO}). */
@@ -161,7 +161,7 @@ final class DateCtorRule {
             }
             return second;
         }
-        SqlExpr exact = new SqlExpr.Cast(second, new SqlType.Decimal(38, 9));
+        SqlExpr exact = new SqlExpr.Cast(second, new SqlType.Decimal(38, 9), SqlExpr.Reason.OPERATOR);
         return Scalars.guarded(SqlExpr.Call.of(SqlFn.NOT_EQUAL, exact,
                         SqlExpr.Call.of(SqlFn.ROUND, exact, new SqlExpr.IntLit(CARRIED_DIGITS))),
                 Scalars.cat(new SqlExpr.StringLit("the second "), Scalars.str(second),

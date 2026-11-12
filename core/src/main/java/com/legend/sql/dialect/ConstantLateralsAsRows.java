@@ -218,7 +218,7 @@ final class ConstantLateralsAsRows extends SqlRewriter {
             // the empty list: one row of NULLs that no row passes
             List<SqlSelect.Projection> ps = new ArrayList<>();
             for (OutputCol oc : outs) {
-                ps.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), oc.type()), oc.name(), oc));
+                ps.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), oc.type(), SqlExpr.Reason.DIALECT), oc.name(), oc));
             }
             branches.add(new SqlSelect(ps, false, new SqlSource.Dual(), new SqlExpr.BoolLit(false), List.of(), null,
                     null, List.of(), null, null, List.of()));
@@ -231,7 +231,7 @@ final class ConstantLateralsAsRows extends SqlRewriter {
 
     /** A NULL element typed by its column (a UNION's first branch types the column). */
     private static SqlExpr typed(SqlExpr v, SqlType t) {
-        return v instanceof SqlExpr.NullLit ? new SqlExpr.Cast(v, t) : v;
+        return v instanceof SqlExpr.NullLit ? new SqlExpr.Cast(v, t, SqlExpr.Reason.DIALECT) : v;
     }
 
     private static boolean readsColumn(SqlExpr e) {

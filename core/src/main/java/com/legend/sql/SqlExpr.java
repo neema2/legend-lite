@@ -253,7 +253,7 @@ public sealed interface SqlExpr
                     ws.add(new Case.When(cs.get(i), cs.get(i + 1)));
                     i += 2;
                 }
-                yield new Case(ws, old.otherwise() == null ? null : cs.get(i));
+                yield new Case(ws, old.otherwise() == null ? null : cs.get(i), old.reason());
             }
             case WindowCall w -> {
                 int base = w.fn() instanceof SqlExpr ? 1 : 0;
@@ -271,7 +271,7 @@ public sealed interface SqlExpr
             // supplied-leaf knowledge (the builder's, like Column's
             // type): a body swap keeps it — recomputable by no rule
             case Lambda l -> new Lambda(l.params(), cs.get(0), l.type());
-            case Cast c -> new Cast(cs.get(0), c.target(), c.conform());
+            case Cast c -> new Cast(cs.get(0), c.target(), c.reason());
             case FoldCall f -> new FoldCall(cs.get(0), (Lambda) cs.get(1),
                     cs.get(2), f.accIsList(), f.homogeneous());
             case JsonObject ignored -> new JsonObject(cs);
@@ -904,17 +904,69 @@ public sealed interface SqlExpr
         }
     }
 
+    /**
+     * WHY a {@link Cast} or a {@link Case} is in the SQL (E-4 of the total-wall program, the user's cast-and-case rule,
+     * ruled 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §5.8). Every one traces to the user's own Pure call
+     * or to a NAMED product rule that keeps the answer typed and the same on every database; anything else is a
+     * defect. The node that makes it names the reason: there is no constructor without one, and the census
+     * ({@code leansql.CastCaseCensusTest}) pins the counts per reason and dialect, shrink-only. {@code code} is its
+     * spelling in a plan ({@code executionplan.MirJson}).
+     */
+    enum Reason {
+        /** The user's own Pure call: {@code cast}, {@code to*}, {@code parse*}, {@code if}, {@code match}. */
+        USER("user"),
+        /** The type the plan DECLARES for a value: a literal's, a NULL's, a parameter's, a store column's, a load's. */
+        DECLARED("declared"),
+        /** The mapping read's conformance: the engine's decode-side coercion (the engine-text channel elides it). */
+        CONFORM("conform"),
+        /** A Pure operator's semantics, the same on every database: a floored mod, an integer division, a scale kept,
+         *  a date's arithmetic, an instance's equality, a window's frame. */
+        OPERATOR("operator"),
+        /** A value carried and read back: a list, JSON, tagged or graph carrier's encoding. */
+        CARRIER("carrier"),
+        /** Pure's printed text of a value: its canon, a Float's spelling, {@code toRepresentation}, a result's text. */
+        PRINT("print"),
+        /** A raise's carrier: the condition a raise is written under (D's). */
+        RAISE("raise"),
+        /** A database's own requirement, made by its dialect: an argument type its function needs, its encoding. */
+        DIALECT("dialect"),
+        /** The test road's verdict statement (the judges'; never a product query's). */
+        JUDGE("judge");
+
+        private final String code;
+
+        Reason(String code) {
+            this.code = code;
+        }
+
+        /** Its spelling in a plan. */
+        public String code() {
+            return code;
+        }
+
+        /** The reason a plan spells {@code code}; an unknown spelling is refused by name. */
+        public static Reason of(String code) {
+            for (Reason r : values()) {
+                if (r.code.equals(code)) {
+                    return r;
+                }
+            }
+            throw new IllegalArgumentException("no cast-or-case reason is spelled '" + code + "'");
+        }
+    }
+
     /** {@code CASE WHEN ... THEN ... [WHEN ...] ELSE ... END}. */
-    /** {@code otherwise} null = no ELSE branch (SQL semantics: NULL). */
-    record Case(List<When> whens, @com.legend.base.Nullable SqlExpr otherwise,
+    /** {@code otherwise} null = no ELSE branch (SQL semantics: NULL). {@code reason}: why it is in the SQL. */
+    record Case(List<When> whens, @com.legend.base.Nullable SqlExpr otherwise, Reason reason,
             TypeFact type) implements SqlExpr {
         public Case {
+            java.util.Objects.requireNonNull(reason, "a CASE without a reason (E-4)");
             type = SqlTyping.caseType(whens, otherwise);
         }
 
         public Case(List<When> whens,
-                @com.legend.base.Nullable SqlExpr otherwise) {
-            this(whens, otherwise, SqlTyping.UNKNOWN);
+                @com.legend.base.Nullable SqlExpr otherwise, Reason reason) {
+            this(whens, otherwise, reason, SqlTyping.UNKNOWN);
         }
 
         public record When(SqlExpr condition, SqlExpr then) {
@@ -1590,18 +1642,21 @@ public sealed interface SqlExpr
      * the engine-TEXT channel elides it (the goldens pin the engine's
      * own no-cast spelling — the wire-coercion precedent). User casts
      * are never conform. */
-    record Cast(SqlExpr value, SqlType target, boolean conform,
+    /** {@code reason}: why it is in the SQL ({@link Reason}); {@link Reason#CONFORM} is the conformance cast. */
+    record Cast(SqlExpr value, SqlType target, Reason reason,
             TypeFact type) implements SqlExpr {
         public Cast {
+            java.util.Objects.requireNonNull(reason, "a CAST without a reason (E-4)");
             type = SqlTyping.castType(value, target);
         }
 
-        public Cast(SqlExpr value, SqlType target, boolean conform) {
-            this(value, target, conform, SqlTyping.UNKNOWN);
+        public Cast(SqlExpr value, SqlType target, Reason reason) {
+            this(value, target, reason, SqlTyping.UNKNOWN);
         }
 
-        public Cast(SqlExpr value, SqlType target) {
-            this(value, target, false);
+        /** Whether the mapping read's conformance emitted it. */
+        public boolean conform() {
+            return reason == Reason.CONFORM;
         }
     }
 

@@ -452,11 +452,11 @@ public class SQLite extends AnsiSqlRenderer {
             // printf reads a NULL as 0 and writes '0.00' (measured 2026-10-11 for the Float text, and 2026-10-27 here:
             // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE))),
-                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e));
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT))),
+                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e), SqlExpr.Reason.DIALECT);
         }
         if (label == SqlType.Scalar.DOUBLE) {
-            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);
+            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
         }
         // an integer past 64 bits has no SQLite value: its arithmetic overflows to a REAL silently (measured:
         // 9223372036854775807 + 3 is 9.22337203685478e+18), so a big integer's column raises instead
@@ -466,7 +466,7 @@ public class SQLite extends AnsiSqlRenderer {
                     SqlExpr.Call.of(SqlFn.LESS, e, new SqlExpr.IntLit(Long.MIN_VALUE))),
                     SqlExpr.Call.of(SqlFn.ERROR,
                             new SqlExpr.StringLit("an integer past 64 bits has no SQLite value")))),
-                    e);
+                    e, SqlExpr.Reason.DIALECT);
         }
         return e;
     }
