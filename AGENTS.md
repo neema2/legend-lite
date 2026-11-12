@@ -298,11 +298,18 @@ pastes (a piece pasted twice would carry its parameter once); a method that only
 returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
 text. E is complete (2026-10-09): every dialect writes all of a query, and DML's rows, into the writer; DDL spells only
 names, types and keywords, so it is text. Never edit rendered SQL after it is written, at planning or at run: the
-runner sends a plan's text as it is, with ONE allowed exception (the tenets re-audit's B-3, 2026-11-09): a keyed region,
-which the runner writes once per key (`PlanRunner.expand`, the charter's A3(a)). After a failure it sends the error
-read-back the plan's target declares (MariaDB's and MySQL's, `SqlDialect.raiseReadBack`, the charter's A3(c): plan text,
-sent as written; D4, C2, 2026-11-12, until then the connector's). The per-execution trace comment `JdbcStatements.stamped`
-wrote at run (D3) went with C1, 2026-11-12: the execution id is a bound value, S304.
+runner sends a plan's text as it is, with TWO sanctioned run-time forms: a keyed region, which the runner writes once per
+key (`PlanRunner.expand`, the charter's A3(a); the tenets re-audit's B-3, 2026-11-09), and MongoDB's parameter markers,
+each `{"$legendParam": "?"}` of the plan's command replaced in place, in order, by its slot's bound value
+(`MongoDbStatements.bound`: the binding its driver has no protocol for, as JDBC's `?` is bound by the driver; named
+2026-11-12, the C checkpoint's NOTE). After a failure it sends the error read-back the plan's target declares
+(MariaDB's and MySQL's, `SqlDialect.raiseReadBack`, the charter's A3(c): plan text, sent as written, counted as the
+session's; D4, C2, 2026-11-12, until then the connector's). The per-execution trace comment `JdbcStatements.stamped`
+wrote at run (D3) went with C1, 2026-11-12: the execution id is a bound value, S304. It is proven by type: a session's
+statements take a `PlannedSql` and no `String`, minted only where a plan is read and by `expand`
+(`ArchitectureTest.onlyThePlansReadersMintPlannedSql`, `aSessionsStatementsTakeNoText`; the C checkpoint's MUST-FIX 1,
+2026-11-12), and witnessed at run on every road (`SentStatementsAreThePlansTest`; MongoDB's command,
+`MongoDbPlanTest.theCommandSentIsThePlansWithItsMarkersBound`).
 A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
 is made, per database, as upstream's database extension writes its template (D1 of docs/GOALS_OF_RECORD_2026_11_07.md;
 `SqlDialect`'s `parameterType`, a date or date-time bound as its text); the type hole that let the runner write a

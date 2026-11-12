@@ -126,6 +126,27 @@ class RaiseReadBackTest {
         assertEquals(List.of(), none, "nothing sent the plan does not declare");
     }
 
+    /** The reset is sent whatever the read did, so a raise is never left held for a LATER statement's failure to be
+     *  told with; both are the session's statements, counted under {@link StatementOrigin#SESSION} (the C checkpoint's
+     *  NOTE, 2026-11-12). A read that fails is raised, the reset sent first. */
+    @Test
+    void theResetIsSentWhateverTheReadDid_bothCountedAsTheSessions() throws SQLException {
+        ExecutionPlan.RaiseReadBack failingRead = new ExecutionPlan.RaiseReadBack("SELECT * FROM no_such_read_back",
+                MARIADB.reset());
+        try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter();
+                java.sql.Statement st = c.createStatement()) {
+            st.execute("SET @legend_raise = 'a stale raise'");
+            long before = StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()];
+            assertThrows(SQLException.class, () -> JdbcStatements.held(c, failingRead));
+            assertEquals(2, StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()] - before,
+                    "the read and the reset, the session's statements");
+            try (java.sql.ResultSet rs = st.executeQuery("SELECT @legend_raise")) {
+                assertTrue(rs.next());
+                assertNull(rs.getString(1), "the reset was sent though the read failed: nothing stale is held");
+            }
+        }
+    }
+
     @Test
     void theSeamReadsTheHeldTextOnceAndClearsIt() throws SQLException {
         try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter();

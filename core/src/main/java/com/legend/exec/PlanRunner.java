@@ -512,7 +512,7 @@ public final class PlanRunner {
     /** A change's statement on {@code st}, its count bound under its name for the slots after it. */
     static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
-        unstamped(u.sql());   // a write is sent with no trace comment (JdbcStatements.update): it binds none
+        unstamped(u.sql());   // a write binds no execution id: only a query's or a check's activity rows read one
         PlannedSql statement = u.sql().planned();
         StatementOrigin.sent(st.mark(), statement.text());
         long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
@@ -774,8 +774,9 @@ public final class PlanRunner {
         }
     }
 
-    /** A statement whose own stamp the runner does not bind (a keyed plan's, a write's, an effect's: none is sent
-     *  under a comment the runner mints): one that binds it is a planner defect, refused by name. */
+    /** A statement whose execution id the runner does not bind (a keyed plan's, a write's, an effect's: only a query's or
+     *  a check's activity rows read one as a bound value, R17 C4; no statement is sent under a comment since C1,
+     *  2026-11-12): one that binds it is a planner defect, refused by name. */
     private static void unstamped(ExecutionPlan.Sql sql) {
         if (sql.stamp() != null) {
             throw new IllegalStateException("a keyed, write or effect statement binds its own execution-trace stamp ('"
