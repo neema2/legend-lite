@@ -2377,12 +2377,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** The standard {@code CREATE TABLE [schema.]table AS <query>}, for a dialect whose database runs it: each name
-     *  delimited, the query written as this dialect writes a query, its passes applied, each plan parameter bound where
-     *  it is written -- so the statement binds what the query alone binds, in its order. */
+     *  delimited, the query written as this dialect writes a query statement -- its passes applied, its result's columns
+     *  labeled ({@link #renderStatement(SqlQuery)}'s own root), each plan parameter bound where it is written -- so the
+     *  statement is the query's own under the table's making, and binds what the query alone binds, in its order. */
     protected final SqlWriter createTableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
         SqlWriter head = newWriter().append("CREATE TABLE ")
                 .append(ct.schema() == null ? "" : delimited(ct.schema()) + ".").append(delimited(ct.table()));
-        return query(head.append(" AS "), passed(ct.query()), 0);
+        return query(head.append(" AS "), labeled(passed(ct.query())), 0);
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -148,9 +147,14 @@ class DuckDbOutputPlanTest {
         try (Connection c = withTrades()) {
             ExecutionPlan created = plan(request(c, "trades", "out", "create", FX, null, false));
             List<ExecutionPlan.Sql> made = sqls(created);
-            // every name delimited, as the rows name it: the made table's columns are those the write reads
-            assertEquals("Create Table \"out\"(\"id\" BIGINT NULL, \"desk\" VARCHAR(4096) NULL,"
-                    + " \"amount\" DECIMAL(10, 2) NULL, \"day\" DATE NULL);", made.get(0).statement());
+            // the database's own create of the rows, none of them: the rows' statement, planned, LIMIT 0
+            com.legend.json.Json.Obj sources = com.legend.json.Json.parseObject(planner.Boundary.tableModel(
+                    com.legend.json.Json.toCompact(Map.of("databaseType", "DuckDB", "tables",
+                            request(c, "trades", "out", "create", FX, null, false).get("tables")))));
+            String rowsLimitZero = com.legend.Compiler.query(com.legend.Compiler.compileModel(
+                    sources.getString("model")), FX + "->limit(0)").plan(sources.getString("runtime")).sql();
+            assertEquals("CREATE TABLE \"out\" AS " + rowsLimitZero, made.get(0).statement());
+            assertTrue(rowsLimitZero.endsWith("LIMIT 0"), rowsLimitZero);
             ExecutionPlan overwritten = plan(request(c, "trades", "out", "overwrite", FX, null, false));
             List<String> remade = sqls(overwritten).subList(0, 2).stream().map(ExecutionPlan.Sql::statement).toList();
             assertTrue(remade.get(0).toUpperCase(java.util.Locale.ROOT).startsWith("DROP TABLE IF EXISTS \"OUT\""),
@@ -180,20 +184,21 @@ class DuckDbOutputPlanTest {
         }
     }
 
-    /** A created table's columns are the dialect's mapping of the rows' relation type: an Integer a BIGINT, a String
-     *  a VARCHAR, a Decimal its own DECIMAL, a StrictDate a DATE, a Float a DOUBLE, a Boolean a BOOLEAN, a DateTime a
-     *  TIMESTAMP -- as the made table's catalog answers them. */
+    /** A made table's columns are the database's types of its rows -- its own create of them: a passed-through
+     *  INTEGER an INTEGER, a VARCHAR, a DECIMAL(10,2), a DATE, and computed ones as the database computes them -- every
+     *  name as the rows name it. */
     @Test
-    void aCreatedTablesColumnsAreTheDialectsMappingOfTheRowsRelationType() throws Exception {
-        try (Connection c = withTrades()) {
-            run(c, plan(request(c, "trades", "typed", "create", "|#>{local::DB.trades}#->extend(~[f: r|1.5, b: r|true,"
-                    + " t: r|%2024-01-01T10:00:00])", null, false)));
+    void aMadeTablesColumnsAreTheDatabasesTypesOfTheRows() throws Exception {
+        try (Connection c = withTrades(); Statement s = c.createStatement()) {
+            String rows = "|#>{local::DB.trades}#->extend(~[f: r|1.5, b: r|true, t: r|%2024-01-01T10:00:00])";
+            assertEquals(Map.of(), changes(c, s, "trades", rows), "the database's types, as its own create");
             Map<String, String> types = new LinkedHashMap<>();
-            for (Map<String, Object> col : catalog(c, "typed")) {
+            for (Map<String, Object> col : catalog(c, "made_trades")) {
                 types.put((String) col.get("name"), (String) col.get("dataType"));
             }
-            assertEquals(Map.of("id", "BIGINT", "desk", "VARCHAR", "amount", "DECIMAL(10,2)", "day", "DATE",
-                    "f", "DOUBLE", "b", "BOOLEAN", "t", "TIMESTAMP"), types);
+            assertEquals(List.of("id", "desk", "amount", "day", "f", "b", "t"), List.copyOf(types.keySet()));
+            assertEquals(List.of("INTEGER", "VARCHAR", "DECIMAL(10,2)", "DATE"),
+                    List.copyOf(types.values()).subList(0, 4));
         }
     }
 
@@ -219,10 +224,9 @@ class DuckDbOutputPlanTest {
     }
 
     /**
-     * THE BEHAVIOUR CHANGE, PINNED (the orchestrator's ruling of 2026-11-12: widening accepted, any narrowing or
-     * precision loss ruled before it lands): for every DuckDB type a box's source column can hold, and a sum, the type
-     * a created table holds beside the type today's {@code CREATE ... AS <rows> LIMIT 0} made -- each pair where they
-     * differ.
+     * NO TYPE CHANGES, PINNED (the orchestrator's ruling (e), 2026-11-12: the made table is the database's own create
+     * of the rows, none of them): for every DuckDB type a box's source column can hold, and a sum, the type a made
+     * table holds is the type today's {@code CREATE ... AS <rows> LIMIT 0} made -- so a regression to a type map fails.
      */
     @Test
     void theCreatedTypesBesideTodaysCreate() throws Exception {
@@ -232,31 +236,13 @@ class DuckDbOutputPlanTest {
                     + " d DECIMAL(9,2), dt DATE, ts TIMESTAMP, tss TIMESTAMP_S, tsms TIMESTAMP_MS, tsns TIMESTAMP_NS,"
                     + " tstz TIMESTAMP WITH TIME ZONE, j JSON, st STRUCT(a INTEGER, b VARCHAR), l INTEGER[],"
                     + " m MAP(VARCHAR, INTEGER), tm TIME, u UUID, iv INTERVAL, e ENUM('a', 'b'))");
-            Map<String, String> changed = new TreeMap<>();
+            Map<String, String> changed = new java.util.TreeMap<>();
             changed.putAll(changes(c, s, "every", "|#>{local::DB.every}#"));
             changed.putAll(changes(c, s, "trades", "|#>{local::DB.trades}#->groupBy(~[desk], ~[total: r|$r.id :"
                     + " y|$y->plus()])"));
-            // measured 2026-11-12 on the DuckDB lite builds with; every other type is today's (VARCHAR, BOOLEAN,
-            // BIGINT, DOUBLE, DECIMAL(9,2), DATE, TIMESTAMP, a JSON, STRUCT, LIST or MAP as JSON, a TIME, UUID, INTERVAL
-            // or ENUM as VARCHAR). Widening, accepted: the smaller integers, FLOAT, the coarser timestamps, UBIGINT.
-            // Narrowing or precision lost, put to the orchestrator before it lands: TIMESTAMP_NS (its nanoseconds),
-            // HUGEINT and an integer sum's HUGEINT (their range beyond DECIMAL(38,0) and BIGINT: the database refuses a
-            // value out of range); a zoned timestamp kept as its UTC wall time.
-            assertEquals(Map.ofEntries(
-                    Map.entry("every.f32", "FLOAT -> DOUBLE"),
-                    Map.entry("every.i128", "HUGEINT -> DECIMAL(38,0)"),
-                    Map.entry("every.i16", "SMALLINT -> BIGINT"),
-                    Map.entry("every.i32", "INTEGER -> BIGINT"),
-                    Map.entry("every.i8", "TINYINT -> BIGINT"),
-                    Map.entry("every.tsms", "TIMESTAMP_MS -> TIMESTAMP"),
-                    Map.entry("every.tsns", "TIMESTAMP_NS -> TIMESTAMP"),
-                    Map.entry("every.tss", "TIMESTAMP_S -> TIMESTAMP"),
-                    Map.entry("every.tstz", "TIMESTAMP WITH TIME ZONE -> TIMESTAMP"),
-                    Map.entry("every.u16", "USMALLINT -> BIGINT"),
-                    Map.entry("every.u32", "UINTEGER -> BIGINT"),
-                    Map.entry("every.u64", "UBIGINT -> DECIMAL(20,0)"),
-                    Map.entry("every.u8", "UTINYINT -> BIGINT"),
-                    Map.entry("trades.total", "HUGEINT -> BIGINT")), changed, "the created types beside today's");
+            // measured 2026-11-12: until the ruling, a map of the rows' Pure types made 14 of them differ (the smaller
+            // integers, FLOAT, the coarser and the nanosecond timestamps, a zoned one, UBIGINT, HUGEINT, a sum's HUGEINT)
+            assertEquals(Map.of(), changed, "the made types beside today's");
         }
     }
 

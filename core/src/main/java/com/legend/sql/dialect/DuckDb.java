@@ -321,12 +321,12 @@ public final class DuckDb extends AnsiSqlRenderer {
         return true;
     }
 
-    /** {@inheritDoc} DuckDB's: an Integer a BIGINT, a Float a DOUBLE, a Decimal its own DECIMAL(p,s), a String a
-     *  VARCHAR, a Boolean a BOOLEAN, a StrictDate a DATE, a DateTime a TIMESTAMP, a Variant a JSON -- each as its catalog
-     *  answers it, so the table's model declares it as any of DuckDB's tables. A Decimal of no stated precision, an
-     *  abstract type (Number, Date) and any other refused by name. */
+    /** {@inheritDoc} DuckDB's catalog names, each reading back as its Pure type: an Integer a BIGINT, a Float a
+     *  DOUBLE, a Decimal its own DECIMAL(p,s), a String a VARCHAR, a Boolean a BOOLEAN, a StrictDate a DATE, a DateTime a
+     *  TIMESTAMP, a Variant a JSON. A Decimal of no stated precision, an abstract type (Number, Date) and any other
+     *  refused by name. */
     @Override
-    public CatalogModel.Column createdColumn(String name, String pureType, @com.legend.base.Nullable Integer precision,
+    public CatalogModel.Column declaredColumn(String name, String pureType, @com.legend.base.Nullable Integer precision,
             @com.legend.base.Nullable Integer scale) {
         String type = switch (pureType) {
             case "Integer" -> "BIGINT";
@@ -338,13 +338,13 @@ public final class DuckDb extends AnsiSqlRenderer {
             case "Variant", "meta::pure::metamodel::variant::Variant" -> "JSON";
             case "Decimal" -> {
                 if (precision == null || scale == null) {
-                    throw new DialectCapability("a created table's column '" + name + "' is a Decimal of no stated"
-                            + " precision and scale: no DECIMAL holds it as it is");
+                    throw new DialectCapability("a made table's column '" + name + "' is a Decimal of no stated"
+                            + " precision and scale: no DECIMAL declares it as it is");
                 }
                 yield null;
             }
-            default -> throw new DialectCapability("a created table's column '" + name + "' is typed " + pureType
-                    + ": no DuckDB column type holds it as it is");
+            default -> throw new DialectCapability("a made table's column '" + name + "' is typed " + pureType
+                    + ": no DuckDB column type declares it as it is");
         };
         return type == null
                 ? new CatalogModel.Column(name, "DECIMAL(" + precision + "," + scale + ")", "DECIMAL", precision, scale,

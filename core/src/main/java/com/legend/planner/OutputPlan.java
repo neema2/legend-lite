@@ -18,12 +18,14 @@ import java.util.List;
 /**
  * A TABLE OUTPUT, AS ONE PLAN (the final audit's item 2, 2026-11-12, the user's ruling (b); B3's contract): a DataCube
  * box's rows written into a table of its host's own database, made before it runs -- where the Output makes the table
- * ({@link Mode#CREATE}, {@link Mode#OVERWRITE}), its DDL from its rows' relation type, each column's Pure type mapped by
- * the database ({@link SqlDialect#createdColumn}) and the table declared in the model as any of its tables; then the
- * write the planner plans over one model of the box's tables and the target ({@code write}, {@code delete} then
+ * ({@link Mode#CREATE}, {@link Mode#OVERWRITE}), the planned {@code CREATE TABLE ... AS <the rows' statement> LIMIT 0},
+ * the database typing its columns as its own create of the rows always did (the orchestrator's ruling (e), 2026-11-12);
+ * then the write the planner plans over one model of the box's tables and the target ({@code write}, {@code delete} then
  * {@code write}, {@code merge} by its keys: the store writes) -- one writing {@code Sequence} on the target's database,
- * its answer the write's count. Until then the host made the table with the database's own CREATE of
- * {@code rows LIMIT 0} -- a query handed to a host operation -- read its catalog, and asked for the write's plan apart.
+ * its answer the write's count. A made table is declared in that model from its rows' relation type
+ * ({@link #declaredColumns}): the declaration the write is planned against, never a type the database is told. Until
+ * then the host made the table with that create as a host operation's query, read its catalog, and asked for the
+ * write's plan apart.
  */
 public final class OutputPlan {
 
@@ -71,14 +73,16 @@ public final class OutputPlan {
         }
     }
 
-    /** A created table's columns, as its database's catalog would answer them: {@code rows}' relation type, each
-     *  column's Pure type mapped by {@code dialect} (a Decimal with its precision and scale). */
-    public static List<CatalogModel.Column> createdColumns(TypedQuery rows, SqlDialect dialect) {
+    /** A made table's columns as its model declares them for the write's planning: {@code rows}' relation type, each
+     *  column's Pure type declared as {@code dialect}'s catalog would name a column of it
+     *  ({@link SqlDialect#declaredColumn}; a Decimal with its precision and scale). The table itself is typed by its
+     *  database ({@link #plan}). */
+    public static List<CatalogModel.Column> declaredColumns(TypedQuery rows, SqlDialect dialect) {
         List<CatalogModel.Column> out = new ArrayList<>();
         for (Type.Column c : UpstreamRelationType.columns(rows.resultType())) {
             Integer precision = c.type() instanceof Type.PrecisionDecimal d ? d.precision() : null;
             Integer scale = c.type() instanceof Type.PrecisionDecimal d ? d.scale() : null;
-            out.add(dialect.createdColumn(c.name(), UpstreamRelationType.typePath(c.type()), precision, scale));
+            out.add(dialect.declaredColumn(c.name(), UpstreamRelationType.typePath(c.type()), precision, scale));
         }
         return out;
     }
@@ -87,12 +91,15 @@ public final class OutputPlan {
      * The Output as one plan over {@code ctx} (the box's tables and the target, {@code database}'s {@code table}):
      * {@code program} (a lambda's protocol JSON: the box's rows written into the target as {@code mode} writes --
      * {@code write}, {@code delete} then {@code write}, or {@code merge} by its keys -- composed by the hosts' boundary)
-     * planned through {@code runtime}; where the Output makes the table, its
-     * DDL (the declared table's columns and types, every name delimited, written by the dialect) before the write, on the
-     * write's own target.
+     * planned through {@code runtime}; where the Output makes the table, {@code made} (the rows {@code ->limit(0)}) its
+     * making before the write, on the write's own target -- {@code CREATE TABLE <table> AS <the rows' statement> LIMIT 0},
+     * written from the rows' own tree ({@link PlanMaker#copyInto}), its slots and content the rows': the DATABASE types
+     * the table's columns, as its own create of the rows always did (the orchestrator's ruling (e), 2026-11-12: no
+     * column's type is mapped, so none narrows), the old one of its name dropped first where the Output overwrites.
      */
-    public static ExecutionPlan plan(ModelContext ctx, String runtime, String program, Mode mode, String database,
-            String table, SqlDialect dialect) {
+    public static ExecutionPlan plan(ModelContext ctx, String runtime, String program,
+            @com.legend.base.Nullable String made, Mode mode, String database, String table,
+            SqlDialect dialect) {
         try (var planning = com.legend.base.RunScope.plans("a table output")) {
             ExecutionPlan written = Compiler.query(ctx, com.legend.protocol.ProtocolReader.lambda(program))
                     .executionPlan(runtime);
@@ -100,24 +107,17 @@ public final class OutputPlan {
             List<ExecutionPlan.Node> writes = written.root() instanceof ExecutionPlan.Sequence s ? s.steps()
                     : List.of(written.root());
             if (mode.makes()) {
-                com.legend.model.DatabaseDefinition.TableDefinition def = ctx.findTableDefinition(database, table)
-                        .orElseThrow(() -> new IllegalStateException("the output's table " + table + " is not "
-                                + database + "'s, which its model declares it in"));
+                if (made == null) {
+                    throw new IllegalStateException("an output that makes its table names the rows it is made from");
+                }
                 ExecutionPlan.Target target = firstTarget(writes);
-                // a host's own table: every name delimited, as the rows name it (a seed's bare name is spelled as its
-                // database folds one, which would name the made table's columns otherwise than the write reads them)
-                com.legend.sql.NameQuoting delimited = new com.legend.sql.NameQuoting(false, true);
                 if (mode == Mode.OVERWRITE) {
-                    steps.add(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(dialect.render(
-                            new com.legend.sql.SqlDdl.DropTable(null, def.name(), delimited)), target)));
+                    // a host's own table: its name delimited, as the making names it
+                    steps.add(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(dialect.render(new com.legend.sql.SqlDdl
+                            .DropTable(null, table, new com.legend.sql.NameQuoting(false, true))), target)));
                 }
-                List<com.legend.sql.SqlDdl.Column> columns = new ArrayList<>();
-                for (com.legend.model.DatabaseDefinition.ColumnDefinition col : def.columns()) {
-                    columns.add(new com.legend.sql.SqlDdl.Column(col.name(), true,
-                            com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()), false, false));
-                }
-                steps.add(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(dialect.render(
-                        new com.legend.sql.SqlDdl.CreateTable(null, def.name(), delimited, columns)), target)));
+                steps.add(new ExecutionPlan.Effect(PlanMaker.copyInto(Compiler.query(ctx,
+                        com.legend.protocol.ProtocolReader.lambda(made)), runtime, dialect, target, null, table)));
             }
             steps.addAll(writes);
             return ExecutionPlan.writing(written.parameters(), new ExecutionPlan.Sequence(steps));

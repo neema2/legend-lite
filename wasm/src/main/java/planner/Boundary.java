@@ -396,10 +396,12 @@ public final class Boundary {
      * before the run), the output's table and how it is written ({@code create}, {@code overwrite}, {@code append},
      * {@code deleteAppend}, {@code merge} by its keys), the box's rows (a lambda's protocol JSON, a text: one query of
      * no parameter over the tables' model) and, where the table is there already (append, deleteAppend, merge), its
-     * catalog's columns. Any other key -- a statement ({@code sql}), a shape -- is refused by name. A created table's
-     * columns are the rows' relation type, each Pure type mapped by the database ({@code SqlDialect.createdColumn}).
-     * The answer is the plan (PlanJson's): one writing {@code Sequence} -- the table's DDL where the Output makes it,
-     * then the write the planner plans over one model of the tables and the target -- its answer the write's count
+     * catalog's columns. Any other key -- a statement ({@code sql}), a shape -- is refused by name. A made table is the
+     * database's own {@code CREATE TABLE ... AS <the rows' statement> LIMIT 0}, planned, so the database types its
+     * columns as it always did (the orchestrator's ruling (e), 2026-11-12); the model declares it from the rows' relation
+     * type for the write's planning ({@code SqlDialect.declaredColumn}). The answer is the plan (PlanJson's): one
+     * writing {@code Sequence} -- the table made where the Output makes it, then the write the planner plans over one
+     * model of the tables and the target -- its answer the write's count
      * ({@code com.legend.planner.OutputPlan}). Until then the host made the table from {@code rows LIMIT 0} as a host
      * operation's query, read its catalog, and asked for the write's plan apart.
      */
@@ -450,12 +452,13 @@ public final class Boundary {
         }
         java.util.List<Object> targetColumns = new java.util.ArrayList<>();
         if (mode.makes()) {
-            // the rows typed over the box's tables alone: the created table's columns, as its catalog would answer them
+            // the rows typed over the box's tables alone: the made table's columns as its model declares them, for the
+            // write's planning (the database types the table itself, by its own create of the rows)
             String sources = tablesModel(com.legend.json.Json.parseObject(com.legend.json.Json.toCompact(
                     java.util.Map.of("databaseType", databaseType, "tables", withTarget))));
             for (com.legend.sql.dialect.CatalogModel.Column c : MODELS.withText(
                     com.legend.json.Json.parseObject(sources).getString("model"), ctx ->
-                            com.legend.planner.OutputPlan.createdColumns(com.legend.Compiler.query(ctx, rows), dialect))) {
+                            com.legend.planner.OutputPlan.declaredColumns(com.legend.Compiler.query(ctx, rows), dialect))) {
                 java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
                 col.put("name", c.name());
                 col.put("dataType", c.dataType());
@@ -484,9 +487,12 @@ public final class Boundary {
         String into = com.legend.json.Json.toCompact(((com.legend.json.Json.Obj) modelled.get(modelled.size() - 1))
                 .get("source"));
         String program = outputProgram(rowsBody, into, mode, keys);
+        // the made table: the rows, none of them -- the database's own create of them types its columns
+        String made = mode.makes() ? placed(com.legend.parser.SpecParser.lambdaJson("|'" + OUTPUT_ROWS
+                + "'->limit(0)", false), OUTPUT_ROWS, rowsBody) : null;
         return com.legend.executionplan.PlanJson.write(MODELS.withText(model.getString("model"), ctx ->
-                com.legend.planner.OutputPlan.plan(ctx, model.getString("runtime"), program, mode, "local::DB", name,
-                        dialect)));
+                com.legend.planner.OutputPlan.plan(ctx, model.getString("runtime"), program, made, mode, "local::DB",
+                        name, dialect)));
     }
 
     /** The placeholders an output's program's template holds, each a string the template alone writes. */
