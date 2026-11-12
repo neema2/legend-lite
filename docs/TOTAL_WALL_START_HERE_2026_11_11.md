@@ -858,6 +858,22 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   - How it is held:
     - E3 counts these per family and dialect as a second shrink-only pin, where an unclassified pattern fails by name;
     - D's shrink-only list marks the sites D owns.
+- **C's acceptance standard, written down** (the user, 2026-11-12: "why do we keep finding so many errors in audit? ...
+  this is at least the third or fourth or fifth round that we thought we were 'close'"). Every round had found the next
+  layer because "provably separated" was never written as a finite list, nor against what.
+  - **The threat model** is G4's own: guards catch drift, not adversaries. In scope: a well-meaning developer's or agent's
+    natural code path that silently bypasses the wall. Out of scope: deliberate subversion of the type system, and
+    editing the guards; those go to the later list.
+  - **The acceptance**, on every road (Java product and test, TS tab and Node, Python, the V8 bridge) and transport
+    (JDBC, MongoDB, DuckDB-WASM, Python duckdb, HTTP to a SQL API):
+    1. one choke point per transport, taking only the plan's statement type, guarded with a planted violator;
+    2. the plan's statement type, and the plan itself, made only where the planner's answer or a plan is read, guarded
+       with a planted violator;
+    3. no SQL text written by a runner beyond the charter's A3, an unfiltered witness per road;
+    4. data only through planned loads;
+    5. no run asks the planner;
+    6. every guard bites by an actual violation.
+  - The final audit checks this list and nothing wider. D and E each get theirs written before they build.
 - **Mixed lists: the hybrid** (the user, 2026-11-12: "hybrid mixed list is good, lets go with that"). On the product
   path a list has one element type:
   - Number lists are promoted by a fixed rule (Integer+Decimal -> Decimal, Integer+Float -> Float; integer literals
