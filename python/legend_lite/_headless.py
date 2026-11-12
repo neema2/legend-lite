@@ -58,6 +58,17 @@ _HOME_APIS = (('/sdlc/api/', 'sdlc'), ('/depot/api/', 'depot'))
 _LITE_API = '/api/lite/v1/'
 
 
+def _statement_in(body: str | None) -> str | None:
+    """The statement a fetch's JSON body carries for a SQL API (its ``sql``, as a warehouse's submit names it), or None."""
+    if body is None:
+        return None
+    try:
+        sent = json.loads(body)
+    except ValueError:
+        return None
+    return sent['sql'] if isinstance(sent, dict) and 'sql' in sent else None
+
+
 def answer_fetch(method: str, url: str, body: str | None) -> tuple[int, str]:
     """A fetch DataCube's code makes headless (its model actions' SDLC and model writer: calls.ts ``fetch``), answered
     as this process answers it: a path of its own -- this user's model home (``/sdlc/api/...``, ``/depot/api/...``:
@@ -180,6 +191,10 @@ class Headless:
 
     async def _planner(self, request: str) -> str:
         asked = json.loads(request)
+        # a host operation's own texts, each answered already, or the planner is not asked (the re-audit's S3)
+        refused = self._answered.refusal(asked)
+        if refused is not None:
+            return json.dumps({'id': asked.get('id'), 'ok': False, 'error': f'NotPlanned: {refused}'})
         answered = answer(self._lib, asked)
         # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
         # request's kind (_planned.Answered)
@@ -222,6 +237,12 @@ class Headless:
         return base64.b64encode(sink.getvalue()).decode('ascii')
 
     async def _fetch(self, method: str, url: str, body: str | None) -> str:
+        # a statement the hosted code sends a SQL API over HTTP (a warehouse's submit, its JSON's `sql`) crosses the
+        # bridge as a query does: answered by this session's planner, or refused by name and nothing sent (the
+        # re-audit's S9, 2026-11-12: this fetch carried any text to any server)
+        sql = _statement_in(body)
+        if sql is not None:
+            across_the_bridge(sql, f"the hosted DataCube's HTTP request to {url}", self._answered)
         status, text = answer_fetch(method, url, body)
         return json.dumps({'status': status, 'body': text})
 

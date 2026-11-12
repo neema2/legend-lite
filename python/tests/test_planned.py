@@ -337,6 +337,25 @@ class TheBridgeTest(unittest.TestCase):
         self.assertEqual(len(answered), Answered.CAPACITY)
         self.assertIn('SELECT -1', answered)
 
+    def test_a_host_operations_own_texts_are_statements_already_answered(self):
+        """The re-audit's S3 (2026-11-12): the planner pastes a host operation's source query, select list and
+        replacements into the statements it writes, so each must be one this session's planner answered already."""
+        answered = Answered()
+        ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
+        count = {'op': 'count', 'from': {'query': 'SELECT * FROM t'}}
+        self.assertIn('SELECT * FROM t', answered.refusal(ops(count)))
+        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t'}))
+        self.assertIsNone(answered.refusal(ops(count)))
+        copy = {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '* REPLACE (CAST("b" AS DECIMAL(20,0)) AS "b")',
+                'from': {'relation': {'name': 't'}}}
+        self.assertIsNotNone(answered.refusal(ops(copy)))
+        answered.record('tableModel', 'OK\n' + json.dumps({'model': 'm', 'copySelectList': copy['selectList']}))
+        self.assertIsNone(answered.refusal(ops(copy)), "a table model's copy select list is the planner's answer")
+        replaced = {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
+                    'replacing': [{'column': 'a', 'sql': 'DROP TABLE t'}]}
+        self.assertIn('DROP TABLE t', answered.refusal(ops(replaced)))
+        self.assertIsNone(answered.refusal({'kind': 'plan', 'query': 'anything'}), 'another kind carries no host text')
+
     def test_the_set_is_bounded(self):
         answered = Answered()
         for i in range(Answered.CAPACITY + 10):

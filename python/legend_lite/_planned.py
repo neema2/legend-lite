@@ -115,9 +115,34 @@ class Answered:
             while len(self._keyed) > max(self.KEYED_CAPACITY, len(self._this_keyed)):
                 self._keyed.popitem(last=False)
 
+    def refusal(self, asked: dict) -> str | None:
+        """Why a request the hosted code makes of the planner is refused, or None (the re-audit's S3, 2026-11-12): a host
+        operation's own texts -- its source ``query``, its ``selectList``, a ``replacing`` expression -- are pasted by the
+        planner into the statements it answers, so each must be a statement this session's planner answered already
+        (a plan's statement, a table model's copy select list); any other is refused by name, the planner never asked."""
+        if asked.get('kind') != 'hostOperations':
+            return None
+        operations = asked.get('operations')
+        for op in json.loads(operations) if isinstance(operations, str) else []:
+            source = op.get('from') if isinstance(op, dict) else None
+            texts = [source['query']] if isinstance(source, dict) and 'query' in source else []
+            texts += [op['selectList']] if isinstance(op, dict) and 'selectList' in op else []
+            texts += [r.get('sql') for r in op.get('replacing') or []] if isinstance(op, dict) else []
+            for text in texts:
+                if text not in self:
+                    shown = text if isinstance(text, str) and len(text) <= 120 else str(text)[:117] + '...'
+                    return (f"a host operation's ({op.get('op')}) text is not a statement this session's planner answered, so"
+                            f' the planner is not asked to write it into one: {shown!r} (_planned.py Answered.refusal)')
+        return None
+
     def _record(self, kind: str, payload: str) -> None:
         if kind == 'catalogColumnsSql':
             self._add(payload)
+        elif kind == 'tableModel':
+            # the planner's copy select list, which a host operation's selectList carries back (S3)
+            model = json.loads(payload)
+            if model.get('copySelectList') is not None:
+                self._add(model['copySelectList'])
         elif kind == 'sessionSetup':
             self._all(json.loads(payload))
         elif kind == 'hostOperations':

@@ -61,7 +61,9 @@ SENDS = {
 
 # The bridge's crossings by module. 2026-11-12 (C3): the hosted DataCube's query and statement (_headless.py), and a
 # remote file's settings its plan runner kept (engine.py).
-BRIDGE = {'_headless.py': 2, 'engine.py': 1}
+BRIDGE = {
+    # 2026-11-12 (the re-audit's S9): the hosted code's HTTP to a SQL API, its `sql` crossing as a query's does
+    '_headless.py': 3, 'engine.py': 1}
 
 # (TYPE_CALLS -- frames.py's `type(failure)(out)`, a database error rebuilt of its own type: GONE 2026-11-12, the
 # re-audit's S4. Outside _planned.py a value's type is named (`type(x).__name__`) or compared (`type(x) is T`), never
