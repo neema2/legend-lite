@@ -2,7 +2,7 @@
 
 **Entirely fictional and committed.** Every borrower, agent and agreement is invented. They are shaped like syndicated
 credit agreements and are not legal drafting anyone should copy. Rebuilt, byte for byte, by
-`python tools/synth-corpus/gen_loan_docs.py` (seeded; needs `reportlab==4.2.5`, because a PDF's bytes depend on the version).
+`python tools/synth-corpus/gen_loan_docs.py` (seeded; needs `reportlab==4.2.5`, because a PDF's bytes depend on the version, in the environment `tools/unstructured-corpus/requirements.txt` makes, which holds reportlab's `chardet` at `>=7.0.0`: every earlier release is LGPL).
 
 | Path | What |
 |---|---|
