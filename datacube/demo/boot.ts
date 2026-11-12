@@ -13,8 +13,8 @@ import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
-import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTrades } from '../src/sample-trades.ts';
-import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
+import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesRequest } from '../src/sample-trades.ts';
+import type { SynthesizeSource } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataSource } from '../../engine-client/src/project-data.ts';
 import { mountRemote, shownAddress } from '../src/remote.ts';
 import { isPageFragment } from '../src/share/link.ts';
@@ -242,13 +242,16 @@ export async function loadModel(): Promise<string> {
 // -- sample data ----------------------------------------------------
 
 /**
- * The demo's trades, generated in this tab as the table the model reads (src/sample-trades.ts: Arrow data, put in by
- * DuckDB's Arrow reader -- the page spells no SQL), a table of that name dropped first (the planner's operation).
+ * The demo's trades, made by this tab's DuckDB in the table the model declares (src/sample-trades.ts): the planner's
+ * SYNTHESIZE plan for the demo's request -- TRADES made as declared, then one statement over range(N), every value the
+ * database's (register S303) -- run by the hosts' runner on the held connection. The page spells no SQL and makes no
+ * row; the plan holds none.
  */
-export async function generateTrades(engine: DuckDbEngine, host: HostOperationsSource): Promise<void> {
-  const stream = sampleTrades();
-  const [drop] = await host.hostOperations(engine.databaseType, [{ op: 'drop', kind: 'table', target: { name: 'trades' } }]);
-  await engine.loadArrow({ table: 'trades' }, (async function* () { yield stream; })(), drop);
+export async function synthesizeTrades(engine: DuckDbEngine, planner: SynthesizeSource, model: string): Promise<void> {
+  // the plan, and the hosts' runner (fetched as a remote mount fetches it: a grid-only page carries none of it), at once
+  const [plan, { runLoad }] = await Promise.all([planner.synthesize(sampleTradesRequest(model, engine.databaseType)),
+    import('../../engine-client/src/plan-runner.ts')]);
+  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
 }
 
 /**
@@ -281,6 +284,9 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   performance.mark('dc:boot-start');
   const engineReady = makePlanner(status);
   void engineReady.then(() => performance.mark('dc:planner-ready'));
+  // the model's text, which the sample's request names its table in (fetched as main.ts fetched it for the planner)
+  const sampleModel = loadModel();
+  sampleModel.catch(() => {});
   // Await happens below; this only stops an early rejection being
   // reported as unhandled in the window before that.
   engineReady.catch(() => {});
@@ -302,6 +308,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       engineReady.then((p) => p.tables.hostOperations(databaseType, operations)),
     // a remote file's mount, as a planned load (B3's Q3)
     remoteMount: (request: Parameters<TableModels['remoteMount']>[0]) => engineReady.then((p) => p.tables.remoteMount(request)),
+    // the sample's rows, made by the database as a planned load (SYNTHESIZE, S303)
+    synthesize: (request: Parameters<TableModels['synthesize']>[0]) => engineReady.then((p) => p.tables.synthesize(request)),
   };
   const duck = await startDuckDbInTab((await configured).vendor, planned);
   performance.mark('dc:database-ready');
@@ -343,7 +351,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   } else if (start.kind === 'sample') {
 
   status.textContent = `generating ${SAMPLE_TRADES.toLocaleString(UI_LOCALE)} rows…`;
-  await generateTrades(duck.engine, planned);
+  await synthesizeTrades(duck.engine, planned, await sampleModel);
   generated = { label: 'trades (generated in this tab)', takenAt: new Date(), rowCount: SAMPLE_TRADES };
   }
 

@@ -31,7 +31,7 @@
 
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
+import type { RemoteMountRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
@@ -152,4 +152,7 @@ export interface TableModels {
   fileLoad(request: FileLoadRequest): Promise<string>;
   /** A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): PlanJson's text, run by runLoad. */
   remoteMount(request: RemoteMountRequest): Promise<string>;
+  /** Rows the database makes in a declared table, as a plan (Boundary.synthesize, S303): PlanJson's text, run by
+   *  runLoad -- the demo's sample (demo/boot.ts synthesizeTrades). */
+  synthesize(request: SynthesizeRequest): Promise<string>;
 }

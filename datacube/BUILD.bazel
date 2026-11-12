@@ -117,7 +117,11 @@ js_library(
 # zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
 filegroup(
     name = "census_src",
-    srcs = glob(["src/**/*.ts"]),
+    # the demo's page code too (2026-11-12: its sample was the last load outside a plan, the census's M14)
+    srcs = glob([
+        "src/**/*.ts",
+        "demo/**/*.ts",
+    ]),
     visibility = ["//core:__pkg__"],
 )
 
@@ -243,6 +247,9 @@ _EXTRA_ENV = {
     "chart-rules": {
         "CHART_RULES": "$(rlocationpath test/fixtures/chart-rules.json)",
     },
+    "sample-trades": {
+        "TRADES_MODEL": "$(rlocationpath demo/trades.pure)",
+    },
     "parity-screen": {
         "PARITY": "$(rlocationpath test/fixtures/parity/parity.json)",
     },
@@ -295,6 +302,8 @@ _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
+    # the demo's model, whose TRADES the sample's plan fills (src/sample-trades.ts, SYNTHESIZE)
+    "sample-trades": ["demo/trades.pure"],
     "stress-markets": [
         "demo/config.json",
         ":markets_project",
@@ -647,9 +656,9 @@ _HEADLESS_TESTS = [
 # headless_roster_test reads. A file that mixed them is split in two: its screen or Node half `<name>-dom` or
 # `<name>-node`, the rest in the lane under its own name.
 _HEADLESS_LEFT_OUT = {
-    # rows put in by DuckDB-WASM's Arrow reader (insertArrowFromIPCStream), the tab's: a headless host's database has
-    # none
-    "sample-trades": "the tab's Arrow reader",
+    # the demo's sample made by the tab's planner and DuckDB-WASM, and its file read in by the tab's reader (upload.ts
+    # ingestFile): the tab's
+    "sample-trades": "the tab's planner and file reader",
     # DataCube's HTTP clients against a stubbed fetch: the host has no fetch API (nothing headless speaks HTTP: §3)
     "cancel-http": "the planner client's HTTP",
     "engine-remote-http": "the engine executor's HTTP",

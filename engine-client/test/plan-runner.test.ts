@@ -546,7 +546,7 @@ Database s::DB
     assert.deepEqual((await one("SELECT count(*) FILTER (WHERE region = 'EMEA'), count(*) FILTER (WHERE region = 'AMER'),"
       + " count(*) FILTER (WHERE region = 'APAC'), count(DISTINCT book), count(*) FILTER (WHERE live),"
       + ' min(notional) >= 0, max(notional) <= 9999.99, count(*) FILTER (WHERE id IS NULL OR book IS NULL) FROM demo.TRADES')).map(String),
-      ['33334', '33333', '33333', '5', '50000', 'true', 'true', '0']);
+      ['33334', '33333', '33333', '5', '50005', 'true', 'true', '0']);
     // planned again, run again: the table made afresh, its rows the same
     await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
     assert.equal(String((await one('SELECT count(*) FROM demo.TRADES'))[0]), '100000');

@@ -47,9 +47,9 @@ export interface ArrowishConnection {
   /** Cancel a query started with `send()`. True if it was still pending. */
   cancelSent?(): Promise<boolean>;
   /**
-   * Load one Arrow IPC stream into a table: `create` makes it, otherwise the
-   * rows are appended. How a snap of a REMOTE plane lands here: the server's
-   * Arrow chunks, unconverted.
+   * Load one Arrow IPC stream into a table: `create` makes it, otherwise the rows are appended. How a snap of a REMOTE
+   * plane lands here, the server's Arrow chunks unconverted -- only ever as a planned stream step, on the held connection
+   * (HeldConnection.insertArrow, in the step's transaction: plan-runner.ts runLoad).
    */
   insertArrowFromIPCStream?(
     buffer: Uint8Array,
@@ -523,39 +523,6 @@ export class DuckDbEngine implements QueryEngine {
         return;
       }
       onChunk(typedByPlan(await this.#whole(plan.sql, epoch, signal, started, params), plan));
-    });
-  }
-
-  /**
-   * Replace `target` with the rows of `chunks`, each a whole Arrow IPC stream: the first creates the table, the rest
-   * append. On the query queue, so no query reads a half-loaded table. Its one product caller is the demo's sample,
-   * rows generated in this tab (datacube/demo/boot.ts): a snapshot of a remote plane is a planned stream load, run in
-   * one transaction by the hosts' runner (plan-runner.ts runLoad, the held connection's insertArrow; the user's ruling
-   * of 2026-11-11, census M14-snap), never this.
-   */
-  async loadArrow(
-    target: { readonly schema?: string; readonly table: string },
-    chunks: AsyncIterable<Uint8Array>,
-    /** The planner's statements run first, in the same turn (its schema made, the table there dropped: snap.ts). */
-    prepare: readonly PlannedSql[] = [],
-  ): Promise<void> {
-    const insert = this.#conn.insertArrowFromIPCStream;
-    if (typeof insert !== 'function') {
-      throw new Error('this DuckDB connection cannot load Arrow data');
-    }
-    const where = target.schema ? `${target.schema}.${target.table}` : target.table;
-    return this.#serialised(async () => {
-      for (const sql of prepare) await this.#conn.query(sql);
-      let first = true;
-      for await (const bytes of chunks) {
-        await insert.call(this.#conn, bytes, {
-          name: target.table,
-          ...(target.schema ? { schema: target.schema } : {}),
-          create: first,
-        });
-        first = false;
-      }
-      if (first) throw new Error(`no data came back to load into ${where}`);
     });
   }
 
