@@ -816,6 +816,19 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
     - lowering's Dedup scalar inlined at every reference (8 copies, 90% of a 55K statement);
     - Snowflake's Float shortest-digits text written 7 times by the judge's canon (97% of a 37K statement);
     - a floor of about 0.18 s per small statement.
+- **The product may change its answers too** (the user, 2026-11-12: "we do not have to do all the crazy stuff that
+  upstream does on the product path AT ALL - we are allowed to change error message and change sql and change results
+  even change types like IEEE float for example as long as they are typed and sane").
+  - "Sane" means all of these:
+    - typed;
+    - principled: a stated rule, never one database's accident;
+    - the same answer on every database;
+    - no silent loss (G7);
+    - deterministic (G10).
+  - A change to a product answer is written up (the expression, upstream's answer, the new answer, why it is better),
+    ruled by the orchestrator, and made a register row with scope "product"; the user sees the batch.
+  - The compatibility road (PCT and the corpus through the edge door) keeps its pass counts: the edge plans its own SQL
+    where a compatibility client needs upstream's answer.
 - **D starts with a refresh of its brief and inventory against the current head** (both were written before B and C),
   then the guards (D2's, and G5's ArchUnit rule, each with a planted violator, today's sites a shrink-only list), then
   D1.0-D1.7.
