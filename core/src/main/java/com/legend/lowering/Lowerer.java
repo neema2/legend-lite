@@ -413,7 +413,14 @@ public final class Lowerer {
         }
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(lower(withQueryLets(body)));
+        TypedSpec root = withQueryLets(body);
+        SqlQuery q = lower(root);
+        if (scalarRootShape(root)) {
+            // P1a (E3, ruled 2026-11-12): what the root's FROM-less select writes more than once, computed once
+            // under it (LetBinding); the query as it was where nothing repeats
+            q = LetBinding.bindRepeats(q);
+        }
+        return SubselectPrune.prune(q);
     }
 
     /**
@@ -631,6 +638,17 @@ public final class Lowerer {
             }));
         }
         return com.legend.compiler.spec.typed.TypedSubst.renameBinders(body.get(body.size() - 1), reserved, queryScope);
+    }
+
+    /** Whether {@code spec} lowers through the scalar root ({@link #lower(TypedSpec)}'s last arm): not a graph, a
+     *  concatenation, a relation, or a map over a relation's rows. */
+    private static boolean scalarRootShape(TypedSpec spec) {
+        if (spec instanceof TypedFrom from) {
+            return scalarRootShape(from.source());
+        }
+        return !(spec instanceof TypedSerializeGraph) && !(spec instanceof TypedConcatenate)
+                && !(Type.schemaView(spec.info().type()) instanceof Type.RelationType)
+                && !(spec instanceof TypedMap m && CollectionRelations.rowSource(m.source()));
     }
 
     /** The value of the plan parameter {@code name} (bound by {@link #bindPlanParam}), of {@code type}, as the query

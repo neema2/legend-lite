@@ -239,6 +239,60 @@ applied, with the same rows before and after:
 - **H2's time does not move:** H2 parses and optimises fast and evaluates these constants once already. Its gain is
   size only.
 
+> **P1a, BUILT (2026-11-12): `lowering/LetBinding.bindRepeats`, run on every root that takes the scalar road.**
+>
+> **What the pass does.** After lowering, it finds every expression the root's FROM-less select writes more than once.
+> Expressions are compared by structure, so a let's or an argument's value at each read, an object read per
+> property, and a list read by each arm of a guard all count. Each repeat that pays for its binding is computed
+> once, in a one-row derived table (`FROM (SELECT <value> AS __l0) AS __lets`), and read by column. The pass picks the
+> most saving repeat first and stops when none saves. A repeat inside two bound values is bound beneath them.
+>
+> **When it binds.** A binding pays when its node estimate is positive: `(k-1)*w - 2k - 6`, with k copies of w
+> nodes. A reference costs about two nodes; a value and its select cost one each. A repeat is bound only where:
+> - it is closed: no column, and no lambda parameter it does not bind itself;
+> - it can raise nowhere, judged by structure: no raise, division, parse, domain function or narrowing cast;
+> - it aggregates nothing, reads no subquery, is not tagged or checked, and draws nothing afresh;
+> - its type is plain.
+>
+> The statement clock (`now()`, `today()`) is bound whenever it repeats, so a let reads it once.
+>
+> **Where it never binds.** Never inside a derived table: H2 reads no outer column there (measured, its lane). Never
+> where the select unnests in its projections: the dialect places that by its FROM (H2's lane).
+>
+> **Measured on the fixed sets, at the guard's pins** (`baseline.tsv` re-pinned; no family grew):
+>
+> | channel A | characters | plan JSON |
+> |---|---|---|
+> | DuckDB | -13.6% | -7.8% |
+> | Postgres | -15.5% | -8.3% |
+> | MySQL | -13.9% | -8.3% |
+> | Trino | -12.6% | -7.9% |
+> | ClickHouse | -12.6% | -8.2% |
+> | BigQuery | -12.4% | -8.2% |
+> | Databricks | -11.7% | -7.7% |
+> | Snowflake | -10.0% | -7.2% |
+> | H2 | -8.7% | -3.9% |
+> | MariaDB | -8.3% | -7.0% |
+> | SQLite | -7.6% | -7.5% |
+>
+> Core's set: DuckDB -0.2%, SQLite -1.7%, every other database unchanged.
+>
+> **Timed on the statements it changed** (`//core:product_sql_measure time`, the same rows before and after on
+> every pair):
+>
+> | database | statements | characters | time | over 3,000 characters |
+> |---|---|---|---|---|
+> | DuckDB | 65 | -57% | 141 -> 78 ms | 110 -> 55 ms |
+> | SQLite | 65 | -60% | 19.8 -> 10.1 ms | |
+> | H2 | 25 | -64% | 10.5 -> 7.8 ms | |
+>
+> **Answers:** PCT channel A and channel B on DuckDB, PCT on H2, and core's three lanes all green, unchanged.
+> `LetBindingTest` pins the clock read once, the bound repeats with their answers, and a raising or single-read let
+> left inline.
+>
+> **What is left for P1b and P1a.2.** A repeat that reads a row, a lambda's parameter or a correlated alias is
+> P1b's, as is a repeat inside a guard's raising branch. An eager let is P1a.2's.
+
 **P1b, an expression binding (`SqlExpr.Let(name, value, body)`).** For a repeat that reads a row or a lambda's
 parameter: a guard's operand, a percentile's list inside a `map`, an object's properties per row. Each dialect
 renders it in its best form, decided by measurement before it lands:

@@ -25,7 +25,7 @@ channel_a	BigQuery	TypedSelect	8	3955	49608
 channel_a	BigQuery	TypedSlice	7	4601	22392
 channel_a	BigQuery	TypedSort	17	20203	129203
 channel_a	BigQuery	TypedWrite	1	354	5568
-channel_a	BigQuery	let	244	411636	3382369
+channel_a	BigQuery	let	244	289936	2559061
 channel_a	BigQuery	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	BigQuery	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3161	47089
 channel_a	BigQuery	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1975	54692
@@ -46,7 +46,7 @@ channel_a	BigQuery	meta::pure::functions::boolean::lessThanEqual_Number_1__Numbe
 channel_a	BigQuery	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	4266
 channel_a	BigQuery	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	5668
 channel_a	BigQuery	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	4341
-channel_a	BigQuery	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	4222	59134
+channel_a	BigQuery	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	4066	57529
 channel_a	BigQuery	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4245
 channel_a	BigQuery	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	291	18508
 channel_a	BigQuery	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6624
@@ -54,7 +54,7 @@ channel_a	BigQuery	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boo
 channel_a	BigQuery	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	2720	7760
 channel_a	BigQuery	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	700	2661
 channel_a	BigQuery	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	22	1161
-channel_a	BigQuery	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	8572	38143
+channel_a	BigQuery	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	7294	34858
 channel_a	BigQuery	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1952	19008
 channel_a	BigQuery	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	37892	103895
 channel_a	BigQuery	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	1977	9600
@@ -106,7 +106,7 @@ channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Date_1_	2	104	38
 channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	471	7643
 channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	649	10608
 channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	806	12830
-channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	2352	21786
+channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1496	16066
 channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	161	3148
 channel_a	BigQuery	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	613	9314
 channel_a	BigQuery	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	304	5908
@@ -213,8 +213,8 @@ channel_a	BigQuery	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	3
 channel_a	BigQuery	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	316	5798
 channel_a	BigQuery	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	633	6348
 channel_a	BigQuery	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	404	5859
-channel_a	BigQuery	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2642	42186
-channel_a	BigQuery	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	39033	88110
+channel_a	BigQuery	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2554	37112
+channel_a	BigQuery	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	9562	39162
 channel_a	BigQuery	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	1105	3307
 channel_a	BigQuery	meta::pure::functions::math::pi__Float_1_	1	26	1163
 channel_a	BigQuery	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	72	1780
@@ -334,7 +334,7 @@ channel_a	ClickHouse	TypedSelect	8	5968	51909
 channel_a	ClickHouse	TypedSlice	7	3339	21175
 channel_a	ClickHouse	TypedSort	17	16862	126701
 channel_a	ClickHouse	TypedWrite	1	570	5813
-channel_a	ClickHouse	let	244	615816	3609803
+channel_a	ClickHouse	let	244	398475	2682756
 channel_a	ClickHouse	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	13	5268	32463
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	8580	61427
@@ -355,7 +355,7 @@ channel_a	ClickHouse	meta::pure::functions::boolean::lessThanEqual_Number_1__Num
 channel_a	ClickHouse	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	729	4926
 channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	980	6548
 channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	840	5031
-channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	7710	65330
+channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	7544	63727
 channel_a	ClickHouse	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	726	4905
 channel_a	ClickHouse	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	2756	21028
 channel_a	ClickHouse	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	303	6842
@@ -363,7 +363,7 @@ channel_a	ClickHouse	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__B
 channel_a	ClickHouse	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	762	5810
 channel_a	ClickHouse	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	287	2255
 channel_a	ClickHouse	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	237	1381
-channel_a	ClickHouse	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	5071	34778
+channel_a	ClickHouse	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	4828	32540
 channel_a	ClickHouse	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	2233	19368
 channel_a	ClickHouse	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	7312	73436
 channel_a	ClickHouse	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	1509	9175
@@ -416,7 +416,7 @@ channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Date_1_	2	542	
 channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	1208	8396
 channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	1295	11264
 channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	1524	13558
-channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	3378	22837
+channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	2502	17129
 channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	519	3516
 channel_a	ClickHouse	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	1825	10557
 channel_a	ClickHouse	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	1012	6636
@@ -523,8 +523,8 @@ channel_a	ClickHouse	meta::pure::functions::math::minus_Number_MANY__Number_1_	6
 channel_a	ClickHouse	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	1332	6834
 channel_a	ClickHouse	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	1722	7480
 channel_a	ClickHouse	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	1323	6821
-channel_a	ClickHouse	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	5175	44969
-channel_a	ClickHouse	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	16459	66324
+channel_a	ClickHouse	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	3721	38569
+channel_a	ClickHouse	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	8117	38295
 channel_a	ClickHouse	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	394	2613
 channel_a	ClickHouse	meta::pure::functions::math::pi__Float_1_	1	213	1355
 channel_a	ClickHouse	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	332	2045
@@ -645,7 +645,7 @@ channel_a	Databricks	TypedSelect	8	2909	48930
 channel_a	Databricks	TypedSlice	7	1233	19322
 channel_a	Databricks	TypedSort	17	10023	119832
 channel_a	Databricks	TypedWrite	1	277	5537
-channel_a	Databricks	let	244	293936	3275717
+channel_a	Databricks	let	244	213368	2493529
 channel_a	Databricks	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Databricks	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	48107
 channel_a	Databricks	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1785	55698
@@ -666,7 +666,7 @@ channel_a	Databricks	meta::pure::functions::boolean::lessThanEqual_Number_1__Num
 channel_a	Databricks	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	4404
 channel_a	Databricks	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	5852
 channel_a	Databricks	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	4479
-channel_a	Databricks	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	2388	57898
+channel_a	Databricks	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	2212	56273
 channel_a	Databricks	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4383
 channel_a	Databricks	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	301	19024
 channel_a	Databricks	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6668
@@ -674,7 +674,7 @@ channel_a	Databricks	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__B
 channel_a	Databricks	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	492	5576
 channel_a	Databricks	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	76	2081
 channel_a	Databricks	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	22	1207
-channel_a	Databricks	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	2270	32025
+channel_a	Databricks	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	2213	29961
 channel_a	Databricks	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1298	18470
 channel_a	Databricks	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	3464	69973
 channel_a	Databricks	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	483	8244
@@ -727,7 +727,7 @@ channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Date_1_	2	108	
 channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	332	7642
 channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	383	10434
 channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	464	12580
-channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	2135	21871
+channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1163	15987
 channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	87	3166
 channel_a	Databricks	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	600	9577
 channel_a	Databricks	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	224	6012
@@ -834,8 +834,8 @@ channel_a	Databricks	meta::pure::functions::math::minus_Number_MANY__Number_1_	6
 channel_a	Databricks	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	182	5848
 channel_a	Databricks	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	272	6125
 channel_a	Databricks	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	228	5821
-channel_a	Databricks	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2362	41998
-channel_a	Databricks	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	13099	62360
+channel_a	Databricks	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2116	36766
+channel_a	Databricks	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	4084	33868
 channel_a	Databricks	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	314	2562
 channel_a	Databricks	meta::pure::functions::math::pi__Float_1_	1	22	1205
 channel_a	Databricks	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	56	1810
@@ -956,7 +956,7 @@ channel_a	DuckDB	TypedSelect	8	2448	47803
 channel_a	DuckDB	TypedSlice	7	1010	18509
 channel_a	DuckDB	TypedSort	17	19638	128047
 channel_a	DuckDB	TypedWrite	1	210	5386
-channel_a	DuckDB	let	244	265311	3225739
+channel_a	DuckDB	let	244	177553	2436433
 channel_a	DuckDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	DuckDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3327	46457
 channel_a	DuckDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	53379
@@ -977,7 +977,7 @@ channel_a	DuckDB	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_
 channel_a	DuckDB	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	78	4146
 channel_a	DuckDB	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	112	5508
 channel_a	DuckDB	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	159	4221
-channel_a	DuckDB	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	2332	59350
+channel_a	DuckDB	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	2215	57784
 channel_a	DuckDB	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	75	4125
 channel_a	DuckDB	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	269	18068
 channel_a	DuckDB	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6584
@@ -985,7 +985,7 @@ channel_a	DuckDB	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boole
 channel_a	DuckDB	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	285	5285
 channel_a	DuckDB	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	85	2006
 channel_a	DuckDB	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	20	1121
-channel_a	DuckDB	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	1962	31381
+channel_a	DuckDB	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	1869	29281
 channel_a	DuckDB	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1080	18000
 channel_a	DuckDB	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	2589	68174
 channel_a	DuckDB	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	335	7844
@@ -1038,7 +1038,7 @@ channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Date_1_	2	102	3780
 channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	283	7341
 channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	357	10240
 channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	436	12384
-channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	983	20227
+channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	707	15087
 channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	77	2988
 channel_a	DuckDB	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	445	8918
 channel_a	DuckDB	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	196	5648
@@ -1145,8 +1145,8 @@ channel_a	DuckDB	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	216
 channel_a	DuckDB	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	158	5488
 channel_a	DuckDB	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	202	5803
 channel_a	DuckDB	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	142	5483
-channel_a	DuckDB	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	1954	41422
-channel_a	DuckDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	2040	50965
+channel_a	DuckDB	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	1714	36196
+channel_a	DuckDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	1610	31058
 channel_a	DuckDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	92	2256
 channel_a	DuckDB	meta::pure::functions::math::pi__Float_1_	1	20	1119
 channel_a	DuckDB	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	31	1701
@@ -1267,7 +1267,7 @@ channel_a	H2	TypedSelect	8	2793	52744
 channel_a	H2	TypedSlice	5	488	11842
 channel_a	H2	TypedSort	13	5119	76156
 channel_a	H2	TypedWrite	1	274	6018
-channel_a	H2	let	203	174351	1918684
+channel_a	H2	let	203	126639	1594942
 channel_a	H2	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	H2	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	57797
 channel_a	H2	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	67419
@@ -1288,7 +1288,7 @@ channel_a	H2	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_1__B
 channel_a	H2	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	5766
 channel_a	H2	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	7668
 channel_a	H2	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	5841
-channel_a	H2	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	3708	68318
+channel_a	H2	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	3603	66776
 channel_a	H2	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	5745
 channel_a	H2	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	291	24008
 channel_a	H2	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7162
@@ -1512,7 +1512,7 @@ channel_a	MariaDB	TypedSelect	8	3701	53561
 channel_a	MariaDB	TypedSlice	7	8181	29613
 channel_a	MariaDB	TypedSort	17	148025	275880
 channel_a	MariaDB	TypedWrite	1	334	6065
-channel_a	MariaDB	let	244	451945	3551053
+channel_a	MariaDB	let	244	350892	2749582
 channel_a	MariaDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	MariaDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	57940
 channel_a	MariaDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	67123
@@ -1533,7 +1533,7 @@ channel_a	MariaDB	meta::pure::functions::boolean::lessThanEqual_Number_1__Number
 channel_a	MariaDB	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	5727
 channel_a	MariaDB	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	7616
 channel_a	MariaDB	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	5802
-channel_a	MariaDB	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	8150	69473
+channel_a	MariaDB	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	8077	67963
 channel_a	MariaDB	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	5706
 channel_a	MariaDB	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	291	23865
 channel_a	MariaDB	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7149
@@ -1541,7 +1541,7 @@ channel_a	MariaDB	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Bool
 channel_a	MariaDB	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	14526	20437
 channel_a	MariaDB	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	998	3486
 channel_a	MariaDB	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	22	1648
-channel_a	MariaDB	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	10922	42773
+channel_a	MariaDB	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	8366	38150
 channel_a	MariaDB	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1573	20175
 channel_a	MariaDB	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	24204	95564
 channel_a	MariaDB	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	1224	10344
@@ -1594,7 +1594,7 @@ channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Date_1_	2	100	482
 channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	511	9146
 channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	463	11396
 channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	564	13562
-channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1957	23826
+channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1289	18326
 channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	141	4102
 channel_a	MariaDB	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	648	12273
 channel_a	MariaDB	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	216	7768
@@ -1701,8 +1701,8 @@ channel_a	MariaDB	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	23
 channel_a	MariaDB	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	166	7596
 channel_a	MariaDB	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	592	7796
 channel_a	MariaDB	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	496	7440
-channel_a	MariaDB	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	3194	43992
-channel_a	MariaDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	79834	133195
+channel_a	MariaDB	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2980	38832
+channel_a	MariaDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	12864	45140
 channel_a	MariaDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	1340	4085
 channel_a	MariaDB	meta::pure::functions::math::pi__Float_1_	1	32	1656
 channel_a	MariaDB	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	33	2228
@@ -1823,7 +1823,7 @@ channel_a	MySQL	TypedSelect	8	3701	53169
 channel_a	MySQL	TypedSlice	7	10195	31396
 channel_a	MySQL	TypedSort	17	196414	327210
 channel_a	MySQL	TypedWrite	1	334	6016
-channel_a	MySQL	let	244	538646	3627196
+channel_a	MySQL	let	244	431450	2819553
 channel_a	MySQL	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	MySQL	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	56911
 channel_a	MySQL	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	65849
@@ -1844,7 +1844,7 @@ channel_a	MySQL	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_1
 channel_a	MySQL	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	5580
 channel_a	MySQL	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	7420
 channel_a	MySQL	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	5655
-channel_a	MySQL	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	11472	72238
+channel_a	MySQL	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	11383	70712
 channel_a	MySQL	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	5559
 channel_a	MySQL	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	291	23326
 channel_a	MySQL	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	128	7100
@@ -1852,7 +1852,7 @@ channel_a	MySQL	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolea
 channel_a	MySQL	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	18381	24459
 channel_a	MySQL	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	1501	3972
 channel_a	MySQL	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	22	1599
-channel_a	MySQL	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	15238	47125
+channel_a	MySQL	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	11368	41116
 channel_a	MySQL	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1767	20222
 channel_a	MySQL	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	32300	103121
 channel_a	MySQL	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	1800	10797
@@ -1905,7 +1905,7 @@ channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Date_1_	2	100	4730
 channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	449	8935
 channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	463	11298
 channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	564	13464
-channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1957	23581
+channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1289	18081
 channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	141	4004
 channel_a	MySQL	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	586	11915
 channel_a	MySQL	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	216	7572
@@ -2012,8 +2012,8 @@ channel_a	MySQL	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	236	
 channel_a	MySQL	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	166	7400
 channel_a	MySQL	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	728	7801
 channel_a	MySQL	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	632	7445
-channel_a	MySQL	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	3766	44514
-channel_a	MySQL	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	298572	360877
+channel_a	MySQL	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	3552	39354
+channel_a	MySQL	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	24350	57290
 channel_a	MySQL	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	2647	5387
 channel_a	MySQL	meta::pure::functions::math::pi__Float_1_	1	32	1607
 channel_a	MySQL	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	33	2179
@@ -2134,7 +2134,7 @@ channel_a	Postgres	TypedSelect	8	2814	48941
 channel_a	Postgres	TypedSlice	7	2170	20143
 channel_a	Postgres	TypedSort	17	28059	138984
 channel_a	Postgres	TypedWrite	1	274	5540
-channel_a	Postgres	let	241	420156	3365094
+channel_a	Postgres	let	241	272862	2517913
 channel_a	Postgres	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Postgres	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	47603
 channel_a	Postgres	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	54991
@@ -2155,7 +2155,7 @@ channel_a	Postgres	meta::pure::functions::boolean::lessThanEqual_Number_1__Numbe
 channel_a	Postgres	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	4332
 channel_a	Postgres	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	5756
 channel_a	Postgres	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	4407
-channel_a	Postgres	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	2268	57466
+channel_a	Postgres	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	13	2094	55855
 channel_a	Postgres	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4311
 channel_a	Postgres	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	291	18750
 channel_a	Postgres	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6646
@@ -2163,7 +2163,7 @@ channel_a	Postgres	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boo
 channel_a	Postgres	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	819	5885
 channel_a	Postgres	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	289	2276
 channel_a	Postgres	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	22	1183
-channel_a	Postgres	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	11287	41186
+channel_a	Postgres	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	9715	37601
 channel_a	Postgres	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1475	18673
 channel_a	Postgres	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	17420	83665
 channel_a	Postgres	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	2682	10425
@@ -2216,7 +2216,7 @@ channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Date_1_	2	106	39
 channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	339	7577
 channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	361	10364
 channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	440	12508
-channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1962	21578
+channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1278	16014
 channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	183	3214
 channel_a	Postgres	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	619	9452
 channel_a	Postgres	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	288	5980
@@ -2323,8 +2323,8 @@ channel_a	Postgres	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	3
 channel_a	Postgres	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	166	5736
 channel_a	Postgres	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	414	6203
 channel_a	Postgres	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	310	5839
-channel_a	Postgres	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	3040	42856
-channel_a	Postgres	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	43536	93125
+channel_a	Postgres	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2574	37444
+channel_a	Postgres	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	14059	44237
 channel_a	Postgres	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	566	2800
 channel_a	Postgres	meta::pure::functions::math::pi__Float_1_	1	22	1181
 channel_a	Postgres	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	56	1786
@@ -2445,7 +2445,7 @@ channel_a	SQLite	TypedSelect	8	3279	48738
 channel_a	SQLite	TypedSlice	7	4488	22098
 channel_a	SQLite	TypedSort	17	45967	155157
 channel_a	SQLite	TypedWrite	1	288	5477
-channel_a	SQLite	let	243	312252	3271656
+channel_a	SQLite	let	243	227553	2485413
 channel_a	SQLite	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	SQLite	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	2647	46050
 channel_a	SQLite	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	53717
@@ -2466,7 +2466,7 @@ channel_a	SQLite	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_
 channel_a	SQLite	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	78	4185
 channel_a	SQLite	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	84	5532
 channel_a	SQLite	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	129	4230
-channel_a	SQLite	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	9604	66804
+channel_a	SQLite	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	9457	65208
 channel_a	SQLite	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	75	4164
 channel_a	SQLite	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	250	18192
 channel_a	SQLite	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	126	6635
@@ -2474,7 +2474,7 @@ channel_a	SQLite	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boole
 channel_a	SQLite	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	3447	8464
 channel_a	SQLite	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	689	2627
 channel_a	SQLite	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	17	1131
-channel_a	SQLite	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	6738	36209
+channel_a	SQLite	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	5454	32918
 channel_a	SQLite	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1371	18352
 channel_a	SQLite	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	19938	85666
 channel_a	SQLite	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	1205	8753
@@ -2527,7 +2527,7 @@ channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Date_1_	2	432	4136
 channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	1023	8120
 channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	1750	11659
 channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	2172	14146
-channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	7512	26821
+channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	2622	17067
 channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	107	3044
 channel_a	SQLite	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	525	9076
 channel_a	SQLite	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	908	6412
@@ -2634,8 +2634,8 @@ channel_a	SQLite	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	399
 channel_a	SQLite	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	150	5532
 channel_a	SQLite	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	518	6158
 channel_a	SQLite	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	422	5802
-channel_a	SQLite	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2635	42129
-channel_a	SQLite	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	50377	99354
+channel_a	SQLite	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	2576	37084
+channel_a	SQLite	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	6273	35773
 channel_a	SQLite	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	1148	3325
 channel_a	SQLite	meta::pure::functions::math::pi__Float_1_	1	34	1146
 channel_a	SQLite	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	100	1783
@@ -2755,7 +2755,7 @@ channel_a	Snowflake	TypedSelect	8	3028	50843
 channel_a	Snowflake	TypedSlice	7	2548	22006
 channel_a	Snowflake	TypedSort	17	11620	125513
 channel_a	Snowflake	TypedWrite	1	274	5751
-channel_a	Snowflake	let	244	309642	3343290
+channel_a	Snowflake	let	244	220006	2553256
 channel_a	Snowflake	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Snowflake	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	52190
 channel_a	Snowflake	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	60477
@@ -2776,7 +2776,7 @@ channel_a	Snowflake	meta::pure::functions::boolean::lessThanEqual_Number_1__Numb
 channel_a	Snowflake	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	4965
 channel_a	Snowflake	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	6600
 channel_a	Snowflake	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	5040
-channel_a	Snowflake	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	2342	63154
+channel_a	Snowflake	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	2243	61618
 channel_a	Snowflake	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4944
 channel_a	Snowflake	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	291	21071
 channel_a	Snowflake	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	88	6855
@@ -2784,7 +2784,7 @@ channel_a	Snowflake	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Bo
 channel_a	Snowflake	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	1130	6408
 channel_a	Snowflake	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	252	2451
 channel_a	Snowflake	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	22	1394
-channel_a	Snowflake	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	2376	32915
+channel_a	Snowflake	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	2256	30812
 channel_a	Snowflake	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	2492	20289
 channel_a	Snowflake	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	3315	71947
 channel_a	Snowflake	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	397	8731
@@ -2837,7 +2837,7 @@ channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Date_1_	2	106	4
 channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	357	8228
 channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	485	10910
 channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	600	13090
-channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1470	22141
+channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	984	16775
 channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	93	3546
 channel_a	Snowflake	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	466	10565
 channel_a	Snowflake	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	724	7260
@@ -2944,8 +2944,8 @@ channel_a	Snowflake	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	
 channel_a	Snowflake	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	166	6580
 channel_a	Snowflake	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	5410	12128
 channel_a	Snowflake	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	5081	11539
-channel_a	Snowflake	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	7893	48419
-channel_a	Snowflake	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	16032	66605
+channel_a	Snowflake	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	7114	42694
+channel_a	Snowflake	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	7785	38947
 channel_a	Snowflake	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	1234	3705
 channel_a	Snowflake	meta::pure::functions::math::pi__Float_1_	1	22	1392
 channel_a	Snowflake	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	125	2066
@@ -3066,7 +3066,7 @@ channel_a	Trino	TypedSelect	8	3477	49588
 channel_a	Trino	TypedSlice	7	1904	19899
 channel_a	Trino	TypedSort	17	11420	121574
 channel_a	Trino	TypedWrite	1	319	5583
-channel_a	Trino	let	244	356837	3351123
+channel_a	Trino	let	244	235235	2522245
 channel_a	Trino	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Trino	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	47717
 channel_a	Trino	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	2449	55686
@@ -3087,7 +3087,7 @@ channel_a	Trino	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_1
 channel_a	Trino	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	3	84	4326
 channel_a	Trino	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	4	120	5748
 channel_a	Trino	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	3	165	4401
-channel_a	Trino	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	3628	61458
+channel_a	Trino	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	14	3496	59889
 channel_a	Trino	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	3	81	4305
 channel_a	Trino	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	11	381	18818
 channel_a	Trino	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	1	90	6644
@@ -3095,7 +3095,7 @@ channel_a	Trino	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolea
 channel_a	Trino	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	619	5690
 channel_a	Trino	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	160	2152
 channel_a	Trino	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	1	22	1181
-channel_a	Trino	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	2637	32372
+channel_a	Trino	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	4	2526	30266
 channel_a	Trino	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	3	1638	18834
 channel_a	Trino	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	11	4848	71137
 channel_a	Trino	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	3	496	8191
@@ -3148,7 +3148,7 @@ channel_a	Trino	meta::pure::functions::date::date_Integer_1__Date_1_	2	142	3936
 channel_a	Trino	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	396	7628
 channel_a	Trino	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	519	10518
 channel_a	Trino	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	2	634	12698
-channel_a	Trino	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	5271	24805
+channel_a	Trino	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	1943	16661
 channel_a	Trino	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	2	289	3316
 channel_a	Trino	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	6	494	9315
 channel_a	Trino	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	4	240	5924
@@ -3255,8 +3255,8 @@ channel_a	Trino	meta::pure::functions::math::minus_Number_MANY__Number_1_	6	330	
 channel_a	Trino	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	4	666	6228
 channel_a	Trino	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	696	6523
 channel_a	Trino	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	3	780	6347
-channel_a	Trino	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	4632	44532
-channel_a	Trino	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	17586	67189
+channel_a	Trino	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	3728	38690
+channel_a	Trino	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	5430	35442
 channel_a	Trino	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	952	3212
 channel_a	Trino	meta::pure::functions::math::pi__Float_1_	1	22	1179
 channel_a	Trino	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	56	1784
@@ -3414,7 +3414,7 @@ core	DuckDB	TypedTds	8	767	14186
 core	DuckDB	TypedUpdate	8	1221	7803
 core	DuckDB	TypedVariable	2	850	6572
 core	DuckDB	TypedWrite	34	4453	41383
-core	DuckDB	let	463	117939	4952355
+core	DuckDB	let	463	117859	4951644
 core	DuckDB	meta::legend::lite::deleteInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	118	1689
 core	DuckDB	meta::legend::lite::link_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	4	560	3704
 core	DuckDB	meta::legend::lite::mergeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	4	671	3822
@@ -3428,7 +3428,7 @@ core	DuckDB	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_
 core	DuckDB	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	3	839	15746
 core	DuckDB	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	1	85	1979
 core	DuckDB	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	5	258	7625
-core	DuckDB	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	1	525	8113
+core	DuckDB	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	1	494	7413
 core	DuckDB	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	5	1229	21863
 core	DuckDB	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	5	3127	48478
 core	DuckDB	meta::pure::functions::collection::contains_Z_MANY__Z_1__Function_1__Boolean_1_	1	424	5580
@@ -3452,7 +3452,7 @@ core	DuckDB	meta::pure::functions::collection::pair_U_1__V_1__Pair_1_	1	43	2830
 core	DuckDB	meta::pure::functions::collection::removeDuplicatesBy_T_MANY__Function_1__T_MANY_	1	1221	25812
 core	DuckDB	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_1__T_MANY_	2	1547	35783
 core	DuckDB	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	4	1823	41415
-core	DuckDB	meta::pure::functions::collection::size_Any_MANY__Integer_1_	27	23542	1449887
+core	DuckDB	meta::pure::functions::collection::size_Any_MANY__Integer_1_	27	23068	1442098
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	1	330	6653
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__T_m_	1	103	2022
 core	DuckDB	meta::pure::functions::collection::sort_T_m__T_m_	2	3809	67833
@@ -3464,7 +3464,7 @@ core	DuckDB	meta::pure::functions::date::date_Integer_1__Date_1_	1	51	1863
 core	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	2	184	4343
 core	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	1	179	5094
 core	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	1	218	6165
-core	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	6307	74616
+core	DuckDB	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	5	5751	64328
 core	DuckDB	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	1	51	1317
 core	DuckDB	meta::pure::functions::date::hasDay_Date_1__Boolean_1_	1	20	1094
 core	DuckDB	meta::pure::functions::date::hasHour_Date_1__Boolean_1_	3	61	3311
@@ -3525,8 +3525,8 @@ core	DuckDB	meta::pure::functions::math::minus_Integer_MANY__Integer_1_	7	260	10
 core	DuckDB	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	1	39	1345
 core	DuckDB	meta::pure::functions::math::mode_Float_MANY__Float_1_	3	152	4724
 core	DuckDB	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	1	55	1862
-core	DuckDB	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	1954	41368
-core	DuckDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	887	22701
+core	DuckDB	meta::pure::functions::math::mode_Number_MANY__Number_1_	2	1714	36142
+core	DuckDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	4	741	16060
 core	DuckDB	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	1	92	2229
 core	DuckDB	meta::pure::functions::math::pi__Float_1_	1	20	1092
 core	DuckDB	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	3	105	4502
@@ -3671,7 +3671,7 @@ core	SQLite	TypedSelect	10	903	43147
 core	SQLite	TypedSerialize	2	213	7888
 core	SQLite	TypedSort	39	8194	187299
 core	SQLite	TypedVariable	2	62	4884
-core	SQLite	let	166	32289	1113268
+core	SQLite	let	166	32063	1111769
 core	SQLite	meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_	6	23510	169344
 core	SQLite	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	1	1273	14901
 core	SQLite	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	1164	16110
@@ -3679,9 +3679,9 @@ core	SQLite	meta::pure::functions::collection::isDistinct_T_MANY__Boolean_1_	2	1
 core	SQLite	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	73	380747
 core	SQLite	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_1__T_MANY_	1	14942	45138
 core	SQLite	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	1	14942	45138
-core	SQLite	meta::pure::functions::collection::size_Any_MANY__Integer_1_	17	41747	261765
+core	SQLite	meta::pure::functions::collection::size_Any_MANY__Integer_1_	17	40583	255492
 core	SQLite	meta::pure::functions::collection::sort_T_m__T_m_	2	65511	129556
-core	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	1	3641	11610
+core	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	1	1076	6611
 core	SQLite	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	1	21	2458
 core	SQLite	meta::pure::functions::relation::size_Relation_1__Integer_1_	1	50	3343
 core	Snowflake	TypedProject	34	1923	61680
