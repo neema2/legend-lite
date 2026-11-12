@@ -108,10 +108,11 @@ Read on 2026-11-11 from each distribution's own metadata in the pinned venv: its
 licence classifier, as the "read from" column says. The repository holds none of these packages, nor the model: it names them and their
 versions (`tools/unstructured-corpus/requirements.txt`, `pins.env`), and everything is fetched locally.
 
-**The venv.** `requirements.txt` resolves to 51 distributions, and each is reachable from it:
+**The venv.** `requirements.txt` resolves to 52 distributions, and each is reachable from it:
 
 | Distribution | Version | Licence, as declared | Read from | Pulled in by |
 |---|---|---|---|---|
+| `chardet` | 7.7.0 | 0BSD | License-Expression | requirements.txt (a floor, `>=7.0.0`: below) |
 | `duckdb` | 1.4.5 | MIT License | classifier | requirements.txt |
 | `huggingface_hub` | 2.4.0 | Apache-2.0 | License | requirements.txt |
 | `numpy` | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | License-Expression | requirements.txt |
@@ -168,10 +169,9 @@ versions (`tools/unstructured-corpus/requirements.txt`, `pins.env`), and everyth
 
 - `psycopg` and `psycopg-binary` 3.3.8, LGPL-3.0-only, were the Postgres driver until 2026-11-11. They are replaced by `pg8000` 1.31.6,
   BSD-3-Clause (`projects/unstructured/evals/DECISIONS.md`, entry 7).
-- `certifi`, MPL-2.0, pulled in by `requests` alone. **Kept, and it needs a ruling.** It would go only with `requests`: `tools/edgar-corpus/fetch.py`
-  on the standard library's `urllib`, and the EDGAR corpus fetched again to check it against its manifest.
-- `tqdm`, MPL-2.0 AND MIT, pulled in by `huggingface_hub`, `sentence-transformers` and `transformers`. **Kept, and it needs a ruling:** no swap
-  exists short of replacing the embedder.
+- `certifi`, MPL-2.0, pulled in by `requests` alone, and `tqdm`, MPL-2.0 AND MIT, pulled in by `huggingface_hub`, `sentence-transformers` and
+  `transformers`. **Kept (ruled 2026-11-11):** MPL-2.0 is file-level copyleft, compatible with an Apache project, and they are tool-time
+  dependencies of the Python environment, never redistributed with lite.
 - Permissive, though none of the three: `regex` (Apache-2.0 AND CNRI-Python), `typing_extensions` (PSF-2.0), `shellingham` (ISC), `scramp`
   (MIT-0), and parts of `torch` and `numpy` (Zlib, BSL-1.0, ISC, CC0-1.0, 0BSD, Apache-2.0 WITH LLVM-exception).
 
@@ -179,8 +179,10 @@ versions (`tools/unstructured-corpus/requirements.txt`, `pins.env`), and everyth
 own modules; `tools/edgar-corpus/fetch.py` uses `requests`, above. `tools/synth-corpus/gen_loan_docs.py` needs `reportlab` 4.2.5, the release
 it enforces, which declares a BSD licence ("BSD license (see license.txt for details)" and its classifier, read from PyPI). reportlab requires
 `pillow>=9.0.0` and `chardet` with no version. A fresh resolve on 2026-11-11 takes pillow 13.0.0 (MIT-CMU) and chardet 7.7.0 (0BSD). **chardet
-before 7.0.0 is LGPL** (5.2.0 "LGPL", 6.0.0 LGPL-2.1-or-later, read from PyPI), and nothing here refuses one, so an environment that
-already holds an old chardet would satisfy reportlab with it. Only regenerating the loan documents needs any of this; the judge does not.
+before 7.0.0 is LGPL** (5.2.0 "LGPL", 6.0.0 LGPL-2.1-or-later, read from PyPI), so `requirements.txt` holds it at `chardet>=7.0.0`
+(ruled 2026-11-11), and an environment made from it cannot take an LGPL release: 7.0.0 is MIT, 7.7.0 0BSD. chardet 7 requires Python 3.10 or
+later (its `Requires-Python`, read from PyPI), so a Python 3.9 environment cannot resolve the floor at all, and refuses rather than taking an
+old one. Only regenerating the loan documents needs reportlab; the judge does not.
 
 **The model.** `BAAI/bge-small-en-v1.5` at revision `5c38ec7c405ec4b44b94cc5a9bb96e735b38267a` (`pins.env`): MIT, in its model card's front
 matter (`license: mit`) and in Hugging Face's API for that revision.
