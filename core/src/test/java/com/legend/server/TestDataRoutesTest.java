@@ -160,6 +160,30 @@ class TestDataRoutesTest {
                 + "\"ID,FIRM_ID,NAME\"}]}]}", a.json());
     }
 
+    /** The query's parameters bound by name, as upstream binds the request's {@code parameterValues} (register S301's
+     *  third part, built: the orchestrator's go of 2026-11-12) -- the seed's keys those the bound query reaches; a
+     *  parameter with no value refused with upstream's words; the seed route's own {@code parameters} read by nothing. */
+    @Test
+    void theQuerysParametersAreBoundByName() {
+        String query = "{name: String[1]|model::Person.all()->filter(p|$p.name != $name)->project([p|$p.name],"
+                + " ['name'])}";
+        String bob = ",\"parameterValues\":[{\"name\":\"name\",\"value\":{\"_type\":\"string\",\"value\":\"Bob\"}}]";
+        PureV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData",
+                input(query, bob + ",\"parameters\":[\"ignored\"]"));
+        assertEquals(200, seed.status(), seed.json());
+        assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
+                + "\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
+                + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]},"
+                + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":4}]}]}", seed.json());
+        PureV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
+                input(query, bob));
+        assertEquals(200, data.status(), data.json());
+        assertEquals("default\nPERSON\nID,NAME\n1,Ann\n3,Cy\n4,Di\n-----\n", data.json());
+        PureV1Api.Answer missing = route("execution/testDataGeneration/generateSeedData", input(query, ""));
+        assertEquals(500, missing.status(), missing.json());
+        assertTrue(missing.json().contains("Missing external parameter(s): name:String[1]"), missing.json());
+    }
+
     /** A runtime given inline: refused by name. */
     @Test
     void anInlineRuntimeIsRefusedByName() {

@@ -182,6 +182,44 @@ class TestDataPlannerTest {
         }
     }
 
+    /** A view over a table whose columns are declared in lower case (the B checkpoint's G4, 2026-11-12): the view's
+     *  own fetch reads its table from the generator's clause under the declared names, as the reload's slice labels
+     *  them, so its re-stamped reads meet their labels on every database -- under the fetch's upper-cased labels H2
+     *  answers "Column not found". */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void aViewOverLowerCaseColumnsReadsItsClauseByTheirNames(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        String model = """
+                ###Relational
+                Database t::DB
+                (
+                  Table PNL (order_id INTEGER PRIMARY KEY, pnl DOUBLE)
+                  Filter NonNegative(PNL.pnl > 0)
+                  View PNLVIEW ( ~filter NonNegative order_id: PNL.order_id PRIMARY KEY, pnl: PNL.pnl )
+                )
+                ###Pure
+                Class t::OrderPnl { pnl: Float[1]; }
+                ###Mapping
+                Mapping t::M ( t::OrderPnl: Relational { ~mainTable [t::DB]PNLVIEW pnl: [t::DB]PNLVIEW.pnl } )
+                ###Connection
+                RelationalDatabaseConnection t::C { store: t::DB; %s }
+                ###Runtime
+                Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }
+                """.formatted(com.legend.testbackend.TestBackends.of(type).connectionBody());
+        ModelContext ctx = Compiler.compileModel(model);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : CsvSeed.sqls("default\nPNL\norder_id,pnl\n1,100.0\n2,-5.0\n", "t::DB", ctx,
+                        dialect)) {
+                    s.execute(sql);
+                }
+            }
+            assertSame(c, ctx, model, dialect, "|t::OrderPnl.all()->project([o|$o.pnl], ['p'])",
+                    List.of(ids("PNL", "order_id", 1L, 2L)), 2, "default\nPNL\nORDER_ID,PNL\n1,100.0\n2,-5.0\n-----\n");
+        }
+    }
+
     /** The census ({@code getRelationalCSVDataFromQuery}, B2d.3) is a model fact: per table reached, its primary key,
      *  then the columns read of it (a value, both sides of a join), each sorted by name; the tables by schema and
      *  name. Upstream's order, no database. */
@@ -226,6 +264,45 @@ class TestDataPlannerTest {
         // a schema's lone T is no default T: the reload reads S.T alone, so another database's default T is not
         // taken for one it replaces
         assertEquals(java.util.Set.of("t::One|S.T"), TestDataPlanner.reads(ctx, "t::One"));
+    }
+
+    /** The reload's rows as upstream's table holds them (the B checkpoint audit's G4, 2026-11-11; built 2026-11-12): the slice's rows are
+     *  its fetches' distinct rows, each empty or ---null--- text cell then NULL -- upstream inserts each row, so a
+     *  keyless table's ('', 1) and (NULL, 1) are two rows, not one. */
+    @ParameterizedTest
+    @MethodSource("inMemory")
+    void theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual(DatabaseType type) throws Exception {
+        SqlDialect dialect = Databases.dialect(type);
+        ModelContext ctx = Compiler.compileModel("""
+                ###Relational
+                Database t::DB ( Table K (NAME VARCHAR(10), N INTEGER) )
+                ###Pure
+                Class t::K { name: String[0..1]; n: Integer[0..1]; }
+                ###Mapping
+                Mapping t::M ( t::K: Relational { ~mainTable [t::DB]K name: [t::DB]K.NAME, n: [t::DB]K.N } )
+                """);
+        try (Connection c = com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate()) {
+            try (Statement s = c.createStatement()) {
+                // the table and its NULL row through the test-data reader; the empty text, which the reader reads as
+                // NULL, written as it is
+                for (String sql : CsvSeed.sqls("default\nK\nNAME,N\n---null---,1\n", "t::DB", ctx, dialect)) {
+                    s.execute(sql);
+                }
+                s.execute("INSERT INTO K VALUES ('', 1)");
+            }
+            TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx,
+                    query("|t::K.all()->project([k|$k.name, k|$k.n], ['a', 'b'])"), "t::M",
+                    List.of(new TestDataGenerator.TableRowIds("default", "K", List.of(
+                            new TestDataGenerator.RowId(List.of("N"), List.of(1L))))), null, false, PlannerViews.of(ctx));
+            com.legend.sql.SqlQuery k = TestDataPlanner.slice(planned, ctx, "t::DB").get("K");
+            int rows = 0;
+            try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(k))) {
+                while (r.next()) {
+                    rows++;
+                }
+            }
+            assertEquals(2, rows, dialect.render(k));
+        }
     }
 
     /** The seed (B2d.3): the starting table's keys carried through the query, distinct, sorted by key, and -- the user's

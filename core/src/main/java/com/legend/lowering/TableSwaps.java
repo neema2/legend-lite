@@ -6,6 +6,7 @@ package com.legend.lowering;
 import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedTableSwap;
 import com.legend.error.NotImplementedException;
+import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
@@ -58,6 +59,23 @@ final class TableSwaps {
      *  calendar's table, a name a post-processor wrote) -- is refused by name. */
     static SqlSelect swapped(SqlSelect lowered, TypedTableSwap swap, java.util.Map<String, SqlQuery> byAlias) {
         SqlQuery out = new com.legend.sql.SqlRewriter() {
+            /** Each read of a swapped scan's column, read as the slice's own label (G4, 2026-11-12): the slice labels a
+             *  table's column by its declared name ({@code TestDataPlanner.slice}), a name the plan invented, so the read
+             *  is that name spelled as an invented name is -- the pruner (by exact name) and every dialect's quoting
+             *  agree by construction, never by a database's case folding. */
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (e instanceof SqlExpr.Column c && c.table() != null && byAlias.containsKey(c.table())
+                        && c.origin() != com.legend.sql.OutputCol.Origin.DERIVED) {
+                    // through the stamped doors: the read's type kept where it is known
+                    return c.type() instanceof com.legend.sql.TypeFact.Typed t
+                            ? SqlExpr.Column.of(c.table(), c.name(), t.type(), t.nullable(),
+                                    com.legend.sql.OutputCol.Origin.DERIVED)
+                            : SqlExpr.Column.derived(c.table(), c.name());
+                }
+                return e;
+            }
+
             @Override
             protected SqlSource source(SqlSource s) {
                 if (s instanceof SqlSource.Table t && !t.call()) {

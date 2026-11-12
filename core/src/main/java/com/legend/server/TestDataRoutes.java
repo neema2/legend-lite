@@ -34,8 +34,9 @@ import java.util.Map;
  *       (one statement, where upstream runs two plans).</li>
  *   <li>{@code DONOTUSE_generateTestData}: the census ({@link TestDataCensus}) as upstream's embedded data.</li>
  * </ul>
- * Refused by name: a view in the query's relation tree, a runtime given inline (an {@code engineRuntime}), the query's
- * parameters bound.
+ * Refused by name: a view in the query's relation tree and a runtime given inline (an {@code engineRuntime}), each
+ * pending the user's ruling (register S301's draft, B2d.3e). The query's {@code parameterValues} are bound by name, as
+ * {@code execute} binds them.
  */
 final class TestDataRoutes {
 
@@ -113,19 +114,15 @@ final class TestDataRoutes {
         });
     }
 
-    /** A route's {@code ExecuteInput}: its query, mapping and runtime (a runtime named; one given inline refused by
-     *  name), its parameters none. */
+    /** A route's {@code ExecuteInput}: its query, its {@code parameterValues} bound by name as upstream binds them
+     *  (TestDataGenerationAPI.java:84-90, :121-128, :161-168) -- as {@code execute} binds them
+     *  ({@link PureV1Api#boundParameters}: a parameter with no value refused with upstream's words, a value for no
+     *  parameter ignored; the seed route's own {@code parameters} field read by nothing, as upstream's), its mapping and
+     *  its runtime (a runtime named; one given inline refused by name). */
     record Request(Json.Obj json, LambdaFunction query, String mapping, String runtime) {
         static Request of(Json.Obj json) {
-            Json.Arr values = json.getArrOr("parameterValues", null);
-            Json.Arr parameters = json.getArrOr("parameters", null);
-            if (values != null && !values.items().isEmpty() || parameters != null && !parameters.items().isEmpty()) {
-                throw refused("the query's parameters bound");
-            }
-            LambdaFunction query = resolved(json.getObj("function"));
-            if (!query.parameters().isEmpty()) {
-                throw refused("a query with parameters");
-            }
+            LambdaFunction query = resolved(PureV1Api.boundParameters(json.getObj("function"),
+                    json.getArrOr("parameterValues", null)));
             Json.Obj rt = json.getObj("runtime");
             if (!rt.has("runtime")) {
                 throw refused("a runtime given inline (" + rt.getStringOr("_type", "?") + "); name one (runtimePointer)");

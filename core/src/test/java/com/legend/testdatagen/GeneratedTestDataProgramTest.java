@@ -42,6 +42,7 @@ class GeneratedTestDataProgramTest {
               Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(40), MANAGERID INTEGER)
               Table BICYCLE (ID INTEGER PRIMARY KEY, PERSONID INTEGER)
               Table FLAG (ID INTEGER PRIMARY KEY, ACTIVE BIT)
+              Table pet (id INTEGER PRIMARY KEY, name VARCHAR(20))
               Join Person_Bicycle(PERSON.ID = BICYCLE.PERSONID)
             )
             ###Pure
@@ -49,6 +50,7 @@ class GeneratedTestDataProgramTest {
             Class t::Person { name: String[0..1]; bicycles: t::Bicycle[*]; }
             Class t::Bicycle { id: Integer[1]; }
             Class t::Flag { id: Integer[1]; active: Boolean[0..1]; }
+            Class t::Pet { name: String[0..1]; }
             // a user function that reads the database, and one that reaches nothing
             function t::names():String[*] { t::Person.all().name }
             function t::two():Integer[1] { 1 + 1 }
@@ -86,6 +88,7 @@ class GeneratedTestDataProgramTest {
                 bicycles: [t::DB]@Person_Bicycle }
               t::Bicycle: Relational { ~mainTable [t::DB]BICYCLE id: [t::DB]BICYCLE.ID }
               t::Flag: Relational { ~mainTable [t::DB]FLAG id: [t::DB]FLAG.ID, active: [t::DB]FLAG.ACTIVE }
+              t::Pet: Relational { ~mainTable [t::DB]pet name: [t::DB]pet.name }
             )
             """;
 
@@ -94,7 +97,7 @@ class GeneratedTestDataProgramTest {
      *  {@link #run} (the reader reads an empty cell as NULL). */
     private static final String CSV = "default\nPERSON\nID,NAME,MANAGERID\n1,boss,\n2,ann,1\n3,\"o'neil, jr\",1\n"
             + "4,\"two\nlines\",1\n5,---null---,1\n-----\ndefault\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n13,5\n"
-            + "-----\ndefault\nFLAG\nID,ACTIVE\n1,true\n2,false\n";
+            + "-----\ndefault\nFLAG\nID,ACTIVE\n1,true\n2,false\n-----\ndefault\npet\nid,name\n1,rex\n2,tom\n3,kit\n";
 
     private static final String QUERY = "|t::Person.all()->project([p|$p.name, p|$p.bicycles.id], ['n', 'b'])";
 
@@ -352,6 +355,38 @@ class GeneratedTestDataProgramTest {
         assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + six + reload
                 + "let r = meta::pure::router::execute(|t::Person.all()->filter(p|$p.name->isEmpty())->project("
                 + "[p|$p.name], ['n']), t::M, $runtime, []);\nassertSize($r.values.rows, 1);}"), what);
+    }
+
+    /**
+     * A table and its columns declared in lower case, unquoted, read over the reload (the B checkpoint's G4, 2026-11-12):
+     * the slice labels each column by its declared name and the swap reads it by that label, spelled as the plan's own
+     * names are, so the pruner and every database read the one spelling -- the slice's DISTINCT dropped, the slice's
+     * select is pruned to what the query reads, and a read left in the table's physical spelling would be folded by H2
+     * ({@code name} read as {@code NAME}) and miss the label {@code "name"}.
+     */
+    @ParameterizedTest
+    @MethodSource("backendsAndJudges")
+    void theReloadReadsALowerCaseColumnByItsOwnLabel(TestBackend backend, PlanningOptions.JudgeMode judge)
+            throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String lets = "let runtime = t::RT.runtimeValue;\n"
+                + "let ids = ^meta::relational::testDataGeneration::TableRowIdentifiers(table ="
+                + " meta::relational::testDataGeneration::getTable(t::DB, 'default', 'pet'), rowIdentifiers ="
+                + " [^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['id'], [1])),"
+                + " ^meta::relational::testDataGeneration::RowIdentifier(columnValuePairs = zip(['id'], [2]))]);\n"
+                + "let testData = meta::relational::testDataGeneration::generateTestData({|t::Pet.all()->project("
+                + "[x|$x.name], ['n'])}, t::M, $runtime, $ids, [])->toOne();\n"
+                + "let conn = $runtime.connectionStores.connection->toOne()"
+                + "->cast(@meta::external::store::relational::runtime::TestDatabaseConnection);\n"
+                + "let loads = meta::alloy::service::execution::setUpDataSQLs($testData.dataCsvString, t::DB);\n"
+                + "$loads->map(sql | meta::relational::metamodel::execute::executeInDb($sql, $conn));\n";
+        String what = backend.name() + " " + judge;
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + lets
+                + "let r = meta::pure::router::execute(|t::Pet.all()->project([x|$x.name], ['n']), t::M, $runtime,"
+                + " []);\nassertSize($r.values.rows, 2);}"), what);
+        assertEquals(List.of("assertSize true"), run(backend, judge, ctx, "{|" + lets
+                + "let r = meta::pure::router::execute(|t::Pet.all()->filter(x|$x.name == 'tom')->project([x|$x.name],"
+                + " ['n']), t::M, $runtime, []);\nassertSize($r.values.rows, 1);}"), what);
     }
 
     /**

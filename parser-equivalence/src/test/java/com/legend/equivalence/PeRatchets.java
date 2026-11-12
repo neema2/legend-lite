@@ -54,7 +54,10 @@ public final class PeRatchets {
                     + " staged reads, the text plan's catalog read)",
             "own_corpus.matched 3140 -> 3159 (2026-11-12, B2d.3a-e on claude/total-wall-b2d3): the generator's slices'"
                     + " tests' models (TestDataPlannerTest's view, seed, schema and reload models, TestDataRoutesTest's"
-                    + " store, mapping and runtime)");
+                    + " store, mapping and runtime)",
+            "own_corpus.matched 3159 -> 3163 (2026-11-12, the B checkpoint's G4 and the routes' parameters on"
+                    + " claude/total-wall-b2d3): their tests' models (TestDataPlannerTest's keyless table and lower-case"
+                    + " view, GeneratedTestDataProgramTest's lower-case table, TestDataRoutesTest's parameterised query)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

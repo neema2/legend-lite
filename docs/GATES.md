@@ -21521,3 +21521,56 @@ Measured on 3e's tree (2026-11-12):
 - `//gates:local` is green. Its ten Postgres tests (the nine `*_postgres_test` and `//datacube:verify_app_test`) were
   run as `ubuntu` through `tools/postgres/as_unprivileged.sh`: as root, `initdb` refuses them.
 - parser-equivalence's `own_corpus.matched` moved 3140 -> 3159 (the B2d.3 tests' models; `PeRatchets`, dated).
+
+## 2026-11-12 — the B checkpoint's G4, built: the reload's rows as upstream inserts them, read by construction
+
+G4 asked for the reload slice's DISTINCT to go, because upstream inserts every text row. Its first landing was
+reverted the same day: dropping the DISTINCT let `SubselectPrune` prune the slice's columns, and the label spelling
+did not match the reads, which had only worked through each database's case folding. The real fix, with the
+orchestrator's go:
+- **The slice labels each column by its declared name** (`TestDataPlanner.slice`), not the fetch's upper-cased label.
+- **`TableSwaps` re-stamps every read of a swapped scan's column** as a read of that label (a DERIVED name, through the
+  stamped doors: `Column.of` with the read's type, else `Column.derived`). A projection's label is always DERIVED, and
+  a table read is PHYSICAL (bare), so matching the names alone still leaned on H2 folding a bare `name` to `NAME`. Now
+  the pruner (exact name) and every dialect (one quoting) read one spelling by construction.
+- **The slice's DISTINCT is dropped:** a keyless table's `('', 1)` and `(NULL, 1)` reload as two rows, as upstream
+  inserts them.
+- **A view's own fetch reads its tables the same way.** The generator's fetch clauses (B2d.3a) are now read under the
+  tables' declared names (`TestDataPlanner.Walk.declaredNames`), since the view fetch goes through the same swap. The
+  first measurement found this: the H2 lane lost four view tests (`testSimpleViewRoot`, `testSimpleViewRootToJoin`,
+  `testSimpleTableToViewJoin`, `testUnionViewOnView`) when the re-stamped reads met the clauses' upper-cased labels.
+  With the clauses relabelled, both lanes are green: 12 of 12, no roster or register movement.
+
+Tests, each failing without its half:
+- `TestDataPlannerTest.theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual` (DuckDB, H2, SQLite): 1 row with the
+  DISTINCT.
+- `GeneratedTestDataProgramTest.theReloadReadsALowerCaseColumnByItsOwnLabel` (each backend and judge): a table and
+  columns declared in lower case. Without the re-stamp, H2 answers `Column "t0.NAME" not found`.
+- `TestDataPlannerTest.aViewOverLowerCaseColumnsReadsItsClauseByTheirNames` (DuckDB, H2, SQLite): with the clauses
+  under their fetch labels, H2 answers `Column "t0.order_id" not found`.
+
+Guards: `FixtureWriteCensusTest` 907 -> 908, plus its per-file pin for TestDataPlannerTest (the empty text no CSV can
+seed). Both are dated. parser-equivalence `own_corpus.matched` 3159 -> 3163 (the new tests' models; `PeRatchets`,
+dated).
+
+The S301 draft's third part, built in the same slice (the orchestrator's go: an exact upstream behaviour): the
+test-data routes bind the request's `parameterValues` by name, as upstream does (TestDataGenerationAPI.java:84-90,
+:121-128, :161-168) and as `execute` does (`PureV1Api.boundParameters`). A parameter with no value is refused with
+upstream's words, and the seed route's own `parameters` field is read by nothing. Test:
+`TestDataRoutesTest.theQuerysParametersAreBoundByName`. S143 amended.
+
+The generator's other name matches, audited (the orchestrator's question):
+- **Labels against the database.** No other read leans on case folding. A fetch clause's columns are labelled
+  `tempColumn(...)` and read `Column.derived(alias, tempColumn(...))`: one string, one origin. A view clause's children
+  read `Column.derived(PARENT, m.name())`, the view relation's own label.
+- **Five model-level matches that ignore case** (a name the model holds matched to a declared column; not the
+  database's folding):
+  - `TestDataGenerator.column` (:408, the planner's column lookup);
+  - `TestDataGenerator` :100 (merging a table's demanded columns);
+  - `TestDataCensus` :106;
+  - `TestDataPlanner` :283 (a join's view column);
+  - `TestDataPlanner.same` :1004 (an expected text's header).
+
+  The last is upstream's own behaviour: its reload inserts with the header names as unquoted identifiers, which H2
+  folds. The first four are leniencies, because upstream's Pure resolves a column by its exact name. Tightening them is
+  a separate slice measured on the corpus; it was not done here.

@@ -216,6 +216,8 @@ public final class TestDataPlanner {
         private final Map<String, Fetched> fetched = new LinkedHashMap<>();
         /** Each table clause's table, by physical name: what a view's own fetch reads it from. */
         private final Map<String, String> clauseTables = new LinkedHashMap<>();
+        /** Each table clause's fetch: its table's definition and columns. */
+        private final Map<String, Fetched> clauseFetched = new LinkedHashMap<>();
 
         Walk(ModelContext ctx, Map<String, List<String>> colMap, List<TestDataGenerator.TableRowIds> rowIds,
                 TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates, Views views,
@@ -315,8 +317,9 @@ public final class TestDataPlanner {
             for (int i = first; i < ctes.size(); i++) {
                 String clause = ctes.get(i).name();
                 String physical = clauseTables.get(clause);
-                if (physical != null) {
-                    tables.putIfAbsent(physical, SqlSelect.starOf(new SqlSource.Cte(clause, clause, List.of())));
+                Fetched f = clauseFetched.get(clause);
+                if (physical != null && f != null) {
+                    tables.putIfAbsent(physical, declaredNames(clause, f));
                 }
             }
             java.util.Set<String> reads = new java.util.LinkedHashSet<>();
@@ -331,6 +334,18 @@ public final class TestDataPlanner {
                 ctes.add(new SqlWith.Cte(outer, views.fetch(v.db(), ve.viewChain().get(i), reads, tables)));
             }
             return java.util.Objects.requireNonNull(outer, "a view with no layer");
+        }
+
+        /** The clause {@code clause}'s rows, each column labelled by its declared name: as the reload's slice labels a
+         *  table's columns, the swap reading each by that label (lowering/TableSwaps; the B checkpoint's G4). */
+        private static SqlSelect declaredNames(String clause, Fetched f) {
+            List<SqlSelect.Projection> ps = new ArrayList<>(f.cols().size());
+            for (String c : f.cols()) {
+                ps.add(new SqlSelect.Projection(SqlExpr.Column.derived(clause, tempColumn(f.def(), c)),
+                        column(f.def(), c).name(), null));
+            }
+            return new SqlSelect(ps, false, new SqlSource.Cte(clause, clause, List.of()), null, List.of(), null, null,
+                    List.of(), null, null, List.of());
         }
 
         /** The starting rows of {@code table}: its given identifiers' rows (by key, at most 20), as the next clause; no
@@ -396,6 +411,7 @@ public final class TestDataPlanner {
             }
             f.ctes().add(name);
             clauseTables.put(name, physical(loc.schema(), table));
+            clauseFetched.put(name, f);
             return name;
         }
 
@@ -1263,9 +1279,12 @@ public final class TestDataPlanner {
      * 2026-11-11, "Read only reload is fine". Upstream's {@code loadAndTestExecution} drops and re-creates EVERY table of
      * the database ({@code setUpDataSQLs} -> {@code schemaAndTableSetup(dbConfig, [])}, {@code toDDL.pure:155-196}) and
      * loads the generated text into it; here each table is a statement the query reads instead: a table the slice
-     * holds, its distinct rows -- each fetched column as the text holds it (a text cell hashed where the text hashes
-     * it), every other column NULL of its declared type; any other table, no row. Each statement is self-contained:
-     * the generator's clauses read inline as derived tables, so it stands wherever the table stood.
+     * holds, a row for each of the text's rows (its fetches' distinct rows; upstream inserts each text row, so two that
+     * only its reading of an empty or ---null--- cell makes equal stay two: the B checkpoint's G4, 2026-11-12) -- each
+     * fetched column as the text holds it (a text cell hashed where the text hashes it), every other column NULL of its
+     * declared type, each labelled by the column's declared name, which the swap reads it by (lowering/TableSwaps); any
+     * other table, no row. Each statement is self-contained: the generator's clauses read inline as derived tables, so
+     * it stands wherever the table stood.
      */
     public static Map<String, SqlQuery> slice(Planned planned, ModelContext ctx, String dbFqn) {
         Map<String, SqlQuery> inlined = new LinkedHashMap<>();
@@ -1286,12 +1305,13 @@ public final class TestDataPlanner {
                 SqlExpr cell = g != null && g.columns().contains(c.name())
                         ? reloaded(sliceCell(def, c.name(), "_u", planned.hashStrings()), c, sqlType(c, def))
                         : new SqlExpr.Cast(new SqlExpr.NullLit(), sqlType(c, def));
-                ps.add(new SqlSelect.Projection(cell, tempColumn(def, c.name()), null));
+                // labelled by the column's declared name: the swap reads each column by it (lowering/TableSwaps)
+                ps.add(new SqlSelect.Projection(cell, c.name(), null));
             }
             SqlSelect rows = g == null
                     ? new SqlSelect(ps, false, new SqlSource.Dual(), new SqlExpr.BoolLit(false), List.of(), null,
                             null, List.of(), null, null, List.of())
-                    : new SqlSelect(ps, true, new SqlSource.Subselect(inline(fetchedRows(g.clauses()), inlined), "_u",
+                    : new SqlSelect(ps, false, new SqlSource.Subselect(inline(fetchedRows(g.clauses()), inlined), "_u",
                             null), null, List.of(), null, null, List.of(), null, null, List.of());
             out.put(e.getKey(), rows);
         }
