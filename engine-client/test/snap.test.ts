@@ -9,12 +9,13 @@ import { after, before, describe, it } from 'node:test';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { loadPlanner } from './planner.ts';
-import { element } from '../../pure-protocol/src/index.ts';
+import { element, lambda } from '../../pure-protocol/src/index.ts';
 
 /** The live source, and where a snap goes: a table of its own, read (once landed) by what the app's model of it says. */
 const LIVE = element('trades');
 const target = (table: string) => ({ table, landed: async () => element(table) });
 import {
+  HostSnaps,
   MAX_SNAP_ROWS,
   SnapManager,
   SnapRefusal,
@@ -145,7 +146,7 @@ describe('SnapManager', () => {
       return undefined;
     }), null, planner);
     await assert.rejects(() => s.snap(unplanned('SELECT * FROM trades'), 1, { target: target('snap_uncounted') }),
-      (e: unknown) => e instanceof SnapRefusal && /the snap's count answered undefined, not a count: nothing is copied/.test(e.message));
+      (e: unknown) => e instanceof SnapRefusal && /the snap's count is undefined: nothing is copied/.test(e.message));
     assert.deepEqual(copied, [], 'nothing is copied');
     assert.equal(s.isSnapped, false);
   });
@@ -158,6 +159,28 @@ describe('SnapManager', () => {
     const left = await engine.run(unplanned("SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap_unmodelled'"), 0);
     assert.equal(Number(left.columns[0]!.values[0]), 1);
     await engine.run(unplanned('DROP TABLE snap_unmodelled'), 0);
+  });
+
+  it("says a release that fails as the page leaves, never swallowed (G7; the orchestrator's ruling)", async () => {
+    const snaps = new HostSnaps({
+      store: 'Python',
+      snap: async () => ({ rowCount: 1, table: 'held_copy', source: element('held_copy') }),
+      release: async () => { throw new Error('the host is gone'); },
+    });
+    await snaps.snap(lambda([], element('trades')));
+    const said: unknown[][] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => { said.push(args); };
+    try {
+      snaps.leaving();
+      // the release is not awaited as the page goes: its failure is said once it settles
+      await new Promise((settled) => setTimeout(settled, 0));
+    } finally {
+      console.error = error;
+    }
+    assert.equal(said.length, 1, 'said once');
+    assert.equal(said[0]![0], "the snap's copy held_copy was not let go:");
+    assert.ok(said[0]![1] instanceof Error && said[0]![1].message === 'the host is gone', String(said[0]![1]));
   });
 
   it('gives each snap its own table so two can coexist', async () => {
