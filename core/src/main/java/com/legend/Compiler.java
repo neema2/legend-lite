@@ -76,7 +76,10 @@ public final class Compiler {
         Objects.requireNonNull(model, "model");
         ModelContext ctx = buildPositioned(ModelFromText.parse(model,
                 com.legend.parser.Dialect.LEGEND_LITE));
-        com.legend.diagnostics.QueryCapture.source(ctx, model);   // measurement only: off, nothing (E3)
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.modelCompiled(ctx, model);   // a test harness's observer (E-1): none in the product
+        }
         return ctx;
     }
 
@@ -588,7 +591,10 @@ public final class Compiler {
      */
     public static TypedQuery query(ModelContext ctx, String query) {
         TypedQuery typed = query(ctx, parseQuery(query));
-        com.legend.diagnostics.QueryCapture.source(typed, query);   // measurement only: off, nothing (E3)
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.queryTyped(typed, query);   // a test harness's observer (E-1): none in the product
+        }
         return typed;
     }
 

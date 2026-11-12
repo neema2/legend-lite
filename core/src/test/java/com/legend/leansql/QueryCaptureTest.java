@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@code capture-queries} ({@link com.legend.diagnostics.QueryCapture}; E3, the orchestrator's terms of 2026-11-12),
- * run with the switch ON (its own target, :query_capture_test): it records a product query's model text, its query
+ * The lean-SQL sets' capture ({@link QueryCaptureListener}, a test harness's observer; E-1, the user's ruling of
+ * 2026-11-12), run with it ON (its own target, :query_capture_test, {@code -Dlegend.capture.queries}): it records a product query's model text, its query
  * text and its runtime's NAME, and nothing a connection resolves to; and it changes nothing the planner decides --
  * the recorded query planned again answers the same plan byte for byte, and channel A's DuckDB plans measure exactly
  * their pins, which a run with the switch OFF made (lean-sql/baseline.tsv).
@@ -47,9 +47,9 @@ class QueryCaptureTest {
     private static final String QUERY = "|m::P.all()->project(~[name: p | $p.name])";
 
     private static Path file() {
-        String option = System.getProperty("legend.diagnostics", "");
-        assertTrue(option.startsWith("capture-queries="), "this target runs with the switch on: " + option);
-        return Path.of(option.substring("capture-queries=".length()));
+        String option = System.getProperty(QueryCaptureListener.PROPERTY);
+        assertTrue(option != null, "this target runs with the capture on");
+        return Path.of(option);
     }
 
     @Test

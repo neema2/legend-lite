@@ -84,6 +84,7 @@ legend_java_library(
     ),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
+        "//core:query_capture",
         "//core:shadow_binding",
         ":adapter",
         # the three function universes and their interpreted natives

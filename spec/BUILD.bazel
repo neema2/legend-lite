@@ -113,6 +113,7 @@ legend_java_library(
     resources = glob(["src/test/resources/**"], exclude = _MEASURED_ROSTERS),
     runtime_deps = [
         "//core:drivers",
+        "//core:query_capture",
         "//core:shadow_binding",
     ],
     deps = [

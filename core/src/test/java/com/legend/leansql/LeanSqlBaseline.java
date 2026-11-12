@@ -120,7 +120,7 @@ public final class LeanSqlBaseline {
     }
 
     /** A set of product queries each planned on its OWN runtime ({@code {"model", "query", "runtime"}}, captured by
-     *  {@code -Dlegend.diagnostics=capture-queries=FILE}: core's): measured on the database each plan targets, under
+     *  the test harness's {@code QueryCaptureListener}, {@code -Dlegend.capture.queries=FILE}: core's): measured on the database each plan targets, under
      *  the set's name. */
     public static Map<Key, Measure> measureOwn(String set, Path file) throws IOException {
         Map<Key, Measure> out = new TreeMap<>();

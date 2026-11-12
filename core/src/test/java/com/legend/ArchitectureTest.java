@@ -612,6 +612,37 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>The planner writes no file (E-1 of the total-wall program, the user's ruling of 2026-11-12: the lean-SQL
+     * sets' capture OUT of the product).</strong> The planner's library -- its doors, {@code com.legend.planner}, lowering,
+     * the compilers, the resolver, the normalizer, the parser and the lexer, the SQL tree and its dialects -- opens no
+     * file for writing: no {@code FileOutputStream}, {@code FileWriter} or
+     * {@code RandomAccessFile}, and no {@code java.nio.file.Files} write. It compiles to WebAssembly too, where there is
+     * no file to write. A capture is a test harness's, installed as a {@code planner.PlanningObserver}
+     * ({@code com.legend.leansql.QueryCaptureListener}).
+     */
+    @Test
+    void thePlannerWritesNoFile() {
+        noClasses()
+            .that().haveFullyQualifiedName("com.legend.Compiler")
+            .or().haveFullyQualifiedName("com.legend.TypedQuery")
+            .or().haveFullyQualifiedName("com.legend.HeldModels")
+            .or().resideInAnyPackage("com.legend.planner..", "com.legend.lowering..", "com.legend.compiler..",
+                    "com.legend.resolver..", "com.legend.normalizer..", "com.legend.parser..", "com.legend.lexer..",
+                    "com.legend.sql..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("java.io.FileOutputStream")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.FileWriter")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.RandomAccessFile")
+            .orShould().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a java.nio.file.Files write",
+                    (com.tngtech.archunit.core.domain.JavaMethodCall call) ->
+                            call.getTargetOwner().getFullName().equals("java.nio.file.Files")
+                            && java.util.Set.of("write", "writeString", "newOutputStream", "newBufferedWriter",
+                                    "copy", "createFile", "createTempFile").contains(call.getName())))
+            .as("E-1: the planner writes no file; a capture is a test harness's observer")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * <strong>The test-planning library is the driver's alone (the test-is-the-product plan's B4, brought forward to
      * M3 by R17 C7, 2026-10-31).</strong> The kinds only a test's program holds -- effects, seeds, the eager run,
      * asserts -- are planned by {@code com.legend.testplan} through the planner's extension point
@@ -2574,9 +2605,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
-            // 2026-11-12 (E3, the orchestrator's ruling on the lean-SQL sets' capture): the source text of each model and
-            // query planned from text, weak and by identity, held only while -Dlegend.diagnostics=capture-queries is on
-            java.util.Map.entry("com.legend.diagnostics.QueryCapture.SOURCES", StaticKind.MEASUREMENT),
+            // 2026-11-12 (E-1, the user's ruling: the lean-SQL sets' capture out of the product): the planner's one typed
+            // observer, none in the product, a test harness's installed (com.legend.leansql.QueryCaptureListener)
+            java.util.Map.entry("com.legend.planner.PlanningObserver$Installed.OBSERVER", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.base.Attribution.LABEL", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.SQL_CENSUS", StaticKind.MEASUREMENT),

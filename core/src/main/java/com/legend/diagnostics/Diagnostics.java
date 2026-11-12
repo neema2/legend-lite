@@ -28,9 +28,6 @@ import java.util.Map;
  *   <li>{@code judge-declines}: print each assert the database judge declines or leaves UNJUDGED, with the running
  *       test's name (the core program's 100% check, 2026-11-04: a decline under BOTH is the host's to decide, so a
  *       green run alone does not show the database judge decided every assert)</li>
- *   <li>{@code capture-queries=FILE}: append each product query planned from text -- its model, its query and its
- *       runtime's name -- to FILE as a JSON line ({@link QueryCapture}; E3, 2026-11-12): the lean-SQL baseline's
- *       sets</li>
  *   <li>{@code body-class}: print the assert program's class rule that refused a body, by statement (the walk
  *       deletion's measurement, 2026-11-06)</li>
  * </ul>
@@ -56,10 +53,7 @@ public final class Diagnostics {
             "plan-json",
             // guard 3 in report mode (the plan-as-data design's step 3, 2026-11-08): every test body run on its plan
             // READ BACK from its JSON, never the planner's objects (TestPlanner)
-            "decoded-plan",
-            // the lean-SQL baseline's capture (E3, 2026-11-12): each product query planned from text, its model, query
-            // and runtime NAME appended to the file the switch names (QueryCapture)
-            "capture-queries");
+            "decoded-plan");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 

@@ -552,8 +552,13 @@ Two things to settle first:
 > - Re-measuring reproduces every pin exactly: the plans are deterministic (G10).
 > - **Core's set, added the same day:** `lean-sql/core.jsonl` holds 3,527 product queries over 872 models, each
 >   planned on its own runtime.
->   - Captured by `-Dlegend.diagnostics=capture-queries=FILE` (`QueryCapture`, the switchboard's; ruled (a)) from
->     `//core:core_tests_{integration,planner,server,root}`.
+>   - Captured from `//core:core_tests_{integration,planner,server,root}`, first by a diagnostics switch in the
+>     planner (ruled (a)); since E-1 (the user's ruling of 2026-11-12, the capture OUT of the product) by a test
+>     harness's observer: the planner keeps one typed hook, `planner.PlanningObserver` (no file I/O, no switch), and
+>     `leansql.QueryCaptureListener` (`//core:query_capture`, on core's, the corpus's and PCT's test classpaths,
+>     loaded by the JUnit launcher) installs the capturing observer when `-Dlegend.capture.queries=FILE` is set.
+>     `ArchitectureTest.thePlannerWritesNoFile` holds the planner's library (WebAssembly included) to writing no
+>     file. The sets were not re-pinned.
 >   - Left out: 22 queries naming a test's temporary file, and 3 queries carrying a 1.2 MB JSON payload (data size,
 >     not SQL shape).
 >   - `//core:query_capture_test` runs with the switch on. It shows the capture records the model's text, the query
@@ -649,7 +654,9 @@ measurement's "same rows" check stands beside it. No register row is expected.
 bazel test //pct:pct_duckdb_{essential,grammar,relation,standard,unclassified} --local_test_jobs=1 \
   --jvmopt=-Dlegend.diagnostics=pct-cases
 python3 docs/lean-sql-homework/pct_cases_to_jsonl.py.txt channela.jsonl bazel-testlogs/pct/pct_duckdb_*/test.outputs/pct-cases.tsv
-#    core's product queries: -Dlegend.diagnostics=capture-queries=$PWD/core-capture.jsonl on core's suites
+#    core's product queries: the test harness's capture (E-1) on core's suites, e.g.
+#    bazel test //core:core_tests_planner --nocache_test_results --strategy=TestRunner=standalone \
+#      --test_env=JAVA_TOOL_OPTIONS=-Dlegend.capture.queries=$PWD/core-capture.jsonl
 # 2. plan them on every database the platform implements (planning only): sizes.tsv, sql-<database>.jsonl
 bazel run //core:product_sql_measure -- measure $PWD/channela.jsonl $PWD/m0
 # 3. analyse; the bind-once rewrite; time it on the in-process databases

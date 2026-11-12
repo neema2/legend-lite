@@ -1486,6 +1486,10 @@ class JavaEvalLedgerTest {
     private static final java.util.Set<String> PLANNER_CLASSES =
             java.util.Set.of(
                     "PlanMaker.java",
+                    // 2026-11-12, E-1 of the total-wall program (the user's ruling: the lean-SQL sets' capture OUT of
+                    // the product): the planner's one typed observer hook -- told what the text doors made, reading
+                    // nothing back; none installed in the product, a test harness's in its tests; nothing evaluated
+                    "PlanningObserver.java",
                     // 2026-11-08, the plan-as-data design's step 7 (docs/PLAN_AS_DATA_2026_11_07.md 2.6): the plan's copy of a
                     // connection description made from the model's, variant by variant and field by field; nothing evaluated
                     "ConnectionPlans.java",

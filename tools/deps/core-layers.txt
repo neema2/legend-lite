@@ -130,9 +130,7 @@ execution_plan	base cache json sql
 testexec	base diagnostics error exec exec_program execution_plan json result sql test_plan values
 test_plan	base error execution_plan json sql values
 result	arrow_ipc base error execution_plan json values
-# 2026-11-12 (E3, the orchestrator's ruling on the lean-SQL sets' capture): planner reaches `diagnostics`, the
-# switchboard, for capture-queries alone (QueryCapture: the text doors record a model and a query, measurement only)
-planner	base builtin cache compiler compiler_element_type database diagnostics door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
+planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 # 2026-11-12 (the total wall's B2d.3e, the generator's product doors; docs/data-delivery-homework/
 # TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §3.3): `pure_v1` reaches `testdatagen` -- the server's test-data routes
 # (TestDataRoutes) plan the generator's statement and the census, as legend-engine's TestDataGenerationAPI does; the run
