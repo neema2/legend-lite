@@ -22,10 +22,11 @@ import java.util.regex.Pattern;
  * 
  * Uses Java's built-in com.sun.net.httpserver - no external dependencies.
  * 
- * Endpoints:
+ * Endpoints (lite's own; phase D's D1.0b, 2026-11-12: legend-engine's routes are the edge's, mounted by the
+ * shipped binary's root, {@code com.legend.edge.EdgeServer}, as a {@link Mount}):
  * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
- * - POST /api/pure/v1/... - legend-engine's own pure/v1 API
- * - POST /api/lite/v1/compilation/compile - a model's every compile error (lite's own)
+ * - POST /api/lite/v1/... - lite's own API ({@link PureV1Api}: every compile error, the model routes)
+ * - /api/lite/v1/query - the saved queries and DataCube's saved pages ({@link SavedQueries}, {@link SavedCubes})
  * - POST /engine/diagram - a class diagram from a Pure model
  * - GET /health - Health check
  *
@@ -50,6 +51,34 @@ public class LegendHttpServer {
      *  name none ({@link #sources}; the user's ruling of 2026-11-10). */
     private final PureV1Api.Runner runner;
 
+    /**
+     * A module of routes the server mounts beside lite's own (phase D's D1.0b, 2026-11-12): everything under its
+     * {@link #prefix}, answered by {@link #answer}. Lite's own server mounts none; the shipped binary's root, the edge's
+     * ({@code com.legend.edge.EdgeServer}), mounts legend-engine's API (G5: the product names no module of the edge's).
+     */
+    public interface Routes {
+        /** The path prefix it answers under ({@code /api/pure/v1/}). */
+        String prefix();
+
+        /** The answer of one request: its method, path, raw query string (or null) and body. */
+        PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery, String body)
+                throws IOException;
+    }
+
+    /** What the server hands a module it mounts: its file fence and its stores. */
+    public record Context(String sources, @com.legend.base.Nullable SavedQueries queryStore,
+            @com.legend.base.Nullable SavedCubes cubeStore) {
+    }
+
+    /** The modules a server mounts, made from its {@link Context}. */
+    @FunctionalInterface
+    public interface Mount {
+        List<Routes> routes(Context context);
+    }
+
+    /** Lite's own server: no module beside its own routes. */
+    public static final Mount LITE = context -> List.of();
+
     /** On the loopback interface, loopback origins only: the development server, reading no file: source. */
     public LegendHttpServer(int port) throws IOException {
         this(port, java.net.InetAddress.getLoopbackAddress(), Origins.LOOPBACK, null);
@@ -67,6 +96,13 @@ public class LegendHttpServer {
      *  platform's path separator). */
     public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
             java.nio.file.@com.legend.base.Nullable Path queryStore, String sources) throws IOException {
+        this(port, bind, origins, queryStore, sources, LITE);
+    }
+
+    /** {@link #LegendHttpServer(int, java.net.InetAddress, Origins, java.nio.file.Path, String)} with {@code mount}'s
+     *  modules beside lite's own routes. */
+    public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
+            java.nio.file.@com.legend.base.Nullable Path queryStore, String sources, Mount mount) throws IOException {
         // the folders validated once, where the server starts: a folder that is none refuses the start, never every
         // query after it (the A delta audit's 5, 2026-11-11)
         validateSources(sources);
@@ -79,6 +115,9 @@ public class LegendHttpServer {
         this.cubeStore = queryStore == null ? null
                 : new SavedCubes(new FileCubeRecords(queryStore.resolve("dataCube")), System::currentTimeMillis);
         setupRoutes();
+        for (Routes module : mount.routes(new Context(sources, this.queryStore, this.cubeStore))) {
+            route(module.prefix(), new ModuleHandler(module));
+        }
     }
 
     /**
@@ -134,39 +173,12 @@ public class LegendHttpServer {
         // LSP Protocol - diagnostics, completions, etc.
         route("/lsp", new LspHandler());
 
-        // Engine - query and SQL execution
-        // legend-engine's own pure/v1 API, exactly (PureV1Api; the user's ruling of
-        // 2026-09-27: lite serves upstream's APIs and nothing of its own)
-        route("/api/pure/v1/", new PureV1Handler(runner));
-        // and lite's own route beside it, on the same dispatcher (every compile error; the user, 2026-10-10)
+        // lite's own API (PureV1Api; legend-engine's pure/v1 routes are the edge's, mounted by the shipped binary's
+        // root: phase D's D1.0b, 2026-11-12)
         route("/api/lite/v1/", new PureV1Handler(runner));
-        // legend-engine's query store and current user (SavedQueries; the Query app's G5/G7)
-        route("/api/pure/v1/query", exchange -> {
-            addCorsHeaders(exchange);
-            if ("OPTIONS".equals(exchange.getRequestMethod())) {
-                exchange.sendResponseHeaders(204, -1);
-                exchange.close();
-                return;
-            }
-            String body = readBody(exchange);
-            String rest = exchange.getRequestURI().getRawPath().substring("/api/pure/v1/query".length());
-            // DataCube's saved pages (SavedCubes, the program's B6), else the saved queries
-            SavedQueries.Answer a = rest.equals("/dataCube") || rest.startsWith("/dataCube/")
-                    ? SavedCubes.answer(cubeStore, exchange.getRequestMethod(), rest.substring("/dataCube".length()),
-                            exchange.getRequestURI().getRawQuery(), body, SavedQueries.ANONYMOUS)
-                    : SavedQueries.answer(queryStore, exchange.getRequestMethod(), rest,
-                            exchange.getRequestURI().getRawQuery(), body, SavedQueries.ANONYMOUS);
-            if (a.status() == 204) {
-                exchange.sendResponseHeaders(204, -1);
-                exchange.close();
-            } else {
-                sendResponse(exchange, a.status(), a.json(), "application/json");
-            }
-        });
-        route("/api/server/v1/currentUser", exchange -> {
-            addCorsHeaders(exchange);
-            sendResponse(exchange, 200, "\"" + SavedQueries.ANONYMOUS + "\"");
-        });
+        // the saved queries and DataCube's saved pages, lite's own route (the orchestrator's ruling of 2026-11-12: the
+        // store is the product's; legend-engine's /api/pure/v1/query is the edge's adapter over the same store)
+        route("/api/lite/v1/query", new ModuleHandler(storeRoutes("/api/lite/v1/query", queryStore, cubeStore)));
         route("/engine/diagram", new DiagramHandler());
 
         // Health check
@@ -225,9 +237,68 @@ public class LegendHttpServer {
      * and executes.
      */
     /**
-     * {@code /api/pure/v1/...}: legend-engine's API, answered by {@link PureV1Api}. The body
+     * {@code /api/lite/v1/...}: lite's own API, answered by {@link PureV1Api}. The body
      * is read RAW -- a grammar text's line endings are part of its source positions.
      */
+    /**
+     * The saved queries and DataCube's saved pages under {@code prefix} ({@code /dataCube...} the pages, anything else
+     * the queries), answered by the stores' own operations ({@link SavedQueries#answer}, {@link SavedCubes#answer}) for
+     * the anonymous user: lite's own route, and the module the edge's adapter of legend-engine's path wraps.
+     */
+    public static Routes storeRoutes(String prefix, @com.legend.base.Nullable SavedQueries queryStore,
+            @com.legend.base.Nullable SavedCubes cubeStore) {
+        return new Routes() {
+            @Override
+            public String prefix() {
+                return prefix;
+            }
+
+            @Override
+            public PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
+                    String body) {
+                String rest = path.substring(prefix.length());
+                SavedQueries.Answer a = rest.equals("/dataCube") || rest.startsWith("/dataCube/")
+                        ? SavedCubes.answer(cubeStore, method, rest.substring("/dataCube".length()), rawQuery, body,
+                                SavedQueries.ANONYMOUS)
+                        : SavedQueries.answer(queryStore, method, rest, rawQuery, body, SavedQueries.ANONYMOUS);
+                return new PureV1Api.Answer(a.status(), a.json());
+            }
+        };
+    }
+
+    /** A mounted module's route ({@link Routes}): the CORS preflight answered, the body read RAW, the module's answer
+     *  sent with its headers (none for a 204). */
+    private static final class ModuleHandler implements HttpHandler {
+        private final Routes module;
+
+        ModuleHandler(Routes module) {
+            this.module = module;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            addCorsHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+            String body;
+            try (InputStream in = exchange.getRequestBody()) {
+                body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            PureV1Api.Answer answer = module.answer(exchange.getRequestMethod(), exchange.getRequestURI().getPath(),
+                    exchange.getRequestURI().getRawQuery(), body);
+            answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
+            if (answer.status() == 204) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+            sendResponse(exchange, answer.status(), answer.body(), answer.contentType());
+        }
+    }
+
     private static final class PureV1Handler implements HttpHandler {
         private final PureV1Api.Runner runner;
 
@@ -349,7 +420,7 @@ public class LegendHttpServer {
     }
 
     /** The fence of a server whose startup settings name no folder: none (the user's ruling of 2026-11-10). */
-    static final String NO_SOURCES = "none";
+    public static final String NO_SOURCES = "none";
 
     /** The server's command line, its {@code --help}. */
     static final String USAGE = """
@@ -409,7 +480,16 @@ public class LegendHttpServer {
         return server.getAddress().getPort();
     }
 
+    /** Lite's own server, started as {@link #serve} starts one with no module mounted ({@link #LITE}). */
     public static void main(String[] args) throws IOException {
+        serve(args, LITE);
+    }
+
+    /** A server started from the command line's {@code args} and the environment (the port, {@code --query-store DIR},
+     *  {@code --sources DIR}..., {@code LEGEND_LITE_BIND}, {@code LEGEND_LITE_ALLOWED_ORIGINS},
+     *  {@code LEGEND_LITE_SOURCE_DIRS}), {@code mount}'s modules beside lite's own routes: lite's own main, and the
+     *  shipped binary's root, the edge's. */
+    public static void serve(String[] args, Mount mount) throws IOException {
         int port = 8080;
         String envPort = System.getenv("PORT");
         if (envPort != null && !envPort.strip().isEmpty()) {
@@ -456,7 +536,7 @@ public class LegendHttpServer {
         LegendHttpServer server;
         try {
             server = new LegendHttpServer(port, address,
-                    Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore, sources);
+                    Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore, sources, mount);
         } catch (IllegalArgumentException refused) {
             // a startup setting that names no folder: refused by name, the server not started
             System.err.println("ERROR: " + refused.getMessage());
@@ -472,7 +552,7 @@ public class LegendHttpServer {
         System.out.println();
         System.out.println("Endpoints:");
         System.out.println("  POST http://localhost:" + port + "/lsp         - LSP Protocol");
-        System.out.println("  POST http://localhost:" + port + "/api/pure/v1/... - legend-engine's pure/v1 API");
+        System.out.println("  POST http://localhost:" + port + "/api/lite/v1/... - legend-lite's own API");
         System.out.println("  POST http://localhost:" + port + "/api/lite/v1/compilation/compile - every compile error");
         System.out.println("  GET  http://localhost:" + port + "/health         - Health check");
         System.out.println();

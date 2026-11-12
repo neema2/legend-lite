@@ -1769,12 +1769,9 @@ class JavaEvalLedgerTest {
                             "PureV1Api.java",
                             // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
                             // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
-                            "ModelInput.java",
-                            // 2026-11-12, B2d.3e (the B2d.3 design's §3.3, the user's rulings R1 and R5 of 2026-11-11):
-                            // legend-engine's four test-data routes -- each the generator's statement planned (the
-                            // database building the answer's text) and run by the host's door, as an execute is; the
-                            // census a model fact; no connection, no JDBC, no value computed, the one cell written as is
-                            "TestDataRoutes.java"),
+                            "ModelInput.java"),
+                            // (TestDataRoutes.java, legend-engine's four test-data routes, left this package 2026-11-12
+                            // for com.legend.edge with pure/v1's upstream routes: phase D's D1.0b)
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
                             // the rules over a records interface, one implementation for the server, Python and the page;
                             // QueryService.java and OutputFormat.java DELETED 2026-10-30, D67: the HTTP door's runner is

@@ -343,7 +343,9 @@ public final class MinimalCorpus {
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(),
-                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode));
+                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode)
+                        // legend-engine's texts, spelled by the edge (phase D's D1.0)
+                        .withDialects(com.legend.edge.PureText.DIALECTS));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -601,7 +603,9 @@ public final class MinimalCorpus {
             return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
                     // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
                     // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-                    .withEngineCompat(true);
+                    .withEngineCompat(true)
+                    // legend-engine's texts, spelled by the edge (phase D's D1.0)
+                    .withDialects(com.legend.edge.PureText.DIALECTS);
         }
 
         @Override

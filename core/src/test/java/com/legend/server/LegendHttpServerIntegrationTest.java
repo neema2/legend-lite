@@ -38,7 +38,8 @@ class LegendHttpServerIntegrationTest {
         Files.delete(tempDbFile); // DuckDB will create it fresh
 
         // Start server on random available port
-        server = new LegendHttpServer(0);
+        // the shipped server: lite's own with legend-engine's API mounted (D1.0b, 2026-11-12)
+        server = com.legend.edge.EdgeServer.loopback(0);
         server.start();
         port = server.getPort();
         httpClient = HttpClient.newHttpClient();

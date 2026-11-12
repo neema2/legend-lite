@@ -41,7 +41,7 @@ import java.util.Set;
  * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a
  * guessed spelling is a silent wrong answer.
  */
-public final class Databricks extends AnsiSqlRenderer {
+public class Databricks extends AnsiSqlRenderer {
 
     /** The engine's H2 text is refused here: Databricks has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */

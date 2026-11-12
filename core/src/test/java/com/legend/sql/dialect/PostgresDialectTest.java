@@ -189,7 +189,7 @@ class PostgresDialectTest {
         // year 10000; until A7 the dialect cut it to .999999)
         assertEquals("""
                 SELECT ("t0".sym ~ '(?p)^(?:S1.*)$') AS "m", (right("t0".sym, length('1')) = '1') AS "ew", \
-                CASE WHEN "t0".qty - 1 = 0 THEN CAST(CAST(CAST(chr(31) || ('Division by zero') || chr(31) AS TIMESTAMPTZ) \
+                CASE WHEN "t0".qty - 1 = 0 THEN CAST(CAST(CAST(chr(31) || ('DIVIDE_BY_ZERO') || chr(31) AS TIMESTAMPTZ) \
                 AS VARCHAR) AS DOUBLE PRECISION) ELSE (CAST("t0".qty AS DOUBLE PRECISION) / CAST("t0".qty - 1 AS DOUBLE PRECISION)) \
                 END AS "dv", (CAST(CAST("t0".id AS BIGINT) AS BIGINT) << CAST(40 AS INTEGER)) AS "sh"
                 FROM trades AS "t0"

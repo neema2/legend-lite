@@ -33,8 +33,9 @@ public final class SystemCatalog {
 
     /** The dialect a statement on {@code runtime}'s database that reads the catalog is written in: its catalog's
      *  engine's ({@link #engine}). */
-    public static com.legend.sql.dialect.SqlDialect dialect(com.legend.executionplan.DatabaseType runtime) {
-        return com.legend.database.Databases.dialect(ConnectionPlans.model(engine(runtime)));
+    public static com.legend.sql.dialect.SqlDialect dialect(com.legend.executionplan.DatabaseType runtime,
+            com.legend.database.DialectSource dialects) {
+        return dialects.dialect(ConnectionPlans.model(engine(runtime)));
     }
 
     /**
@@ -47,7 +48,10 @@ public final class SystemCatalog {
     public static com.legend.executionplan.ExecutionPlan.Target target(com.legend.compiler.element.ModelContext ctx,
             com.legend.executionplan.DatabaseType runtime) {
         com.legend.executionplan.DatabaseType type = engine(runtime);
-        com.legend.sql.dialect.SqlDialect dialect = dialect(type);
+        // the catalog's own tables and rows are the product's, whatever dialect source a door hands: a load of model
+        // data spells no compatibility text, and its memo (by engine) holds one dialect's steps only (D1.0's plan-cache
+        // rule)
+        com.legend.sql.dialect.SqlDialect dialect = catalogDialect(type);
         var bare = Targets.of(new com.legend.executionplan.ExecutionPlan.Database.System(type, Platform.KEY), dialect);
         var once = com.legend.executionplan.ExecutionPlan.Load.Cadence.ONCE;
         Seeded platform = ctx.derived(SeedMemo.class, c -> new SeedMemo()).platform.computeIfAbsent(type, t -> {

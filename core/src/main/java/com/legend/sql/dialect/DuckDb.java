@@ -18,7 +18,7 @@ import java.util.Set;
  * operators (text extraction under scalar casts). Everything here is
  * SPELLING or SHAPE for this backend; meaning lives in the IR.
  */
-public final class DuckDb extends AnsiSqlRenderer {
+public class DuckDb extends AnsiSqlRenderer {
 
     /**
      * An outer join's ON without the IS NOT NULL tests a comparison beside them already makes (2026-10-17, the IQ

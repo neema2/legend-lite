@@ -100,6 +100,8 @@ legend_java_library(
         "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_standard_pure",
         "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_relation_pure",
         "//core",
+        # the edge's dialects (phase D's D1.0): both channels spell their plans as legend-pure does
+        "//core:edge",
         "//core:test_backends",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

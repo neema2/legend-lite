@@ -8,7 +8,7 @@ channel_a	BigQuery	TypedConcatenate	1	389	4057
 channel_a	BigQuery	TypedDistinct	5	1181	16663
 channel_a	BigQuery	TypedDrop	11	3551	21547
 channel_a	BigQuery	TypedEval	4	245	5437
-channel_a	BigQuery	TypedExtend	23	15584	132196
+channel_a	BigQuery	TypedExtend	23	15582	132205
 channel_a	BigQuery	TypedExtendAgg	2	841	13889
 channel_a	BigQuery	TypedExtendWindow	201	159446	1782574
 channel_a	BigQuery	TypedFilter	31	16049	181372
@@ -25,7 +25,7 @@ channel_a	BigQuery	TypedSelect	8	3955	49608
 channel_a	BigQuery	TypedSlice	7	4601	22392
 channel_a	BigQuery	TypedSort	17	20203	129203
 channel_a	BigQuery	TypedWrite	1	354	5568
-channel_a	BigQuery	let	244	289936	2559061
+channel_a	BigQuery	let	244	289934	2559070
 channel_a	BigQuery	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	BigQuery	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3161	47089
 channel_a	BigQuery	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1975	54692
@@ -99,7 +99,7 @@ channel_a	BigQuery	meta::pure::functions::collection::sort_T_m__T_m_	4	8365	3025
 channel_a	BigQuery	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	239	4298
 channel_a	BigQuery	meta::pure::functions::collection::values_Map_1__V_MANY_	3	5652	12949
 channel_a	BigQuery	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	944	15995
-channel_a	BigQuery	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	7403	131808
+channel_a	BigQuery	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	7401	131817
 channel_a	BigQuery	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	20996	198773
 channel_a	BigQuery	meta::pure::functions::date::datePart_Date_1__Date_1_	7	262	9474
 channel_a	BigQuery	meta::pure::functions::date::date_Integer_1__Date_1_	2	104	3858
@@ -176,7 +176,7 @@ channel_a	BigQuery	meta::pure::functions::math::cosh_Number_1__Float_1_	21	792	2
 channel_a	BigQuery	meta::pure::functions::math::cot_Number_1__Float_1_	2	63	2584
 channel_a	BigQuery	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	1712	17428
 channel_a	BigQuery	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	2199	22121
-channel_a	BigQuery	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2544	39880
+channel_a	BigQuery	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2528	39952
 channel_a	BigQuery	meta::pure::functions::math::exp_Number_1__Float_1_	2	97	2618
 channel_a	BigQuery	meta::pure::functions::math::floor_Number_1__Integer_1_	12	662	15920
 channel_a	BigQuery	meta::pure::functions::math::log10_Number_1__Float_1_	1	44	1300
@@ -221,8 +221,8 @@ channel_a	BigQuery	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	
 channel_a	BigQuery	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	199	4158
 channel_a	BigQuery	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	660	25231
 channel_a	BigQuery	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	310	9161
-channel_a	BigQuery	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	845	13137
-channel_a	BigQuery	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	5113	35671
+channel_a	BigQuery	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	841	13155
+channel_a	BigQuery	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	2386	28564
 channel_a	BigQuery	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	530	6740
 channel_a	BigQuery	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	234	3230
 channel_a	BigQuery	meta::pure::functions::math::round_Number_1__Integer_1_	14	1369	20842
@@ -317,7 +317,7 @@ channel_a	ClickHouse	TypedConcatenate	1	580	4279
 channel_a	ClickHouse	TypedDistinct	5	2177	17740
 channel_a	ClickHouse	TypedDrop	11	3460	21516
 channel_a	ClickHouse	TypedEval	4	1023	6235
-channel_a	ClickHouse	TypedExtend	24	19152	141649
+channel_a	ClickHouse	TypedExtend	24	19150	141658
 channel_a	ClickHouse	TypedExtendAgg	2	1561	14673
 channel_a	ClickHouse	TypedExtendWindow	201	263243	1894227
 channel_a	ClickHouse	TypedFilter	31	24183	190618
@@ -334,7 +334,7 @@ channel_a	ClickHouse	TypedSelect	8	5968	51909
 channel_a	ClickHouse	TypedSlice	7	3339	21175
 channel_a	ClickHouse	TypedSort	17	16862	126701
 channel_a	ClickHouse	TypedWrite	1	570	5813
-channel_a	ClickHouse	let	244	398475	2682756
+channel_a	ClickHouse	let	244	398473	2682765
 channel_a	ClickHouse	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	13	5268	32463
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	8580	61427
@@ -409,7 +409,7 @@ channel_a	ClickHouse	meta::pure::functions::collection::sort_T_m__T_m_	4	2843	24
 channel_a	ClickHouse	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	777	4845
 channel_a	ClickHouse	meta::pure::functions::collection::values_Map_1__V_MANY_	3	1617	8975
 channel_a	ClickHouse	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	2389	17504
-channel_a	ClickHouse	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	55388	180257
+channel_a	ClickHouse	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	55384	180264
 channel_a	ClickHouse	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	46788	224968
 channel_a	ClickHouse	meta::pure::functions::date::datePart_Date_1__Date_1_	8	1884	12432
 channel_a	ClickHouse	meta::pure::functions::date::date_Integer_1__Date_1_	2	542	4306
@@ -486,7 +486,7 @@ channel_a	ClickHouse	meta::pure::functions::math::cosh_Number_1__Float_1_	21	503
 channel_a	ClickHouse	meta::pure::functions::math::cot_Number_1__Float_1_	2	478	3009
 channel_a	ClickHouse	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	3947	19770
 channel_a	ClickHouse	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	5100	25179
-channel_a	ClickHouse	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	7539	44978
+channel_a	ClickHouse	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	7523	45050
 channel_a	ClickHouse	meta::pure::functions::math::exp_Number_1__Float_1_	2	498	3029
 channel_a	ClickHouse	meta::pure::functions::math::floor_Number_1__Integer_1_	12	3104	18422
 channel_a	ClickHouse	meta::pure::functions::math::log10_Number_1__Float_1_	1	227	1488
@@ -531,8 +531,8 @@ channel_a	ClickHouse	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	
 channel_a	ClickHouse	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	685	4654
 channel_a	ClickHouse	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	3841	28482
 channel_a	ClickHouse	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	1522	10398
-channel_a	ClickHouse	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	2230	14559
-channel_a	ClickHouse	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	7187	37814
+channel_a	ClickHouse	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	2226	14577
+channel_a	ClickHouse	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	6109	32360
 channel_a	ClickHouse	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	1206	7436
 channel_a	ClickHouse	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	584	3590
 channel_a	ClickHouse	meta::pure::functions::math::round_Number_1__Integer_1_	14	3855	23398
@@ -628,7 +628,7 @@ channel_a	Databricks	TypedConcatenate	1	269	3983
 channel_a	Databricks	TypedDistinct	5	829	16541
 channel_a	Databricks	TypedDrop	11	1129	19600
 channel_a	Databricks	TypedEval	4	125	5501
-channel_a	Databricks	TypedExtend	24	9361	132170
+channel_a	Databricks	TypedExtend	24	9359	132179
 channel_a	Databricks	TypedExtendAgg	2	728	13868
 channel_a	Databricks	TypedExtendWindow	201	133341	1765706
 channel_a	Databricks	TypedFilter	31	12366	179056
@@ -645,7 +645,7 @@ channel_a	Databricks	TypedSelect	8	2909	48930
 channel_a	Databricks	TypedSlice	7	1233	19322
 channel_a	Databricks	TypedSort	17	10023	119832
 channel_a	Databricks	TypedWrite	1	277	5537
-channel_a	Databricks	let	244	213368	2493529
+channel_a	Databricks	let	244	213366	2493538
 channel_a	Databricks	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Databricks	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	48107
 channel_a	Databricks	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1785	55698
@@ -720,7 +720,7 @@ channel_a	Databricks	meta::pure::functions::collection::sort_T_m__T_m_	4	1712	23
 channel_a	Databricks	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	237	4424
 channel_a	Databricks	meta::pure::functions::collection::values_Map_1__V_MANY_	3	377	7806
 channel_a	Databricks	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	852	16157
-channel_a	Databricks	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	7228	135203
+channel_a	Databricks	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	7224	135210
 channel_a	Databricks	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	17957	199184
 channel_a	Databricks	meta::pure::functions::date::datePart_Date_1__Date_1_	7	263	9797
 channel_a	Databricks	meta::pure::functions::date::date_Integer_1__Date_1_	2	108	3954
@@ -797,7 +797,7 @@ channel_a	Databricks	meta::pure::functions::math::cosh_Number_1__Float_1_	21	645
 channel_a	Databricks	meta::pure::functions::math::cot_Number_1__Float_1_	2	51	2664
 channel_a	Databricks	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	1517	17417
 channel_a	Databricks	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	1956	22108
-channel_a	Databricks	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2324	40534
+channel_a	Databricks	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2308	40606
 channel_a	Databricks	meta::pure::functions::math::exp_Number_1__Float_1_	2	51	2664
 channel_a	Databricks	meta::pure::functions::math::floor_Number_1__Integer_1_	12	546	16356
 channel_a	Databricks	meta::pure::functions::math::log10_Number_1__Float_1_	1	28	1330
@@ -842,8 +842,8 @@ channel_a	Databricks	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	
 channel_a	Databricks	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	106	4157
 channel_a	Databricks	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	786	26001
 channel_a	Databricks	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	258	9339
-channel_a	Databricks	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	543	13157
-channel_a	Databricks	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1806	32958
+channel_a	Databricks	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	539	13175
+channel_a	Databricks	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1411	28187
 channel_a	Databricks	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	298	6692
 channel_a	Databricks	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	128	3216
 channel_a	Databricks	meta::pure::functions::math::round_Number_1__Integer_1_	14	655	20772
@@ -939,7 +939,7 @@ channel_a	DuckDB	TypedConcatenate	1	231	3861
 channel_a	DuckDB	TypedDistinct	5	727	16019
 channel_a	DuckDB	TypedDrop	11	849	18396
 channel_a	DuckDB	TypedEval	4	115	5155
-channel_a	DuckDB	TypedExtend	24	7739	128533
+channel_a	DuckDB	TypedExtend	24	7737	128542
 channel_a	DuckDB	TypedExtendAgg	2	553	13525
 channel_a	DuckDB	TypedExtendWindow	201	115166	1730647
 channel_a	DuckDB	TypedFilter	31	9991	174105
@@ -956,7 +956,7 @@ channel_a	DuckDB	TypedSelect	8	2448	47803
 channel_a	DuckDB	TypedSlice	7	1010	18509
 channel_a	DuckDB	TypedSort	17	19638	128047
 channel_a	DuckDB	TypedWrite	1	210	5386
-channel_a	DuckDB	let	244	177553	2436433
+channel_a	DuckDB	let	244	177551	2436442
 channel_a	DuckDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	DuckDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3327	46457
 channel_a	DuckDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	53379
@@ -1031,7 +1031,7 @@ channel_a	DuckDB	meta::pure::functions::collection::sort_T_m__T_m_	4	1187	22926
 channel_a	DuckDB	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	189	4124
 channel_a	DuckDB	meta::pure::functions::collection::values_Map_1__V_MANY_	3	375	7552
 channel_a	DuckDB	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	586	15387
-channel_a	DuckDB	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	5410	126889
+channel_a	DuckDB	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	5408	126898
 channel_a	DuckDB	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	11104	186031
 channel_a	DuckDB	meta::pure::functions::date::datePart_Date_1__Date_1_	8	321	10525
 channel_a	DuckDB	meta::pure::functions::date::date_Integer_1__Date_1_	2	102	3780
@@ -1108,7 +1108,7 @@ channel_a	DuckDB	meta::pure::functions::math::cosh_Number_1__Float_1_	21	594	264
 channel_a	DuckDB	meta::pure::functions::math::cot_Number_1__Float_1_	2	46	2491
 channel_a	DuckDB	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	1263	16827
 channel_a	DuckDB	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	1622	21354
-channel_a	DuckDB	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2052	38666
+channel_a	DuckDB	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2036	38738
 channel_a	DuckDB	meta::pure::functions::math::exp_Number_1__Float_1_	2	46	2491
 channel_a	DuckDB	meta::pure::functions::math::floor_Number_1__Integer_1_	12	520	15322
 channel_a	DuckDB	meta::pure::functions::math::log10_Number_1__Float_1_	1	25	1243
@@ -1153,8 +1153,8 @@ channel_a	DuckDB	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	31
 channel_a	DuckDB	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	102	3985
 channel_a	DuckDB	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	620	24659
 channel_a	DuckDB	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	193	8854
-channel_a	DuckDB	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	467	12493
-channel_a	DuckDB	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1437	31497
+channel_a	DuckDB	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	463	12511
+channel_a	DuckDB	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1109	26793
 channel_a	DuckDB	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	802	6860
 channel_a	DuckDB	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	341	3261
 channel_a	DuckDB	meta::pure::functions::math::round_Number_1__Integer_1_	14	723	19664
@@ -1250,7 +1250,7 @@ channel_a	H2	TypedConcatenate	1	267	4553
 channel_a	H2	TypedDistinct	5	815	19295
 channel_a	H2	TypedDrop	9	592	19609
 channel_a	H2	TypedEval	4	123	7651
-channel_a	H2	TypedExtend	14	4029	76136
+channel_a	H2	TypedExtend	14	4027	76145
 channel_a	H2	TypedExtendAgg	2	623	14905
 channel_a	H2	TypedExtendWindow	201	125764	1874041
 channel_a	H2	TypedFilter	29	12792	185766
@@ -1267,7 +1267,7 @@ channel_a	H2	TypedSelect	8	2793	53416
 channel_a	H2	TypedSlice	5	488	12262
 channel_a	H2	TypedSort	13	5119	77248
 channel_a	H2	TypedWrite	1	274	6102
-channel_a	H2	let	203	126639	1611994
+channel_a	H2	let	203	126637	1612003
 channel_a	H2	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	H2	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	59561
 channel_a	H2	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	69603
@@ -1324,7 +1324,7 @@ channel_a	H2	meta::pure::functions::collection::size_Any_MANY__Integer_1_	4	389	
 channel_a	H2	meta::pure::functions::collection::sort_T_m__T_m_	1	39	1710
 channel_a	H2	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	155	5962
 channel_a	H2	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	605	19161
-channel_a	H2	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	6004	175377
+channel_a	H2	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	6002	175386
 channel_a	H2	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	13669	235246
 channel_a	H2	meta::pure::functions::date::datePart_Date_1__Date_1_	8	334	15514
 channel_a	H2	meta::pure::functions::date::date_Integer_1__Date_1_	2	106	5028
@@ -1383,7 +1383,7 @@ channel_a	H2	meta::pure::functions::math::cosh_Number_1__Float_1_	21	636	39509
 channel_a	H2	meta::pure::functions::math::cot_Number_1__Float_1_	2	50	3739
 channel_a	H2	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	1	48	1690
 channel_a	H2	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	1	48	1690
-channel_a	H2	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2186	50618
+channel_a	H2	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2170	50690
 channel_a	H2	meta::pure::functions::math::exp_Number_1__Float_1_	2	50	3739
 channel_a	H2	meta::pure::functions::math::floor_Number_1__Integer_1_	12	544	22810
 channel_a	H2	meta::pure::functions::math::log10_Number_1__Float_1_	1	27	1867
@@ -1410,8 +1410,8 @@ channel_a	H2	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	33	232
 channel_a	H2	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	126	5253
 channel_a	H2	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	664	33411
 channel_a	H2	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	233	12004
-channel_a	H2	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	505	16885
-channel_a	H2	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1629	39775
+channel_a	H2	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	501	16903
+channel_a	H2	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1301	35071
 channel_a	H2	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	1344	9890
 channel_a	H2	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	646	4810
 channel_a	H2	meta::pure::functions::math::round_Number_1__Integer_1_	14	3274	30923
@@ -1495,7 +1495,7 @@ channel_a	MariaDB	TypedConcatenate	1	327	4516
 channel_a	MariaDB	TypedDistinct	5	1093	19088
 channel_a	MariaDB	TypedDrop	11	5474	29034
 channel_a	MariaDB	TypedEval	4	127	7267
-channel_a	MariaDB	TypedExtend	23	21342	150537
+channel_a	MariaDB	TypedExtend	23	21340	150546
 channel_a	MariaDB	TypedExtendAgg	2	883	14971
 channel_a	MariaDB	TypedExtendWindow	201	189904	1921064
 channel_a	MariaDB	TypedFilter	31	17226	198845
@@ -1512,7 +1512,7 @@ channel_a	MariaDB	TypedSelect	8	3701	53561
 channel_a	MariaDB	TypedSlice	7	8181	29613
 channel_a	MariaDB	TypedSort	17	148025	275880
 channel_a	MariaDB	TypedWrite	1	334	6065
-channel_a	MariaDB	let	244	350892	2749582
+channel_a	MariaDB	let	244	350890	2749591
 channel_a	MariaDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	MariaDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	57940
 channel_a	MariaDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	67123
@@ -1587,7 +1587,7 @@ channel_a	MariaDB	meta::pure::functions::collection::sort_T_m__T_m_	4	11524	3589
 channel_a	MariaDB	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	149	5665
 channel_a	MariaDB	meta::pure::functions::collection::values_Map_1__V_MANY_	3	7530	16600
 channel_a	MariaDB	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	605	18579
-channel_a	MariaDB	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	32661	194723
+channel_a	MariaDB	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	32657	194730
 channel_a	MariaDB	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	25227	239585
 channel_a	MariaDB	meta::pure::functions::date::datePart_Date_1__Date_1_	7	250	12871
 channel_a	MariaDB	meta::pure::functions::date::date_Integer_1__Date_1_	2	100	4828
@@ -1664,7 +1664,7 @@ channel_a	MariaDB	meta::pure::functions::math::cosh_Number_1__Float_1_	21	1194	3
 channel_a	MariaDB	meta::pure::functions::math::cot_Number_1__Float_1_	2	52	3547
 channel_a	MariaDB	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	6399	24249
 channel_a	MariaDB	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	8384	30989
-channel_a	MariaDB	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	3662	50267
+channel_a	MariaDB	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	3646	50339
 channel_a	MariaDB	meta::pure::functions::math::exp_Number_1__Float_1_	2	52	3547
 channel_a	MariaDB	meta::pure::functions::math::floor_Number_1__Integer_1_	12	560	21662
 channel_a	MariaDB	meta::pure::functions::math::log10_Number_1__Float_1_	1	27	1770
@@ -1709,8 +1709,8 @@ channel_a	MariaDB	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	3
 channel_a	MariaDB	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	120	5053
 channel_a	MariaDB	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	672	32061
 channel_a	MariaDB	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	211	11497
-channel_a	MariaDB	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	1337	17046
-channel_a	MariaDB	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	6045	43094
+channel_a	MariaDB	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	1329	17060
+channel_a	MariaDB	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	2395	34920
 channel_a	MariaDB	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	1176	9334
 channel_a	MariaDB	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	102	4072
 channel_a	MariaDB	meta::pure::functions::math::round_Number_1__Integer_1_	14	1311	27602
@@ -1806,7 +1806,7 @@ channel_a	MySQL	TypedConcatenate	1	327	4467
 channel_a	MySQL	TypedDistinct	5	1093	18843
 channel_a	MySQL	TypedDrop	11	7680	30829
 channel_a	MySQL	TypedEval	4	127	7071
-channel_a	MySQL	TypedExtend	24	30963	165044
+channel_a	MySQL	TypedExtend	24	30961	165053
 channel_a	MySQL	TypedExtendAgg	2	883	14873
 channel_a	MySQL	TypedExtendWindow	201	192117	1913827
 channel_a	MySQL	TypedFilter	31	19033	199171
@@ -1823,7 +1823,7 @@ channel_a	MySQL	TypedSelect	8	3701	53169
 channel_a	MySQL	TypedSlice	7	10195	31396
 channel_a	MySQL	TypedSort	17	196414	327210
 channel_a	MySQL	TypedWrite	1	334	6016
-channel_a	MySQL	let	244	431450	2819553
+channel_a	MySQL	let	244	431448	2819562
 channel_a	MySQL	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	MySQL	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	56911
 channel_a	MySQL	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	65849
@@ -1898,7 +1898,7 @@ channel_a	MySQL	meta::pure::functions::collection::sort_T_m__T_m_	4	17243	41635
 channel_a	MySQL	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	149	5518
 channel_a	MySQL	meta::pure::functions::collection::values_Map_1__V_MANY_	3	10031	19178
 channel_a	MySQL	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	717	18397
-channel_a	MySQL	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	27609	185740
+channel_a	MySQL	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	27605	185747
 channel_a	MySQL	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	23435	234062
 channel_a	MySQL	meta::pure::functions::date::datePart_Date_1__Date_1_	7	250	12528
 channel_a	MySQL	meta::pure::functions::date::date_Integer_1__Date_1_	2	100	4730
@@ -1975,7 +1975,7 @@ channel_a	MySQL	meta::pure::functions::math::cosh_Number_1__Float_1_	21	1194	370
 channel_a	MySQL	meta::pure::functions::math::cot_Number_1__Float_1_	2	52	3449
 channel_a	MySQL	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	12489	30497
 channel_a	MySQL	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	16504	39336
-channel_a	MySQL	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	3166	48824
+channel_a	MySQL	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	3150	48896
 channel_a	MySQL	meta::pure::functions::math::exp_Number_1__Float_1_	2	52	3449
 channel_a	MySQL	meta::pure::functions::math::floor_Number_1__Integer_1_	12	560	21074
 channel_a	MySQL	meta::pure::functions::math::log10_Number_1__Float_1_	1	27	1721
@@ -2020,8 +2020,8 @@ channel_a	MySQL	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	33	
 channel_a	MySQL	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	120	4955
 channel_a	MySQL	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	672	31375
 channel_a	MySQL	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	211	11252
-channel_a	MySQL	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	1089	16447
-channel_a	MySQL	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	5789	42217
+channel_a	MySQL	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	1081	16461
+channel_a	MySQL	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1899	33771
 channel_a	MySQL	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	1176	9138
 channel_a	MySQL	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	102	3974
 channel_a	MySQL	meta::pure::functions::math::round_Number_1__Integer_1_	14	1311	26916
@@ -2117,7 +2117,7 @@ channel_a	Postgres	TypedConcatenate	1	267	3991
 channel_a	Postgres	TypedDistinct	5	815	16485
 channel_a	Postgres	TypedDrop	11	916	19166
 channel_a	Postgres	TypedEval	4	253	5533
-channel_a	Postgres	TypedExtend	24	16923	140225
+channel_a	Postgres	TypedExtend	24	16921	140234
 channel_a	Postgres	TypedExtendAgg	2	686	13844
 channel_a	Postgres	TypedExtendWindow	201	131396	1766713
 channel_a	Postgres	TypedFilter	31	13278	180335
@@ -2134,7 +2134,7 @@ channel_a	Postgres	TypedSelect	8	2814	48941
 channel_a	Postgres	TypedSlice	7	2170	20143
 channel_a	Postgres	TypedSort	17	28059	138984
 channel_a	Postgres	TypedWrite	1	274	5540
-channel_a	Postgres	let	241	272862	2517913
+channel_a	Postgres	let	241	272860	2517922
 channel_a	Postgres	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Postgres	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	47603
 channel_a	Postgres	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	54991
@@ -2209,7 +2209,7 @@ channel_a	Postgres	meta::pure::functions::collection::sort_T_m__T_m_	4	2716	2482
 channel_a	Postgres	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	155	4276
 channel_a	Postgres	meta::pure::functions::collection::values_Map_1__V_MANY_	3	14907	22282
 channel_a	Postgres	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	706	15890
-channel_a	Postgres	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	6448	132575
+channel_a	Postgres	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	6446	132584
 channel_a	Postgres	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	19195	198622
 channel_a	Postgres	meta::pure::functions::date::datePart_Date_1__Date_1_	7	263	9629
 channel_a	Postgres	meta::pure::functions::date::date_Integer_1__Date_1_	2	106	3904
@@ -2286,7 +2286,7 @@ channel_a	Postgres	meta::pure::functions::math::cosh_Number_1__Float_1_	21	636	2
 channel_a	Postgres	meta::pure::functions::math::cot_Number_1__Float_1_	2	50	2615
 channel_a	Postgres	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	1694	17540
 channel_a	Postgres	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	2201	22289
-channel_a	Postgres	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	3078	40832
+channel_a	Postgres	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	3062	40904
 channel_a	Postgres	meta::pure::functions::math::exp_Number_1__Float_1_	2	102	2667
 channel_a	Postgres	meta::pure::functions::math::floor_Number_1__Integer_1_	12	544	16066
 channel_a	Postgres	meta::pure::functions::math::log10_Number_1__Float_1_	1	53	1331
@@ -2331,8 +2331,8 @@ channel_a	Postgres	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	
 channel_a	Postgres	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	126	4129
 channel_a	Postgres	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	727	25606
 channel_a	Postgres	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	281	9242
-channel_a	Postgres	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	1103	13549
-channel_a	Postgres	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	2065	32907
+channel_a	Postgres	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	1099	13567
+channel_a	Postgres	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1657	28121
 channel_a	Postgres	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	2640	8938
 channel_a	Postgres	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	1294	4334
 channel_a	Postgres	meta::pure::functions::math::round_Number_1__Integer_1_	14	1003	20784
@@ -2428,7 +2428,7 @@ channel_a	SQLite	TypedConcatenate	1	301	3944
 channel_a	SQLite	TypedDistinct	5	913	16270
 channel_a	SQLite	TypedDrop	11	3288	20998
 channel_a	SQLite	TypedEval	4	169	5261
-channel_a	SQLite	TypedExtend	24	17518	138641
+channel_a	SQLite	TypedExtend	24	17516	138650
 channel_a	SQLite	TypedExtendAgg	2	1340	14338
 channel_a	SQLite	TypedExtendWindow	201	198626	1816720
 channel_a	SQLite	TypedFilter	31	16016	180635
@@ -2445,7 +2445,7 @@ channel_a	SQLite	TypedSelect	8	3279	48738
 channel_a	SQLite	TypedSlice	7	4488	22098
 channel_a	SQLite	TypedSort	17	45967	155157
 channel_a	SQLite	TypedWrite	1	288	5477
-channel_a	SQLite	let	243	227553	2485413
+channel_a	SQLite	let	243	227551	2485422
 channel_a	SQLite	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	SQLite	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	2647	46050
 channel_a	SQLite	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	53717
@@ -2520,7 +2520,7 @@ channel_a	SQLite	meta::pure::functions::collection::sort_T_m__T_m_	4	6076	27873
 channel_a	SQLite	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	105	4083
 channel_a	SQLite	meta::pure::functions::collection::values_Map_1__V_MANY_	3	3395	10623
 channel_a	SQLite	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	571	15463
-channel_a	SQLite	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	101216	223696
+channel_a	SQLite	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	101176	223667
 channel_a	SQLite	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	67441	243343
 channel_a	SQLite	meta::pure::functions::date::datePart_Date_1__Date_1_	8	256	10564
 channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Date_1_	2	432	4136
@@ -2597,7 +2597,7 @@ channel_a	SQLite	meta::pure::functions::math::cosh_Number_1__Float_1_	21	888	269
 channel_a	SQLite	meta::pure::functions::math::cot_Number_1__Float_1_	2	74	2545
 channel_a	SQLite	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	4226	19842
 channel_a	SQLite	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	5532	25329
-channel_a	SQLite	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2502	39363
+channel_a	SQLite	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2486	39435
 channel_a	SQLite	meta::pure::functions::math::exp_Number_1__Float_1_	2	74	2545
 channel_a	SQLite	meta::pure::functions::math::floor_Number_1__Integer_1_	12	520	15478
 channel_a	SQLite	meta::pure::functions::math::log10_Number_1__Float_1_	1	39	1270
@@ -2642,8 +2642,8 @@ channel_a	SQLite	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	10
 channel_a	SQLite	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	126	4035
 channel_a	SQLite	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	1548	25769
 channel_a	SQLite	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	364	9090
-channel_a	SQLite	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	615	12732
-channel_a	SQLite	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	2615	32844
+channel_a	SQLite	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	611	12750
+channel_a	SQLite	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1673	27526
 channel_a	SQLite	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	2552	8662
 channel_a	SQLite	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	578	3524
 channel_a	SQLite	meta::pure::functions::math::round_Number_1__Integer_1_	14	2980	22103
@@ -2738,7 +2738,7 @@ channel_a	Snowflake	TypedConcatenate	1	267	4202
 channel_a	Snowflake	TypedDistinct	5	815	17540
 channel_a	Snowflake	TypedDrop	11	2303	22922
 channel_a	Snowflake	TypedEval	4	167	6291
-channel_a	Snowflake	TypedExtend	24	9352	137394
+channel_a	Snowflake	TypedExtend	24	9350	137403
 channel_a	Snowflake	TypedExtendAgg	2	689	14269
 channel_a	Snowflake	TypedExtendWindow	201	131313	1809137
 channel_a	Snowflake	TypedFilter	31	13518	187067
@@ -2755,7 +2755,7 @@ channel_a	Snowflake	TypedSelect	8	3028	50843
 channel_a	Snowflake	TypedSlice	7	2548	22006
 channel_a	Snowflake	TypedSort	17	11620	125513
 channel_a	Snowflake	TypedWrite	1	274	5751
-channel_a	Snowflake	let	244	220006	2553256
+channel_a	Snowflake	let	244	220004	2553265
 channel_a	Snowflake	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Snowflake	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	52190
 channel_a	Snowflake	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	60477
@@ -2830,7 +2830,7 @@ channel_a	Snowflake	meta::pure::functions::collection::sort_T_m__T_m_	4	6072	290
 channel_a	Snowflake	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	558	5327
 channel_a	Snowflake	meta::pure::functions::collection::values_Map_1__V_MANY_	3	3421	11536
 channel_a	Snowflake	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	1972	18441
-channel_a	Snowflake	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	7727	150101
+channel_a	Snowflake	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	7725	150110
 channel_a	Snowflake	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	16569	211821
 channel_a	Snowflake	meta::pure::functions::date::datePart_Date_1__Date_1_	8	334	12706
 channel_a	Snowflake	meta::pure::functions::date::date_Integer_1__Date_1_	2	106	4326
@@ -2907,7 +2907,7 @@ channel_a	Snowflake	meta::pure::functions::math::cosh_Number_1__Float_1_	21	636	
 channel_a	Snowflake	meta::pure::functions::math::cot_Number_1__Float_1_	2	50	3037
 channel_a	Snowflake	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	2266	18944
 channel_a	Snowflake	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	2903	24030
-channel_a	Snowflake	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2315	44078
+channel_a	Snowflake	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2299	44150
 channel_a	Snowflake	meta::pure::functions::math::exp_Number_1__Float_1_	2	71	3058
 channel_a	Snowflake	meta::pure::functions::math::floor_Number_1__Integer_1_	12	586	18640
 channel_a	Snowflake	meta::pure::functions::math::log10_Number_1__Float_1_	1	29	1518
@@ -2952,8 +2952,8 @@ channel_a	Snowflake	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1
 channel_a	Snowflake	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	127	4552
 channel_a	Snowflake	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	734	28567
 channel_a	Snowflake	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	385	10401
-channel_a	Snowflake	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	541	14464
-channel_a	Snowflake	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1707	35290
+channel_a	Snowflake	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	537	14482
+channel_a	Snowflake	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	1283	30490
 channel_a	Snowflake	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	302	7444
 channel_a	Snowflake	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	130	3592
 channel_a	Snowflake	meta::pure::functions::math::round_Number_1__Integer_1_	14	947	23682
@@ -3049,7 +3049,7 @@ channel_a	Trino	TypedConcatenate	1	321	4043
 channel_a	Trino	TypedDistinct	5	1031	16691
 channel_a	Trino	TypedDrop	11	1888	20203
 channel_a	Trino	TypedEval	4	141	5413
-channel_a	Trino	TypedExtend	24	11710	134696
+channel_a	Trino	TypedExtend	24	11708	134705
 channel_a	Trino	TypedExtendAgg	2	1052	14206
 channel_a	Trino	TypedExtendWindow	201	188795	1823908
 channel_a	Trino	TypedFilter	31	15679	182670
@@ -3066,7 +3066,7 @@ channel_a	Trino	TypedSelect	8	3477	49588
 channel_a	Trino	TypedSlice	7	1904	19899
 channel_a	Trino	TypedSort	17	11420	121574
 channel_a	Trino	TypedWrite	1	319	5583
-channel_a	Trino	let	244	235235	2522245
+channel_a	Trino	let	244	235233	2522254
 channel_a	Trino	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135
 channel_a	Trino	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	47717
 channel_a	Trino	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	2449	55686
@@ -3141,7 +3141,7 @@ channel_a	Trino	meta::pure::functions::collection::sort_T_m__T_m_	4	1690	23767
 channel_a	Trino	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	388	4528
 channel_a	Trino	meta::pure::functions::collection::values_Map_1__V_MANY_	3	708	8110
 channel_a	Trino	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	2032	17351
-channel_a	Trino	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	10703	136648
+channel_a	Trino	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	10699	136655
 channel_a	Trino	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	30399	209676
 channel_a	Trino	meta::pure::functions::date::datePart_Date_1__Date_1_	8	334	11002
 channel_a	Trino	meta::pure::functions::date::date_Integer_1__Date_1_	2	142	3936
@@ -3218,7 +3218,7 @@ channel_a	Trino	meta::pure::functions::math::cosh_Number_1__Float_1_	21	717	2774
 channel_a	Trino	meta::pure::functions::math::cot_Number_1__Float_1_	2	71	2632
 channel_a	Trino	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	4	1709	17547
 channel_a	Trino	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	5	2180	22258
-channel_a	Trino	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2732	40448
+channel_a	Trino	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	19	2716	40520
 channel_a	Trino	meta::pure::functions::math::exp_Number_1__Float_1_	2	59	2620
 channel_a	Trino	meta::pure::functions::math::floor_Number_1__Integer_1_	12	562	16060
 channel_a	Trino	meta::pure::functions::math::log10_Number_1__Float_1_	1	36	1312
@@ -3263,8 +3263,8 @@ channel_a	Trino	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	1	56	
 channel_a	Trino	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	106	4105
 channel_a	Trino	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	1146	25997
 channel_a	Trino	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	314	9265
-channel_a	Trino	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	673	13105
-channel_a	Trino	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	2561	33375
+channel_a	Trino	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	669	13123
+channel_a	Trino	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	2074	28512
 channel_a	Trino	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	2680	8970
 channel_a	Trino	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	1182	4218
 channel_a	Trino	meta::pure::functions::math::round_Number_1__Integer_1_	14	2598	22351
@@ -3384,12 +3384,12 @@ core	DuckDB	TypedDistinct	11	1023	30066
 core	DuckDB	TypedDrop	6	622	13264
 core	DuckDB	TypedEnumValue	1	19	2099
 core	DuckDB	TypedEval	1	24	1227
-core	DuckDB	TypedExtend	174	26728	512771
+core	DuckDB	TypedExtend	174	26718	512816
 core	DuckDB	TypedExtendAgg	25	6151	122912
 core	DuckDB	TypedExtendWindow	124	39553	772108
-core	DuckDB	TypedFilter	48	12390	229767
+core	DuckDB	TypedFilter	48	12386	229785
 core	DuckDB	TypedFold	26	3955	82683
-core	DuckDB	TypedFrom	68	13602	319763
+core	DuckDB	TypedFrom	68	13600	319772
 core	DuckDB	TypedGetAll	1	80	1978
 core	DuckDB	TypedGroupBy	124	23093	520279
 core	DuckDB	TypedIf	6	524	12931
@@ -3407,7 +3407,7 @@ core	DuckDB	TypedRename	4	671	15568
 core	DuckDB	TypedSelect	143	26273	624729
 core	DuckDB	TypedSerialize	68	29529	453802
 core	DuckDB	TypedSlice	12	1960	39064
-core	DuckDB	TypedSort	232	75590	1434669
+core	DuckDB	TypedSort	232	75588	1434678
 core	DuckDB	TypedSortBy	1	149	3177
 core	DuckDB	TypedTableReference	3	274	7066
 core	DuckDB	TypedTds	8	767	14186
@@ -3501,7 +3501,7 @@ core	DuckDB	meta::pure::functions::math::cosh_Number_1__Float_1_	5	121	6098
 core	DuckDB	meta::pure::functions::math::cot_Number_1__Float_1_	2	46	2437
 core	DuckDB	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	1	401	5036
 core	DuckDB	meta::pure::functions::math::divide_Decimal_1__Decimal_1__Integer_1__Decimal_1_	1	96	1850
-core	DuckDB	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	1	137	2158
+core	DuckDB	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	1	135	2167
 core	DuckDB	meta::pure::functions::math::exp_Number_1__Float_1_	2	46	2437
 core	DuckDB	meta::pure::functions::math::floor_Number_1__Integer_1_	1	42	1249
 core	DuckDB	meta::pure::functions::math::log10_Number_1__Float_1_	2	54	2453
@@ -3662,7 +3662,7 @@ core	SQLite	TypedCDate	3	135	7446
 core	SQLite	TypedConcatenate	1	1501	8537
 core	SQLite	TypedExtendWindow	1	180	4113
 core	SQLite	TypedFilter	4	3023	26579
-core	SQLite	TypedFrom	10	6121	48137
+core	SQLite	TypedFrom	10	6119	48146
 core	SQLite	TypedLimit	2	1757	11350
 core	SQLite	TypedPivot	6	2229	29416
 core	SQLite	TypedProject	48	4454	856854

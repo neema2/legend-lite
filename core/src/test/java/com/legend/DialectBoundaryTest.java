@@ -124,7 +124,9 @@ class DialectBoundaryTest {
             // Phase 5): the codec is the model's, the vocabulary that carries every database's name (D9), and the
             // plan format names none; the arms are the specification tags, not the declared types
             // 4 -> 5 (2026-10-22, main's merge): the Trino specification's tag (the branch's step 9, 2026-10-19)
-            "ConnectionWire.java", 5);
+            "ConnectionWire.java", 5,
+            // 0 -> 13 (2026-11-12, phase D's D1.0): the edge's dialect registry, one arm per type as Databases has
+            "PureText.java", 13);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
@@ -168,7 +170,10 @@ class DialectBoundaryTest {
             // 11 -> 12 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D2 and D4): the MongoDb target, a dialect class
             // like the others, constructed by the owner for the MongoDB type
             "Databases.java", 12,
-            "EngineText.java", 5);          // legend-engine's text printers, root layer only (invariant 4d)
+            "EngineText.java", 5,           // legend-engine's text printers, root layer only (invariant 4d)
+            // 0 -> 12 (2026-11-12, phase D's D1.0, the spelling hook approved by the orchestrator): the edge's dialect
+            // registry, one subclass of each product dialect, the dialect source PCT, the corpus and pure/v1 plan with
+            "PureText.java", 12);
 
     /** Lines spelling a JDBC URL, by file: only a database's connector opens it (C3b; connectors since 2026-10-16). */
     // Sessions.java 9 -> 10 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): a MariaDB connection's

@@ -1,12 +1,14 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.server;
+package com.legend.edge;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.json.Json;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.LambdaFunction;
+import com.legend.server.ModelInput;
+import com.legend.server.PureV1Api;
 import com.legend.sql.SqlQuery;
 import com.legend.testdatagen.TestDataCensus;
 import com.legend.testdatagen.TestDataGenerator;
@@ -48,7 +50,7 @@ final class TestDataRoutes {
 
     /** {@code pure/v1/execution/testDataGeneration/generateSeedData}: the seed's keys as upstream's JSON. */
     static PureV1Api.Answer seedData(String body, PureV1Api.Runner runner, PureV1Api.Models models) {
-        return PureV1Api.answer(500, "COMPILATION", () -> {
+        return answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(ctx,
                     TestDataPlanner.seedJson(ctx, seed(ctx, r, true)), r.runtime(), runner));
@@ -69,7 +71,7 @@ final class TestDataRoutes {
 
     private static PureV1Api.Answer testData(String body, PureV1Api.Runner runner, PureV1Api.Models models,
             boolean defaultSeed) {
-        PureV1Api.Answer a = PureV1Api.answer(500, "COMPILATION", () -> {
+        PureV1Api.Answer a = answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
@@ -86,8 +88,29 @@ final class TestDataRoutes {
 
     /** A route's root no identifier names ({@link TestDataPlanner.Unseeded}, raised at planning): upstream's error
      *  node's answer, its message, {@code Example:\n} and the table's identifiers -- none -- as the 500's text
-     *  ({@code TestDataGeneration.manageTestDataResult}, :230-262). {@link PureV1Api#answer} answers it so. */
+     *  ({@code TestDataGeneration.manageTestDataResult}, :230-262). {@link #answer} answers it so. */
     static PureV1Api.Answer unseeded(TestDataPlanner.Unseeded e) {
+        return answerOf(e);
+    }
+
+    /** The product's answer of {@code call} ({@link PureV1Api#answer}), a root no identifier names answered as upstream
+     *  answers it ({@link #unseeded}): the edge's wrapping, so the product's answer knows nothing of upstream's error
+     *  node (D1.0b, 2026-11-12; until then {@code PureV1Api.answer} called this class). */
+    static PureV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
+            java.util.function.Supplier<String> call) {
+        TestDataPlanner.Unseeded[] unseeded = {null};
+        PureV1Api.Answer a = PureV1Api.answer(status, errorType, () -> {
+            try {
+                return call.get();
+            } catch (TestDataPlanner.Unseeded e) {
+                unseeded[0] = e;
+                return "";
+            }
+        });
+        return unseeded[0] != null ? unseeded(unseeded[0]) : a;
+    }
+
+    private static PureV1Api.Answer answerOf(TestDataPlanner.Unseeded e) {
         return new PureV1Api.Answer(500, e.getMessage() + "Example:\n" + Json.toCompact(identifiersOf(e)),
                 "text/plain");
     }
@@ -96,7 +119,7 @@ final class TestDataRoutes {
      *  ({@code TestDataGenerationService.generateEmbeddedData}) -- {@code {"data":[{"_type":"relationalCSVData",
      *  "tables":[{"schema":..,"table":..,"values":..},...]}]}}, a model fact: nothing runs. */
     static PureV1Api.Answer census(String body, PureV1Api.Models models) {
-        return PureV1Api.answer(400, "COMPILATION", () -> {
+        return answer(400, "COMPILATION", () -> {
             Json.Obj request = PureV1Api.request(body);
             LambdaFunction query = resolved(request.getObj("query"));
             String mapping = request.getString("mapping");

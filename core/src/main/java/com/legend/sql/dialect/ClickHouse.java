@@ -44,7 +44,7 @@ import java.util.Set;
  *       raises it, the platform's U+001F markers around it, verbatim in the server's message.</li>
  * </ul>
  */
-public final class ClickHouse extends AnsiSqlRenderer {
+public class ClickHouse extends AnsiSqlRenderer {
 
     /** {@inheritDoc} -- ClickHouse: one assert's statement (up to ~45K characters, measured) parses well
      *  under its AST limit; 1.3M characters fused passed neither the limit nor, raised, the memory (10-12 GB). */

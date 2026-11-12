@@ -30,7 +30,7 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                PlanningOptions.rules(edge != null)), stores);
+                PlanningOptions.rules(edge != null), com.legend.database.Databases.DIALECTS), stores);
     }
 
     public static final ExecuteOptions NONE = new ExecuteOptions(null, com.legend.executionplan.DataStores.none(),
@@ -75,6 +75,13 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
      *  2 ULP inside a String, S127's Integer equal to a Decimal by text (testexec.Equality, testplan.DatabaseJudge). */
     public ExecuteOptions withEngineCompat(boolean on) {
         return new ExecuteOptions(planning.withEngineCompat(on), stores);
+    }
+
+    /** THE SPELLING HOOK (phase D's D1.0): the body's statements written in {@code dialects}' dialects -- the
+     *  compatibility edge's ({@code com.legend.edge.PureText}) for a harness that compares against upstream's texts;
+     *  the product's own ({@code Databases.DIALECTS}) otherwise, which these options carry from their making. */
+    public ExecuteOptions withDialects(com.legend.database.DialectSource dialects) {
+        return new ExecuteOptions(planning.withDialects(dialects), stores);
     }
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the data stores its loads resolve through

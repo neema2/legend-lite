@@ -184,6 +184,9 @@ final class Windows {
             case SqlExpr.CheckedOne co -> co;
             case SqlExpr.CompactList cl -> cl;
             case SqlExpr.Tagged tg -> tg;   // no reducer inside: a selection over literal candidates
+            // a raise's operands are windowed as the call's arguments are (a reducer among them, its window)
+            case SqlExpr.RaiseText rt -> new SqlExpr.RaiseText(rt.kind(), rt.operands().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
             case SqlExpr.TaggedList tl -> tl;   // no reducer of this select inside: literal channels, or its own subqueries
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;

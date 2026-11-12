@@ -48,7 +48,7 @@ import java.util.Set;
  * </ul>
  * No server-side JavaScript is written (D11), and nothing from MongoDB's own documentation or code is copied.
  */
-public final class MongoDb extends AnsiSqlRenderer {
+public class MongoDb extends AnsiSqlRenderer {
 
     /** No quoting: a field or collection name is spelled as a JSON string, never delimited. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of());
@@ -266,7 +266,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.ArrayLit a -> arrayLit(writer, a.elements());
             case SqlExpr.StructLit s -> structLit(writer, s);
             case SqlExpr.StructGet g -> structGet(writer, g);
-            case SqlExpr.Call c -> call(writer, c, parentPrec);
+            case SqlExpr.Call c -> call(writer, raised(c), parentPrec);
             case SqlExpr.Case c -> caseExpr(writer, c);
             case SqlExpr.Exists ex -> throw new DialectCapability("an EXISTS subquery reached MongoDb: a correlated"
                     + " subquery has no shape yet");
@@ -283,6 +283,8 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " shape yet");
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
+            case SqlExpr.RaiseText r -> throw new IllegalStateException("a raise's message (" + r.kind()
+                    + ") reached the renderer outside its raise");
             case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
                     + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
                     + " of it is not lowered");

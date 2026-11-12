@@ -89,14 +89,14 @@ class TestDataRoutesTest {
 
     /** An {@code ExecuteInput} of {@code query} over the model, its mapping and runtime named, and {@code more}. */
     private static String input(String query, String more) {
-        return "{\"clientVersion\":\"vX_X_X\",\"function\":" + PureV1Api.grammarToJsonLambda(query, false).json()
+        return "{\"clientVersion\":\"vX_X_X\",\"function\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(query, false).json()
                 + ",\"model\":" + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", model))
                 + ",\"mapping\":\"model::M\",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"model::RT\"},"
                 + "\"context\":{\"_type\":\"BaseExecutionContext\"}" + more + "}";
     }
 
     private static PureV1Api.Answer route(String path, String body) {
-        return PureV1Api.route("/api/pure/v1/" + path, null, body, ConnectionResolver.RUNNER);
+        return com.legend.edge.PureV1Routes.route("/api/pure/v1/" + path, null, body, ConnectionResolver.RUNNER);
     }
 
     /** The test data from given identifiers: the routes' table order (by schema and table: FIRM before the root
@@ -189,7 +189,7 @@ class TestDataRoutesTest {
         Seed.sql(stamps, "INSERT INTO EVENT VALUES (TIMESTAMP '2020-01-02 03:04:05.123', 1),"
                 + " (TIMESTAMP '2020-01-03 00:00:00', 2)", "model::ERT");
         String in = "{\"clientVersion\":\"vX_X_X\",\"function\":"
-                + PureV1Api.grammarToJsonLambda("|model::E.all()->project([e|$e.n], ['n'])", false).json()
+                + com.legend.edge.PureV1Routes.grammarToJsonLambda("|model::E.all()->project([e|$e.n], ['n'])", false).json()
                 + ",\"model\":" + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", stamps))
                 + ",\"mapping\":\"model::EM\",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"model::ERT\"},"
                 + "\"context\":{\"_type\":\"BaseExecutionContext\"}}";
@@ -207,10 +207,10 @@ class TestDataRoutesTest {
     /** The census: upstream's embedded data, a model fact (no run). */
     @Test
     void theCensusIsUpstreamsEmbeddedData() {
-        String body = "{\"query\":" + PureV1Api.grammarToJsonLambda(QUERY, false).json() + ",\"model\":"
+        String body = "{\"query\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(QUERY, false).json() + ",\"model\":"
                 + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", model))
                 + ",\"mapping\":\"model::M\",\"runtime\":\"model::RT\"}";
-        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
                 (query, runtime, output) -> {
                     throw new AssertionError("the census runs nothing");
                 });

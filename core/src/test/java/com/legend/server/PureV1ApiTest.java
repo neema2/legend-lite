@@ -39,7 +39,7 @@ class PureV1ApiTest {
 
     /** E8 through the server's driver, as {@code LegendHttpServer} runs it. */
     private static PureV1Api.Answer execute(String body) {
-        return PureV1Api.execute(body, ConnectionResolver.RUNNER);
+        return com.legend.edge.PureV1Routes.execute(body, ConnectionResolver.RUNNER);
     }
 
     /**
@@ -64,7 +64,7 @@ class PureV1ApiTest {
 
     @Test
     void e1_grammarToJsonLambda_isByteExact() {
-        PureV1Api.Answer a = PureV1Api.grammarToJsonLambda(query, true);
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.grammarToJsonLambda(query, true);
         assertEquals(200, a.status(), a.json());
         assertEquals(Json.toCompact(Json.parse(lambda)), Json.toCompact(Json.parse(a.json())));
     }
@@ -72,7 +72,7 @@ class PureV1ApiTest {
     @Test
     void e1_textThatIsNotALambda_isWrappedAsTheEngineWrapsIt() throws IOException {
         // the wrapper spans the TOKENS: a trailing comment and blank line do not extend it
-        PureV1Api.Answer a = PureV1Api.grammarToJsonLambda(
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.grammarToJsonLambda(
                 rawResource("upstream-api/e1-unprefixed-trailing-comment.pure"), true);
         assertEquals(200, a.status(), a.json());
         assertEquals(Json.toCompact(Json.parse(resource("upstream-api/e1-unprefixed-trailing-comment.json"))),
@@ -81,13 +81,13 @@ class PureV1ApiTest {
 
     @Test
     void e1_withoutSourceInformation_carriesNone() {
-        PureV1Api.Answer a = PureV1Api.grammarToJsonLambda(query, false);
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.grammarToJsonLambda(query, false);
         assertFalse(a.json().contains("sourceInformation"), a.json());
     }
 
     @Test
     void e1_aParseErrorIsTheEnginesErrorShape() {
-        PureV1Api.Answer a = PureV1Api.grammarToJsonLambda("1 +", true);
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.grammarToJsonLambda("1 +", true);
         assertEquals(400, a.status());
         Json.Obj o = Json.parseObject(a.json());
         assertEquals("error", o.getString("status"));
@@ -98,7 +98,7 @@ class PureV1ApiTest {
     void aMalformedRequestIsAnswered500WithNoErrorType_asTheEngineAnswersIt() {
         // measured, 4.145.0: {"function": 1} -> 500, {code, message: "InvalidTypeIdException: ...",
         // status, trace}, no errorType
-        PureV1Api.Answer a = PureV1Api.generatePlan("{\"function\": 1}");
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.generatePlan("{\"function\": 1}");
         assertEquals(500, a.status(), a.json());
         Json.Obj o = Json.parseObject(a.json());
         assertEquals("error", o.getString("status"));
@@ -107,13 +107,13 @@ class PureV1ApiTest {
 
     @Test
     void generatePlansCompileErrorIs500_lambdaRelationTypesIs400_asTheEngineAnswersThem() {
-        String bad = PureV1Api.grammarToJsonLambda(
+        String bad = com.legend.edge.PureV1Routes.grammarToJsonLambda(
                 "|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[nope])->from(trades::h2::RT)", true).json();
-        PureV1Api.Answer plan = PureV1Api.generatePlan("{\"clientVersion\":\"vX_X_X\",\"function\":" + bad
+        PureV1Api.Answer plan = com.legend.edge.PureV1Routes.generatePlan("{\"clientVersion\":\"vX_X_X\",\"function\":" + bad
                 + ",\"model\":" + textModel() + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}");
         assertEquals(500, plan.status(), plan.json());
         assertEquals("COMPILATION", Json.parseObject(plan.json()).getString("errorType"));
-        PureV1Api.Answer type = PureV1Api.lambdaRelationType("{\"model\":" + textModel() + ",\"lambda\":" + bad + "}");
+        PureV1Api.Answer type = com.legend.edge.PureV1Routes.lambdaRelationType("{\"model\":" + textModel() + ",\"lambda\":" + bad + "}");
         assertEquals(400, type.status(), type.json());
         assertEquals("COMPILATION", Json.parseObject(type.json()).getString("errorType"));
     }
@@ -121,7 +121,7 @@ class PureV1ApiTest {
     @Test
     void e5_lambdaRelationType_isTheEnginesAnswer() throws IOException {
         String request = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
-        PureV1Api.Answer a = PureV1Api.lambdaRelationType(request);
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.lambdaRelationType(request);
         assertEquals(200, a.status(), a.json());
         Object engine = inLitesVocabulary(Json.parse(resource("upstream-api/e5-groupby-sort.json")));
         assertEquals(Json.toCompact(engine), Json.toCompact(Json.parse(a.json())));
@@ -132,7 +132,7 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.generatePlan(request);
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.generatePlan(request);
         assertEquals(200, a.status(), a.json());
         Json.Obj lite = Json.parseObject(a.json());
         Json.Obj engine = Json.parseObject(resource("upstream-api/e9-groupby-sort.json"));
@@ -158,8 +158,8 @@ class PureV1ApiTest {
      */
     @Test
     void m5_aFoldedConstantIsTheEnginesConstantNode_aComputedOneASqlPlan_printRefused() {
-        java.util.function.Function<String, PureV1Api.Answer> generate = text -> PureV1Api.generatePlan(
-                "{\"clientVersion\":\"vX_X_X\",\"function\":" + PureV1Api.grammarToJsonLambda(text, false).json()
+        java.util.function.Function<String, PureV1Api.Answer> generate = text -> com.legend.edge.PureV1Routes.generatePlan(
+                "{\"clientVersion\":\"vX_X_X\",\"function\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(text, false).json()
                 + ",\"model\":" + textModel() + ",\"runtime\":{\"runtime\":\"trades::h2::RT\"},"
                 + "\"context\":{\"_type\":\"BaseExecutionContext\"}}");
         PureV1Api.Answer hello = generate.apply("|'hello'");
@@ -245,7 +245,7 @@ class PureV1ApiTest {
         cases.put("true", "true");
         List<String> wrong = new ArrayList<>();
         for (Map.Entry<String, String> c : cases.entrySet()) {
-            String function = PureV1Api.grammarToJsonLambda("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->extend(~v: r|"
+            String function = com.legend.edge.PureV1Routes.grammarToJsonLambda("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->extend(~v: r|"
                     + c.getKey() + ")->select(~[v])->limit(1)->from(trades::h2::RT)", false).json();
             PureV1Api.Answer a = execute("{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":"
                     + textModel() + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}");
@@ -266,21 +266,21 @@ class PureV1ApiTest {
      */
     @Test
     void aModelGivenAsJson_isAnsweredAsItsTextIs_onEveryRoute() {
-        PureV1Api.Answer json = PureV1Api.grammarToJsonModel(model, false);
+        PureV1Api.Answer json = com.legend.edge.PureV1Routes.grammarToJsonModel(model, false);
         assertEquals(200, json.status(), json.json());
         String data = json.json();
         assertTrue(data.startsWith("{\"_type\":\"data\""), data.substring(0, Math.min(80, data.length())));
         for (String context : List.of(textModel(), data)) {
-            assertEquals("{\"message\":\"OK\",\"defects\":[]}", PureV1Api.compile(context).json());
+            assertEquals("{\"message\":\"OK\",\"defects\":[]}", com.legend.edge.PureV1Routes.compile(context).json());
             assertEquals("{\"errors\":[]}", PureV1Api.compileEveryError(context).json());
         }
         String execute = "{\"clientVersion\":\"vX_X_X\",\"function\":%s,\"model\":%s,"
                 + "\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         String typeOf = "{\"model\":%s,\"lambda\":%s}";
         java.util.function.Function<String, List<String>> answers = context -> List.of(
-                PureV1Api.lambdaRelationType(typeOf.formatted(context, lambda)).json(),
-                PureV1Api.lambdaReturnType(typeOf.formatted(context, lambda)).json(),
-                PureV1Api.generatePlan(execute.formatted(lambda, context)).json(),
+                com.legend.edge.PureV1Routes.lambdaRelationType(typeOf.formatted(context, lambda)).json(),
+                com.legend.edge.PureV1Routes.lambdaReturnType(typeOf.formatted(context, lambda)).json(),
+                com.legend.edge.PureV1Routes.generatePlan(execute.formatted(lambda, context)).json(),
                 // an execution's trace id is its own (a random UUID each run)
                 execute(execute.formatted(lambda, context)).json()
                         .replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]+", "executionTraceID"));
@@ -288,15 +288,15 @@ class PureV1ApiTest {
         assertEquals(fromText, answers.apply(data));
         // and a model that does not compile is refused alike, its message the same
         String broken = model + "\n###Pure\nClass trades::h2::Desk\n{\n  name: Strin[1];\n}\n";
-        PureV1Api.Answer brokenText = PureV1Api.compile(Json.toCompact(Map.of("_type", "text", "code", broken)));
+        PureV1Api.Answer brokenText = com.legend.edge.PureV1Routes.compile(Json.toCompact(Map.of("_type", "text", "code", broken)));
         assertEquals(400, brokenText.status(), brokenText.json());
         // its JSON with source information, as the text's error says where the element starts
-        assertEquals(brokenText.json(), PureV1Api.compile(PureV1Api.grammarToJsonModel(broken, true).json()).json());
+        assertEquals(brokenText.json(), com.legend.edge.PureV1Routes.compile(com.legend.edge.PureV1Routes.grammarToJsonModel(broken, true).json()).json());
     }
 
     @Test
     void aModelContextOfAnotherKind_isRefusedByName() {
-        PureV1Api.Answer a = PureV1Api.compile("{\"_type\":\"pointer\",\"sdlcInfo\":{}}");
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.compile("{\"_type\":\"pointer\",\"sdlcInfo\":{}}");
         assertNotEquals(200, a.status(), a.json());
         assertTrue(a.json().contains("PureModelContextData"), a.json());
     }
@@ -304,7 +304,7 @@ class PureV1ApiTest {
     /** {@code parameterValues}: a lambda's parameters bound to the request's values (Query app G1). */
     @Test
     void e8_execute_bindsParameterValues_scalarAndList() {
-        String lam = PureV1Api.grammarToJsonLambda("{region:String[1], minQty:Integer[1], books:String[*]|"
+        String lam = com.legend.edge.PureV1Routes.grammarToJsonLambda("{region:String[1], minQty:Integer[1], books:String[*]|"
                 + "#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"
                 + "->filter(r|(($r.region == $region) && ($r.qty > $minQty)) && $r.book->in($books))"
                 + "->select(~[region, book, qty])->from(trades::h2::RT)}", false).json();
@@ -332,13 +332,13 @@ class PureV1ApiTest {
      */
     @Test
     void e8_execute_aBracedTdsLiteral_readsTheTableInsideItsBraces() {
-        String one = PureV1Api.grammarToJsonLambda(
+        String one = com.legend.edge.PureV1Routes.grammarToJsonLambda(
                 "|#TDS{\nid\n1\n2\n}#->extend(~[h: x|1])->from(trades::h2::RT)", false).json();
         assertTrue(one.contains("\"tdsString\":\"\\nid\\n1\\n2\\n\""), one);
         assertEquals("{\"columns\":[\"id\",\"h\"],\"rows\":[{\"values\":[1,1]},{\"values\":[2,1]}]}",
                 resultOf(execute("{\"function\":" + one + ",\"model\":" + textModel() + "}")));
 
-        String two = PureV1Api.grammarToJsonLambda(
+        String two = com.legend.edge.PureV1Routes.grammarToJsonLambda(
                 "|#TDS{\nid, name\n1, a\n}#->extend(~[h: x|1])->from(trades::h2::RT)", false).json();
         assertEquals("{\"columns\":[\"id\",\"name\",\"h\"],\"rows\":[{\"values\":[1,\"a\",1]}]}",
                 resultOf(execute("{\"function\":" + two + ",\"model\":" + textModel() + "}")));
@@ -395,7 +395,7 @@ class PureV1ApiTest {
 
     /** An execute of a lambda's grammar over the model, its answer's text; the answer must be a 200. */
     private String executed(String grammar) {
-        String function = PureV1Api.grammarToJsonLambda(grammar, false).json();
+        String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(grammar, false).json();
         PureV1Api.Answer a = execute("{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":"
                 + textModel() + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}");
         assertEquals(200, a.status(), a.json());
@@ -410,7 +410,7 @@ class PureV1ApiTest {
 
     @Test
     void e8_execute_aParameterWithNoValue_isRefused_aStrayValueIgnored_asTheEngineAnswers() {
-        String lam = PureV1Api.grammarToJsonLambda("{region:String[1]|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"
+        String lam = com.legend.edge.PureV1Routes.grammarToJsonLambda("{region:String[1]|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"
                 + "->filter(r|$r.region == $region)->from(trades::h2::RT)}", false).json();
         PureV1Api.Answer missing = execute("{\"function\":" + lam + ",\"model\":" + textModel() + "}");
         assertEquals(500, missing.status(), missing.json());
@@ -469,7 +469,7 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
                 request, ConnectionResolver.RUNNER);
         assertEquals(200, a.status(), a.json());
         assertEquals("application/json", a.contentType());
@@ -499,9 +499,9 @@ class PureV1ApiTest {
         assertTrue(text.contains("legend.type") && text.contains("legend.slot"), "the field metadata");
 
         String trading = resource("upstream-api/query-app/trading.pure");
-        String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
+        String fetch = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
-        PureV1Api.Answer graph = PureV1Api.executeArrow("{\"function\":" + fetch + ",\"model\":"
+        PureV1Api.Answer graph = com.legend.edge.PureV1Routes.executeArrow("{\"function\":" + fetch + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", ConnectionResolver.RUNNER,
                 PureV1Api.Models.COMPILED);
         assertEquals(500, graph.status(), graph.json());
@@ -537,7 +537,7 @@ class PureV1ApiTest {
         assertTrue(Json.parseObject(other.json()).getString("message").contains("the models it serves"), other.json());
 
         String trading = resource("upstream-api/query-app/trading.pure");
-        String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
+        String fetch = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         PureV1Api.Answer graph = PureV1Api.arrowPlan("{\"function\":" + fetch + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading));
@@ -600,7 +600,7 @@ class PureV1ApiTest {
         // halves alike
         for (String value : List.of("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->size()->from(trades::h2::RT)",
                 "|[1, 2]->from(trades::h2::RT)")) {
-            String asked = "{\"function\":" + PureV1Api.grammarToJsonLambda(value, false).json() + ",\"model\":" + textModel() + "}";
+            String asked = "{\"function\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(value, false).json() + ",\"model\":" + textModel() + "}";
             for (PureV1Api.Answer refused : List.of(PureV1Api.jsonPlan(asked, List.of(model)), PureV1Api.arrowPlan(asked, List.of(model)))) {
                 assertEquals(500, refused.status(), refused.json());
                 assertTrue(refused.json().contains("result's serialization is unprobed"), value + ": " + refused.json());
@@ -608,7 +608,7 @@ class PureV1ApiTest {
         }
 
         String trading = withoutTestData(resource("upstream-api/query-app/trading.pure"));
-        String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
+        String fetch = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         PureV1Api.Answer graph = PureV1Api.jsonPlan("{\"function\":" + fetch + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading));
@@ -646,12 +646,12 @@ class PureV1ApiTest {
             };
             String typed = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
             String plan = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
-            assertEquals(PureV1Api.lambdaRelationType(typed),
-                    PureV1Api.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN, models));
-            assertEquals(PureV1Api.lambdaReturnType(typed),
-                    PureV1Api.route("/api/pure/v1/compilation/lambdaReturnType", null, typed, NO_RUN, models));
-            assertEquals(PureV1Api.generatePlan(plan),
-                    PureV1Api.route("/api/pure/v1/execution/generatePlan", null, plan, NO_RUN, models));
+            assertEquals(com.legend.edge.PureV1Routes.lambdaRelationType(typed),
+                    com.legend.edge.PureV1Routes.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN, models));
+            assertEquals(com.legend.edge.PureV1Routes.lambdaReturnType(typed),
+                    com.legend.edge.PureV1Routes.route("/api/pure/v1/compilation/lambdaReturnType", null, typed, NO_RUN, models));
+            assertEquals(com.legend.edge.PureV1Routes.generatePlan(plan),
+                    com.legend.edge.PureV1Routes.route("/api/pure/v1/execution/generatePlan", null, plan, NO_RUN, models));
             assertEquals(3, uses[0], "each route compiled its model through the host's hook");
         } finally {
             held.release(handle);
@@ -661,17 +661,17 @@ class PureV1ApiTest {
     /** route: each path answers as its endpoint does; any other is 404 in the engine's shape; execute runs through the runner. */
     @Test
     void route_answersEachPathAsItsEndpoint() {
-        assertEquals(PureV1Api.grammarToJsonLambda(query, false),
-                PureV1Api.route("/api/pure/v1/grammar/grammarToJson/lambda", "returnSourceInformation=false", query, NO_RUN));
-        assertEquals(PureV1Api.grammarToJsonLambda(query, true),
-                PureV1Api.route("/api/pure/v1/grammar/grammarToJson/lambda", null, query, NO_RUN));
-        assertEquals(PureV1Api.jsonToGrammarLambda(lambda, "STANDARD"),
-                PureV1Api.route("/api/pure/v1/grammar/jsonToGrammar/lambda", "renderStyle=STANDARD", lambda, NO_RUN));
+        assertEquals(com.legend.edge.PureV1Routes.grammarToJsonLambda(query, false),
+                com.legend.edge.PureV1Routes.route("/api/pure/v1/grammar/grammarToJson/lambda", "returnSourceInformation=false", query, NO_RUN));
+        assertEquals(com.legend.edge.PureV1Routes.grammarToJsonLambda(query, true),
+                com.legend.edge.PureV1Routes.route("/api/pure/v1/grammar/grammarToJson/lambda", null, query, NO_RUN));
+        assertEquals(com.legend.edge.PureV1Routes.jsonToGrammarLambda(lambda, "STANDARD"),
+                com.legend.edge.PureV1Routes.route("/api/pure/v1/grammar/jsonToGrammar/lambda", "renderStyle=STANDARD", lambda, NO_RUN));
         String typed = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
-        assertEquals(PureV1Api.lambdaRelationType(typed),
-                PureV1Api.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN));
+        assertEquals(com.legend.edge.PureV1Routes.lambdaRelationType(typed),
+                com.legend.edge.PureV1Routes.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN));
 
-        PureV1Api.Answer missing = PureV1Api.route("/api/pure/v1/nope", null, "", NO_RUN);
+        PureV1Api.Answer missing = com.legend.edge.PureV1Routes.route("/api/pure/v1/nope", null, "", NO_RUN);
         assertEquals(404, missing.status());
         assertEquals("{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: /api/pure/v1/nope\",\"status\":\"error\"}",
                 missing.json());
@@ -679,7 +679,7 @@ class PureV1ApiTest {
                 PureV1Api.route("/api/lite/v1/nope", null, "", NO_RUN).json());
 
         String[] ran = new String[1];
-        PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
+        PureV1Api.Answer refused = com.legend.edge.PureV1Routes.route("/api/pure/v1/execution/execute", null,
                 "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (q, runtime, output) -> {
                     // the host's door is handed the compiled query and its runtime: the door plans and runs it (slice 5)
                     ran[0] = runtime;
@@ -711,7 +711,7 @@ class PureV1ApiTest {
         for (Json.Node n : cases.items()) {
             Json.Obj c = (Json.Obj) n;
             String q = c.getString("query");
-            String lam = PureV1Api.grammarToJsonLambda(q, false).json();
+            String lam = com.legend.edge.PureV1Routes.grammarToJsonLambda(q, false).json();
             PureV1Api.Answer a = execute("{\"function\":" + lam + ",\"model\":" + modelContext + "}");
             assertEquals(200, a.status(), q + " -> " + a.json());
             assertEquals(Json.toCompact(c.get("engine")), Json.toCompact(Json.parse(a.json())), q);
@@ -737,7 +737,7 @@ class PureV1ApiTest {
                 Runtime w::RT { mappings: [ ]; connections: [ w::DB: [ c: w::Conn ] ]; }
                 """;
         String modelContext = Json.toCompact(Map.of("_type", "text", "code", code));
-        String write = PureV1Api.grammarToJsonLambda("{|let s = #>{w::DB.T}#->filter(r|$r.ID == 1)"
+        String write = com.legend.edge.PureV1Routes.grammarToJsonLambda("{|let s = #>{w::DB.T}#->filter(r|$r.ID == 1)"
                 + "->meta::legend::lite::stage(); #>{w::DB.T}#->delete(r|$r.ID == 1); $s->select(~[NAME])"
                 + "->from(w::RT);}", false).json();
         PureV1Api.Answer a = execute("{\"function\":" + write + ",\"model\":" + modelContext + "}");
@@ -745,7 +745,7 @@ class PureV1ApiTest {
         Json.Arr rows = Json.parseObject(a.json()).getObj("result").getArr("rows");
         assertEquals(1, rows.items().size(), a.json());
         assertEquals("a", ((Json.Str) ((Json.Obj) rows.items().get(0)).getArr("values").items().get(0)).value());
-        String read = PureV1Api.grammarToJsonLambda("|#>{w::DB.T}#->select(~[NAME])->sort(~NAME->ascending())"
+        String read = com.legend.edge.PureV1Routes.grammarToJsonLambda("|#>{w::DB.T}#->select(~[NAME])->sort(~NAME->ascending())"
                 + "->from(w::RT)", false).json();
         PureV1Api.Answer after = execute("{\"function\":" + read + ",\"model\":" + modelContext + "}");
         assertEquals(200, after.status(), after.json());
@@ -756,7 +756,7 @@ class PureV1ApiTest {
     @Test
     void e8_execute_anEnumerationColumn_isAStringInTheBuilder() throws IOException {
         String trading = resource("upstream-api/query-app/trading.pure");
-        String lam = PureV1Api.grammarToJsonLambda("|demo::trading::Firm.all()->project(~[r:x|$x.region, n:x|$x.legalName])"
+        String lam = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Firm.all()->project(~[r:x|$x.region, n:x|$x.legalName])"
                 + "->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         PureV1Api.Answer a = execute("{\"function\":" + lam + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}");
@@ -770,14 +770,14 @@ class PureV1ApiTest {
     /** C1: a model compiles whole -- elements and every body -- or answers its first failure, 400. */
     @Test
     void c1_compile_okOrTheFirstFailure_asTheEngineAnswers() {
-        PureV1Api.Answer ok = PureV1Api.compile(textModel());
+        PureV1Api.Answer ok = com.legend.edge.PureV1Routes.compile(textModel());
         assertEquals(200, ok.status(), ok.json());
         assertEquals("OK", Json.parseObject(ok.json()).getString("message"));
         assertTrue(Json.parseObject(ok.json()).getArr("defects").items().isEmpty(), ok.json());
 
         // a function body that does not type: the engine answers 400 COMPILATION (measured, 4.145.0)
         String bad = model + "\n###Pure\nfunction trades::h2::broken(): Any[*] { #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[nope]) }\n";
-        PureV1Api.Answer refused = PureV1Api.compile(Json.toCompact(Map.of("_type", "text", "code", bad)));
+        PureV1Api.Answer refused = com.legend.edge.PureV1Routes.compile(Json.toCompact(Map.of("_type", "text", "code", bad)));
         assertEquals(400, refused.status(), refused.json());
         Json.Obj o = Json.parseObject(refused.json());
         assertEquals("COMPILATION", o.getString("errorType"));
@@ -809,7 +809,7 @@ class PureV1ApiTest {
         assertEquals(2, messages.size(), every.json());
         assertTrue(messages.get(0).contains("trades::h2::alsoBroken"), every.json());
         assertTrue(messages.get(1).contains("trades::h2::broken"), every.json());
-        PureV1Api.Answer first = PureV1Api.route("/api/pure/v1/compilation/compile", null, two, NO_RUN);
+        PureV1Api.Answer first = com.legend.edge.PureV1Routes.route("/api/pure/v1/compilation/compile", null, two, NO_RUN);
         assertEquals(400, first.status(), first.json());
         assertEquals(messages.get(0), Json.parseObject(first.json()).getString("message"));
 
@@ -819,14 +819,14 @@ class PureV1ApiTest {
         assertEquals(200, one.status(), one.json());
         List<Json.Node> errors = Json.parseObject(one.json()).getArr("errors").items();
         assertEquals(1, errors.size(), one.json());
-        assertEquals(Json.parseObject(PureV1Api.compile(element).json()).getString("message"),
+        assertEquals(Json.parseObject(com.legend.edge.PureV1Routes.compile(element).json()).getString("message"),
                 ((Json.Obj) errors.get(0)).getString("message"));
 
         // a model context of another kind (a pointer the engine loads from an SDLC); a PureModelContextData is read
         // (leg 8 step 3)
         String pointer = "{\"_type\":\"pointer\",\"sdlcInfo\":{}}";
         PureV1Api.Answer unread = PureV1Api.route(lite, null, pointer, NO_RUN);
-        assertEquals(PureV1Api.compile(pointer), unread);
+        assertEquals(com.legend.edge.PureV1Routes.compile(pointer), unread);
         assertEquals(500, unread.status(), unread.json());
     }
 
@@ -858,13 +858,13 @@ class PureV1ApiTest {
         expected.put("|'a'", "String");
         expected.put("|%2024-01-01", "StrictDate");
         for (Map.Entry<String, String> e : expected.entrySet()) {
-            String lam = PureV1Api.grammarToJsonLambda(e.getKey(), false).json();
-            PureV1Api.Answer a = PureV1Api.lambdaReturnType("{\"model\":" + textModel() + ",\"lambda\":" + lam + "}");
+            String lam = com.legend.edge.PureV1Routes.grammarToJsonLambda(e.getKey(), false).json();
+            PureV1Api.Answer a = com.legend.edge.PureV1Routes.lambdaReturnType("{\"model\":" + textModel() + ",\"lambda\":" + lam + "}");
             assertEquals(200, a.status(), a.json());
             assertEquals(e.getValue(), Json.parseObject(a.json()).getString("returnType"), e.getKey());
         }
-        String unbound = PureV1Api.grammarToJsonLambda("|$x.nope", false).json();
-        PureV1Api.Answer refused = PureV1Api.lambdaReturnType("{\"model\":" + textModel() + ",\"lambda\":" + unbound + "}");
+        String unbound = com.legend.edge.PureV1Routes.grammarToJsonLambda("|$x.nope", false).json();
+        PureV1Api.Answer refused = com.legend.edge.PureV1Routes.lambdaReturnType("{\"model\":" + textModel() + ",\"lambda\":" + unbound + "}");
         assertEquals(400, refused.status(), refused.json());
         assertEquals("COMPILATION", Json.parseObject(refused.json()).getString("errorType"));
     }
@@ -882,16 +882,16 @@ class PureV1ApiTest {
         expected.put("{n: Integer[1]|$n + 2}", "Integer");
         expected.put("{r: String[1]|" + select + "->filter(x|$x.region == $r)}", "meta::pure::metamodel::relation::Relation");
         for (Map.Entry<String, String> e : expected.entrySet()) {
-            String lam = PureV1Api.grammarToJsonLambda(e.getKey(), false).json();
-            PureV1Api.Answer a = PureV1Api.lambdaReturnType("{\"model\":" + textModel() + ",\"lambda\":" + lam + "}");
+            String lam = com.legend.edge.PureV1Routes.grammarToJsonLambda(e.getKey(), false).json();
+            PureV1Api.Answer a = com.legend.edge.PureV1Routes.lambdaReturnType("{\"model\":" + textModel() + ",\"lambda\":" + lam + "}");
             assertEquals(200, a.status(), a.json());
             assertEquals(e.getValue(), Json.parseObject(a.json()).getString("returnType"), e.getKey());
         }
-        String withParameter = PureV1Api.grammarToJsonLambda("{r: String[1]|" + select + "->filter(x|$x.region == $r)}", false).json();
-        String without = PureV1Api.grammarToJsonLambda("|" + select, false).json();
-        PureV1Api.Answer typed = PureV1Api.lambdaRelationType("{\"model\":" + textModel() + ",\"lambda\":" + withParameter + "}");
+        String withParameter = com.legend.edge.PureV1Routes.grammarToJsonLambda("{r: String[1]|" + select + "->filter(x|$x.region == $r)}", false).json();
+        String without = com.legend.edge.PureV1Routes.grammarToJsonLambda("|" + select, false).json();
+        PureV1Api.Answer typed = com.legend.edge.PureV1Routes.lambdaRelationType("{\"model\":" + textModel() + ",\"lambda\":" + withParameter + "}");
         assertEquals(200, typed.status(), typed.json());
-        assertEquals(PureV1Api.lambdaRelationType("{\"model\":" + textModel() + ",\"lambda\":" + without + "}").json(), typed.json(),
+        assertEquals(com.legend.edge.PureV1Routes.lambdaRelationType("{\"model\":" + textModel() + ",\"lambda\":" + without + "}").json(), typed.json(),
                 "the same columns as the query without its parameter");
     }
 
@@ -1064,15 +1064,15 @@ class PureV1ApiTest {
 
     @Test
     void e4_jsonToGrammarLambda_printsWhatE1Parsed_plainText_prettyByDefault() {
-        String json = PureV1Api.grammarToJsonLambda(query, false).json();
-        PureV1Api.Answer standard = PureV1Api.jsonToGrammarLambda(json, "STANDARD");
+        String json = com.legend.edge.PureV1Routes.grammarToJsonLambda(query, false).json();
+        PureV1Api.Answer standard = com.legend.edge.PureV1Routes.jsonToGrammarLambda(json, "STANDARD");
         assertEquals(200, standard.status(), standard.json());
         assertEquals("text/plain", standard.contentType());
         // the print parses back to the same lambda
         assertEquals(Json.toCompact(Json.parse(json)),
-                Json.toCompact(Json.parse(PureV1Api.grammarToJsonLambda(standard.json(), false).json())));
-        PureV1Api.Answer pretty = PureV1Api.jsonToGrammarLambda(json, null);
-        assertEquals(PureV1Api.jsonToGrammarLambda(json, "PRETTY").json(), pretty.json(), "PRETTY is the default");
+                Json.toCompact(Json.parse(com.legend.edge.PureV1Routes.grammarToJsonLambda(standard.json(), false).json())));
+        PureV1Api.Answer pretty = com.legend.edge.PureV1Routes.jsonToGrammarLambda(json, null);
+        assertEquals(com.legend.edge.PureV1Routes.jsonToGrammarLambda(json, "PRETTY").json(), pretty.json(), "PRETTY is the default");
         assertTrue(pretty.json().contains("\n"), pretty.json());
     }
 
@@ -1095,37 +1095,37 @@ class PureV1ApiTest {
 
     @Test
     void jsonToGrammarModel_printsWhatE2Parsed_inEitherStyle_plainText_prettyByDefault() {
-        String json = PureV1Api.grammarToJsonModel(STYLED_MODEL, false).json();
-        PureV1Api.Answer standard = PureV1Api.jsonToGrammarModel(json, "STANDARD");
-        PureV1Api.Answer pretty = PureV1Api.jsonToGrammarModel(json, null);
+        String json = com.legend.edge.PureV1Routes.grammarToJsonModel(STYLED_MODEL, false).json();
+        PureV1Api.Answer standard = com.legend.edge.PureV1Routes.jsonToGrammarModel(json, "STANDARD");
+        PureV1Api.Answer pretty = com.legend.edge.PureV1Routes.jsonToGrammarModel(json, null);
         assertEquals(200, standard.status(), standard.json());
         assertEquals(200, pretty.status(), pretty.json());
         assertEquals("text/plain", standard.contentType());
-        assertEquals(PureV1Api.jsonToGrammarModel(json, "PRETTY").json(), pretty.json(), "PRETTY is the default");
+        assertEquals(com.legend.edge.PureV1Routes.jsonToGrammarModel(json, "PRETTY").json(), pretty.json(), "PRETTY is the default");
         assertFalse(standard.json().equals(pretty.json()), "the function body prints across lines in PRETTY");
         // each print parses back to the same model
         for (PureV1Api.Answer printed : List.of(standard, pretty)) {
             assertEquals(Json.toCompact(Json.parse(json, DEEP)),
-                    Json.toCompact(Json.parse(PureV1Api.grammarToJsonModel(printed.json(), false).json(), DEEP)));
+                    Json.toCompact(Json.parse(com.legend.edge.PureV1Routes.grammarToJsonModel(printed.json(), false).json(), DEEP)));
         }
-        assertEquals(pretty, PureV1Api.route("/api/pure/v1/grammar/jsonToGrammar/model", null, json, NO_RUN));
+        assertEquals(pretty, com.legend.edge.PureV1Routes.route("/api/pure/v1/grammar/jsonToGrammar/model", null, json, NO_RUN));
     }
 
     @Test
     void jsonToGrammarModel_refusesAModelContextItDoesNotRead_byName() {
-        PureV1Api.Answer text = PureV1Api.jsonToGrammarModel("{\"_type\":\"text\",\"code\":\"Class a::B{}\"}", "PRETTY");
+        PureV1Api.Answer text = com.legend.edge.PureV1Routes.jsonToGrammarModel("{\"_type\":\"text\",\"code\":\"Class a::B{}\"}", "PRETTY");
         assertEquals(500, text.status(), text.json());
         assertTrue(Json.parseObject(text.json()).getString("message").contains("text"), text.json());
     }
 
     @Test
     void e4_batch_answersEachKey_andAnUnservedStyleIsRefused() {
-        String a = PureV1Api.grammarToJsonLambda("|1 + 2", false).json();
-        String b = PureV1Api.grammarToJsonLambda("x: String[1]|$x->toUpper()", false).json();
-        PureV1Api.Answer batch = PureV1Api.jsonToGrammarLambdaBatch("{\"a\":" + a + ",\"b\":" + b + "}", "STANDARD");
+        String a = com.legend.edge.PureV1Routes.grammarToJsonLambda("|1 + 2", false).json();
+        String b = com.legend.edge.PureV1Routes.grammarToJsonLambda("x: String[1]|$x->toUpper()", false).json();
+        PureV1Api.Answer batch = com.legend.edge.PureV1Routes.jsonToGrammarLambdaBatch("{\"a\":" + a + ",\"b\":" + b + "}", "STANDARD");
         assertEquals(200, batch.status(), batch.json());
         assertEquals("{\"a\":\"|1 + 2\",\"b\":\"x: String[1]|$x->toUpper()\"}", batch.json());
-        PureV1Api.Answer html = PureV1Api.jsonToGrammarLambda(a, "PRETTY_HTML");
+        PureV1Api.Answer html = com.legend.edge.PureV1Routes.jsonToGrammarLambda(a, "PRETTY_HTML");
         assertEquals(500, html.status());
         assertTrue(html.json().contains("PRETTY_HTML"), html.json());
     }
@@ -1134,11 +1134,11 @@ class PureV1ApiTest {
     void aQueryDeeperThanAConfigFile_isReadAndPrinted() {
         // 80 chained calls nest ~160 JSON levels: past the 64 a configuration file is held to
         String text = "|'a'" + "->toUpper()".repeat(80);
-        String json = PureV1Api.grammarToJsonLambda(text, false).json();
-        PureV1Api.Answer printed = PureV1Api.jsonToGrammarLambda(json, "STANDARD");
+        String json = com.legend.edge.PureV1Routes.grammarToJsonLambda(text, false).json();
+        PureV1Api.Answer printed = com.legend.edge.PureV1Routes.jsonToGrammarLambda(json, "STANDARD");
         assertEquals(200, printed.status(), printed.json());
         assertEquals(Json.toCompact(Json.parse(json, new Json.Config(4096))), Json.toCompact(Json.parse(
-                PureV1Api.grammarToJsonLambda(printed.json(), false).json(), new Json.Config(4096))));
+                com.legend.edge.PureV1Routes.grammarToJsonLambda(printed.json(), false).json(), new Json.Config(4096))));
     }
 
     @Test
@@ -1155,7 +1155,7 @@ class PureV1ApiTest {
                      {"_type":"keyExpression","key":{"_type":"string","value":"first"},"expression":{"_type":"integer","value":1}},
                      {"_type":"keyExpression","key":{"_type":"string","value":"second"},"expression":{"_type":"string","value":"a"}}]}]}]}
                 """;
-        PureV1Api.Answer a = PureV1Api.jsonToGrammarLambda(old, "STANDARD");
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.jsonToGrammarLambda(old, "STANDARD");
         assertEquals(200, a.status(), a.json());
         assertEquals("res: meta::pure::mapping::Result<meta::pure::metamodel::type::Any|1..*>[1]"
                 + "|1->meta::pure::functions::collection::pair('a')", a.json());

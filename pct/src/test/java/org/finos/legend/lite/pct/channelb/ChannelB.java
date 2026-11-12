@@ -270,7 +270,9 @@ public final class ChannelB {
                                     System.getProperty("pct.channelb.judge", "BOTH")))
                             // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
                             // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-                            .withEngineCompat(true));
+                            .withEngineCompat(true)
+                            // legend-pure's texts, spelled by the edge (phase D's D1.0)
+                            .withDialects(com.legend.edge.PureText.DIALECTS));
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a

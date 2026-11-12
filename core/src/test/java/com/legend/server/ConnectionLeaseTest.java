@@ -125,8 +125,8 @@ class ConnectionLeaseTest {
         assertEquals("name", leased.columns().get(0).name(), String.valueOf(leased));
 
         // 2. pure/v1 execute (E8) — PureV1Api.execute leases the runtime's connection
-        String lambda = PureV1Api.grammarToJsonLambda(query, false).json();
-        PureV1Api.Answer executed = PureV1Api.execute("{\"clientVersion\":\"vX_X_X\",\"function\":"
+        String lambda = com.legend.edge.PureV1Routes.grammarToJsonLambda(query, false).json();
+        PureV1Api.Answer executed = com.legend.edge.PureV1Routes.execute("{\"clientVersion\":\"vX_X_X\",\"function\":"
                 + lambda + ",\"model\":" + com.legend.json.Json.toCompact(
                         java.util.Map.of("_type", "text", "code", duckModel))
                 + ",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"test::TestRuntime\"}"

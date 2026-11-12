@@ -43,6 +43,8 @@ legend_java_library(
     deps = [
         # the plan side only (C2a): the embedded planner carries no execution library, no database, no driver
         "//core:plan_side",
+        # legend-engine's routes, the edge's (phase D's D1.0b, 2026-11-12): the boundary answers them as the server does
+        "//core:edge",
         "//json",
     ],
 )

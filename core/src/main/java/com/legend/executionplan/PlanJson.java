@@ -140,8 +140,9 @@ public final class PlanJson {
      *  since 2026-11-12 (the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling: bumped): a target may carry
      *  {@code settings}, the {@code required} settings its database must have (each a {@code name} and {@code value})
      *  and their {@code readBack} statement (H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}), written only where a
-     *  target declares them. */
-    public static final int VERSION = 49;
+     *  target declares them. 50 since 2026-11-12 (phase D's D1.1): a statement's tree may hold a {@code raiseText}, a
+     *  raise's message as its {@code kind} and its {@code operands}. */
+    public static final int VERSION = 50;
 
     private PlanJson() {
     }
