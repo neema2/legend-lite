@@ -219,7 +219,7 @@ class PlanMakerTest {
     @Test
     void aSharedRelationPickedByNoOrderIsRefusedWhereEachReadComputesItAgain() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of());
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
         com.legend.sql.SqlSource.Table table = new com.legend.sql.SqlSource.Table("t", "t0", List.of(), false,
                 java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
         com.legend.sql.SqlSelect limited = com.legend.sql.SqlSelect.starOf(table).withLimit(3L);
@@ -258,7 +258,7 @@ class PlanMakerTest {
     @Test
     void aStagedRelationCarriesTheWithsItReads() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of());
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
         com.legend.sql.SqlSelect base = com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Table("t", "t0",
                 List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE));
         com.legend.sql.SqlWith with = new com.legend.sql.SqlWith(List.of(
