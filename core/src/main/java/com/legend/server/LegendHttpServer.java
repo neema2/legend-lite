@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
  * Endpoints:
  * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
  * - POST /api/pure/v1/... - legend-engine's own pure/v1 API
+ * - GET /api/pure/v1/protocol/pure/getClassifierPathMap, .../getSubtypeInfo - its two GET routes
  * - POST /api/lite/v1/compilation/compile - a model's every compile error (lite's own)
  * - POST /engine/diagram - a class diagram from a Pure model
  * - GET /health - Health check
@@ -226,7 +227,9 @@ public class LegendHttpServer {
      */
     /**
      * {@code /api/pure/v1/...}: legend-engine's API, answered by {@link PureV1Api}. The body
-     * is read RAW -- a grammar text's line endings are part of its source positions.
+     * is read RAW -- a grammar text's line endings are part of its source positions. Each route is served by the
+     * engine's own verb and no other: GET on its two protocol routes ({@link PureV1Api#GET_ROUTES}, which read no
+     * body), POST on every other path; the wrong verb is answered 405 before the API is asked.
      */
     private static final class PureV1Handler implements HttpHandler {
         private final PureV1Api.Runner runner;
@@ -243,7 +246,9 @@ public class LegendHttpServer {
                 exchange.close();
                 return;
             }
-            if (!"POST".equals(exchange.getRequestMethod())) {
+            String path = exchange.getRequestURI().getPath();
+            String verb = PureV1Api.GET_ROUTES.contains(path) ? "GET" : "POST";
+            if (!verb.equals(exchange.getRequestMethod())) {
                 sendResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
                 return;
             }
@@ -252,8 +257,7 @@ public class LegendHttpServer {
                 body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
             // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
-            PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
-                    exchange.getRequestURI().getRawQuery(), body, runner);
+            PureV1Api.Answer answer = PureV1Api.route(path, exchange.getRequestURI().getRawQuery(), body, runner);
             // a binary answer (the ARROW_IPC execute, track A, 2026-10-29): its bytes under upstream's headers
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
             sendResponse(exchange, answer.status(), answer.body(), answer.contentType());
@@ -473,6 +477,7 @@ public class LegendHttpServer {
         System.out.println("Endpoints:");
         System.out.println("  POST http://localhost:" + port + "/lsp         - LSP Protocol");
         System.out.println("  POST http://localhost:" + port + "/api/pure/v1/... - legend-engine's pure/v1 API");
+        System.out.println("  GET  http://localhost:" + port + "/api/pure/v1/protocol/pure/... - its two GET routes");
         System.out.println("  POST http://localhost:" + port + "/api/lite/v1/compilation/compile - every compile error");
         System.out.println("  GET  http://localhost:" + port + "/health         - Health check");
         System.out.println();

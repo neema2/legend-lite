@@ -39,13 +39,20 @@ public final class Sdlc {
     /** An answer: its status and its JSON body ({@code null} for 204). */
     public record Response(int status, @Nullable String body) {}
 
-    /** The compiler, as the rules use it. */
+    /** The compiler, as the rules use it: their three Pure questions. */
     public interface Grammar {
         /** Pure text to its protocol JSON ({@code {"_type":"data","elements":[...]}}), or a refusal (a RuntimeException). */
         String modelJson(String text);
 
         /** A whole model's compile errors, every one, as legend-lite's {@code compilation/compile} finds them: none when it compiles. */
         List<String> compile(String model);
+
+        /**
+         * The {@code classifierPath} an entity of protocol type {@code type} carries, or null for a type the protocol
+         * maps none for (the entity is then refused). The protocol's vocabulary is the compiler's
+         * ({@code com.legend.protocol.ProtocolTypes}, the one table {@code getClassifierPathMap} is served from too).
+         */
+        @Nullable String classifierPath(String type);
     }
 
     /** The project structure every project here declares (upstream's latest; the layout itself is lite's, S5). */
@@ -1332,7 +1339,7 @@ public final class Sdlc {
         List<String> errors = new ArrayList<>();
         if (!found.equals(path)) errors.add("Mismatch between entity path (\"" + path + "\") and the element's path (\"" + found + "\")");
         String type = String.valueOf(element.getStringOr("_type", null));
-        String classifierPath = Classifiers.of(type);
+        String classifierPath = grammar.classifierPath(type);
         if (classifierPath == null) errors.add("Unsupported element type: " + type);
         if (!errors.isEmpty()) return new Read(null, errors);
         LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>();

@@ -52,6 +52,10 @@ import java.util.function.Supplier;
  *   <li>E8 {@code execution/execute}: the query run on its runtime's connection, answered in
  *       the engine's TDS JSON; in upstream's Arrow format ({@code ARROW_IPC}), its plan half.</li>
  *   <li>E9 {@code execution/generatePlan}: the relational TDS execution plan.</li>
+ *   <li>{@code protocol/pure/getClassifierPathMap} and {@code protocol/pure/getSubtypeInfo}: the protocol's element
+ *       types -- each one's classifier path, and which are stores and function activators
+ *       ({@link com.legend.protocol.ProtocolTypes}). The engine's two GET routes ({@link #GET_ROUTES}): a client
+ *       (legend-studio's graph manager) asks both when it starts.</li>
  * </ul>
  *
  * <p>The model travels as {@code PureModelContextText}; any other model context is refused
@@ -140,9 +144,20 @@ public final class PureV1Api {
     }
 
     /**
+     * The routes legend-engine serves by GET ({@code PureProtocol.java:45-46, 72-73} of the pinned release): every other
+     * route of this API is a POST. The verb is HTTP's, so {@link #route} does not take one -- a host that carries no
+     * verb (the tab, Python's library) answers a path whatever asked it -- and the HTTP server alone refuses the wrong
+     * one, reading this list ({@code LegendHttpServer}: GET here, POST everywhere else, 405 otherwise).
+     */
+    public static final java.util.Set<String> GET_ROUTES = java.util.Set.of(
+            "/api/pure/v1/protocol/pure/getClassifierPathMap",
+            "/api/pure/v1/protocol/pure/getSubtypeInfo");
+
+    /**
      * One call by its path ({@code /api/pure/v1/...}) and raw query string, as both of legend-lite's hosts
      * route it: its server ({@code LegendHttpServer}) and the compiler's boundary. An execute runs through
-     * {@code runner}; a path this API does not serve is answered 404 in the engine's error shape.
+     * {@code runner}; a path this API does not serve is answered 404 in the engine's error shape. The two
+     * {@link #GET_ROUTES} read no body.
      */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner) {
         return route(path, rawQuery, body, runner, Models.COMPILED);
@@ -174,6 +189,11 @@ public final class PureV1Api {
             case "/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed" ->
                     TestDataRoutes.withDefaultSeed(body, runner, models);
             case "/api/pure/v1/testData/generation/DONOTUSE_generateTestData" -> TestDataRoutes.census(body, models);
+            // the protocol's element types (ProtocolTypes): the engine's two GET routes, a function of no request
+            case "/api/pure/v1/protocol/pure/getClassifierPathMap" ->
+                    new Answer(200, com.legend.protocol.ProtocolTypes.classifierPathMapJson());
+            case "/api/pure/v1/protocol/pure/getSubtypeInfo" ->
+                    new Answer(200, com.legend.protocol.ProtocolTypes.subtypeInfoJson());
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);

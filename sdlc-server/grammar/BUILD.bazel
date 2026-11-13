@@ -1,6 +1,7 @@
 # THE SDLC'S COMPILER (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 7): the one place SDLC-lite reaches legend-lite's
-# compiler. Its rules (//sdlc-server:rules) ask their two Pure questions through Sdlc.Grammar -- read a file's text
-# into an entity, check a tree before a review lands or a version is cut -- and depend on no Pure code; this adapter
+# compiler. Its rules (//sdlc-server:rules) ask their three Pure questions through Sdlc.Grammar -- read a file's text
+# into an entity, check a tree before a review lands or a version is cut, name an element type's classifier path
+# (2026-11-13: the protocol's one table, com.legend.protocol.ProtocolTypes) -- and depend on no Pure code; this adapter
 # answers them in process, and the server and the page wire it in. Of the SDLC's packages only this one may see the
 # compiler (//core's plan side), so a rule that reaches for it fails the build.
 load("//tools/guards:defs.bzl", "guards_package")
