@@ -392,8 +392,10 @@ class Reading:
         self.models = models
         # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
         self.held_values = held
-        # the first failure of a query of this read, in its words (``execute``): the read's end, where it aborted it
+        # the failure that aborted this read's transaction, in its words (``execute``): the read's end
         self.ended_by: str | None = None
+        # the read's latest failure, in its words: the one that aborted it, when DuckDB next says it is aborted
+        self._last_failure: str | None = None
 
     def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
@@ -409,19 +411,27 @@ class Reading:
             # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
             return send(self.cursor, sql, params)
         except duckdb.TransactionException as e:
+            # DuckDB says the read's transaction is aborted: by the read's latest failure -- the one that ran and failed,
+            # never one refused before it ran (a table not there), which left the transaction standing (the C4 audit's M4,
+            # 2026-11-13: until then the read's FIRST failure was named, a refused one among them)
+            if self.ended_by is None:
+                self.ended_by = self._last_failure
             if self.ended_by is None:
                 failure = redacted(e, self.held_values)
                 if failure is None:
                     raise
             else:
-                failure = RuntimeError(f'this read ended at its first failure as a query ran ({self.ended_by}): DuckDB'
-                                       " aborts the read's transaction there, so the call's later queries do not run;"
-                                       ' the next call reads the database afresh')
+                # the database's own error class, so a caller that answers a database's refusal answers this one (the
+                # plan-and-run's 422, never a 500)
+                failure = duckdb.TransactionException(
+                    f'this read ended at its first failure as a query ran ({self.ended_by}): DuckDB aborts the'
+                    " read's transaction there, so the call's later queries do not run; the next call reads the"
+                    ' database afresh')
         except duckdb.Error as e:
             failure = redacted(e, self.held_values)
-            # the read's first failure, in its words: a later query refused because it aborted the read names it
-            if self.ended_by is None:
-                self.ended_by = (str(failure) if failure is not None else str(e)).splitlines()[0]
+            said = str(failure) if failure is not None else str(e)
+            # its first line, or its class where it says nothing
+            self._last_failure = (said.splitlines() or [type(e).__name__])[0]
             if failure is None:
                 raise
         raise failure

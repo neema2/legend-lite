@@ -507,6 +507,19 @@ class RunFrameTest(unittest.TestCase):
                 read.run(plan)
                 self.assertTrue(seen and set(seen) == {'a read'}, seen)
 
+    def test_a_planner_entry_asked_through_the_pool_inside_a_run_is_refused(self):
+        # the C4 audit's M4, 2026-11-13: the pool's thread ran a call in its own, empty context, so a run's frame did not
+        # reach it and a planner entry asked through it inside a run answered; the call now runs in a copy of the
+        # caller's context. A service and a held model let go stay exempt, as on the caller's own thread.
+        from legend_lite._pool import _on_compiler_threads
+        held = compiler.HeldModel(_PULL_MODEL)
+        with in_run("a test's run"):
+            with self.assertRaisesRegex(RuntimeError, r"asked 'lite_session_setup' inside a run \(a test's run\)"):
+                _on_compiler_threads(lambda: library().call('lite_session_setup', 'DuckDB'))
+            self.assertTrue(_on_compiler_threads(lambda: library().call('lite_site_types')).startswith('OK'))
+            _on_compiler_threads(held.close)
+        self.assertTrue(_on_compiler_threads(lambda: library().call('lite_session_setup', 'DuckDB')).startswith('OK'))
+
     def test_no_crossing_is_known_and_none_is_exempt(self):
         # shrink-only, and empty since 2026-11-13: the read's re-pin, its one entry, went with the user's ruling (1b)
         from legend_lite._runframe import EXEMPTIONS, exempt

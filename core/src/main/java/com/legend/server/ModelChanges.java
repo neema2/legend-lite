@@ -78,12 +78,16 @@ public final class ModelChanges {
             @com.legend.base.Nullable Json.Obj dataSpace) {
         String pkg = packagePath(request.getString("package"));
         Json.Obj project = request.getObj("project");
-        only(project, "a project's model", "_type", "code");
+        // upstream's clients send a text model's serializer ({name, version}: PureModelContextText's protocol); read by
+        // no one here, admitted, closed over its own keys (the C4 audit's M4, 2026-11-13: it was refused by name)
+        only(project, "a project's model", "_type", "code", "serializer");
+        serializer(project);
         ModelChanges m = new ModelChanges(PureV1Api.modelText(project));
         List<CreateClass.Made> madeClasses = new ArrayList<>();
         for (Json.Obj c : classes) {
             Json.Obj source = c.getObj("source");
-            only(source, "a class's source model", "_type", "code");
+            only(source, "a class's source model", "_type", "code", "serializer");
+            serializer(source);
             madeClasses.add(CreateClass.apply(m, pkg, c, PureV1Api.modelText(source)));
         }
         List<CreateAssociation.Made> madeAssociations = new ArrayList<>();
@@ -570,6 +574,14 @@ public final class ModelChanges {
             return held + "_";
         }
         return Character.isDigit(held.charAt(0)) ? "_" + held : held;
+    }
+
+    /** A text model's {@code serializer}, where it carries one: an object of upstream's protocol's {@code name} and
+     *  {@code version}, any other key refused by name. */
+    static void serializer(Json.Obj model) {
+        if (model.has("serializer")) {
+            only(model.getObj("serializer"), "a model's serializer", "name", "version");
+        }
     }
 
     /** A name Pure holds unquoted: letters, digits and {@code _}, not led by a digit, and no literal's word. */

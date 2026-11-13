@@ -7,6 +7,7 @@ never calls the compiler: an idle connection holds no compiler thread."""
 
 from __future__ import annotations
 
+import contextvars
 import queue
 import threading
 from collections.abc import Callable
@@ -63,7 +64,10 @@ def _on_compiler_threads(call: Callable[[], Any]) -> Any:
     would wait on itself; DataCube's engine's thread, ``library_thread``), else on the pool."""
     if threading.current_thread().name.startswith('legend-lite-compiler-') or getattr(_library, 'is_one', False):
         return call()
-    return _workers().submit(call).result()
+    # run in a copy of the caller's context, so the run frame it is in (_runframe) reaches the pool's thread: a planner
+    # entry asked through the pool inside a run is refused there as it would be here (the C4 audit's M4, 2026-11-13:
+    # a pool thread's context was its own, empty, and saw no run)
+    return _workers().submit(contextvars.copy_context().run, call).result()
 
 
 def _workers() -> _Pool:

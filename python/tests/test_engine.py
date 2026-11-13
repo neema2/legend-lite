@@ -565,6 +565,21 @@ class PlanAndRunRoutes(Served):
         status, _, body = self.plan_and_run_over('not a model', '|1')
         self.assertTrue(json.loads(body)['plan'].startswith('ERR\nMODEL\n'), body)
 
+    def test_a_plan_and_run_over_a_read_its_failure_ended_is_answered_422_with_its_plan(self):
+        # the C4 audit's M4, 2026-11-13: a read a failing query ended refuses its later queries in the database's own
+        # error class, so the plan-and-run answers {plan, error} 422 -- until then a RuntimeError, a 500
+        from legend_lite._planned import PlannedSql
+        with self.frames.reading() as read:
+            with self.assertRaises(Exception):
+                read.execute(PlannedSql("SELECT CAST('x' AS INTEGER) AS n"))
+            answer = self.server.engine._plan_and_run(json.dumps({
+                'lambda': json.dumps(ll.parse('|' + self.table.accessor + '->select(~[desk])')),
+                'model': self.table.model, 'runtime': self.table.runtime}), over=read)
+        self.assertEqual(answer.status, 422, answer.body[:300])
+        said = json.loads(answer.body)
+        self.assertTrue(said['plan'].startswith('OK\n'), said)
+        self.assertRegex(said['error'], r'^TransactionException: this read ended at its first failure as a query ran \(Conversion')
+
     def test_sql_the_database_refuses_is_answered_with_its_plan(self):
         status, headers, body = self.plan_and_run("->extend(~[n: x|$x.desk->toOne()->parseInteger()])")
         self.assertEqual((status, headers['Content-Type']), (422, 'application/json'), body[:300])

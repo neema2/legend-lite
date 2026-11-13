@@ -48,7 +48,9 @@ class ModelChangesRequestsAreClosedTest {
     }
 
     private static Map<String, Object> text(String code) {
-        return obj("_type", "text", "code", code);
+        // upstream's clients send a text model's serializer (PureModelContextText's protocol: the C4 audit's M4,
+        // 2026-11-13, when the routes refused it by name)
+        return obj("_type", "text", "code", code, "serializer", obj("name", "pure", "version", "vX_X_X"));
     }
 
     /** A class action with every key the wire writes: its relation, source, name, documentation, columns' choices
@@ -175,8 +177,9 @@ class ModelChangesRequestsAreClosedTest {
     /** The objects walked: createClass 8 (the request, the project, and the class's 6: itself, its source, its two
      *  columns' choices, its place, its sample); createAssociation 16 (the request, the project, the trade class's 6 and
      *  the customer's 5, the association and its two ends); createDataSpace 17 (those, the association one of a list,
-     *  and the data space). */
-    private static final int EXPECTED_OBJECTS = 8 + 16 + 17;
+     *  and the data space). Each text model's serializer besides (2026-11-13, M4: the project's and each class's
+     *  source's): createClass 2, createAssociation 3, createDataSpace 3. */
+    private static final int EXPECTED_OBJECTS = 8 + 16 + 17 + 2 + 3 + 3;
 
     /** A sample of a table the relation does not read is refused by name: its rows would be read by nothing. */
     @Test
