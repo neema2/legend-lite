@@ -43,6 +43,12 @@ final class HostOperationsJson {
             }
         }
         String op = string(o, "op");
+        // each operation closed over its own keys, any other refused by name (the next PR's item 1, "separation made
+        // foolproof", 2026-11-13: an unknown key is refused, G7, so no field can ride in one unread)
+        java.util.List<String> keys = KEYS.get(op);
+        if (keys != null) {
+            only(o, "a host's " + op + " operation", keys);
+        }
         return switch (op) {
             case "relation" -> new HostOperation.MakeRelation(kind(string(o, "kind")), name(object(o, "target")),
                     bool(o, "replace"), convert(o), source(object(o, "from")));
@@ -83,6 +89,45 @@ final class HostOperationsJson {
         };
     }
 
+    /** Each operation's keys, its {@code op} among them: what {@link #operation} reads of it, and nothing more. An
+     *  operation refused by name (insert, secret) or unnamed is refused before its keys are read. */
+    private static final java.util.Map<String, java.util.List<String>> KEYS = java.util.Map.ofEntries(
+            java.util.Map.entry("relation", List.of("op", "kind", "target", "replace", "convert", "from")),
+            java.util.Map.entry("drop", List.of("op", "kind", "target")),
+            java.util.Map.entry("schema", List.of("op", "database", "name")),
+            java.util.Map.entry("dropSchema", List.of("op", "database", "name")),
+            java.util.Map.entry("count", List.of("op", "from")),
+            java.util.Map.entry("dropSecret", List.of("op", "name")),
+            java.util.Map.entry("resetVariable", List.of("op", "held")),
+            java.util.Map.entry("extensions", List.of("op", "names")),
+            java.util.Map.entry("extensionRepository", List.of("op", "url")),
+            java.util.Map.entry("extensionDirectory", List.of("op", "folder")),
+            java.util.Map.entry("fileSearchPath", List.of("op", "folder")),
+            java.util.Map.entry("transaction", List.of("op", "step")),
+            java.util.Map.entry("nameTaken", List.of("op", "name")),
+            java.util.Map.entry("relationExists", List.of("op", "name")),
+            java.util.Map.entry("tablesIn", List.of("op", "database", "schema")),
+            java.util.Map.entry("schemaExists", List.of("op", "database", "schema")),
+            java.util.Map.entry("currentDatabase", List.of("op")),
+            java.util.Map.entry("platform", List.of("op")),
+            java.util.Map.entry("icebergManifestLists", List.of("op", "url")),
+            java.util.Map.entry("icebergManifests", List.of("op", "lists")),
+            java.util.Map.entry("icebergDataFiles", List.of("op", "url")));
+
+    /** {@code o}'s keys among {@code keys}, any other refused by name ({@code what} names the object). */
+    private static void only(Json.Obj o, String what, List<String> keys) {
+        for (String key : o.fields().keySet()) {
+            if (!keys.contains(key)) {
+                throw new IllegalArgumentException(what + " has no key " + key + " (names and fields only, never a"
+                        + " value)");
+            }
+        }
+    }
+
+    private static void only(Json.Obj o, String what, String... keys) {
+        only(o, what, List.of(keys));
+    }
+
     private static HostOperation.Kind kind(String kind) {
         return switch (kind) {
             case "table" -> HostOperation.Kind.TABLE;
@@ -92,14 +137,12 @@ final class HostOperationsJson {
     }
 
     private static HostOperation.Name name(Json.Obj o) {
+        only(o, "a relation's name", "database", "schema", "name", "declared");
         return new HostOperation.Name(stringOrNull(o, "database"), stringOrNull(o, "schema"), string(o, "name"),
                 bool(o, "declared"));
     }
 
     private static HostOperation.Source source(Json.Obj o) {
-        if (o.has("relation")) {
-            return new HostOperation.Source.Relation(name(object(o, "relation")));
-        }
         if (o.has("file")) {
             // a host's own file is read by a planned load (B3, 2026-11-11: Boundary.fileLoad, run by the hosts'
             // runner), never by an operation naming its path
@@ -115,6 +158,12 @@ final class HostOperationsJson {
             // a host hands an operation no SQL (the final audit, 2026-11-12, the user's ruling): a pull is planned
             throw new IllegalArgumentException("a query is planned from its pull (snapCopy, or a Pure query's plan),"
                     + " never handed to a host operation");
+        }
+        if (o.has("relation")) {
+            // the refusals above first, each by its own name; then the relation alone (2026-11-13: until then a
+            // relation beside any other key was read and the other key dropped)
+            only(o, "a source", "relation");
+            return new HostOperation.Source.Relation(name(object(o, "relation")));
         }
         throw new IllegalArgumentException("a source is a relation");
     }
@@ -132,6 +181,7 @@ final class HostOperationsJson {
         }
         for (Json.Node n : arr.items()) {
             Json.Obj c = object(n, "a catalog column");
+            only(c, "a catalog column", "name", "dataType", "logicalType", "precision", "scale", "notNull");
             out.add(new com.legend.sql.dialect.CatalogModel.Column(string(c, "name"), string(c, "dataType"),
                     stringOrNull(c, "logicalType"), intOrNull(c, "precision"), intOrNull(c, "scale"),
                     bool(c, "notNull")));

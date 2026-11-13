@@ -595,15 +595,27 @@ class PlannerSurfaceTest {
                 continue;
             }
             Set<String> read = new TreeSet<>();
+            Set<String> admitted = new TreeSet<>();
             for (String body : bodies.get(d.name())) {
-                read.addAll(keys(body, bodies, helpers, new java.util.HashSet<>()));
+                read.addAll(keys(body, bodies, helpers, new java.util.HashSet<>(), Set.of(), Scan.READS));
+                admitted.addAll(keys(body, bodies, helpers, new java.util.HashSet<>(), Set.of(), Scan.ADMITS));
             }
-            compare(out, d.name(), read, d.fields().keySet());
+            Set<String> both = new TreeSet<>(read);
+            both.addAll(admitted);
+            compare(out, d.name(), both, d.fields().keySet());
+            closed(out, d.name(), read, admitted, d.fields());
         }
 
         // the host operations' fields
-        compare(out, "the host operations", keys(hostOperationsSource, Map.of(), Set.of(), new java.util.HashSet<>()),
-                HOST_OPERATION_FIELDS.keySet());
+        // (the whole source one body: every helper of it is in it)
+        Set<String> opRead = keys(hostOperationsSource, Map.of(), Set.of(), new java.util.HashSet<>(), Set.of(),
+                Scan.READS);
+        Set<String> opAdmitted = keys(hostOperationsSource, Map.of(), Set.of(), new java.util.HashSet<>(), Set.of(),
+                Scan.ADMITS);
+        Set<String> opBoth = new TreeSet<>(opRead);
+        opBoth.addAll(opAdmitted);
+        compare(out, "the host operations", opBoth, HOST_OPERATION_FIELDS.keySet());
+        closed(out, "the host operations", opRead, opAdmitted, HOST_OPERATION_FIELDS);
 
         // the exports: each delegates to the one listed door its row names
         exports(out, "the tab's export", Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\("),
@@ -781,6 +793,26 @@ class PlannerSurfaceTest {
         }
     }
 
+    /** THE CLOSURE AND THE READS AGREE (the orchestrator's go of 2026-11-13: every request door closes itself with
+     *  {@code only(...)}): every field {@code door} reads is one its {@code only(...)} lists admit -- or one the row
+     *  names as the planner's own answer read back ({@code INTERNAL}) or as refused by name ({@code REFUSED}), neither
+     *  of which a request may carry. A field read and admitted by none is a key the door reads past its closure. */
+    private static void closed(List<String> out, String door, Set<String> read, Set<String> admitted,
+            Map<String, Kind> declared) {
+        for (String k : read) {
+            Kind kind = declared.get(k);
+            if (!admitted.contains(k) && kind != INTERNAL && kind != REFUSED) {
+                out.add(door + " reads the field " + k + ", which none of its only(...) lists admits");
+            }
+        }
+        for (String k : admitted) {
+            Kind kind = declared.get(k);
+            if (kind == INTERNAL || kind == REFUSED) {
+                out.add(door + " admits the field " + k + ", which its row names " + kind);
+            }
+        }
+    }
+
     /** {@code found} against {@code listed}, each {@code what} (a route, a parameter, a file) named both ways. */
     private static void listedAs(List<String> out, String what, Set<String> found, Set<String> listed) {
         for (String k : found) {
@@ -882,31 +914,47 @@ class PlannerSurfaceTest {
     private static final Pattern READER = Pattern.compile("\\b[a-z]\\w*\\(\\s*\\w+\\s*,\\s*\"([A-Za-z_]\\w*)\"\\s*\\)");
     private static final Pattern ONLY = Pattern.compile("only\\(\\s*\\w+\\s*,\\s*\"[^\"]*\"((?:\\s*,\\s*\"[^\"]*\")*)\\)");
     private static final Pattern CALL = Pattern.compile("(?<![\\w.])(\\w+)\\(");
+    /** An operation's keys, {@code Map.entry("op", List.of("op", ...))}: what {@code HostOperationsJson} admits. */
+    private static final Pattern ENTRY = Pattern.compile("Map\\.entry\\(\\s*\"\\w+\"\\s*,\\s*List\\.of\\(([^)]*)\\)\\)");
+
+    /** What a scan collects: the keys a body reads, the keys its {@code only(...)} lists admit, or both. */
+    private enum Scan { READS, ADMITS, BOTH }
 
     /** The keys {@code body} admits or reads, with the private helpers it calls, transitively. */
     private static Set<String> keys(String body, Map<String, List<String>> methods, Set<String> helpers,
             Set<String> seen) {
-        return keys(body, methods, helpers, seen, Set.of());
+        return keys(body, methods, helpers, seen, Set.of(), Scan.BOTH);
+    }
+
+    private static Set<String> keys(String body, Map<String, List<String>> methods, Set<String> helpers,
+            Set<String> seen, Set<String> internal) {
+        return keys(body, methods, helpers, seen, internal, Scan.BOTH);
     }
 
     /** {@link #keys(String, Map, Set, Set)}, a key read through one of {@code internal}'s variables as
      *  {@code variable.key}. */
     private static Set<String> keys(String body, Map<String, List<String>> methods, Set<String> helpers,
-            Set<String> seen, Set<String> internal) {
+            Set<String> seen, Set<String> internal, Scan scan) {
         Set<String> out = new TreeSet<>();
-        Matcher get = GETTER.matcher(body);
-        while (get.find()) {
-            out.add(internal.contains(get.group(1)) ? get.group(1) + "." + get.group(2) : get.group(2));
+        if (scan != Scan.ADMITS) {
+            Matcher get = GETTER.matcher(body);
+            while (get.find()) {
+                out.add(internal.contains(get.group(1)) ? get.group(1) + "." + get.group(2) : get.group(2));
+            }
+            Matcher reader = READER.matcher(body);
+            while (reader.find()) {
+                out.add(reader.group(1));
+            }
         }
-        Matcher reader = READER.matcher(body);
-        while (reader.find()) {
-            out.add(reader.group(1));
-        }
-        Matcher only = ONLY.matcher(body);
-        while (only.find()) {
-            Matcher key = Pattern.compile("\"([^\"]*)\"").matcher(only.group(1));
-            while (key.find()) {
-                out.add(key.group(1));
+        if (scan != Scan.READS) {
+            for (Pattern admits : List.of(ONLY, ENTRY)) {
+                Matcher only = admits.matcher(body);
+                while (only.find()) {
+                    Matcher key = Pattern.compile("\"([^\"]*)\"").matcher(only.group(1));
+                    while (key.find()) {
+                        out.add(key.group(1));
+                    }
+                }
             }
         }
         Matcher call = CALL.matcher(body);
@@ -914,7 +962,7 @@ class PlannerSurfaceTest {
             String c = call.group(1);
             if (helpers.contains(c) && seen.add(c)) {
                 for (String b : methods.get(c)) {
-                    out.addAll(keys(b, methods, helpers, seen, internal));
+                    out.addAll(keys(b, methods, helpers, seen, internal, scan));
                 }
             }
         }
@@ -968,6 +1016,28 @@ class PlannerSurfaceTest {
         assertTrue(found.contains("snapCopy reads the field sql, which no row declares (a field that can carry SQL)"),
                 String.join("\n", found));
         assertTrue(found.contains("a door no row lists: PlantedBoundary.runSql"), String.join("\n", found));
+    }
+
+    /** The check names a field a door reads past its closure (2026-11-13: every request door closes itself with
+     *  {@code only(...)}): the boundary's source with fileLoad's file left open, and the host operations' with a
+     *  relation's {@code convert} left out of its keys, each spliced -- every field read and admitted by no
+     *  {@code only(...)} named, and nothing else. */
+    @Test
+    void aFieldReadPastItsDoorsClosureIsNamed() {
+        String boundary = read(BOUNDARY_SOURCE);
+        String open = "        only(file, \"a host's file\", \"name\", \"digest\", \"size\", \"format\");\n";
+        assertTrue(boundary.contains(open), "the splice's anchor");
+        String ops = read(HOST_OPERATIONS_SOURCE);
+        String relation = "List.of(\"op\", \"kind\", \"target\", \"replace\", \"convert\", \"from\")";
+        assertTrue(ops.contains(relation), "the splice's anchor");
+        List<String> found = violations(planner.Boundary.class, boundary.replace(open, ""),
+                ops.replace(relation, "List.of(\"op\", \"kind\", \"target\", \"replace\", \"from\")"),
+                read(TAB_SOURCE), nativeSources());
+        assertEquals(List.of("fileLoad reads the field digest, which none of its only(...) lists admits",
+                "fileLoad reads the field format, which none of its only(...) lists admits",
+                "fileLoad reads the field name, which none of its only(...) lists admits",
+                "fileLoad reads the field size, which none of its only(...) lists admits",
+                "the host operations reads the field convert, which none of its only(...) lists admits"), found);
     }
 
     /** The check names an export no row lists, on the tab's adapter and on the native library. */

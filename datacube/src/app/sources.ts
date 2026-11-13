@@ -558,7 +558,9 @@ export function pageSources(d: SourcesOf): PageSources {
 
   /** A warehouse table's model: its own runtime, of the catalog's database type. */
   const warehouseModel = (l: LocalEngine, o: CatalogObject): Promise<InferredModel> => l.tables.tableModel(
-    o.columns.map((c) => ({ ...c, dataType: c.type })),
+    // the catalog's `type` renamed, never carried beside it: the planner's tableModel refuses a key it has not
+    // (2026-11-13, every request door closed by only(...))
+    o.columns.map(({ type, ...c }) => ({ ...c, dataType: type })),
     { table: o.name, schema: o.schema, convertible: false, databaseType: o.databaseType });
   /**
    * WHERE A GRID SNAPS IN THE TAB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), for a grid whose rows are not in the
