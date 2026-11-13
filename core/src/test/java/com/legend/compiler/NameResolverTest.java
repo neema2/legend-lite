@@ -1971,6 +1971,66 @@ class NameResolverTest {
         assertEquals(java.util.Map.of("id3", "a::S"), runtime.apply(bare, "a::Q").connectionIds());
     }
 
+    /** The names fixes, item 4 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): three places the
+     * resolver did not walk. An enumerated-expression property mapping's operation resolves as an expression mapping's
+     * does; a generic's type-variable values resolve as any value (a text's are literals, the parser takes no other; a
+     * model given as protocol records may carry any value, so the test sets one); a quoted tree call's tree resolves in
+     * the SECTIONLESS scope -- the core imports, never the section's -- as the engine compiles the quoted string in a
+     * section of its own (LegendCompile.doCompileVS). */
+    @Test
+    void theResolverWalksEnumeratedExpressionsTypeVariableValuesAndQuotedTrees() {
+        ParsedModel parsed = com.legend.testing.Own.model("""
+                ###Relational
+                Database app::Db ( Table T (ID INTEGER PRIMARY KEY, K VARCHAR(10)) )
+                Database app::Other ( Table T2 (K VARCHAR(10)) )
+                ###Pure
+                import app::*;
+                Enum app::E { A, B }
+                Class app::C { e: E[1]; v: Varchar(8)[1]; }
+                function app::g():Any[*] { compileLegendValueSpecification('#{C{e, x(DurationUnit.DAYS)}}#') }
+                ###Mapping
+                import app::*;
+                Mapping app::M (
+                  E: EnumerationMapping EM { A: 'a', B: 'b' }
+                  C: Relational { ~mainTable [Db]T e: EnumerationMapping EM: case(equal([Other]T2.K, 'x'), 'a', 'b') }
+                )
+                """);
+        List<PackageableElement> elements = new java.util.ArrayList<>();
+        for (PackageableElement e : parsed.elements()) {
+            if (e instanceof ClassDefinition c && c.qualifiedName().equals("app::C")) {
+                // the class's Varchar(8) carries the value E.A instead, as a protocol model may
+                List<PropertyDefinition> props = new java.util.ArrayList<>(c.properties());
+                PropertyDefinition v = props.get(1);
+                TypeExpression.Generic g = (TypeExpression.Generic) v.type();
+                props.set(1, new PropertyDefinition(v.name(), new TypeExpression.Generic(g.name(),
+                        g.arguments(), g.multiplicityArguments(), List.of(new EnumValue("E", "A")), g.pos()),
+                        v.multiplicity(), v.stereotypes(), v.taggedValues(), v.hasDefault(), v.defaultValue()));
+                e = new ClassDefinition(c.qualifiedName(), c.typeParams(), c.typeVariables(), c.superClasses(), props,
+                        c.derivedProperties(), c.constraints(), c.stereotypes(), c.taggedValues(), c.isNative(),
+                        c.multiplicityParams());
+            }
+            elements.add(e);
+        }
+        ParsedModel r = NameResolver.resolve(new ParsedModel(elements, parsed.imports(), parsed.source(),
+                parsed.elementOffsets(), parsed.elementImports(), parsed.elementSources()));
+        java.util.function.Function<String, PackageableElement> el = fqn -> r.elements().stream()
+                .filter(e -> e.qualifiedName().equals(fqn)).findFirst().orElseThrow();
+        ClassMapping.Relational cm = (ClassMapping.Relational)
+                ((LegacyMappingDefinition) el.apply("app::M")).classMappings().get(0);
+        PropertyMapping.EnumeratedExpression ee = (PropertyMapping.EnumeratedExpression) cm.propertyMappings().get(0);
+        RelationalOperation.FunctionCall caseCall = (RelationalOperation.FunctionCall) ee.expression();
+        RelationalOperation.Comparison eq = (RelationalOperation.Comparison) caseCall.args().get(0);
+        assertEquals("app::Other", ((RelationalOperation.ColumnRef) eq.left()).databaseName(),
+                "the enumerated expression's [Other] resolves");
+        TypeExpression.Generic v = (TypeExpression.Generic) ((ClassDefinition) el.apply("app::C")).properties().get(1)
+                .type();
+        assertEquals("app::E", ((EnumValue) v.typeVariableValues().get(0)).fullPath(), "the type-variable value resolves");
+        com.legend.protocol.spec.QuotedTreeCall q = (com.legend.protocol.spec.QuotedTreeCall)
+                ((FunctionDefinition) el.apply("app::g")).body().get(0);
+        assertTrue(q.tree().toString().contains("meta::pure::functions::date::DurationUnit"),
+                "the tree's qualifier argument resolves through the core imports: " + q.tree());
+    }
+
     @Test
     void resolveProducesSameInstanceWhenNothingChanges() {
         // Already-FQN tree round-trips through resolve with reference

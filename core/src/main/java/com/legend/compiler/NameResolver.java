@@ -651,12 +651,15 @@ public final class NameResolver {
             case TypeExpression.Generic g -> {
                 String r = resolveName(g.name(), scope);
                 List<TypeExpression> args = resolveTypeList(g.arguments(), scope);
+                // the type-variable values resolve as any value specification in the element's scope (until
+                // 2026-11-13 they were not walked: the names fixes, item 4)
+                List<ValueSpecification> values = resolveVsList(g.typeVariableValues(), scope);
                 // the rebuild keeps the MULTIPLICITY arguments and the type
                 // variable values (Result<TabularDataSet|1>: dropping the |1
                 // typed every .values read of a user function's Result [*])
-                yield (r.equals(g.name()) && args == g.arguments()) ? g
+                yield (r.equals(g.name()) && args == g.arguments() && values == g.typeVariableValues()) ? g
                         : new TypeExpression.Generic(r, args, g.multiplicityArguments(),
-                                g.typeVariableValues(), g.pos());
+                                values, g.pos());
             }
             case TypeExpression.FunctionType ft -> {
                 List<TypeExpression.TypedParameter> params = resolveList(
@@ -1332,7 +1335,13 @@ public final class NameResolver {
                 yield db.equals(c.database()) ? c
                         : new PropertyMapping.Column(c.propertyName(), db, c.table(), c.column());
             }
-            case PropertyMapping.EnumeratedExpression ee -> ee;
+            // its operation resolves as an Expression's does (until 2026-11-13 it was not walked, so its [db]
+            // qualifiers kept their spelling: the names fixes, item 4, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+            case PropertyMapping.EnumeratedExpression ee -> {
+                RelationalOperation expr = resolveRelOp(ee.expression(), scope);
+                yield expr == ee.expression() ? ee
+                        : new PropertyMapping.EnumeratedExpression(ee.propertyName(), ee.enumMappingId(), nn(expr));
+            }
             case PropertyMapping.EnumeratedColumn ec -> {
                 String db = resolveName(ec.database(), scope);
                 yield db.equals(ec.database()) ? ec
@@ -1851,12 +1860,18 @@ public final class NameResolver {
             // its class names resolve in place, its call arguments as the
             // expressions they are
             case com.legend.protocol.spec.GraphFetchLiteral gf -> resolveGraphFetch(gf, scope);
+            // the tree resolves in the SECTIONLESS scope (the core imports, no section imports) over the same
+            // universe: the engine compiles the quoted string as a section of its own with no imports
+            // (LegendCompile.doCompileVS, `function a::f():Any[*]{ <code> }`). Until 2026-11-13 it was not walked:
+            // the names fixes, item 4
             case com.legend.protocol.spec.QuotedTreeCall q ->
                     new com.legend.protocol.spec.QuotedTreeCall(
                             (com.legend.protocol.spec.AppliedFunction)
                                     java.util.Objects.requireNonNull(
                                             resolveVs(q.original(), scope)),
-                            q.tree(), q.pos());
+                            java.util.Objects.requireNonNull(resolveVs(q.tree(),
+                                    Scope.preludeOf(ImportScope.empty(), scope.knownFqns()))),
+                            q.pos());
             // the grammar carrier's lambdas resolve in the ENCLOSING scope
             // (the payload spells its elements fully qualified; the
             // engine's native compiles it against the same model)
