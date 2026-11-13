@@ -19,6 +19,10 @@ import { TS_WORDS } from '../src/generated/ts-words.ts';
 import { WORD_FACTS } from '../src/generated/ts-facts.ts';
 import { completionsAt, offeredWords, seriesText, treeOf, writtenText, type TsOffer } from '../src/timeseries-text.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 /** A series of the builder's term, as a tile holds it: its own text, its reading held. */
 const text = (t: Term): string => writtenText(t.expr, []);
 const close = column('close');

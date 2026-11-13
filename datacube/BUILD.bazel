@@ -510,8 +510,8 @@ _WASM_TESTS = [
     "remote",
     "plane",
     "app-dom",
-    # a grid's snap: its copy the planner's plan of the pull (snapCopy, the final audit's item 1, 2026-11-12)
-    "one-api-gestures",
+    # (one-api-gestures, above: also a grid's snap, its copy the planner's plan of the pull -- snapCopy, the final
+    # audit's item 1, 2026-11-12)
     "parity-screen",
     # the start's trades read in as the sample file a saved start page rebuilds, by the tab's own ingest (2026-10-23)
     "sample-trades",

@@ -549,8 +549,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  (observations, period, all: winsorize's, count's, first's, last's, a lag's), and the saved series' judge refuses
  *  those forms as core does (timeseries-spec.ts) -- winsorize(x, 1.5, 20) was taken and refused only when it ran.
  *  Measured 433,405.
- *  434,500 -> 437,700 (2026-11-13, main's #95 merged into the timeseries branch: both sides' raises over 2026-10-30's budget together, +3,200 and +4,000; provisional until measured on the merge). */
-const BUDGET = 437_700;
+ *  434,500 -> 437,000 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
+ *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
+ *  file). Measured 436,691. */
+const BUDGET = 437_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -780,8 +782,10 @@ const BUDGET = 437_700;
  *  Measured 421,116.
  *  421,300 -> 421,600 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
  *  date). Measured 421,329.
- *  422,000 -> 425,100 (2026-11-13, main's #95 merged into the timeseries branch: both sides' raises over 2026-10-30's budget together, +3,100 and +3,500; provisional until measured on the merge). */
-const ENGINE_BUDGET = 425_100;
+ *  422,000 -> 425,500 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
+ *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
+ *  file). Measured 425,126. */
+const ENGINE_BUDGET = 425_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1292,8 +1296,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  Measured 449,486.
  *  449,700 -> 450,000 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
  *  date). Measured 449,707.
- *  450,500 -> 454,000 (2026-11-13, main's #95 merged into the timeseries branch: both sides' raises over 2026-10-30's budget together, +3,500 and +4,000; provisional until measured on the merge). */
-const WIDGET_BUDGET = 454_000;
+ *  450,500 -> 453,800 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
+ *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
+ *  file). Measured 453,495. */
+const WIDGET_BUDGET = 453_800;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

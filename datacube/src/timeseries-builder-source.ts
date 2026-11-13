@@ -18,6 +18,14 @@ import { BUILDER_WORDS } from './generated/ts-builder-words.ts';
 import { cashOver, RISK_FREE_CURRENCIES, takesCash, type GsParam } from './timeseries-builder-core.ts';
 import { told as filled } from './timeseries-text.ts';
 
+/** The generated module's enumeration {@code name}: its members by their values (gs-quant's), read and checked -- none
+ *  where the module has no such enumeration (main's JSON-as-unknown guard, 2026-11-13: an unchecked cast). */
+function enumMembers(name: string): Readonly<Record<string, string>> | undefined {
+  const e: unknown = Reflect.get(generated, name);
+  if (typeof e !== 'object' || e === null) return undefined;
+  return Object.fromEntries(Object.entries(e).filter((kv): kv is [string, string] => typeof kv[1] === 'string'));
+}
+
 /** The languages a series is written in as the builder's code. */
 export type BuilderLanguage = 'typescript' | 'python';
 
@@ -320,7 +328,7 @@ class Printer {
   gsValue(g: GsParam, v: number | string): string {
     if (typeof v !== 'string') return String(v);
     const gs = Object.entries(g.values ?? {}).find(([, lib]) => lib === v)?.[0] ?? v;
-    const members = g.enum === undefined ? undefined : (generated as unknown as Record<string, Readonly<Record<string, string>> | undefined>)[g.enum];
+    const members = g.enum === undefined ? undefined : enumMembers(g.enum);
     const member = members === undefined ? undefined : Object.entries(members).find(([, x]) => x === gs)?.[0];
     if (member === undefined) return quote(gs);
     return this.member(g.enum!, member);

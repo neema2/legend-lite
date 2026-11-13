@@ -34,13 +34,40 @@ export function termOf(w: unknown): Term {
   return v;
 }
 
+/** A scalar a column's pick or a line may be: text, a number, a Boolean. */
+function isScalar(x: unknown): x is string | number | boolean {
+  return typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean';
+}
+
+/** A column's pick as the wire says it -- a value, or a column's value by its name -- checked, never cast (main's
+ *  JSON-as-unknown guard, 2026-11-13: an unchecked cast hid what a pick may be). */
+function pickOf(x: unknown): string | number | boolean | Readonly<Record<string, string | number | boolean>> {
+  if (isScalar(x)) return x;
+  if (isRecord(x)) {
+    const told: [string, string | number | boolean][] = [];
+    for (const [k, v] of Object.entries(x)) {
+      if (!isScalar(v)) throw new BuilderRefusal(`${JSON.stringify(x)} is no pick of a column's`);
+      told.push([k, v]);
+    }
+    return Object.fromEntries(told);
+  }
+  throw new BuilderRefusal(`${JSON.stringify(x)} is no pick of a column's`);
+}
+
+/** A word's line as the wire says it: a series, a number, or a list of series (union's, append's), checked. */
+function lineOf(x: unknown): Term | number | readonly Term[] {
+  if (x instanceof Term || typeof x === 'number') return x;
+  if (Array.isArray(x) && x.every((t): t is Term => t instanceof Term)) return x;
+  throw new BuilderRefusal(`${JSON.stringify(x)} is no line of a word's`);
+}
+
 /** An argument as the builder's functions take it: a term, a window, a list of them, or a value as it is. */
 function argOf(w: unknown): unknown {
   if (Array.isArray(w)) return w.map(argOf);
   if (!isRecord(w)) return w;
   switch (w['term']) {
     case 'column': {
-      const picks = Array.isArray(w['picks']) ? (w['picks'] as never[]) : [];
+      const picks = Array.isArray(w['picks']) ? w['picks'].map(pickOf) : [];
       const c: ColumnTerm = column(String(w['name']), ...picks);
       return w['period'] === undefined || w['period'] === null ? c : c.period(w['period'] as TsAggregate);
     }
@@ -61,7 +88,10 @@ function argOf(w: unknown): unknown {
       const name = String(w['name']);
       if (!METHODS.has(name)) throw new BuilderRefusal(`${name} is no method of a series`);
       const y = argOf(w['y']);
-      return (termOf(w['x']) as unknown as Record<string, (o: unknown) => Term>)[name]!(y);
+      const x = termOf(w['x']);
+      const method: unknown = Reflect.get(x, name);
+      if (typeof method !== 'function') throw new BuilderRefusal(`${name} is no method of a series`);
+      return method.call(x, y);
     }
     case 'word': {
       // the word's shape, its parameters by name (word() takes every one so, a required one too)
@@ -72,7 +102,7 @@ function argOf(w: unknown): unknown {
       // a word of one list of series (union's, append's) reads the list's series as its lines
       const lines = shape.listOf !== undefined && told.length === 1 && Array.isArray(told[0]) ? told[0] as Term[] : told;
       const kw = isRecord(w['kw']) ? Object.fromEntries(Object.entries(w['kw']).map(([k, x]) => [k, argOf(x)])) : {};
-      return word(shape, lines as never, Object.keys(kw).length > 0 ? [kw] : []);
+      return word(shape, lines.map(lineOf), Object.keys(kw).length > 0 ? [kw] : []);
     }
     default:
       throw new BuilderRefusal(`${JSON.stringify(w)} is no term of the builder's`);

@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { after, before, it } from 'node:test';
 import { openDatabase } from '#test-host';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import { runLoad } from '../../engine-client/src/plan-runner.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { MARKETS_PROJECT, SAVED_GRIDS, savedQueryTree } from '../src/examples/markets-classes.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
@@ -108,7 +109,9 @@ before(async () => {
   planner = plannerFor(PROJECT, 'stress::RT');
   engine = new DuckDbEngine((await openDatabase()).connection);
   const project = await planner.projectData(PROJECT, engine.databaseType);
-  for (const sql of [...project.open, ...project.use, ...project.fill]) await engine.run(sql, 0);
+  for (const sql of [...project.open, ...project.use]) await engine.run(sql, 0);
+  // its rows: the plan's ONCE load, run by the hosts' runner (main's #95, B3)
+  if (project.load !== undefined) await runLoad(project.load, (sql) => engine.run(sql, 0));
   // each source the page's grid: its saved query, the class projected to a relation through stress::AllMapping
   const snapshot = (id: string): CubeSnapshot => {
     const g = SAVED_GRIDS.find((x) => x.id === id)!;
