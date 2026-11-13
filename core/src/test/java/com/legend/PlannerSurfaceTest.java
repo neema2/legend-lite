@@ -1,0 +1,586 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend;
+
+import com.legend.testing.SourceFiles;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static com.legend.PlannerSurfaceTest.Kind.AUTHORED_SQL;
+import static com.legend.PlannerSurfaceTest.Kind.CATALOG_ROWS;
+import static com.legend.PlannerSurfaceTest.Kind.DATA_REFERENCE;
+import static com.legend.PlannerSurfaceTest.Kind.HANDLE;
+import static com.legend.PlannerSurfaceTest.Kind.HOST_OPERATIONS;
+import static com.legend.PlannerSurfaceTest.Kind.INTERNAL;
+import static com.legend.PlannerSurfaceTest.Kind.LAMBDA;
+import static com.legend.PlannerSurfaceTest.Kind.MESSAGE;
+import static com.legend.PlannerSurfaceTest.Kind.MODEL_TEXT;
+import static com.legend.PlannerSurfaceTest.Kind.NAME;
+import static com.legend.PlannerSurfaceTest.Kind.OBJECT;
+import static com.legend.PlannerSurfaceTest.Kind.OPTION;
+import static com.legend.PlannerSurfaceTest.Kind.PLAN_DATA;
+import static com.legend.PlannerSurfaceTest.Kind.REFUSED;
+import static com.legend.PlannerSurfaceTest.Kind.REQUEST;
+import static com.legend.PlannerSurfaceTest.Kind.ROUTE;
+import static com.legend.PlannerSurfaceTest.Kind.ROUTE_BODY;
+import static com.legend.PlannerSurfaceTest.Kind.RUN_ROWS;
+import static com.legend.PlannerSurfaceTest.Kind.VALUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * THE CLOSED PLANNER SURFACE (the next PR's item 1, "separation made foolproof", 2026-11-13;
+ * docs/TOTAL_WALL_START_HERE_2026_11_11.md §6.1): every door a host plans through -- the boundary's
+ * ({@code planner.Boundary}), the tab's exports ({@code planner.TabExports}) and the native library's
+ * ({@code com.legend.nativelib}) -- is listed here with each request field's declared {@link Kind}. A door that is not
+ * listed, a field a door reads that no row declares, a declared field it no longer reads, and a field that can carry
+ * SQL -- the playground's {@code authored.text} alone excepted -- each fail the build, by name.
+ *
+ * <p>The boundary's doors are read by reflection (its public statics); each request door's fields from its source:
+ * the keys its {@code only(...)} admits and every key it reads (a {@code getX("k")}, a {@code has("k")}, a reader
+ * {@code f(o, "k")}), in its own body and the boundary's private helpers it calls, transitively. The exports are read
+ * from their sources: each {@code @JSExport} and {@code @CEntryPoint} delegates to the one listed door its row names,
+ * or is a listed native service that plans nothing. {@link #theSurfaceRefusesAPlantedDoor} and
+ * {@link #theSurfaceRefusesAPlantedExport} plant a violator of each kind and see it named.
+ *
+ * <p>The server's routes, the root doors and Python's planner are the item's next commits.
+ */
+@Tag("census")
+class PlannerSurfaceTest {
+
+    /** What a request field carries -- every kind a value the planner reads, never a statement it sends as written,
+     *  but {@link #AUTHORED_SQL}. */
+    enum Kind {
+        /** A Pure model's text (or texts), compiled by the planner. */
+        MODEL_TEXT,
+        /** A Pure query -- text or the protocol's lambda JSON -- compiled by the planner. */
+        LAMBDA,
+        /** An identifier (a database type, a runtime, a schema, a table, a column, a view): spelled by the planner as a
+         *  name, quoted, never as SQL. */
+        NAME,
+        /** Data the plan loads, by reference: a file by the name the host keeps it under, its digest, a URL, a held
+         *  value's name -- resolved and delivered by exec. */
+        DATA_REFERENCE,
+        /** A database's own catalog answer (columns, types), read by the dialect's catalog reader into types; an
+         *  unknown type is refused or excluded by name, never spliced. */
+        CATALOG_ROWS,
+        /** A plan the planner wrote, handed back to it (an answer's plan half). */
+        PLAN_DATA,
+        /** The rows a host's database answered, decoded by the plan's columns and written by the answer's writer. */
+        RUN_ROWS,
+        /** A value bound or read as data: a count, a range, a knob's values, an instant. */
+        VALUE,
+        /** One of a closed set of words or a flag, refused by name when unknown. */
+        OPTION,
+        /** A held model's handle. */
+        HANDLE,
+        /** A host's refusal message, written into an answer. */
+        MESSAGE,
+        /** A JSON object whose fields are declared beside it. */
+        REQUEST,
+        /** A nested object of a request, its fields declared beside it. */
+        OBJECT,
+        /** A listed pure/v1 route's path (the server's routes: the item's next commit). */
+        ROUTE,
+        /** A listed pure/v1 route's body (the server's routes: the item's next commit). */
+        ROUTE_BODY,
+        /** A host's named operations, each closed by its {@code op} ({@code HostOperationsJson}), their fields declared
+         *  in {@link #HOST_OPERATION_FIELDS}. */
+        HOST_OPERATIONS,
+        /** A key the door reads of the planner's own intermediate JSON, never of the request. */
+        INTERNAL,
+        /** A key read only to refuse it by name. */
+        REFUSED,
+        /** A person's own statement: Studio's SQL playground, {@code authored.text}, alone. */
+        AUTHORED_SQL
+    }
+
+    /** A door's parameter: its name (the registry's: no class file keeps one), its type, its kind. */
+    record Param(String name, Class<?> type, Kind kind) {
+    }
+
+    /** A door: its parameters in order, and the fields of its request -- every key it admits or reads. */
+    record Door(String name, List<Param> params, Map<String, Kind> fields) {
+    }
+
+    private static Param p(String name, Kind kind) {
+        return new Param(name, String.class, kind);
+    }
+
+    private static Param handle() {
+        return new Param("handle", int.class, HANDLE);
+    }
+
+    private static Door door(String name, Param... params) {
+        return new Door(name, List.of(params), Map.of());
+    }
+
+    private static Door door(String name, Param request, Map<String, Kind> fields) {
+        return new Door(name, List.of(request), new TreeMap<>(fields));
+    }
+
+    private static Map<String, Kind> fields(Object... nameKind) {
+        Map<String, Kind> out = new LinkedHashMap<>();
+        for (int i = 0; i < nameKind.length; i += 2) {
+            out.put((String) nameKind[i], (Kind) nameKind[i + 1]);
+        }
+        return out;
+    }
+
+    /** A table's catalog as a request carries it: the box's tables and the target, each its columns' catalog rows. */
+    private static final Object[] CATALOG = {"columns", CATALOG_ROWS, "dataType", CATALOG_ROWS, "logicalType",
+            CATALOG_ROWS, "notNull", CATALOG_ROWS, "precision", CATALOG_ROWS, "scale", CATALOG_ROWS, "name", NAME,
+            "table", NAME, "schema", NAME, "convertible", OPTION};
+
+    private static Object[] with(Object[] base, Object... more) {
+        Object[] out = Arrays.copyOf(base, base.length + more.length);
+        System.arraycopy(more, 0, out, base.length, more.length);
+        return out;
+    }
+
+    /** THE BOUNDARY'S DOORS, each listed with its fields' kinds (2026-11-13). */
+    static final Map<String, Door> BOUNDARY = listed(
+            door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
+            door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            door("refusal", p("message", MESSAGE)),
+            door("planSql", p("model", MODEL_TEXT), p("query", LAMBDA), p("runtime", NAME)),
+            door("plan", p("model", MODEL_TEXT), p("query", LAMBDA), p("runtime", NAME)),
+            door("relationType", p("model", MODEL_TEXT), p("query", LAMBDA)),
+            door("planJson", p("model", MODEL_TEXT), p("lambdaJson", LAMBDA), p("runtime", NAME)),
+            door("holdModel", p("model", MODEL_TEXT)),
+            door("releaseModel", handle()),
+            door("planHeld", handle(), p("query", LAMBDA), p("runtime", NAME)),
+            door("planJsonHeld", handle(), p("lambdaJson", LAMBDA), p("runtime", NAME)),
+            door("executionPlanJsonHeld", handle(), p("lambdaJson", LAMBDA), p("runtime", NAME)),
+            door("relationTypeJsonHeld", handle(), p("lambdaJson", LAMBDA)),
+            door("relationTypeHeld", handle(), p("query", LAMBDA)),
+            // a host's file read into its database: the file by the name the host keeps it under, its digest
+            door("fileLoad", p("request", REQUEST), fields("databaseType", NAME, "file", OBJECT, "name",
+                    DATA_REFERENCE, "digest", DATA_REFERENCE, "size", VALUE, "format", OPTION, "into", OBJECT,
+                    "table", NAME, "model", MODEL_TEXT, "database", NAME, "schema", NAME)),
+            // a remote file mounted: names and fields only, an address with no token
+            door("remoteMount", p("request", REQUEST), fields("databaseType", NAME, "view", NAME, "location", OBJECT,
+                    "url", DATA_REFERENCE, "bearer", DATA_REFERENCE, "shown", DATA_REFERENCE, "format", OPTION,
+                    "credentials", OBJECT, "name", DATA_REFERENCE, "fields", NAME)),
+            door("snapStream", p("request", REQUEST), fields("databaseType", NAME, "plane", NAME, "model", MODEL_TEXT,
+                    "runtime", NAME, "lambda", LAMBDA, "schema", NAME, "table", NAME)),
+            door("snapCopy", p("request", REQUEST), fields("databaseType", NAME, "model", MODEL_TEXT, "runtime", NAME,
+                    "lambda", LAMBDA, "schema", NAME, "table", NAME)),
+            // a table Output: the box's tables and the target as their catalogs answer them; model, runtime, source
+            // and body read back from the planner's own model of them
+            door("outputPlan", p("request", REQUEST), fields(with(CATALOG, "databaseType", NAME, "tables",
+                    CATALOG_ROWS, "target", CATALOG_ROWS, "output", OBJECT, "mode", OPTION, "keys", NAME, "rows",
+                    LAMBDA, "pkg", NAME, "connection", NAME, "model", INTERNAL, "runtime", INTERNAL, "source",
+                    INTERNAL, "body", INTERNAL))),
+            // THE PLAYGROUND: a person's own statement, carried as written (Authored)
+            door("authored", p("request", REQUEST), fields("databaseType", NAME, "text", AUTHORED_SQL)),
+            door("synthesize", p("request", REQUEST), fields("databaseType", NAME, "model", MODEL_TEXT, "database",
+                    NAME, "schema", NAME, "table", NAME, "count", VALUE, "columns", OBJECT, "values", VALUE, "range",
+                    VALUE, "scale", VALUE)),
+            door("frameLoad", p("request", REQUEST), fields("databaseType", NAME, "held", DATA_REFERENCE, "as", NAME,
+                    "live", OPTION, "schema", NAME, "relation", NAME)),
+            door("databaseFromCatalog", p("catalogJson", REQUEST), fields(with(CATALOG, "databaseType", NAME, "path",
+                    DATA_REFERENCE, "body", INTERNAL))),
+            door("tableModel", p("tableJson", REQUEST), fields(with(CATALOG, "databaseType", NAME, "tables",
+                    CATALOG_ROWS, "pkg", NAME, "connection", NAME, "body", INTERNAL))),
+            door("catalogColumnsSql", p("schema", NAME), p("table", NAME)),
+            door("sessionSetup", p("databaseType", NAME)),
+            door("hostOperations", p("databaseType", NAME), p("operationsJson", HOST_OPERATIONS)),
+            door("projectData", p("model", MODEL_TEXT), p("databaseType", NAME)),
+            door("warmModel", p("model", MODEL_TEXT)),
+            door("touchPrelude"),
+            door("touchSystemMetamodel"),
+            door("hashBootSource"),
+            door("resolveBootLayer"),
+            door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)));
+
+    /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */
+    static final Map<String, Kind> HOST_OPERATION_FIELDS = new TreeMap<>(fields("op", OPTION, "kind", OPTION,
+            "target", OBJECT, "replace", OPTION, "from", OBJECT, "relation", OBJECT, "database", NAME, "schema", NAME,
+            "name", NAME, "declared", OPTION, "names", NAME, "held", DATA_REFERENCE, "folder", DATA_REFERENCE, "url",
+            DATA_REFERENCE, "lists", DATA_REFERENCE, "step", OPTION, "convert", CATALOG_ROWS, "dataType", CATALOG_ROWS,
+            "logicalType", CATALOG_ROWS, "precision", CATALOG_ROWS, "scale", CATALOG_ROWS, "notNull", CATALOG_ROWS,
+            // a host's file and a remote file are planned loads, a pull a planned query: each refused by name
+            "file", REFUSED, "remote", REFUSED, "query", REFUSED));
+
+    /** THE TAB'S EXPORTS: each the one boundary door it delegates to. */
+    static final Map<String, String> TAB_EXPORTS = new TreeMap<>(Map.ofEntries(
+            Map.entry("pureV1OrError", "pureV1"), Map.entry("executeJsonPlanOrError", "executeJsonPlan"),
+            Map.entry("executeJsonAnswerOrError", "executeJsonAnswer"),
+            Map.entry("executeArrowAnswerOrError", "executeArrowAnswer"), Map.entry("plan", "planSql"),
+            Map.entry("planOrError", "plan"), Map.entry("relationTypeOrError", "relationType"),
+            Map.entry("planJsonOrError", "planJson"), Map.entry("holdModelOrError", "holdModel"),
+            Map.entry("releaseModelOrError", "releaseModel"), Map.entry("planHeldOrError", "planHeld"),
+            Map.entry("planJsonHeldOrError", "planJsonHeld"),
+            Map.entry("executionPlanJsonHeldOrError", "executionPlanJsonHeld"),
+            Map.entry("relationTypeHeldOrError", "relationTypeHeld"), Map.entry("fileLoadOrError", "fileLoad"),
+            Map.entry("remoteMountOrError", "remoteMount"), Map.entry("snapStreamOrError", "snapStream"),
+            Map.entry("snapCopyOrError", "snapCopy"), Map.entry("outputPlanOrError", "outputPlan"),
+            Map.entry("authoredOrError", "authored"), Map.entry("synthesizeOrError", "synthesize"),
+            Map.entry("databaseFromCatalogOrError", "databaseFromCatalog"),
+            Map.entry("tableModelOrError", "tableModel"), Map.entry("catalogColumnsSqlOrError", "catalogColumnsSql"),
+            Map.entry("sessionSetupOrError", "sessionSetup"), Map.entry("hostOperationsOrError", "hostOperations"),
+            Map.entry("projectDataOrError", "projectData"), Map.entry("warmModel", "warmModel"),
+            Map.entry("warmModelOrError", "warmModel"), Map.entry("touchPrelude", "touchPrelude"),
+            Map.entry("touchSystemMetamodel", "touchSystemMetamodel"), Map.entry("hashBootSource", "hashBootSource"),
+            Map.entry("resolveBootLayer", "resolveBootLayer"), Map.entry("zoneProbe", "zoneProbe")));
+
+    /** THE NATIVE LIBRARY'S EXPORTS: each the one boundary door it delegates to. */
+    static final Map<String, String> NATIVE_EXPORTS = new TreeMap<>(Map.ofEntries(
+            Map.entry("lite_plan_json", "planJson"), Map.entry("lite_plan_text", "plan"),
+            Map.entry("lite_hold_model", "holdModel"), Map.entry("lite_release_model", "releaseModel"),
+            Map.entry("lite_plan_json_held", "planJsonHeld"),
+            Map.entry("lite_execution_plan_json_held", "executionPlanJsonHeld"),
+            Map.entry("lite_relation_type_held", "relationTypeJsonHeld"), Map.entry("lite_plan_text_held", "planHeld"),
+            Map.entry("lite_relation_type_text_held", "relationTypeHeld"), Map.entry("lite_file_load", "fileLoad"),
+            Map.entry("lite_remote_mount", "remoteMount"), Map.entry("lite_snap_stream", "snapStream"),
+            Map.entry("lite_snap_copy", "snapCopy"), Map.entry("lite_output_plan", "outputPlan"),
+            Map.entry("lite_synthesize", "synthesize"), Map.entry("lite_frame_load", "frameLoad"),
+            Map.entry("lite_database_from_catalog", "databaseFromCatalog"),
+            Map.entry("lite_table_model", "tableModel"), Map.entry("lite_catalog_columns_sql", "catalogColumnsSql"),
+            Map.entry("lite_session_setup", "sessionSetup"), Map.entry("lite_host_operations", "hostOperations"),
+            Map.entry("lite_project_data", "projectData"), Map.entry("lite_pure_v1", "pureV1"),
+            Map.entry("lite_execute_plan", "executePlan"), Map.entry("lite_execute_json_plan", "executeJsonPlan"),
+            Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
+            Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
+            Map.entry("lite_pure_v1_refusal", "refusal")));
+
+    /** The native library's exports that are no planner door, each with what it is instead. */
+    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.of(
+            "lite_site_types", "the site's types, a constant of the build (Folded's answer of them)",
+            "lite_free", "the answer's memory freed",
+            "lite_unfreed", "the count of answers not yet freed (a leak's witness)",
+            "lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)",
+            "lite_depot_handle", "the model home's depot, opened on a folder",
+            "lite_saved_queries", "the saved queries' rules over a folder",
+            "lite_saved_cubes", "the saved cubes' rules over a folder",
+            "lite_warehouse_call", "the warehouse's SQL API, a database server of its own, as its binding speaks it",
+            "lite_warehouse_read", "the warehouse's SQL API's read"));
+
+    /** The playground's door and field: the one place a request carries SQL. */
+    private static final String PLAYGROUND = "authored.text";
+
+    /** A field name that names a statement: declared {@link Kind#AUTHORED_SQL} or refused, nowhere else. */
+    private static final Pattern NAMES_SQL = Pattern.compile("(?i).*(sql|statement).*");
+
+    private static Map<String, Door> listed(Door... doors) {
+        Map<String, Door> out = new TreeMap<>();
+        for (Door d : doors) {
+            assertTrue(out.put(d.name(), d) == null, "listed twice: " + d.name());
+        }
+        return out;
+    }
+
+    // ---- the check
+
+    /** Every violation of the closed surface over {@code boundary} (its doors by reflection, its request doors' fields
+     *  from {@code boundarySource}), the host operations' source, the tab's adapter's source and the native library's
+     *  sources -- each named. */
+    static List<String> violations(Class<?> boundary, String boundarySource, String hostOperationsSource,
+            String tabSource, List<String> nativeSources) {
+        List<String> out = new ArrayList<>();
+        // the registry's own rule: SQL at the playground alone, and a name that names a statement nowhere else
+        BOUNDARY.forEach((name, d) -> {
+            for (Param p : d.params()) {
+                sqlRule(out, name + "(" + p.name() + ")", p.name(), p.kind());
+            }
+            d.fields().forEach((f, k) -> sqlRule(out, name + "." + f, f, k));
+        });
+        HOST_OPERATION_FIELDS.forEach((f, k) -> sqlRule(out, "a host operation's " + f, f, k));
+
+        // the doors: the class's public statics, each listed with its parameters' types
+        Map<String, Method> found = new TreeMap<>();
+        for (Method m : boundary.getDeclaredMethods()) {
+            if (Modifier.isPublic(m.getModifiers()) && Modifier.isStatic(m.getModifiers())) {
+                if (found.put(m.getName(), m) != null) {
+                    out.add("a door with two signatures: " + m.getName());
+                }
+            }
+        }
+        for (String name : found.keySet()) {
+            if (!BOUNDARY.containsKey(name)) {
+                out.add("a door no row lists: " + boundary.getSimpleName() + "." + name);
+            }
+        }
+        for (Door d : BOUNDARY.values()) {
+            Method m = found.get(d.name());
+            if (m == null) {
+                out.add("a listed door the boundary no longer has: " + d.name());
+                continue;
+            }
+            List<Class<?>> types = d.params().stream().<Class<?>>map(Param::type).toList();
+            if (!List.of(m.getParameterTypes()).equals(types)) {
+                out.add("a door's parameters differ from its row: " + d.name() + " " + List.of(m.getParameterTypes()));
+            }
+        }
+
+        // each request door's fields, read from its source
+        Map<String, List<String>> bodies = methods(boundarySource);
+        Set<String> helpers = privateStatics(boundarySource);
+        for (Door d : BOUNDARY.values()) {
+            boolean request = d.params().stream().anyMatch(p -> p.kind() == REQUEST);
+            if (!request || !bodies.containsKey(d.name())) {
+                continue;
+            }
+            Set<String> read = new TreeSet<>();
+            for (String body : bodies.get(d.name())) {
+                read.addAll(keys(body, bodies, helpers, new java.util.HashSet<>()));
+            }
+            compare(out, d.name(), read, d.fields().keySet());
+        }
+
+        // the host operations' fields
+        compare(out, "the host operations", keys(hostOperationsSource, Map.of(), Set.of(), new java.util.HashSet<>()),
+                HOST_OPERATION_FIELDS.keySet());
+
+        // the exports: each delegates to the one listed door its row names
+        exports(out, "the tab's export", Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\("),
+                List.of(tabSource), TAB_EXPORTS, Map.of());
+        exports(out, "the native export", Pattern.compile("@CEntryPoint\\(name = \"(\\w+)\"\\)"), nativeSources,
+                NATIVE_EXPORTS, NATIVE_SERVICES);
+        return out;
+    }
+
+    private static void sqlRule(List<String> out, String where, String name, Kind kind) {
+        if (kind == AUTHORED_SQL && !where.equals(PLAYGROUND)) {
+            out.add("a field that carries SQL outside the playground: " + where);
+        }
+        if (NAMES_SQL.matcher(name).matches() && kind != AUTHORED_SQL && kind != REFUSED) {
+            out.add("a field named for a statement, declared " + kind + ": " + where);
+        }
+    }
+
+    private static void compare(List<String> out, String door, Set<String> read, Set<String> declared) {
+        for (String k : read) {
+            if (!declared.contains(k)) {
+                out.add(door + " reads the field " + k + ", which no row declares"
+                        + (NAMES_SQL.matcher(k).matches() ? " (a field that can carry SQL)" : ""));
+            }
+        }
+        for (String k : declared) {
+            if (!read.contains(k)) {
+                out.add(door + " declares the field " + k + ", which it no longer reads");
+            }
+        }
+    }
+
+    private static void exports(List<String> out, String what, Pattern export, List<String> sources,
+            Map<String, String> listed, Map<String, String> services) {
+        Set<String> seen = new TreeSet<>();
+        for (String source : sources) {
+            Matcher m = export.matcher(source);
+            while (m.find()) {
+                String name = m.group(1);
+                seen.add(name);
+                String body = bodyAfter(source, m.end());
+                Set<String> delegates = new TreeSet<>();
+                Matcher call = Pattern.compile("Boundary\\.(\\w+)\\(").matcher(body);
+                while (call.find()) {
+                    delegates.add(call.group(1));
+                }
+                if (services.containsKey(name)) {
+                    if (!delegates.isEmpty()) {
+                        out.add(what + " " + name + " is listed as no planner door, and reaches " + delegates);
+                    }
+                } else if (!listed.containsKey(name)) {
+                    out.add(what + " no row lists: " + name + (delegates.isEmpty() ? "" : " (reaches " + delegates
+                            + ")"));
+                } else if (!delegates.equals(Set.of(listed.get(name)))) {
+                    out.add(what + " " + name + " delegates to " + delegates + ", not its row's "
+                            + listed.get(name));
+                } else if (!BOUNDARY.containsKey(listed.get(name))) {
+                    out.add(what + " " + name + " delegates to an unlisted door: " + listed.get(name));
+                }
+            }
+        }
+        for (String name : listed.keySet()) {
+            if (!seen.contains(name)) {
+                out.add(what + " listed and gone: " + name);
+            }
+        }
+        for (String name : services.keySet()) {
+            if (!seen.contains(name)) {
+                out.add(what + " listed and gone: " + name);
+            }
+        }
+    }
+
+    // ---- reading a source
+
+    private static final Pattern METHOD = Pattern.compile(
+            "\\n    (public |private )?static [^=;(]*?\\b(\\w+)\\(([^)]*)\\)[^{;]*\\{");
+
+    /** Each static method's bodies, by name. */
+    private static Map<String, List<String>> methods(String source) {
+        Map<String, List<String>> out = new TreeMap<>();
+        Matcher m = METHOD.matcher(source);
+        while (m.find()) {
+            out.computeIfAbsent(m.group(2), k -> new ArrayList<>()).add(bodyAfter(source, m.end() - 1));
+        }
+        return out;
+    }
+
+    private static Set<String> privateStatics(String source) {
+        Set<String> out = new TreeSet<>();
+        Matcher m = METHOD.matcher(source);
+        while (m.find()) {
+            if ("private ".equals(m.group(1))) {
+                out.add(m.group(2));
+            }
+        }
+        return out;
+    }
+
+    /** The block that opens at or after {@code from}, braces matched. */
+    private static String bodyAfter(String source, int from) {
+        int start = source.indexOf('{', from);
+        int depth = 0;
+        for (int i = start; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}' && --depth == 0) {
+                return source.substring(start, i + 1);
+            }
+        }
+        throw new IllegalStateException("an unclosed block at " + start);
+    }
+
+    private static final Pattern GETTER = Pattern.compile("\\.(?:get\\w*|has)\\(\\s*\"([A-Za-z_]\\w*)\"");
+    private static final Pattern READER = Pattern.compile("\\b[a-z]\\w*\\(\\s*\\w+\\s*,\\s*\"([A-Za-z_]\\w*)\"\\s*\\)");
+    private static final Pattern ONLY = Pattern.compile("only\\(\\s*\\w+\\s*,\\s*\"[^\"]*\"((?:\\s*,\\s*\"[^\"]*\")*)\\)");
+    private static final Pattern CALL = Pattern.compile("(?<![\\w.])(\\w+)\\(");
+
+    /** The keys {@code body} admits or reads, with the private helpers it calls, transitively. */
+    private static Set<String> keys(String body, Map<String, List<String>> methods, Set<String> helpers,
+            Set<String> seen) {
+        Set<String> out = new TreeSet<>();
+        for (Pattern p : List.of(GETTER, READER)) {
+            Matcher m = p.matcher(body);
+            while (m.find()) {
+                out.add(m.group(1));
+            }
+        }
+        Matcher only = ONLY.matcher(body);
+        while (only.find()) {
+            Matcher key = Pattern.compile("\"([^\"]*)\"").matcher(only.group(1));
+            while (key.find()) {
+                out.add(key.group(1));
+            }
+        }
+        Matcher call = CALL.matcher(body);
+        while (call.find()) {
+            String c = call.group(1);
+            if (helpers.contains(c) && seen.add(c)) {
+                for (String b : methods.get(c)) {
+                    out.addAll(keys(b, methods, helpers, seen));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static String read(String path) {
+        try {
+            return Files.readString(SourceFiles.file(path), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static List<String> nativeSources() {
+        List<String> out = new ArrayList<>();
+        for (var f : SourceFiles.under("native/src/main/java/com/legend/nativelib")) {
+            if (f.getFileName().toString().endsWith(".java")) {
+                try {
+                    out.add(Files.readString(f, StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+        assertTrue(out.size() >= 4, "the native library's sources read: " + out.size());
+        return out;
+    }
+
+    private static final String BOUNDARY_SOURCE = "wasm/src/main/java/planner/Boundary.java";
+    private static final String HOST_OPERATIONS_SOURCE = "wasm/src/main/java/planner/HostOperationsJson.java";
+    private static final String TAB_SOURCE = "wasm/src/main/java/planner/TabExports.java";
+
+    // ---- the tests
+
+    /** The surface is closed: every door listed with its fields' kinds, no field that can carry SQL but the
+     *  playground's, every export a listed door's or a listed service. */
+    @Test
+    void thePlannerSurfaceIsClosed() {
+        assertEquals(List.of(), violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
+                read(TAB_SOURCE), nativeSources()), "the planner surface is not closed");
+    }
+
+    /** The check names a listed door whose request reads a statement, and a door no row lists
+     *  ({@code planner.PlantedBoundary}, a test class planted for this alone). */
+    @Test
+    void theSurfaceRefusesAPlantedDoor() {
+        List<String> found = violations(com.legend.planner.PlantedBoundary.class,
+                read("core/src/test/java/com/legend/planner/PlantedBoundary.java"), read(HOST_OPERATIONS_SOURCE),
+                read(TAB_SOURCE), nativeSources());
+        assertTrue(found.contains("snapCopy reads the field sql, which no row declares (a field that can carry SQL)"),
+                String.join("\n", found));
+        assertTrue(found.contains("a door no row lists: PlantedBoundary.runSql"), String.join("\n", found));
+    }
+
+    /** The check names an export no row lists, on the tab's adapter and on the native library. */
+    @Test
+    void theSurfaceRefusesAPlantedExport() {
+        String tab = read(TAB_SOURCE).replace("    @JSExport\n    public static String zoneProbe(", """
+                    @JSExport
+                    public static String runSqlOrError(String text) {
+                        return Folded.of(() -> Boundary.authored(text));
+                    }
+
+                    @JSExport
+                    public static String zoneProbe(""");
+        List<String> natives = new ArrayList<>(nativeSources());
+        natives.add("""
+                @CEntryPoint(name = "lite_run_sql")
+                static CCharPointer runSql(IsolateThread thread, CCharPointer sql) {
+                    return answer(Folded.of(() -> Boundary.authored(text(sql))));
+                }
+                """);
+        List<String> found = violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
+                tab, natives);
+        assertEquals(List.of("the tab's export no row lists: runSqlOrError (reaches [authored])",
+                "the native export no row lists: lite_run_sql (reaches [authored])"), found);
+    }
+
+    /** The registry's own rule bites: a field declared SQL away from the playground is named. */
+    @Test
+    void aFieldDeclaredSqlAwayFromThePlaygroundIsNamed() {
+        List<String> out = new ArrayList<>();
+        sqlRule(out, "snapCopy.sql", "sql", AUTHORED_SQL);
+        sqlRule(out, "snapCopy.statement", "statement", NAME);
+        assertEquals(List.of("a field that carries SQL outside the playground: snapCopy.sql",
+                "a field named for a statement, declared NAME: snapCopy.statement"), out);
+    }
+}
