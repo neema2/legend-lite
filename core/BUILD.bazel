@@ -1964,6 +1964,28 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# the product's answers to channel A's cases, snapped per in-process database (a measurement, manual; O2's step 3,
+# the orchestrator's condition (b), 2026-11-13): two snaps diff answer by answer across a lowering change
+junit_test(
+    name = "answer_snapshot",
+    memory_mb = 3072,
+    size = "large",
+    srcs = ["src/test/java/com/legend/leansql/AnswerSnapshotTest.java"],
+    data = ["src/test/resources/lean-sql/channel_a.jsonl"],
+    jvm_flags = ["-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)"],
+    select = ["--select-class=com.legend.leansql.AnswerSnapshotTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        ":test_backends",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # the lean-SQL sets' capture, a test harness's (E-1, the user's ruling of 2026-11-12: OUT of the product): the
 # launcher loads QueryCaptureListener on every test JVM that holds it, and -Dlegend.capture.queries=FILE turns it on
 legend_java_library(
