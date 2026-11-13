@@ -260,19 +260,15 @@ public final class ChannelB {
             // B's identity adapter carries it the same way
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
+            if (Boolean.getBoolean("pct.channelb.twice")) {
+                String differs = twice(ctx, resolved);
+                if (differs != null) {
+                    return new Outcome(fqn, Status.FAIL, "G10: " + differs);
+                }
+            }
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
-                    com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
-                            com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
-                            // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
-                            // bodies under one judge, to read which shapes the program road plans for it
-                            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
-                                    System.getProperty("pct.channelb.judge", "BOTH")))
-                            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
-                            // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-                            .withEngineCompat(true)
-                            // legend-pure's texts, spelled by the edge (phase D's D1.0)
-                            .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING));
+                    OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a
@@ -284,6 +280,65 @@ public final class ChannelB {
             return new Outcome(fqn, Status.ERROR,
                     e.getClass().getSimpleName() + ": " + first(e.getMessage()));
         }
+    }
+
+    /** Channel B's options: the corpus's runtime features, the judge {@code -Dpct.channelb.judge} names, compatibility
+     *  mode and upstream's spellings. */
+    private static final com.legend.ExecuteOptions OPTIONS = com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
+                    com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
+            // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
+            // bodies under one judge, to read which shapes the program road plans for it
+            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
+                    System.getProperty("pct.channelb.judge", "BOTH")))
+            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
+            // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
+            .withEngineCompat(true)
+            // legend-pure's texts, spelled by the edge (phase D's D1.0)
+            .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING);
+
+    /**
+     * G10'S GUARD FOR A TEST BODY (O5's term, the user's ruling of 2026-11-13: "a body planned and run twice answers the
+     * same"): under {@code -Dpct.channelb.twice=true}, each body is typed and planned twice, and the two test plans
+     * must be byte for byte the same JSON. It is then run twice, each run on a fresh connection, and the two runs must
+     * end alike (a pass, or the same failure's class and text) and tell the same verdicts in the same order. Null
+     * where they agree, else what differs; the body's own run follows as usual.
+     */
+    private static @com.legend.base.Nullable String twice(ModelContext ctx, ValueSpecification resolved) {
+        String first = com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                com.legend.Compiler.queryResolved(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                OPTIONS));
+        String second = com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                com.legend.Compiler.queryResolved(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                OPTIONS));
+        if (!first.equals(second)) {
+            int at = 0;
+            while (at < Math.min(first.length(), second.length()) && first.charAt(at) == second.charAt(at)) {
+                at++;
+            }
+            return "planned twice, two plans: they part at character " + at + ": "
+                    + first.substring(at, Math.min(first.length(), at + 80)) + " | "
+                    + second.substring(at, Math.min(second.length(), at + 80));
+        }
+        List<String> one = recorded(ctx, resolved);
+        List<String> two = recorded(ctx, resolved);
+        return one.equals(two) ? null : "run twice, two answers: " + one + " | " + two;
+    }
+
+    /** One run of the body on a fresh connection: each verdict as told, then how the run ended. */
+    private static List<String> recorded(ModelContext ctx, ValueSpecification resolved) {
+        List<String> told = new java.util.ArrayList<>();
+        com.legend.testexecutionplan.AssertListener listener = (name, pass, detail) ->
+                told.add(name + (pass ? " pass" : " FAIL " + detail));
+        try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
+            TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, null,
+                    OPTIONS);
+            told.add("ended: pass");
+        } catch (java.sql.SQLException | RuntimeException e) {
+            told.add("ended: " + e.getClass().getSimpleName() + ": " + first(e.getMessage()));
+        }
+        return told;
     }
 
     /** The census detail line: assert messages are MULTI-LINE

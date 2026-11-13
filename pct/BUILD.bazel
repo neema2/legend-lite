@@ -605,6 +605,53 @@ _LANE_LEDGER = "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%s_%sFun
     tests = [":pct_channel_b_%s_%s" % (lane, s.lower()) for s in suites],
 ) for lane, (_, suites, _, _, _, _, _, _, _) in _CHANNEL_B_LANES.items()]
 
+# G10'S GUARD FOR A TEST BODY (O5's term, the user's ruling of 2026-11-13: "a body planned and run twice answers the
+# same"): channel B with -Dpct.channelb.twice=true. Each body is planned twice (the two test plans byte for byte the
+# same JSON) and run twice on fresh connections (the same end and verdicts), then judged against its ledger as usual: a
+# difference is a "G10:" failure the ledger does not hold. On DuckDB, every suite, and on H2, the relation suite (the
+# HOST channel-B pass's two databases). Manual: three runs a body.
+[junit_test(
+    name = "pct_channel_b_twice_" + s.lower(),
+    memory_mb = 1024,
+    data = [
+        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
+        _ENGINE_MANIFEST % s,
+    ],
+    jvm_flags = [
+        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
+        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
+        "-Dpct.channelb.twice=true",
+    ],
+    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
+    tags = ["manual"],
+    upstream = True,
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+) for s in _SUITES]
+
+[junit_test(
+    name = "pct_channel_b_twice_h2_%s" % s.lower(),
+    memory_mb = 2048,
+    data = [_LANE_LEDGER % (cls, s)] + [_LANE_MANIFEST % (d, d, d, s) for d in ([] if db == None else [db])] + data,
+    env = {"LEGENDLITE_PCT_BACKEND": "h2"},
+    jvm_flags = [
+        "-Dpct.suite.%s=$(rlocationpath %s)" % (s, _LANE_LEDGER % (cls, s)),
+        "-Dpct.channelb.twice=true",
+    ] + ["-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _LANE_MANIFEST % (d, d, d, s)) for d in ([] if db == None else [db])] + flags,
+    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
+    tags = ["manual"],
+    upstream = True,
+    runtime_deps = [":pct_tests_lib"] + deps,
+) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items() if lane == "h2" for s in suites]
+
+test_suite(
+    name = "pct_channel_b_twice",
+    tags = ["manual"],
+    tests = [":pct_channel_b_twice_" + s.lower() for s in _SUITES] + [":pct_channel_b_twice_h2_relation"],
+)
+
 # PCT'S MEASURED RATCHET VALUES (PctRatchets; Bazel workplan P2-16, D9): each Channel B suite's discovery count,
 # measured by running the suite into ratchets.tsv. Manual, at the suites' cost (the platform compiled per suite); the
 # Channel B tests compare their live discovery with the committed copy, so gate 9 fails when it is stale.
