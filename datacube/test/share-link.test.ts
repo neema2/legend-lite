@@ -107,7 +107,7 @@ const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0
 
 describe('a link made before 2026-10-17 is refused, saying why', () => {
   it('its page is version 1: no longer read', () => {
-    assert.throws(() => readPageFragment(V1_LINK), /older version \(1 < 6\): it is no longer read/);
+    assert.throws(() => readPageFragment(V1_LINK), /older version \(1 < 7\): it is no longer read/);
   });
 });
 

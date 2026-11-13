@@ -1,0 +1,71 @@
+// THE MARKETS PROJECT'S OWN ELEMENTS (docs/TS_DECISIONS_2026_11_07.md §4, 2026-11-07, the user: "Add macro class
+// obviously!"): beside the trading model (//scripts/corpus:trading_model, generated) and its Data (markets-data.pure,
+// generated), the macro series the timeseries gallery reads -- a class of its own, its table, its mapping -- and one
+// mapping and runtime for every class the gallery's and the markets page's copies over classes read
+// (src/examples/on-classes.ts): the trading model's, through its stress::AllMapping, and this one.
+
+###Pure
+Class markets::MacroObservation
+{
+  series: String[1];
+  date: StrictDate[1];
+  value: Float[1];
+}
+
+// the risk-free data model (docs/TS_DECISIONS_2026_11_07.md item 13b): a currency's overnight rate (percent a year) and
+// its cash index, a day
+Class markets::CashRate
+{
+  currency: String[1];
+  date: StrictDate[1];
+  rate: Float[1];
+  index: Float[1];
+}
+
+###Relational
+Database markets::DB
+(
+  Table MACRO_SERIES (SERIES VARCHAR(40) PRIMARY KEY, OBS_DATE DATE PRIMARY KEY, VALUE DOUBLE)
+  Table CASH_RATE (CURRENCY VARCHAR(3) PRIMARY KEY, OBS_DATE DATE PRIMARY KEY, RATE DOUBLE, CASH_INDEX DOUBLE)
+)
+
+###Mapping
+Mapping markets::Mapping
+(
+  include stress::AllMapping
+
+  markets::MacroObservation: Relational
+  {
+    ~primaryKey ( [markets::DB]MACRO_SERIES.SERIES, [markets::DB]MACRO_SERIES.OBS_DATE )
+    ~mainTable [markets::DB]MACRO_SERIES
+    series: [markets::DB]MACRO_SERIES.SERIES,
+    date: [markets::DB]MACRO_SERIES.OBS_DATE,
+    value: [markets::DB]MACRO_SERIES.VALUE
+  }
+
+  markets::CashRate: Relational
+  {
+    ~primaryKey ( [markets::DB]CASH_RATE.CURRENCY, [markets::DB]CASH_RATE.OBS_DATE )
+    ~mainTable [markets::DB]CASH_RATE
+    currency: [markets::DB]CASH_RATE.CURRENCY,
+    date: [markets::DB]CASH_RATE.OBS_DATE,
+    rate: [markets::DB]CASH_RATE.RATE,
+    index: [markets::DB]CASH_RATE.CASH_INDEX
+  }
+)
+
+###Runtime
+Runtime markets::RT
+{
+  mappings:
+  [
+    markets::Mapping
+  ];
+  connections:
+  [
+    // both stores through the project's one connection: a tile reading the prices and the macro series together is one
+    // query on one session (lite plans a query on one connection)
+    store::DB: [ environment: store::Conn ],
+    markets::DB: [ environment: store::Conn ]
+  ];
+}

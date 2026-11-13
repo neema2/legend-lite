@@ -50,9 +50,11 @@ final class SnowflakeConnector implements DatabaseConnector {
 
     /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
      *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
-     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
+     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). Nor does it bind one
+     *  (measured 2026-11-07, the #TS island's Snowflake lane: setObject of a LocalDate is refused), so a date and a
+     *  date-time parameter go as java.sql.Date and java.sql.Timestamp. */
     @Override
     public DatabaseConnector.Decoding decoding() {
-        return new DatabaseConnector.Decoding(false, false, false, false);
+        return new DatabaseConnector.Decoding(false, false, false, false, false);
     }
 }

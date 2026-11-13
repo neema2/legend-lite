@@ -1,0 +1,20 @@
+import java.sql.*;
+public class PerRow {
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection(a[0]); Statement s = c.createStatement()) {
+            s.execute("CREATE TABLE pr (i INTEGER, k INTEGER)");
+            s.execute("INSERT INTO pr VALUES (1, 0), (2, 1), (3, 0), (4, 2), (5, 1)");
+            for (String q : new String[] {
+                    "SELECT i, sum(i) OVER (ORDER BY i ROWS BETWEEN k PRECEDING AND CURRENT ROW) FROM pr ORDER BY i",
+                    "SELECT i, sum(i) OVER (ORDER BY i RANGE BETWEEN k PRECEDING AND CURRENT ROW) FROM pr ORDER BY i"}) {
+                try (ResultSet r = s.executeQuery(q)) {
+                    StringBuilder b = new StringBuilder();
+                    while (r.next()) b.append(r.getInt(2)).append(' ');
+                    System.out.println("  " + q.substring(25, 55) + " -> " + b.toString().trim() + "   (expected 1 5 3 9 9)");
+                } catch (SQLException e) {
+                    System.out.println("  " + q.substring(25, 55) + " -> refused: " + e.getMessage().lines().findFirst().orElse("").substring(0, Math.min(110, e.getMessage().lines().findFirst().orElse("").length())));
+                }
+            }
+        }
+    }
+}

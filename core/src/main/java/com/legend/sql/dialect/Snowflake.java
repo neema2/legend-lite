@@ -232,15 +232,30 @@ public final class Snowflake extends AnsiSqlRenderer {
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
      * expression (Snowflake reads an integer one as a position); and the root's DECIMAL(p,s) and HUGEINT columns
-     * cast to their declared types. QUALIFY and star exclusion are native.
+     * cast to their declared types. QUALIFY and star exclusion are native. A select over one subselect merged into it
+     * where the answer is kept (SelectMerge), and a chain of windowed levels laid out again, each value once
+     * (SelectLayers), after the explosions as SQLite has them (the user, 2026-11-06: "Enable and run in the warm
+     * session that can connect to snowflake" -- rendered here, its answers checked on the account). Last, a window
+     * of a ROWS frame past Snowflake's 1000 rows as a RANGE frame over its rows' numbers (LongRowsFramesAsRanges).
      */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
+                new SelectMerge(java.util.function.UnaryOperator.identity()),   // every name quoted: labelled as written
+                new SelectLayers(java.util.function.UnaryOperator.identity()), new LongRowsFramesAsRanges("Snowflake", 1000, OVER_NUMBERS),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
+
+    /** The aggregates a window over a RANGE frame of the rows' numbers is written with (LongRowsFramesAsRanges):
+     *  SUM, COUNT, AVG, MIN, MAX, the variances and the deviations, each measured over 2000 rows with the right values
+     *  (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 10; MEDIAN and CORR refused there), and CORR and the
+     *  covariances, written from those sums ({@link #pairMoments}). */
+    private static final Set<SqlAgg.Fn> OVER_NUMBERS = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(
+            SqlAgg.Fn.SUM, SqlAgg.Fn.COUNT, SqlAgg.Fn.AVG, SqlAgg.Fn.MIN, SqlAgg.Fn.MAX, SqlAgg.Fn.VAR_SAMP,
+            SqlAgg.Fn.VAR_POP, SqlAgg.Fn.VARIANCE, SqlAgg.Fn.STDDEV_SAMP, SqlAgg.Fn.STDDEV_POP, SqlAgg.Fn.STDDEV,
+            SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP));
 
     @Override
     protected boolean supportsQualify() {
@@ -2613,10 +2628,20 @@ public final class Snowflake extends AnsiSqlRenderer {
                 : aggregate(writer, "AVG", doubleArgs(r));
     }
 
-    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}, the value a number when {@code numeric}. */
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}, the value a number when {@code numeric}. Its level
+     *  must be a constant (a literal: "argument 0 to function PERCENTILE_CONT needs to be constant", measured
+     *  2026-11-07 on the #TS island's lane, of the library's {@code n / 100}); a continuous one of any other level is
+     *  the group's values sorted and interpolated, as a window's is ({@link #windowQuantile}). */
     private SqlWriter percentile(SqlWriter writer, String name, SqlAgg.Reducer r, boolean numeric) {
         if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
             throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        if (!numberLiteral(r.args().get(1))) {
+            if (r.fn() != SqlAgg.Fn.QUANTILE_CONT) {
+                throw new DialectCapability(r.fn() + " of a level that is no literal reached Snowflake (its"
+                        + " PERCENTILE_DISC takes a constant)");
+            }
+            return writer.piece(windowQuantile(r, null));
         }
         boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
         writer.append(name).append("(").expr(r.args().get(1), 0)
@@ -2670,6 +2695,14 @@ public final class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
+        if (frame != null && frame.computed()) {
+            // measured 2026-11-07 (docs/TS_DECISIONS_2026_11_07.md item 10, the Snowflake session's probes over JDBC): a
+            // frame's bound there is a literal or a session variable -- a bind parameter (ROWS BETWEEN ? PRECEDING) and
+            // an expression ((1 + 1) PRECEDING) are syntax errors; a bound value could reach it through SET var = ?
+            // before the query (open: a plan step the runner does not take yet)
+            throw new DialectCapability("a window frame offset the database computes (a parameter, arithmetic) reached"
+                    + " Snowflake, whose frame bound is a literal or a session variable");
+        }
         if (frame != null && w.orderBy().isEmpty()) {
             if (!(frame.from() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
                     && frame.to() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing)) {
@@ -2787,6 +2820,9 @@ public final class Snowflake extends AnsiSqlRenderer {
         if (r.fn() == SqlAgg.Fn.QUANTILE_CONT) {
             return writer.piece(windowQuantile(r, win));
         }
+        if (PAIR_MOMENTS.contains(r.fn()) && ordered) {
+            return writer.piece(pairMoments(r, win));
+        }
         if ((r.fn() == SqlAgg.Fn.STRING_AGG || r.fn() == SqlAgg.Fn.LIST) && ordered) {
             if (!r.orderBy().isEmpty() && !r.orderBy().equals(win.orderBy())) {
                 throw new DialectCapability("an ordered " + r.fn() + " over a window of another order reached"
@@ -2828,15 +2864,81 @@ public final class Snowflake extends AnsiSqlRenderer {
         return over(writer, win);
     }
 
+    private static final Set<SqlAgg.Fn> PAIR_MOMENTS = Set.of(SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP,
+            SqlAgg.Fn.COVAR_POP);
+
     /**
-     * A continuous quantile over a window's partition, as DuckDB and the engine interpolate it: the partition's
+     * CORR, COVAR_SAMP and COVAR_POP over an ordered window. Snowflake takes them over a whole partition alone
+     * ("Sliding window frame unsupported for function CORR", "Cumulative window frame unsupported for function
+     * COVAR_SAMP", "RANGE BETWEEN 6 PRECEDING AND CURRENT ROW window frame unsupported for function CORR", measured
+     * 2026-11-07 on the #TS island's lane, docs/TS_DECISIONS_2026_11_07.md item 10), and SUM and COUNT over every
+     * frame, so each is written from its frame's sums: over the pairs both of whose values are present, n of them,
+     * {@code Σa}, {@code Σb}, {@code Σab} (and {@code Σa²}, {@code Σb²} for CORR). As DuckDB: NULL over no pair,
+     * COVAR_SAMP NULL below two, CORR NULL where a side's values are all one. The sums round otherwise than DuckDB's
+     * streaming moments (in the last bits: the island compares within 1e-9 of a value's scale, as ruled for answers
+     * across databases, 2026-11-07).
+     */
+    private SqlWriter.Piece pairMoments(SqlAgg.Reducer r, Window win) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        SqlAgg.Reducer d = doubleArgs(r);
+        SqlExpr a = d.args().get(0);
+        SqlExpr b = d.args().get(1);
+        // each side present where the other is: a pair's values, or none
+        SqlWriter.Piece pa = w -> w.append("CASE WHEN (").expr(b, 0).append(") IS NULL THEN NULL ELSE (").expr(a, 0)
+                .append(") END");
+        SqlWriter.Piece pb = w -> w.append("CASE WHEN (").expr(a, 0).append(") IS NULL THEN NULL ELSE (").expr(b, 0)
+                .append(") END");
+        java.util.function.Function<SqlWriter.Piece, SqlWriter.Piece> sum = x -> w -> {
+            w.append("SUM(").piece(x).append(")");
+            over(w, win);
+        };
+        java.util.function.BinaryOperator<SqlWriter.Piece> times = (x, y) -> w -> w.append("(").piece(x)
+                .append(") * (").piece(y).append(")");
+        SqlWriter.Piece n = w -> {
+            w.append("COUNT(").piece(pa).append(")");
+            over(w, win);
+        };
+        SqlWriter.Piece sa = sum.apply(pa);
+        SqlWriter.Piece sb = sum.apply(pb);
+        SqlWriter.Piece sab = sum.apply(times.apply(pa, pb));
+        if (r.fn() == SqlAgg.Fn.CORR) {
+            SqlWriter.Piece saa = sum.apply(times.apply(pa, pa));
+            SqlWriter.Piece sbb = sum.apply(times.apply(pb, pb));
+            // (n Σab - Σa Σb) / sqrt((n Σa² - (Σa)²) (n Σb² - (Σb)²)); a spread rounded below zero is none
+            return w -> w.append("(CASE WHEN ").piece(n).append(" = 0 THEN NULL ELSE (").piece(n).append(" * ")
+                    .piece(sab).append(" - ").piece(sa).append(" * ").piece(sb).append(") / NULLIF(SQRT(GREATEST(")
+                    .piece(n).append(" * ").piece(saa).append(" - ").piece(sa).append(" * ").piece(sa)
+                    .append(", 0) * GREATEST(").piece(n).append(" * ").piece(sbb).append(" - ").piece(sb)
+                    .append(" * ").piece(sb).append(", 0)), 0) END)");
+        }
+        // Σab - Σa Σb / n, over n - 1 (sample) or n (population)
+        boolean sample = r.fn() == SqlAgg.Fn.COVAR_SAMP;
+        return w -> w.append("(CASE WHEN ").piece(n).append(sample ? " < 2" : " = 0").append(" THEN NULL ELSE (")
+                .piece(sab).append(" - ").piece(sa).append(" * ").piece(sb).append(" / ").piece(n).append(") / ")
+                .append(sample ? "(" : "").piece(n).append(sample ? " - 1)" : "").append(" END)");
+    }
+
+    /** Whether {@code e} is a number's literal, under casts and parentheses. */
+    private static boolean numberLiteral(SqlExpr e) {
+        SqlExpr x = e;
+        while (x instanceof SqlExpr.Cast || x instanceof SqlExpr.Group) {
+            x = x instanceof SqlExpr.Cast c ? c.value() : ((SqlExpr.Group) x).inner();
+        }
+        return x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit || x instanceof SqlExpr.DecimalLit;
+    }
+
+    /**
+     * A continuous quantile over a window's partition (or, with no window, over a group: an aggregate whose level is
+     * no literal, {@link #percentile}), as DuckDB and the engine interpolate it: the partition's
      * non-NULL values sorted in the quantile's order, {@code rn = (n - 1) * q}, {@code lo + (hi - lo) * (rn -
      * floor(rn))}; NULL over none. Snowflake's own window PERCENTILE_CONT interpolates as {@code (1 - f) * lo + f *
      * hi}, another last bit: 0.6 of (1, 2, 3) descending is 1.7999999999999998 there, 1.8 in its aggregate form and in
      * the reference (testPercentile_Relation_Window, measured on the lane 2026-10-21; the merge-base passed it by
      * printing ten digits). The values and q are bound once, in a one-element TRANSFORM.
      */
-    private SqlWriter.Piece windowQuantile(SqlAgg.Reducer r, Window win) {
+    private SqlWriter.Piece windowQuantile(SqlAgg.Reducer r, @com.legend.base.Nullable Window win) {
         if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
             throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
         }
@@ -2850,7 +2952,9 @@ public final class Snowflake extends AnsiSqlRenderer {
         return w -> {
             w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('s', ARRAY_SORT(ARRAY_COMPACT("
                     + "ARRAY_AGG(").expr(r.args().get(0), 0).append(")");
-            over(w, win);
+            if (win != null) {
+                over(w, win);
+            }
             w.append("), " + (ascending ? "TRUE" : "FALSE") + "), 'q', CAST(").expr(r.args().get(1), 0)
                     .append(" AS DOUBLE))), " + o + " OBJECT -> CASE WHEN " + n + " = 0 THEN NULL ELSE " + lo + " + ("
                             + hi + " - " + lo + ") * (" + rn + " - FLOOR(" + rn + ")) END), 0) AS DOUBLE)");
@@ -2905,6 +3009,9 @@ public final class Snowflake extends AnsiSqlRenderer {
                     "INTERVAL '" + p.n() + " " + p.unit() + "' PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     "INTERVAL '" + f.n() + " " + f.unit() + "' FOLLOWING";
+            // refused before a frame is written (windowCall): not yet measured on Snowflake
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 
@@ -3093,19 +3200,37 @@ public final class Snowflake extends AnsiSqlRenderer {
             return writer;
         }
         // DuckDB's ASOF LEFT JOIN ... ON eq AND t >= u: the one inequality is the MATCH_CONDITION, the equalities ON
-        // (an unmatched left row is kept, as DuckDB's)
+        // (an unmatched left row is kept, as DuckDB's). Snowflake's ON takes equalities alone, so a condition that reads
+        // the right side only (the library's `u IS NOT NULL`, 2026-11-07, TS decisions item 10) filters the right side
+        // before the join: a right row it rejects matches no left row either way.
         if (src instanceof SqlSource.Join j && j.kind() == SqlSource.Join.Kind.ASOF_LEFT) {
             List<SqlExpr> conjuncts = new ArrayList<>();
             conjuncts(j.on(), conjuncts);
-            List<SqlExpr> match = conjuncts.stream().filter(Snowflake::inequality).toList();
-            List<SqlExpr> on = conjuncts.stream().filter(e -> !inequality(e)).toList();
+            String rightAlias = j.right().alias();
+            List<SqlExpr> rightOnly = conjuncts.stream().filter(e -> rightAlias != null && readsOnly(e, rightAlias))
+                    .toList();
+            List<SqlExpr> match = conjuncts.stream().filter(e -> !rightOnly.contains(e) && inequality(e)).toList();
+            List<SqlExpr> on = conjuncts.stream().filter(e -> !rightOnly.contains(e) && !inequality(e)).toList();
             if (match.size() != 1) {
                 throw new DialectCapability("an as-of join of " + match.size() + " inequalities reached Snowflake (its"
                         + " MATCH_CONDITION takes one)");
             }
+            if (on.stream().anyMatch(e -> !(e instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL))) {
+                throw new DialectCapability("an as-of join whose condition is more than equalities and one inequality"
+                        + " reached Snowflake (its ASOF JOIN's ON takes equalities)");
+            }
             source(writer, j.left(), depth);
             nl(writer, depth).append("ASOF JOIN ");
-            source(writer, j.right(), depth);
+            if (rightOnly.isEmpty()) {
+                source(writer, j.right(), depth);
+            } else {
+                SqlExpr where = rightOnly.get(0);
+                for (int i = 1; i < rightOnly.size(); i++) {
+                    where = SqlExpr.Call.of(SqlFn.AND, where, rightOnly.get(i));
+                }
+                source(writer, new SqlSource.Subselect(SqlSelect.starOf(j.right()).withWhere(where), rightAlias,
+                        null), depth);
+            }
             writer.append(" MATCH_CONDITION (").expr(match.get(0), 0).append(")");
             if (!on.isEmpty()) {
                 writer.append(" ON ").join(on, " AND ", (w, e) -> w.append("(").expr(e, 0).append(")"));
@@ -3127,10 +3252,28 @@ public final class Snowflake extends AnsiSqlRenderer {
         if (e == null || e instanceof SqlExpr.BoolLit b && b.value()) {
             return;
         }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
+        if (e instanceof SqlExpr.Group g) {
+            conjuncts(g.inner(), into);
+        } else if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
             c.args().forEach(x -> conjuncts(x, into));
         } else {
             into.add(e);
+        }
+    }
+
+    /** Whether {@code e} reads columns, every one of them {@code alias}'s. */
+    private static boolean readsOnly(SqlExpr e, String alias) {
+        Set<String> read = new java.util.LinkedHashSet<>();
+        tablesRead(e, read);
+        return read.equals(Set.of(alias));
+    }
+
+    private static void tablesRead(SqlExpr e, Set<String> out) {
+        if (e instanceof SqlExpr.Column c && c.table() != null) {
+            out.add(c.table());
+        }
+        for (SqlExpr child : e.children()) {
+            tablesRead(child, out);
         }
     }
 

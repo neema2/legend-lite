@@ -85,7 +85,7 @@ class CypherParityTest {
                     inferred, SHOWCASE_LANES[1][1]));
             texts.put("pure.txt", com.legend.protocol.PureComposer.valueSpecification(
                     com.legend.compiler.spec.CypherIslands.translate(new com.legend.protocol.spec.SqlIsland(
-                            main.query(), null, com.legend.protocol.spec.SqlIsland.CYPHER, null), ctx),
+                            main.query(), null, com.legend.protocol.spec.IslandLanguage.CYPHER, null), ctx),
                     com.legend.protocol.PureComposer.Style.STANDARD) + "\n");
             for (String[] lane : SHOWCASE_LANES) {
                 texts.put(lane[0] + ".sql", com.legend.Compiler.query(com.legend.Compiler.compileModel(

@@ -90,7 +90,8 @@ public enum CoreFn {
      *  of every other column (lite surface; Pure.Lite.WITHOUT, 2026-10-27). */
     WITHOUT("without"),
     /** {@code $r->read(~col)} &mdash; a row's column through a column spec written at the call, as {@code $r.col} is (lite
-     *  surface; Pure.Lite.READ, 2026-10-27). */
+     *  surface; Pure.Lite.READ, 2026-10-27); {@code $r->read(~[a, b])}, the row's values in several columns, a list
+     *  without the columns that have none (2026-11-02). */
     READ("read"),
     /** Relation {@code distinct} / {@code distinct(~[cols])} &mdash; row dedup, optionally narrowing. */
     DISTINCT("distinct"),

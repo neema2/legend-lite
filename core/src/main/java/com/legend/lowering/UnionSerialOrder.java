@@ -40,6 +40,19 @@ final class UnionSerialOrder {
         return f2 == null ? null : base.withFrom(f2);
     }
 
+    /** Whether a {@code UNION ALL} surfaces in {@code q} under pass-through (star) selects, as {@link #inject} finds
+     *  one: its members' order is the order a graph envelope over it serializes them in. A relation read more than
+     *  once is written at each read where this holds (Lowerer.sharedRead, 2026-11-06): a common table expression's
+     *  rows carry no order, and an envelope over a read of one finds no union to order by (CI on #81:
+     *  testUnionWithQualifiedProperty's employees in another order on each runner). */
+    static boolean surfaces(SqlQuery q) {
+        if (q instanceof SqlUnion u) {
+            return u.all();
+        }
+        return q instanceof SqlSelect s && s.projections().isEmpty() && s.groupBy().isEmpty() && !s.distinct()
+                && s.from() instanceof SqlSource.Subselect ss && surfaces(ss.inner());
+    }
+
     private static @com.legend.base.Nullable SqlSource intoSource(SqlSource src) {
         if (!(src instanceof SqlSource.Subselect ss)) {
             return null;    // tables/joins: no serial member spine to order
@@ -53,16 +66,25 @@ final class UnionSerialOrder {
         if (q instanceof SqlUnion u && u.all()) {
             List<SqlQuery> branches = new ArrayList<>(u.branches().size());
             for (int i = 0; i < u.branches().size(); i++) {
-                if (!(u.branches().get(i) instanceof SqlSelect bs)
-                        || bs.projections().isEmpty()) {
-                    return null;    // nested unions / star branches: bail
+                if (!(u.branches().get(i) instanceof SqlSelect bs)) {
+                    return null;    // nested unions: bail
+                }
+                OutputCol ord = new OutputCol(COLUMN,
+                        PureSql.type(Type.Primitive.INTEGER), false);
+                SqlSelect.Projection p = new SqlSelect.Projection(
+                        new SqlExpr.IntLit(-i), COLUMN, ord);
+                if (bs.projections().isEmpty()) {
+                    // a star branch (a shared member read by name, 2026-11-06: SELECT * FROM __let<n>) keeps its row
+                    // explicitly beside its ordinal, SELECT *, -i, as the scan-order key writes a leg's
+                    List<OutputCol> outs = new ArrayList<>(bs.outputs());
+                    outs.add(ord);
+                    branches.add(new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null, null), p),
+                            bs.distinct(), bs.from(), bs.where(), bs.groupBy(), bs.having(), bs.qualify(),
+                            bs.orderBy(), bs.limit(), bs.offset(), List.copyOf(outs)));
+                    continue;
                 }
                 List<SqlSelect.Projection> ps = new ArrayList<>(bs.projections());
-                ps.add(new SqlSelect.Projection(
-                        new SqlExpr.IntLit(-i), COLUMN,
-                        new OutputCol(COLUMN,
-                                PureSql.type(Type.Primitive.INTEGER),
-                                false)));
+                ps.add(p);
                 branches.add(bs.withProjections(ps));
             }
             List<OutputCol> uOuts = new ArrayList<>(u.outputs());

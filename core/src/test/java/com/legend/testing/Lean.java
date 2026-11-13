@@ -41,6 +41,10 @@ public final class Lean {
 
     /** {@code query} over {@code model} on {@code runtime} (null: the query names its own), on the caller's connection
      *  {@code c} as the caller set it up (its tables, its data): lite's JSON rows, read back. */
+    /** The planning options every test runs under: lite's own, each off by default (PlanOption). */
+    public static final java.util.Set<com.legend.platform.PlanOption> TEST_OPTIONS =
+            java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF);
+
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c) {
         return run(model, query, runtime, c, com.legend.exec.SourceAdmission.any());
     }
@@ -53,8 +57,14 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+            // the tests' planning options: as-of joins answer the same row on every database (PlanOption, off by
+            // default; the user, 2026-11-07: "our tests should use the option")
+            plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query)
+                            .withOptions(TEST_OPTIONS), runtime,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
                     PlanSessions.admitting(PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), admitted),
+                    // the string door's establishment (main's #95: the target's loads on the session it acquires)
+                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP,
                     new com.legend.result.Output.Rows(sink));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

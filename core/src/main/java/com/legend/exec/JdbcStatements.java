@@ -338,7 +338,11 @@ final class JdbcStatements implements Statements {
     /** Whether the session's database takes a transaction ({@link DatabaseConnector#takesTransactions}): the plan
      *  target's connector's ({@link #check}); for an owner's bracket opened before any statement named its target
      *  ({@code Sessions.Session.inTransaction}), the connector its driver reports, a session no built connector
-     *  reports refused by name -- never bracketed by default (the checkpoint tenets audit's 2, 2026-11-10). */
+     *  reports refused by name -- never bracketed by default (the checkpoint tenets audit's 2, 2026-11-10). Both
+     *  runners' brackets come here, so a program of steps runs each its own where the database takes no transaction
+     *  (ClickHouse; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 1), as upstream runs them: PR #81's refusal of a
+     *  write there in the query runner alone went, the user's ruling of 2026-11-13 ("agree", after the correctness
+     *  audit found the two runners answering otherwise). */
     private boolean takesTransactions() {
         if (declared != null) {
             return declared.takesTransactions();
@@ -708,7 +712,7 @@ final class JdbcStatements implements Statements {
                             throw new IllegalStateException("slot " + index + " of '" + slot.parameter() + "' binds a"
                                     + " date or a date-time as its text, given a " + v.value().getClass().getSimpleName());
                         } else {
-                            st.setObject(index, v.value());
+                            st.setObject(index, bindable(v.value()));
                         }
                     }
                     case PlanParameters.None none -> st.setNull(index, nullType(one, slot));
@@ -751,6 +755,25 @@ final class JdbcStatements implements Statements {
             d *= 10;
         }
         return d;
+    }
+
+    /** A value as this session's driver binds it: a date and a date-time as {@code java.sql.Date} and
+     *  {@code java.sql.Timestamp} where the driver binds no {@code java.time} value (its connector's fact,
+     *  {@link DatabaseConnector.Decoding#bindsJavaTime}), every other value as it is. */
+    private Object bindable(Object v) {
+        if (!(v instanceof java.time.LocalDate || v instanceof LocalDateTime)) {
+            return v;
+        }
+        DatabaseConnector.Decoding driver = this.driver;
+        if (driver == null) {
+            throw new IllegalStateException("a date bound on a session no plan target was checked against: how its"
+                    + " driver binds one is its database's fact");
+        }
+        if (driver.bindsJavaTime()) {
+            return v;
+        }
+        return v instanceof LocalDateTime t ? java.sql.Timestamp.valueOf(t)
+                : java.sql.Date.valueOf((java.time.LocalDate) v);
     }
 
     /** An array element as the drivers take it: a timestamp as {@code java.sql.Timestamp} (measured,

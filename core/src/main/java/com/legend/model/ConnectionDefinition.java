@@ -1,5 +1,6 @@
 package com.legend.model;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -34,13 +35,21 @@ public record ConnectionDefinition(
         @com.legend.base.Nullable String storeName,
         DatabaseType databaseType,
         ConnectionSpecification specification,
-        AuthenticationSpec authentication) implements PackageableElement {
+        AuthenticationSpec authentication,
+        List<String> rowMappers) implements PackageableElement {
 
     public ConnectionDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(databaseType, "Database type cannot be null");
         Objects.requireNonNull(specification, "Specification cannot be null");
         Objects.requireNonNull(authentication, "Authentication cannot be null");
+        rowMappers = List.copyOf(rowMappers);
+    }
+
+    /** A connection that declares no post-processor that maps its tables (the common form). */
+    public ConnectionDefinition(String qualifiedName, @com.legend.base.Nullable String storeName,
+            DatabaseType databaseType, ConnectionSpecification specification, AuthenticationSpec authentication) {
+        this(qualifiedName, storeName, databaseType, specification, authentication, List.of());
     }
 
     /** Supported relational dialects. Drives downstream SQL dialect selection.

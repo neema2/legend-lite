@@ -30,6 +30,7 @@
 // detached -- a grid of its own grouping and query, made in one step, which it follows from then on (D7).
 
 import { ChartPanel } from '../ui/chart-panel.ts';
+import type { TsShown } from '../cube.ts';
 import type { RunOutcome } from '../runner.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import { createItems, type MenuItem } from '../ui/menu.ts';
@@ -72,6 +73,7 @@ import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 import { TS_STATES, tsStateOf, type TimeseriesSpec, type TsState } from '../timeseries-spec.ts';
 import type { TimeseriesView, TsGrid, TsTogether } from '../ui/timeseries-view.ts';
+import type { TsReader } from '../timeseries-text.ts';
 import { sha256 } from '../cube-document.ts';
 import { isFileHandle, pickTextFiles, type FileHandle, type HandleRead } from '../file-handles.ts';
 import { TEXT_FILE_EXTENSIONS, TEXT_FILE_SHOWN, bytesWords, csvSeparator, pickedRefusal, textFileFormat, type TextFile } from '../text-files.ts';
@@ -106,6 +108,8 @@ export interface ChartSource {
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<RunOutcome>;
   /** A query as the compiler prints it, for a person to read (a timeseries' Query window). */
   print(query: Lambda): Promise<string>;
+  /** A #TS query over grids as one statement (Show #TS, D12), or why it has none. */
+  tsStatement?(query: Lambda): Promise<TsShown>;
   /** A value as the grid writes it; `headline`: scaled, a KPI's number (format.ts `headlineFormat`). */
   format(value: Scalar, column: string, type: string | undefined, headline?: boolean): string;
   /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
@@ -385,6 +389,9 @@ export interface CubePageOptions {
    * database. Absent, such a series is refused in words.
    */
   readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
+  /** Core's reader of a timeseries series' #TS text (timeseries-text.ts TsReader; the host's legend-lite module): what a
+   *  timeseries tile reads its series by, before it is drawn. Absent, a timeseries tile says it cannot be read. */
+  readonly readText?: TsReader;
   /** A cube the page holds as it saved it, its source not opened (page-app.ts: P9), by its id: what a timeseries tile
    *  freezing keeps of it (its filter), as Python's freeze reads the page's cube. Absent: none such. */
   readonly unopenedCube?: (cube: string) => CubeDocument | undefined;
@@ -2875,6 +2882,7 @@ export class CubePage {
       get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
       print: (query) => runs.print(query),
+      ...(runs.tsStatement ? { tsStatement: (query: Lambda) => runs.tsStatement!(query) } : {}),
       format: (value, column, type, headline) => runs.format(value, column, type, headline),
       unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
@@ -3375,6 +3383,7 @@ export class CubePage {
       run: (query, snapshot, signal) => source.run(query, snapshot, signal),
       format: (value, column, type) => source.format(value, column, type),
       print: (query) => source.print(query),
+      ...(source.tsStatement ? { tsStatement: (query: Lambda) => source.tsStatement!(query) } : {}),
     };
   }
 
@@ -3470,10 +3479,26 @@ export class CubePage {
    */
   #drawTimeseries(id: string): void {
     if (this.#sheetOf(id) !== this.#shown) return;
-    void lazily(() => import('../ui/timeseries-view.ts')).then(({ TimeseriesView }) => {
+    const readText = this.#options.readText;
+    void lazily(() => import('../ui/timeseries-view.ts')).then(async ({ TimeseriesView, readSeriesTexts }) => {
       const tile = this.#series.get(id);
       if (!tile || tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
+      if (readText === undefined) {
+        tile.body.textContent = 'This page reads no timeseries: its host has no #TS reader (legend-lite\'s module).';
+        return;
+      }
+      // its series' texts read by core before it is drawn (A3 step 3): the tile's every walk reads core's trees -- a reader
+      // that fails says so in the tile, as the view says a later read's failure (the review of 2026-11-08: the tile was
+      // left blank, the rejection unhandled)
+      try {
+        await readSeriesTexts(tile.spec.series, readText);
+      } catch (e) {
+        if (!tile.view && !this.#disposed) tile.body.textContent = `Its series could not be read: ${e instanceof Error ? e.message : String(e)}`;
+        return;
+      }
+      if (tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
       tile.view = new TimeseriesView(tile.body, {
+        readText,
         grid: (cube) => this.#tsGrid(cube),
         // each source's filter as the page holds its cube: its grid's (on the board or kept off it), else as the page
         // saved it, its source not opened -- the rule Python's freeze reads the page's cubes by (headless timeseriesEdit)

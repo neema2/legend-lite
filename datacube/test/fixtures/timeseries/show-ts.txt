@@ -1,0 +1,215 @@
+performance A: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+performance B: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT close[symbol = 'NDX'] AS ts_value FROM px ON date
+performance C: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT close[symbol = 'GLD'] AS ts_value FROM px ON date
+performance D: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT close[symbol = 'TLT'] AS ts_value FROM px ON date
+performance E: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT volatility(close[symbol = 'SPX'], w => 21, type => 'simple') AS ts_value FROM px ON date
+drawdowns A: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT drawdown(close[symbol = 'SPX'], w => all) AS ts_value FROM px ON date
+drawdowns B: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT drawdown(close[symbol = 'NVDA'], w => all) AS ts_value FROM px ON date
+drawdowns C: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT drawdown(close[symbol = 'TLT'], w => all) AS ts_value FROM px ON date
+vol-corr A: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT volatility(close[symbol = 'SPX'], w => 63, type => 'simple') AS ts_value FROM px ON date
+vol-corr B: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT volatility(close[symbol = 'NVDA'], w => 63, type => 'simple') AS ts_value FROM px ON date
+vol-corr C: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT correlation(close[symbol = 'AAPL'], close[symbol = 'MSFT'], w => 63) AS ts_value FROM px ON date
+vol-corr D: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT correlation(close[symbol = 'SPX'], close[symbol = 'TLT'], w => 63) AS ts_value FROM px ON date
+vol-corr E: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT beta(close[symbol = 'NVDA'], close[symbol = 'SPX'], w => 126) AS ts_value FROM px ON date
+technicals A: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT ohlc(open[symbol = 'AAPL'], high[symbol = 'AAPL'], low[symbol = 'AAPL'], close[symbol = 'AAPL']) AS ts_value FROM px ON date
+technicals B: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT bollinger_bands(close[symbol = 'AAPL'], w => 20, k => 2) AS ts_value FROM px ON date
+technicals C: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT mean(close[symbol = 'AAPL'], 50) AS ts_value FROM px ON date
+technicals D: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT mean(close[symbol = 'AAPL'], 200) AS ts_value FROM px ON date
+technicals E: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT rsi(close[symbol = 'AAPL'], w => 14) AS ts_value FROM px ON date
+technicals F: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT sum(volume[symbol = 'AAPL']) AS ts_value FROM px ON date SAMPLE BY 1d
+curve A: WITH rates AS (SELECT * FROM local::DB.markets_rates) SELECT yield AS ts_value FROM rates ON date BY tenor
+curve B: WITH rates AS (SELECT * FROM local::DB.markets_rates) SELECT yield[tenor = '10Y'] - yield[tenor = '2Y'] AS ts_value FROM rates ON date
+bonds A: WITH px AS (SELECT * FROM local::DB.markets_prices) SELECT close[symbol = 'TLT'] AS ts_value FROM px ON date
+bonds B: WITH rates AS (SELECT * FROM local::DB.markets_rates) SELECT yield[tenor = '10Y'] AS ts_value FROM rates ON date
+bonds C: WITH px AS (SELECT * FROM local::DB.markets_prices), rates AS (SELECT * FROM local::DB.markets_rates) SELECT correlation(px.close[symbol = 'TLT'], rates.yield[tenor = '10Y'], w => 63) AS ts_value FROM px ON date, rates ON date
+returns A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'SPX'], 1, 'simple') AS ts_value FROM px ON date
+returns B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'SPX'], 1, 'log') AS ts_value FROM px ON date
+diff-lag A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'GLD'] AS ts_value FROM px ON date
+diff-lag B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT lag(close[symbol = 'GLD'], 5, 'truncate') AS ts_value FROM px ON date
+diff-lag C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT diff(close[symbol = 'GLD'], 5) AS ts_value FROM px ON date
+compounded A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'NVDA'], base => 100) AS ts_value FROM px ON date
+compounded A from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'NVDA'], base => 100, from => '2022-03-15') AS ts_value FROM px ON date
+compounded B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT prices(returns(close[symbol = 'NVDA'], 1, 'simple'), initial => 100, type => 'simple') AS ts_value FROM px ON date
+compounded C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'NVDA'], 1, 'simple') AS ts_value FROM px ON date
+annualize A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT annualize(std(returns(close[symbol = 'SPX'], 1, 'simple'), 21)) AS ts_value FROM px ON date
+annualize B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT std(returns(close[symbol = 'SPX'], 1, 'simple'), 21) AS ts_value FROM px ON date
+excess A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+excess B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT excess_returns(close[symbol = 'SPX'], 0.05) AS ts_value FROM px ON date
+excess C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT excess_returns(close[symbol = 'SPX'], close[symbol = 'TLT']) AS ts_value FROM px ON date
+excess D: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT excess_returns(px.close[symbol = 'SPX'], cash_index(cash.rate[currency = 'USD'], day_count => 'actual_360')) AS ts_value FROM px ON date, cash ON date
+compounded-to-date A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT geometrically_aggregate(returns(close[symbol = 'MSFT'], 1, 'simple')) AS ts_value FROM px ON date
+compounded-to-date B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'MSFT'], 1, 'simple') AS ts_value FROM px ON date
+total-return A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+total-return B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT total_return(close[symbol = 'SPX'], 0.015) AS ts_value FROM px ON date
+rebase A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'SPX'], base => 100) AS ts_value FROM px ON date
+rebase A from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'SPX'], base => 100, from => '2022-03-15') AS ts_value FROM px ON date
+rebase B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'XOM'], base => 100) AS ts_value FROM px ON date
+rebase B from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'XOM'], base => 100, from => '2022-03-15') AS ts_value FROM px ON date
+rebase C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'JPM'], base => 100) AS ts_value FROM px ON date
+rebase C from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'JPM'], base => 100, from => '2022-03-15') AS ts_value FROM px ON date
+rebase D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'EURUSD'], base => 100) AS ts_value FROM px ON date
+rebase D from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rebase(close[symbol = 'EURUSD'], base => 100, from => '2022-03-15') AS ts_value FROM px ON date
+index A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT index(close[symbol = 'JPM'], initial => 1) AS ts_value FROM px ON date
+index A from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT index(close[symbol = 'JPM'], initial => 1, from => '2022-03-15') AS ts_value FROM px ON date
+index B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT index(close[symbol = 'XOM'], initial => 1) AS ts_value FROM px ON date
+index B from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT index(close[symbol = 'XOM'], initial => 1, from => '2022-03-15') AS ts_value FROM px ON date
+change A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT change(close[symbol = 'GLD']) AS ts_value FROM px ON date
+change A from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT change(close[symbol = 'GLD'], from => '2022-03-15') AS ts_value FROM px ON date
+change B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT change(close[symbol = 'TLT']) AS ts_value FROM px ON date
+change B from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT change(close[symbol = 'TLT'], from => '2022-03-15') AS ts_value FROM px ON date
+percent-change A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percent_change(close[symbol = 'AAPL']) AS ts_value FROM px ON date
+percent-change A from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percent_change(close[symbol = 'AAPL'], from => '2022-03-15') AS ts_value FROM px ON date
+percent-change B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percent_change(close[symbol = 'MSFT']) AS ts_value FROM px ON date
+percent-change B from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percent_change(close[symbol = 'MSFT'], from => '2022-03-15') AS ts_value FROM px ON date
+percent-change C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percent_change(close[symbol = 'NVDA']) AS ts_value FROM px ON date
+percent-change C from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percent_change(close[symbol = 'NVDA'], from => '2022-03-15') AS ts_value FROM px ON date
+decompose A: WITH macro AS (SELECT * FROM local::DB.gallery_macro) SELECT last(value[series = 'RETAIL']) AS ts_value FROM macro ON date SAMPLE BY 1mo
+decompose B: WITH macro AS (SELECT * FROM local::DB.gallery_macro) SELECT trend(last(value[series = 'RETAIL']), method => 'multiplicative', freq => 'year') AS ts_value FROM macro ON date SAMPLE BY 1mo
+decompose C: WITH macro AS (SELECT * FROM local::DB.gallery_macro) SELECT seasonally_adjusted(last(value[series = 'RETAIL']), method => 'multiplicative', freq => 'year') AS ts_value FROM macro ON date SAMPLE BY 1mo
+mean A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+mean B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT mean(close[symbol = 'SPX'], 50) AS ts_value FROM px ON date
+mean C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT mean(close[symbol = 'SPX'], 200) AS ts_value FROM px ON date
+min-max-range A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'MSFT'] AS ts_value FROM px ON date
+min-max-range B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max(close[symbol = 'MSFT'], 252) AS ts_value FROM px ON date
+min-max-range C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT min(close[symbol = 'MSFT'], 252) AS ts_value FROM px ON date
+min-max-range D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT range(close[symbol = 'MSFT'], w => 252) AS ts_value FROM px ON date
+sum A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sum(volume[symbol = 'AAPL'], 21) AS ts_value FROM px ON date
+sum B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sum(volume[symbol = 'AAPL'], all) AS ts_value FROM px ON date
+std-var A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT std(close[symbol = 'GLD'], 63) AS ts_value FROM px ON date
+std-var B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT var(close[symbol = 'GLD'], 63) AS ts_value FROM px ON date
+zscores A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(close[symbol = 'NVDA'], w => 63) AS ts_value FROM px ON date
+winsorize A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT winsorize(returns(close[symbol = 'EURUSD'], 1, 'simple'), limit => 1.5) AS ts_value FROM px ON date
+winsorize B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'EURUSD'], 1, 'simple') AS ts_value FROM px ON date
+cross-section A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), w => across) AS ts_value FROM px ON date BY symbol
+exponential A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+exponential B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT exponential_moving_average(close[symbol = 'SPX'], beta => 0.9) AS ts_value FROM px ON date
+exponential C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT smoothed_moving_average(close[symbol = 'SPX'], w => 20) AS ts_value FROM px ON date
+exponential D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT exponential_std(close[symbol = 'SPX'], beta => 0.95) AS ts_value FROM px ON date
+percentiles A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'GLD'] AS ts_value FROM px ON date
+percentiles B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT median(close[symbol = 'GLD'], w => 1y) AS ts_value FROM px ON date
+percentiles C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percentile(close[symbol = 'GLD'], n => 90, w => 1y) AS ts_value FROM px ON date
+percentiles D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT percentiles(close[symbol = 'GLD'], w => 1y) AS ts_value FROM px ON date
+product-streaks A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT product(1 + returns(close[symbol = 'EURUSD'], 1, 'simple'), w => 5) - 1 AS ts_value FROM px ON date
+product-streaks B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT consecutive(returns(close[symbol = 'EURUSD'], 1, 'simple'), direction => 'positive') AS ts_value FROM px ON date
+product-streaks C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT 0 - consecutive(returns(close[symbol = 'EURUSD'], 1, 'simple'), direction => 'negative') AS ts_value FROM px ON date
+ramp A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(close[symbol = 'NVDA'], w => 63, r => 0) AS ts_value FROM px ON date
+ramp B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'NVDA'], w => 22, type => 'simple', r => 5) AS ts_value FROM px ON date
+ramp C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sharpe_ratio(close[symbol = 'NVDA'], w => 63, r => 10) AS ts_value FROM px ON date
+volatility A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 21, type => 'simple') AS ts_value FROM px ON date
+volatility B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 63, type => 'simple') AS ts_value FROM px ON date
+volatility C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 252, type => 'simple') AS ts_value FROM px ON date
+drawdown A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT drawdown(close[symbol = 'NVDA'], w => all) AS ts_value FROM px ON date
+drawdown B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max_drawdown(close[symbol = 'NVDA'], w => all) AS ts_value FROM px ON date
+sharpe A: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT sharpe_ratio(excess_returns(px.close[symbol = 'SPX'], cash.index[currency = 'USD']), w => 252) AS ts_value FROM px ON date, cash ON date
+sharpe B: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT sharpe_ratio(excess_returns(px.close[symbol = 'GLD'], cash.index[currency = 'USD']), w => 252) AS ts_value FROM px ON date, cash ON date
+sharpe C: WITH px AS (SELECT * FROM local::DB.gallery_prices), cash AS (SELECT * FROM local::DB.gallery_cash) SELECT sharpe_ratio(excess_returns(px.close[symbol = 'TLT'], cash.index[currency = 'USD']), w => 252) AS ts_value FROM px ON date, cash ON date
+max-drawdown-year A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max_drawdown(close[symbol = 'SPX'], w => 252) AS ts_value FROM px ON date
+max-drawdown-year B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max_drawdown(close[symbol = 'NDX'], w => 252) AS ts_value FROM px ON date
+exponential-volatility A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT exponential_volatility(close[symbol = 'SPX'], beta => 0.94) AS ts_value FROM px ON date
+exponential-volatility B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 63, type => 'simple') AS ts_value FROM px ON date
+exponential-volatility C: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT exponential_spread_volatility(yield[tenor = '10Y'] - yield[tenor = '2Y'], beta => 0.94) AS ts_value FROM rates ON date
+vol-swap A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT vol_swap_volatility(close[symbol = 'SPX'], w => 21) AS ts_value FROM px ON date
+vol-swap B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[symbol = 'SPX'], w => 21, type => 'simple') AS ts_value FROM px ON date
+benchmark A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT tracking_error(close[symbol = 'NVDA'], close[symbol = 'SPX'], w => 63) AS ts_value FROM px ON date
+benchmark B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT information_ratio(close[symbol = 'NVDA'], close[symbol = 'SPX'], w => 63) AS ts_value FROM px ON date
+capture A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT up_capture(close[symbol = 'NDX'], close[symbol = 'SPX'], w => 252) AS ts_value FROM px ON date
+capture B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT down_capture(close[symbol = 'NDX'], close[symbol = 'SPX'], w => 252) AS ts_value FROM px ON date
+correlation A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT correlation(close[symbol = 'SPX'], close[symbol = 'TLT'], w => 63) AS ts_value FROM px ON date
+correlation B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT correlation(close[symbol = 'SPX'], close[symbol = 'GLD'], w => 63) AS ts_value FROM px ON date
+beta A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT beta(close[symbol = 'AAPL'], close[symbol = 'SPX'], w => 126) AS ts_value FROM px ON date
+beta B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT beta(close[symbol = 'MSFT'], close[symbol = 'SPX'], w => 126) AS ts_value FROM px ON date
+beta C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT beta(close[symbol = 'NVDA'], close[symbol = 'SPX'], w => 126) AS ts_value FROM px ON date
+cov A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT cov(returns(close[symbol = 'AAPL'], 1, 'simple'), returns(close[symbol = 'MSFT'], 1, 'simple'), w => 63) AS ts_value FROM px ON date
+regression A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT alpha(close[symbol = 'NVDA'], close[symbol = 'SPX'], w => 126) AS ts_value FROM px ON date
+regression B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT r_squared(close[symbol = 'NVDA'], close[symbol = 'SPX'], w => 126) AS ts_value FROM px ON date
+regression C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT hedge_ratio(close[symbol = 'MSFT'], close[symbol = 'AAPL'], w => 126) AS ts_value FROM px ON date
+regression D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT residual(close[symbol = 'MSFT'], close[symbol = 'AAPL'], w => 126) AS ts_value FROM px ON date
+pair A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'AAPL'] / close[symbol = 'MSFT'] AS ts_value FROM px ON date
+pair B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(close[symbol = 'AAPL'] / close[symbol = 'MSFT'], w => 126) AS ts_value FROM px ON date
+lead-lag A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT lead_lag(close[symbol = 'NVDA'], close[symbol = 'SPX'], lag => 1, w => 63) AS ts_value FROM px ON date
+lead-lag B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT lead_lag(close[symbol = 'NVDA'], close[symbol = 'SPX'], lag => -1, w => 63) AS ts_value FROM px ON date
+reversion A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'AAPL'] / close[symbol = 'MSFT'] AS ts_value FROM px ON date
+reversion B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT dickey_fuller(close[symbol = 'AAPL'] / close[symbol = 'MSFT'], w => 252) AS ts_value FROM px ON date
+reversion C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT half_life(close[symbol = 'AAPL'] / close[symbol = 'MSFT'], w => 252) AS ts_value FROM px ON date
+candles-weekly A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT ohlc(first(open[symbol = 'SPX']), max(high[symbol = 'SPX']), min(low[symbol = 'SPX']), last(close[symbol = 'SPX'])) AS ts_value FROM px ON date SAMPLE BY 1w
+bollinger A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'GLD'] AS ts_value FROM px ON date
+bollinger B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT bollinger_bands(close[symbol = 'GLD'], w => 20, k => 2) AS ts_value FROM px ON date
+bollinger C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT mean(close[symbol = 'GLD'], 20) AS ts_value FROM px ON date
+rsi A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'NVDA'] AS ts_value FROM px ON date
+rsi B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT rsi(close[symbol = 'NVDA'], w => 14) AS ts_value FROM px ON date
+candles-volume A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT ohlc(open[symbol = 'MSFT'], high[symbol = 'MSFT'], low[symbol = 'MSFT'], close[symbol = 'MSFT']) AS ts_value FROM px ON date
+candles-volume B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volume[symbol = 'MSFT'] AS ts_value FROM px ON date
+macd A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT macd(close[symbol = 'SPX'], m => 12, n => 26, s => 1) AS ts_value FROM px ON date
+macd B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT macd(close[symbol = 'SPX'], m => 12, n => 26, s => 9) AS ts_value FROM px ON date
+macd C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT macd(close[symbol = 'SPX'], m => 12, n => 26, s => 1) - macd(close[symbol = 'SPX'], m => 12, n => 26, s => 9) AS ts_value FROM px ON date
+atr-stochastic A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'NVDA'] AS ts_value FROM px ON date
+atr-stochastic B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT atr(high[symbol = 'NVDA'], low[symbol = 'NVDA'], close[symbol = 'NVDA'], w => 14) AS ts_value FROM px ON date
+atr-stochastic C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT stochastic(high[symbol = 'NVDA'], low[symbol = 'NVDA'], close[symbol = 'NVDA'], w => 14) AS ts_value FROM px ON date
+channels A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+channels B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT keltner_channels(high[symbol = 'SPX'], low[symbol = 'SPX'], close[symbol = 'SPX'], w => 20, a => 10, k => 2) AS ts_value FROM px ON date
+channels C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT donchian_channels(high[symbol = 'SPX'], low[symbol = 'SPX'], w => 20) AS ts_value FROM px ON date
+volume-flow A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'AAPL'] AS ts_value FROM px ON date
+volume-flow B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT vwap(close[symbol = 'AAPL'], volume[symbol = 'AAPL'], w => 20) AS ts_value FROM px ON date
+volume-flow C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT obv(close[symbol = 'AAPL'], volume[symbol = 'AAPL']) AS ts_value FROM px ON date
+log-exp A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+log-exp B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT exp(ln(close[symbol = 'SPX'])) AS ts_value FROM px ON date
+log-exp C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT ln(close[symbol = 'SPX']) AS ts_value FROM px ON date
+sqrt-power A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT std(close[symbol = 'GLD'], 63) AS ts_value FROM px ON date
+sqrt-power B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT sqrt(var(close[symbol = 'GLD'], 63)) AS ts_value FROM px ON date
+sqrt-power C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT power(std(close[symbol = 'GLD'], 63), 2) AS ts_value FROM px ON date
+abs A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT abs(returns(close[symbol = 'SPX'], 1, 'simple')) AS ts_value FROM px ON date
+abs B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT mean(abs(returns(close[symbol = 'SPX'], 1, 'simple')), 21) AS ts_value FROM px ON date
+floor-ceil A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT zscores(close[symbol = 'EURUSD'], w => 63) AS ts_value FROM px ON date
+floor-ceil B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT ceil(floor(zscores(close[symbol = 'EURUSD'], w => 63), -2), 2) AS ts_value FROM px ON date
+if-compare A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT if(close[symbol = 'SPX'] < mean(close[symbol = 'SPX'], 200), close[symbol = 'SPX'], mean(close[symbol = 'SPX'], 200)) AS ts_value FROM px ON date
+if-compare B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT compare(close[symbol = 'SPX'], mean(close[symbol = 'SPX'], 200)) AS ts_value FROM px ON date
+if-compare C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT NOT close[symbol = 'SPX'] > mean(close[symbol = 'SPX'], 200) AS ts_value FROM px ON date
+filter-smooth A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT filter(close[symbol = 'GLD'], operator => 'greater_than', value => 200) AS ts_value FROM px ON date
+filter-smooth B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT smooth_spikes(close[symbol = 'GLD'], threshold => 0.02, type => 'percentage') AS ts_value FROM px ON date
+filter-smooth C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT weighted_sum(rebase(close[symbol = 'SPX'], base => 100), 0.6, rebase(close[symbol = 'TLT'], base => 100), 0.4) AS ts_value FROM px ON date
+filter-smooth C from 2022-03-15: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT weighted_sum(rebase(close[symbol = 'SPX'], base => 100, from => '2022-03-15'), 0.6, rebase(close[symbol = 'TLT'], base => 100, from => '2022-03-15'), 0.4) AS ts_value FROM px ON date
+basket A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT basket(close[symbol = 'SPX'], 0.6, close[symbol = 'TLT'], 0.4, rebalance => 'daily') AS ts_value FROM px ON date
+basket B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT basket(close[symbol = 'SPX'], 0.6, close[symbol = 'TLT'], 0.4, rebalance => 'monthly') AS ts_value FROM px ON date
+align A: WITH px AS (SELECT * FROM local::DB.gallery_prices), macro AS (SELECT * FROM local::DB.gallery_macro) SELECT px.close[symbol = 'SPX'] / macro.value[series = 'CPI'] * 100 AS ts_value FROM px ON date, macro ON date FILL(STEP)
+align B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date FILL(STEP)
+interpolate A: WITH macro AS (SELECT * FROM local::DB.gallery_macro), px AS (SELECT * FROM local::DB.gallery_prices) SELECT interpolate(macro.value[series = 'CPI'], px.close[symbol = 'SPX'], method => 'step') AS ts_value FROM macro ON date, px ON date
+interpolate B: WITH macro AS (SELECT * FROM local::DB.gallery_macro) SELECT value[series = 'CPI'] AS ts_value FROM macro ON date
+splice A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT append(filter(if(year(close[symbol = 'GLD']) < 2023, close[symbol = 'GLD'], 0), operator => 'equals', value => 0), close[symbol = 'TLT']) AS ts_value FROM px ON date
+splice B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT prepend(close[symbol = 'GLD'], filter(if(year(close[symbol = 'TLT']) >= 2023, close[symbol = 'TLT'], 0), operator => 'equals', value => 0)) AS ts_value FROM px ON date
+splice C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT union(filter(close[symbol = 'GLD'], operator => 'greater_than', value => 190), close[symbol = 'TLT']) AS ts_value FROM px ON date
+calendar A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT weekday(close[symbol = 'SPX']) AS ts_value FROM px ON date
+calendar B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT month(close[symbol = 'SPX']) AS ts_value FROM px ON date
+calendar C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT quarter(close[symbol = 'SPX']) AS ts_value FROM px ON date
+calendar D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT day(close[symbol = 'SPX']) AS ts_value FROM px ON date
+calendar E: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT year(close[symbol = 'SPX']) AS ts_value FROM px ON date
+first-last-count A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+first-last-count B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT first(close[symbol = 'SPX'], all) AS ts_value FROM px ON date
+first-last-count C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT last(close[symbol = 'SPX'], whole) AS ts_value FROM px ON date
+first-last-count D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT count(close[symbol = 'SPX'], all) AS ts_value FROM px ON date
+split A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volatility(close[asset_class = 'Equity'], w => 63, type => 'simple') AS ts_value FROM px ON date BY symbol
+monthly A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT last(close[symbol = 'SPX']) AS ts_value FROM px ON date SAMPLE BY 1mo
+monthly B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(last(close[symbol = 'SPX']), 12, 'simple') AS ts_value FROM px ON date SAMPLE BY 1mo
+log-scale A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'NVDA'] AS ts_value FROM px ON date
+log-scale B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+compare A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+compare B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'TLT'] AS ts_value FROM px ON date
+compare C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'GLD'] AS ts_value FROM px ON date
+compare D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'EURUSD'] AS ts_value FROM px ON date
+styles A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'JPM'] AS ts_value FROM px ON date
+styles B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT max(close[symbol = 'JPM'], 21) AS ts_value FROM px ON date
+styles C: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT mean(close[symbol = 'JPM'], 21) AS ts_value FROM px ON date
+styles D: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'JPM'], 1, 'simple') AS ts_value FROM px ON date
+styles E: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT volume[symbol = 'JPM'] AS ts_value FROM px ON date
+condition A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+condition B: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT yield[tenor = '10Y'] - yield[tenor = '2Y'] < 0 AS ts_value FROM rates ON date
+condition C: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT yield[tenor = '10Y'] - yield[tenor = '2Y'] AS ts_value FROM rates ON date
+two-grids A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+two-grids B: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT yield[tenor = '2Y'] AS ts_value FROM rates ON date
+two-grids C: WITH px AS (SELECT * FROM local::DB.gallery_prices), rates AS (SELECT * FROM local::DB.gallery_rates) SELECT correlation(px.close[symbol = 'SPX'], rates.yield[tenor = '2Y'], w => 63) AS ts_value FROM px ON date, rates ON date
+view-scatter A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'SPX'], 1, 'simple') AS ts_value FROM px ON date
+view-scatter B: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'NDX'], 1, 'simple') AS ts_value FROM px ON date
+view-seasonality A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT last(close[symbol = 'SPX']) AS ts_value FROM px ON date SAMPLE BY 1w
+view-histogram A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT returns(close[symbol = 'SPX'], 1, 'simple') AS ts_value FROM px ON date
+view-curve A: WITH rates AS (SELECT * FROM local::DB.gallery_rates) SELECT yield AS ts_value FROM rates ON date BY tenor
+projected A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date
+drawn A: WITH px AS (SELECT * FROM local::DB.gallery_prices) SELECT close[symbol = 'SPX'] AS ts_value FROM px ON date

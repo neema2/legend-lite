@@ -638,6 +638,23 @@ describe("every change of a timeseries tile, made by its viewer and by Python's 
     if (!byPython.has('slots')) problems.push("Python's options() tells no slots change");
     assert.deepEqual(problems, [], 'every change of a timeseries tile is made by its viewer and by Python');
   });
+
+  // THE CHART FACE (B3, docs/TS_DECISIONS_2026_11_07.md §4, the builders' guard: "the change-parity ledger holds the builder
+  // to every change kind too"): each change a method of its Chart (timeseries-chart.ts), or listed with why it is none
+  const CHART_NONE: Record<string, string> = {
+    state: "a tile frozen or followed is the page's, over its grids' filters as they are: none of a tile built in code",
+  };
+  it('each change made by the chart face too, or listed with why it is none', () => {
+    const chart = codeLines(SOURCES.read('src/timeseries-chart.ts')).join('\n');
+    const byChart = new Set([...chart.matchAll(/#edit\(\{ kind: '([a-z]+)'/g)].map((m) => m[1]!));
+    const problems: string[] = [];
+    for (const k of kinds) {
+      if (byChart.has(k) && CHART_NONE[k] !== undefined) problems.push(`${k}: the chart face makes it now -- take it off the list`);
+      if (!byChart.has(k) && CHART_NONE[k] === undefined) problems.push(`${k}: no method of the chart face makes it -- add one, or list it with why`);
+    }
+    for (const k of Object.keys(CHART_NONE)) if (!kinds.includes(k)) problems.push(`${k}: no such change`);
+    assert.deepEqual(problems, [], 'every change of a timeseries tile is made by the chart face, or listed');
+  });
 });
 
 describe('L11: screen code builds no command', () => {

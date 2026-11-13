@@ -10,7 +10,9 @@ import { describe, it } from 'node:test';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LIGHT_THEME } from '../src/chart-option.ts';
-import { parseExpr } from '../src/timeseries-expr.ts';
+import {
+  bollinger_bands, column, index, ohlc, relative_strength_index, returns as returnsOf, series as seriesOf, volatility, zscores, type Term,
+} from '../src/timeseries-builder.ts';
 import { curveColumns, TS_SPLIT as SPLIT } from '../src/timeseries-query.ts';
 import { curveNotes, curveOption } from '../src/timeseries-views.ts';
 import { drawingsUnplaced, marksUnplaced, projectionsUnplaced, tickText, timeseriesCsv, timeseriesOption, timeseriesTable, timeseriesTsv, tsHeading, tsLines, tsMarks, tsPictureHeight, tsProjected, valueText, type TsResult } from '../src/timeseries-option.ts';
@@ -21,6 +23,7 @@ import {
 import { TS_MARK_LIMIT, TS_POINT_LIMIT, type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { TsUnit } from '../src/timeseries-expr.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 const DAYS = ['2024-01-04', '2024-01-03', '2024-01-02'];
 
@@ -36,7 +39,7 @@ function answered(series: string, unit: TsUnit, columns: Record<string, readonly
   return { query, table };
 }
 
-const S = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'expr'> = {}): TsSeries => ({ id, expr: parseExpr(expr), ...rest });
+const S = (id: string, t: Term, rest: Omit<TsSeries, 'id' | 'text'> = {}): TsSeries => ({ id, text: writtenText(t.expr, []), ...rest });
 
 function spec(series: TsSeries[], more: Partial<TimeseriesSpec> = {}): TimeseriesSpec {
   return { sources: [{ alias: 'px', cube: 'prices', date: 'day', key: 'symbol' }], series, ...more };
@@ -44,7 +47,7 @@ function spec(series: TsSeries[], more: Partial<TimeseriesSpec> = {}): Timeserie
 
 describe('the lines, from what the database answered', () => {
   it('a series\' rows made oldest first, its unit its query\'s, its colour its place', () => {
-    const ts = spec([S('A', 'close[SPX]'), S('B', 'volatility($A, 2)')]);
+    const ts = spec([S('A', column('close', 'SPX')), S('B', volatility(seriesOf('A'), { w: 2, returns_type: 'simple' }))]);
     const { lines, notes } = tsLines(ts, [
       answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }),
       answered('B', 'percent', { [TS_DATE]: DAYS, [TS_VALUE]: [20, null, null] }),
@@ -60,7 +63,7 @@ describe('the lines, from what the database answered', () => {
   });
 
   it('a split series: a line per value, in the order a person reads them (2Y before 10Y), each named by it', () => {
-    const ts = spec([S('A', 'yield', { name: 'Yield', split: 'tenor' }), S('B', 'close', { split: 'symbol' })]);
+    const ts = spec([S('A', column('yield'), { name: 'Yield', split: 'tenor' }), S('B', column('close'), { split: 'symbol' })]);
     const { lines } = tsLines(ts, [
       answered('A', 'same', { [TS_DATE]: ['2024-01-02', '2024-01-02'], [TS_VALUE]: [4.1, 4.4], [TS_SPLIT]: ['10Y', '2Y'] }, { split: 'tenor' }),
       answered('B', 'same', { [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [100], [TS_SPLIT]: ['SPX'] }, { split: 'symbol' }),
@@ -71,7 +74,7 @@ describe('the lines, from what the database answered', () => {
   // the review's Q12: a cut keeps whole dates, the date it crossed at last (timeseries-query.ts seriesQuery) -- that
   // date left out of the drawing, so every line ends at the same date
   it('a split series over the point limit: the date the cut crossed at left out, every line from the same date', () => {
-    const ts = spec([S('A', 'close', { split: 'symbol' })]);
+    const ts = spec([S('A', column('close'), { split: 'symbol' })]);
     // two lines a date, the limit's dates whole, and one more date of them (the crossed): latest first
     const n = TS_POINT_LIMIT / 2 + 1;
     const day = (i: number): string => new Date(Date.UTC(2000, 0, 1) + (n - i) * 86_400_000).toISOString().slice(0, 10);
@@ -84,7 +87,7 @@ describe('the lines, from what the database answered', () => {
   });
 
   it('a band: its edges and its width, point by point', () => {
-    const ts = spec([S('A', 'close'), S('B', 'bollinger_bands($A, 2, 1)')]);
+    const ts = spec([S('A', column('close')), S('B', bollinger_bands(seriesOf('A'), { w: 2, k: 1 }))]);
     const { lines } = tsLines(ts, [
       answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, null], [TS_LOWER]: [2, 1, null], [TS_UPPER]: [4, 3, null], [TS_WIDTH]: [2, 2, null] }, { band: true }),
     ], LIGHT_THEME);
@@ -93,7 +96,7 @@ describe('the lines, from what the database answered', () => {
   });
 
   it('as CSV: a row per line and date, the rows the database answered', () => {
-    const ts = spec([S('A', 'close[SPX]', { name: 'SPX' })]);
+    const ts = spec([S('A', column('close', 'SPX'), { name: 'SPX' })]);
     const { lines } = tsLines(ts, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME);
     const csv = timeseriesCsv(lines).trim().split('\n');
     assert.equal(csv.length, 4, 'a header and a row per date');
@@ -102,7 +105,7 @@ describe('the lines, from what the database answered', () => {
 
   // the next phases' 2 (2026-10-26): the statistics panel's Data tab and its Copy
   it('side by side: a row per date any line has, oldest first; a band its edges, candles their prices; none where none', () => {
-    const ts = spec([S('A', 'close[SPX]', { name: 'SPX' }), S('B', 'bollinger_bands($A, 2, 1)', { name: 'Band' }), S('C', 'close[NDX]', { name: 'NDX' })]);
+    const ts = spec([S('A', column('close', 'SPX'), { name: 'SPX' }), S('B', bollinger_bands(seriesOf('A'), { w: 2, k: 1 }), { name: 'Band' }), S('C', column('close', 'NDX'), { name: 'NDX' })]);
     const { lines } = tsLines(ts, [
       answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }),
       answered('B', 'same', { [TS_DATE]: DAYS.slice(0, 2), [TS_VALUE]: [3, 2], [TS_LOWER]: [2, 1], [TS_UPPER]: [4, 3], [TS_WIDTH]: [2, 2] }, { band: true }),
@@ -119,7 +122,7 @@ describe('the lines, from what the database answered', () => {
     // the dates shown alone
     assert.deepEqual(timeseriesTable(lines, { from: '2024-01-03', to: '2024-01-04' }).rows.map((r) => r.date), ['2024-01-03', '2024-01-04']);
     assert.equal(timeseriesTsv(timeseriesTable(lines, { to: '2024-01-02' })), 'date\tSPX\tBand lower\tBand upper\tNDX\n2024-01-02\t1\t\t\t7\n');
-    const candles = spec([S('A', 'ohlc(open, high, low, close)', { name: 'K' })]);
+    const candles = spec([S('A', ohlc(column('open'), column('high'), column('low'), column('close')), { name: 'K' })]);
     const k = tsLines(candles, [answered('A', 'same', { [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [4], [TS_OPEN]: [1], [TS_HIGH]: [5], [TS_LOW]: [0.5] }, { candles: true })], LIGHT_THEME).lines;
     assert.deepEqual(timeseriesTable(k).columns.map((c) => c.name), ['K open', 'K high', 'K low', 'K close']);
     assert.deepEqual(timeseriesTable(k).rows[0]!.values, [1, 5, 0.5, 4]);
@@ -128,10 +131,10 @@ describe('the lines, from what the database answered', () => {
   // the Phase 2 review's 7: a line's second value on a date was dropped without a word (Copy lost what the chart drew),
   // and one day written two ways -- a date, a date-time at midnight -- was two rows
   it('a line\'s two values on one date refused in words, never one dropped; one day written two ways, one row', () => {
-    const one = spec([S('A', 'close[SPX]', { name: 'SPX' })]);
+    const one = spec([S('A', column('close', 'SPX'), { name: 'SPX' })]);
     const twice = tsLines(one, [answered('A', 'same', { [TS_DATE]: ['2024-01-02', '2024-01-02'], [TS_VALUE]: [2, 1] })], LIGHT_THEME).lines;
     assert.throws(() => timeseriesTable(twice), /SPX has 2 values on 2024-01-02: a table has a row a date/);
-    const two = spec([S('A', 'close[SPX]', { name: 'SPX' }), S('B', 'close[NDX]', { name: 'NDX' })]);
+    const two = spec([S('A', column('close', 'SPX'), { name: 'SPX' }), S('B', column('close', 'NDX'), { name: 'NDX' })]);
     const mixed = tsLines(two, [
       answered('A', 'same', { [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [1] }),
       answered('B', 'same', { [TS_DATE]: ['2024-01-02T00:00:00'], [TS_VALUE]: [2] }),
@@ -152,7 +155,7 @@ describe('a curve\'s points of earlier days', () => {
       rowCount: 2, epoch: 0, elapsedMs: 0,
     };
     assert.deepEqual(curveNotes(t, ['latest', '2019-01-01']), ['latest (2024-06-28): 10Y is of 2023-12-29.', '2019-01-01: no line has a value at or before it.']);
-    const o = curveOption(spec([S('A', 'close', { split: 'tenor' })]), t, ['latest', '2019-01-01'], 'Yield', { theme: LIGHT_THEME }) as Record<string, unknown>;
+    const o = curveOption(spec([S('A', column('close'), { split: 'tenor' })]), t, ['latest', '2019-01-01'], 'Yield', { theme: LIGHT_THEME }) as Record<string, unknown>;
     const latest = (o['series'] as { data: { value: number; day: string; symbol?: string }[] }[])[0]!;
     assert.deepEqual(latest.data.map((d) => [d.value, d.day, d.symbol ?? 'circle']), [[4.1, '2024-06-28', 'circle'], [4.4, '2023-12-29', 'emptyCircle']]);
     const tip = (o['tooltip'] as { formatter: (items: unknown) => string }).formatter([{ seriesName: 'latest (2024-06-28)', axisValue: '10Y', data: latest.data[1] }]);
@@ -167,7 +170,7 @@ describe('the drawing', () => {
   };
 
   it('a grid per pane, one time axis each; a second unit on its own axis, on the right', () => {
-    const ts = spec([S('A', 'close[SPX]'), S('B', 'volatility($A, 2)'), S('C', 'zscores($A)', { pane: 1 })]);
+    const ts = spec([S('A', column('close', 'SPX')), S('B', volatility(seriesOf('A'), { w: 2, returns_type: 'simple' })), S('C', zscores(seriesOf('A')), { pane: 1 })]);
     const { option } = draw(ts, [
       answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }),
       answered('B', 'percent', { [TS_DATE]: DAYS, [TS_VALUE]: [20, 19, null] }),
@@ -189,15 +192,15 @@ describe('the drawing', () => {
 
   // the timeseries gallery, 2026-10-25: a log pane of two prices, one on the right, drew the right one on a straight scale
   it('a log pane: its left axis and a right one of levels on a log scale; a ratio on the right keeps its zero', () => {
-    const ts = spec([S('A', 'close[NVDA]'), S('B', 'close[SPX]', { axis: 'right' })], { panes: [{ log: true }] });
+    const ts = spec([S('A', column('close', 'NVDA')), S('B', column('close', 'SPX'), { axis: 'right' })], { panes: [{ log: true }] });
     const levels = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [300, 200, 100] })];
     const types = (o: Record<string, unknown>): string[] => (o['yAxis'] as { type: string }[]).map((y) => y.type);
     assert.deepEqual(types(draw(ts, levels).option), ['log', 'log']);
-    const ratio: TimeseriesSpec = { ...ts, series: [ts.series[0]!, S('B', 'returns($A)', { axis: 'right' })] };
+    const ratio: TimeseriesSpec = { ...ts, series: [ts.series[0]!, S('B', returnsOf(seriesOf('A'), { obs: 1, type: 'simple' }), { axis: 'right' })] };
     assert.deepEqual(types(draw(ratio, [levels[0]!, answered('B', 'ratio', { [TS_DATE]: DAYS, [TS_VALUE]: [0.1, -0.2, null] })]).option), ['log', 'value']);
     // the review's G3: a figure that may be zero or below on the log pane's left axis -- dropped by a log axis without a
     // word -- keeps that axis straight, and the drawing says why
-    const returns = spec([S('A', 'returns(close[SPX])')], { panes: [{ log: true }] });
+    const returns = spec([S('A', returnsOf(column('close', 'SPX'), { obs: 1, type: 'simple' }))], { panes: [{ log: true }] });
     const drawn = answered('A', 'ratio', { [TS_DATE]: DAYS, [TS_VALUE]: [0.01, -0.02, null] });
     assert.deepEqual(types(draw(returns, [drawn]).option), ['value']);
     assert.ok(tsLines(returns, [drawn], LIGHT_THEME).notes.some((n) => /no level .* not on a log scale/.test(n)));
@@ -206,7 +209,7 @@ describe('the drawing', () => {
   // the second audit's S1: a level that goes to zero or below (a yield gone negative) on a log pane -- its points left
   // off a log axis without a word -- keeps its axis straight, said
   it('a level at or below zero on a log pane: its axis straight, and said', () => {
-    const ts = spec([S('A', 'yield[2Y]')], { panes: [{ log: true }] });
+    const ts = spec([S('A', column('yield', '2Y'))], { panes: [{ log: true }] });
     const drawn = answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [0.1, -0.2, 0.5] });
     const types = (o: Record<string, unknown>): string[] => (o['yAxis'] as { type: string }[]).map((y) => y.type);
     assert.deepEqual(types(draw(ts, [drawn]).option), ['value']);
@@ -224,7 +227,7 @@ describe('the drawing', () => {
   });
 
   it("a split's line of no frequency to annualize by: said by its name", () => {
-    const ts = spec([S('A', 'volatility(close, 3)', { split: 'symbol' })]);
+    const ts = spec([S('A', volatility(column('close'), { w: 3, returns_type: 'simple' }), { split: 'symbol' })]);
     const { notes } = tsLines(ts, [answered('A', 'percent', {
       [TS_DATE]: ['2024-01-04', '2024-01-04', '2024-01-03', '2024-01-03'], [TS_VALUE]: [20, null, 21, null],
       [TS_SPLIT]: ['AAA', 'CCC', 'AAA', 'CCC'], [TS_PER_YEAR]: [252, null, 252, null],
@@ -234,7 +237,7 @@ describe('the drawing', () => {
   });
 
   it('an RSI\'s axis shows its bounds whole', () => {
-    const ts = spec([S('A', 'close'), S('B', 'rsi($A, 2)', { pane: 1 })]);
+    const ts = spec([S('A', column('close')), S('B', relative_strength_index(seriesOf('A'), { w: 2 }), { pane: 1 })]);
     const { option } = draw(ts, [
       answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }),
       answered('B', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [60, 40, null] }),
@@ -244,7 +247,7 @@ describe('the drawing', () => {
   });
 
   it('room on the right for each line\'s latest value, tagged at its end', () => {
-    const ts = spec([S('A', 'close')]);
+    const ts = spec([S('A', column('close'))]);
     const without = draw({ ...ts, view: { lastValues: false } }, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [12345.67, 2, 1] })]).option;
     const tagged = draw(ts, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [12345.67, 2, 1] })]).option;
     const right = (o: Record<string, unknown>): number => (o['grid'] as { right: number }[])[0]!.right;
@@ -253,7 +256,7 @@ describe('the drawing', () => {
   });
 
   it('a band drawn as its fill stacked on its lower edge, and its two edges', () => {
-    const ts = spec([S('A', 'close'), S('B', 'bollinger_bands($A, 2, 1)')]);
+    const ts = spec([S('A', column('close')), S('B', bollinger_bands(seriesOf('A'), { w: 2, k: 1 }))]);
     const { option } = draw(ts, [
       answered('B', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, null], [TS_LOWER]: [2, 1, null], [TS_UPPER]: [4, 3, null], [TS_WIDTH]: [2, 2, null] }, { band: true }),
     ]);
@@ -264,7 +267,7 @@ describe('the drawing', () => {
   });
 
   it('candles: a candlestick per period, [date, open, close, low, high] as ECharts reads one, said O H L C on a hover', () => {
-    const ts = spec([S('A', 'ohlc(open, high, low, close)', { name: 'AAPL' })]);
+    const ts = spec([S('A', ohlc(column('open'), column('high'), column('low'), column('close')), { name: 'AAPL' })]);
     const { lines, option } = draw(ts, [
       answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [12, 11, 10], [TS_OPEN]: [11, 10, 9], [TS_HIGH]: [13, 12, 11], [TS_LOW]: [10, 9, 8] }, { candles: true }),
     ]);
@@ -280,11 +283,11 @@ describe('the drawing', () => {
 
   // the next phases' 2 (2026-10-26): a yield's axis read upside down, its ends by hand; a picture's heading
   it('a pane upside down and its left axis\' ends by hand; the heading -- title, subtitle, note -- above the panes', () => {
-    const ts = spec([S('A', 'close[SPX]'), S('B', 'volatility($A, 2)')], { panes: [{ invert: true, min: 0, max: 10 }] });
+    const ts = spec([S('A', column('close', 'SPX')), S('B', volatility(seriesOf('A'), { w: 2, returns_type: 'simple' }))], { panes: [{ invert: true, min: 0, max: 10 }] });
     const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'percent', { [TS_DATE]: DAYS, [TS_VALUE]: [20, 19, null] })];
     const yAxes = draw(ts, results).option['yAxis'] as { position: string; inverse?: boolean; min?: number; max?: number }[];
     assert.deepEqual(yAxes.map((y) => [y.position, y.inverse, y.min, y.max]), [['left', true, 0, 10], ['right', true, undefined, undefined]]);
-    const plain = draw(spec([S('A', 'close[SPX]')]), [results[0]!]).option;
+    const plain = draw(spec([S('A', column('close', 'SPX'))]), [results[0]!]).option;
     assert.equal(plain['title'], undefined, 'no heading of its own on the screen: the tile\'s header says its title');
     const headed: TimeseriesSpec = { ...ts, view: { subtitle: 'Daily close', note: 'Source: the exchange' } };
     const { lines } = tsLines(headed, results, LIGHT_THEME);
@@ -300,7 +303,7 @@ describe('the drawing', () => {
   // the Phase 2 review's 4 and 10: a picture said no line's name and drew the navigator; it was taller than its panes
   // needed by the screen's heading; an empty title kept a blank line; a note of two lines ran into the panes
   it('a picture: its lines\' legend under its heading, no navigator, its panes as tall as on the screen', () => {
-    const ts: TimeseriesSpec = { ...spec([S('A', 'close[SPX]', { name: 'SPX' }), S('B', 'volatility($A, 2)', { name: 'Vol', pane: 1 })]),
+    const ts: TimeseriesSpec = { ...spec([S('A', column('close', 'SPX'), { name: 'SPX' }), S('B', volatility(seriesOf('A'), { w: 2, returns_type: 'simple' }), { name: 'Vol', pane: 1 })]),
       view: { subtitle: 'Daily', note: 'Source: the exchange\nand its vendor' } };
     const results = [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('B', 'percent', { [TS_DATE]: DAYS, [TS_VALUE]: [20, 19, null] })];
     const { lines } = tsLines(ts, results, LIGHT_THEME);
@@ -320,19 +323,19 @@ describe('the drawing', () => {
   // the Phase 2 review's 2: a pane's ends by hand were quietly ignored -- a bounded line's axis took its own bounds over
   // them, and a pane whose lines are on the right set them on its empty left axis
   it('a pane\'s ends by hand: over a bounded line\'s, and on the axis its lines are on', () => {
-    const rsi = spec([S('A', 'rsi(close[SPX], 14)')], { panes: [{ min: 20, max: 80 }] });
+    const rsi = spec([S('A', relative_strength_index(column('close', 'SPX'), { w: 14 }))], { panes: [{ min: 20, max: 80 }] });
     const r = [answered('A', 'number', { [TS_DATE]: DAYS, [TS_VALUE]: [30, 50, 70] })];
     const bounded = draw(rsi, r).option['yAxis'] as { min?: number; max?: number }[];
     assert.deepEqual([bounded[0]!.min, bounded[0]!.max], [20, 80], 'the ends told, not the RSI\'s 0 and 100');
-    const plain = draw(spec([S('A', 'rsi(close[SPX], 14)')]), r).option['yAxis'] as { min?: number; max?: number }[];
+    const plain = draw(spec([S('A', relative_strength_index(column('close', 'SPX'), { w: 14 }))]), r).option['yAxis'] as { min?: number; max?: number }[];
     assert.deepEqual([plain[0]!.min, plain[0]!.max], [0, 100], 'its own bounds where none are told');
-    const right = spec([S('A', 'close[SPX]', { axis: 'right' })], { panes: [{ max: 2 }] });
+    const right = spec([S('A', column('close', 'SPX'), { axis: 'right' })], { panes: [{ max: 2 }] });
     const sides = draw(right, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })]).option['yAxis'] as { position: string; max?: number }[];
     assert.deepEqual(sides.map((y) => [y.position, y.max]), [['left', undefined], ['right', 2]], 'on the right, where its line is');
   });
 
   it('the annotations over the panes: a level on its pane, an event and a period across the dates', () => {
-    const ts = spec([S('A', 'close'), S('B', 'zscores($A)', { pane: 1 })], {
+    const ts = spec([S('A', column('close')), S('B', zscores(seriesOf('A')), { pane: 1 })], {
       annotations: [
         { kind: 'level', value: 0, pane: 1, label: 'zero' },
         { kind: 'event', date: '2024-01-03', label: 'CPI' },
@@ -349,7 +352,7 @@ describe('the drawing', () => {
 
   // marks from a grid's rows (Phase 6's D4): what their query answered, latest first, drawn oldest first
   it('marks at a value: a triangle each in its pane, up or down, its row\'s text beside it; at a date alone, a line', () => {
-    const ts = spec([S('A', 'close'), S('B', 'zscores($A)', { pane: 1 })], {
+    const ts = spec([S('A', column('close')), S('B', zscores(seriesOf('A')), { pane: 1 })], {
       annotations: [
         { kind: 'marks', source: 'px', at: 'price', text: 'quantity', shape: 'down', label: 'Sold' },
         { kind: 'marks', source: 'px', text: 'headline', label: 'Earnings' },
@@ -377,7 +380,7 @@ describe('the drawing', () => {
     assert.equal(cut.marked.points.length, TS_MARK_LIMIT);
     assert.deepEqual(cut.notes, [`Sold: the latest ${TS_MARK_LIMIT.toLocaleString(UI_LOCALE)} (there are more).`]);
     // marks in a pane that draws no line are said, never drawn elsewhere
-    const lost = spec([S('A', 'close')], { annotations: [{ kind: 'marks', source: 'px', at: 'price', pane: 2, label: 'Fills' }] });
+    const lost = spec([S('A', column('close'))], { annotations: [{ kind: 'marks', source: 'px', at: 'price', pane: 2, label: 'Fills' }] });
     const fills = tsMarks(lost, 0, table({ [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [1] }), LIGHT_THEME).marked;
     const one = tsLines(lost, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
     assert.deepEqual(marksUnplaced(lost, one, [fills]), ['Fills are drawn in pane 3, which draws no line.']);
@@ -391,7 +394,7 @@ describe('the drawing', () => {
       columns: Object.keys(columns).map((name) => ({ name, type: name === TS_DATE ? 'StrictDate' : 'Float', values: [...columns[name]!] })),
       rowCount: Object.values(columns)[0]!.length, epoch: 0, elapsedMs: 0,
     });
-    const right = spec([S('A', 'close', { axis: 'right' })], { annotations: [{ kind: 'marks', source: 'px', at: 'price', label: 'Fills' }] });
+    const right = spec([S('A', column('close'), { axis: 'right' })], { annotations: [{ kind: 'marks', source: 'px', at: 'price', label: 'Fills' }] });
     const fills = tsMarks(right, 0, table({ [TS_DATE]: ['2024-01-02'], [TS_VALUE]: [1] }), LIGHT_THEME).marked;
     const lines = tsLines(right, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
     const option = timeseriesOption(right, lines, { theme: LIGHT_THEME, marks: [fills] }) as { series: { id: string; yAxisIndex: number }[] };
@@ -404,7 +407,7 @@ describe('the drawing', () => {
   // a trend projected (Phase 5): the database's one row read as three points, drawn dashed through its line's
   // observations and on past them, in its line's colour on its axis; under a compare, left out and said
   it('a projection: its three points the database\'s, dashed on its line\'s axis in its colour; refused rows said', () => {
-    const ts = spec([S('A', 'close'), S('B', 'close', { axis: 'right', hidden: true })], {
+    const ts = spec([S('A', column('close')), S('B', column('close'), { axis: 'right', hidden: true })], {
       annotations: [{ kind: 'projection', series: 'A', window: 3, label: 'Trend' }, { kind: 'projection', series: 'B' }],
     });
     const table = (row: Record<string, string | number | null>): ResultTable => ({
@@ -446,7 +449,7 @@ describe('the drawing', () => {
   it('drawings: a line and a note in their pane on its line\'s axis; while drawing, a series per pane, no pan, the first end shown', () => {
     type Drawn = { series: { id: string; xAxisIndex: number; yAxisIndex: number; markLine: { data: { coord: unknown[]; label?: { formatter: string } }[][] };
       markPoint: { data: { coord: unknown[]; value?: string; symbol?: string }[] } }[]; dataZoom: { type: string; moveOnMouseMove?: boolean }[] };
-    const ts = spec([S('A', 'close'), S('B', 'rsi($A, 2)', { pane: 1, axis: 'right' })], {
+    const ts = spec([S('A', column('close')), S('B', relative_strength_index(seriesOf('A'), { w: 2 }), { pane: 1, axis: 'right' })], {
       annotations: [
         { kind: 'line', from: { date: '2024-01-02', value: 1 }, to: { date: '2024-01-04', value: 3 }, label: 'Trend' },
         { kind: 'note', at: { date: '2024-01-03', value: 60 }, text: 'Overbought', pane: 1 },
@@ -464,7 +467,7 @@ describe('the drawing', () => {
     assert.deepEqual([second.xAxisIndex, second.yAxisIndex], [1, option.series.find((x) => x.id === 'B')!.yAxisIndex], 'on its line\'s axis, the right');
     assert.equal(option.dataZoom.find((z) => z.type === 'inside')!.moveOnMouseMove, true);
     // while drawing: a series in every pane drawing a line (none drawn there yet), no pan, a line's first end shown
-    const bare = spec([S('A', 'close'), S('B', 'rsi($A, 2)', { pane: 1 })]);
+    const bare = spec([S('A', column('close')), S('B', relative_strength_index(seriesOf('A'), { w: 2 }), { pane: 1 })]);
     const drawing = timeseriesOption(bare, lines, { theme: LIGHT_THEME, height: 600, drawing: true, drawFrom: { pane: 1, at: { date: '2024-01-02', value: 55 } } }) as unknown as Drawn;
     assert.deepEqual(drawing.series.filter((x) => x.id.startsWith('drawings:')).map((x) => x.id), ['drawings:0', 'drawings:1']);
     assert.deepEqual(drawing.series.find((x) => x.id === 'drawings:1')!.markPoint.data.map((d) => [d.coord, d.symbol]), [[['2024-01-02', 55], 'circle']]);
@@ -480,7 +483,7 @@ describe('the drawing', () => {
     assert.ok(!(timeseriesOption(lost, lines, { theme: LIGHT_THEME }) as unknown as Drawn).series.some((x) => x.id.startsWith('drawings:')));
     // the Phase 5 review's 3: on the pane's first line by the tile's order -- hidden, none, said; never on whichever line
     // is shown first
-    const two = spec([S('A', 'close'), S('V', 'volume', { axis: 'right' })], { annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 2 }, text: 'Here' }] });
+    const two = spec([S('A', column('close')), S('V', column('volume'), { axis: 'right' })], { annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 2 }, text: 'Here' }] });
     const both = tsLines(two, [answered('A', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] }), answered('V', 'same', { [TS_DATE]: DAYS, [TS_VALUE]: [9e6, 8e6, 7e6] })], LIGHT_THEME).lines;
     const onA = timeseriesOption(two, both, { theme: LIGHT_THEME }) as unknown as Drawn;
     assert.equal(onA.series.find((x) => x.id === 'drawings:0')!.yAxisIndex, onA.series.find((x) => x.id === 'A')!.yAxisIndex);
@@ -489,7 +492,7 @@ describe('the drawing', () => {
     assert.ok(!(timeseriesOption(hidden, hiddenLines, { theme: LIGHT_THEME }) as unknown as Drawn).series.some((x) => x.id === 'drawings:0'), 'not on the volume\'s axis');
     assert.deepEqual(drawingsUnplaced(hidden, hiddenLines), ['The drawings in pane 1 are on series A\'s values, and it is hidden. Its drawings are left out.']);
     // on a line read from the first date shown (an index): its values move with the window -- left out, said
-    const indexed = spec([S('A', 'index(close)')], { annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 2 }, text: 'Here' }] });
+    const indexed = spec([S('A', index(column('close'), { initial: 1 }))], { annotations: [{ kind: 'note', at: { date: '2024-01-03', value: 2 }, text: 'Here' }] });
     const indexedLines = tsLines(indexed, [answered('A', 'index', { [TS_DATE]: DAYS, [TS_VALUE]: [3, 2, 1] })], LIGHT_THEME).lines;
     assert.deepEqual(drawingsUnplaced(indexed, indexedLines), ['The drawings in pane 1 are on series A\'s values, which start from the first date shown and move with it. Its drawings are left out.']);
   });
