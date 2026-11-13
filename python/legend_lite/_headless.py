@@ -56,9 +56,11 @@ _FETCH_TIMEOUT = 60
 # V8's flags, set once for the process before its first engine: mini-racer's own (--single-threaded) and no memory
 # protection keys. Insurance against the crash seen twice on 20261111.127.1 (ubuntu-24.04 on GitHub's Linux runners,
 # 2026-11-13, gates runs 43370111355 and 43380062329: mini-racer's _make_context segfaulted wherever a process made a
-# second engine); the cause unproven: the probe (gates run 43433798750) reached only .370.1, AMD, no pku, where nothing
-# crashed. The keys are the mechanism that fits: where the CPU and kernel offer PKU, V8 (on by default) tags its code
-# pages with a key only the thread that started V8, and threads it starts after, may read -- and each engine has its own
+# second engine); the cause proven 2026-11-13 on a pku CPU (an Intel Xeon with pku and ospke): headless_test,
+# engine_test and notebook_test segfault without this, and pass with it (the first probe, gates run 43433798750, reached
+# only .370.1, AMD, no pku, where nothing crashed). The keys are the mechanism: where the CPU and kernel offer PKU, V8
+# (on by default) tags its code pages with a key only the thread that started V8, and threads it starts after, may
+# read -- and each engine has its own
 # thread, started by whichever thread made it. DataCube's code is the engine's only code, and the bundle legend-lite
 # ships. The user's ruling, 2026-11-13: "agreed on turning protection off then with that error message, parent thread
 # as later follow-up" -- the keys off, V8 started by other code first refused in words, and starting every engine
