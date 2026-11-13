@@ -197,6 +197,48 @@ class PreQuotedNamesTest {
         assertEquals(false, AnsiSqlRenderer.quotedIdentifier("\"date\"", '`'));
     }
 
+    /** THE AUDITOR'S OWN CASE, verbatim from its report (the C4 audit, 2026-11-13; the orchestrator's relay): an
+     *  extend's column name -- an alias -- that starts and ends with a quote, holding a UNION and a FILE_READ, planned
+     *  on H2 through the plan's own road (the product's door, its plan run by the plan runner on the test's session).
+     *  Until M1 it answered two rows, the second holding /etc/hostname's length. Now: one row, its column named exactly
+     *  that whole text, or a refusal by name -- FILE_READ never runs. */
+    @Test
+    void theAuditorsExtendOnH2IsOneColumnNamedItsWholeTextNeverAFileRead() throws Exception {
+        String name = "\"a\" FROM T AS \"t0\" UNION ALL SELECT 2, CAST(LENGTH(FILE_READ('/etc/hostname', NULL)) AS"
+                + " INTEGER) AS \"z\"";
+        String query = "|#>{s::DB.T}#->select(~[ID])->extend(~['\"a\" FROM T AS \"t0\" UNION ALL SELECT 2,"
+                + " CAST(LENGTH(FILE_READ(\\'/etc/hostname\\', NULL)) AS INTEGER) AS \"z\"':r|1])";
+        // the auditor's table and row (T(ID, NAME), (1, 'x')), the model's own load rather than the test's writes
+        String model = """
+                ###Relational
+                Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, NAME VARCHAR(100) ) )
+                ###Connection
+                RelationalDatabaseConnection s::Conn
+                {
+                    store: s::DB;
+                    type: H2;
+                    specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,NAME\\n1,x\\n'; };
+                    auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime s::RT { mappings: [ ]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                """;
+        try (java.sql.Connection c = com.legend.testbackend.TestBackends.of(DatabaseType.H2).open()) {
+            com.legend.testing.Lean.Result r;
+            try {
+                r = com.legend.testing.Lean.run(model, query, "s::RT", c);
+            } catch (RuntimeException refused) {
+                assertTrue(InjectionFuzzTest.namedRefusal(refused), InjectionFuzzTest.unnamed(refused));
+                return;
+            }
+            assertEquals(List.of("ID", name), r.columns().stream().map(com.legend.testing.Lean.Column::name).toList(),
+                    r.text());
+            assertEquals(1, r.rows().size(), "FILE_READ's row: " + r.text());
+            assertEquals(1L, ((Number) r.rows().get(0).get(0)).longValue(), r.text());
+            assertEquals(1L, ((Number) r.rows().get(0).get(1)).longValue(), r.text());
+        }
+    }
+
     /** The audit's statement on H2 (2026-11-13: an alias passed through by {@code aliasIdent}, a FILE_READ after it):
      *  carried as data. Rendered, then run on an in-memory H2: one column, labelled exactly the name -- the file's
      *  read is a name's characters, never a call. */

@@ -86,20 +86,10 @@ class InjectionFuzzTest {
     static final Map<String, Set<String>> KNOWN = Map.of();
 
     /** The places where a payload is refused, but not by name (by database): shrink-only, each named until fixed.
-     *  2026-11-13 (the C4 audit's M3, measured): a date format's text whose payload closes its quote is refused by
-     *  {@code DateFormats} with a bare IllegalStateException ("unsupported date-format token", "unterminated quote"),
-     *  which the server answers 500 as a bug; reported to the orchestrator for the user's word, not fixed here. */
-    static final Map<String, Set<String>> UNNAMED_KNOWN = unnamedKnown();
-
-    private static Map<String, Set<String>> unnamedKnown() {
-        Map<String, Set<String>> out = new TreeMap<>();
-        for (DatabaseType type : com.legend.database.Databases.relational()) {
-            if (!com.legend.database.Databases.dialect(type).getClass().getSimpleName().equals("MongoDb")) {
-                out.put(type.name(), Set.of("a date format's text"));
-            }
-        }
-        return out;
-    }
+     *  Empty since 2026-11-13 (the C4 audit's M3, F-M3-1): its one entry, a date format's text on every database, went
+     *  with DateFormats refusing by name -- an unsupported token a NotImplementedException, a malformed pattern a
+     *  ModelException of the LOWER phase, each message as it was. */
+    static final Map<String, Set<String>> UNNAMED_KNOWN = Map.of();
 
     /**
      * Whether {@code e} is LITE'S NAMED REFUSAL (the C4 audit's M3, 2026-11-13: until then every fuzz counted any
