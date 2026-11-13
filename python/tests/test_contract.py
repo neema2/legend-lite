@@ -48,7 +48,7 @@ class TheDoorTest(_Served):
         self.assertEqual(caps['contract'], contract.VERSION)
         self.assertEqual(caps['engine'], {'name': 'Python', 'databaseType': 'DuckDB'})
         self.assertTrue(caps['calls']['query'] and caps['calls']['typeOf'])
-        self.assertNotIn('write', caps['calls'], 'write is step 2')
+        self.assertEqual(caps['calls']['write'], {'modes': ['create', 'overwrite', 'append', 'deleteAppend', 'merge']})
 
     def test_a_model_handed_to_datacube_holds_no_connection_or_runtime_and_names_its_runtime(self):
         self.assertNotIn('###Connection', self.model)
@@ -88,6 +88,46 @@ class TheDoorTest(_Served):
         status, said = self.call('parse', {'session': s, 'text': '|1'})
         self.assertEqual(said['error']['kind'], 'refused')
 
+    def write(self, s, target, mode):
+        return self.call('write', {'session': s, 'ask': {'box': {'model': self.model, 'runtime': self.runtime,
+                                                                 'query': self.query}, 'target': {'table': target},
+                                                         'mode': mode}})
+
+    def rows(self, table):
+        return self.frames.connection._con.execute(f'SELECT id, name FROM {table} ORDER BY id').fetchall()
+
+    def test_write_is_one_call_in_each_mode_the_engines_transaction_and_its_own_execution_id(self):
+        s = self.session()
+        status, said = self.write(s, 'out_t', 'create')
+        self.assertEqual((status, said['rowsWritten']), (200, 4))
+        self.assertEqual(self.rows('out_t'), [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')])
+        self.assertEqual(self.write(s, 'out_t', 'append')[1]['rowsWritten'], 4)
+        self.assertEqual(len(self.rows('out_t')), 8)
+        self.assertEqual(self.write(s, 'out_t', 'deleteAppend')[1]['rowsWritten'], 4)
+        self.assertEqual(len(self.rows('out_t')), 4)
+        self.assertEqual(self.write(s, 'out_t', {'merge': {'keys': ['id']}})[1]['rowsWritten'], 4)
+        self.assertEqual(self.rows('out_t'), [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')])
+        first, second = self.write(s, 'out_t', 'overwrite')[1], self.write(s, 'out_t', 'overwrite')[1]
+        self.assertNotEqual(first['executionId'], second['executionId'])
+        # a create of a table there already: the database's words, nothing of it kept, its execution id
+        status, said = self.write(s, 'out_t', 'create')
+        self.assertEqual((status, said['error']['kind']), (422, 'run'))
+        self.assertTrue(said['error']['executionId'])
+        self.assertEqual(len(self.rows('out_t')), 4)
+
+    def test_write_derives_its_tables_and_refuses_the_engines_own_and_a_write_in_a_read(self):
+        s = self.session()
+        status, said = self.write(s, 'conformance_t', 'append')
+        self.assertEqual(said['error']['what'], "the table 'conformance_t'")
+        status, said = self.call('write', {'session': s, 'ask': {'box': {'model': self.model, 'runtime': self.runtime,
+                                                                        'query': self.query}, 'target': {'table': 'x'},
+                                                                'mode': 'append', 'sources': ['conformance_t']}})
+        self.assertEqual(said['error']['kind'], 'refused', 'the box\'s tables are the engine\'s to derive, never sent')
+        said = self.engine.contract.answer('write', json.dumps({'session': s, 'ask': {
+            'box': {'model': self.model, 'runtime': self.runtime, 'query': self.query}, 'target': {'table': 'x'},
+            'mode': 'create'}}), over=object())
+        self.assertIn('a write made in a read', json.loads(said.body)['error']['message'])
+
     def test_parameters_are_refused_by_name_until_step_6(self):
         s = self.session()
         status, said = self.call('query', {'session': s, 'ask': {'model': self.model, 'runtime': self.runtime,
@@ -102,15 +142,16 @@ class ConformanceSuiteTest(_Served):
         script = Path(os.environ['LEGEND_LITE_ENGINE_CONFORMANCE']).read_text(encoding='utf-8')
         fixture = {'model': self.model, 'runtime': self.runtime, 'source': self.table.source,
                    'columns': [{'name': 'id', 'type': 'Integer'}, {'name': 'name', 'type': 'String'}],
-                   'rowCount': ROWS.num_rows, 'textColumn': 'name'}
+                   'rowCount': ROWS.num_rows, 'textColumn': 'name', 'keyColumn': 'id', 'ownTable': 'conformance_t',
+                   'store': 'conformance_t::DB', 'writeTarget': 'conformance_out'}
         with Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now) as h:
             h.answers = lambda: self.engine.answer_over
             h.execute(script)
-            with self.frames.reading():
-                results = json.loads(h.evaluate(f'legendLiteConformance.run({json.dumps(json.dumps(fixture))})'))
+            # in no read of the frames: a query reads in a read of its own, a write is made in none (step 2)
+            results = json.loads(h.evaluate(f'legendLiteConformance.run({json.dumps(json.dumps(fixture))})'))
         for r in results:
             print(f"{'ok  ' if r['ok'] else 'FAIL'} {r['name']}{'' if r['ok'] else ': ' + r.get('error', '')}", flush=True)
-        self.assertGreaterEqual(len(results), 9)
+        self.assertGreaterEqual(len(results), 13)
         self.assertEqual([r for r in results if not r['ok']], [])
 
 

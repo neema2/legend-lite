@@ -38,7 +38,7 @@ from collections.abc import Callable, Coroutine, Iterator
 from pathlib import Path
 from typing import Any
 
-from . import _host, compiler, projects
+from . import _host, compiler, contract, projects
 from ._planned import Database, NotPlanned, PlannedSql, connect, host_operation_refusal, send
 from ._library import Library, library
 from ._pool import library_thread
@@ -367,7 +367,10 @@ class Headless:
         answers = None if self.answers is None else self.answers()
         if answers is None:
             raise RuntimeError('this host answers no call of the engine\'s: it was given none to answer')
-        if self._over is None:
+        # the engine contract's calls (contract.py) may be made in no read: a query then reads in a read of its own, and a
+        # write -- which no read may make -- runs (the DataCube stream's step 2, 2026-11-13); any other call reads over
+        # the read it was made in
+        if self._over is None and not path.startswith(contract.PATH):
             raise RuntimeError('DataCube asked the engine in a call made in no read of the frames (Frames.reading): '
                                'its rows are read over what one read sees')
         status, content_type, data = answers(path, body, self._over)

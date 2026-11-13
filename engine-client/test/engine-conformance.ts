@@ -23,6 +23,13 @@ export interface ConformanceFixture {
   readonly rowCount: number;
   /** A text column of it, whose values do not read as integers: what makes the database refuse a cast at run. */
   readonly textColumn: string;
+  /** A column whose values are unique: what a merge is keyed by. */
+  readonly keyColumn: string;
+  /** The source's own table (the engine's: a write to it is refused) and the Database its model declares. */
+  readonly ownTable: string;
+  readonly store: string;
+  /** A table of the engine's database no source is: where the write cases write (made by the first). */
+  readonly writeTarget: string;
 }
 
 /** One case's outcome. */
@@ -172,6 +179,57 @@ export const CASES: readonly Case[] = [
   },
 ];
 
+/** The suite's planted violator of R3a: the fixture's model with a connection of its own (test input, never DataCube's). */
+const withConnection = (f: ConformanceFixture): string =>
+  `${f.model}\n###Connection\nRelationalDatabaseConnection conformance::Planted { store: ${f.store}; type: DuckDB; specification: DuckDB { }; auth: Test; }\n`;
+
+const WRITES: readonly Case[] = [
+  {
+    name: 'C10 a model declaring its own connection is refused by name, the engine owning its runtimes (R3a)',
+    async run(_e, s, caps, f) {
+      if (caps.calls.typeOf) await rejects(() => s.typeOf({ ...ask(f, lambda([], f.source)), model: withConnection(f) }), 'refused', 'typeOf over a model with a connection', 'connection');
+      await rejects(() => s.typeOf({ ...ask(f, lambda([], f.source)), runtime: 'conformance::NoSuchRuntime' }), 'refused', 'a runtime the engine does not own', 'conformance::NoSuchRuntime');
+    },
+  },
+  {
+    name: 'C11 write, one call: each of the five modes answers the rows the database wrote, with its execution id',
+    async run(_e, s, caps, f) {
+      if (caps.calls.write === undefined) {
+        await rejects(() => s.write({ box: ask(f, lambda([], f.source)), target: { table: f.writeTarget }, mode: 'create' }), 'refused', 'write, not offered', 'write');
+        return;
+      }
+      const box = ask(f, lambda([], f.source));
+      const ids = new Set<string>();
+      for (const mode of ['create', 'append', 'deleteAppend', 'overwrite', { merge: { keys: [f.keyColumn] } }] as const) {
+        const done = await s.write({ box, target: { table: f.writeTarget }, mode });
+        equal(done.rowsWritten, f.rowCount, `${JSON.stringify(mode)}'s rows`);
+        check(done.executionId.length > 0 && !ids.has(done.executionId), `${JSON.stringify(mode)}: an execution id of its own`);
+        ids.add(done.executionId);
+      }
+    },
+  },
+  {
+    name: "C12 write's refusals: the engine's own table by name; a create of a table there already in the database's words; a box model with a connection",
+    async run(_e, s, caps, f) {
+      if (caps.calls.write === undefined) return;
+      const box = ask(f, lambda([], f.source));
+      await rejects(() => s.write({ box, target: { table: f.ownTable }, mode: 'append' }), 'refused', "a write to the engine's own table", f.ownTable);
+      const e = await rejects(() => s.write({ box, target: { table: f.writeTarget }, mode: 'create' }), 'run', 'a create of a table there already');
+      check((e.executionId ?? '').length > 0, 'its execution id');
+      await rejects(() => s.write({ box: { ...box, model: withConnection(f) }, target: { table: f.writeTarget }, mode: 'append' }), 'refused', 'a write over a model with a connection', 'connection');
+      await rejects(() => s.write({ box, target: { table: f.writeTarget }, mode: { merge: { keys: [] } } }), 'refused', 'a merge of no key');
+    },
+  },
+  {
+    name: "C13 a mode the capabilities omit is refused by name before anything crosses",
+    async run(_e, _s, caps) {
+      const stub: Capabilities = { ...caps, calls: { ...caps.calls, write: { modes: ['create'] } } };
+      const r = refusalOf(stub, 'write', { mode: 'deleteAppend' });
+      check(r !== undefined && r.message.includes("mode 'deleteAppend'"), 'the client refuses the mode by name');
+    },
+  },
+];
+
 /** A case run alone on a session of its own, then that session closed: and, closed, the session refuses a call. */
 const CLOSED: Case = {
   name: 'C9 close: a closed session refuses its calls by name',
@@ -193,7 +251,7 @@ export async function runConformance(engine: Engine, fixture: ConformanceFixture
   }
   const session = await engine.open();
   try {
-    for (const c of [...CASES, CLOSED]) {
+    for (const c of [...CASES, ...WRITES, CLOSED]) {
       try {
         await c.run(engine, session, caps, fixture);
         out.push({ name: c.name, ok: true });

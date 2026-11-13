@@ -70,13 +70,18 @@ def refused(call: str, what: str, why: str, **extra: Any) -> ContractError:
 
 
 # what this engine does, by the contract's names (engine-contract.ts Capabilities). Step 1 (2026-11-13): the reading
-# calls, typeOf and query; describe, drop, addSource and write follow with steps 2 and 3, refused by name until then.
+# calls, typeOf and query; step 2, write; describe, drop and addSource follow with step 3, refused by name until then.
 CAPABILITIES: dict[str, Any] = {
     'contract': VERSION,
     'engine': {'name': ENGINE_NAME, 'databaseType': 'DuckDB'},
     'calls': {'typeOf': True, 'query': True, 'cancel': True, 'describe': False, 'drop': False,
-              'parse': True, 'print': True, 'elements': True},
+              'parse': True, 'print': True, 'elements': True,
+              # step 2 (2026-11-13): DataCube's five table-output modes (Q10), one call, the engine's transaction
+              'write': {'modes': ['create', 'overwrite', 'append', 'deleteAppend', 'merge']}},
 }
+
+# A write's modes as the contract names them (engine-contract.ts WriteMode), and merge's keys
+_WRITE_MODES = frozenset({'create', 'overwrite', 'append', 'deleteAppend'})
 
 
 # The kinds of element a model DataCube sends may not hold (R3a (a)): the engine owns connections and runtimes. Read off
@@ -104,15 +109,33 @@ class _Session:
     handles: set[str] = field(default_factory=set)
 
 
+class EngineSide:
+    """WHAT THE DOOR ASKS OF THE ENGINE IT IS PART OF (engine.py's): a plan request planned and run over a read (its
+    plan-and-run); whether a table is one of its own (a frame's, a file's, a copy's); a table's columns as its catalog
+    says them; and a write's plan run in the plan's own transaction, in no read."""
+
+    def plan_and_run(self, body: str, over: Any) -> Any:
+        raise NotImplementedError
+
+    def owns(self, table: str) -> bool:
+        raise NotImplementedError
+
+    def catalog(self, schema: str | None, table: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    def write(self, plan: Any) -> str:
+        raise NotImplementedError
+
+
 class ContractDoor:
     """THE CONTRACT'S DOOR ON PYTHON: each call answered by name; a query's run given its execution id HERE, once per
     plan run (Q7: the door mints, exec binds, planning holds none; ``ArchitectureTest.theServersMintsAreItsHostDoorsAlone``
     the Java twin), carried in its answer and in every failure of it."""
 
-    def __init__(self, plan_and_run: Callable[[str, Any], Any]) -> None:
-        # engine.py's plan-and-run: a plan request in, its Answer (Arrow rows, or JSON: the planner's refusal, or why
-        # the database refused its SQL) out
-        self._plan_and_run = plan_and_run
+    def __init__(self, side: EngineSide) -> None:
+        # engine.py's side of it (EngineSide): its plan-and-run, its own tables, its catalog, its write runner
+        self._side = side
+        self._plan_and_run = side.plan_and_run
         self._sessions: dict[str, _Session] = {}
         self._lock = threading.Lock()
         # the runtimes this engine owns, by name (R3a (b)); and each model it handed DataCube, by its text and runtime,
@@ -258,10 +281,85 @@ class ContractDoor:
         raise ContractError('run', 'query', said.body.decode('utf-8', 'replace'), executionId=execution)
 
 
+def _write(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
+    """WRITE, ONE CALL (step 2; the contract's R2): a box's rows into a table of this engine's database, by one of
+    DataCube's five modes -- planned as ONE plan (Boundary.outputPlan: the table made where the mode makes it, then the
+    write) and run in the plan's own transaction. The box's tables are DERIVED here from its model's Databases, never
+    sent (Q11 (a)); a target that is one of this engine's own tables is refused by name (Q11 (b)); a write made in a read
+    of the frames is refused (a read sees the database as it was). Its execution id minted here, once per plan run."""
+    door._session(asked, 'write')
+    w = asked.get('ask')
+    if not isinstance(w, dict) or set(w) != {'box', 'target', 'mode'}:
+        raise refused('write', 'a write that is not a box, a target and a mode', 'write is asked a WriteAsk')
+    if over is not None:
+        raise refused('write', 'a write made in a read of the frames', 'a read sees the database as it was when it '
+                      'began: a write is made in no read')
+    box = _query_ask({'ask': w['box']}, 'write')
+    model = door._model_for(box, 'write')
+    target = w['target'].get('table') if isinstance(w['target'], dict) else None
+    if not isinstance(target, str) or not target:
+        raise refused('write', 'a write with no target table', "its target is a table's name")
+    mode, keys = _mode_of(w['mode'])
+    if door._side.owns(target):
+        raise refused('write', f"the table '{target}'", "it is one of this engine's own tables (a frame's, a file's, a "
+                      "copy's): a write names another")
+    tables = [{**t, 'convertible': True, 'columns': door._side.catalog(t.get('schema'), t['table'])}
+              for t in _tables_of(model)]
+    present = door._side.catalog(None, target)
+    request = {'databaseType': 'DuckDB', 'tables': tables,
+               'output': {'name': target, 'mode': mode, **({'keys': keys} if mode == 'merge' else {})},
+               'rows': json.dumps(box['query']),
+               # a table there already is named by its columns; none, the planner refuses the write by name
+               **({'target': present} if present and mode not in ('create', 'overwrite') else {})}
+    # THE MINT: one execution id for this plan run (Q7), its answer's and every failure's
+    execution = uuid.uuid4().hex
+    try:
+        plan = compiler.output_plan(request)
+    except compiler.LegendError as failure:
+        raise ContractError('compile', 'write', failure.message, executionId=execution) from None
+    try:
+        answer = door._side.write(plan)
+    except ContractError:
+        raise
+    except Exception as failure:
+        raise ContractError('run', 'write', str(failure), executionId=execution) from None
+    rows = json.loads(answer)
+    count = rows[0].get('value') if isinstance(rows, list) and len(rows) == 1 and isinstance(rows[0], dict) else None
+    if not isinstance(count, int) or isinstance(count, bool):
+        raise ContractError('run', 'write', f'the write answered no count: {answer}', executionId=execution)
+    return _json({'rowsWritten': count, 'executionId': execution})
+
+
+def _mode_of(mode: Any) -> tuple[str, list[str]]:
+    if isinstance(mode, str) and mode in _WRITE_MODES:
+        return mode, []
+    keys = mode.get('merge', {}).get('keys') if isinstance(mode, dict) and set(mode) == {'merge'} \
+        and isinstance(mode['merge'], dict) else None
+    if isinstance(keys, list) and keys and all(isinstance(k, str) for k in keys):
+        return 'merge', keys
+    raise refused('write', f'the mode {json.dumps(mode)}', 'a write is create, overwrite, append, deleteAppend, or merge by '
+                  'its keys')
+
+
+def _tables_of(model: str) -> list[dict[str, Any]]:
+    """The tables a model's Databases declare, each with its Database's package and its schema (none for the default),
+    read off its PARSED elements (Q11 (a))."""
+    out: list[dict[str, Any]] = []
+    for e in compiler.model_elements(model):
+        if e.get('_type') != 'relational':
+            continue
+        for schema in e.get('schemas') or []:
+            for t in schema.get('tables') or []:
+                out.append({'table': t['name'], 'pkg': e.get('package') or 'local',
+                            **({'schema': schema['name']} if schema.get('name') not in (None, 'default') else {})})
+    return out
+
+
 _CALLS: dict[str, Callable[[ContractDoor, Mapping[str, Any], Any], Said]] = {
     'capabilities': ContractDoor._capabilities, 'open': ContractDoor._open, 'close': ContractDoor._close,
     'cancel': ContractDoor._cancel, 'parse': ContractDoor._parse, 'print': ContractDoor._print,
     'elements': ContractDoor._elements, 'typeOf': ContractDoor._type_of, 'query': ContractDoor._query,
+    'write': _write,
 }
 
 
@@ -273,8 +371,8 @@ def _not_offered(call: str) -> Callable[[ContractDoor, Mapping[str, Any], Any], 
     return refuse
 
 
-# step 1 (2026-11-13): these follow with steps 2 and 3
-for _call in ('addSource', 'describe', 'drop', 'write'):
+# these follow with step 3
+for _call in ('addSource', 'describe', 'drop'):
     _CALLS[_call] = _not_offered(_call)
 
 

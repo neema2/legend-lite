@@ -42,6 +42,7 @@ import socketserver
 import sys
 import threading
 import traceback
+import weakref
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
@@ -64,7 +65,7 @@ from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
 from .keeper import PageKeeper, Refused
-from .projects import ProjectDatabases, run_host_load, run_write
+from .projects import ProjectDatabases, run_host_load, run_plan, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 _API = '/api/pure/v1/'
@@ -481,6 +482,48 @@ class _WarehouseTable:
         return self.warehouse.base_url.rstrip('/') == base_url.rstrip('/') and self.catalog == catalog
 
 
+class _ContractSide(contract.EngineSide):
+    """THIS ENGINE AS THE CONTRACT'S DOOR ASKS OF IT (contract.py EngineSide): its plan-and-run (a warehouse table's on
+    the warehouse, never a dropped call); its own tables (the frames', the files', the copies'); a table's columns off
+    the frames' database's catalog; and a write's plan run on that database in the plan's own transaction, in no read
+    of the frames (the DataCube stream's step 2, 2026-11-13)."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = weakref.ref(engine)
+
+    def _of(self) -> Engine:
+        engine = self._engine()
+        if engine is None:
+            raise RuntimeError('the engine is closed')
+        return engine
+
+    def plan_and_run(self, body: str, over: Any) -> Answer:
+        engine = self._of()
+        return _answered(lambda b: engine._contract_plan_and_run(b, over), body)
+
+    def owns(self, table: str) -> bool:
+        return self._of().frames.taken(table)
+
+    def catalog(self, schema: str | None, table: str) -> list[dict[str, Any]]:
+        frames = self._of().frames
+        with frames.using_connection():
+            rows = send(frames.connection, compiler.catalog_columns_sql(schema or 'main', table)).fetchall()
+        return [dict(zip(('name', 'dataType', 'logicalType', 'precision', 'scale', 'notNull'), r)) for r in rows]
+
+    def write(self, plan: Any) -> str:
+        frames = self._of().frames
+        if frames.reading_now() is not None:
+            raise contract.refused('write', 'a write made in a read of the frames', 'a read sees the database as it '
+                                   'was when it began: a write is made in no read')
+
+        def run(sql: PlannedSql, params: tuple[Any, ...]) -> list[tuple[Any, ...]]:
+            result = send(frames.connection, sql, params)
+            return [tuple(r) for r in result.fetchall()] if result.description is not None else []
+
+        with frames.using_connection():
+            return run_plan(plan, run, 'DuckDB')
+
+
 class Engine:
     """legend-engine's ``pure/v1`` API over the frames' tables, with no transport: ``answer(method, path, query,
     body)`` is one call, answered as HTTP would carry it. ``site``: a directory whose files are answered too
@@ -523,8 +566,7 @@ class Engine:
         self.planner = NativePlanner()
         # DataCube's engine contract (contract.py, docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md): one intent API, its
         # query planned and run by this engine's plan-and-run (a warehouse table's on the warehouse), never a dropped call
-        self.contract = contract.ContractDoor(
-            lambda body, over: _answered(lambda b: self._contract_plan_and_run(b, over), body))
+        self.contract = contract.ContractDoor(_ContractSide(self))
         # a project's own rows, when Query or Studio served here runs one of its queries (C5): each project
         # version in a database of its own inside the frames' DuckDB, made by the native library's statements
         self.projects = ProjectDatabases(frames.connection, guard=frames.using_connection)

@@ -44,7 +44,7 @@ and a runner as data (G11), but always inside one engine; they never come back f
 | `typeOf(query)` | Pure, a runtime | the result type (columns, types) without running | DataCube's builder and typeahead |
 | `query(query)` | Pure, a runtime, parameters. The row cap is IN the Pure, as today: query.ts writes `take(maxRows + 1)` (the person's `maxRows`, General panel) to see a cut; no separate argument | typed rows streamed as Arrow, their schema, the execution id, an explain text (R4); the flat total, when the cap cut it, is another `query` DataCube asks, as today | a dynamic pivot's two phases, retries and the error read-back are the engine's |
 | `parse(text)` / `print(query, style)` / `elements(model)` | Pure text; a query | a lambda; Pure text for a person; a model's elements | the reading calls: compile-only, no database, listed in `capabilities()` |
-| `write(box, target, mode)` | DataCube's table output: a box's query, a target table of the host's database, its mode -- **create**, **overwrite**, **append**, **merge** by keys (table-output.ts, today's four) | rows written, the execution id | ONE call: the engine runs create, catalog, write and commit as one transaction |
+| `write(box, target, mode)` | DataCube's table output: a box's query, a target table of the host's database, its mode -- **create**, **overwrite**, **append**, **deleteAppend** (its rows deleted, then appended), **merge** by keys (layout/flow.ts TABLE_MODES, today's five: Q10) | rows written, the execution id | ONE call: the engine derives the box's tables from its model (never sent), plans ONE plan (Boundary.outputPlan) and runs it in the plan's own transaction; a target that is one of the engine's own tables is refused by name (Q11) |
 | `cancel(request)` | a request id | -- | best effort; an answer already streamed stays valid |
 
 **Errors are typed:** `compile` (the query does not type), `run` (the database refused it: its own words, secrets
@@ -146,7 +146,7 @@ The contract carries DataCube's existing behaviour, unchanged; nothing here is n
   asked only when the cap cut it -- as `query.ts` does today. No new windowing.
 - **Remote sources:** **live** (a remote mount, read in place) and **snap** (a planned copy, B3's planned snapshot) --
   both exist; `addSource` names which.
-- **Writes:** DataCube's table output and its four modes (create, overwrite, append, merge by keys).
+- **Writes:** DataCube's table output and its five modes (create, overwrite, append, deleteAppend, merge by keys; Q10).
 - **Timing:** its own workstream, in parallel with D and E (the user, 2026-11-12); mostly DataCube and engine-client,
   not core.
 - **Consolidated with the intent bridge** (`claude/total-wall-bridge`): the bridge's Python implementation is step 1.
@@ -170,4 +170,8 @@ today); the UI's look.
 - **Q8 warehouse sign-in:** not a contract call: a step in BUILDING the warehouse engine (its factory takes the
   credentials once from the form; the engine holds the session token; DataCube keeps none). Never logged, printed or
   persisted. Detailed at step 6.
+- **Q10 write modes (step 2):** all five of today's: create, overwrite, append, deleteAppend, merge by keys.
+- **Q11 a write's tables (step 2):** (a) the engine derives the box's source tables from the WriteAsk's model; they are
+  never sent. (b) The page's-own-tables rule holds on both sides: DataCube's check stays as UI policy, and the engine
+  refuses, by name, a target that is one of its own tables -- the engine is the authority.
 - **Q9 Arrow:** `RecordBatch` objects in-process for the tab; IPC bytes only on the wire transports.

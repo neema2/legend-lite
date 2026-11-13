@@ -180,6 +180,8 @@ UUID_MINTS = {
     ('_headless.py', 'hand_out'): 1,
     ('contract.py', '_open'): 1,
     ('contract.py', '_query'): 1,
+    # 2026-11-13 (step 2): a write's execution id, its door's one mint for that plan run
+    ('contract.py', '_write'): 1,
     ('page.py', '_saved'): 1,
 }
 

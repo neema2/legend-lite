@@ -118,9 +118,10 @@ export interface Described {
   readonly columns: readonly ResultColumn[];
 }
 
-/** A table Output's mode: DataCube's four (table-output.ts). */
+/** A table Output's mode: DataCube's five (layout/flow.ts TABLE_MODES; Q10, 2026-11-13) -- made, made again, appended,
+ *  its rows deleted then appended, merged by its keys. */
 export type WriteMode =
-  | 'create' | 'overwrite' | 'append'
+  | 'create' | 'overwrite' | 'append' | 'deleteAppend'
   | { readonly merge: { readonly keys: readonly string[] } };
 
 /** A box's rows written into a table of the engine's database: ONE call, the engine runs the transaction (R2). */
@@ -164,7 +165,7 @@ export interface Capabilities {
 export type SourceKind = 'upload' | 'url' | 'remote' | 'query';
 
 /** A write mode, by name. */
-export type WriteModeName = 'create' | 'overwrite' | 'append' | 'merge';
+export type WriteModeName = 'create' | 'overwrite' | 'append' | 'deleteAppend' | 'merge';
 
 // ----------------------------------------------------------------------------------------------------------- engine
 

@@ -670,6 +670,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return elements;
   }
 
+  /** A model's elements as Pure text (`grammar/jsonToGrammar/model`): what the tab's engine hands DataCube of a model it
+   *  wrote, less the Connection and Runtime it owns (the engine contract's R3a (c), step 2, 2026-11-13). */
+  async modelText(elements: readonly unknown[]): Promise<string> {
+    const body = JSON.stringify({ _type: 'data', elements });
+    return this.#pureV1('/api/pure/v1/grammar/jsonToGrammar/model', 'renderStyle=STANDARD', body, body);
+  }
+
   /** E1 (`grammar/grammarToJson/lambda`): what a person typed, as its lambda, numbers exact. */
   async parse(text: string): Promise<Lambda> {
     return readLambda(await this.#pureV1('/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', text, text));

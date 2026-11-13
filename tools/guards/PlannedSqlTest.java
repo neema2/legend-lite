@@ -1381,6 +1381,9 @@ class PlannedSqlTest {
             // 2026-11-13 (the DataCube stream's merge of the #6 bridge): upload.ts's and remote.ts's loads MOVED to the tab's
             // data host (data-host.ts heldDataHost: a file's load, a mount's), each its planner's plan of the request
             Map.entry("datacube/src/data-host.ts", List.of("runLoad(", "runLoad(")),
+            // 2026-11-13 (the DataCube stream's step 2): the tab's engine runs a write's ONE plan (Boundary.outputPlan) its
+            // planner answered, in the plan's own transaction (engines/tab-engine.ts write)
+            Map.entry("datacube/src/engines/tab-engine.ts", List.of("runPlan(")),
             Map.entry("datacube/src/table-output.ts", List.of("runPlan(")),
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),

@@ -290,6 +290,8 @@ _DUCKDB_USERS = [
     # the product's DataHost driven: a load, operations, a catalog, an output and a refusal of each -- in the headless
     # lane, the product's intent calls its runner counts against its floor (H7, the DataCube stream, 2026-11-13)
     "data-host",
+    # the tab's engine, held to the engine contract's conformance suite (step 2, 2026-11-13)
+    "tab-engine",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -304,6 +306,8 @@ _DUCKDB_USERS = [
 _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
+    # the engine contract's conformance suite, which the tab's engine is held to (step 2, 2026-11-13)
+    "tab-engine": ["//engine-client:conformance"],
     # the product's data host over a test's database, in Node (#test-data-host; the H7 floor's lane tests, 2026-11-13)
     "data-host": ["test/host/data-host-node.ts"],
     # the brand's casts, read by TypeScript's own checker (the re-audit's S5, 2026-11-12): the three programs' sources and
@@ -454,6 +458,8 @@ _WASM_TESTS = [
     # the product's DataHost driven: a load, operations, a catalog, an output and a refusal of each -- in the headless
     # lane, the product's intent calls its runner counts against its floor (H7, the DataCube stream, 2026-11-13)
     "data-host",
+    # the tab's engine, held to the engine contract's conformance suite (step 2, 2026-11-13)
+    "tab-engine",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
@@ -719,6 +725,9 @@ _HEADLESS_TESTS = [
 # headless_roster_test reads. A file that mixed them is split in two: its screen or Node half `<name>-dom` or
 # `<name>-node`, the rest in the lane under its own name.
 _HEADLESS_LEFT_OUT = {
+    # the tab's engine (src/engines/tab-engine.ts) held to the engine contract's suite: the tab's planner and DuckDB-WASM;
+    # Python headless is held to the same suite by //python:contract_test (the DataCube stream's step 2, 2026-11-13)
+    "tab-engine": "the tab's engine, in-thread",
     # the demo's sample made by the tab's planner and DuckDB-WASM, and its file read in by the tab's reader (upload.ts
     # ingestFile): the tab's
     "sample-trades": "the tab's planner and file reader",
