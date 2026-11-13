@@ -3232,6 +3232,81 @@ final class ArchitectureTest {
         });
     }
 
+    /**
+     * <strong>A TYPED TEMPORAL LITERAL IS MADE FROM CHECKED TEXT (the final audit, 2026-11-12: the class of the
+     * test-data routes' literal, closed).</strong> A {@code DateLit}, {@code TimestampLit} or {@code TimeLit} is written
+     * into its statement as its text is ({@code DATE '<text>'}), so it is constructed only where that text is the lexer's,
+     * a constant's, a shape checked first, or a plan's own -- the classes of {@link #TEMPORAL_LITERAL_MAKERS}, each with
+     * its reason; a text a person typed reaches a statement as an escaped string cast to its type, or is refused by name.
+     * {@link #theTemporalLiteralRuleBitesAPlantedMaker} shows it bites; {@link #everyListedMakerMakesOne} that no name on
+     * the list is dead.
+     */
+    @Test
+    void onlyCheckedSitesMakeATemporalLiteral() {
+        ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL.check(CORE_PROD_CLASSES);
+    }
+
+    /** The classes that construct a typed temporal literal, each from text it may write as it is. */
+    private static final java.util.List<String> TEMPORAL_LITERAL_MAKERS = java.util.List.of(
+            // a Pure date the lexer parsed, in its own spelling (PureDate)
+            "com.legend.lowering.MatchFold",
+            // the epoch's and the week's constants, a lexer-parsed year or year-month, and a TDS cell's text checked
+            // against its ISO shape first (isoCell)
+            "com.legend.lowering.Scalars",
+            // a model CSV cell matched against its ISO shape first
+            "com.legend.setup.RowLoad",
+            // a model CSV cell checked against its ISO shape first (iso), the engine's text otherwise unchanged
+            "com.legend.setup.Ddl",
+            // a milestoning date: a date literal the lexer parsed (TestDataGenerationNatives.dateField)
+            "com.legend.testdatagen.TestDataGenerator",
+            // a plan's own literal, read back from the plan's JSON
+            "com.legend.executionplan.MirJson",
+            // a literal's own text, re-spelled to the millisecond
+            "com.legend.sql.dialect.MongoDb");
+
+    /** The temporal literals' records. */
+    private static final String TEMPORAL_LITERAL = "com\\.legend\\.sql\\.SqlExpr\\$(DateLit|TimestampLit|TimeLit)";
+
+    /** The rule of {@link #onlyCheckedSitesMakeATemporalLiteral}. */
+    static final com.tngtech.archunit.lang.ArchRule ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL = noClasses()
+            .that().resideInAPackage("com.legend..")
+            .and().haveNameNotMatching(makers(TEMPORAL_LITERAL_MAKERS))
+            // the records' own constructors, delegating one to another
+            .and().haveNameNotMatching(TEMPORAL_LITERAL)
+            .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
+                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
+                                    .nameMatching(TEMPORAL_LITERAL))))
+            .as("a typed temporal literal is made from checked text: the lexer's, a constant's, a checked shape's or a"
+                    + " plan's own (the final audit, 2026-11-12)");
+
+    /** {@link #onlyCheckedSitesMakeATemporalLiteral} fails on a class that makes a date literal of a text it was handed
+     *  ({@code lowering.PlantedTemporalLiteral}, a test class planted for this alone; the final audit, 2026-11-12). */
+    @Test
+    void theTemporalLiteralRuleBitesAPlantedMaker() {
+        bites(ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL, com.legend.lowering.PlantedTemporalLiteral.class);
+    }
+
+    /** No name on the temporal literals' makers' list is dead: each listed class, or one nested in it, makes one. */
+    @Test
+    void everyListedMakerMakesOne() {
+        for (String name : TEMPORAL_LITERAL_MAKERS) {
+            assertMakes(name, TEMPORAL_LITERAL, "the temporal literals' makers");
+        }
+    }
+
+    /** {@code name}, or a class nested in it, calls a constructor of a class {@code made} matches. */
+    private static void assertMakes(String name, String made, String list) {
+        boolean makes = false;
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
+                makes |= c.getConstructorCallsFromSelf().stream()
+                        .anyMatch(call -> call.getTargetOwner().getName().matches(made));
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(makes, name + " is on " + list + " list and makes none");
+    }
+
     /** {@link #onlyTheLoadPlannerMakesALoad} and {@link #onlyThePlannersMakersMakeALoadStep} fail on a planner class
      *  that makes a load and one of its steps ({@code planner.PlantedLoadMaker}, a test class planted for this alone; the
      *  final audit, 2026-11-12: until then neither rule had one). */
