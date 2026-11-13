@@ -377,15 +377,13 @@ export async function readFileInto(
 export async function modelLanded(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
   table: string): Promise<InferredModel> {
   const target = { name: table };
-  const inferred = await models.tableModel(await catalogColumns(engine, models, table),
-    { table, convertible: true, databaseType: engine.databaseType });
+  const columns = await catalogColumns(engine, models, table);
+  const inferred = await models.tableModel(columns, { table, convertible: true, databaseType: engine.databaseType });
   if (inferred.conversions.length > 0) {
-    // the writer's own select list: each conversion under its column's name, written by the copy's own database
-    // (SqlDialect.copySelectList); a table rewritten in place, so the writer always writes one
-    const selectList = inferred.copySelectList;
-    if (selectList === undefined) throw new Error(`the model of ${table} came back with no copy select list`);
+    // rewritten in place: the table's columns as its catalog holds them, each conversion the platform's to write (the
+    // final audit's item 1(d), 2026-11-12: never the planner's select list handed back)
     await runHostOperations(models, engine, [{
-      op: 'relation', kind: 'table', target, replace: true, selectList, from: { relation: target },
+      op: 'relation', kind: 'table', target, replace: true, convert: columns, from: { relation: target },
     }]);
   }
   return inferred;

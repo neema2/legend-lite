@@ -73,8 +73,13 @@ class FixtureWriteCensusTest {
      *  written by the test as the user would, which no plan may do (DatabaseSettingsH2Test, 2: the point is that lite
      *  leaves it as it found it); and H2's own keywords as columns on a bare session, which no model can declare and no
      *  plan's load may write bare (H2KeywordsTest, 3). 917 -> 918 (2026-11-12, the same item's Cypher store, located by the
-     *  D worker): its property tables' row, written by the dialect's own spelling on a bare session (H2KeywordsTest, 1). */
-    private static final int CEILING = 918;
+     *  D worker): its property tables' row, written by the dialect's own spelling on a bare session (H2KeywordsTest, 1).
+     *  918 -> 922 (2026-11-12, the final audit's item 2, a DataCube table Output as one plan): the box's own table, made
+     *  and filled as a page's file or a person's table is (DuckDbOutputPlanTest, 2: the Output reads a table its host
+     *  holds, never one a model declares), a table of every DuckDB type a source column can hold, which no model can
+     *  declare (1), and today's CREATE of the rows' statement LIMIT 0, the form the plan replaces, measured beside it
+     *  (1). */
+    private static final int CEILING = 922;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -98,6 +103,9 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/exec/ExecuteFrameTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", 4),
             Map.entry("core/src/test/java/com/legend/exec/ExecutorTest.java", 4),
+            // 2026-11-12, the final audit's item 2: the box's own table, every DuckDB type's, and today's CREATE beside
+            // the Output's plan (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/planner/DuckDbOutputPlanTest.java", 4),
             Map.entry("core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java", 3),
             Map.entry("core/src/test/java/com/legend/exec/Phase1AuditTest.java", 1),
             Map.entry("core/src/test/java/com/legend/exec/PlanRunnerTest.java", 1),

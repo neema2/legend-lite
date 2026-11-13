@@ -2,6 +2,8 @@
 // runs in the headless lane too (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6).
 
 import { plannerFor } from './catalog-builder.ts';
+import { heldBy, isCount, SNAP_PULL } from './cube-fixture.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
 import assert from 'node:assert/strict';
 import { before, beforeEach, describe, it } from 'node:test';
 
@@ -72,6 +74,8 @@ class StubEngine extends FakeEngine {
 class CountingEngine extends FakeEngine {
   readonly name = 'counting';
   readonly sql: string[] = [];
+  /** The connection held for a snap's copy (its plan's statements answered as every query is). */
+  readonly exclusive = heldBy(this);
   async answer(sql: string, epoch: number): Promise<ResultTable> {
     this.sql.push(sql);
     if (/count\(\*\)/i.test(sql)) {
@@ -102,7 +106,13 @@ class StubPlanner implements Planner {
   readonly queries: Lambda[] = [];
   async plan(query: Lambda): Promise<Plan> {
     this.queries.push(query);
+    // a snap's count of its pull (countQuery), which the counting engine answers
+    if (isCount(query)) return { sql: unplanned('SELECT count(*) AS value FROM trades'), columns: [] };
     return { sql: unplanned('SELECT 1'), columns: [] };
+  }
+  /** A snap's pull: the fixture's table (SNAP_PULL), which the copy's planner plans (snapCopy). */
+  async pullRequest(): Promise<SnapPull> {
+    return SNAP_PULL;
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];

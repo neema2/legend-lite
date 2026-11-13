@@ -26,7 +26,7 @@
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { Planner } from './cube.ts';
-import type { CatalogColumn, InferOptions, InferredModel, ModelTable, TableModels, TablesModel } from './infer.ts';
+import type { CatalogColumn, InferOptions, InferredModel, ModelTable, OutputRequest, TableModels, TablesModel } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
@@ -34,7 +34,7 @@ import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
+import type { RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
@@ -700,6 +700,18 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return planFromAnswer(decode(await this.#call({ kind: 'snapStream', request: JSON.stringify(request) }), `the snap into ${request.table}`));
   }
 
+  /** A table Output, as ONE plan made before anything runs (Boundary.outputPlan, the final audit's item 2, the user's
+   *  ruling (b)): the table made where the Output makes it, then the write, in its target's transaction. */
+  async outputPlan(request: OutputRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'outputPlan', request: JSON.stringify(request) }), `the output into ${request.output.name}`));
+  }
+
+  /** A snapshot's local copy, as a plan (Boundary.snapCopy, the final audit's item 1(b)): one write in its target's
+   *  transaction, the table made from the pull, planned in the call -- never the pull's statement. */
+  async snapCopy(request: SnapCopyRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'snapCopy', request: JSON.stringify(request) }), `the copy into ${request.table}`));
+  }
+
   /**
    * Rows the database generates into a declared table, as a plan (Boundary.synthesize: SYNTHESIZE, the user's ruling of
    * 2026-11-12, DuckDB alone): one HOST_SESSION load the hosts' runner runs -- the table made as declared, then one
@@ -718,11 +730,10 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   async tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel> {
     const table = JSON.stringify({ ...options, columns });
     const answer = await this.#call({ kind: 'tableModel', table });
-    const { source, copySelectList, ...written } = fromJson(decode(answer, `the columns of ${options.table}`)) as
-      Omit<InferredModel, 'source' | 'copySelectList'> & { readonly source: unknown; readonly accessor: string; readonly copySelectList?: string };
+    const { source, ...written } = fromJson(decode(answer, `the columns of ${options.table}`)) as
+      Omit<InferredModel, 'source'> & { readonly source: unknown; readonly accessor: string };
     const { accessor: _accessor, ...model } = written;
-    // the copy's select list, the planner's own text, typed as its answer is read (the C final audit's H2)
-    return { ...model, ...(copySelectList !== undefined ? { copySelectList: fromPlan(copySelectList) } : {}), source: readValueSpecification(source) };
+    return { ...model, source: readValueSpecification(source) };
   }
 
   /**

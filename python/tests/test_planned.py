@@ -279,6 +279,55 @@ def _pull() -> dict:
     return {'model': _PULL_MODEL, 'runtime': 's::RT', 'lambda': json.dumps(compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
 
 
+class ASnapshotsCopyTest(unittest.TestCase):
+    """A SNAPSHOT'S LOCAL COPY (the final audit's item 1(b), 2026-11-12): the native library's snap_copy answers the pull
+    and a table with ONE plan of writes -- the table there before dropped, the table made from the pull -- in its
+    target's transaction, run by projects.run_write; never the pull's statement handed back to the planner."""
+
+    def setUp(self):
+        self.con = duckdb.connect()
+        self.con.execute("CREATE TABLE t (id INTEGER, desk VARCHAR, qty DOUBLE)")
+        self.con.execute("INSERT INTO t VALUES (1, 'FX', 1.5), (2, 'EQ', 2.5)")
+
+    def test_the_database_is_handed_exactly_the_plans_statements_in_its_transaction(self):
+        plan = compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'table': 'copied'})
+        root = json.loads(plan)['root']
+        self.assertEqual([s['_type'] for s in root['steps']], ['effect', 'effect'])
+        target = root['steps'][0]['sql']['target']
+        witness = _Witness(self.con)
+        projects.run_write(plan, Database(witness))
+        self.assertEqual(witness.received, [*target['session'], *target['transaction']['begin'],
+                                            *[s['sql']['statement'] for s in root['steps']],
+                                            *target['transaction']['commit']])
+        self.assertEqual(self.con.execute('SELECT * FROM copied ORDER BY id').fetchall(),
+                         [(1, 'FX', 1.5), (2, 'EQ', 2.5)])
+
+    def test_a_copy_that_fails_after_its_drop_rolls_back_and_the_table_before_is_as_it_was(self):
+        self.con.execute("CREATE TABLE kept AS SELECT 9 AS id, 'z' AS desk, CAST(9.5 AS DOUBLE) AS qty")
+        plan = compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'table': 'kept'})
+
+        class Refusing(_Witness):
+            def execute(self, sql, params=None):
+                if str(sql).startswith('CREATE TABLE'):
+                    raise duckdb.Error('the copy was refused')
+                return super().execute(sql, params)
+
+        witness = Refusing(self.con)
+        with self.assertRaisesRegex(duckdb.Error, 'the copy was refused'):
+            projects.run_write(plan, Database(witness))
+        self.assertEqual(witness.received[-1], 'ROLLBACK')
+        self.assertEqual(self.con.execute('SELECT * FROM kept').fetchall(), [(9, 'z', 9.5)])
+
+    def test_any_other_plan_and_a_request_carrying_a_statement_are_refused_by_name(self):
+        with self.assertRaises(LegendError) as refused:
+            compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'sql': 'SELECT 1', 'table': 't'})
+        self.assertIn("a snapshot's copy has no key sql", str(refused.exception))
+        stream = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'x'})
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_write(stream, Database(self.con))
+        self.assertIn('a plan of writes alone is effects of one statement each, not a load', str(refused.exception))
+
+
 class TheAuthoredDoorIsNotPythonsTest(unittest.TestCase):
     """2026-11-12 (the orchestrator's ruling): a person's own statement is Studio's SQL playground's alone. Python's
     planner protocol refuses the kind by name, the native library exports no lite_authored, and the headless check
@@ -313,25 +362,30 @@ class KeyedExpansionFixtureTest(unittest.TestCase):
 
 
 class HostOperationsTextTest(unittest.TestCase):
-    """THE C FINAL AUDIT'S H2 (2026-11-12): a host operation's planner text -- a source query, a select list, a
-    replacement -- is a PlannedSql, made where its plan or the planner's answer was read; a host's own text is refused by
-    name before the planner is asked, so it is never pasted into a statement."""
+    """A HOST OPERATION TAKES NO SQL (the final audit's item 1, 2026-11-12; until then the C final audit's H2 let one carry
+    a PlannedSql the planner had answered): a source query, a select list, a replacement -- each refused by name by the
+    platform, even a planner's own statement; a copy's conversions are the platform's, written from its columns' catalog
+    (``convert``)."""
 
-    def test_a_hosts_own_text_in_an_operation_is_refused_by_name(self):
-        for op in ({'op': 'count', 'from': {'query': 'SELECT 1'}},
+    def test_an_operation_carrying_sql_is_refused_by_name_even_the_planners_own(self):
+        for op in ({'op': 'count', 'from': {'query': from_plan('SELECT 1 AS a')}},
                    {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*', 'from': {'relation': {'name': 's'}}},
                    {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
                     'replacing': [{'column': 'a', 'sql': 'a'}]}):
-            with self.subTest(op=op), self.assertRaises(NotPlanned):
+            with self.subTest(op=op), self.assertRaises(LegendError) as refused:
                 compiler.host_operations('DuckDB', [op])
-        (counted,) = compiler.host_operations('DuckDB', [{'op': 'count', 'from': {'query': from_plan('SELECT 1 AS a')}}])
-        self.assertIn('SELECT 1 AS a', counted[0])
+            self.assertTrue('a query is planned from its pull' in str(refused.exception)
+                            or 'a host operation takes no SQL' in str(refused.exception), str(refused.exception))
 
-    def test_the_planners_copy_select_list_is_typed_as_its_answer_is_read(self):
+    def test_a_copys_conversions_are_written_from_its_columns_catalog(self):
         model = compiler.table_model({'table': 't', 'convertible': True, 'databaseType': 'DuckDB', 'columns': [
             {'name': 'big', 'dataType': 'UBIGINT', 'logicalType': 'UBIGINT'}]})
-        self.assertIsInstance(model['copySelectList'], PlannedSql)
-        self.assertIn('DECIMAL(20,0)', model['copySelectList'])
+        self.assertNotIn('copySelectList', model)
+        ((copy,),) = compiler.host_operations('DuckDB', [{'op': 'relation', 'kind': 'table', 'target': {'name': 't'},
+                                                         'replace': True, 'from': {'relation': {'name': 't'}},
+                                                         'convert': [{'name': 'big', 'dataType': 'UBIGINT',
+                                                                      'logicalType': 'UBIGINT'}]}])
+        self.assertIn('CAST("big" AS DECIMAL(20,0))', copy)
 
 
 class TheBridgeTest(unittest.TestCase):
@@ -432,23 +486,19 @@ class TheBridgeTest(unittest.TestCase):
         self.assertEqual(len(answered), Answered.CAPACITY)
         self.assertIn('SELECT -1', answered)
 
-    def test_a_host_operations_own_texts_are_statements_already_answered(self):
-        """The re-audit's S3 (2026-11-12): the planner pastes a host operation's source query, select list and
-        replacements into the statements it writes, so each must be one this session's planner answered already."""
+    def test_a_host_operation_carrying_sql_is_refused_by_name_even_an_answered_statement(self):
+        """The final audit's item 1 (2026-11-12; until then the re-audit's S3 admitted a text this session's planner had
+        answered): a host operation takes no SQL -- a source query, a select list, a replacement -- whatever it is."""
         answered = Answered()
         ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
-        count = {'op': 'count', 'from': {'query': 'SELECT * FROM t'}}
-        self.assertIn('SELECT * FROM t', answered.refusal(ops(count)))
         answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t'}))
-        self.assertIsNone(answered.refusal(ops(count)))
-        copy = {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '* REPLACE (CAST("b" AS DECIMAL(20,0)) AS "b")',
-                'from': {'relation': {'name': 't'}}}
-        self.assertIsNotNone(answered.refusal(ops(copy)))
-        answered.record('tableModel', 'OK\n' + json.dumps({'model': 'm', 'copySelectList': copy['selectList']}))
-        self.assertIsNone(answered.refusal(ops(copy)), "a table model's copy select list is the planner's answer")
-        replaced = {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
-                    'replacing': [{'column': 'a', 'sql': 'DROP TABLE t'}]}
-        self.assertIn('DROP TABLE t', answered.refusal(ops(replaced)))
+        for op, key in (({'op': 'count', 'from': {'query': 'SELECT * FROM t'}}, 'query'),
+                        ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*',
+                          'from': {'relation': {'name': 't'}}}, 'selectList'),
+                        ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
+                          'replacing': [{'column': 'a', 'sql': 'DROP TABLE t'}]}, 'replacing')):
+            self.assertIn(f'takes no SQL, and its {key} is SQL', answered.refusal(ops(op)))
+        self.assertIsNone(answered.refusal(ops({'op': 'count', 'from': {'relation': {'name': 't'}}})))
         self.assertIsNone(answered.refusal({'kind': 'plan', 'query': 'anything'}), 'another kind carries no host text')
 
     def test_the_set_is_bounded(self):

@@ -198,6 +198,8 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   fileLoad: "a host's own file is read into the tab's own database",
   remoteMount: "a remote file is mounted on the tab's own database (Python mounts its own: remote.json)",
   snapStream: "a snap of a remote plane streams into the tab's own database (Python snaps its own: snap.json)",
+  snapCopy: "a snap's copy is the tab's own database's (Python snaps its own: snap.json)",
+  outputPlan: "a table Output is written into the tab's own database (Python's flow.run writes its own)",
   synthesize: "rows made for a declared table are the tab's own database's (SYNTHESIZE, DuckDB alone)",
   authored: "a person's own statement is Studio's SQL playground's, on the tab's own database",
   sessionSetup: "a session's setup is the tab's own database's",
@@ -591,8 +593,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
         for await (const part of fileParts(file)) await send(part);
         // an empty file is an upload too: Python reads it, and says what an empty file is
         if (upload === undefined) await send(new Uint8Array(0));
-        return JSON.parse(await posted(link, 'file.json', { upload, name: file.name, table: options.table })) as
-          Omit<UploadResult, 'copySelectList'>;
+        return JSON.parse(await posted(link, 'file.json', { upload, name: file.name, table: options.table })) as UploadResult;
       },
       forgetFile: async (fileName: string, table: string) => { await posted(link, 'forget.json', { name: fileName, table }); },
     } : {}),
@@ -625,13 +626,9 @@ function pythonWarehouse(link: PythonLink): WarehouseService {
   };
 }
 
-/**
- * A table's model as Python's page answers it: the model Python wrote and holds, without its copy select list -- the
- * planner's instruction Python applied as it made the table, a statement the page never sends (Python leaves it out:
- * engine.py _NOT_THE_PAGES). Read by a cast of the answer's JSON, so it holds no plan's statement (the C final audit's
- * H5, 2026-11-12: InferredModel's copySelectList is a PlannedSql, which a cast must never make).
- */
-type PythonModel = Omit<InferredModel, 'copySelectList'>;
+/** A table's model as Python's page answers it: the model Python wrote and holds. It holds no plan's statement (the
+ *  final audit's item 1(d), 2026-11-12: a model carries no copy select list; a copy's conversions are the platform's). */
+type PythonModel = InferredModel;
 
 /** A fetch of Python's that carries the engine's token, for the clients of what it serves. */
 function tokened(link: PythonLink): typeof fetch {

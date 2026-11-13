@@ -179,17 +179,17 @@ class Host(unittest.TestCase):
             self.assertEqual(h.evaluate("legendLiteHost.testRegisterFile('in.csv', btoa('a\\n1\\n')).then(() => 'written')"), 'written')
         self.assertEqual((TMP / 'files' / 'in.csv').read_text(), 'a\n1\n')
 
-    def test_the_products_host_asks_no_planner_to_paste_a_text_it_did_not_answer(self):
-        # the re-audit's S3 (2026-11-12): a host operation's source query is pasted into the statement the planner
-        # answers, so the product's host refuses one its planner did not answer -- whatever else the request names (the
-        # lane's own `testsOwn` is its TestHost's alone)
+    def test_the_products_host_hands_the_planner_no_sql_in_a_host_operation(self):
+        # the final audit's item 1 (2026-11-12; until then the re-audit's S3 admitted a text the planner had answered): a
+        # host operation takes no SQL, so the product's host refuses one carrying any -- whatever else the request names
+        # (the lane's own `testsOwn` is its TestHost's alone)
         with Headless(PRODUCT, folder=TMP) as h:
             said = h.evaluate("(async () => { const w = legendLite.worker();"
                               " const ask = (m) => new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.postMessage(m); });"
                               " return ask({ id: 1, kind: 'hostOperations', databaseType: 'DuckDB', testsOwn: ['DROP TABLE t'],"
                               " operations: JSON.stringify([{ op: 'count', from: { query: 'DROP TABLE t' } }]) }); })()")
             self.assertFalse(said['ok'])
-            self.assertIn("not a statement this session's planner answered", said['error'])
+            self.assertIn('takes no SQL, and its query is SQL', said['error'])
 
     def test_the_hosted_codes_http_to_a_sql_api_crosses_the_bridge(self):
         # the re-audit's S9 (2026-11-12): a fetch whose JSON carries a statement (a warehouse's submit) is refused by

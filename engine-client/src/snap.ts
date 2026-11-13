@@ -36,7 +36,7 @@
 import type { HostName, HostOperation, HostOperationsSource, SnapPull, SnapStreamSource } from './host-operations.ts';
 import type { HostStreams } from './plan-runner.ts';
 import { UI_LOCALE } from './locale.ts';
-import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { fn, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from './engine.ts';
 import type { Receipt } from './receipt.ts';
 import type { PlannedSql } from './planned-sql.ts';
@@ -57,6 +57,20 @@ export interface RemoteSource {
 
 /** The name a snap's plan names the remote live plane by (LoadPlanner.snapStream's `plane`): the warehouse a grid reads. */
 export const REMOTE_PLANE = 'warehouse';
+
+/** A pull's rows counted, as its planner plans it where the rows are (the live planner's plan of `countQuery(pull)`):
+ *  its statement and the values it binds. */
+export interface SnapCount {
+  readonly sql: PlannedSql;
+  readonly params?: readonly string[];
+}
+
+/** `query`'s rows counted, as a query: its one expression's `size()` (meta::pure::functions::relation::size), which the
+ *  planner plans as the database's count of the query's rows -- what a snap's preflight runs where the rows are. */
+export function countQuery(query: Lambda): Lambda {
+  if (query.body.length !== 1) throw new SnapRefusal('a pull is one expression');
+  return { ...query, body: [fn('size', ...query.body)] };
+}
 
 /** A local store a remote plane's rows stream into: its connection held for the plan (DuckDbEngine.exclusive), with
  *  its database's Arrow import. */
@@ -227,13 +241,13 @@ export class SnapManager implements Snaps {
    * Check size before materialising anything, so the user is told
    * "this is 40 million rows" instead of watching a tab die.
    */
-  async preflight(sourceSql: PlannedSql, epoch: number, params: readonly string[] = []): Promise<PreflightEstimate> {
-    // counted where the rows are: the remote live plane when there is one, by its own database's statement (a
-    // warehouse catalog that is Postgres, Postgres's: D5) -- the live plan's values bound to its `?`s, which the count
-    // keeps in their order (a remote plane takes none: refused by name, WarehouseEngine)
+  async preflight(count: SnapCount, epoch: number): Promise<PreflightEstimate> {
+    // counted where the rows are: the remote live plane when there is one, by the planner's own plan of the pull's
+    // count in that database's SQL (the final audit's item 1, 2026-11-12: until then the live plan's text was handed back
+    // to the planner as a host operation's query) -- its values bound to its `?`s (a remote plane takes none: refused by
+    // name, WarehouseEngine)
     const engine = this.#remote ?? this.#localStore();
-    const [count] = await this.#statements(engine.databaseType, [{ op: 'count', from: { query: sourceSql } }]);
-    const r = await engine.run(count!, epoch, undefined, params);
+    const r = await engine.run(count.sql, epoch, undefined, count.params ?? []);
     const raw = r.rowCount === 1 ? r.columns[0]?.values[0] : undefined;
     // the count is the database's one value: none, or one that is no count, is refused by name -- never read as nothing
     // to copy (G7; the orchestrator's item 4, 2026-11-12: `?? 0` copied on as if the rows were none)
@@ -251,12 +265,11 @@ export class SnapManager implements Snaps {
   }
 
   /**
-   * Freeze `sourceSql` into a local table and switch to snapped. A
-   * pivot's values are found by the cube's own query (plan.ts) on every
-   * refresh, snapped or not, so nothing about them is captured here.
+   * Freeze the pull into a local table and switch to snapped: counted, then copied, each by a plan the planner makes of
+   * the PULL -- never its statement (the final audit's item 1, 2026-11-12). A pivot's values are found by the cube's
+   * own query (plan.ts) on every refresh, snapped or not, so nothing about them is captured here.
    */
   async snap(
-    sourceSql: PlannedSql,
     epoch: number,
     options: {
       readonly label?: string;
@@ -266,15 +279,14 @@ export class SnapManager implements Snaps {
        * which owns the model.
        */
       readonly target: SnapTable;
-      /** The values `sourceSql` binds, in order (a plan's data: payloads: plan-params.ts, M3). */
-      readonly params?: readonly string[];
-      /** The pull `sourceSql` was planned from (its planner's planRequest): what a remote plane's snap asks the planner
-       *  to plan again in the stream's own plan, never its statement (the user's ruling of 2026-11-12). */
-      readonly pull?: SnapPull;
+      /** The pull's rows counted: the live planner's plan of `size(pull)` (countQuery), in the live plane's SQL. */
+      readonly count: SnapCount;
+      /** The pull (its planner's planRequest): what the planner plans again in the copy's own plan -- a remote plane's
+       *  stream (snapStream), a local copy (snapCopy) -- never its statement (the user's ruling of 2026-11-12). */
+      readonly pull: SnapPull;
     },
   ): Promise<SnapInfo> {
-    const params = options.params ?? [];
-    const estimate = await this.preflight(sourceSql, epoch, params);
+    const estimate = await this.preflight(options.count, epoch);
     if (!estimate.withinLimit) {
       throw new SnapRefusal(estimate.refusal ?? 'snap refused');
     }
@@ -285,26 +297,23 @@ export class SnapManager implements Snaps {
     const bare = options.target.table;
     const table = named(schema, bare);
     const engine = this.#localStore();
+    const store = engine as unknown as Partial<StreamStore>;
+    if (typeof store.exclusive !== 'function') throw new SnapRefusal('the local store holds no connection a copy is made on: it cannot be snapped');
+    const host = this.#host;
+    if (host === undefined) throw new SnapRefusal('this cube has no planner to write its copy\u2019s statements: it cannot be snapped');
+    // the hosts' plan runner, fetched with the first snap (a grid-only page carries none of it)
+    const { runLoad, runPlan } = await import('./plan-runner.ts');
     if (this.#remote) {
       // The rows live on the server: the live plan runs there, and its Arrow chunks stream into the copy's own table
       // here -- exactly the rows the server let this user read -- as a PLANNED LOAD (the user's ruling of 2026-11-11):
       // the plan names the plane, its statement and the table, never a row; the hosts' runner streams the chunks in
       // one transaction, kept only when the stream completed and the table holds the rows the plane counted
-      const host = this.#host;
-      if (host === undefined) throw new SnapRefusal('this cube has no planner to write its copy\u2019s statements: it cannot be snapped');
       if (typeof host.snapStream !== 'function') {
         throw new SnapRefusal('this cube\u2019s planner plans no stream from a remote plane, so a remote live plane cannot be snapped');
       }
-      const store = engine as unknown as Partial<StreamStore>;
-      if (typeof store.exclusive !== 'function') {
-        throw new SnapRefusal('the local store holds no connection a remote plane\u2019s rows stream into, so a remote live plane cannot be snapped');
-      }
       // the request is the PULL, planned again in this plan for the plane's own database: never the statement it runs
-      if (options.pull === undefined) throw new SnapRefusal('a remote live plane is snapped by its pull, and this snap carries none');
       const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, ...options.pull,
         ...(schema ? { schema } : {}), table: bare });
-      // the hosts' plan runner, fetched with the first snap of a remote plane (a grid-only page carries none of it)
-      const { runLoad } = await import('./plan-runner.ts');
       const remote = this.#remote;
       const { landed } = await store.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
         { streams: { planes: { [REMOTE_PLANE]: remote }, held } }));
@@ -314,14 +323,12 @@ export class SnapManager implements Snaps {
       // the rows the copy holds, as its database counted them once they landed (the plane's own count)
       rowCount = made.rows;
     } else {
-      const made = await this.#statements(engine.databaseType, [
-        { op: 'relation', kind: 'table', target: table, replace: true, from: { query: sourceSql } },
-      ]);
-      // the values bind the one statement that reads the live plan; a copy made by several binds none of them
-      if (params.length > 0 && made.length !== 1) {
-        throw new SnapRefusal(`the copy is made by ${made.length} statements, and the live plan binds a data: payload one of them reads`);
-      }
-      for (const sql of made) await engine.run(sql, epoch, undefined, params);
+      // ONE PLAN the planner makes of the pull for this database (Boundary.snapCopy, the final audit's item 1(b)): its
+      // schema, the table there before dropped, the table made from the pull (its data: payloads bound by digest), in
+      // the plan's own transaction -- never the pull's statement handed back to the planner
+      if (typeof host.snapCopy !== 'function') throw new SnapRefusal('this cube\u2019s planner plans no copy of a pull: it cannot be snapped');
+      const plan = await host.snapCopy({ databaseType: engine.databaseType, ...options.pull, ...(schema ? { schema } : {}), table: bare });
+      await store.exclusive((held) => runPlan(plan, { databaseType: engine.databaseType, run: (sql, params) => held.rows(sql, params) }));
     }
     // the copy made to hold what its model declares, and what reads it: the app's (SnapTable.landed); refused, it goes
     let source: ValueSpecification;

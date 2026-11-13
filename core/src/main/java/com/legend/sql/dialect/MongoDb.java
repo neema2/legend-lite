@@ -2735,6 +2735,8 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + MongoJson.string(collection(da.schema(), da.table())) + ", \"deletes\": [{\"q\": {},"
                     + " \"limit\": 0}]}";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> throw new DialectCapability("a host's copy of a query's rows"
+                    + " reached MongoDb: every host copies into its own DuckDB");
             // a program that changes a store (main's writes, docs/WRITES_DESIGN_2026_10_18.md; merged 2026-10-26) is not
             // shaped on MongoDb: its writes are the bulk load alone (docs/MONGODB_PLAN_2026_10_16.md)
             case com.legend.sql.SqlDml.InsertSelect is -> throw new DialectCapability("an insert of a query's rows"

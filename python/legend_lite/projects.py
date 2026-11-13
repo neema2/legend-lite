@@ -124,6 +124,49 @@ class HostLoad:
     landed: tuple[Landed, ...]
 
 
+def run_write(plan: PlanText, connection: Any) -> None:
+    """A PLAN OF WRITES THAT ANSWERS NOTHING, run on ``connection`` (the final audit's item 1(b), 2026-11-12: a
+    snapshot's copy, the native library's Boundary.snapCopy): its effects in order, each binding its data: payloads from
+    its statement's content by digest (``compiler.statement_params``), in its target's own transaction -- a failure
+    rolled back by the plan's own statement and raised, a rollback that fails too said with it. Any other plan is
+    refused by name. The rule is engine-client's plan-runner.ts ``runPlan`` for a plan of writes alone (the tab's)."""
+    p = read_plan(plan, "the hosts' runner")
+    if not isinstance(p, dict) or p.get('format') != 'legend-lite-plan' or p.get('version') != PLAN_VERSION:
+        said = {'format': p.get('format'), 'version': p.get('version')} if isinstance(p, dict) else {}
+        raise LoadRefused(f'not a legend-lite execution plan of version {PLAN_VERSION}: '
+                          f"{json.dumps(said, separators=(',', ':'))}")
+    if p.get('parameters'):
+        raise LoadRefused('a plan that takes parameters is not run here: its program binds none')
+    root = p.get('root') or {}
+    steps = root.get('steps') if root.get('_type') == 'sequence' else [root]
+    for step in steps:
+        if step.get('_type') != 'effect' or step.get('script') is not None:
+            raise LoadRefused(f"a plan of writes alone is effects of one statement each, not a {step.get('_type')}")
+    targets = {json.dumps(step['sql']['target'], sort_keys=True) for step in steps}
+    if len(targets) != 1:
+        raise LoadRefused("a plan's steps run on one database: these name several")
+    target = steps[0]['sql']['target']
+    if target.get('transaction') is None:
+        raise LoadRefused("a plan's writes run in its target's transaction, and its target declares none")
+    for sql in all_from_plan(target['session']):
+        send(connection, sql)
+    for sql in all_from_plan(target['transaction']['begin']):
+        send(connection, sql)
+    try:
+        for step in steps:
+            send(connection, from_plan(step['sql']['statement']), list(compiler.statement_params(step['sql'])))
+        for sql in all_from_plan(target['transaction']['commit']):
+            send(connection, sql)
+    except BaseException as failure:
+        # the database's own undo, the plan's statement; a rollback that fails too is said with the failure (G7)
+        try:
+            for sql in all_from_plan(target['transaction']['rollback']):
+                send(connection, sql)
+        except Exception as rollback:
+            raise LoadRefused(f'{failure} -- and rolling its transaction back failed: {rollback}') from failure
+        raise
+
+
 def run_host_load(plan: PlanText, connection: Any, *, values: Callable[[str], Any] | None = None,
                   planes: Mapping[str, Any] | None = None) -> HostLoad:
     """A HOST_SESSION load run on ``connection`` (duckdb-python's) -- the user's ruling of 2026-11-11, "This is the right

@@ -1234,6 +1234,8 @@ class WarehouseOnPython(unittest.TestCase):
         self.uncounted = False
         # a slow stream: said when its rows begin, held until let go (the final audit's item 3)
         self.streaming, self.slow = threading.Event(), None
+        # every statement the warehouse was handed, in order
+        self.asked = []
 
         class Reader:
             def __init__(self, session, catalog='main', clock=None):
@@ -1257,17 +1259,18 @@ class WarehouseOnPython(unittest.TestCase):
                     on_receipt({'statementId': 's1', 'serverRows': 4 if outer.tampered else 3, 'as': self.principal,
                                 'where': 'the warehouse at wh'})
                 outer.pulls += 1
+                outer.asked.append(str(sql))
                 rows = (pa.table({'n': pa.array([] if outer.uncounted else [outer.count], pa.int64())})
-                        if sql.startswith('SELECT count(*)')
+                        if 'COUNT(*)' in str(sql).upper()
                         else pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': pa.array([10, 5, 3], pa.int32())}))
                 sink = pa.BufferOutputStream()
                 with pyarrow.ipc.new_stream(sink, rows.schema) as w:
                     w.write_table(rows)
-                if outer.slow is not None and not sql.startswith('SELECT count(*)'):
+                if outer.slow is not None and 'COUNT(*)' not in str(sql).upper():
                     outer.streaming.set()
                     outer.slow.wait(60)
                 yield sink.getvalue().to_pybytes()
-                if outer.cut and not sql.startswith('SELECT count(*)'):
+                if outer.cut and 'COUNT(*)' not in str(sql).upper():
                     raise warehouse.WarehouseError('the connection was reset', 'RESET')
 
         def connect(url, user, password):
@@ -1590,6 +1593,21 @@ class WarehouseOnPython(unittest.TestCase):
             streaming.join(60)
         status, body = snapped['answer']
         self.assertEqual((status, json.loads(body)['table'], json.loads(body)['rowCount']), (200, 'snap', 3), body)
+
+    def test_a_snaps_count_is_the_planners_plan_of_the_pulls_size(self):
+        # the final audit's item 1 (2026-11-12): the pull's statement was handed back to the planner as a host
+        # operation's query to count; the count is now the planner's own plan of the pull's size()
+        from legend_lite.engine import _count_of
+        m = self.opened()
+        pull = self.query(m)
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': pull}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        counted = ll.plan(m['model'], json.loads(_count_of(pull)), m['runtime'])
+        self.assertEqual(self.asked[0], counted.sql)
+        self.assertIn('COUNT(*)', counted.sql)
+        with self.assertRaises(ValueError) as refused:
+            _count_of(json.dumps({'_type': 'lambda', 'parameters': [], 'body': [{'_type': 'integer', 'value': 1}] * 2}))
+        self.assertEqual(str(refused.exception), "a snap's pull is one expression, not 2")
 
     def test_a_count_the_warehouse_did_not_answer_copies_nothing(self):
         # G7 (the final audit's item 4, 2026-11-12): a count of no row was read as 0 rows -- under the limit, copied on

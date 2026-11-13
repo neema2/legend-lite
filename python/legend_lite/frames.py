@@ -201,18 +201,21 @@ class Table:
             if not self.live:
                 self._arrow = None
         rows = send(con, compiler.catalog_columns_sql('main', self.name)).fetchall()
+        columns = [dict(zip(_CATALOG_FIELDS, row)) for row in rows]
         written = compiler.table_model({
             'table': self.name,
             'pkg': self.name,
             # a frame is ours to convert: the view applies the conversions as it reads, the copy as it is made
             'convertible': True,
             'databaseType': 'DuckDB',
-            'columns': [dict(zip(_CATALOG_FIELDS, row)) for row in rows],
+            'columns': columns,
         })
         if written['conversions']:
             source = _host.name(self._registered) if self.live else self._target
+            # its columns as the catalog holds them: the platform writes each conversion (the final audit's item 1(d),
+            # 2026-11-12: never the planner's select list handed back)
             _host.run(con, {'op': 'relation', 'kind': kind, 'target': self._target, 'replace': True,
-                            'selectList': written['copySelectList'], 'from': {'relation': source}})
+                            'convert': columns, 'from': {'relation': source}})
         self.model = written['model']
         self.runtime = written['runtime']
         self.source = written['source']

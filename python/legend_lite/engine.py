@@ -64,7 +64,7 @@ from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
 from .keeper import PageKeeper, Refused
-from .projects import ProjectDatabases, run_host_load
+from .projects import ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 _API = '/api/pure/v1/'
@@ -89,7 +89,7 @@ _SNAP = '/snap.json'
 # What a table's model answer keeps from the page: its accessor (the page reads the table by its source), and its copy
 # select list -- the planner's instruction Python applied as it made the table, a statement's text the page never sends
 # (2026-11-12, the C final audit's H5: the page read it into a PlannedSql field by a cast of the answer's JSON)
-_NOT_THE_PAGES = frozenset({'accessor', 'copySelectList'})
+_NOT_THE_PAGES = frozenset({'accessor'})
 # the id a page open on another asks by (follower=): a tab's or a notebook widget's, made by DataCube's code
 _FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
 
@@ -185,6 +185,17 @@ class Answer(NamedTuple):
 
 def _said(status: int, message: str) -> Answer:
     return Answer(status, 'text/plain; charset=utf-8', message.encode('utf-8'))
+
+
+def _count_of(pull: str) -> str:
+    """A pull's rows counted, as a query (the final audit's item 1, 2026-11-12; snap.ts countQuery's twin): its one
+    expression's ``size()`` (meta::pure::functions::relation::size), which the planner plans as the database's count of
+    its rows -- never the pull's statement handed back to the planner as a host operation's query."""
+    lam = json.loads(pull)
+    body = lam.get('body') if isinstance(lam, dict) else None
+    if not isinstance(body, list) or len(body) != 1:
+        raise ValueError(f"a snap's pull is one expression, not {len(body) if isinstance(body, list) else repr(body)}")
+    return json.dumps({**lam, 'body': [{'_type': 'func', 'function': 'size', 'parameters': body}]})
 
 
 def _copy_said(made: dict[str, Any], name: str, rows: int, receipt: dict[str, Any] | None) -> Answer:
@@ -1463,10 +1474,11 @@ class Engine:
         if asked['runtime'] != table.runtime:
             return _said(422, table.refused_runtime(asked['runtime']) or '')
         on = _on_planner_threads()
-        planned = on(self.planner.plan, asked['pull'], table.held, table.runtime)
         try:
-            plan = on(self.planner.read, planned)
-        except LegendError as refused:
+            # the pull's rows counted where they are: the planner's plan of its count, in the warehouse's SQL (the final
+            # audit's item 1, 2026-11-12: never the pull's statement handed back as a host operation's query)
+            plan = on(self.planner.read, on(self.planner.plan, _count_of(asked['pull']), table.held, table.runtime))
+        except (LegendError, ValueError) as refused:
             return _said(422, f'the snap could not be planned: {refused}')
         if plan.params:
             # the warehouse runs SQL text alone: a statement binding a data: payload (M3) is refused by name, never sent
@@ -1477,11 +1489,8 @@ class Engine:
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
         try:
-            # counted where the rows are, before anything is copied (the tab's preflight), by the catalog's own
-            # database's statement (a Postgres catalog's, Postgres's: D5)
-            (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}},
-                                           database_type=table.database_type)
-            counted = _arrow_of(table.warehouse.arrow_chunks(counting))
+            # counted where the rows are, before anything is copied (the tab's preflight)
+            counted = _arrow_of(table.warehouse.arrow_chunks(plan.sql))
             # the count is the warehouse's one value: none is refused by name, never read as no rows (G7; the final
             # audit, 2026-11-12)
             if counted.num_rows != 1 or counted.num_columns != 1 or counted.column(0)[0].as_py() is None:
@@ -1529,29 +1538,27 @@ class Engine:
             if held is None:
                 return _said(404, 'this engine serves no model of that text: it snaps a page\'s frames and files, and '
                                   'warehouse tables it opened')
-            planned = self.planner.plan(asked['pull'], held, asked['runtime'])
             try:
-                plan = self.planner.read(planned)
-            except LegendError as refused:
+                # its rows counted: the planner's plan of the pull's count (the final audit's item 1, 2026-11-12: never
+                # the pull's statement handed back as a host operation's query), its own values bound
+                plan = self.planner.read(self.planner.plan(_count_of(asked['pull']), held, asked['runtime']))
+            except (LegendError, ValueError) as refused:
                 return _said(422, f'the snap could not be planned: {refused}')
-            # the plan's values (its data: payloads, M3) bound to the `?`s the count and the copy keep in their order
-            params = list(plan.params)
-            (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}}, database_type='DuckDB')
             try:
-                rows = int(send(self.frames.connection, counting, params).fetchone()[0])
+                rows = int(send(self.frames.connection, plan.sql, list(plan.params)).fetchone()[0])
             except duckdb.Error as refused:
                 return _said(422, f'the snap could not be counted: {refused}')
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
 
             def land(connection: Any, target: dict[str, Any]) -> None:
-                made = _host.statements({'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
-                                         'from': {'query': plan.sql}})
-                if params and len(made) != 1:
-                    raise ValueError(f'the copy is made by {len(made)} statements, and the plan binds a data: payload '
-                                     'one of them reads')
-                for sql in made:
-                    send(connection, sql, params)
+                # the copy: ONE PLAN the planner makes of the pull (Boundary.snapCopy, the final audit's item 1(b)) -- the
+                # table made from it, its data: payloads bound by digest, in its target's transaction -- never the pull's
+                # statement handed back as a host operation's query
+                run_write(compiler.snap_copy({'databaseType': 'DuckDB', 'model': asked['model'],
+                                              'runtime': asked['runtime'], 'lambda': asked['pull'],
+                                              **({'schema': target['schema']} if 'schema' in target else {}),
+                                              'table': target['name']}), connection)
 
             return self._landed(headless, land, rows)
 

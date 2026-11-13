@@ -133,6 +133,20 @@ public final class TabExports {
         return Folded.of(() -> Boundary.snapStream(request));
     }
 
+    /** {@link Boundary#snapCopy}: a snapshot's copy into the tab's own database, as one plan (the final audit's 1(b),
+     *  2026-11-12) -- its request the pull, planned in this call, never a statement. */
+    @JSExport
+    public static String snapCopyOrError(String request) {
+        return Folded.of(() -> Boundary.snapCopy(request));
+    }
+
+    /** {@link Boundary#outputPlan}: a DataCube table Output as one plan (the final audit's item 2, 2026-11-12) -- the
+     *  table made before the write where the Output makes it, its write, one transaction. */
+    @JSExport
+    public static String outputPlanOrError(String request) {
+        return Folded.of(() -> Boundary.outputPlan(request));
+    }
+
     /** {@link Boundary#authored}: a statement a person wrote, as a plan (Studio's SQL playground, 2026-11-12). */
     @JSExport
     public static String authoredOrError(String request) {
