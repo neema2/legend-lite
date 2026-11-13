@@ -376,11 +376,12 @@ public class H2 extends AnsiSqlRenderer {
 
     @Override
     protected String aliasIdent(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"'
-                && name.endsWith("\"")) {
+        // a quoted declaration is its own spelling only when its interior holds its quote doubled (the one check: the
+        // C4 audit's H2 hole, 2026-11-13, was this shortcut asking nothing); anything else delimited whole
+        if (quotedIdentifier(name, '"')) {
             return name;
         }
-        return '"' + name.replace("\"", "\"\"") + '"';
+        return delimited(name);
     }
 
     /** Alias-less projections label EXPLICITLY from the projection's
@@ -432,8 +433,8 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     private String execPart(String part) {
-        if (part.length() > 1 && part.charAt(0) == '"'
-                && part.endsWith("\"")) {
+        // the one check, as aliasIdent asks it (the C4 audit's H2 hole, 2026-11-13)
+        if (quotedIdentifier(part, '"')) {
             return part;
         }
         if (freedByTheEngine(part)) {
@@ -443,7 +444,8 @@ public class H2 extends AnsiSqlRenderer {
         if (!part.matches("[A-Za-z_][A-Za-z0-9_$]*")
                 || reservedWords()
                         .contains(part.toLowerCase(java.util.Locale.ROOT))) {
-            return '"' + part + '"';
+            // delimited, its quotes doubled (until 2026-11-13 wrapped as given: a quote inside walked out)
+            return delimited(part);
         }
         return part;
     }

@@ -2058,6 +2058,21 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return q + delimitedBody(name) + q;
     }
 
+    /** Whether {@code name} is ALREADY a delimited identifier in {@code quote} -- a quoted store declaration
+     *  ({@code "date"}) a writer may pass through as its own spelling: it starts and ends with the quote, and its
+     *  interior holds that quote only doubled (each {@code ""} one quote of the name), so the database's lexer reads one
+     *  identifier and nothing after it. A name that starts and ends with the quote but holds a lone one inside is not:
+     *  passed through, the lone quote ends the identifier and what follows is read as the statement's code (the C4
+     *  audit, 2026-11-13: H2's alias and stored-name writers passed {@code "a", FILE_READ(..) AS "b"} through unasked).
+     *  The ONE check every pre-quoted shortcut asks (the user's ruling M1); a name it refuses is delimited whole. */
+    static boolean quotedIdentifier(String name, char quote) {
+        if (name.length() < 2 || name.charAt(0) != quote || name.charAt(name.length() - 1) != quote) {
+            return false;
+        }
+        String q = String.valueOf(quote);
+        return !name.substring(1, name.length() - 1).replace(q + q, "").contains(q);
+    }
+
     /** {@code name} escaped for the inside of a delimited identifier, as this database's LEXER reads one (the user's
      *  ruling of 2026-11-13, the ClickHouse identifier breakout: every dialect's identifier writer escapes what its own
      *  lexer reads inside a delimited identifier). Base: the quote character doubled ({@code a"b} spells
@@ -2474,16 +2489,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (PLAIN.matcher(name).matches() && !reservedWords().contains(name.toLowerCase(java.util.Locale.ROOT))) {
             return name;
         }
-        char q = quoteChar();
         // a QUOTE-BEARING identity ('"date"' — quoted store declaration)
         // is already its own spelling — but ONLY when its interior is a
         // valid quoted body (quote chars appear as doubled pairs); a
         // stray interior quote would walk out of the identifier (C2.1)
-        if (name.length() > 1 && name.charAt(0) == q
-                && name.charAt(name.length() - 1) == q
-                && !name.substring(1, name.length() - 1)
-                        .replace("" + q + q, "")
-                        .contains(String.valueOf(q))) {
+        if (quotedIdentifier(name, quoteChar())) {
             return name;
         }
         return delimited(name);

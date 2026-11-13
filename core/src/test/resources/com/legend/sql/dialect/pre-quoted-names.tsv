@@ -1,0 +1,896 @@
+H2	an alias	ID	SELECT "t0".ID AS "ID"\nFROM T AS "t0"
+H2	a derived column	ID	SELECT "t0"."ID" AS "c"\nFROM T AS "t0"
+H2	a physical column	ID	SELECT "t0".ID AS "c"\nFROM T AS "t0"
+H2	a table	ID	SELECT "t0".ID AS "c"\nFROM ID AS "t0"
+H2	an alias	firstName	SELECT "t0".ID AS "firstName"\nFROM T AS "t0"
+H2	a derived column	firstName	SELECT "t0"."firstName" AS "c"\nFROM T AS "t0"
+H2	a physical column	firstName	SELECT "t0".firstName AS "c"\nFROM T AS "t0"
+H2	a table	firstName	SELECT "t0".ID AS "c"\nFROM firstName AS "t0"
+H2	an alias	first name	SELECT "t0".ID AS "first name"\nFROM T AS "t0"
+H2	a derived column	first name	SELECT "t0"."first name" AS "c"\nFROM T AS "t0"
+H2	a physical column	first name	SELECT "t0"."first name" AS "c"\nFROM T AS "t0"
+H2	a table	first name	SELECT "t0".ID AS "c"\nFROM "first name" AS "t0"
+H2	an alias	select	SELECT "t0".ID AS "select"\nFROM T AS "t0"
+H2	a derived column	select	SELECT "t0"."select" AS "c"\nFROM T AS "t0"
+H2	a physical column	select	SELECT "t0"."select" AS "c"\nFROM T AS "t0"
+H2	a table	select	SELECT "t0".ID AS "c"\nFROM "select" AS "t0"
+H2	an alias	date	SELECT "t0".ID AS "date"\nFROM T AS "t0"
+H2	a derived column	date	SELECT "t0"."date" AS "c"\nFROM T AS "t0"
+H2	a physical column	date	SELECT "t0".date AS "c"\nFROM T AS "t0"
+H2	a table	date	SELECT "t0".ID AS "c"\nFROM date AS "t0"
+H2	an alias	_x	SELECT "t0".ID AS "_x"\nFROM T AS "t0"
+H2	a derived column	_x	SELECT "t0"."_x" AS "c"\nFROM T AS "t0"
+H2	a physical column	_x	SELECT "t0"._x AS "c"\nFROM T AS "t0"
+H2	a table	_x	SELECT "t0".ID AS "c"\nFROM _x AS "t0"
+H2	an alias	x$y	SELECT "t0".ID AS "x$y"\nFROM T AS "t0"
+H2	a derived column	x$y	SELECT "t0"."x$y" AS "c"\nFROM T AS "t0"
+H2	a physical column	x$y	SELECT "t0".x$y AS "c"\nFROM T AS "t0"
+H2	a table	x$y	SELECT "t0".ID AS "c"\nFROM "x$y" AS "t0"
+H2	an alias	Äb	SELECT "t0".ID AS "Äb"\nFROM T AS "t0"
+H2	a derived column	Äb	SELECT "t0"."Äb" AS "c"\nFROM T AS "t0"
+H2	a physical column	Äb	SELECT "t0"."Äb" AS "c"\nFROM T AS "t0"
+H2	a table	Äb	SELECT "t0".ID AS "c"\nFROM "Äb" AS "t0"
+H2	an alias	"date"	SELECT "t0".ID AS "date"\nFROM T AS "t0"
+H2	a derived column	"date"	SELECT "t0"."date" AS "c"\nFROM T AS "t0"
+H2	a physical column	"date"	SELECT "t0"."date" AS "c"\nFROM T AS "t0"
+H2	a table	"date"	SELECT "t0".ID AS "c"\nFROM "date" AS "t0"
+H2	an alias	"first name"	SELECT "t0".ID AS "first name"\nFROM T AS "t0"
+H2	a derived column	"first name"	SELECT "t0"."first name" AS "c"\nFROM T AS "t0"
+H2	a physical column	"first name"	SELECT "t0"."first name" AS "c"\nFROM T AS "t0"
+H2	a table	"first name"	SELECT "t0".ID AS "c"\nFROM "first name" AS "t0"
+H2	an alias	"a""b"	SELECT "t0".ID AS "a""b"\nFROM T AS "t0"
+H2	a derived column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM T AS "t0"
+H2	a physical column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM T AS "t0"
+H2	a table	"a""b"	SELECT "t0".ID AS "c"\nFROM "a""b" AS "t0"
+H2	an alias	""""	SELECT "t0".ID AS """"\nFROM T AS "t0"
+H2	a derived column	""""	SELECT "t0"."""" AS "c"\nFROM T AS "t0"
+H2	a physical column	""""	SELECT "t0"."""" AS "c"\nFROM T AS "t0"
+H2	a table	""""	SELECT "t0".ID AS "c"\nFROM """" AS "t0"
+H2	an alias	a"b	SELECT "t0".ID AS "a""b"\nFROM T AS "t0"
+H2	a derived column	a"b	SELECT "t0"."a""b" AS "c"\nFROM T AS "t0"
+H2	a physical column	a"b	SELECT "t0"."a"b" AS "c"\nFROM T AS "t0"
+H2	a table	a"b	SELECT "t0".ID AS "c"\nFROM "a""b" AS "t0"
+H2	an alias	`x`	SELECT "t0".ID AS "`x`"\nFROM T AS "t0"
+H2	a derived column	`x`	SELECT "t0"."`x`" AS "c"\nFROM T AS "t0"
+H2	a physical column	`x`	SELECT "t0"."`x`" AS "c"\nFROM T AS "t0"
+H2	a table	`x`	SELECT "t0".ID AS "c"\nFROM "`x`" AS "t0"
+H2	an alias	`a``b`	SELECT "t0".ID AS "`a``b`"\nFROM T AS "t0"
+H2	a derived column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM T AS "t0"
+H2	a physical column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM T AS "t0"
+H2	a table	`a``b`	SELECT "t0".ID AS "c"\nFROM "`a``b`" AS "t0"
+H2	an alias	a b`c	SELECT "t0".ID AS "a b`c"\nFROM T AS "t0"
+H2	a derived column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM T AS "t0"
+H2	a physical column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM T AS "t0"
+H2	a table	a b`c	SELECT "t0".ID AS "c"\nFROM "a b`c" AS "t0"
+Postgres	an alias	ID	SELECT "t0".id AS "ID"\nFROM t AS "t0"
+Postgres	a derived column	ID	SELECT "t0"."ID" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	ID	SELECT "t0".id AS "c"\nFROM t AS "t0"
+Postgres	a table	ID	SELECT "t0".id AS "c"\nFROM id AS "t0"
+Postgres	an alias	firstName	SELECT "t0".id AS "firstName"\nFROM t AS "t0"
+Postgres	a derived column	firstName	SELECT "t0"."firstName" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	firstName	SELECT "t0".firstname AS "c"\nFROM t AS "t0"
+Postgres	a table	firstName	SELECT "t0".id AS "c"\nFROM firstname AS "t0"
+Postgres	an alias	first name	SELECT "t0".id AS "first name"\nFROM t AS "t0"
+Postgres	a derived column	first name	SELECT "t0"."first name" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	first name	SELECT "t0"."first name" AS "c"\nFROM t AS "t0"
+Postgres	a table	first name	SELECT "t0".id AS "c"\nFROM "first name" AS "t0"
+Postgres	an alias	select	SELECT "t0".id AS "select"\nFROM t AS "t0"
+Postgres	a derived column	select	SELECT "t0"."select" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	select	SELECT "t0"."select" AS "c"\nFROM t AS "t0"
+Postgres	a table	select	SELECT "t0".id AS "c"\nFROM "select" AS "t0"
+Postgres	an alias	date	SELECT "t0".id AS "date"\nFROM t AS "t0"
+Postgres	a derived column	date	SELECT "t0"."date" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	date	SELECT "t0".date AS "c"\nFROM t AS "t0"
+Postgres	a table	date	SELECT "t0".id AS "c"\nFROM date AS "t0"
+Postgres	an alias	_x	SELECT "t0".id AS "_x"\nFROM t AS "t0"
+Postgres	a derived column	_x	SELECT "t0"."_x" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	_x	SELECT "t0"._x AS "c"\nFROM t AS "t0"
+Postgres	a table	_x	SELECT "t0".id AS "c"\nFROM _x AS "t0"
+Postgres	an alias	x$y	SELECT "t0".id AS "x$y"\nFROM t AS "t0"
+Postgres	a derived column	x$y	SELECT "t0"."x$y" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	x$y	SELECT "t0"."x$y" AS "c"\nFROM t AS "t0"
+Postgres	a table	x$y	SELECT "t0".id AS "c"\nFROM "x$y" AS "t0"
+Postgres	an alias	Äb	SELECT "t0".id AS "Äb"\nFROM t AS "t0"
+Postgres	a derived column	Äb	SELECT "t0"."Äb" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	Äb	SELECT "t0"."äb" AS "c"\nFROM t AS "t0"
+Postgres	a table	Äb	SELECT "t0".id AS "c"\nFROM "äb" AS "t0"
+Postgres	an alias	"date"	SELECT "t0".id AS "date"\nFROM t AS "t0"
+Postgres	a derived column	"date"	SELECT "t0"."date" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	"date"	SELECT "t0"."date" AS "c"\nFROM t AS "t0"
+Postgres	a table	"date"	SELECT "t0".id AS "c"\nFROM "date" AS "t0"
+Postgres	an alias	"first name"	SELECT "t0".id AS "first name"\nFROM t AS "t0"
+Postgres	a derived column	"first name"	SELECT "t0"."first name" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	"first name"	SELECT "t0"."first name" AS "c"\nFROM t AS "t0"
+Postgres	a table	"first name"	SELECT "t0".id AS "c"\nFROM "first name" AS "t0"
+Postgres	an alias	"a""b"	SELECT "t0".id AS "a""b"\nFROM t AS "t0"
+Postgres	a derived column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM t AS "t0"
+Postgres	a table	"a""b"	SELECT "t0".id AS "c"\nFROM "a""b" AS "t0"
+Postgres	an alias	""""	SELECT "t0".id AS """"\nFROM t AS "t0"
+Postgres	a derived column	""""	SELECT "t0"."""" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	""""	SELECT "t0"."""" AS "c"\nFROM t AS "t0"
+Postgres	a table	""""	SELECT "t0".id AS "c"\nFROM """" AS "t0"
+Postgres	an alias	a"b	SELECT "t0".id AS "a""b"\nFROM t AS "t0"
+Postgres	a derived column	a"b	SELECT "t0"."a""b" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	a"b	SELECT "t0"."a""b" AS "c"\nFROM t AS "t0"
+Postgres	a table	a"b	SELECT "t0".id AS "c"\nFROM "a""b" AS "t0"
+Postgres	an alias	`x`	SELECT "t0".id AS "`x`"\nFROM t AS "t0"
+Postgres	a derived column	`x`	SELECT "t0"."`x`" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	`x`	SELECT "t0"."`x`" AS "c"\nFROM t AS "t0"
+Postgres	a table	`x`	SELECT "t0".id AS "c"\nFROM "`x`" AS "t0"
+Postgres	an alias	`a``b`	SELECT "t0".id AS "`a``b`"\nFROM t AS "t0"
+Postgres	a derived column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM t AS "t0"
+Postgres	a table	`a``b`	SELECT "t0".id AS "c"\nFROM "`a``b`" AS "t0"
+Postgres	an alias	a b`c	SELECT "t0".id AS "a b`c"\nFROM t AS "t0"
+Postgres	a derived column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM t AS "t0"
+Postgres	a physical column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM t AS "t0"
+Postgres	a table	a b`c	SELECT "t0".id AS "c"\nFROM "a b`c" AS "t0"
+Snowflake	an alias	ID	SELECT "t0"."ID" AS "ID"\nFROM "T" AS "t0"
+Snowflake	a derived column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	ID	SELECT "t0"."ID" AS "c"\nFROM "ID" AS "t0"
+Snowflake	an alias	firstName	SELECT "t0"."ID" AS "firstName"\nFROM "T" AS "t0"
+Snowflake	a derived column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	firstName	SELECT "t0"."ID" AS "c"\nFROM "firstName" AS "t0"
+Snowflake	an alias	first name	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+Snowflake	a derived column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	first name	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+Snowflake	an alias	select	SELECT "t0"."ID" AS "select"\nFROM "T" AS "t0"
+Snowflake	a derived column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	select	SELECT "t0"."ID" AS "c"\nFROM "select" AS "t0"
+Snowflake	an alias	date	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+Snowflake	a derived column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	date	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+Snowflake	an alias	_x	SELECT "t0"."ID" AS "_x"\nFROM "T" AS "t0"
+Snowflake	a derived column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	_x	SELECT "t0"."ID" AS "c"\nFROM "_x" AS "t0"
+Snowflake	an alias	x$y	SELECT "t0"."ID" AS "x$y"\nFROM "T" AS "t0"
+Snowflake	a derived column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	x$y	SELECT "t0"."ID" AS "c"\nFROM "x$y" AS "t0"
+Snowflake	an alias	Äb	SELECT "t0"."ID" AS "Äb"\nFROM "T" AS "t0"
+Snowflake	a derived column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	Äb	SELECT "t0"."ID" AS "c"\nFROM "Äb" AS "t0"
+Snowflake	an alias	"date"	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+Snowflake	a derived column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	"date"	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+Snowflake	an alias	"first name"	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+Snowflake	a derived column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	"first name"	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+Snowflake	an alias	"a""b"	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+Snowflake	a derived column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	"a""b"	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+Snowflake	an alias	""""	SELECT "t0"."ID" AS """"\nFROM "T" AS "t0"
+Snowflake	a derived column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	""""	SELECT "t0"."ID" AS "c"\nFROM """" AS "t0"
+Snowflake	an alias	a"b	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+Snowflake	a derived column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	a"b	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+Snowflake	an alias	`x`	SELECT "t0"."ID" AS "`x`"\nFROM "T" AS "t0"
+Snowflake	a derived column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	`x`	SELECT "t0"."ID" AS "c"\nFROM "`x`" AS "t0"
+Snowflake	an alias	`a``b`	SELECT "t0"."ID" AS "`a``b`"\nFROM "T" AS "t0"
+Snowflake	a derived column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	`a``b`	SELECT "t0"."ID" AS "c"\nFROM "`a``b`" AS "t0"
+Snowflake	an alias	a b`c	SELECT "t0"."ID" AS "a b`c"\nFROM "T" AS "t0"
+Snowflake	a derived column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+Snowflake	a physical column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+Snowflake	a table	a b`c	SELECT "t0"."ID" AS "c"\nFROM "a b`c" AS "t0"
+Trino	an alias	ID	SELECT "t0"."ID" AS "ID"\nFROM "T" AS "t0"
+Trino	a derived column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+Trino	a table	ID	SELECT "t0"."ID" AS "c"\nFROM "ID" AS "t0"
+Trino	an alias	firstName	SELECT "t0"."ID" AS "firstName"\nFROM "T" AS "t0"
+Trino	a derived column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+Trino	a table	firstName	SELECT "t0"."ID" AS "c"\nFROM "firstName" AS "t0"
+Trino	an alias	first name	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+Trino	a derived column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Trino	a table	first name	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+Trino	an alias	select	SELECT "t0"."ID" AS "select"\nFROM "T" AS "t0"
+Trino	a derived column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+Trino	a table	select	SELECT "t0"."ID" AS "c"\nFROM "select" AS "t0"
+Trino	an alias	date	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+Trino	a derived column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Trino	a table	date	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+Trino	an alias	_x	SELECT "t0"."ID" AS "_x"\nFROM "T" AS "t0"
+Trino	a derived column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+Trino	a table	_x	SELECT "t0"."ID" AS "c"\nFROM "_x" AS "t0"
+Trino	an alias	x$y	SELECT "t0"."ID" AS "x$y"\nFROM "T" AS "t0"
+Trino	a derived column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+Trino	a table	x$y	SELECT "t0"."ID" AS "c"\nFROM "x$y" AS "t0"
+Trino	an alias	Äb	SELECT "t0"."ID" AS "Äb"\nFROM "T" AS "t0"
+Trino	a derived column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+Trino	a table	Äb	SELECT "t0"."ID" AS "c"\nFROM "Äb" AS "t0"
+Trino	an alias	"date"	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+Trino	a derived column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+Trino	a table	"date"	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+Trino	an alias	"first name"	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+Trino	a derived column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+Trino	a table	"first name"	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+Trino	an alias	"a""b"	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+Trino	a derived column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Trino	a table	"a""b"	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+Trino	an alias	""""	SELECT "t0"."ID" AS """"\nFROM "T" AS "t0"
+Trino	a derived column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+Trino	a table	""""	SELECT "t0"."ID" AS "c"\nFROM """" AS "t0"
+Trino	an alias	a"b	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+Trino	a derived column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+Trino	a table	a"b	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+Trino	an alias	`x`	SELECT "t0"."ID" AS "`x`"\nFROM "T" AS "t0"
+Trino	a derived column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+Trino	a table	`x`	SELECT "t0"."ID" AS "c"\nFROM "`x`" AS "t0"
+Trino	an alias	`a``b`	SELECT "t0"."ID" AS "`a``b`"\nFROM "T" AS "t0"
+Trino	a derived column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+Trino	a table	`a``b`	SELECT "t0"."ID" AS "c"\nFROM "`a``b`" AS "t0"
+Trino	an alias	a b`c	SELECT "t0"."ID" AS "a b`c"\nFROM "T" AS "t0"
+Trino	a derived column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+Trino	a physical column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+Trino	a table	a b`c	SELECT "t0"."ID" AS "c"\nFROM "a b`c" AS "t0"
+BigQuery	an alias	ID	SELECT `t0`.`ID` AS `ID`\nFROM `T` AS `t0`
+BigQuery	a derived column	ID	SELECT `t0`.`ID` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	ID	SELECT `t0`.`ID` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	ID	SELECT `t0`.`ID` AS `c`\nFROM `ID` AS `t0`
+BigQuery	an alias	firstName	SELECT `t0`.`ID` AS `firstName`\nFROM `T` AS `t0`
+BigQuery	a derived column	firstName	SELECT `t0`.`firstName` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	firstName	SELECT `t0`.`firstName` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	firstName	SELECT `t0`.`ID` AS `c`\nFROM `firstName` AS `t0`
+BigQuery	an alias	first name	SELECT `t0`.`ID` AS `first name`\nFROM `T` AS `t0`
+BigQuery	a derived column	first name	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	first name	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	first name	SELECT `t0`.`ID` AS `c`\nFROM `first name` AS `t0`
+BigQuery	an alias	select	SELECT `t0`.`ID` AS `select`\nFROM `T` AS `t0`
+BigQuery	a derived column	select	SELECT `t0`.`select` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	select	SELECT `t0`.`select` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	select	SELECT `t0`.`ID` AS `c`\nFROM `select` AS `t0`
+BigQuery	an alias	date	SELECT `t0`.`ID` AS `date`\nFROM `T` AS `t0`
+BigQuery	a derived column	date	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	date	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	date	SELECT `t0`.`ID` AS `c`\nFROM `date` AS `t0`
+BigQuery	an alias	_x	SELECT `t0`.`ID` AS `_x`\nFROM `T` AS `t0`
+BigQuery	a derived column	_x	SELECT `t0`.`_x` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	_x	SELECT `t0`.`_x` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	_x	SELECT `t0`.`ID` AS `c`\nFROM `_x` AS `t0`
+BigQuery	an alias	x$y	SELECT `t0`.`ID` AS `x$y`\nFROM `T` AS `t0`
+BigQuery	a derived column	x$y	SELECT `t0`.`x$y` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	x$y	SELECT `t0`.`x$y` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	x$y	SELECT `t0`.`ID` AS `c`\nFROM `x$y` AS `t0`
+BigQuery	an alias	Äb	SELECT `t0`.`ID` AS `Äb`\nFROM `T` AS `t0`
+BigQuery	a derived column	Äb	SELECT `t0`.`Äb` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	Äb	SELECT `t0`.`Äb` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	Äb	SELECT `t0`.`ID` AS `c`\nFROM `Äb` AS `t0`
+BigQuery	an alias	"date"	SELECT `t0`.`ID` AS `date`\nFROM `T` AS `t0`
+BigQuery	a derived column	"date"	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	"date"	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	"date"	SELECT `t0`.`ID` AS `c`\nFROM `date` AS `t0`
+BigQuery	an alias	"first name"	SELECT `t0`.`ID` AS `first name`\nFROM `T` AS `t0`
+BigQuery	a derived column	"first name"	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	"first name"	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	"first name"	SELECT `t0`.`ID` AS `c`\nFROM `first name` AS `t0`
+BigQuery	an alias	"a""b"	SELECT `t0`.`ID` AS `a"b`\nFROM `T` AS `t0`
+BigQuery	a derived column	"a""b"	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	"a""b"	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	"a""b"	SELECT `t0`.`ID` AS `c`\nFROM `a"b` AS `t0`
+BigQuery	an alias	""""	SELECT `t0`.`ID` AS `"`\nFROM `T` AS `t0`
+BigQuery	a derived column	""""	SELECT `t0`.`"` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	""""	SELECT `t0`.`"` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	""""	SELECT `t0`.`ID` AS `c`\nFROM `"` AS `t0`
+BigQuery	an alias	a"b	SELECT `t0`.`ID` AS `a"b`\nFROM `T` AS `t0`
+BigQuery	a derived column	a"b	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	a"b	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	a"b	SELECT `t0`.`ID` AS `c`\nFROM `a"b` AS `t0`
+BigQuery	an alias	`x`	SELECT `t0`.`ID` AS `\\`x\\``\nFROM `T` AS `t0`
+BigQuery	a derived column	`x`	SELECT `t0`.`\\`x\\`` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	`x`	SELECT `t0`.`\\`x\\`` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	`x`	SELECT `t0`.`ID` AS `c`\nFROM `\\`x\\`` AS `t0`
+BigQuery	an alias	`a``b`	SELECT `t0`.`ID` AS `\\`a\\`\\`b\\``\nFROM `T` AS `t0`
+BigQuery	a derived column	`a``b`	SELECT `t0`.`\\`a\\`\\`b\\`` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	`a``b`	SELECT `t0`.`\\`a\\`\\`b\\`` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	`a``b`	SELECT `t0`.`ID` AS `c`\nFROM `\\`a\\`\\`b\\`` AS `t0`
+BigQuery	an alias	a b`c	SELECT `t0`.`ID` AS `a b\\`c`\nFROM `T` AS `t0`
+BigQuery	a derived column	a b`c	SELECT `t0`.`a b\\`c` AS `c`\nFROM `T` AS `t0`
+BigQuery	a physical column	a b`c	SELECT `t0`.`a b\\`c` AS `c`\nFROM `T` AS `t0`
+BigQuery	a table	a b`c	SELECT `t0`.`ID` AS `c`\nFROM `a b\\`c` AS `t0`
+Databricks	an alias	ID	SELECT `t0`.`ID` AS `ID`\nFROM `T` AS `t0`
+Databricks	a derived column	ID	SELECT `t0`.`ID` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	ID	SELECT `t0`.`ID` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	ID	SELECT `t0`.`ID` AS `c`\nFROM `ID` AS `t0`
+Databricks	an alias	firstName	SELECT `t0`.`ID` AS `firstName`\nFROM `T` AS `t0`
+Databricks	a derived column	firstName	SELECT `t0`.`firstName` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	firstName	SELECT `t0`.`firstName` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	firstName	SELECT `t0`.`ID` AS `c`\nFROM `firstName` AS `t0`
+Databricks	an alias	first name	SELECT `t0`.`ID` AS `first name`\nFROM `T` AS `t0`
+Databricks	a derived column	first name	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	first name	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	first name	SELECT `t0`.`ID` AS `c`\nFROM `first name` AS `t0`
+Databricks	an alias	select	SELECT `t0`.`ID` AS `select`\nFROM `T` AS `t0`
+Databricks	a derived column	select	SELECT `t0`.`select` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	select	SELECT `t0`.`select` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	select	SELECT `t0`.`ID` AS `c`\nFROM `select` AS `t0`
+Databricks	an alias	date	SELECT `t0`.`ID` AS `date`\nFROM `T` AS `t0`
+Databricks	a derived column	date	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	date	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	date	SELECT `t0`.`ID` AS `c`\nFROM `date` AS `t0`
+Databricks	an alias	_x	SELECT `t0`.`ID` AS `_x`\nFROM `T` AS `t0`
+Databricks	a derived column	_x	SELECT `t0`.`_x` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	_x	SELECT `t0`.`_x` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	_x	SELECT `t0`.`ID` AS `c`\nFROM `_x` AS `t0`
+Databricks	an alias	x$y	SELECT `t0`.`ID` AS `x$y`\nFROM `T` AS `t0`
+Databricks	a derived column	x$y	SELECT `t0`.`x$y` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	x$y	SELECT `t0`.`x$y` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	x$y	SELECT `t0`.`ID` AS `c`\nFROM `x$y` AS `t0`
+Databricks	an alias	Äb	SELECT `t0`.`ID` AS `Äb`\nFROM `T` AS `t0`
+Databricks	a derived column	Äb	SELECT `t0`.`Äb` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	Äb	SELECT `t0`.`Äb` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	Äb	SELECT `t0`.`ID` AS `c`\nFROM `Äb` AS `t0`
+Databricks	an alias	"date"	SELECT `t0`.`ID` AS `date`\nFROM `T` AS `t0`
+Databricks	a derived column	"date"	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	"date"	SELECT `t0`.`date` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	"date"	SELECT `t0`.`ID` AS `c`\nFROM `date` AS `t0`
+Databricks	an alias	"first name"	SELECT `t0`.`ID` AS `first name`\nFROM `T` AS `t0`
+Databricks	a derived column	"first name"	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	"first name"	SELECT `t0`.`first name` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	"first name"	SELECT `t0`.`ID` AS `c`\nFROM `first name` AS `t0`
+Databricks	an alias	"a""b"	SELECT `t0`.`ID` AS `a"b`\nFROM `T` AS `t0`
+Databricks	a derived column	"a""b"	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	"a""b"	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	"a""b"	SELECT `t0`.`ID` AS `c`\nFROM `a"b` AS `t0`
+Databricks	an alias	""""	SELECT `t0`.`ID` AS `"`\nFROM `T` AS `t0`
+Databricks	a derived column	""""	SELECT `t0`.`"` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	""""	SELECT `t0`.`"` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	""""	SELECT `t0`.`ID` AS `c`\nFROM `"` AS `t0`
+Databricks	an alias	a"b	SELECT `t0`.`ID` AS `a"b`\nFROM `T` AS `t0`
+Databricks	a derived column	a"b	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	a"b	SELECT `t0`.`a"b` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	a"b	SELECT `t0`.`ID` AS `c`\nFROM `a"b` AS `t0`
+Databricks	an alias	`x`	SELECT `t0`.`ID` AS ```x```\nFROM `T` AS `t0`
+Databricks	a derived column	`x`	SELECT `t0`.```x``` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	`x`	SELECT `t0`.```x``` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	`x`	SELECT `t0`.`ID` AS `c`\nFROM ```x``` AS `t0`
+Databricks	an alias	`a``b`	SELECT `t0`.`ID` AS ```a````b```\nFROM `T` AS `t0`
+Databricks	a derived column	`a``b`	SELECT `t0`.```a````b``` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	`a``b`	SELECT `t0`.```a````b``` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	`a``b`	SELECT `t0`.`ID` AS `c`\nFROM ```a````b``` AS `t0`
+Databricks	an alias	a b`c	SELECT `t0`.`ID` AS `a b``c`\nFROM `T` AS `t0`
+Databricks	a derived column	a b`c	SELECT `t0`.`a b``c` AS `c`\nFROM `T` AS `t0`
+Databricks	a physical column	a b`c	SELECT `t0`.`a b``c` AS `c`\nFROM `T` AS `t0`
+Databricks	a table	a b`c	SELECT `t0`.`ID` AS `c`\nFROM `a b``c` AS `t0`
+DuckDb	an alias	ID	SELECT t0.ID AS ID\nFROM T AS t0
+DuckDb	a derived column	ID	SELECT t0.ID AS c\nFROM T AS t0
+DuckDb	a physical column	ID	SELECT t0.ID AS c\nFROM T AS t0
+DuckDb	a table	ID	SELECT t0.ID AS c\nFROM ID AS t0
+DuckDb	an alias	firstName	SELECT t0.ID AS firstName\nFROM T AS t0
+DuckDb	a derived column	firstName	SELECT t0.firstName AS c\nFROM T AS t0
+DuckDb	a physical column	firstName	SELECT t0.firstName AS c\nFROM T AS t0
+DuckDb	a table	firstName	SELECT t0.ID AS c\nFROM firstName AS t0
+DuckDb	an alias	first name	SELECT t0.ID AS "first name"\nFROM T AS t0
+DuckDb	a derived column	first name	SELECT t0."first name" AS c\nFROM T AS t0
+DuckDb	a physical column	first name	SELECT t0."first name" AS c\nFROM T AS t0
+DuckDb	a table	first name	SELECT t0.ID AS c\nFROM "first name" AS t0
+DuckDb	an alias	select	SELECT t0.ID AS "select"\nFROM T AS t0
+DuckDb	a derived column	select	SELECT t0."select" AS c\nFROM T AS t0
+DuckDb	a physical column	select	SELECT t0."select" AS c\nFROM T AS t0
+DuckDb	a table	select	SELECT t0.ID AS c\nFROM "select" AS t0
+DuckDb	an alias	date	SELECT t0.ID AS date\nFROM T AS t0
+DuckDb	a derived column	date	SELECT t0.date AS c\nFROM T AS t0
+DuckDb	a physical column	date	SELECT t0.date AS c\nFROM T AS t0
+DuckDb	a table	date	SELECT t0.ID AS c\nFROM date AS t0
+DuckDb	an alias	_x	SELECT t0.ID AS _x\nFROM T AS t0
+DuckDb	a derived column	_x	SELECT t0._x AS c\nFROM T AS t0
+DuckDb	a physical column	_x	SELECT t0._x AS c\nFROM T AS t0
+DuckDb	a table	_x	SELECT t0.ID AS c\nFROM _x AS t0
+DuckDb	an alias	x$y	SELECT t0.ID AS "x$y"\nFROM T AS t0
+DuckDb	a derived column	x$y	SELECT t0."x$y" AS c\nFROM T AS t0
+DuckDb	a physical column	x$y	SELECT t0."x$y" AS c\nFROM T AS t0
+DuckDb	a table	x$y	SELECT t0.ID AS c\nFROM "x$y" AS t0
+DuckDb	an alias	Äb	SELECT t0.ID AS "Äb"\nFROM T AS t0
+DuckDb	a derived column	Äb	SELECT t0."Äb" AS c\nFROM T AS t0
+DuckDb	a physical column	Äb	SELECT t0."Äb" AS c\nFROM T AS t0
+DuckDb	a table	Äb	SELECT t0.ID AS c\nFROM "Äb" AS t0
+DuckDb	an alias	"date"	SELECT t0.ID AS "date"\nFROM T AS t0
+DuckDb	a derived column	"date"	SELECT t0."date" AS c\nFROM T AS t0
+DuckDb	a physical column	"date"	SELECT t0."date" AS c\nFROM T AS t0
+DuckDb	a table	"date"	SELECT t0.ID AS c\nFROM "date" AS t0
+DuckDb	an alias	"first name"	SELECT t0.ID AS "first name"\nFROM T AS t0
+DuckDb	a derived column	"first name"	SELECT t0."first name" AS c\nFROM T AS t0
+DuckDb	a physical column	"first name"	SELECT t0."first name" AS c\nFROM T AS t0
+DuckDb	a table	"first name"	SELECT t0.ID AS c\nFROM "first name" AS t0
+DuckDb	an alias	"a""b"	SELECT t0.ID AS "a""b"\nFROM T AS t0
+DuckDb	a derived column	"a""b"	SELECT t0."a""b" AS c\nFROM T AS t0
+DuckDb	a physical column	"a""b"	SELECT t0."a""b" AS c\nFROM T AS t0
+DuckDb	a table	"a""b"	SELECT t0.ID AS c\nFROM "a""b" AS t0
+DuckDb	an alias	""""	SELECT t0.ID AS """"\nFROM T AS t0
+DuckDb	a derived column	""""	SELECT t0."""" AS c\nFROM T AS t0
+DuckDb	a physical column	""""	SELECT t0."""" AS c\nFROM T AS t0
+DuckDb	a table	""""	SELECT t0.ID AS c\nFROM """" AS t0
+DuckDb	an alias	a"b	SELECT t0.ID AS "a""b"\nFROM T AS t0
+DuckDb	a derived column	a"b	SELECT t0."a""b" AS c\nFROM T AS t0
+DuckDb	a physical column	a"b	SELECT t0."a""b" AS c\nFROM T AS t0
+DuckDb	a table	a"b	SELECT t0.ID AS c\nFROM "a""b" AS t0
+DuckDb	an alias	`x`	SELECT t0.ID AS "`x`"\nFROM T AS t0
+DuckDb	a derived column	`x`	SELECT t0."`x`" AS c\nFROM T AS t0
+DuckDb	a physical column	`x`	SELECT t0."`x`" AS c\nFROM T AS t0
+DuckDb	a table	`x`	SELECT t0.ID AS c\nFROM "`x`" AS t0
+DuckDb	an alias	`a``b`	SELECT t0.ID AS "`a``b`"\nFROM T AS t0
+DuckDb	a derived column	`a``b`	SELECT t0."`a``b`" AS c\nFROM T AS t0
+DuckDb	a physical column	`a``b`	SELECT t0."`a``b`" AS c\nFROM T AS t0
+DuckDb	a table	`a``b`	SELECT t0.ID AS c\nFROM "`a``b`" AS t0
+DuckDb	an alias	a b`c	SELECT t0.ID AS "a b`c"\nFROM T AS t0
+DuckDb	a derived column	a b`c	SELECT t0."a b`c" AS c\nFROM T AS t0
+DuckDb	a physical column	a b`c	SELECT t0."a b`c" AS c\nFROM T AS t0
+DuckDb	a table	a b`c	SELECT t0.ID AS c\nFROM "a b`c" AS t0
+ClickHouse	an alias	ID	SELECT "t0"."ID" AS "ID"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	ID	SELECT "t0"."ID" AS "c"\nFROM "ID" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	firstName	SELECT "t0"."ID" AS "firstName"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	firstName	SELECT "t0"."ID" AS "c"\nFROM "firstName" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	first name	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	first name	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	select	SELECT "t0"."ID" AS "select"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	select	SELECT "t0"."ID" AS "c"\nFROM "select" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	date	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	date	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	_x	SELECT "t0"."ID" AS "_x"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	_x	SELECT "t0"."ID" AS "c"\nFROM "_x" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	x$y	SELECT "t0"."ID" AS "x$y"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	x$y	SELECT "t0"."ID" AS "c"\nFROM "x$y" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	Äb	SELECT "t0"."ID" AS "Äb"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	Äb	SELECT "t0"."ID" AS "c"\nFROM "Äb" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	"date"	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	"date"	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	"first name"	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	"first name"	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	"a""b"	SELECT "t0"."ID" AS "a\\"b"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	"a""b"	SELECT "t0"."a\\"b" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	"a""b"	SELECT "t0"."a\\"b" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	"a""b"	SELECT "t0"."ID" AS "c"\nFROM "a\\"b" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	""""	SELECT "t0"."ID" AS "\\""\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	""""	SELECT "t0"."\\"" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	""""	SELECT "t0"."\\"" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	""""	SELECT "t0"."ID" AS "c"\nFROM "\\"" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	a"b	SELECT "t0"."ID" AS "a\\"b"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	a"b	SELECT "t0"."a\\"b" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	a"b	SELECT "t0"."a\\"b" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	a"b	SELECT "t0"."ID" AS "c"\nFROM "a\\"b" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	`x`	SELECT "t0"."ID" AS "`x`"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	`x`	SELECT "t0"."ID" AS "c"\nFROM "`x`" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	`a``b`	SELECT "t0"."ID" AS "`a``b`"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	`a``b`	SELECT "t0"."ID" AS "c"\nFROM "`a``b`" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	an alias	a b`c	SELECT "t0"."ID" AS "a b`c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a derived column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a physical column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+ClickHouse	a table	a b`c	SELECT "t0"."ID" AS "c"\nFROM "a b`c" AS "t0"\nSETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT', cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0, allow_experimental_correlated_subqueries = 0
+SQLite	an alias	ID	SELECT t0.ID AS ID\nFROM T AS t0
+SQLite	a derived column	ID	SELECT t0.ID AS c\nFROM T AS t0
+SQLite	a physical column	ID	SELECT t0.ID AS c\nFROM T AS t0
+SQLite	a table	ID	SELECT t0.ID AS c\nFROM ID AS t0
+SQLite	an alias	firstName	SELECT t0.ID AS firstName\nFROM T AS t0
+SQLite	a derived column	firstName	SELECT t0.firstName AS c\nFROM T AS t0
+SQLite	a physical column	firstName	SELECT t0.firstName AS c\nFROM T AS t0
+SQLite	a table	firstName	SELECT t0.ID AS c\nFROM firstName AS t0
+SQLite	an alias	first name	SELECT t0.ID AS "first name"\nFROM T AS t0
+SQLite	a derived column	first name	SELECT t0."first name" AS c\nFROM T AS t0
+SQLite	a physical column	first name	SELECT t0."first name" AS c\nFROM T AS t0
+SQLite	a table	first name	SELECT t0.ID AS c\nFROM "first name" AS t0
+SQLite	an alias	select	SELECT t0.ID AS "select"\nFROM T AS t0
+SQLite	a derived column	select	SELECT t0."select" AS c\nFROM T AS t0
+SQLite	a physical column	select	SELECT t0."select" AS c\nFROM T AS t0
+SQLite	a table	select	SELECT t0.ID AS c\nFROM "select" AS t0
+SQLite	an alias	date	SELECT t0.ID AS date\nFROM T AS t0
+SQLite	a derived column	date	SELECT t0.date AS c\nFROM T AS t0
+SQLite	a physical column	date	SELECT t0.date AS c\nFROM T AS t0
+SQLite	a table	date	SELECT t0.ID AS c\nFROM date AS t0
+SQLite	an alias	_x	SELECT t0.ID AS _x\nFROM T AS t0
+SQLite	a derived column	_x	SELECT t0._x AS c\nFROM T AS t0
+SQLite	a physical column	_x	SELECT t0._x AS c\nFROM T AS t0
+SQLite	a table	_x	SELECT t0.ID AS c\nFROM _x AS t0
+SQLite	an alias	x$y	SELECT t0.ID AS "x$y"\nFROM T AS t0
+SQLite	a derived column	x$y	SELECT t0."x$y" AS c\nFROM T AS t0
+SQLite	a physical column	x$y	SELECT t0."x$y" AS c\nFROM T AS t0
+SQLite	a table	x$y	SELECT t0.ID AS c\nFROM "x$y" AS t0
+SQLite	an alias	Äb	SELECT t0.ID AS "Äb"\nFROM T AS t0
+SQLite	a derived column	Äb	SELECT t0."Äb" AS c\nFROM T AS t0
+SQLite	a physical column	Äb	SELECT t0."Äb" AS c\nFROM T AS t0
+SQLite	a table	Äb	SELECT t0.ID AS c\nFROM "Äb" AS t0
+SQLite	an alias	"date"	SELECT t0.ID AS "date"\nFROM T AS t0
+SQLite	a derived column	"date"	SELECT t0."date" AS c\nFROM T AS t0
+SQLite	a physical column	"date"	SELECT t0."date" AS c\nFROM T AS t0
+SQLite	a table	"date"	SELECT t0.ID AS c\nFROM "date" AS t0
+SQLite	an alias	"first name"	SELECT t0.ID AS "first name"\nFROM T AS t0
+SQLite	a derived column	"first name"	SELECT t0."first name" AS c\nFROM T AS t0
+SQLite	a physical column	"first name"	SELECT t0."first name" AS c\nFROM T AS t0
+SQLite	a table	"first name"	SELECT t0.ID AS c\nFROM "first name" AS t0
+SQLite	an alias	"a""b"	SELECT t0.ID AS "a""b"\nFROM T AS t0
+SQLite	a derived column	"a""b"	SELECT t0."a""b" AS c\nFROM T AS t0
+SQLite	a physical column	"a""b"	SELECT t0."a""b" AS c\nFROM T AS t0
+SQLite	a table	"a""b"	SELECT t0.ID AS c\nFROM "a""b" AS t0
+SQLite	an alias	""""	SELECT t0.ID AS """"\nFROM T AS t0
+SQLite	a derived column	""""	SELECT t0."""" AS c\nFROM T AS t0
+SQLite	a physical column	""""	SELECT t0."""" AS c\nFROM T AS t0
+SQLite	a table	""""	SELECT t0.ID AS c\nFROM """" AS t0
+SQLite	an alias	a"b	SELECT t0.ID AS "a""b"\nFROM T AS t0
+SQLite	a derived column	a"b	SELECT t0."a""b" AS c\nFROM T AS t0
+SQLite	a physical column	a"b	SELECT t0."a""b" AS c\nFROM T AS t0
+SQLite	a table	a"b	SELECT t0.ID AS c\nFROM "a""b" AS t0
+SQLite	an alias	`x`	SELECT t0.ID AS "`x`"\nFROM T AS t0
+SQLite	a derived column	`x`	SELECT t0."`x`" AS c\nFROM T AS t0
+SQLite	a physical column	`x`	SELECT t0."`x`" AS c\nFROM T AS t0
+SQLite	a table	`x`	SELECT t0.ID AS c\nFROM "`x`" AS t0
+SQLite	an alias	`a``b`	SELECT t0.ID AS "`a``b`"\nFROM T AS t0
+SQLite	a derived column	`a``b`	SELECT t0."`a``b`" AS c\nFROM T AS t0
+SQLite	a physical column	`a``b`	SELECT t0."`a``b`" AS c\nFROM T AS t0
+SQLite	a table	`a``b`	SELECT t0.ID AS c\nFROM "`a``b`" AS t0
+SQLite	an alias	a b`c	SELECT t0.ID AS "a b`c"\nFROM T AS t0
+SQLite	a derived column	a b`c	SELECT t0."a b`c" AS c\nFROM T AS t0
+SQLite	a physical column	a b`c	SELECT t0."a b`c" AS c\nFROM T AS t0
+SQLite	a table	a b`c	SELECT t0.ID AS c\nFROM "a b`c" AS t0
+MariaDb	an alias	ID	SELECT "t0"."ID" AS "ID"\nFROM "T" AS "t0"
+MariaDb	a derived column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	ID	SELECT "t0"."ID" AS "c"\nFROM "ID" AS "t0"
+MariaDb	an alias	firstName	SELECT "t0"."ID" AS "firstName"\nFROM "T" AS "t0"
+MariaDb	a derived column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	firstName	SELECT "t0"."ID" AS "c"\nFROM "firstName" AS "t0"
+MariaDb	an alias	first name	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+MariaDb	a derived column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	first name	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+MariaDb	an alias	select	SELECT "t0"."ID" AS "select"\nFROM "T" AS "t0"
+MariaDb	a derived column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	select	SELECT "t0"."ID" AS "c"\nFROM "select" AS "t0"
+MariaDb	an alias	date	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+MariaDb	a derived column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	date	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+MariaDb	an alias	_x	SELECT "t0"."ID" AS "_x"\nFROM "T" AS "t0"
+MariaDb	a derived column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	_x	SELECT "t0"."ID" AS "c"\nFROM "_x" AS "t0"
+MariaDb	an alias	x$y	SELECT "t0"."ID" AS "x$y"\nFROM "T" AS "t0"
+MariaDb	a derived column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	x$y	SELECT "t0"."ID" AS "c"\nFROM "x$y" AS "t0"
+MariaDb	an alias	Äb	SELECT "t0"."ID" AS "Äb"\nFROM "T" AS "t0"
+MariaDb	a derived column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	Äb	SELECT "t0"."ID" AS "c"\nFROM "Äb" AS "t0"
+MariaDb	an alias	"date"	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+MariaDb	a derived column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	"date"	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+MariaDb	an alias	"first name"	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+MariaDb	a derived column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	"first name"	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+MariaDb	an alias	"a""b"	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+MariaDb	a derived column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	"a""b"	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+MariaDb	an alias	""""	SELECT "t0"."ID" AS """"\nFROM "T" AS "t0"
+MariaDb	a derived column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	""""	SELECT "t0"."ID" AS "c"\nFROM """" AS "t0"
+MariaDb	an alias	a"b	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+MariaDb	a derived column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	a"b	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+MariaDb	an alias	`x`	SELECT "t0"."ID" AS "`x`"\nFROM "T" AS "t0"
+MariaDb	a derived column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	`x`	SELECT "t0"."ID" AS "c"\nFROM "`x`" AS "t0"
+MariaDb	an alias	`a``b`	SELECT "t0"."ID" AS "`a``b`"\nFROM "T" AS "t0"
+MariaDb	a derived column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	`a``b`	SELECT "t0"."ID" AS "c"\nFROM "`a``b`" AS "t0"
+MariaDb	an alias	a b`c	SELECT "t0"."ID" AS "a b`c"\nFROM "T" AS "t0"
+MariaDb	a derived column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+MariaDb	a physical column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+MariaDb	a table	a b`c	SELECT "t0"."ID" AS "c"\nFROM "a b`c" AS "t0"
+MySql	an alias	ID	SELECT "t0"."ID" AS "ID"\nFROM "T" AS "t0"
+MySql	a derived column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	ID	SELECT "t0"."ID" AS "c"\nFROM "T" AS "t0"
+MySql	a table	ID	SELECT "t0"."ID" AS "c"\nFROM "ID" AS "t0"
+MySql	an alias	firstName	SELECT "t0"."ID" AS "firstName"\nFROM "T" AS "t0"
+MySql	a derived column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	firstName	SELECT "t0"."firstName" AS "c"\nFROM "T" AS "t0"
+MySql	a table	firstName	SELECT "t0"."ID" AS "c"\nFROM "firstName" AS "t0"
+MySql	an alias	first name	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+MySql	a derived column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	first name	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MySql	a table	first name	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+MySql	an alias	select	SELECT "t0"."ID" AS "select"\nFROM "T" AS "t0"
+MySql	a derived column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	select	SELECT "t0"."select" AS "c"\nFROM "T" AS "t0"
+MySql	a table	select	SELECT "t0"."ID" AS "c"\nFROM "select" AS "t0"
+MySql	an alias	date	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+MySql	a derived column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	date	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MySql	a table	date	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+MySql	an alias	_x	SELECT "t0"."ID" AS "_x"\nFROM "T" AS "t0"
+MySql	a derived column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	_x	SELECT "t0"."_x" AS "c"\nFROM "T" AS "t0"
+MySql	a table	_x	SELECT "t0"."ID" AS "c"\nFROM "_x" AS "t0"
+MySql	an alias	x$y	SELECT "t0"."ID" AS "x$y"\nFROM "T" AS "t0"
+MySql	a derived column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	x$y	SELECT "t0"."x$y" AS "c"\nFROM "T" AS "t0"
+MySql	a table	x$y	SELECT "t0"."ID" AS "c"\nFROM "x$y" AS "t0"
+MySql	an alias	Äb	SELECT "t0"."ID" AS "Äb"\nFROM "T" AS "t0"
+MySql	a derived column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	Äb	SELECT "t0"."Äb" AS "c"\nFROM "T" AS "t0"
+MySql	a table	Äb	SELECT "t0"."ID" AS "c"\nFROM "Äb" AS "t0"
+MySql	an alias	"date"	SELECT "t0"."ID" AS "date"\nFROM "T" AS "t0"
+MySql	a derived column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	"date"	SELECT "t0"."date" AS "c"\nFROM "T" AS "t0"
+MySql	a table	"date"	SELECT "t0"."ID" AS "c"\nFROM "date" AS "t0"
+MySql	an alias	"first name"	SELECT "t0"."ID" AS "first name"\nFROM "T" AS "t0"
+MySql	a derived column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	"first name"	SELECT "t0"."first name" AS "c"\nFROM "T" AS "t0"
+MySql	a table	"first name"	SELECT "t0"."ID" AS "c"\nFROM "first name" AS "t0"
+MySql	an alias	"a""b"	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+MySql	a derived column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	"a""b"	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MySql	a table	"a""b"	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+MySql	an alias	""""	SELECT "t0"."ID" AS """"\nFROM "T" AS "t0"
+MySql	a derived column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	""""	SELECT "t0"."""" AS "c"\nFROM "T" AS "t0"
+MySql	a table	""""	SELECT "t0"."ID" AS "c"\nFROM """" AS "t0"
+MySql	an alias	a"b	SELECT "t0"."ID" AS "a""b"\nFROM "T" AS "t0"
+MySql	a derived column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	a"b	SELECT "t0"."a""b" AS "c"\nFROM "T" AS "t0"
+MySql	a table	a"b	SELECT "t0"."ID" AS "c"\nFROM "a""b" AS "t0"
+MySql	an alias	`x`	SELECT "t0"."ID" AS "`x`"\nFROM "T" AS "t0"
+MySql	a derived column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	`x`	SELECT "t0"."`x`" AS "c"\nFROM "T" AS "t0"
+MySql	a table	`x`	SELECT "t0"."ID" AS "c"\nFROM "`x`" AS "t0"
+MySql	an alias	`a``b`	SELECT "t0"."ID" AS "`a``b`"\nFROM "T" AS "t0"
+MySql	a derived column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	`a``b`	SELECT "t0"."`a``b`" AS "c"\nFROM "T" AS "t0"
+MySql	a table	`a``b`	SELECT "t0"."ID" AS "c"\nFROM "`a``b`" AS "t0"
+MySql	an alias	a b`c	SELECT "t0"."ID" AS "a b`c"\nFROM "T" AS "t0"
+MySql	a derived column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+MySql	a physical column	a b`c	SELECT "t0"."a b`c" AS "c"\nFROM "T" AS "t0"
+MySql	a table	a b`c	SELECT "t0"."ID" AS "c"\nFROM "a b`c" AS "t0"
+EngineStyleH2	an alias	ID	select "root".ID as "ID" from T as "root"
+EngineStyleH2	a derived column	ID	select "root".ID as "c" from T as "root"
+EngineStyleH2	a physical column	ID	select "root".ID as "c" from T as "root"
+EngineStyleH2	a table	ID	select "root".ID as "c" from ID as "root"
+EngineStyleH2	an alias	firstName	select "root".ID as "firstName" from T as "root"
+EngineStyleH2	a derived column	firstName	select "root".firstName as "c" from T as "root"
+EngineStyleH2	a physical column	firstName	select "root".firstName as "c" from T as "root"
+EngineStyleH2	a table	firstName	select "root".ID as "c" from firstName as "root"
+EngineStyleH2	an alias	first name	select "root".ID as "first name" from T as "root"
+EngineStyleH2	a derived column	first name	select "root"."first name" as "c" from T as "root"
+EngineStyleH2	a physical column	first name	select "root"."first name" as "c" from T as "root"
+EngineStyleH2	a table	first name	select "root".ID as "c" from first name as "root"
+EngineStyleH2	an alias	select	select "root".ID as "select" from T as "root"
+EngineStyleH2	a derived column	select	select "root".select as "c" from T as "root"
+EngineStyleH2	a physical column	select	select "root".select as "c" from T as "root"
+EngineStyleH2	a table	select	select "root".ID as "c" from select as "root"
+EngineStyleH2	an alias	date	select "root".ID as "date" from T as "root"
+EngineStyleH2	a derived column	date	select "root".date as "c" from T as "root"
+EngineStyleH2	a physical column	date	select "root".date as "c" from T as "root"
+EngineStyleH2	a table	date	select "root".ID as "c" from date as "root"
+EngineStyleH2	an alias	_x	select "root".ID as "_x" from T as "root"
+EngineStyleH2	a derived column	_x	select "root"._x as "c" from T as "root"
+EngineStyleH2	a physical column	_x	select "root"._x as "c" from T as "root"
+EngineStyleH2	a table	_x	select "root".ID as "c" from _x as "root"
+EngineStyleH2	an alias	x$y	select "root".ID as "x$y" from T as "root"
+EngineStyleH2	a derived column	x$y	select "root"."x$y" as "c" from T as "root"
+EngineStyleH2	a physical column	x$y	select "root"."x$y" as "c" from T as "root"
+EngineStyleH2	a table	x$y	select "root".ID as "c" from x$y as "root"
+EngineStyleH2	an alias	Äb	select "root".ID as "Äb" from T as "root"
+EngineStyleH2	a derived column	Äb	select "root"."Äb" as "c" from T as "root"
+EngineStyleH2	a physical column	Äb	select "root"."Äb" as "c" from T as "root"
+EngineStyleH2	a table	Äb	select "root".ID as "c" from Äb as "root"
+EngineStyleH2	an alias	"date"	select "root".ID as "date" from T as "root"
+EngineStyleH2	a derived column	"date"	select "root"."date" as "c" from T as "root"
+EngineStyleH2	a physical column	"date"	select "root"."date" as "c" from T as "root"
+EngineStyleH2	a table	"date"	select "root".ID as "c" from "date" as "root"
+EngineStyleH2	an alias	"first name"	select "root".ID as "first name" from T as "root"
+EngineStyleH2	a derived column	"first name"	select "root"."first name" as "c" from T as "root"
+EngineStyleH2	a physical column	"first name"	select "root"."first name" as "c" from T as "root"
+EngineStyleH2	a table	"first name"	select "root".ID as "c" from "first name" as "root"
+EngineStyleH2	an alias	"a""b"	select "root".ID as "a""b" from T as "root"
+EngineStyleH2	a derived column	"a""b"	select "root"."a""b" as "c" from T as "root"
+EngineStyleH2	a physical column	"a""b"	select "root"."a""b" as "c" from T as "root"
+EngineStyleH2	a table	"a""b"	select "root".ID as "c" from "a""b" as "root"
+EngineStyleH2	an alias	""""	select "root".ID as """" from T as "root"
+EngineStyleH2	a derived column	""""	select "root"."""" as "c" from T as "root"
+EngineStyleH2	a physical column	""""	select "root"."""" as "c" from T as "root"
+EngineStyleH2	a table	""""	select "root".ID as "c" from """" as "root"
+EngineStyleH2	an alias	a"b	select "root".ID as "a""b" from T as "root"
+EngineStyleH2	a derived column	a"b	select "root"."a""b" as "c" from T as "root"
+EngineStyleH2	a physical column	a"b	select "root"."a""b" as "c" from T as "root"
+EngineStyleH2	a table	a"b	select "root".ID as "c" from a"b as "root"
+EngineStyleH2	an alias	`x`	select "root".ID as "`x`" from T as "root"
+EngineStyleH2	a derived column	`x`	select "root"."`x`" as "c" from T as "root"
+EngineStyleH2	a physical column	`x`	select "root"."`x`" as "c" from T as "root"
+EngineStyleH2	a table	`x`	select "root".ID as "c" from `x` as "root"
+EngineStyleH2	an alias	`a``b`	select "root".ID as "`a``b`" from T as "root"
+EngineStyleH2	a derived column	`a``b`	select "root"."`a``b`" as "c" from T as "root"
+EngineStyleH2	a physical column	`a``b`	select "root"."`a``b`" as "c" from T as "root"
+EngineStyleH2	a table	`a``b`	select "root".ID as "c" from `a``b` as "root"
+EngineStyleH2	an alias	a b`c	select "root".ID as "a b`c" from T as "root"
+EngineStyleH2	a derived column	a b`c	select "root"."a b`c" as "c" from T as "root"
+EngineStyleH2	a physical column	a b`c	select "root"."a b`c" as "c" from T as "root"
+EngineStyleH2	a table	a b`c	select "root".ID as "c" from a b`c as "root"
+EngineStyleDB2	an alias	ID	select "root".ID as "ID" from T as "root"
+EngineStyleDB2	a derived column	ID	select "root".ID as "c" from T as "root"
+EngineStyleDB2	a physical column	ID	select "root".ID as "c" from T as "root"
+EngineStyleDB2	a table	ID	select "root".ID as "c" from ID as "root"
+EngineStyleDB2	an alias	firstName	select "root".ID as "firstName" from T as "root"
+EngineStyleDB2	a derived column	firstName	select "root".firstName as "c" from T as "root"
+EngineStyleDB2	a physical column	firstName	select "root".firstName as "c" from T as "root"
+EngineStyleDB2	a table	firstName	select "root".ID as "c" from firstName as "root"
+EngineStyleDB2	an alias	first name	select "root".ID as "first name" from T as "root"
+EngineStyleDB2	a derived column	first name	select "root"."first name" as "c" from T as "root"
+EngineStyleDB2	a physical column	first name	select "root"."first name" as "c" from T as "root"
+EngineStyleDB2	a table	first name	select "root".ID as "c" from first name as "root"
+EngineStyleDB2	an alias	select	select "root".ID as "select" from T as "root"
+EngineStyleDB2	a derived column	select	select "root".select as "c" from T as "root"
+EngineStyleDB2	a physical column	select	select "root".select as "c" from T as "root"
+EngineStyleDB2	a table	select	select "root".ID as "c" from select as "root"
+EngineStyleDB2	an alias	date	select "root".ID as "date" from T as "root"
+EngineStyleDB2	a derived column	date	select "root".date as "c" from T as "root"
+EngineStyleDB2	a physical column	date	select "root".date as "c" from T as "root"
+EngineStyleDB2	a table	date	select "root".ID as "c" from date as "root"
+EngineStyleDB2	an alias	_x	select "root".ID as "_x" from T as "root"
+EngineStyleDB2	a derived column	_x	select "root"._x as "c" from T as "root"
+EngineStyleDB2	a physical column	_x	select "root"._x as "c" from T as "root"
+EngineStyleDB2	a table	_x	select "root".ID as "c" from _x as "root"
+EngineStyleDB2	an alias	x$y	select "root".ID as "x$y" from T as "root"
+EngineStyleDB2	a derived column	x$y	select "root"."x$y" as "c" from T as "root"
+EngineStyleDB2	a physical column	x$y	select "root"."x$y" as "c" from T as "root"
+EngineStyleDB2	a table	x$y	select "root".ID as "c" from x$y as "root"
+EngineStyleDB2	an alias	Äb	select "root".ID as "Äb" from T as "root"
+EngineStyleDB2	a derived column	Äb	select "root"."Äb" as "c" from T as "root"
+EngineStyleDB2	a physical column	Äb	select "root"."Äb" as "c" from T as "root"
+EngineStyleDB2	a table	Äb	select "root".ID as "c" from Äb as "root"
+EngineStyleDB2	an alias	"date"	select "root".ID as "date" from T as "root"
+EngineStyleDB2	a derived column	"date"	select "root"."date" as "c" from T as "root"
+EngineStyleDB2	a physical column	"date"	select "root"."date" as "c" from T as "root"
+EngineStyleDB2	a table	"date"	select "root".ID as "c" from "date" as "root"
+EngineStyleDB2	an alias	"first name"	select "root".ID as "first name" from T as "root"
+EngineStyleDB2	a derived column	"first name"	select "root"."first name" as "c" from T as "root"
+EngineStyleDB2	a physical column	"first name"	select "root"."first name" as "c" from T as "root"
+EngineStyleDB2	a table	"first name"	select "root".ID as "c" from "first name" as "root"
+EngineStyleDB2	an alias	"a""b"	select "root".ID as "a""b" from T as "root"
+EngineStyleDB2	a derived column	"a""b"	select "root"."a""b" as "c" from T as "root"
+EngineStyleDB2	a physical column	"a""b"	select "root"."a""b" as "c" from T as "root"
+EngineStyleDB2	a table	"a""b"	select "root".ID as "c" from "a""b" as "root"
+EngineStyleDB2	an alias	""""	select "root".ID as """" from T as "root"
+EngineStyleDB2	a derived column	""""	select "root"."""" as "c" from T as "root"
+EngineStyleDB2	a physical column	""""	select "root"."""" as "c" from T as "root"
+EngineStyleDB2	a table	""""	select "root".ID as "c" from """" as "root"
+EngineStyleDB2	an alias	a"b	select "root".ID as "a""b" from T as "root"
+EngineStyleDB2	a derived column	a"b	select "root"."a""b" as "c" from T as "root"
+EngineStyleDB2	a physical column	a"b	select "root"."a""b" as "c" from T as "root"
+EngineStyleDB2	a table	a"b	select "root".ID as "c" from a"b as "root"
+EngineStyleDB2	an alias	`x`	select "root".ID as "`x`" from T as "root"
+EngineStyleDB2	a derived column	`x`	select "root"."`x`" as "c" from T as "root"
+EngineStyleDB2	a physical column	`x`	select "root"."`x`" as "c" from T as "root"
+EngineStyleDB2	a table	`x`	select "root".ID as "c" from `x` as "root"
+EngineStyleDB2	an alias	`a``b`	select "root".ID as "`a``b`" from T as "root"
+EngineStyleDB2	a derived column	`a``b`	select "root"."`a``b`" as "c" from T as "root"
+EngineStyleDB2	a physical column	`a``b`	select "root"."`a``b`" as "c" from T as "root"
+EngineStyleDB2	a table	`a``b`	select "root".ID as "c" from `a``b` as "root"
+EngineStyleDB2	an alias	a b`c	select "root".ID as "a b`c" from T as "root"
+EngineStyleDB2	a derived column	a b`c	select "root"."a b`c" as "c" from T as "root"
+EngineStyleDB2	a physical column	a b`c	select "root"."a b`c" as "c" from T as "root"
+EngineStyleDB2	a table	a b`c	select "root".ID as "c" from a b`c as "root"
+EngineStyleComposite	an alias	ID	select "root".ID as "ID" from T as "root"
+EngineStyleComposite	a derived column	ID	select "root".ID as "c" from T as "root"
+EngineStyleComposite	a physical column	ID	select "root".ID as "c" from T as "root"
+EngineStyleComposite	a table	ID	select "root".ID as "c" from ID as "root"
+EngineStyleComposite	an alias	firstName	select "root".ID as "firstName" from T as "root"
+EngineStyleComposite	a derived column	firstName	select "root".firstName as "c" from T as "root"
+EngineStyleComposite	a physical column	firstName	select "root".firstName as "c" from T as "root"
+EngineStyleComposite	a table	firstName	select "root".ID as "c" from firstName as "root"
+EngineStyleComposite	an alias	first name	select "root".ID as "first name" from T as "root"
+EngineStyleComposite	a derived column	first name	select "root"."first name" as "c" from T as "root"
+EngineStyleComposite	a physical column	first name	select "root"."first name" as "c" from T as "root"
+EngineStyleComposite	a table	first name	select "root".ID as "c" from first name as "root"
+EngineStyleComposite	an alias	select	select "root".ID as "select" from T as "root"
+EngineStyleComposite	a derived column	select	select "root".select as "c" from T as "root"
+EngineStyleComposite	a physical column	select	select "root".select as "c" from T as "root"
+EngineStyleComposite	a table	select	select "root".ID as "c" from select as "root"
+EngineStyleComposite	an alias	date	select "root".ID as "date" from T as "root"
+EngineStyleComposite	a derived column	date	select "root".date as "c" from T as "root"
+EngineStyleComposite	a physical column	date	select "root".date as "c" from T as "root"
+EngineStyleComposite	a table	date	select "root".ID as "c" from date as "root"
+EngineStyleComposite	an alias	_x	select "root".ID as "_x" from T as "root"
+EngineStyleComposite	a derived column	_x	select "root"._x as "c" from T as "root"
+EngineStyleComposite	a physical column	_x	select "root"._x as "c" from T as "root"
+EngineStyleComposite	a table	_x	select "root".ID as "c" from _x as "root"
+EngineStyleComposite	an alias	x$y	select "root".ID as "x$y" from T as "root"
+EngineStyleComposite	a derived column	x$y	select "root"."x$y" as "c" from T as "root"
+EngineStyleComposite	a physical column	x$y	select "root"."x$y" as "c" from T as "root"
+EngineStyleComposite	a table	x$y	select "root".ID as "c" from x$y as "root"
+EngineStyleComposite	an alias	Äb	select "root".ID as "Äb" from T as "root"
+EngineStyleComposite	a derived column	Äb	select "root"."Äb" as "c" from T as "root"
+EngineStyleComposite	a physical column	Äb	select "root"."Äb" as "c" from T as "root"
+EngineStyleComposite	a table	Äb	select "root".ID as "c" from Äb as "root"
+EngineStyleComposite	an alias	"date"	select "root".ID as "date" from T as "root"
+EngineStyleComposite	a derived column	"date"	select "root"."date" as "c" from T as "root"
+EngineStyleComposite	a physical column	"date"	select "root"."date" as "c" from T as "root"
+EngineStyleComposite	a table	"date"	select "root".ID as "c" from "date" as "root"
+EngineStyleComposite	an alias	"first name"	select "root".ID as "first name" from T as "root"
+EngineStyleComposite	a derived column	"first name"	select "root"."first name" as "c" from T as "root"
+EngineStyleComposite	a physical column	"first name"	select "root"."first name" as "c" from T as "root"
+EngineStyleComposite	a table	"first name"	select "root".ID as "c" from "first name" as "root"
+EngineStyleComposite	an alias	"a""b"	select "root".ID as "a""b" from T as "root"
+EngineStyleComposite	a derived column	"a""b"	select "root"."a""b" as "c" from T as "root"
+EngineStyleComposite	a physical column	"a""b"	select "root"."a""b" as "c" from T as "root"
+EngineStyleComposite	a table	"a""b"	select "root".ID as "c" from "a""b" as "root"
+EngineStyleComposite	an alias	""""	select "root".ID as """" from T as "root"
+EngineStyleComposite	a derived column	""""	select "root"."""" as "c" from T as "root"
+EngineStyleComposite	a physical column	""""	select "root"."""" as "c" from T as "root"
+EngineStyleComposite	a table	""""	select "root".ID as "c" from """" as "root"
+EngineStyleComposite	an alias	a"b	select "root".ID as "a""b" from T as "root"
+EngineStyleComposite	a derived column	a"b	select "root"."a""b" as "c" from T as "root"
+EngineStyleComposite	a physical column	a"b	select "root"."a""b" as "c" from T as "root"
+EngineStyleComposite	a table	a"b	select "root".ID as "c" from a"b as "root"
+EngineStyleComposite	an alias	`x`	select "root".ID as "`x`" from T as "root"
+EngineStyleComposite	a derived column	`x`	select "root"."`x`" as "c" from T as "root"
+EngineStyleComposite	a physical column	`x`	select "root"."`x`" as "c" from T as "root"
+EngineStyleComposite	a table	`x`	select "root".ID as "c" from `x` as "root"
+EngineStyleComposite	an alias	`a``b`	select "root".ID as "`a``b`" from T as "root"
+EngineStyleComposite	a derived column	`a``b`	select "root"."`a``b`" as "c" from T as "root"
+EngineStyleComposite	a physical column	`a``b`	select "root"."`a``b`" as "c" from T as "root"
+EngineStyleComposite	a table	`a``b`	select "root".ID as "c" from `a``b` as "root"
+EngineStyleComposite	an alias	a b`c	select "root".ID as "a b`c" from T as "root"
+EngineStyleComposite	a derived column	a b`c	select "root"."a b`c" as "c" from T as "root"
+EngineStyleComposite	a physical column	a b`c	select "root"."a b`c" as "c" from T as "root"
+EngineStyleComposite	a table	a b`c	select "root".ID as "c" from a b`c as "root"

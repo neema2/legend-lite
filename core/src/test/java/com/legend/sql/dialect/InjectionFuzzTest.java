@@ -54,7 +54,14 @@ class InjectionFuzzTest {
             "a\n" + MARK,
             "a $$ " + MARK + " $$",
             "a ? " + MARK,
-            "a\\0" + MARK);
+            "a\\0" + MARK,
+            // a name that STARTS AND ENDS with a quote, a lone one inside (the C4 audit's H2 hole, 2026-11-13: a
+            // pre-quoted name passed through unchecked): each dialect's quote and a store declaration's
+            "\"a\", " + MARK + " AS \"b\"",
+            "\"a\" -- " + MARK + " \"",
+            "\"a\\\", " + MARK + " AS \"b\\\"",
+            "`a`, " + MARK + " AS `b`",
+            "`a\\`, " + MARK + " AS `b\\`");
 
     /** The places a query puts a person's text, each a query with {@code P} where the (Pure-escaped) payload goes. */
     static final Map<String, String> PLACES = places();

@@ -697,8 +697,7 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  declaration ({@code "date"}) is its inner name. */
     @Override
     protected String ident(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
-                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
+        if (quotedIdentifier(name, '"')) {
             return delimited(name.substring(1, name.length() - 1).replace("\"\"", "\""));
         }
         return delimited(name);
