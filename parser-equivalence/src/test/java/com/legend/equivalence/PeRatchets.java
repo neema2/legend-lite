@@ -68,7 +68,11 @@ public final class PeRatchets {
                     + " runtime, PostgresArmTest's seed model)",
             "own_corpus.matched 3179 -> 3192 (2026-11-12, L9's printing merged, 7d1bfcf8e; it measured 3164 -> 3177 on its"
                     + " branch): its tests' models (TestDataPlannerTest's timestamp store, GeneratedTestDataPrintingTest's,"
-                    + " TestDataRoutesTest's timestamp route)");
+                    + " TestDataRoutesTest's timestamp route)",
+            "own_corpus.matched 3192 -> 3211 (2026-11-13, the final full audit's fixes, d7c037ebf, found red by the gate on"
+                    + " that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest,"
+                    + " EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the"
+                    + " snapshot-copy and output-plan tests)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
