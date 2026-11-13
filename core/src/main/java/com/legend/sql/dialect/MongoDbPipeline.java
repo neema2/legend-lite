@@ -374,7 +374,14 @@ final class MongoDbPipeline {
             case SqlSource.Values v -> values(w, v, st, shape);
             case SqlSource.Dual d -> st.begin(w).append("{\"$documents\": [{}]}");
             case SqlSource.Subselect sub -> {
-                query(w, sub.inner(), st);
+                boolean scoped = dialect.enterSubselect();
+                try {
+                    query(w, sub.inner(), st);
+                } finally {
+                    if (scoped) {
+                        dialect.popScope();
+                    }
+                }
                 if (shape == Shape.WRAPPED) {
                     st.begin(w).append("{\"$replaceWith\": {").append(MongoJson.key(sub.alias()))
                             .append(": \"$$ROOT\"}}");

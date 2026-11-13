@@ -144,6 +144,19 @@ public final class MongoDb extends AnsiSqlRenderer {
         scopes.push(new Scope(List.copyOf(variables), flat));
     }
 
+    /** A subselect's own pipeline inside a lookup: the lookup's variables kept, no alias read flat -- the subselect's
+     *  sources are its own, wrapped under their aliases, whatever they are named (the deterministic as-of's ranked
+     *  right side reads a source of the side's own alias inside it, which the lookup reads flat outside: PR #81, the
+     *  timeseries round T2, 2026-11-13). Whether a level was pushed, for the caller to pop. */
+    boolean enterSubselect() {
+        Scope top = scopes.peek();
+        if (top == null || top.flatAlias == null) {
+            return false;
+        }
+        scopes.push(new Scope(top.variableAliases, null));
+        return true;
+    }
+
     void popScope() {
         scopes.pop();
     }
