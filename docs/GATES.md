@@ -21876,6 +21876,14 @@ no run asks the planner; every guard bites a planted violator. Merged onto `clau
   protection keys fit the pattern. V8 now starts once per process with `--single-threaded
   --no-memory-protection-keys`, and V8 started first by other code is refused in words (2f2bacc34; the user's ruling,
   2026-11-13: protection off for now, the parent-thread start a follow-up, start-here §6.1).
+- **The V8 crash's cause, PROVEN after the merge (2026-11-13, C4's sandbox, measure only):** an Intel Xeon with
+  `pku` and `ospke`. At 068dbf199 (without 2f2bacc34) `//python:headless_test`, `engine_test` and `notebook_test`
+  segfault under py_mini_racer, every time over five runs (first crashes:
+  `WarehouseOnPython.test_a_frames_grid_snaps_too_a_copy_of_its_base_as_the_frame_was`,
+  `OneRead.test_a_call_made_from_datacubes_own_thread_is_refused_never_left_waiting`,
+  `InMarimo.test_a_session_let_go_lets_its_cubes_and_frames_go`). At 40d3bf0d5 (with it) all three pass, with no
+  segfault: 63, 344 and 29 tests. So memory protection keys are the cause, and 2f2bacc34 is the fix. The code comment
+  in `python/legend_lite/_headless.py` still says "unproven", and its next edit corrects it.
 - **Found by the next PR's fuzzing, not in this landing** (the user's ruling, 2026-11-13): ClickHouse's delimited
   identifiers double only `"`, while ClickHouse reads backslash escapes inside them, so a column name such as
   `a\" , version() AS v --` breaks out (confirmed on the pinned ClickHouse 25.8). It predates the total wall; the fix
