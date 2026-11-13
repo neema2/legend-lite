@@ -103,6 +103,17 @@ Pure query
 Written by D, 2026-11-13, at `claude/total-wall-d` d2c8ea7, PlanStyle not yet built. Every number below was measured
 that day on this branch (§5.2 says how); nothing is recalled.
 
+> **Ruled by the user, 2026-11-13** (start-here §6.1 item 3, O1-O9), applied to this section on 2026-11-13:
+> - **O1:** the product adopts upstream's COMPUTATION wherever it is sane; a borderline case goes to the user.
+> - **O2:** mixed lists keep kinds (E-R1 to E-R3 are no longer divergences), so the edge needs no list form of its own:
+>   the tagged-list print work planned for D1.3 is dropped.
+> - **O3:** legend-engine's SQL text stays at the edge. The EngineStyle printers are KEPT, as edge dialects: option (a)
+>   of §5.4's conflict 1; D's recommendation (b) was not taken.
+> - **O4:** `indexOf` and `average([])` answer legend-pure's value in the product, and the engine's at the edge.
+> - **O6, O7:** engine plans in and out per `ENGINE_PLAN_INTEROP_2026_11_12.md` (§3.3, §5); the browser's
+>   compatibility module is one more engine behind DataCube's `Engine` interface (D-1's row below).
+> - The raise row this section names is **S308** (S307 went to `executeInDb`, 77e6ab7); D's rows take S308-S339.
+
 ### 5.0 The answer, first
 
 **For the product: simpler, and measurably so. For compatibility as a whole: about the same amount of code, all of it
@@ -143,15 +154,15 @@ style, and §5.2's for the upstream style.
 
 | item, site | today | layer | becomes | removes from the product | register | owner |
 |---|---|---|---|---|---|---|
-| K1: SQL guards raising legend-pure's sentence (13 kinds; `Scalars`, `DecimalKindRules`, `ToOneGuard`, `Coercions`, `CastPolicy`, `ListRules`, `ListEncodings`, `DateCtorRule`, `CheckedEnvelope`) | the database raises Pure's exact text | **1** (that it raises, and which kind) + **2** (the sentence) | **built, local** (D1.1, families 1-19): the plan raises a `RaiseKind` with typed operands. The product writes the kind's name; the edge's `PureMessages` spells Pure's sentence | every Pure sentence literal in product SQL (the guard's D1.1 rows: 2 left, the resolver's two casts) | **new S307** (a product raise is its kind and place, in lite's words). It reopens S138 for the product and keeps S138 for the edge | D |
-| K2: `sqrt`'s operand spelled through `FLOAT_PRINT` | Pure's Float text inside a raise | **2** | a typed operand; the edge spells `Double.toString` in Java (`PureMessages`) | one `FLOAT_PRINT` per `sqrt` guard | under S307 | D |
-| K3: DuckDB's words on Postgres, MariaDB, MySQL and SQLite | the reference database's sentence | **2** (the kind is 1) | **built, local** (families 18-19, K3): typed kinds | 4 sentence families | under S307 | D |
+| K1: SQL guards raising legend-pure's sentence (13 kinds; `Scalars`, `DecimalKindRules`, `ToOneGuard`, `Coercions`, `CastPolicy`, `ListRules`, `ListEncodings`, `DateCtorRule`, `CheckedEnvelope`) | the database raises Pure's exact text | **1** (that it raises, and which kind) + **2** (the sentence) | **built, local** (D1.1, families 1-19): the plan raises a `RaiseKind` with typed operands. The product writes the kind's name; the edge's `PureMessages` spells Pure's sentence | every Pure sentence literal in product SQL (the guard's D1.1 rows: 2 left, the resolver's two casts) | **new S308** (a product raise is its kind and place, in lite's words). It reopens S138 for the product and keeps S138 for the edge | D |
+| K2: `sqrt`'s operand spelled through `FLOAT_PRINT` | Pure's Float text inside a raise | **2** | a typed operand; the edge spells `Double.toString` in Java (`PureMessages`) | one `FLOAT_PRINT` per `sqrt` guard | under S308 | D |
+| K3: DuckDB's words on Postgres, MariaDB, MySQL and SQLite | the reference database's sentence | **2** (the kind is 1) | **built, local** (families 18-19, K3): typed kinds | 4 sentence families | under S308 | D |
 | K4: engine SQL spellings (quoting, upper-casing, the lexicon, the flag-gated scan order, DDL details, the bare Float literal) | engine's text conventions in product dialects | **2** (SQL text, no answer). The NULLS order is **1** and stays (ruled 2026-11-12) | the scan order and the lexicon's engine half go to the edge's dialects (D1.5). The quoting stays the product's one spelling unless Q5 rules otherwise | the scan order's 5 hits and the lexicon (D1.5 rows) | none: no answer changes | D |
 | K5: engine-TEXT printers reached from the planner (`toSQLString`, `planToString`, `toDDL`, the allocation and activity text) | `EngineStyleH2/DB2/Composite`, `EngineText`, `EnginePlans`' text half, `PlanAllocations`, `RawSqlBoundary`: 4,854 lines, 111 register hits (D1.7) | **3** (a plan's text is a format) | edge translators at planning, reached through `PlanStyle` (parked as local WIP, 2026-11-12). **See §5.4, conflict 1** | the whole family from the product (4,854 lines) | **new**: the product's answer for these natives (refused, or the product dialect's own SQL), in the parked question to the orchestrator | D |
 | K6: the engine writers (`PureV1Writer`, `TdsObjectsWriter`, `CellText`'s engine half, `presentedName`) | Java at the result boundary, engine's TDS JSON and forms | **2** (cells) + **3** (TDS JSON) | the edge's presenter (D1.4); `Output.Engine` registered by the edge | 389 writer lines, plus `CellText`'s engine half, from the product's result library | Q8's pivot-name row, if the product's own writers stop quoting | D |
 | K7: the trace comment, MariaDB's read-back, the legacy decode rules | gone (C1, C2), or P3's | **3** (the trace text) / **1** (decode) | done by C. The decode is P3, below | (done) | S304 (exists) | C / E |
 | K8: compile and server sentences in legend-engine's words (~15) | engine's text | **0** with a **2** sentence | the product's own sentences keyed by phase and kind; the edge (`pure/v1`) spells engine's (D1.6) | 19 register hits (D1.6) | new row with D1.6 (Q6) | D |
-| K9 P1, P2, P5 (`toString`, `pureToString`, `format`) | Pure's print forms in SQL | **2** where the print IS the answer; **1** where the text feeds computation (§4.1) | the product prints by §5.4's forms. The edge keeps Pure's forms in SQL for in-query use only, and its Java presenter re-spells an answer | product: E-4's `print` reason. Upstream: §5.2's table | S307 family, with §5.4 of the start-here (exists as the ruling) | D (edge) / E (product forms) |
+| K9 P1, P2, P5 (`toString`, `pureToString`, `format`) | Pure's print forms in SQL | **2** where the print IS the answer; **1** where the text feeds computation (§4.1) | the product prints by §5.4's forms. The edge keeps Pure's forms in SQL for in-query use only, and its Java presenter re-spells an answer | product: E-4's `print` reason. Upstream: §5.2's table | S308 family, with §5.4 of the start-here (exists as the ruling) | D (edge) / E (product forms) |
 | K9 P3: `FloatPrintText` and the twelve `FLOAT_PRINT` arms | Pure's Float text in SQL (183 lines; the heaviest single form) | **2**; **1** in-query | leaves the product. Moves to the edge's dialects **for in-query use only**: 2 PCT and 36 DuckDB-corpus statements need it there | the twelve product arms | under the print-forms row | D |
 | K9 P4: a Float over an integral store column printed as an integer | engine's form | **2** | the edge's presenter | one `LiteralSpelling` arm | Q9 | D |
 | K9 P6: `makeString`'s `TDSNull` | engine's TDS null cell | **2** | `''` in the product, `TDSNull` at the edge (Q14) | the D1.3 rows (`TDS_NULL_CELL`, 5 hits) | Q14 | D |
@@ -183,7 +194,7 @@ style, and §5.2's for the upstream style.
 | E-R4 a cross-kind sort | kind rank, then value | RULED tonight: like upstream, in the database | **1** | one rank column in the sort key (already ruled) |
 | E-R5 | no answer change | | **0** | none |
 
-E-R1 to E-R3 are exactly §3's PROPOSED principle: whether the product adopts upstream's computation where sane. All
+**Ruled (O2, 2026-11-13): mixed lists keep kinds, as upstream; E-R1 to E-R3 are no longer divergences.** E-R1 to E-R3 are exactly §3's PROPOSED principle: whether the product adopts upstream's computation where sane. All
 three upstream answers are typed and deterministic, so they are sane by §3's test. Their cost is the one tag or rank
 column that E-R4's ruling already pays for. **D's recommendation: adopt upstream's for all three.** Then one
 mechanism, kind rank plus value, serves the sort, equality and distinct, and the hybrid keeps only its typed
@@ -214,7 +225,7 @@ carriage. That is E's to bring: E owns the hybrid.
 | item | today | layer | becomes | removes from the product | register | owner |
 |---|---|---|---|---|---|---|
 | the judge's canon (`FloatCanonText` 206 lines, `CanonicalRenderSql` 1,100, `VerdictSql` 2,718; the host judge's Java canon) | the database judge compares canonical TEXT in SQL | **2** (it compares presentations) | E-5c: typed-value comparisons. PCT channel B's 306 `FLOAT_CANON` statements and its 8,880 concatenated casts go | test road only. It is the largest SQL in the measurement: 9.8 of channel B's 10.4 MB | the judge's rows (S131, S132, S135, S137, S142, S144, L0 here) | E |
-| D-1's four local routes (`grammarToJson/model`, `grammarToJson/lambda`, `jsonToGrammar/lambda`, `compilation/lambdaRelationType`) | served in the tab and in Python through `Boundary.pureV1` → `PureV1Routes` | **3** | lite-owned exports (`modelElementsOrError`, `parseLambdaOrError`, `printLambdaOrError`, a JSON-lambda relation type). The engine clients move to a lazily loaded TypeScript module. `//wasm:boundary` drops `//core:edge` | the edge from the browser bundle | none (no answer changes) | D, after A/B/C merges |
+| D-1's four local routes (`grammarToJson/model`, `grammarToJson/lambda`, `jsonToGrammar/lambda`, `compilation/lambdaRelationType`) | served in the tab and in Python through `Boundary.pureV1` → `PureV1Routes` | **3** | lite-owned exports (`modelElementsOrError`, `parseLambdaOrError`, `printLambdaOrError`, a JSON-lambda relation type). The engine clients move to a lazily loaded TypeScript module. `//wasm:boundary` drops `//core:edge`. **O7 (ruled 2026-11-13): that lazily loaded TypeScript compatibility module IS a real legend-engine, as one more engine behind DataCube's `Engine` interface, built from D's translations (the plan import, the edge presenter); DataCube's code never knows** | the edge from the browser bundle | none (no answer changes) | D, after A/B/C merges |
 | import and export of engine plans (`ENGINE_PLAN_INTEROP_2026_11_12.md`) | export half there (`generatePlan`, the product statement); import TypeScript-only, one shape | **3** | translators at planning at the edge (D3.1-D3.4) | `generatePlan`'s writer from `server/` (D3.1) | S199 (changes: export plans in UPSTREAM) | D |
 
 ### 5.2 The measurement
@@ -289,7 +300,7 @@ layer-2 rows, 17 layer-3 rows.
 | | before (today, d2c8ea7) | after (the frame, D's share built) |
 |---|---|---|
 | compatibility spellings in product files (`CompatSpellingGuardTest`) | 289 hits in 85 files (D1.1 2, D1.2 44, D1.3 16, D1.4 36, D1.5 5, D1.6 19, D1.7 111, D1.8 27, JUDGE 28, STAYS 1) | JUDGE 28 → 0 with E-5c, STAYS 1. **0 in the product** |
-| engine text family (K5) | 4,854 lines, reached by the product planner | (a) the same lines at the edge, or (b) deleted (§5.4, conflict 1: about 1,150 corpus tests assert engine's SQL text; PCT none) |
+| engine text family (K5) | 4,854 lines, reached by the product planner | the same lines at the edge (O3, ruled 2026-11-13: option (a) of §5.4's conflict 1) |
 | Pure print forms in SQL (`FloatPrintText` 183, the 12 `FLOAT_PRINT` arms, `LiteralSpelling`'s print forms, `Repr` 99, `TaggedLists.print`, P14's repairs in 8 dialects) | in the product, written on every database | **leave the product.** At the edge, kept only for in-query printing: `FloatPrintText` and the date, Decimal and Boolean forms stay, the P14 repairs go |
 | TDS text and `toCSV` (`Render`, 834 lines) | SQL in the product | Java at the edge's presenter (smaller: written once over typed rows, not per database) |
 | writers (`PureV1Writer` 298, `TdsObjectsWriter` 91, `CellText`'s engine half) | the product's result library | the edge's presenter |
@@ -360,7 +371,7 @@ layer-2 rows, 17 layer-3 rows.
      - The product owns its SQL, and fidelity is answers: the user's ruling of 2026-11-12.
      - (b) makes the edge smaller instead of moving it.
      - It gives up a check the corpus has today, which is why it is the user's call.
-   - **The move stays parked until the user rules.**
+   - **RULED (O3, 2026-11-13): (a).** The printers are kept, as edge dialects; the parked move resumes.
 2. **D1.2 and D1.3 (Pure's print forms at the edge).**
    - My plan was edge dialect arms for every print form.
    - The frame says Java presents an answer. §5.2 says that removes only the OUTPUT positions, and those are rare.
