@@ -115,8 +115,8 @@ public final class CapabilityReach {
         if (built instanceof RuntimeException e) {
             throw e;
         }
-        return Compiler.query((ModelContext) built, expression)
-                .lower(com.legend.testbackend.StorelessRuntime.RUNTIME, true).plan();
+        return com.legend.planner.Lowered.lower(Compiler.query((ModelContext) built, expression),
+                com.legend.testbackend.StorelessRuntime.RUNTIME, true).plan();
     }
 
     /** Records every function and aggregate a statement holds, changing nothing. */

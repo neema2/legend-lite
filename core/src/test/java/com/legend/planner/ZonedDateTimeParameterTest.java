@@ -48,7 +48,7 @@ class ZonedDateTimeParameterTest {
         if (zone != null) {
             List<com.legend.sql.SqlExpr.PlanParam> slots = typed.parameters().stream()
                     .map(QueryParameters.Declared::slot).toList();
-            com.legend.sql.SqlQuery q = typed.lowerer(false, false, slots, java.util.Set.of()).withDbTimeZone(zone)
+            com.legend.sql.SqlQuery q = Lowered.lowerer(typed, false, false, slots, java.util.Set.of()).withDbTimeZone(zone)
                     .lower(typed.body());
             ExecutionPlan.TdsResult t = (ExecutionPlan.TdsResult) plan.root();
             plan = ExecutionPlan.reading(plan.parameters(), new ExecutionPlan.TdsResult(t.shape(), t.columns(),

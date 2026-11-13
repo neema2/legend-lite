@@ -308,9 +308,9 @@ class PostgresArmTest {
                     com.legend.compiler.NameResolver.resolveQuery(com.legend.Compiler.parseQuery(
                             "|seed::Code.all()->project([x|$x.n], ['n'])"));
             com.legend.testdatagen.TestDataPlanner.Seed seed = com.legend.testdatagen.TestDataPlanner.seed(ctx, query,
-                    "seed::M", false, q -> com.legend.Compiler.query(ctx, com.legend.testdatagen.TestDataPlanner
-                            .underMapping(q, "seed::M", "seed::RT", com.legend.Compiler::parseQuery)).lower("seed::RT", false)
-                    .plan());
+                    "seed::M", false, q -> com.legend.planner.ProductStatements.lowerTestDataSeed(com.legend.Compiler
+                            .query(ctx, com.legend.testdatagen.TestDataPlanner.underMapping(q, "seed::M", "seed::RT",
+                                    com.legend.Compiler::parseQuery)), "seed::RT"));
             assertEquals(binary, column(c, POSTGRES.dialect().render(seed.rows())));
             String line = "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['%s'])";
             assertEquals(java.util.List.of("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(seed::DB,"

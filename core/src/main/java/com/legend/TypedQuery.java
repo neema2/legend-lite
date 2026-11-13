@@ -151,63 +151,6 @@ public final class TypedQuery {
         return com.legend.planner.PlanMaker.runtimeOf(this, given);
     }
 
-    /** The query lowered for {@code runtime}: inlined (G½), resolved (H) against the runtime, every touched store
-     *  checked against its connections, lowered (I) — every planning step, no database. {@code streaming}: the
-     *  streaming graph root (one json_object per row). */
-    public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming) {
-        return lower(runtime, streaming, List.of(), java.util.Set.of());
-    }
-
-    /** {@link #lower(String, boolean)} with the query's declared parameters as {@code slots}: each {@code $name} of a
-     *  slot lowers to it, a value the statement binds (a plan's parameters, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
-     *  §9, step 2's landing 2). */
-    public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
-            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
-        // the product's statement road (the test-is-the-product plan's M2, B11): the test road's front half, the
-        // product's lowering
-        com.legend.planner.ProductStatements.Statement s = com.legend.planner.ProductStatements.prepare(this,
-                body(), runtime, null, features);
-        com.legend.planner.Prepared.Planned p = com.legend.planner.ProductStatements.planned(s);
-        com.legend.sql.SqlQuery plan = com.legend.planner.ProductStatements.lower(this, p, s.temporal(), streaming,
-                slots, new com.legend.lowering.ObjectSites());
-        return new Compiler.LoweredQuery(plan, p.body().get(p.body().size() - 1), ctx);
-    }
-
-    /** The Lowerer a planned statement lowers with (the wire path's): the model's object layouts (every object its
-     *  identity and its class, docs/OBJECT_IDENTITY_2026_10_20.md §3.1; D91: equal() over keyed instances is the key
-     *  relation on every lane, the plan's too), the engine's exists-join form unless a temporal class is read
-     *  ({@code temporal}), the streaming graph root if asked, the query's feature flags, each slot a value the
-     *  statement binds. */
-    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
-            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
-        return lowerer(temporal, streaming, slots, features, new com.legend.lowering.ObjectSites());
-    }
-
-    /** {@link #lowerer(boolean, boolean, List, java.util.Set)} naming its objects' sites with {@code sites}: the
-     *  program's one minter, shared by every statement of a program (the test-is-the-product plan's B9, 2026-10-31). */
-    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
-            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features,
-            com.legend.lowering.ObjectSites sites) {
-        com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations())
-                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(sites::idOf);
-        if (!temporal) {
-            planLw = planLw.withEngineExistsJoinForm();
-        }
-        if (streaming) {
-            planLw = planLw.withStreamingGraphRoot();
-        }
-        if (!features.isEmpty()) {
-            planLw = planLw.withFeatures(features);
-        }
-        for (com.legend.sql.SqlExpr.PlanParam slot : slots) {
-            planLw.bindPlanParam(slot);
-        }
-        return planLw;
-    }
-
     /** Whether the query is a program that changes a store (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): a statement
      *  writes a store table ({@code StatementEffects.writesStore}), or a let stages rows for the writes after it. */
     public boolean writes() {

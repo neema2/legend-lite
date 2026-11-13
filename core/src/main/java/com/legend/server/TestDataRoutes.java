@@ -51,7 +51,7 @@ final class TestDataRoutes {
         return PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(ctx,
-                    TestDataPlanner.seedJson(ctx, seed(doored(ctx, r), r, true)), r.runtime(), runner));
+                    TestDataPlanner.seedJson(ctx, seed(ctx, r, true)), r.runtime(), runner));
         });
     }
 
@@ -72,7 +72,11 @@ final class TestDataRoutes {
         PureV1Api.Answer a = PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
-                doored(ctx, r);
+                if (!defaultSeed) {
+                    // the given identifiers' route lowers no seed (the seed's entry refuses raw SQL inside itself,
+                    // ProductStatements.lowerTestDataSeed): its query's relations are scanned, so it is doored here
+                    doored(ctx, r);
+                }
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (TestDataPlanner.route)
                 TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
@@ -158,9 +162,10 @@ final class TestDataRoutes {
      *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
      *  mapping). */
     private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
-        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> com.legend.Compiler.query(ctx,
-                TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery))
-                .lower(r.runtime(), false).plan());
+        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q ->
+                com.legend.planner.ProductStatements.lowerTestDataSeed(com.legend.Compiler.query(ctx,
+                        TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery)),
+                        r.runtime()));
     }
 
     /** The request's {@code tableRowIdentifiers}: each table's identifiers, each a row's column-value pairs. */

@@ -748,7 +748,7 @@ public final class PlanMaker {
         ExprType type = new ExprType(write.info().type(), Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
-        SqlQuery q = query.lowerer(false, false, List.of(count.slot()), features, sites)
+        SqlQuery q = ProductStatements.configured(query, false, false, List.of(count.slot()), features, sites)
                 .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),

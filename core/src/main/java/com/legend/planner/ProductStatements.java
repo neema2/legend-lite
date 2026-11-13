@@ -50,7 +50,7 @@ import java.util.Set;
  *       connection's time zone, its features and post-processors -- and its driver-key and import-data-flow appends
  *       made;</li>
  * </ol>
- * and lowered with the PRODUCT's configuration ({@link TypedQuery#lowerer}: the object layout, the program's
+ * and lowered with the PRODUCT's configuration ({@link #configured}: the object layout, the program's
  * minter, the exists-join form unless a temporal class is read, the streaming root where asked, the slots) plus the
  * frame's time zone and features and the seedable let prefix, then post-processed by the frame's CTE extraction and
  * nonExecutable pass. A statement that reads an {@code execute(...)}'s result splices its chain (the program's
@@ -369,8 +369,55 @@ public final class ProductStatements {
     public static Lowerer lowerer(TypedQuery query, List<TypedSpec> body, PlanEnv env,
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
-        return query.lowerer(temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
+        return configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
                 .withDbTimeZone(env.timeZone());
+    }
+
+    /**
+     * THE LOWERER'S CONFIGURATION, the planner's own (the user's ruling of 2026-11-13, option (b): until then
+     * TypedQuery.lowerer, a public root door): the model's object layouts (every object its identity and its class,
+     * docs/OBJECT_IDENTITY_2026_10_20.md §3.1; D91: equal() over keyed instances is the key relation on every lane, the
+     * plan's too), the engine's exists-join form unless a temporal class is read ({@code temporal}), the streaming graph
+     * root if asked, the query's feature flags, each slot a value the statement binds, its objects' sites named by
+     * {@code sites} (the program's one minter, shared by every statement of a program: the test-is-the-product plan's
+     * B9, 2026-10-31). Package-private: built here and in PlanMaker alone, as it was built, in the same order.
+     */
+    static Lowerer configured(TypedQuery query, boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
+            Set<Feature> features, ObjectSites sites) {
+        ModelContext ctx = query.context();
+        Lowerer planLw = new Lowerer(t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent(), ctx.implementations())
+                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
+                .withObjectIdentity(sites::idOf);
+        if (!temporal) {
+            planLw = planLw.withEngineExistsJoinForm();
+        }
+        if (streaming) {
+            planLw = planLw.withStreamingGraphRoot();
+        }
+        if (!features.isEmpty()) {
+            planLw = planLw.withFeatures(features);
+        }
+        for (SqlExpr.PlanParam slot : slots) {
+            planLw.bindPlanParam(slot);
+        }
+        return planLw;
+    }
+
+    /**
+     * THE TEST-DATA GENERATOR'S SEED, LOWERED (the user's ruling of 2026-11-13, option (b): the one public entry that
+     * replaces TypedQuery.lower for the generator's two callers, the server's routes and a test body's
+     * generateSeedDataString): {@code query} -- a seed query, a product query the generator splices into its own
+     * statement -- prepared, planned and lowered on the product's road for {@code runtime}, as a query of no parameter
+     * and no streaming root. A query reaching a statement's own SQL text ({@code executeInDb}'s read) is refused by name
+     * HERE, inside the entry, as every product door refuses it (measured that day: no seed of PCT, on any database, or
+     * of either corpus reads raw SQL, so one entry always refuses, and no test road needs another).
+     */
+    public static SqlQuery lowerTestDataSeed(TypedQuery query, String runtime) {
+        QueryDoor.refuseRawSql(query);
+        Statement s = prepare(query, query.body(), runtime, null, Set.of());
+        Prepared.Planned p = planned(s);
+        return lower(query, p, s.temporal(), false, List.of(), new ObjectSites());
     }
 
     /** A store write prepared on the product's road, lowered: its statement, the seedable let prefix before it. A

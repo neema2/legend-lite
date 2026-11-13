@@ -127,10 +127,26 @@ class ProductStatementsTest {
         assertTrue(c.cells().get(0).get(0).startsWith("select "), c.cells().toString());
     }
 
+    /** The test-data seed's one entry (the user's ruling of 2026-11-13, option (b): it replaces TypedQuery.lower for the
+     *  generator's two callers) refuses a query reaching a statement's own SQL text by name, inside itself, as every
+     *  product door refuses it; the same query without that read is lowered. */
+    @Test
+    void theTestDataSeedsEntryRefusesRawSqlInsideItself() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.TypedQuery raw = Compiler.query(ctx, "{|" + CONN + "let n = meta::relational::metamodel::execute"
+                + "::executeInDb('select 7 as A', $c).columnNames;\n#>{s::DB.T}#->select(~[ID]);}");
+        com.legend.error.NotImplementedException refused = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> ProductStatements.lowerTestDataSeed(raw, "s::RT"));
+        assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+        com.legend.sql.SqlQuery lowered = ProductStatements.lowerTestDataSeed(Compiler.query(ctx,
+                "|#>{s::DB.T}#->select(~[ID])"), "s::RT");
+        assertInstanceOf(com.legend.sql.SqlSelect.class, lowered);
+    }
+
     @Test
     void aDdlTextIsThePlansConstantAndHasNoSqlText() {
         // D17: a DDL text generator's text is the model's, answered with nothing sent; the query's SQL text (the
-        // lowering, TypedQuery.lower) has none, refused by name
+        // lowering, the planner's road: Lowered.lower in tests) has none, refused by name
         String query = "|meta::relational::functions::toDDL::createTableStatement(test::DB, 'T')";
         com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(StorelessRuntime.with(LEGACY,
                 Databases.PLATFORM)), query);
@@ -139,7 +155,7 @@ class ProductStatementsTest {
         assertTrue(c.cells().get(0).get(0).toUpperCase(java.util.Locale.ROOT).startsWith("CREATE TABLE"),
                 c.cells().toString());
         com.legend.error.NotImplementedException none = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> typed.lower(StorelessRuntime.RUNTIME, false));
+                () -> Lowered.lower(typed, StorelessRuntime.RUNTIME, false));
         assertTrue(none.getMessage().contains("DDL text"), none.getMessage());
     }
 

@@ -18,4 +18,10 @@ public final class PlantedRootDoor {
     public static String runSql(String sql) {
         return sql;
     }
+
+    /** TypedQuery's old lowering door, re-added here (the user's ruling of 2026-11-13, option (b), took it off the
+     *  root): a lowering apart from the planner's one seed entry, which the check names. */
+    public static String lower(String runtime, boolean streaming) {
+        return runtime + streaming;
+    }
 }

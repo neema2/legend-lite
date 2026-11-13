@@ -466,15 +466,10 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#target()", List.of()),
             Map.entry("TypedQuery#writes()", List.of()),
             Map.entry("TypedQuery#runtime(String)", List.of(NAME)),
-            // the statement road's lowering, apart from the query door (its callers doored or the test road's: the
-            // test-data routes' seed, 2026-11-13, and testplan.GeneratedTestData)
-            Map.entry("TypedQuery#lower(String, boolean)", List.of(NAME, OPTION)),
-            Map.entry("TypedQuery#lower(String, boolean, List<SqlExpr.PlanParam>, Set<Feature>)",
-                    List.of(NAME, OPTION, PLAN_DATA, OPTION)),
-            Map.entry("TypedQuery#lowerer(boolean, boolean, List<SqlExpr.PlanParam>, Set<Feature>)",
-                    List.of(OPTION, OPTION, PLAN_DATA, OPTION)),
-            Map.entry("TypedQuery#lowerer(boolean, boolean, List<SqlExpr.PlanParam>, Set<Feature>, ObjectSites)",
-                    List.of(OPTION, OPTION, PLAN_DATA, OPTION, PLAN_DATA)),
+            // TypedQuery#lower (two) and #lowerer (two) are gone (the user's ruling of 2026-11-13, option (b)): the
+            // Lowerer's configuration is the planner's own, package-private (ProductStatements.configured), and the
+            // test-data seed's one entry is ProductStatements.lowerTestDataSeed, which refuses raw SQL inside itself;
+            // theRootDoorsRefuseAPlantedDoor plants a lower(String, boolean) and sees it named
             Map.entry("TypedQuery#plan(String)", List.of(NAME)),
             Map.entry("TypedQuery#executionPlan(String)", List.of(NAME)),
             Map.entry("TypedQuery#executionPlan(String, Set<Feature>)", List.of(NAME, OPTION)),
@@ -1236,11 +1231,14 @@ class PlannerSurfaceTest {
     }
 
     /** The check names a public method of a root door no row lists ({@code planner.PlantedRootDoor}, a test class
-     *  planted for this alone). */
+     *  planted for this alone): a door that takes a statement, and a {@code lower(String, boolean)} as TypedQuery's
+     *  was (gone with the user's ruling of 2026-11-13, option (b)) -- re-added, it is named. */
     @Test
     void theRootDoorsRefuseAPlantedDoor() {
-        assertTrue(rootViolations(List.of(com.legend.planner.PlantedRootDoor.class))
-                .contains("a root door no row lists: PlantedRootDoor#runSql(String)"));
+        List<String> found = rootViolations(List.of(com.legend.planner.PlantedRootDoor.class));
+        assertTrue(found.contains("a root door no row lists: PlantedRootDoor#runSql(String)"), found.toString());
+        assertTrue(found.contains("a root door no row lists: PlantedRootDoor#lower(String, boolean)"),
+                found.toString());
     }
 
     private static List<String> pythonPackage() {

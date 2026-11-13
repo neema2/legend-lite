@@ -160,7 +160,7 @@ class PlanMakerTest {
     private static String lowered(TypedQuery query, String zone) {
         List<com.legend.sql.SqlExpr.PlanParam> slots = query.parameters().stream()
                 .map(QueryParameters.Declared::slot).toList();
-        com.legend.sql.SqlQuery q = query.lowerer(false, false, slots, java.util.Set.of()).withDbTimeZone(zone)
+        com.legend.sql.SqlQuery q = Lowered.lowerer(query, false, false, slots, java.util.Set.of()).withDbTimeZone(zone)
                 .lower(query.body());
         return Databases.dialect(Databases.PLATFORM).renderStatement(q).sql();
     }

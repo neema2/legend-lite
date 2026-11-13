@@ -121,16 +121,16 @@ final class GeneratedTestData {
 
     /** The user's query lowered as a product query on the body's runtime, read through {@code mapping} whatever
      *  mappings that runtime declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function
-     *  with the given mapping): typed, inlined, resolved and lowered by the planner (the seed carries its keys through
-     *  it). */
+     *  with the given mapping): typed, inlined, resolved and lowered by the planner's one entry for a seed
+     *  ({@link com.legend.planner.ProductStatements#lowerTestDataSeed}, which refuses raw SQL by name; the seed carries
+     *  its keys through it). */
     static TestDataPlanner.Queries queries(TypedQuery typed, String mapping,
             @com.legend.base.Nullable String runtimeFqn) {
         return q -> {
             String runtime = java.util.Objects.requireNonNull(runtimeFqn,
                     "the seed's query is planned on the body's runtime, and the body names none");
-            return com.legend.Compiler.query(typed.context(), TestDataPlanner.underMapping(q, mapping, runtime,
-                    com.legend.Compiler::parseQuery))
-                    .lower(runtime, false).plan();
+            return com.legend.planner.ProductStatements.lowerTestDataSeed(com.legend.Compiler.query(typed.context(),
+                    TestDataPlanner.underMapping(q, mapping, runtime, com.legend.Compiler::parseQuery)), runtime);
         };
     }
 
