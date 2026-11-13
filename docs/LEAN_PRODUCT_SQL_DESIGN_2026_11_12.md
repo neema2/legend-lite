@@ -436,7 +436,28 @@ no row. "Sane" means:
   - D's print form is a fixed-scale render that each database spells in one call. The shortest digits move to the
     edge, as the orchestrator's example says.
 
-### 5.7 Mixed lists, the hybrid (RULED by the user, 2026-11-12: "hybrid mixed list is good, lets go with that")
+### 5.7 Mixed lists, the hybrid (RULED by the user, 2026-11-12: "hybrid mixed list is good, lets go with that"; its promotions REVERSED 2026-11-13, O2)
+
+> **RE-RULED by the user, 2026-11-13 (O2, start-here §6.1 item 3): mixed lists KEEP KINDS.** The user, after the
+> expert case: Pure types `[1, 2.0]` as `Number[*]`, so a runtime that promotes contradicts the type checker.
+> - The promotions in rules 1 and 2 below are REVERSED. No number list promotes and no date list promotes: a list
+>   whose elements differ in kind rides a KINDS-KEPT carrier.
+>   - Integer, Float and Decimal are told apart.
+>   - A date is tagged with its kind, its ISO text the database orders by. Upstream's order IS that text's order:
+>     `'2025-02-10' < '2025-02-10T00:00:00'`, the coarser date first, as `DateFunctions.compare`.
+> - **E-R1 to E-R3 are no longer divergences.** The answers are upstream's (§6.1 of the compatibility frame), and
+>   their draft rows are DROPPED. E-R5 changes no answer.
+> - **Sort, min, max, greatest and least** go by kind, then value (E-R4, ruled 2026-11-12). Equality and distinct
+>   compare kind and value: `1 != 1.0`, as S127.
+> - **Still in force from the hybrid:**
+>   - rule 3, the truly mixed list as one Variant JSON array with kinds kept, now the carrier for EVERY list of mixed
+>     kinds, numbers and dates included;
+>   - rule 4, today's tag-and-slots lists leave the product.
+> - The "before and after" table below measured the PROMOTED forms for numbers and dates. The kinds-kept carrier's
+>   sizes are measured at the build (§5.9's commands) and replace those rows.
+> - A literal list's kinds are known at planning, so a read of one element (`at`, `type`, `toString`) costs no
+>   carrier.
+> - Built on D's lowering hook (`PlanStyle`, ruled 2026-11-12) for the edge's half. The product's carrier is E's.
 
 It replaces P1c. **This section is the write-up the orchestrator asked for before the build.** It covers the
 answer changes, each a draft register row with scope "product" and ids to be assigned, and the before and after SQL
@@ -460,9 +481,9 @@ one.
 
 | draft row | expression | upstream (to be read and recorded) | lite after | why it is sane |
 |---|---|---|---|---|
-| E-R1 | `[1, 1.0]->removeDuplicates()` | two elements, `1` and `1.0`: Pure's equality tells Integer from Float | one element, `1.0` | one promoted type, IEEE-equal values; the same on every database |
-| E-R2 | `[1, 2.0]->at(0)->type()` (and `toString()`) | `Integer`, `'1'` | `Float`, `'1.0'` | the list's one declared element type, the value matching it |
-| E-R3 | `[%2025-02-10, %2025-02-10T00:00:00]->removeDuplicates()` (and `==` across them) | two elements: a StrictDate is not a DateTime | one element, the DateTime | a date is its midnight at UTC in a DateTime list (ISO 8601) |
+| ~~E-R1~~ DROPPED 2026-11-13 (O2: kinds kept, upstream's answer) | `[1, 1.0]->removeDuplicates()` | two elements, `1` and `1.0`: Pure's equality tells Integer from Float | one element, `1.0` | one promoted type, IEEE-equal values; the same on every database |
+| ~~E-R2~~ DROPPED 2026-11-13 (O2: kinds kept, upstream's answer) | `[1, 2.0]->at(0)->type()` (and `toString()`) | `Integer`, `'1'` | `Float`, `'1.0'` | the list's one declared element type, the value matching it |
+| ~~E-R3~~ DROPPED 2026-11-13 (O2: kinds kept, upstream's answer) | `[%2025-02-10, %2025-02-10T00:00:00]->removeDuplicates()` (and `==` across them) | two elements: a StrictDate is not a DateTime | one element, the DateTime | a date is its midnight at UTC in a DateTime list (ISO 8601) |
 | E-R4 | `['b', 1, 'a']->sort()`, `->min()`, `->max()`, `greatest`, `least` across kinds | ordered by upstream's cross-kind comparison | **RE-RULED by the user, 2026-11-12: "can we do the sorting like upstream?"** Sorted exactly as upstream: kind rank first (number, date, boolean, string), then the value, in the database. min, max, greatest and least use the same order. No refusal and no register row. (The ruling it replaced was "refused by name".) | upstream's order is total and its own PCT asserts it (`testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes` must pass) |
 | E-R5 | a date inside a truly mixed list read back (`[1, %2025-02-10]->at(1)`) | the StrictDate | the StrictDate, carried in the Variant as `{"date": "..."}` | typed, never a string; listed because the CARRIER changes (a JSON array, not tag+slots), the answer does not |
 
@@ -747,8 +768,11 @@ So BOTH does every side's work twice: once for the host and once inside the data
 >      and the database's verdict reads them as its CTE.
 >   4. **Raising sides keep the database judge's rules.**
 >      - An `assertError`'s verdict (`raises`, S135) is its own statement already, and stays so.
->      - A side that raises inside a fused statement fails the statement. The segment's savepoint and the per-verdict
->        rerun the database judge already has (`Verdicts.Savepoint`) decide it.
+>      - A side that raises inside a fused statement fails the statement, and the BODY fails by name. There is NO
+>        retry of any kind, as since P1.2 (d67cd85c5: the split rung stays deleted).
+>      - CORRECTED 2026-11-13 (the orchestrator's review of O5): this line first said a "per-verdict rerun the
+>        database judge already has" decides it. The code has no such rerun (`TestRun.databaseVerdicts`), and none
+>        may be added.
 >   5. **The plan as data.**
 >      - Each `Verdict` gains `hostColumns`: per base side, the fused row's column it is read from, and its declared
 >        type.
@@ -765,6 +789,16 @@ So BOTH does every side's work twice: once for the host and once inside the data
 >     exist to check (the two judges' RULES over the same rows).
 >   - What is given up: today's incidental check that two separate executions of a side agree, i.e. the side's
 >     determinism. That is G10's, and it belongs to its own guard (a re-run of the plan), not to the judge.
+> - **RULED by the user, 2026-11-13 (O5), with these terms:**
+>   - BOTH plans the DATABASE judge's real fused program UNCHANGED. The host judge reads each single-value side as a
+>     typed column of the fused row. Grids and `assertError` keep their own statements.
+>   - NO retry of any kind: a rejected fused statement fails the body by name.
+>   - `planEach` goes.
+>   - A HOST channel-B pass is ADDED on the in-process lanes (DuckDB, H2), so a side planned as its own statement stays
+>     exercised on PCT.
+>   - An explicit G10 guard is ADDED: a body planned and run twice answers the same. It replaces BOTH's incidental
+>     double run.
+>   - The DATABASE-alone lane pass goes only after BOTH matches it verdict for verdict on every lane, measured.
 > - **E-5b and E-5d are unchanged.** E-5b (the canon once per side) still shrinks the database judge's comparison
 >   text, and E-5d pins the judge's SQL, now one set for both modes.
 
