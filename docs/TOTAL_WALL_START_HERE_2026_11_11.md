@@ -997,6 +997,40 @@ In order. Nothing here is in the A/B/C PR.
    - **`indexOf` and `average([])`:** legend-pure's answer in the product, the engine's kept at the edge.
    - **E-5c**, the fused judge, about 8 statements a test down to 2.
    - **The engine-interop defaults** (§5 of `ENGINE_PLAN_INTEROP_2026_11_12.md`).
+   - **RULED by the user, 2026-11-13** (each in the user's review, one by one; D, E and DataCube go on these):
+     - **Already ruled, confirmed:** computation is the database's, presentation Java's, formats the edge's (for an
+       Arrow client the JVM path only carries typed cells: no Java computes or spells a value; three Arrow-less kinds
+       ride as lossless text -- a Decimal of no declared scale, Pure-only temporals, objects as JSON -- and exec's
+       decode repairs go with E); the product is lite's own; the product's simple print forms; the layered edge
+       (measure, then switch); engine plans in and out, every SQL node imported and Java refused; DataCube one
+       contract above the engines, no Worker move.
+     - **O1, upstream's computation wherever sane:** adopted; a borderline case goes to the user, never followed
+       blindly.
+     - **O2, mixed lists keep kinds** (the user, after the expert case: Pure types `[1, 2.0]` as `Number[*]`, so a
+       runtime that promotes contradicts the type checker): the hybrid's promotions are reversed; E-R1 to E-R3 are no
+       longer divergences; a mixed list rides a kinds-kept carrier; sort, min and max by kind, then value (E-R4).
+     - **O3, engine SQL text stays at the edge** (the EngineStyle printers kept, as edge dialects).
+     - **O4, `indexOf` and `average([])`:** legend-pure's answer in the product, the engine's at the edge.
+     - **O5, E-5c, the fused judge:** BOTH plans the DATABASE judge's real fused program and the host judge reads
+       each single-value side as a typed column of it (grids and `assertError` keep their own statements). With it:
+       a HOST channel-B pass on the in-process lanes (DuckDB, H2), so a side planned as its own statement stays
+       exercised on PCT; an explicit G10 guard (a body planned and run twice answers the same); NO retry of any kind
+       (a rejected fused statement fails the body by name, as since P1.2, d67cd85c5: the split rung stays deleted);
+       `planEach` goes; the DATABASE-alone lane pass goes only after BOTH matches it verdict for verdict on every
+       lane.
+     - **O6, engine templates at import:** every template becomes SQL and bound parameters at planning -- `${param}`
+       a typed `?`, the template functions (`renderCollection` and the rest) SQL over bound values, an `<#if>` over a
+       parameter a SQL condition; anything else refused by name and counted. Engine's conditional node: its
+       condition becomes SQL over bound parameters; first COUNT how often engine's plans hold it, then bring the user
+       a planned branch for imported conditional nodes (the charter's A3(b) widened, narrowly) if it is common, else
+       refuse it by name. Exec never evaluates a template.
+     - **O7, lite's UIs and a real legend-engine:** a real engine is one more engine behind DataCube's `Engine`
+       interface. D-1's lazily loaded TypeScript compatibility module IS that engine, built from D's translations (the
+       plan import, the edge presenter). DataCube's code never knows.
+     - **O8, DataCube's contract ratified** (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`) with two amendments: its
+       step 4 is the tab's engine behind `Engine` in-thread (no Worker move); O7 is its last step.
+     - **O9, one PR per stream** (foolproof, D, E, DataCube), each on its own branch, started now; nothing lands
+       before A/B/C; the plan format's number goes to D first, then E. Register rows: D takes S308-S339, E S340 on.
 4. **The plan format's version, renumbered after main:** D merges main and takes the next number, then E takes the one
    after.
 5. **D3, engine plans in and out.** This also restores Snap for grids an engine plans: ruled 2026-11-13, the demo's
