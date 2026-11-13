@@ -409,6 +409,37 @@ class PlannedSqlTest {
     /** Each file read once: a census runs twice in {@link #bites} (the tree, then a violator planted on it). */
     private static final Map<String, String> READ = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /**
+     * Each per-file scan a census makes, kept by its input: a census runs once over the tree in its own @Test, then
+     * again over the tree with one violator planted on it for each of its {@link #bites} -- so the tree's files are
+     * scanned once, the plant alone afresh (2026-11-13: the bites ran every census over every file again, 18 s of the
+     * guard's 27 here, and the guard timed out at its 60 s on Windows' CI, gates run 43380062329). A key is the scan's
+     * name and its inputs (a file's text is the one String {@link #READ} holds, so a repeat lookup compares it by
+     * identity); a value is never changed after it is kept.
+     */
+    private static final Map<List<Object>, Object> SCANNED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @SuppressWarnings("unchecked")
+    private static <T> T scanned(java.util.function.Supplier<T> scan, Object... key) {
+        List<Object> k = List.of(key);
+        Object kept = SCANNED.get(k);
+        if (kept == null) {
+            kept = scan.get();
+            SCANNED.put(k, kept);
+        }
+        return (T) kept;
+    }
+
+    /** Whether {@code p} is found in {@code text}, scanned once per text. */
+    private static boolean finds(Pattern p, String text) {
+        return scanned(() -> p.matcher(text).find(), "finds", p, text);
+    }
+
+    /** {@code code} with each import and export statement blanked to spaces (offsets kept), once per text. */
+    private static String blankModules(String code) {
+        return scanned(() -> MODULE_STATEMENT.matcher(code).replaceAll(r -> " ".repeat(r.group().length())), "blank", code);
+    }
+
     private static String read(String file) throws IOException {
         try {
             return READ.computeIfAbsent(file, f -> {
@@ -531,6 +562,13 @@ class PlannedSqlTest {
     }
 
     static Imports imports(String src) {
+        return scanned(() -> {
+            Imports found = importsOf(src);
+            return new Imports(java.util.Collections.unmodifiableSet(new TreeSet<>(found.values())), List.copyOf(found.refused()));
+        }, "imports", src);
+    }
+
+    private static Imports importsOf(String src) {
         Set<String> values = new TreeSet<>();
         List<String> refused = new ArrayList<>();
         Set<Integer> paths = new TreeSet<>();
@@ -594,6 +632,10 @@ class PlannedSqlTest {
 
     /** Each {@code notPlanned(} call's first argument: a literal's text, or the expression, marked. */
     static List<String> notPlannedReasons(String src) {
+        return scanned(() -> List.copyOf(notPlannedReasonsOf(src)), "notPlanned", src);
+    }
+
+    private static List<String> notPlannedReasonsOf(String src) {
         List<String> reasons = new ArrayList<>();
         Matcher m = NOT_PLANNED_CALL.matcher(src);
         while (m.find()) {
@@ -625,6 +667,10 @@ class PlannedSqlTest {
 
     /** {@link #code(String)}, its strings' text kept where {@code strings}: comments alone blanked. */
     static String code(String src, boolean strings) {
+        return scanned(() -> codeOf(src, strings), "code", strings, src);
+    }
+
+    private static String codeOf(String src, boolean strings) {
         StringBuilder out = new StringBuilder(src.length());
         java.util.ArrayDeque<int[]> templates = new java.util.ArrayDeque<>();   // each open ${, its brace depth
         int i = 0;
@@ -697,6 +743,10 @@ class PlannedSqlTest {
     }
 
     private static int count(Pattern p, String text) {
+        return scanned(() -> countOf(p, text), "count", p, text);
+    }
+
+    private static int countOf(Pattern p, String text) {
         int found = 0;
         Matcher m = p.matcher(text);
         while (m.find()) {
@@ -854,7 +904,7 @@ class PlannedSqlTest {
             if (!im.values().isEmpty()) {
                 (under(file, product) ? productImports : testImports).put(file, im.values());
             }
-            if (!CASTS.contains(file) && CAST.matcher(src).find()) {
+            if (!CASTS.contains(file) && finds(CAST, src)) {
                 casts.add(file);
             }
             for (String reason : notPlannedReasons(src)) {
@@ -932,20 +982,12 @@ class PlannedSqlTest {
             if (!file.endsWith(".ts") || !under(file, product) || file.equals(PLAYGROUND)) {
                 continue;
             }
-            String src = s.read(file);
-            Matcher i = RUN_TS_IMPORT.matcher(src);
-            while (i.find()) {
-                for (String spec : i.group(2).split(",")) {
-                    String name = spec.strip().replaceFirst("^type\\s+", "").replaceFirst("\\s+as\\s+.*", "");
-                    if (name.equalsIgnoreCase("playground")) {
-                        imports.computeIfAbsent(file, k -> new TreeSet<>()).add(name);
-                    }
-                }
+            List<List<String>> uses = playgroundUses(s.read(file));
+            if (!uses.get(0).isEmpty()) {
+                imports.put(file, new TreeSet<>(uses.get(0)));
             }
-            Matcher r = PLAYGROUND_READ.matcher(src);
-            while (r.find()) {
-                reads.computeIfAbsent(file, k -> new ArrayList<>())
-                        .add(src.substring(r.start(), Math.min(src.length(), r.start() + 40)).replaceAll("\\s+", " "));
+            if (!uses.get(1).isEmpty()) {
+                reads.put(file, uses.get(1));
             }
         }
         assertEquals(new TreeMap<>(PLAYGROUND_IMPORTS), imports, "the playground is made by the app and typed by the"
@@ -957,12 +999,63 @@ class PlannedSqlTest {
                 "the app makes the playground once");
     }
 
+    /** {@code src}'s playground: the names it imports from run.ts that are the playground, and each read of a
+     *  {@code playground} member (its first 40 characters), once per text. */
+    private static List<List<String>> playgroundUses(String src) {
+        return scanned(() -> {
+            List<String> named = new ArrayList<>();
+            Matcher i = RUN_TS_IMPORT.matcher(src);
+            while (i.find()) {
+                for (String spec : i.group(2).split(",")) {
+                    String name = spec.strip().replaceFirst("^type\\s+", "").replaceFirst("\\s+as\\s+.*", "");
+                    if (name.equalsIgnoreCase("playground")) {
+                        named.add(name);
+                    }
+                }
+            }
+            List<String> read = new ArrayList<>();
+            Matcher r = PLAYGROUND_READ.matcher(src);
+            while (r.find()) {
+                read.add(src.substring(r.start(), Math.min(src.length(), r.start() + 40)).replaceAll("\\s+", " "));
+            }
+            return List.of(List.copyOf(named), List.copyOf(read));
+        }, "playground", src);
+    }
+
     /** Each type the TypeScript declares that holds the brand in a property, by name (H5): a fixed point over every
      *  declaration in {@code codes}, from PlannedSql. */
     static Set<String> brandHolders(List<String> codes) {
         Map<String, List<String>> braced = new TreeMap<>();
         Map<String, List<String>> aliased = new TreeMap<>();
         for (String s : codes) {
+            List<Map<String, List<String>>> declared = declarations(s);
+            declared.get(0).forEach((k, v) -> braced.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
+            declared.get(1).forEach((k, v) -> aliased.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
+        }
+        Set<String> holders = new TreeSet<>(Set.of("PlannedSql"));
+        for (boolean changed = true; changed; ) {
+            changed = false;
+            Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", holders) + ")(?![\\w$])");
+            for (Map<String, List<String>> kind : List.of(braced, aliased)) {
+                for (Map.Entry<String, List<String>> e : kind.entrySet()) {
+                    boolean alias = kind == aliased;
+                    if (!holders.contains(e.getKey()) && e.getValue().stream().anyMatch(b -> scanned(
+                            () -> holds(b, alias, token), "holds", b, alias, token.pattern()))) {
+                        holders.add(e.getKey());
+                        changed = true;
+                    }
+                }
+            }
+        }
+        return holders;
+    }
+
+    /** {@code s}'s declarations, once per text: its interfaces' and classes' bodies (braced) and its type aliases'
+     *  (aliased), each by its name. */
+    private static List<Map<String, List<String>>> declarations(String s) {
+        return scanned(() -> {
+            Map<String, List<String>> braced = new TreeMap<>();
+            Map<String, List<String>> aliased = new TreeMap<>();
             Matcher m = DECLARATION.matcher(s);
             while (m.find()) {
                 boolean isBraced = m.group(1) != null;
@@ -984,22 +1077,12 @@ class PlannedSqlTest {
                 (isBraced ? braced : aliased).computeIfAbsent(isBraced ? m.group(1) : m.group(2), k -> new ArrayList<>())
                         .add(s.substring(m.end(), Math.min(j, s.length())));
             }
-        }
-        Set<String> holders = new TreeSet<>(Set.of("PlannedSql"));
-        for (boolean changed = true; changed; ) {
-            changed = false;
-            Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", holders) + ")(?![\\w$])");
-            for (Map<String, List<String>> kind : List.of(braced, aliased)) {
-                for (Map.Entry<String, List<String>> e : kind.entrySet()) {
-                    if (!holders.contains(e.getKey())
-                            && e.getValue().stream().anyMatch(b -> holds(b, kind == aliased, token))) {
-                        holders.add(e.getKey());
-                        changed = true;
-                    }
-                }
-            }
-        }
-        return holders;
+            Map<String, List<String>> b = new TreeMap<>();
+            braced.forEach((k, v) -> b.put(k, List.copyOf(v)));
+            Map<String, List<String>> a = new TreeMap<>();
+            aliased.forEach((k, v) -> a.put(k, List.copyOf(v)));
+            return List.of(java.util.Collections.unmodifiableMap(b), java.util.Collections.unmodifiableMap(a));
+        }, "declarations", s);
     }
 
     /** A body holds the brand when a property's type names a holder (never a method's, never a function's, never a
@@ -1092,6 +1175,11 @@ class PlannedSqlTest {
 
     /** {@code code}'s casts to a holder, each as its text (what a failure names). */
     static List<String> holderCastTexts(String code, Set<String> holders) {
+        List<String> named = List.copyOf(new TreeSet<>(holders));
+        return scanned(() -> List.copyOf(holderCastTextsOf(code, named)), "holderCasts", code, named);
+    }
+
+    private static List<String> holderCastTextsOf(String code, List<String> holders) {
         Set<String> records = new TreeSet<>(holders);
         records.remove("PlannedSql");
         List<String> found = new ArrayList<>();
@@ -1099,7 +1187,7 @@ class PlannedSqlTest {
             return found;
         }
         Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", records) + ")(?![\\w$])");
-        String s = MODULE_STATEMENT.matcher(code).replaceAll(r -> " ".repeat(r.group().length()));
+        String s = blankModules(code);
         Matcher m = AS.matcher(s);
         while (m.find()) {
             String type = typeAt(s, m.end(), ";,=\n?:");
@@ -1146,7 +1234,7 @@ class PlannedSqlTest {
         List<String> aliases = new ArrayList<>();
         for (Map.Entry<String, String> e : codes.entrySet()) {
             String file = e.getKey();
-            if (!file.equals("engine-client/src/planned-sql.ts") && BRAND_ALIAS.matcher(e.getValue()).find()) {
+            if (!file.equals("engine-client/src/planned-sql.ts") && finds(BRAND_ALIAS, e.getValue())) {
                 aliases.add(file);
             }
             if (under(file, product)) {
@@ -1193,6 +1281,10 @@ class PlannedSqlTest {
     /** Each match of {@code p} in {@code code} as its call site (S10): the receiver chain before it and the match,
      *  spaces dropped -- so one call is not swapped for another under a file's count. */
     static List<String> sites(Pattern p, String code) {
+        return scanned(() -> List.copyOf(sitesOf(p, code)), "sites", p, code);
+    }
+
+    private static List<String> sitesOf(Pattern p, String code) {
         List<String> out = new ArrayList<>();
         Matcher m = p.matcher(code);
         while (m.find()) {
@@ -1207,6 +1299,10 @@ class PlannedSqlTest {
 
     /** Each fetch of {@code code} (its strings kept) as its call site: {@code fetch(} and its first argument, cut short. */
     static List<String> fetchSites(String code) {
+        return scanned(() -> List.copyOf(fetchSitesOf(code)), "fetchSites", code);
+    }
+
+    private static List<String> fetchSitesOf(String code) {
         List<String> out = new ArrayList<>();
         Matcher m = FETCH_CALL.matcher(code);
         while (m.find()) {
@@ -1252,7 +1348,7 @@ class PlannedSqlTest {
             put(connects, file, sites(CONNECT_CALL, code));
             put(fetches, file, fetchSites(code(src, true)));
             put(submits, file, sites(SUBMIT_CALL, code(src, true)));
-            if (OTHER_HTTP.matcher(code).find() && !OTHER_HTTP_KEPT.contains(file)) {
+            if (finds(OTHER_HTTP, code) && !OTHER_HTTP_KEPT.contains(file)) {
                 otherHttp.add(file);
             }
         }
@@ -1309,13 +1405,13 @@ class PlannedSqlTest {
                 continue;
             }
             String src = s.read(file);
-            if (PLAN_FORMAT.matcher(code(src, true)).find()) {
+            if (finds(PLAN_FORMAT, code(src, true))) {
                 formats.add(file);
             }
             if (file.equals("engine-client/src/plan-runner.ts")) {
                 continue;
             }
-            String body = MODULE_STATEMENT.matcher(code(src)).replaceAll(r -> " ".repeat(r.group().length()));
+            String body = blankModules(code(src));
             List<String> found = sites(RUNNER_CALL, body);
             put(calls, file, found);
             if (runnerReferences(body) != found.size()) {
@@ -1364,6 +1460,10 @@ class PlannedSqlTest {
 
     /** {@code body}'s references to a runner (M1), less the names a destructuring pattern binds (a lazy import's). */
     static int runnerReferences(String body) {
+        return scanned(() -> runnerReferencesOf(body), "runnerReferences", body);
+    }
+
+    private static int runnerReferencesOf(String body) {
         int bound = 0;
         Matcher d = DESTRUCTURED.matcher(body);
         while (d.find()) {
