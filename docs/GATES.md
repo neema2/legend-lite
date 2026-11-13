@@ -21880,4 +21880,4 @@ no run asks the planner; every guard bites a planted violator. Merged onto `clau
   identifiers double only `"`, while ClickHouse reads backslash escapes inside them, so a column name such as
   `a\" , version() AS v --` breaks out (confirmed on the pinned ClickHouse 25.8). It predates the total wall; the fix
   (every dialect's identifier escaped for its own lexer) is the first item of the foolproof stream's PR.
-- **CI on the landing head 1c4c86c56:** recorded in PR #95's description (a commit here would restart the run).
+- **CI on the landing head** (1c4c86c56 plus these records): recorded in PR #95's description (a commit here would restart the run).
