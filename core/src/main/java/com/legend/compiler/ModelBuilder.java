@@ -431,7 +431,13 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         int id = internElement(db.qualifiedName());
         putAtId(databases, id, db);
         tablesByDb.put(id, TableIndex.of(db));
-        // Precompute filter, join, and view secondary indexes.
+        // Precompute filter, join, and view secondary indexes. Last-wins as every slot of a database registered twice
+        // (internElement): a second definition with none of a kind clears the first's (until 2026-11-13 the first's
+        // stayed beside the second's tables -- the names fixes, item 6, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+        filtersByDb.remove(id);
+        joinsByDb.remove(id);
+        viewsByDb.remove(id);
+        viewsInOrder.remove(id);
         if (!db.filters().isEmpty() || !db.multiGrainFilters().isEmpty()) {
             Map<String, FilterDefinition> byName = new HashMap<>();
             for (FilterDefinition f : db.filters()) {
@@ -780,9 +786,12 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
                 return hit;
             }
             findClass(cls).ifPresent(cd -> {
+                // bare and generic heads alike, as directSubclasses (extends Foo<T> IS a superclass; until 2026-11-13
+                // only a bare name was climbed -- the names fixes, item 6)
                 for (var sup : cd.superClasses()) {
-                    if (sup instanceof com.legend.protocol.TypeExpression.NameRef nr) {
-                        level.add(nr.name());
+                    String head = com.legend.protocol.TypeExpression.rawClassName(sup);
+                    if (head != null) {
+                        level.add(head);
                     }
                 }
             });
@@ -1195,8 +1204,11 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         }
         String joinDb = first.databaseName() != null ? first.databaseName() : dbFqn;
         String joinName = first.joinName();
+        // the database's own join first, then the include closure, as every join lookup (findJoin; the engine's
+        // getJoin). Until 2026-11-13 only the database's own joins: the names fixes, item 6
         JoinDefinition jd = findDatabase(joinDb)
                 .flatMap(d -> d.joins().stream().filter(j -> j.name().equals(joinName)).findFirst())
+                .or(() -> findJoin(joinDb, joinName))
                 .orElseThrow(() -> new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
                         "View '" + view.name() + "' of '" + dbFqn + "' navigates join '"

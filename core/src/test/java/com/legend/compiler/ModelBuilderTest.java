@@ -324,4 +324,33 @@ class ModelBuilderTest {
         assertTrue(mb.symbols().allFqns().contains("model::B"));
         assertTrue(mb.symbols().allFqns().contains("model::DB"));
     }
+
+    /** The names fixes, item 6 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): a database registered
+     * twice is last-wins in every index (the first's joins and views stayed when the second had none); an association
+     * end injects through a generic supertype's head too (only a bare name was climbed); a join-only view's root reads
+     * its join over the include closure (only the database's own joins, else refused). */
+    @Test
+    void indexIsLastWinsClimbsGenericHeadsAndReadsJoinsThroughIncludes() {
+        ModelBuilder twice = ModelBuilder.from(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db ( Table T (ID INTEGER) Join J (T.ID = T.ID) View V (id: T.ID) )
+                Database a::Db ( Table T (ID INTEGER) )
+                """));
+        assertEquals(1, twice.duplicateElements().size());
+        assertTrue(twice.findJoin("a::Db", "J").isEmpty(), "the second definition has no join");
+        assertTrue(twice.findView("a::Db", "V").isEmpty(), "the second definition has no view");
+        ModelBuilder generic = ModelBuilder.from(com.legend.testing.Own.model("""
+                Class a::B {}
+                Class a::C extends a::B<String> {}
+                Class a::X {}
+                Association a::BX { bs: a::B[*]; x: a::X[1]; }
+                """));
+        assertEquals("a::BX", generic.findAssociationOf("a::C", "x").orElseThrow().qualifiedName());
+        ModelBuilder included = ModelBuilder.from(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Base ( Table P (ID INTEGER, F INTEGER) Table F (ID INTEGER, N VARCHAR(10)) Join PF (P.F = F.ID) )
+                Database a::Top ( include a::Base View V ( name: @PF | F.N ) )
+                """));
+        assertEquals("P", included.viewMainTable("a::Top", included.findView("a::Top", "V").orElseThrow()));
+    }
 }
