@@ -304,6 +304,8 @@ _DUCKDB_USERS = [
 _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
+    # the product's data host over a test's database, in Node (#test-data-host; the H7 floor's lane tests, 2026-11-13)
+    "data-host": ["test/host/data-host-node.ts"],
     # the brand's casts, read by TypeScript's own checker (the re-audit's S5, 2026-11-12): the three programs' sources and
     # their configs, the pinned compiler's API, and the planted violators with their own config
     "brand-casts": [
@@ -534,6 +536,32 @@ esbuild_bundle(
         "--target=es2022",
         "--log-level=warning",
         "--outfile=headless/legend-lite-headless.js",
+    ],
+    visibility = ["//python:__pkg__"],
+)
+
+# THE ENGINE CONFORMANCE SUITE IN PYTHON'S V8 (test/engine-conformance-entry.ts; the engine contract's step 1,
+# 2026-11-13): engine-client's suite run against Python's engine through the V8 bridge, one test script the Python test
+# loads into a headless engine it has, as the global `legendLiteConformance`. Not the product's bundle.
+esbuild_bundle(
+    name = "engine_conformance_bundle",
+    testonly = True,
+    srcs = [
+        "test/engine-conformance-entry.ts",
+        ":src",
+        "//engine-client:conformance",
+    ],
+    outs = ["engine-conformance/legend-lite-engine-conformance.js"],
+    args = [
+        "test/engine-conformance-entry.ts",
+        "--bundle",
+        "--format=iife",
+        "--global-name=legendLiteConformance",
+        "--platform=neutral",
+        "--main-fields=module,main",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=engine-conformance/legend-lite-engine-conformance.js",
     ],
     visibility = ["//python:__pkg__"],
 )

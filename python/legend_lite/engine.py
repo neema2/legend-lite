@@ -57,7 +57,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc
 
-from . import _host, _json, compiler, warehouse
+from . import _host, _json, compiler, contract, warehouse
 from ._planned import PlannedSql, connect, from_plan, send
 from .compiler import LegendError
 from ._library import library
@@ -521,6 +521,10 @@ class Engine:
         # the binding's calls on the compiler's threads, never a connection's (warehouse.set_library_thread)
         warehouse.set_library_thread(_on_compiler_threads)
         self.planner = NativePlanner()
+        # DataCube's engine contract (contract.py, docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md): one intent API, its
+        # query planned and run by this engine's plan-and-run (a warehouse table's on the warehouse), never a dropped call
+        self.contract = contract.ContractDoor(
+            lambda body, over: _answered(lambda b: self._contract_plan_and_run(b, over), body))
         # a project's own rows, when Query or Studio served here runs one of its queries (C5): each project
         # version in a database of its own inside the frames' DuckDB, made by the native library's statements
         self.projects = ProjectDatabases(frames.connection, guard=frames.using_connection)
@@ -560,6 +564,10 @@ class Engine:
             # who a page's caller is: this user (the stores name the same; there is no sign-in)
             return Answer(200, 'application/json', json.dumps(_QUERY_USER).encode('utf-8'))
         if method == 'POST':
+            if path.startswith(contract.PATH):
+                # DataCube's engine contract, over HTTP (Python's page: step 5 of the contract's path)
+                said = _workers().submit(self.contract.answer, path[len(contract.PATH):], body or '', None).result()
+                return Answer(said.status, said.content_type, said.body)
             if path.startswith(_LITE_API):
                 # legend-lite's own routes (its whole-model compile), answered as its server answers them
                 return _workers().submit(self._api, path, query, body or '').result()
@@ -630,6 +638,10 @@ class Engine:
                     else _answered(lambda b: self._plan_and_run(b, over), body))
         elif path == _WAREHOUSE:
             said = _answered(self._warehouse, body)
+        elif path.startswith(contract.PATH):
+            # DataCube's engine contract, over the V8 bridge (engine-client's bridge transport), over the call's read
+            answered = self.contract.answer(path[len(contract.PATH):], body, over)
+            return answered.status, answered.content_type, answered.body
         else:
             said = _said(404, f'DataCube asks the engine to plan and run ({_PLAN_AND_RUN}) or open a warehouse table '
                               f'({_WAREHOUSE}), not {path}')
@@ -1642,6 +1654,14 @@ class Engine:
             with self.frames.reading() as read:
                 return self._plan_and_run_over(asked, read)
         return self._plan_and_run_over(asked, over)
+
+    def _contract_plan_and_run(self, body: str, over: Reading | None) -> Answer:
+        """The contract's query (contract.py), as plan-and-run answers it: a warehouse table's planned and run on the
+        warehouse, any other over ``over`` (the call's read; none, a read of its own)."""
+        table = self._warehouse_table_of(body)
+        if table is not None:
+            return self._warehouse_plan_and_run(table, body)
+        return self._plan_and_run(body, over)
 
     def _plan_and_run_over(self, asked: dict[str, str], over: Reading) -> Answer:
         """A plan-and-run over a read of the frames (D15): planned by Python's planner against the model this engine

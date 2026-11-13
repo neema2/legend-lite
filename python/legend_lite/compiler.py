@@ -239,6 +239,13 @@ def model_elements(text: str) -> list[dict[str, Any]]:
     return _json.loads(_engine('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text))['elements']
 
 
+def model_text(elements: list[dict[str, Any]]) -> str:
+    """Elements (PureModelContextData's, as ``model_elements`` reads them) as Pure text (``grammar/jsonToGrammar/model``):
+    what the engine contract hands DataCube of a model it wrote, less the Connection and Runtime it owns (R3a (c))."""
+    return _engine('/api/pure/v1/grammar/jsonToGrammar/model', 'renderStyle=STANDARD',
+                   _json.dumps({'_type': 'data', 'elements': elements}))
+
+
 def database_from_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
     """A Pure Database for one table, written from its catalog rows, as DataCube writes one for a file.
 

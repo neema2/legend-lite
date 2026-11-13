@@ -11,10 +11,7 @@
 import { arrowIpcTable } from '../../../engine-client/src/arrow-ipc.ts';
 import type { ArrowishConnection, ArrowishTable } from '../../../engine-client/src/duckdb.ts';
 import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
-import { hostCalls, hostData, hostTableOutput, hostWorker } from '../../src/headless/host.ts';
-import type { DataHost } from '../../src/data-host.ts';
-import type { TableModels } from '../../src/infer.ts';
-import type { TableWriteHost } from '../../src/table-output.ts';
+import { hostCalls, hostWorker } from '../../src/headless/host.ts';
 import { base64, fromBase64 } from '../../src/headless/web.ts';
 import type { LitePlannerOptions } from '../../src/lite-planner.ts';
 import type { TestDatabase } from './node.ts';
@@ -33,7 +30,7 @@ interface TestHostCalls {
   testHandOut(name: string): Promise<string>;
 }
 
-function testCalls(): TestHostCalls {
+export function testCalls(): TestHostCalls {
   const calls = (globalThis as { legendLiteHost?: Partial<TestHostCalls> }).legendLiteHost;
   if (calls?.testQuery === undefined || calls.testStatement === undefined || calls.testRegisterFile === undefined
       || calls.testHandOut === undefined) {
@@ -68,16 +65,3 @@ export async function openDatabase(): Promise<TestDatabase> {
   };
 }
 
-/**
- * THE PRODUCT'S DATA HOST, headless (test/data-host.test.ts; the H7 floor's lane tests, 2026-11-13): Python's -- each ask
- * one of the product's intent calls (headless/host.ts hostData, hostTableOutput), planned and run by Python on its
- * database, which the test's own is; a file the test registered handed out by the host, by a handle (Headless.hand_out).
- */
-export function productDataHost(_db: TestDatabase, _planner: Pick<TableModels, 'fileLoad' | 'remoteMount' | 'hostOperations' | 'catalogColumnsSql' | 'outputPlan'>): {
-  readonly host: DataHost;
-  readonly output: Pick<TableWriteHost, 'catalog' | 'output'>;
-  handle(name: string): Promise<string>;
-} {
-  const calls = hostCalls();
-  return { host: hostData(calls), output: hostTableOutput(calls), handle: (name) => testCalls().testHandOut(name) };
-}

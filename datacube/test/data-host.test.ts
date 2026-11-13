@@ -7,11 +7,15 @@
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { openDatabase, productDataHost, type TestDatabase } from '#test-host';
+import { openDatabase, type TestDatabase } from '#test-host';
+import { productDataHost } from '#test-data-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { sha256Hex } from '../../engine-client/src/sha256.ts';
 import { lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+// the data host's own sources, imported here so this test's closure carries them (test_imports.bzl follows relative
+// imports alone: #test-data-host's are not followed)
+import type { DataHost } from '../src/data-host.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import { writeTable } from '../src/table-output.ts';
 import { catalogColumns } from '../src/upload.ts';
@@ -24,7 +28,7 @@ describe("DataCube's data asks, made through the product's DataHost", () => {
   let db: TestDatabase;
   let engine: DuckDbEngine;
   let planner: LitePlanner;
-  let data: ReturnType<typeof productDataHost>;
+  let data: ReturnType<typeof productDataHost> & { readonly host: DataHost };
   const count = async (table: string): Promise<number> => {
     const [rows] = await data.host.operations([{ op: 'count', from: { relation: { name: table } } }]);
     return Number(rows?.[0]?.[0]);

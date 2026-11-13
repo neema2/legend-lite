@@ -231,6 +231,25 @@ node_test(
     entry_point = "test/planned-sql.test.ts",
 )
 
+# DATACUBE'S ENGINE CONTRACT, the client's side (src/engine-contract.ts, src/engine-wire.ts;
+# docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md, step 1, 2026-11-13): the version, the refusals before anything is sent,
+# the typed errors, a closed session, a query's Arrow facts -- over a fake wire
+node_test(
+    name = "engine_contract_test",
+    size = "small",
+    data = [":engine_client"],
+    entry_point = "test/engine-contract.test.ts",
+)
+
+# THE ENGINE CONFORMANCE SUITE (test/engine-conformance.ts, the contract's R7): every engine behind DataCube's Engine
+# held to the same asks; run against Python headless by //python:contract_test (through DataCube's V8 entry)
+js_library(
+    name = "conformance",
+    testonly = True,
+    srcs = ["test/engine-conformance.ts"],
+    visibility = ["//datacube:__pkg__"],
+)
+
 # A TEST'S OWN STATEMENT, typed as a plan's by name (test/unplanned.ts): DataCube's tests and pages send their fixtures'
 # SQL through it; no product source imports it (//tools/guards:planned_sql_test)
 js_library(

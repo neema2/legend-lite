@@ -107,6 +107,9 @@ MINT_REFERENCES = {
 # con.execute` -- is a send the census would not see as one, so any other is red.
 REFERENCES = {
     ('_headless.py', 'query', 'parts'),
+    # 2026-11-13 (the DataCube stream's step 1): the engine contract's door reads a plan's statement as its explain text
+    # (R4: what ran, read-only), never sends it
+    ('contract.py', 'sql', 'plan'),
     ('engine.py', 'query', 'url'),
     ('engine.py', 'sql', 'plan'),
     ('frames.py', 'sql', 'plan'),
@@ -168,6 +171,18 @@ _NETWORK_ROOTS = {'urllib', 'http', 'requests', 'urllib3', 'socket', 'httpx', 'a
 RUNNERS = {'projects.py': 1, 'engine.py': 2, 'frames.py': 1}
 RUNNER_NAMES = {'run_load', 'run_host_load', 'run_write'}
 
+# EVERY uuid4 MINT, by module and the function it is made in (the DataCube stream's step 1, 2026-11-13: the orchestrator's
+# Q7 -- the engine contract's door mints ONE execution id per plan run, as Java's doors do,
+# ArchitectureTest.theServersMintsAreItsHostDoorsAlone): contract.py's _query is the execution id's one mint; the rest
+# name a session, a handed-out file and a saved page's record, never an execution. A new mint is a new place an id is
+# made: red until pinned here, with a dated note.
+UUID_MINTS = {
+    ('_headless.py', 'hand_out'): 1,
+    ('contract.py', '_open'): 1,
+    ('contract.py', '_query'): 1,
+    ('page.py', '_saved'): 1,
+}
+
 AUTHORED_NAMES = {'authored', 'lite_authored'}
 # 2026-11-12 (the orchestrator's ruling: the unwalked door deleted -- its KINDS row, its arity, the native export):
 # _planner.py names the kind once, among the kinds this host refuses by name (REFUSED)
@@ -194,7 +209,16 @@ def census(name: str, source: str) -> dict:
     own = name == '_planned.py'
     called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
     parents = {id(c): p for p in ast.walk(tree) for c in ast.iter_child_nodes(p)}
+    uuid_mints: dict[tuple[str, str], int] = {}
     for node in ast.walk(tree):
+        # the DataCube stream's step 1 (Q7): a uuid4 made, by the function it is made in (uuid.uuid4(), or uuid4())
+        if isinstance(node, ast.Call) and (isinstance(node.func, ast.Attribute) and node.func.attr == 'uuid4'
+                                           or isinstance(node.func, ast.Name) and node.func.id == 'uuid4'):
+            at = parents.get(id(node))
+            while at is not None and not isinstance(at, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                at = parents.get(id(at))
+            key = (name, at.name if at is not None else '<module>')
+            uuid_mints[key] = uuid_mints.get(key, 0) + 1
         # M1 (the re-audit): a runner's calls, and every reference to it (a runner handed on is a reference no call)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in RUNNER_NAMES:
             runner_calls += 1
@@ -290,7 +314,7 @@ def census(name: str, source: str) -> dict:
                            'statement check is deleted -- DataCube asks Python for intent (the #6 bridge)')
     return {'imported': imported, 'refused': refused, 'sends': sends, 'mints': mints,
             'references': references, 'attaches': attaches, 'authored': authored, 'submits': submits,
-            'network': network, 'runner_calls': runner_calls, 'runner_names': runner_names}
+            'network': network, 'runner_calls': runner_calls, 'runner_names': runner_names, 'uuid_mints': uuid_mints}
 
 
 class PlannedGuardTest(unittest.TestCase):
@@ -387,6 +411,7 @@ class PlannedGuardTest(unittest.TestCase):
             ('NETWORK', 'import urllib.request'),
             ('RUNNERS', 'run_load(plan, send)'),
             ('a runner handed on', 'go = run_load'),
+            ('UUID_MINTS', 'def run(plan):\n    execution_id = uuid.uuid4().hex'),
         ]:
             bites(self, pinned_comparison, modules, text, what)
 
@@ -423,6 +448,7 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
     submits: dict[str, int] = {}
     network: dict[str, set[str]] = {}
     runners: dict[str, int] = {}
+    uuid_mints: dict[tuple[str, str], int] = {}
     handed_on: list[str] = []
     for name, text in sorted(modules.items()):
         c = census(name, text)
@@ -444,6 +470,7 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
             runners[name] = c['runner_calls']
         if c['runner_names'] != c['runner_calls']:
             handed_on.append(name)
+        uuid_mints |= c['uuid_mints']
     case.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
     case.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
                                       ' or the planner\'s answer is read, the one send, the bridge\'s check')
@@ -465,6 +492,8 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
     case.assertEqual(RUNNERS, runners, "THE PLAN RUNNERS' CALLERS (M1): each call of run_load or run_host_load is"
                                        " pinned by module (RUNNERS), its plan the planner's answer")
     case.assertEqual([], handed_on, 'a plan runner is called where it is named, never handed on')
+    case.assertEqual(UUID_MINTS, uuid_mints, "EVERY uuid4 MINT, by module and function (UUID_MINTS): the engine contract's "
+                                             'execution id is minted at its door alone, once per plan run (Q7)')
 
 
 if __name__ == '__main__':

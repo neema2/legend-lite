@@ -271,6 +271,35 @@ _HEADLESS_ENV = {
 # the screen's cube documents, case by case, which Python's Page and Grid are held to (datacube/test/parity-screen.test.ts)
 _PARITY_ENV = {"LEGEND_LITE_PARITY": "$(rlocationpath //datacube:test/fixtures/parity/parity.json)"}
 
+# DATACUBE'S ENGINE CONTRACT ON PYTHON (legend_lite/contract.py; docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md, step 1,
+# 2026-11-13): the door's calls and refusals, R3a, the execution id's mint -- and engine-client's conformance suite run in
+# Python's V8 against Python's engine through the bridge (//datacube:engine_conformance_bundle)
+py_test(
+    name = "contract_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_contract.py",
+    ],
+    args = ["test_contract"],
+    data = [
+        ":wheel_duckdb",
+        "//datacube:engine_conformance_bundle",
+        "//datacube:headless_bundle",
+        "//native:compiler",
+    ],
+    env = _ENV | _HEADLESS_ENV | {
+        "LEGEND_LITE_ENGINE_CONFORMANCE": "$(rlocationpath //datacube:engine_conformance_bundle)",
+    },
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":headless",
+        ":legend_lite",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # Grids headless (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §4): a page's grid run by DataCube's own code in V8
 # -- grid.view(), grid.relation, grid.to_pandas() -- each checked against pandas computing the same. The bundle is
 # DataCube's (//datacube:headless_bundle), as the wheel's `datacube` extra will carry it (step 4).
