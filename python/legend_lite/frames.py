@@ -47,6 +47,7 @@ import pyarrow as pa
 
 from . import _host, compiler
 from ._planned import Database, PlannedSql, Result, connect, send
+from ._runframe import exempt, runs
 from .projects import LoadRefused, run_host_load
 from ._types import UnknownType, is_integer
 
@@ -402,18 +403,21 @@ class Reading:
             # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
             return send(self.cursor, sql, params)
         except duckdb.Error as e:
-            try:
-                _pin(self.cursor)
-            except duckdb.TransactionException:
-                with contextlib.suppress(duckdb.Error):
-                    self.cursor.rollback()
-                self.cursor.begin()
-                _pin(self.cursor)
+            # a known crossing, named until fixed (_runframe.EXEMPTIONS): the pin's statement is planned here
+            with exempt("a read's re-pin after its statement failed"):
+                try:
+                    _pin(self.cursor)
+                except duckdb.TransactionException:
+                    with contextlib.suppress(duckdb.Error):
+                        self.cursor.rollback()
+                    self.cursor.begin()
+                    _pin(self.cursor)
             failure = redacted(e, self.held_values)
             if failure is None:
                 raise
         raise failure
 
+    @runs('a read')
     def run(self, plan: compiler.Plan) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
         return typed_by_plan(self.execute(plan.sql, plan.params).to_arrow_table(), plan)
@@ -505,6 +509,7 @@ class Frames:
             self._tables[key] = table
             return table
 
+    @runs('a plan')
     def run(self, plan: compiler.Plan) -> pa.Table:
         """PYTHON'S EXECUTOR: a plan's SQL run on this database, its rows typed by the plan (``typed_by_plan``) --
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).

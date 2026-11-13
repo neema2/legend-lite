@@ -13,6 +13,7 @@ from legend_lite._library import library
 from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
                                   from_plan, plan_from_answer, send)
 from legend_lite._planner import answer
+from legend_lite._runframe import current_run, in_run, planning
 from legend_lite.compiler import LegendError
 from legend_lite.frames import execute_redacted
 
@@ -386,6 +387,78 @@ class HostOperationsTextTest(unittest.TestCase):
                                                          'convert': [{'name': 'big', 'dataType': 'UBIGINT',
                                                                       'logicalType': 'UBIGINT'}]}])
         self.assertIn('CAST("big" AS DECIMAL(20,0))', copy)
+
+
+class _RunWitness:
+    """A duckdb-python connection that records the run each text it is handed arrived inside (the witness)."""
+
+    def __init__(self, con):
+        self._con, self.runs = con, []
+
+    def execute(self, sql, params=None):
+        self.runs.append(current_run())
+        return self._con.execute(sql) if params is None else self._con.execute(sql, params)
+
+    def __getattr__(self, name):
+        return getattr(self._con, name)
+
+
+class RunFrameTest(unittest.TestCase):
+    """THE RUN FRAME (_runframe.py, the next PR's item 2, "separation made foolproof": the standing witness, 2026-11-13):
+    a planner entry -- the native library's every entry but its services -- asked inside a run of its own flow is
+    refused by name; outside one, after one and on another thread while one runs, it answers. The runners' sends are
+    each inside a run."""
+
+    def test_a_planner_entry_is_refused_inside_a_run_and_answers_outside_one(self):
+        planning('plan')
+        with in_run("a test's run"):
+            self.assertEqual(current_run(), "a test's run")
+            with self.assertRaisesRegex(RuntimeError, r"the planner was asked 'plan' inside a run \(a test's run\)"):
+                planning('plan')
+            with self.assertRaisesRegex(RuntimeError, r"the planner was asked 'lite_session_setup' inside a run"):
+                library().call('lite_session_setup', 'DuckDB')
+            # a service plans nothing: the site's types answer inside a run
+            self.assertTrue(library().call('lite_site_types').startswith('OK'))
+        self.assertIsNone(current_run(), 'the run ended with its block')
+        self.assertTrue(library().call('lite_session_setup', 'DuckDB').startswith('OK'))
+
+    def test_the_frame_is_the_flows_another_thread_plans_while_a_run_is_open(self):
+        import threading
+        seen = []
+        with in_run("a test's run"):
+            other = threading.Thread(target=lambda: seen.append((current_run(), compiler.session_setup('DuckDB') != [])))
+            other.start()
+            other.join()
+        self.assertEqual(seen, [(None, True)])
+
+    def test_the_known_crossings_are_named_and_no_other_is_exempt(self):
+        # shrink-only: each a crossing the witness found, reported, and named until it is fixed
+        from legend_lite._runframe import EXEMPTIONS, exempt
+        self.assertEqual(EXEMPTIONS, frozenset({"a read's re-pin after its statement failed"}))
+        with in_run("a test's run"):
+            with exempt("a read's re-pin after its statement failed"):
+                self.assertIsNone(current_run())
+                planning('plan')
+            self.assertEqual(current_run(), "a test's run")
+            with self.assertRaisesRegex(ValueError, 'no known crossing is named'):
+                with exempt('a crossing of my own'):
+                    pass
+
+    def test_each_runner_sends_inside_its_run(self):
+        import os
+        fixture = json.loads(open(os.environ['LEGEND_LITE_RUN_LOAD_FIXTURE'], encoding='utf-8').read())
+        project = compiler.project_data(fixture['model'], fixture['databaseType'])
+        seen = []
+        projects.run_load(project['load'], lambda statement: seen.append(current_run()))
+        self.assertTrue(seen and set(seen) == {'a load'}, seen)
+        witness = _RunWitness(duckdb.connect())
+        db = Database(witness)
+        _host.run(db, {'op': 'schema', 'name': 'witnessed'})
+        _host.ask(db, {'op': 'platform'})
+        self.assertEqual(witness.runs, ["a host's operations", "a host's question"])
+        # a run's planner entry, refused inside it: a load whose execute asks the planner
+        with self.assertRaisesRegex(RuntimeError, r"asked 'lite_session_setup' inside a run \(a load\)"):
+            projects.run_load(project['load'], lambda statement: compiler.session_setup('DuckDB'))
 
 
 class TheBridgeTest(unittest.TestCase):
