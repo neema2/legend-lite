@@ -1502,6 +1502,12 @@ class JavaEvalLedgerTest {
                     // tree written by the dialect (CREATE TABLE ... AS), its payloads the pull's; schema, drop and copy
                     // the host's operations, on a target carrying the database's transaction; nothing evaluated
                     "SnapCopy.java",
+                    // 2026-11-12, the final audit's item 2 (the user's ruling (b); B3's contract): a DataCube table Output
+                    // as one writing plan -- a created table's DDL from the rows' relation type (each Pure type mapped
+                    // by the dialect, every name delimited), then the store write the planner plans; the program's text
+                    // the parser's own reading of a template, the rows and the target placed as protocol nodes;
+                    // nothing evaluated
+                    "OutputPlan.java",
                     // 2026-11-10, docs/DATA_IN_THE_PLAN_2026_11_09.md L6b: a query's data: sources as one load into
                     // session tables named by their content's digest, the payload split into its elements verbatim
                     // (build-time model text, compared never computed) and the source read as its table

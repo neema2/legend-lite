@@ -96,7 +96,12 @@ class DuckDbSnapCopyTest {
         List<ExecutionPlan.Sql> sqls = statements(plain);
         assertEquals(2, sqls.size());
         assertEquals("DROP TABLE IF EXISTS \"copy\"", sqls.get(0).statement());
-        assertTrue(sqls.get(1).statement().startsWith("CREATE TABLE \"copy\" AS SELECT "), sqls.get(1).statement());
+        // the pull's own statement under the copy's making: its columns named as the pull names them (2026-11-12: a
+        // star would copy every physical column, those the model leaves out among them)
+        String pulled = ((ExecutionPlan.TdsResult) com.legend.Compiler.query(com.legend.Compiler.compileModel(TABLES),
+                "|#>{x::DB.people}#").executionPlan("x::RT").root()).sql().statement();
+        assertEquals("CREATE TABLE \"copy\" AS " + pulled, sqls.get(1).statement());
+        assertTrue(!pulled.startsWith("SELECT *"), pulled);
         ExecutionPlan named = copy(request(TABLES, "x::RT", "|#>{x::DB.people}#", "snap", "copy"));
         List<String> texts = statements(named).stream().map(ExecutionPlan.Sql::statement).toList();
         assertEquals(List.of("CREATE SCHEMA IF NOT EXISTS \"snap\"", "DROP TABLE IF EXISTS \"snap\".\"copy\""),
