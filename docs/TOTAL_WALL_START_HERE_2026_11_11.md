@@ -1000,6 +1000,11 @@ In order. Nothing here is in the A/B/C PR.
    - E-3's forcing `WHERE`, after its lane probe.
 8. **CI watch:** macOS's `sdlc` job was cancelled with no log at 49 minutes on 549c018d7 (runner loss suspected). If it
    recurs, it is investigated, never rerun blindly.
+9. **V8's code-memory protection back on** (the user, 2026-11-13: "agreed on turning protection off then with that
+   error message, parent thread as later follow-up"). Python's headless DataCube starts V8 once per process with
+   `--no-memory-protection-keys`: on hosts with protection keys (GitHub's ubuntu-24.04 image of 2026-11-11), a second
+   engine on a thread that did not start V8 segfaulted. The follow-up is one "V8 parent" thread that starts V8 and creates
+   every engine thread, so each inherits the key, and the protection can come back on.
 
 §10's later list stands as it is.
 
