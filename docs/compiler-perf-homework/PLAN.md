@@ -141,3 +141,15 @@ again in the same process after it has been JIT-compiled (the last of five or mo
   the results are only stated as firmly as the spread allows.
 - **The time budget.** The order is W1, W3, W5, W2, W6, W9, W8, W7, W10, W11: the core compiler first, then the
   edges.
+
+## 8. The orchestrator's additions (OK given 2026-11-13)
+
+1. **W10:** besides startup, the TeaVM planner's per-query PLANNING time on the same queries as W1 or W5, beside the
+   JVM's numbers (DataCube plans in the browser tab).
+2. **W3:** scale the MAPPING side separately: many classes per mapping, many mappings, many stores and joins,
+   include chains. That is where `withIncludes` and `closeOverConditions` live.
+3. **W9:** the server's model-load cost apart from its per-request cost, and which part of a request is model work
+   that could be held between requests without cross-run state (`HeldModels` exists for this). Report only; build
+   nothing.
+4. **Each hotspot's share of the TOTAL wall time** on a realistic workload, not only its share of one stage, so that
+   the ranking reflects what users feel.
