@@ -278,6 +278,92 @@ class PlannerSurfaceTest {
             "lite_warehouse_call", "the warehouse's SQL API, a database server of its own, as its binding speaks it",
             "lite_warehouse_read", "the warehouse's SQL API's read"));
 
+    /** THE SERVER'S ROUTES ({@code PureV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
+     *  whose fields are {@link #SERVER_FIELDS}'s. */
+    static final Map<String, String> ROUTES = new TreeMap<>(Map.ofEntries(
+            Map.entry("/api/pure/v1/grammar/grammarToJson/lambda", "a lambda's text"),
+            Map.entry("/api/pure/v1/grammar/grammarToJson/model", "a model's text"),
+            Map.entry("/api/pure/v1/grammar/jsonToGrammar/lambda", "a lambda's protocol JSON"),
+            Map.entry("/api/pure/v1/grammar/jsonToGrammar/lambda/batch", "lambdas' protocol JSON"),
+            Map.entry("/api/pure/v1/grammar/jsonToGrammar/model", "a model's protocol JSON"),
+            Map.entry("/api/pure/v1/compilation/lambdaRelationType", "a model and a lambda"),
+            Map.entry("/api/pure/v1/compilation/compile", "a model"),
+            Map.entry("/api/pure/v1/compilation/lambdaReturnType", "a model and a lambda"),
+            Map.entry("/api/pure/v1/execution/generatePlan", "an ExecuteInput: a function, a model, a runtime"),
+            Map.entry("/api/pure/v1/execution/execute", "an ExecuteInput: a function, a model, a runtime, values"),
+            Map.entry("/api/pure/v1/execution/testDataGeneration/generateSeedData", "a test-data request"),
+            Map.entry("/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed",
+                    "a test-data request and its row identifiers"),
+            Map.entry("/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed",
+                    "a test-data request"),
+            Map.entry("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", "a model and a query"),
+            Map.entry("/api/lite/v1/compilation/compile", "a model"),
+            Map.entry("/api/lite/v1/model/createClass", "a project's model and the classes to make"),
+            Map.entry("/api/lite/v1/model/createAssociation", "a project's model and the associations to make"),
+            Map.entry("/api/lite/v1/model/createDataSpace", "a project's model and the data space to make")));
+
+    /** The routes' query parameters ({@code queryParam(rawQuery, ...)}). */
+    static final Map<String, Kind> QUERY_PARAMETERS = new TreeMap<>(fields("renderStyle", OPTION,
+            "serializationFormat", OPTION));
+
+    /** THE SERVER'S REQUEST VOCABULARY: every key each route file reads, with its kind -- upstream's protocol shapes (a
+     *  model, a lambda, a runtime, values) and lite's model changes, which write Pure model text. */
+    static final Map<String, Map<String, Kind>> SERVER_FIELDS = new TreeMap<>(Map.of(
+            // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
+            // its variable `planned`): the planner's own, echoed into the answer, never sent
+            "PureV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
+                    "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
+                    OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
+                    "lambda", LAMBDA, "lowerBound", VALUE, "model", MODEL_TEXT, "multiplicity", OBJECT, "name", NAME,
+                    "parameterValues", VALUE, "parameters", LAMBDA, "rawType", NAME, "renderStyle", OPTION,
+                    "planned.resultColumns", PLAN_DATA, "runtime", NAME, "serializationFormat", OPTION,
+                    "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE)),
+            "TestDataRoutes.java", new TreeMap<>(fields("_type", OPTION, "columnValuePairs", OBJECT, "function",
+                    LAMBDA, "hashStrings", OPTION, "mapping", NAME, "model", MODEL_TEXT, "name", NAME,
+                    "parameterValues", VALUE, "query", LAMBDA, "rowIdentifiers", OBJECT, "runtime", NAME, "schema",
+                    NAME, "table", NAME, "tableRowIdentifiers", OBJECT, "value", VALUE)),
+            "ModelChanges.java", new TreeMap<>(fields("_type", OPTION, "association", NAME, "associations", OBJECT,
+                    "class", NAME, "classMappings", OBJECT, "classes", OBJECT, "column", NAME, "dataSpace", OBJECT,
+                    "elements", MODEL_TEXT, "endColumn", VALUE, "endLine", VALUE, "genericType", OBJECT, "name", NAME,
+                    "package", NAME, "path", NAME, "project", NAME, "properties", OBJECT, "property", NAME,
+                    "propertyMappings", OBJECT, "pureCode", MODEL_TEXT, "relationFunction", OBJECT, "runtimeValue",
+                    OBJECT, "source", MODEL_TEXT, "sourceInformation", OBJECT, "startColumn", VALUE, "startLine",
+                    VALUE, "type", NAME)),
+            "ModelInput.java", new TreeMap<>(fields("_type", OPTION, "code", MODEL_TEXT, "model", MODEL_TEXT)),
+            // a class made from a grid: its sample rows a Data element's CSV in the model, never a statement
+            "CreateClass.java", new TreeMap<>(fields("_type", OPTION, "as", NAME, "body", LAMBDA, "columns", OBJECT,
+                    "connection", NAME, "connectionValue", OBJECT, "connections", OBJECT, "data", OBJECT,
+                    "databaseType", NAME, "datasourceSpecification", OBJECT, "documentation", VALUE, "from", NAME,
+                    "includedMappings", NAME, "lambda", LAMBDA, "mappings", NAME, "name", NAME, "package", NAME,
+                    "parameters", LAMBDA, "path", NAME, "rows", VALUE, "runtime", NAME, "runtimeValue", OBJECT,
+                    "samples", OBJECT, "schema", NAME, "schemas", OBJECT, "store", NAME, "storeConnections", OBJECT,
+                    "table", NAME, "tables", OBJECT, "type", NAME, "value", VALUE, "where", OBJECT)),
+            // an association's ends: on is a property's name of its class
+            "CreateAssociation.java", new TreeMap<>(fields("_type", OPTION, "associationMappings", OBJECT, "class",
+                    NAME, "ends", OBJECT, "multiplicity", OPTION, "name", NAME, "on", NAME, "package", NAME,
+                    "properties", OBJECT, "unique", OPTION)),
+            "CreateDataSpace.java", new TreeMap<>(fields("_type", OPTION, "classes", NAME, "description", VALUE,
+                    "executionContexts", OBJECT, "name", NAME, "path", NAME, "title", VALUE))));
+
+    /** THE HTTP SERVER'S ROUTES ({@code LegendHttpServer}): each the pure/v1 dispatcher's (the routes above), or a
+     *  service that plans nothing, with what it is instead. */
+    static final Map<String, String> HTTP_ROUTES = new TreeMap<>(Map.of(
+            "/api/pure/v1/", "the pure/v1 dispatcher (ROUTES)",
+            "/api/lite/v1/", "the pure/v1 dispatcher (ROUTES)",
+            "/api/pure/v1/query", "the saved queries' and saved cubes' store: no planner",
+            "/api/server/v1/currentUser", "the current user's name: no planner",
+            "/engine/diagram", "a model's diagrams laid out: no planner",
+            "/health", "the server's health: no planner",
+            "/lsp", "the Pure language server: a model's diagnostics and completions, no plan",
+            "/", "CORS's preflight, any other path 404: no planner"));
+
+    /** The fields named for a statement that are the plan's own, read back: where, and why. */
+    private static final Set<String> PLAN_STATEMENTS = Set.of("PureV1Api.java.planned.sql");
+
+    /** The variables through which a file reads the planner's own JSON back, never a request's: their keys are read
+     *  as {@code variable.key}. */
+    private static final Map<String, Set<String>> INTERNAL_RECEIVERS = Map.of("PureV1Api.java", Set.of("planned"));
+
     /** The playground's door and field: the one place a request carries SQL. */
     private static final String PLAYGROUND = "authored.text";
 
@@ -362,11 +448,41 @@ class PlannerSurfaceTest {
         return out;
     }
 
+    /** Every violation of the server's closed surface: its routes ({@code pureV1Source}'s dispatch), their query
+     *  parameters, each route file's request vocabulary ({@code routeFiles}: a file's name to its text) and the HTTP
+     *  server's routes ({@code httpSource}). */
+    static List<String> serverViolations(String pureV1Source, Map<String, String> routeFiles, String httpSource) {
+        List<String> out = new ArrayList<>();
+        SERVER_FIELDS.forEach((file, fs) -> fs.forEach((f, k) -> sqlRule(out, file + "." + f, f, k)));
+        listedAs(out, "a route", found(pureV1Source, "case \"(/api/[^\"]+)\" ->"), ROUTES.keySet());
+        listedAs(out, "a query parameter", found(pureV1Source, "queryParam\\(rawQuery, \"(\\w+)\"\\)"),
+                QUERY_PARAMETERS.keySet());
+        listedAs(out, "a route file", routeFiles.keySet(), SERVER_FIELDS.keySet());
+        routeFiles.forEach((file, text) -> {
+            if (SERVER_FIELDS.containsKey(file)) {
+                compare(out, file, keys(text, Map.of(), Set.of(), new java.util.HashSet<>(),
+                        INTERNAL_RECEIVERS.getOrDefault(file, Set.of())), SERVER_FIELDS.get(file).keySet());
+            }
+        });
+        listedAs(out, "an HTTP route", found(httpSource, "route\\(\"([^\"]+)\""), HTTP_ROUTES.keySet());
+        return out;
+    }
+
+    private static Set<String> found(String source, String regex) {
+        Set<String> out = new TreeSet<>();
+        Matcher m = Pattern.compile(regex).matcher(source);
+        while (m.find()) {
+            out.add(m.group(1));
+        }
+        return out;
+    }
+
     private static void sqlRule(List<String> out, String where, String name, Kind kind) {
         if (kind == AUTHORED_SQL && !where.equals(PLAYGROUND)) {
             out.add("a field that carries SQL outside the playground: " + where);
         }
-        if (NAMES_SQL.matcher(name).matches() && kind != AUTHORED_SQL && kind != REFUSED) {
+        if (NAMES_SQL.matcher(name).matches() && kind != AUTHORED_SQL && kind != REFUSED
+                && !(kind == PLAN_DATA && PLAN_STATEMENTS.contains(where))) {
             out.add("a field named for a statement, declared " + kind + ": " + where);
         }
     }
@@ -381,6 +497,21 @@ class PlannerSurfaceTest {
         for (String k : declared) {
             if (!read.contains(k)) {
                 out.add(door + " declares the field " + k + ", which it no longer reads");
+            }
+        }
+    }
+
+    /** {@code found} against {@code listed}, each {@code what} (a route, a parameter, a file) named both ways. */
+    private static void listedAs(List<String> out, String what, Set<String> found, Set<String> listed) {
+        for (String k : found) {
+            if (!listed.contains(k)) {
+                out.add(what + " no row lists: " + k + (NAMES_SQL.matcher(k).matches() ? " (named for a statement)"
+                        : ""));
+            }
+        }
+        for (String k : listed) {
+            if (!found.contains(k)) {
+                out.add(what + " listed and gone: " + k);
             }
         }
     }
@@ -467,7 +598,7 @@ class PlannerSurfaceTest {
         throw new IllegalStateException("an unclosed block at " + start);
     }
 
-    private static final Pattern GETTER = Pattern.compile("\\.(?:get\\w*|has)\\(\\s*\"([A-Za-z_]\\w*)\"");
+    private static final Pattern GETTER = Pattern.compile("(\\w*)\\s*\\.(?:get\\w*|has)\\(\\s*\"([A-Za-z_]\\w*)\"");
     private static final Pattern READER = Pattern.compile("\\b[a-z]\\w*\\(\\s*\\w+\\s*,\\s*\"([A-Za-z_]\\w*)\"\\s*\\)");
     private static final Pattern ONLY = Pattern.compile("only\\(\\s*\\w+\\s*,\\s*\"[^\"]*\"((?:\\s*,\\s*\"[^\"]*\")*)\\)");
     private static final Pattern CALL = Pattern.compile("(?<![\\w.])(\\w+)\\(");
@@ -475,12 +606,21 @@ class PlannerSurfaceTest {
     /** The keys {@code body} admits or reads, with the private helpers it calls, transitively. */
     private static Set<String> keys(String body, Map<String, List<String>> methods, Set<String> helpers,
             Set<String> seen) {
+        return keys(body, methods, helpers, seen, Set.of());
+    }
+
+    /** {@link #keys(String, Map, Set, Set)}, a key read through one of {@code internal}'s variables as
+     *  {@code variable.key}. */
+    private static Set<String> keys(String body, Map<String, List<String>> methods, Set<String> helpers,
+            Set<String> seen, Set<String> internal) {
         Set<String> out = new TreeSet<>();
-        for (Pattern p : List.of(GETTER, READER)) {
-            Matcher m = p.matcher(body);
-            while (m.find()) {
-                out.add(m.group(1));
-            }
+        Matcher get = GETTER.matcher(body);
+        while (get.find()) {
+            out.add(internal.contains(get.group(1)) ? get.group(1) + "." + get.group(2) : get.group(2));
+        }
+        Matcher reader = READER.matcher(body);
+        while (reader.find()) {
+            out.add(reader.group(1));
         }
         Matcher only = ONLY.matcher(body);
         while (only.find()) {
@@ -494,7 +634,7 @@ class PlannerSurfaceTest {
             String c = call.group(1);
             if (helpers.contains(c) && seen.add(c)) {
                 for (String b : methods.get(c)) {
-                    out.addAll(keys(b, methods, helpers, seen));
+                    out.addAll(keys(b, methods, helpers, seen, internal));
                 }
             }
         }
@@ -572,6 +712,46 @@ class PlannerSurfaceTest {
                 tab, natives);
         assertEquals(List.of("the tab's export no row lists: runSqlOrError (reaches [authored])",
                 "the native export no row lists: lite_run_sql (reaches [authored])"), found);
+    }
+
+    private static final List<String> SERVER_FILES = List.of("PureV1Api.java", "TestDataRoutes.java",
+            "ModelChanges.java", "ModelInput.java", "CreateClass.java", "CreateAssociation.java",
+            "CreateDataSpace.java");
+
+    private static Map<String, String> routeFiles() {
+        Map<String, String> out = new TreeMap<>();
+        for (String f : SERVER_FILES) {
+            out.put(f, read("core/src/main/java/com/legend/server/" + f));
+        }
+        return out;
+    }
+
+    private static final String HTTP_SOURCE = "core/src/main/java/com/legend/server/LegendHttpServer.java";
+
+    /** The server's surface is closed: every route listed, every key a route file reads declared with its kind, no
+     *  field that carries SQL but the plan half's own statement read back. */
+    @Test
+    void theServersSurfaceIsClosed() {
+        Map<String, String> files = routeFiles();
+        assertEquals(List.of(), serverViolations(files.get("PureV1Api.java"), files, read(HTTP_SOURCE)),
+                "the server's surface is not closed");
+    }
+
+    /** The check names a route no row lists, a request field that carries SQL, and an HTTP route no row lists. */
+    @Test
+    void theServersSurfaceRefusesAPlantedRoute() {
+        Map<String, String> files = routeFiles();
+        String pureV1 = files.get("PureV1Api.java").replace(
+                "            case \"/api/lite/v1/compilation/compile\" ->",
+                "            case \"/api/lite/v1/runSql\" -> runSql(PureV1Api.request(body).getString(\"sql\"));\n"
+                        + "            case \"/api/lite/v1/compilation/compile\" ->");
+        files.put("PureV1Api.java", pureV1);
+        String http = read(HTTP_SOURCE).replace("        route(\"/health\",",
+                "        route(\"/api/lite/v1/sql\", exchange -> { });\n        route(\"/health\",");
+        assertEquals(List.of("a route no row lists: /api/lite/v1/runSql (named for a statement)",
+                "PureV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
+                "an HTTP route no row lists: /api/lite/v1/sql (named for a statement)"),
+                serverViolations(pureV1, files, http));
     }
 
     /** The registry's own rule bites: a field declared SQL away from the playground is named. */
