@@ -1499,7 +1499,51 @@ public final class VerdictSql {
      * union's row order is not a contract). */
     public static SqlQuery batch(List<SqlQuery> statements,
             java.util.Map<String, SqlQuery> frames) {
-        List<OutputCol> outs = batchOutputs();
+        List<Member> members = new ArrayList<>(statements.size());
+        for (SqlQuery st : statements) {
+            members.add(new Member(st, List.of()));
+        }
+        return batchOf(members, frames);
+    }
+
+    /** One column a member's row carries for the HOST judge (E-5c, the user's ruling O5 of 2026-11-13): {@code value},
+     *  a single-value side's own expression (its select of no FROM), under {@code out}, named as the fused statement's
+     *  column the host reads it from. */
+    public record HostColumn(SqlExpr value, OutputCol out) {
+        public HostColumn {
+            java.util.Objects.requireNonNull(value, "value");
+            java.util.Objects.requireNonNull(out, "out");
+        }
+    }
+
+    /** One verdict statement of a batch and the host columns its row carries (none under the database judge alone). */
+    public record Member(SqlQuery statement, List<HostColumn> host) {
+        public Member {
+            java.util.Objects.requireNonNull(statement, "statement");
+            host = List.copyOf(host);
+        }
+    }
+
+    /** {@link #batch}, each member's row carrying its host columns (E-5c): the union's columns are the batch's, then
+     *  every member's host columns in member order; a member projects its own, and a NULL of each other column's type
+     *  for the rest (cast to it, so no member's NULL widens the column the host decodes by its declared type). With
+     *  no host columns, exactly {@link #batch}'s statement. */
+    public static SqlQuery batchOf(List<Member> members, java.util.Map<String, SqlQuery> frames) {
+        List<OutputCol> base = batchOutputs();
+        List<OutputCol> outs = new ArrayList<>(base);
+        java.util.Set<String> columnNames = new java.util.HashSet<>();
+        base.forEach(o -> columnNames.add(o.name()));
+        for (Member m : members) {
+            for (HostColumn h : m.host()) {
+                if (!columnNames.add(h.out().name())) {
+                    throw new IllegalArgumentException("two columns of one fused verdict statement named '"
+                            + h.out().name() + "'");
+                }
+                outs.add(h.out());
+            }
+        }
+        List<SqlQuery> statements = new ArrayList<>(members.size());
+        members.forEach(m -> statements.add(m.statement()));
         // leg 3.4 step 2: the frames the sides reference, DEFINED once at the
         // head (MATERIALIZED: every side sees the same rows), ahead of all
         List<SqlWith.Cte> ctes = new ArrayList<>();
@@ -1540,7 +1584,7 @@ public final class VerdictSql {
                 }
                 body = rename.rewriteRoot(w.body());
             }
-            branches.add(indexed(i, body, outs));
+            branches.add(indexed(i, body, base, hostTail(members, i, outs, base.size()), outs));
         }
         SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
         return ctes.isEmpty() ? union : new SqlWith(ctes, union);
@@ -1549,40 +1593,64 @@ public final class VerdictSql {
     /** {@code SELECT i AS __ix, <the row's columns>}: the verdict row's own
      * select with the index prepended (its projections matched to the batch
      * columns by label); any other body shape rides a derived table. */
-    private static SqlQuery indexed(int i, SqlQuery body, List<OutputCol> outs) {
+    private static SqlQuery indexed(int i, SqlQuery body, List<OutputCol> base, List<SqlSelect.Projection> tail,
+            List<OutputCol> outs) {
         List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
-        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, outs.get(0)));
+        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, base.get(0)));
         if (body instanceof SqlSelect sel && !sel.distinct() && sel.orderBy().isEmpty()
-                && sel.limit() == null && sel.projections().size() == outs.size() - 1) {
+                && sel.limit() == null && sel.projections().size() == base.size() - 1) {
             java.util.Map<String, SqlSelect.Projection> byLabel = new java.util.HashMap<>();
             for (SqlSelect.Projection pr : sel.projections()) {
                 byLabel.put(pr.alias(), pr);
             }
-            if (byLabel.size() == outs.size() - 1) {
-                for (int c = 1; c < outs.size(); c++) {
-                    SqlSelect.Projection pr = byLabel.get(outs.get(c).name());
+            if (byLabel.size() == base.size() - 1) {
+                for (int c = 1; c < base.size(); c++) {
+                    SqlSelect.Projection pr = byLabel.get(base.get(c).name());
                     if (pr == null) {
-                        return derived(i, body, outs);
+                        return derived(i, body, base, tail, outs);
                     }
-                    ps.add(new SqlSelect.Projection(pr.expr(), pr.alias(), outs.get(c)));
+                    ps.add(new SqlSelect.Projection(pr.expr(), pr.alias(), base.get(c)));
                 }
+                ps.addAll(tail);
                 return new SqlSelect(ps, false, sel.from(), sel.where(), sel.groupBy(),
                         sel.having(), sel.qualify(), List.of(), null, null, outs);
             }
         }
-        return derived(i, body, outs);
+        return derived(i, body, base, tail, outs);
     }
 
-    private static SqlQuery derived(int i, SqlQuery body, List<OutputCol> outs) {
+    private static SqlQuery derived(int i, SqlQuery body, List<OutputCol> base, List<SqlSelect.Projection> tail,
+            List<OutputCol> outs) {
         List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
-        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, outs.get(0)));
-        for (int c = 1; c < outs.size(); c++) {
-            String name = outs.get(c).name();
+        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, base.get(0)));
+        for (int c = 1; c < base.size(); c++) {
+            String name = base.get(c).name();
             ps.add(new SqlSelect.Projection(SqlExpr.Column.of("v", body.outputs(), name),
-                    name, outs.get(c)));
+                    name, base.get(c)));
         }
+        ps.addAll(tail);
         return new SqlSelect(ps, false, new SqlSource.Subselect(body, "v", null), null,
                 List.of(), null, null, List.of(), null, null, outs);
+    }
+
+    /** Member {@code i}'s host projections, in the union's order of host columns ({@code outs} after its first
+     *  {@code baseSize}): its own columns' values, and a NULL cast to each other member's column type. */
+    private static List<SqlSelect.Projection> hostTail(List<Member> members, int i, List<OutputCol> outs,
+            int baseSize) {
+        java.util.Map<String, SqlExpr> own = new java.util.HashMap<>();
+        for (HostColumn h : members.get(i).host()) {
+            own.put(h.out().name(), h.value());
+        }
+        List<SqlSelect.Projection> tail = new ArrayList<>(outs.size() - baseSize);
+        for (int c = baseSize; c < outs.size(); c++) {
+            OutputCol o = outs.get(c);
+            SqlExpr v = own.get(o.name());
+            if (v == null) {
+                v = new SqlExpr.Cast(new SqlExpr.NullLit(), o.type(), SqlExpr.Reason.JUDGE);
+            }
+            tail.add(new SqlSelect.Projection(v, o.name(), o));
+        }
+        return tail;
     }
 
     /** CTE references renamed (a table source named after a CTE; the
