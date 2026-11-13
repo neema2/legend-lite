@@ -99,6 +99,29 @@ class TestDataRoutesTest {
         return PureV1Api.route("/api/pure/v1/" + path, null, body, ConnectionResolver.RUNNER);
     }
 
+    /** A query reaching an {@code executeInDb}'s read -- a statement's own SQL text, the test road's -- is refused by
+     *  name on each of the generator's routes, as every product door refuses it (2026-11-13, the orchestrator's
+     *  completion A of item 5: these routes scan the query's relations and lower its seed apart from PlanMaker.plan's
+     *  door, so its text went unrefused there). */
+    @Test
+    void anExecuteInDbsReadIsRefusedByNameOnEveryRoute() {
+        String raw = "{|let n = meta::relational::metamodel::execute::executeInDb('select 7 as A',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB)).columnNames;\n"
+                + "model::Person.all()->project([p|$p.name, p|$p.firm.legalName], ['name', 'firm']);}";
+        String ids = ",\"tableRowIdentifiers\":[{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":"
+                + "\"default\",\"database\":\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\","
+                + "\"value\":1}]}]}]";
+        for (String[] r : new String[][] {{"generateTestData_WithSeed", ids}, {"generateTestData_WithDefaultSeed", ""},
+                {"generateSeedData", ""}}) {
+            PureV1Api.Answer a = route("execution/testDataGeneration/" + r[0], input(raw, r[1]));
+            assertTrue(a.status() != 200, r[0] + ": " + a.json());
+            assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query: a statement\\u0027s own SQL text is the"
+                    + " test road\\u0027s") || a.json().contains("an executeInDb's SQL in a query: a statement's own SQL"
+                    + " text is the test road's"), r[0] + ": " + a.json());
+        }
+    }
+
     /** The test data from given identifiers: the routes' table order (by schema and table: FIRM before the root
      *  PERSON), as text. */
     @Test
@@ -204,12 +227,12 @@ class TestDataRoutesTest {
                 + "\"2020-01-03T00:00:00.000000000+0000\"}]}]}", seed.json());
     }
 
-    /** A temporal key's value is the request's text: in its ISO shape it is cast to the column's type as an escaped
-     *  string; any other text -- a quote's injection, a date in another shape -- is refused by name, never written into
-     *  a statement (the final audit, 2026-11-12: until then the text went straight into {@code DATE '<text>'}, so
+    /** A temporal key's value is the request's text: in its ISO shape (no quote) it is the column type's typed literal;
+     *  any other text -- a quote's injection, a date in another shape -- is refused by name, never written into a
+     *  statement (the final audit, 2026-11-12: until then the text went UNCHECKED into {@code DATE '<text>'}, so
      *  {@code 2024-01-01' OR '1'='1} answered every row). A timestamp key the seed route printed reads back its row. */
     @Test
-    void aTemporalKeysValueIsCastWhereItIsIsoAndRefusedByNameOtherwise() throws Exception {
+    void aTemporalKeysValueIsTypedWhereItIsIsoAndRefusedByNameOtherwise() throws Exception {
         Path file = Files.createTempFile("tdg-days-", ".duckdb");
         Files.delete(file);
         String days = """
@@ -267,6 +290,56 @@ class TestDataRoutesTest {
         PureV1Api.Answer stamp = withKey.apply("STAMP", "2020-01-02T03:04:05.123000000+0000");
         assertEquals(200, stamp.status(), stamp.json());
         assertEquals("default\nSTAMP\nN,S\n1,2020-01-02 03:04:05\n-----\n", stamp.json(), "the seed's printed key");
+    }
+
+    /** A TIMESTAMP_NS key with nine fractional digits finds ITS row on DuckDB, not the row a microsecond away
+     *  (2026-11-13, the user's go to the orchestrator's item 2: the checked text was CAST to TIMESTAMP, which keeps the
+     *  microsecond alone, so the key silently matched another row or none, and S181's refusal of a lost digit was
+     *  bypassed; it is the column type's typed literal now, which DuckDB writes {@code TIMESTAMP_NS '<text>'}). */
+    @Test
+    void aNanosecondKeyFindsItsOwnRow() throws Exception {
+        Path file = Files.createTempFile("tdg-nanos-", ".duckdb");
+        Files.delete(file);
+        String nanos = """
+                ###Pure
+                Class model::S { n: Integer[0..1]; }
+
+                ###Relational
+                Database store::NANOS ( Table STAMP ( S TIMESTAMP_NS PRIMARY KEY, N INTEGER ) )
+
+                ###Mapping
+                Mapping model::NM (
+                    model::S: Relational { ~mainTable [store::NANOS] STAMP n: [store::NANOS] STAMP.N }
+                )
+
+                ###Connection
+                RelationalDatabaseConnection store::NanosConn {
+                    type: DuckDB;
+                    specification: DuckDB { path: '%s'; };
+                    auth: Test;
+                }
+
+                ###Runtime
+                Runtime model::NRT {
+                    mappings: [ model::NM ];
+                    connections: [ store::NANOS: [ c: store::NanosConn ] ];
+                }
+                """.formatted(file.toString().replace("\\", "/"));
+        Seed.sql(nanos, "CREATE TABLE STAMP (S TIMESTAMP_NS PRIMARY KEY, N INTEGER)", "model::NRT");
+        Seed.sql(nanos, "INSERT INTO STAMP VALUES (TIMESTAMP_NS '2020-01-02 03:04:05.123456789', 1),"
+                + " (TIMESTAMP_NS '2020-01-02 03:04:05.123456', 2)", "model::NRT");
+        PureV1Api.Answer one = route("execution/testDataGeneration/generateTestData_WithSeed",
+                "{\"clientVersion\":\"vX_X_X\",\"function\":"
+                + PureV1Api.grammarToJsonLambda("|model::S.all()->project([d|$d.n], ['n'])", false).json()
+                + ",\"model\":" + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", nanos))
+                + ",\"mapping\":\"model::NM\",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"model::NRT\"},"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"},\"tableRowIdentifiers\":[{\"table\":{\"_type\":"
+                + "\"table\",\"table\":\"STAMP\",\"schema\":\"default\",\"database\":\"store::NANOS\"},"
+                + "\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"S\",\"value\":"
+                + "\"2020-01-02T03:04:05.123456789+0000\"}]}]}]}");
+        assertEquals(200, one.status(), one.json());
+        assertTrue(one.json().startsWith("default\nSTAMP\nN,S\n1,"), "the nanosecond key's own row: " + one.json());
+        assertEquals(1, one.json().lines().filter(l -> l.matches("\\d+,.*")).count(), "its row alone: " + one.json());
     }
 
     /** The census: upstream's embedded data, a model fact (no run). */

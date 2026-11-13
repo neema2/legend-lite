@@ -196,6 +196,28 @@ class TestDoorTest {
         }
     }
 
+    /** A raw grid's rows or column names are a KEYED result whose keys are the grid's reported columns (D29, step 7):
+     *  on the TEST road, whose programs plan {@code executeInDb}'s read -- PCT and the corpus run it. Moved from the
+     *  product's ProductStatementsTest on 2026-11-13 (the user's ruling (a) on the orchestrator's item 5: the product's
+     *  doors refuse it by name, QueryDoorTest). */
+    @Test
+    void aRawGridsRowsAreAKeyedResultOnTheTestRoad() throws Exception {
+        String valuesBody = CONN + EXEC + "'select 7 as A', $c).rows->map(r|$r.values);}";
+        ExecutionPlan values = storeless(valuesBody);
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, values.root()).steps();
+        assertInstanceOf(ExecutionPlan.Keyed.class, steps.get(steps.size() - 1), steps.toString());
+        String namesBody = CONN + EXEC + "'select 7 as A, 8 as B', $c).columnNames;}";
+        ExecutionPlan names = storeless(namesBody);
+        List<ExecutionPlan.Node> nameSteps = assertInstanceOf(ExecutionPlan.Sequence.class, names.root()).steps();
+        assertInstanceOf(ExecutionPlan.Keyed.class, nameSteps.get(nameSteps.size() - 1), nameSteps.toString());
+        try (Connection c = TestBackends.platform().open()) {
+            // the test road's own answer to each body, as its program runs it
+            assertEquals(com.legend.testing.Program.last(StorelessRuntime.with("", Databases.PLATFORM), valuesBody,
+                    StorelessRuntime.RUNTIME, c).rows(), run(values, c));
+            assertEquals(List.of(List.of("A"), List.of("B")), run(names, c));
+        }
+    }
+
     /** M3d, R17 C11: an effect as the program's last statement answers as the walk's arm does -- no value for
      *  executeInDb, true for the DDL that drops and creates. */
     @Test

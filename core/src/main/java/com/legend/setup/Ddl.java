@@ -316,28 +316,6 @@ public final class Ddl {
                 java.util.List.of(row)));
     }
 
-    /** A model CSV cell's date, in its ISO shape (the final audit, 2026-11-12). */
-    private static final java.util.regex.Pattern ISO_DATE = java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
-
-    /** A model CSV cell's date-time, in its ISO shape: a date, then optionally a time and an offset. */
-    private static final java.util.regex.Pattern ISO_DATE_TIME = java.util.regex.Pattern.compile(
-            "\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?)?([+-]\\d{2}(:?\\d{2})?|Z)?");
-
-    /**
-     * {@code text}, a model CSV cell for the date or date-time column {@code col} of {@code table}, where it has
-     * {@code shape}: its text is written as the engine writes it ({@code DATE '<text>'}), unchanged for every valid
-     * model; a cell of any other shape -- a quote above all, which would end the literal -- is refused by name, never
-     * written (the final audit, 2026-11-12: the engine copies such a cell raw, which is SQL only by accident).
-     */
-    private static String iso(String text, java.util.regex.Pattern shape, DatabaseDefinition.ColumnDefinition col,
-            String table, String what) {
-        if (!shape.matcher(text).matches()) {
-            throw new IllegalStateException("setUpDataSQLs: the cell '" + text + "' of " + table + "." + col.name()
-                    + " is no ISO " + what + ": refused, never written into a statement");
-        }
-        return text;
-    }
-
     /** The engine's spellings of an absent cell. */
     private static final java.util.Set<String> NULL_CELLS = java.util.Set.of("", "---null---");
 
@@ -361,11 +339,10 @@ public final class Ddl {
             return new com.legend.sql.SqlExpr.StringLit(text);
         }
         if (t instanceof RelationalDataType.Date_) {
-            return new com.legend.sql.SqlExpr.DateLit(iso(text, ISO_DATE, col, table, "date (yyyy-MM-dd)"));
+            return new com.legend.sql.SqlExpr.DateLit(text);
         }
         if (t instanceof RelationalDataType.Timestamp) {
-            return new com.legend.sql.SqlExpr.TimestampLit(iso(text, ISO_DATE_TIME, col, table,
-                    "date-time (yyyy-MM-dd[ HH:mm[:ss[.f]]][offset])"));
+            return new com.legend.sql.SqlExpr.TimestampLit(text);
         }
         if (t instanceof RelationalDataType.Time) {
             return new com.legend.sql.SqlExpr.TimeLit(text);
