@@ -18,7 +18,10 @@ import java.util.Set;
  * TypedQuery.lowerer were, for the tests that inspect a lowered statement, kept in TEST sources -- not product code, so
  * not a door. The product lowers through the planner's own road ({@link ProductStatements}: its plans, and
  * {@link ProductStatements#lowerTestDataSeed}, the test-data seed's one entry); this reaches the same road the same way,
- * step by step, as the root's methods did.
+ * step by step, as the root's methods did: the raw-SQL refusal first ({@link QueryDoor#refuseRawSql}), then the plan's
+ * own prepare, plan and lowering ({@link ProductStatements#prepare}, {@code planned}, {@code lower}: package-private to
+ * the planner since 2026-11-13, so this helper sits in its package), and the planner's one lowering configuration
+ * ({@link ProductStatements#configured}).
  */
 public final class Lowered {
 
@@ -35,6 +38,8 @@ public final class Lowered {
     /** {@link #lower(TypedQuery, String, boolean)} with the query's declared parameters as {@code slots}. */
     public static Compiler.LoweredQuery lower(TypedQuery query, String runtime, boolean streaming,
             List<SqlExpr.PlanParam> slots, Set<Feature> features) {
+        // the product's raw-SQL refusal first, as its doors and the seed's entry refuse (the C4 audit's M5, 2026-11-13)
+        QueryDoor.refuseRawSql(query);
         ProductStatements.Statement s = ProductStatements.prepare(query, query.body(), runtime, null, features);
         Prepared.Planned p = ProductStatements.planned(s);
         return new Compiler.LoweredQuery(ProductStatements.lower(query, p, s.temporal(), streaming, slots,

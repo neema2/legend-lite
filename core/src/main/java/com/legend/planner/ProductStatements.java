@@ -312,7 +312,7 @@ public final class ProductStatements {
      *  not plan as a query. A handle (a connection, a runtime) is refused as an answer: it has no value to write (the
      *  test road's driver answers it as a null its judges never compare); before a program's last statement it plans
      *  no step ({@code PlanMaker.program}). */
-    public static Prepared.Planned planned(Statement s) {
+    static Prepared.Planned planned(Statement s) {
         return switch (s.prepared()) {
             case Prepared.Planned p -> p;
             case Prepared.Effect e when handle(s) -> throw new NotImplementedException("a "
@@ -336,7 +336,7 @@ public final class ProductStatements {
 
     /** {@code p} lowered on the product's road: {@code streaming} the streaming graph root, {@code slots} the query's
      *  declared parameters, {@code sites} the program's object-id minter. */
-    public static SqlQuery lower(TypedQuery query, Prepared.Planned p, boolean temporal,
+    static SqlQuery lower(TypedQuery query, Prepared.Planned p, boolean temporal,
             boolean streaming, List<SqlExpr.PlanParam> slots, ObjectSites sites) {
         Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites);
         SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
@@ -360,13 +360,13 @@ public final class ProductStatements {
 
     /** The Lowerer {@code p} lowers with on the product's road: the product's configuration, the frame's time zone,
      *  the features of the frame, the statement's tree and the caller. */
-    public static Lowerer lowerer(TypedQuery query, Prepared.Planned p, boolean temporal,
+    static Lowerer lowerer(TypedQuery query, Prepared.Planned p, boolean temporal,
             boolean streaming, List<SqlExpr.PlanParam> slots, ObjectSites sites) {
         return lowerer(query, p.body(), p.env(), temporal, streaming, slots, sites);
     }
 
     /** The Lowerer {@code body} (prepared on {@code env}) lowers with on the product's road. */
-    public static Lowerer lowerer(TypedQuery query, List<TypedSpec> body, PlanEnv env,
+    static Lowerer lowerer(TypedQuery query, List<TypedSpec> body, PlanEnv env,
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         return configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)

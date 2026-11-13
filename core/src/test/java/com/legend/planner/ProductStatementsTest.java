@@ -143,6 +143,28 @@ class ProductStatementsTest {
         assertInstanceOf(com.legend.sql.SqlSelect.class, lowered);
     }
 
+    /** The lowering's own steps are the planner's (the C4 audit's M5, 2026-11-13): {@code planned}, {@code lower} and
+     *  both {@code lowerer}s package-private, so no class past the planner reaches the product's road but by
+     *  {@code prepare} (whose callers ArchitectureTest pins) and the seed's one entry; and the tests' helper
+     *  {@link Lowered} refuses raw SQL first, as the product's doors and the seed's entry do. */
+    @Test
+    void theLoweringsStepsArePackagePrivateAndTheTestsHelperRefusesRawSql() {
+        java.util.Set<String> open = new java.util.TreeSet<>();
+        for (java.lang.reflect.Method m : ProductStatements.class.getDeclaredMethods()) {
+            if (java.util.Set.of("planned", "lower", "lowerer", "configured").contains(m.getName())
+                    && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
+                open.add(m.getName());
+            }
+        }
+        assertEquals(java.util.Set.of(), open, "the lowering's steps reachable past the planner");
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.TypedQuery raw = Compiler.query(ctx, "{|" + CONN + "let n = meta::relational::metamodel::execute"
+                + "::executeInDb('select 7 as A', $c).columnNames;\n#>{s::DB.T}#->select(~[ID]);}");
+        com.legend.error.NotImplementedException refused = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> Lowered.lower(raw, "s::RT", false));
+        assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+    }
+
     @Test
     void aDdlTextIsThePlansConstantAndHasNoSqlText() {
         // D17: a DDL text generator's text is the model's, answered with nothing sent; the query's SQL text (the

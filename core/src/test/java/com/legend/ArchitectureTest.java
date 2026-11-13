@@ -659,6 +659,34 @@ final class ArchitectureTest {
                             && a.getName().equals("testProgram")))
             .as("B12 item 1: the program road's test entry is the test door's");
 
+    /**
+     * <strong>A product statement is prepared by the planners alone (the C4 audit's M5, 2026-11-13).</strong>
+     * {@code ProductStatements.prepare} is the first step of the product's road (the inliner, the resolver, the
+     * cross-store and raw-SQL guards before the lowering); its plan and lowering steps ({@code planned}, {@code lower},
+     * {@code lowerer}) are package-private to the planner. Only the planner's own package and the test planner's call
+     * it, by a call or a reference. {@link #thePrepareRuleBitesAPlantedCaller} shows it bites.
+     */
+    @Test
+    void aProductStatementIsPreparedByThePlannersAlone() {
+        PREPARE_IS_THE_PLANNERS.check(CORE_PROD_CLASSES);
+    }
+
+    /** The rule of {@link #aProductStatementIsPreparedByThePlannersAlone}. */
+    static final com.tngtech.archunit.lang.ArchRule PREPARE_IS_THE_PLANNERS = noClasses()
+            .that().resideOutsideOfPackages("com.legend.planner", "com.legend.testplan")
+            .should().accessTargetWhere(invokesWhere("ProductStatements.prepare",
+                    a -> a.getTargetOwner().isEquivalentTo(com.legend.planner.ProductStatements.class)
+                            && a.getName().equals("prepare")))
+            .as("M5 (2026-11-13): a product statement is prepared by the planner and the test planner alone");
+
+    /** {@link #aProductStatementIsPreparedByThePlannersAlone} fails on a class that prepares a statement past the
+     *  planners, by a call and by a reference ({@code server.PlantedPrepare}, test classes planted for this alone). */
+    @Test
+    void thePrepareRuleBitesAPlantedCaller() {
+        bites(PREPARE_IS_THE_PLANNERS, com.legend.server.PlantedPrepare.class);
+        bites(PREPARE_IS_THE_PLANNERS, com.legend.server.PlantedPrepare.ByReference.class);
+    }
+
     @Test
     void execIsABackend() {
         noClasses()

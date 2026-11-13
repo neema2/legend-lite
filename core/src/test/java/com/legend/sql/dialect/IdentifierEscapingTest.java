@@ -39,9 +39,8 @@ class IdentifierEscapingTest {
         for (var type : com.legend.database.Databases.relational()) {
             out.put(com.legend.database.Databases.dialect(type), InjectionFuzzTest.rules(type));
         }
-        out.put(new EngineStyleH2(), H2_RULES);
-        out.put(new EngineStyleDB2(), H2_RULES);
-        out.put(new EngineStyleComposite(), H2_RULES);
+        // the legacy engine-text printers are not here: they write legend-engine's own text, byte-identical to main's
+        // (the user's ruling M5, 2026-11-13: C4's escaping taken out of them; theEngineTextPrintersAreMainsByteForByte)
         return out;
     }
 
@@ -86,31 +85,21 @@ class IdentifierEscapingTest {
         return out;
     }
 
-    /** The engine-text printer's own two spellings of a name (2026-11-13: until then written as given): a user TDS
-     *  join's isolating wrap, each output quoted, and a view frame's projection, written bare where the name is a plain
-     *  identifier (legend-engine's text) and delimited otherwise -- each one identifier, spelled exactly, on H2. */
+    /** The legacy engine-text printers write legend-engine's own text, BYTE-IDENTICAL TO MAIN'S (the user's ruling M5,
+     *  2026-11-13: C4's identifier escaping taken out of EngineStyleH2 and its subclasses; the backwards-compatibility
+     *  printer is not the escaping ruling's). Said plainly, as main writes it: an alias holding a quote is written as
+     *  given, so on H2 its quote ends the identifier ({@code as "a"b\c"} is left open) -- main's behaviour, named here so
+     *  that a change to it is a decision, and listed for the follow-up stream (C5). The golden pre-quoted-names.tsv
+     *  holds every ordinary name's engine text the same way. */
     @Test
-    void theEngineTextPrintersOwnSpellingsAreEachOneIdentifier() {
-        OutputCol quoted = new OutputCol(NAME, SqlType.Scalar.INTEGER, false, OutputCol.Origin.PHYSICAL);
-        var a = new SqlSource.Table("A", "a0", List.of(quoted), false, Map.of(), com.legend.sql.NameQuoting.BARE);
-        var b = new SqlSource.Table("B", "b0", List.of(ID), false, Map.of(), com.legend.sql.NameQuoting.BARE);
-        var join = new SqlSource.Join(a, b, SqlSource.Join.Kind.CROSS, null, List.of(quoted, ID));
-        var star = new SqlSelect(List.of(), false, join, null, List.of(), null, null, List.of(), null, null,
-                List.of(quoted, ID));
-        String joined = new EngineStyleH2().render(star);
-        assertEquals(true, identifiers(joined, H2_RULES).contains(NAME), joined);
-
-        String spaced = "x, 1 AS y";
-        OutputCol view = new OutputCol(spaced, SqlType.Scalar.INTEGER, false, OutputCol.Origin.PHYSICAL);
-        var inner = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("t0", ID), spaced, null)), false,
-                new SqlSource.Table("T", "t0", List.of(ID), false, Map.of(), com.legend.sql.NameQuoting.BARE), null,
-                List.of(), null, null, List.of(), null, null, List.of(view));
-        var outer = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("root", view), null, null)), false,
-                new SqlSource.Subselect(inner, "root", "a_view"), null, List.of(), null, null, List.of(), null, null,
-                List.of(view));
-        String framed = new EngineStyleH2().render(outer);
-        // the frame's alias and the outer read of it: the name twice, each one identifier
-        assertEquals(2, identifiers(framed, H2_RULES).stream().filter(spaced::equals).count(), framed);
+    void theEngineTextPrintersAreMainsByteForByte() {
+        var table = new SqlSource.Table("T", "t0", List.of(ID), false, Map.of(), com.legend.sql.NameQuoting.BARE);
+        var select = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("t0", ID), NAME, null)), false,
+                table, null, List.of(), null, null, List.of(), null, null, List.of(ID));
+        for (SqlDialect engine : List.<SqlDialect>of(new EngineStyleH2(), new EngineStyleDB2(), new EngineStyleComposite())) {
+            assertEquals("select \"root\".ID as \"a\"b\\c\" from T as \"root\"", engine.render(select),
+                    engine.getClass().getSimpleName());
+        }
     }
 
     @Test

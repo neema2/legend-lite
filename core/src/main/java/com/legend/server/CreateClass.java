@@ -723,8 +723,6 @@ final class CreateClass {
         return out;
     }
 
-    /** A table's columns' names, in order, as the database names them: a quoted name ({@code "Trade Note"}, its quotes
-     *  kept in the protocol, as upstream's are) without its quotes. */
     /** A table's columns by the names they denote, read as the compiled model reads the protocol's
      *  ({@link com.legend.model.RelationalIdentifier#bare}: quotes off, the lexer's backslash escape decoded). The
      *  protocol keeps a quoted name as written, as upstream's does (RelationalParseTreeWalker: the token's text); until
