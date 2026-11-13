@@ -93,34 +93,6 @@ def _start_v8() -> None:
 _HOME_APIS = (('/sdlc/api/', 'sdlc'), ('/depot/api/', 'depot'))
 _LITE_API = '/api/lite/v1/'
 
-# V8 started by this module, once a process (_start_v8); a list so the flag is set without a global statement
-_V8_STARTED: list[bool] = []
-_V8_LOCK = threading.Lock()
-
-
-def _start_v8() -> None:
-    """V8 started once a process, before any engine's thread, its memory protection keys off: on a CPU that has them
-    (Intel's pku, the kernel's ospke) V8 sets each thread's key rights where it starts, and an engine's thread started
-    from a thread V8 never set up crashed the process when its context was made -- a second engine on another thread
-    (2026-11-08: //python:headless_test's OneRead and //python:engine_test segfaulted in mini-racer on such a machine;
-    with the keys off all 55 headless tests pass). The keys guard V8's own compiled code; the code V8 runs here is
-    DataCube's bundle. A process whose V8 another library started first keeps that one's flags: said in a warning, so a
-    crash there has its cause in sight (the review of 2026-11-08)."""
-    from py_mini_racer import DEFAULT_V8_FLAGS, LibAlreadyInitializedError, init_mini_racer
-
-    with _V8_LOCK:
-        if _V8_STARTED:
-            return
-        _V8_STARTED.append(True)
-        try:
-            init_mini_racer(flags=(*DEFAULT_V8_FLAGS, '--no-memory-protection-keys'))
-        except LibAlreadyInitializedError:
-            import warnings
-
-            warnings.warn('V8 was started in this process before legend-lite\'s DataCube engine, without '
-                          '--no-memory-protection-keys: on a CPU with memory protection keys a second engine on another '
-                          'thread may crash the process', RuntimeWarning, stacklevel=3)
-
 
 def _statement_in(body: str | None) -> str | None:
     """The statement a fetch's JSON body carries for a SQL API (its ``sql``, as a warehouse's submit names it), or None."""
