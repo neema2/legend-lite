@@ -127,17 +127,33 @@ class DatabaseSettingsH2Test {
                 + " WHERE SETTING_NAME = 'DEFAULT_NULL_ORDERING'", target), PlanSessions.shared());
     }
 
-    /** Every row of the database's {@code INFORMATION_SCHEMA.SETTINGS}, in order: what a declared database keeps byte
-     *  for byte. */
+    /**
+     * Every SETTING of the database's {@code INFORMATION_SCHEMA.SETTINGS}, in order: what a declared database keeps byte
+     * for byte. Not its {@code info.*} rows (2026-11-13, main's Windows run 43451235254, the user's "fix now"): they are
+     * the store's statistics -- {@code info.CHUNK_COUNT}, {@code info.CURRENT_VERSION}, {@code info.PAGE_COUNT} and the
+     * rest -- which H2's background writer changes on its own whenever it flushes (WRITE_DELAY, 500 ms by default), so
+     * two reads straddling a flush differ with nothing sent and no setting changed. A setting is what a statement
+     * changes; those rows are what the store's housekeeping does.
+     */
     private static List<String> everySetting(Connection c) throws Exception {
         List<String> out = new ArrayList<>();
         try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT SETTING_NAME, SETTING_VALUE FROM"
-                + " INFORMATION_SCHEMA.SETTINGS ORDER BY SETTING_NAME")) {
+                + " INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME NOT LIKE 'info.%' ORDER BY SETTING_NAME")) {
             while (rs.next()) {
                 out.add(rs.getString(1) + "=" + rs.getString(2));
             }
         }
+        assertTrue(out.stream().anyMatch(r -> r.startsWith("DEFAULT_NULL_ORDERING=")), "the settings read: " + out);
         return out;
+    }
+
+    /** The store written out (a {@code CHECKPOINT}) before the settings are first read, so the background writer has
+     *  nothing pending to flush while the test runs. */
+    private static List<String> quietSettings(Connection c) throws Exception {
+        try (Statement st = c.createStatement()) {
+            st.execute("CHECKPOINT");
+        }
+        return everySetting(c);
     }
 
     /**
@@ -153,7 +169,7 @@ class DatabaseSettingsH2Test {
         Path dir = Files.createTempDirectory(Path.of(System.getenv("TEST_TMPDIR")), "h2file");
         String path = dir.resolve("db").toString();
         try (Connection holder = DriverManager.getConnection("jdbc:h2:file:" + path)) {
-            List<String> before = everySetting(holder);
+            List<String> before = quietSettings(holder);
             ExecutionPlan.Target target = declared(new ConnectionSpecification.LocalFile(path));
             assertEquals(ExecutionPlan.DatabaseSettings.THE_DATABASES_OWN, target.settings(), "the database's own");
             assertEquals("LOW", nullOrdering(target), "run as it is: H2's own null ordering, never the dialect's");
@@ -178,7 +194,7 @@ class DatabaseSettingsH2Test {
                 st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, V INTEGER)");
                 st.execute("INSERT INTO T VALUES (1, 3), (2, NULL), (3, 1), (4, NULL), (5, 2)");
             }
-            List<String> before = everySetting(holder);
+            List<String> before = quietSettings(holder);
             String model = """
                     ###Relational
                     Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, V INTEGER ) )
@@ -210,6 +226,33 @@ class DatabaseSettingsH2Test {
                         + " on a database whose own is LOW");
             }
             assertEquals(before, everySetting(holder), "every setting as the user's database had it");
+        } finally {
+            server.stop();
+        }
+    }
+
+    /**
+     * The check bites (2026-11-13, with the {@code info.*} rows left out): a {@code SET} another session sends to the
+     * declared server database -- what a run that modified it would do -- changes the settings the holding client
+     * reads, and the comparison the two tests above make fails. That a run sends only its plan's statements is
+     * witnessed apart, on every road ({@code com.legend.planner.SentStatementsAreThePlansTest}); this pins that the
+     * database's state is read where it would change.
+     */
+    @Test
+    void aSetSentToTheDeclaredServerDatabaseIsSeen() throws Exception {
+        Path dir = Files.createTempDirectory(Path.of(System.getenv("TEST_TMPDIR")), "h2set");
+        org.h2.tools.Server server = org.h2.tools.Server.createTcpServer("-tcpPort", "0", "-baseDir", dir.toString(),
+                "-ifNotExists").start();
+        String url = "jdbc:h2:tcp://localhost:" + server.getPort() + "/declared";
+        try (Connection holder = DriverManager.getConnection(url)) {
+            List<String> before = quietSettings(holder);
+            try (Connection planted = DriverManager.getConnection(url); Statement st = planted.createStatement()) {
+                st.execute("SET DEFAULT_NULL_ORDERING HIGH");
+            }
+            List<String> after = everySetting(holder);
+            assertTrue(before.contains("DEFAULT_NULL_ORDERING=LOW") && after.contains("DEFAULT_NULL_ORDERING=HIGH"),
+                    before + " -> " + after);
+            assertTrue(!before.equals(after), "the comparison sees the SET");
         } finally {
             server.stop();
         }
