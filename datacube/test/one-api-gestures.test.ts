@@ -16,7 +16,7 @@
 // one-api-ledger.test.ts; Python's is python/tests/test_one_api.py.
 
 import assert from 'node:assert/strict';
-import { after, afterEach, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 import { getInstanceByDom } from 'echarts/core';
 
@@ -168,6 +168,12 @@ class SnappingPlanner extends StubPlanner {
 /** The planner a grid's copy is planned by (snapCopy): legend-lite's own, its statements reaching the fake engine. */
 const copies = plannerFor('', '');
 after(() => copies.dispose());
+// its module loaded, and its first copy planned, before any test clicks Snap, as app-dom.test.ts warms its own: a click
+// is followed by a few ticks, not a planner's load (the closing audit's item 7, 2026-11-13: CI's first snap test timed
+// out waiting on the load)
+before(async () => {
+  await copies.snapCopy({ databaseType: 'DuckDB', ...SNAP_PULL, table: 'warm' });
+});
 /** A grid over `name` that can snap its rows into the tab (its toggle a toggle): a copy whose statements reach the
  *  fake engine, its count the fixture's. */
 const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {

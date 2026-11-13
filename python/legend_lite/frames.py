@@ -863,10 +863,12 @@ class Frames:
                 'remotes': {f.leaf['url']: f.hosted() for f in read if 'url' in f.leaf}}
 
     def owned(self) -> list[str]:
-        """The tables and views of this database a page's grids read -- each frame's, each page's file's -- none of which a
-        flow's table Output may write (DataCube's table writer refuses them by name)."""
+        """The tables and views of this database a page's grids read -- each frame's, each page's file's -- and each name a
+        snap's copy is being filled under (``streaming_file``'s reservation), none of which a flow's table Output may
+        write (DataCube's table writer refuses them by name). A reserved name left out let an Output make the table the
+        snap's copy then dropped and replaced (the closing audit's item 1, 2026-11-13)."""
         with self._lock:
-            return [t.name for t in self._tables.values()] + list(self._files)
+            return [t.name for t in self._tables.values()] + list(self._files) + sorted(self._reserved)
 
     def read_files(self) -> dict[str, str]:
         """Each page's file this database read in, by its bytes' hash (its ``leaf``'s): the table it was read into."""
