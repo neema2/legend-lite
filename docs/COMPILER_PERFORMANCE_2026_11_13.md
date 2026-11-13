@@ -13,6 +13,9 @@ full compiler pipeline (excluding lean SQL)" — "this one is more important to 
 - the numbers: BASELINE.md;
 - `scripts/` and `raw/`, including each profile's summary in `raw/jfr/`.
 
+**Measured at 068dbf199.** Its `core/`, `wasm/` and `native/` trees are identical to `claude/total-wall`'s 40d3bf0d5
+and to main's merge commit 981a24b87 (`git diff --stat`: empty), so these numbers are main's.
+
 Machine: 4 vCPU, product JDK 25, steal under 2%. Every number below is a median of separate JVMs with its spread in
 BASELINE.md. Shares come from JFR at 1 ms sampling.
 
@@ -37,6 +40,26 @@ Read the ranking as impact × confidence / effort:
 - For the server, #4.
 
 #2, #5 and #6 are small, contained edits with no tenet risk.
+
+**Items that touch a guard or another program's rules. These are NOT perf tweaks; each is the user's ruling:**
+- **#1, the round-trip:** `TestPlanJson.requireRoundTrip` at TestPlanner.java:162 is **G11's run-time proof** (every
+  test plan is portable data). Making it opt-in, as the product query's is, would change a guard.
+- **#1, the seed memo:** remembering planned test data across tests touches **the Data-in-the-plan rules**
+  (docs/DATA_IN_THE_PLAN_2026_11_09.md: a load carries a reference and a digest; the program L1–L8). That program
+  decides it, not this stream.
+- **#3 and #4 (holding):** new state that lives as long as the model. It does not change the answer (G10), but its
+  lifetime, memory and lock are a policy decision.
+- **#9:** must keep G11's round-trip passing, so it is proven by that guard, not exempt from it.
+- **§5, the proposed ratchet,** is itself a new guard file.
+
+None of #2, #5, #6, #7 or #8 touches a guard. Each is proven by unchanged plan hashes and the existing lanes.
+
+**A docs fix, not a code fix:** `wasm/README.md` (Results) says the WASM planner is "4.0–4.6× slower" than the JVM,
+with "warm p50 9.6–13.9 ms". That figure times `planOrError`, which compiles the model on every call
+(`Boundary.plan`, wasm/src/main/java/planner/Boundary.java:142), so about 90% of it is model compile. Over a held model
+(`planHeldOrError`), per-query planning in WASM is at parity with the JVM on that corpus (p50 0.99×) and 1.6× on deep
+queries, with identical answers (W10). The README should say what it timed, or time the held path. That is a docs edit
+for whoever owns the WASM README.
 
 What is fine, and measured to be fine:
 - per-query planning is flat across 2K–201K model elements (invariant 5 holds);

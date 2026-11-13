@@ -1,6 +1,6 @@
 # Compiler performance: the baseline (phase 2), 2026-11-13
 
-Measured on branch `claude/compiler-perf` at 068dbf199. The workloads, metrics and noise rules are in [PLAN.md](PLAN.md).
+Measured on branch `claude/compiler-perf` at 068dbf199 (its core/, wasm/ and native/ trees are identical to main's merge 981a24b87). The workloads, metrics and noise rules are in [PLAN.md](PLAN.md).
 The scripts are in `scripts/` (as `.txt`), and the raw numbers and logs are in `raw/`. The diagnosis that reads these
 numbers is `docs/COMPILER_PERFORMANCE_2026_11_13.md`.
 
