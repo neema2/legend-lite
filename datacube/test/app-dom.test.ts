@@ -1561,11 +1561,22 @@ describe('the bar says what you are looking at, and nothing else', () => {
     root = dom.window.document.getElementById('r') as HTMLElement;
   });
 
-  /** Let the toggle's async click handler finish. */
+  /** Let the toggle's async click handler finish: a click that runs nothing (a few ticks are all it takes). */
   const flush = async (): Promise<void> => {
     for (let i = 0; i < 5; i += 1) {
       await new Promise((done) => setTimeout(done, 0));
     }
+  };
+  /**
+   * A click that snaps carried through, waited for by what it shows, bounded (5 s): the snap is planned by legend-lite's
+   * own planner, its copy's model compiled at each snap (plannerFor's cache is off), and run -- work no count of ticks
+   * bounds (2026-11-13: CI's run 43433798750 saw the toggle still Live after flush's ticks, the warm-up in).
+   */
+  const until = async (done: () => boolean, what: string): Promise<void> => {
+    for (let i = 0; i < 500 && !done(); i += 1) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.ok(done(), `${what}, within 5 s`);
   };
 
   it('names the REPORT in the title bar', async () => {
@@ -1778,7 +1789,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     assert.match(toggle.title, /Live data/);
 
     toggle.click();
-    await flush();
+    await until(() => toggle.textContent === 'Snapped', 'the toggle says Snapped');
 
     assert.equal(toggle.textContent, 'Snapped');
     assert.match(toggle.title, /frozen at \d/);
@@ -1835,7 +1846,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     assert.match(body(), /Ran on the warehouse at wh:9 as rita/);
 
     (root.querySelector('.dc-titlebar-toggle') as HTMLButtonElement).click();
-    await flush();
+    await until(() => /^this tab's copy/.test(chip().textContent ?? ''), "the receipt says this tab's copy");
     assert.match(chip().textContent ?? '', /^this tab's copy/);
     assert.match(body(), /Read from the snap copied into this tab/);
   });

@@ -53,6 +53,42 @@ DEFAULT_MEMORY_LIMIT = 2 * 1024 ** 3
 # a server is given this long to answer one fetch (seconds)
 _FETCH_TIMEOUT = 60
 
+# V8's flags, set once for the process before its first engine: mini-racer's own (--single-threaded) and no memory
+# protection keys. Insurance against the crash seen twice on 20261111.127.1 (ubuntu-24.04 on GitHub's Linux runners,
+# 2026-11-13, gates runs 43370111355 and 43380062329: mini-racer's _make_context segfaulted wherever a process made a
+# second engine); the cause unproven: the probe (gates run 43433798750) reached only .370.1, AMD, no pku, where nothing
+# crashed. The keys are the mechanism that fits: where the CPU and kernel offer PKU, V8 (on by default) tags its code
+# pages with a key only the thread that started V8, and threads it starts after, may read -- and each engine has its own
+# thread, started by whichever thread made it. DataCube's code is the engine's only code, and the bundle legend-lite
+# ships. The user's ruling, 2026-11-13: "agreed on turning protection off then with that error message, parent thread
+# as later follow-up" -- the keys off, V8 started by other code first refused in words, and starting every engine
+# thread from V8's own thread (which would keep the keys) a follow-up.
+_V8_FLAGS = ('--single-threaded', '--no-memory-protection-keys')
+_V8_STARTED = threading.Lock()
+_v8_started = False
+
+
+def _start_v8() -> None:
+    """V8 started for this process with ``_V8_FLAGS``, once, before its first engine. V8 started already by other code
+    in this process (any MiniRacer made first starts it with mini-racer's own flags) is refused in words: its engines
+    would keep the keys."""
+    global _v8_started
+    with _V8_STARTED:
+        if _v8_started:
+            return
+        from py_mini_racer import LibAlreadyInitializedError, init_mini_racer
+
+        try:
+            init_mini_racer(flags=_V8_FLAGS)
+        except LibAlreadyInitializedError as e:
+            raise RuntimeError("V8 was started in this process before DataCube's engine, by other code using "
+                               "mini-racer (a MiniRacer made first), so with its memory protection keys on, which "
+                               "crash DataCube's engines on a CPU that has them: DataCube starts V8 itself, with them "
+                               "off (legend_lite._headless._V8_FLAGS) -- open DataCube first, or restart the Python "
+                               "process") from e
+        _v8_started = True
+
+
 # the paths this host answers a fetch at itself: its model home's SDLC and Depot, and legend-lite's API
 _HOME_APIS = (('/sdlc/api/', 'sdlc'), ('/depot/api/', 'depot'))
 _LITE_API = '/api/lite/v1/'
@@ -280,6 +316,7 @@ class Headless:
     async def _open(self, bundle: str, memory_limit: int) -> None:
         from py_mini_racer import MiniRacer
 
+        _start_v8()
         # made on the engine's loop, so mini-racer runs on it (and never on a caller's)
         self._mr = MiniRacer()
         self._mr.set_hard_memory_limit(memory_limit)
