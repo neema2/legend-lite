@@ -162,6 +162,7 @@ public final class PureModelContext implements ModelContext {
      */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, com.legend.platform.Registrations registrations) {
+        com.legend.base.RunScope.planning("build a typed model (phase F)");
         return from(normalized, index, null, null, registrations);
     }
 
@@ -169,6 +170,7 @@ public final class PureModelContext implements ModelContext {
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             com.legend.platform.Registrations registrations) {
+        com.legend.base.RunScope.planning("build a typed model (phase F)");
         return from(normalized, index, wallSink, null, registrations);
     }
 
@@ -176,6 +178,7 @@ public final class PureModelContext implements ModelContext {
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             @com.legend.base.Nullable CheckedLayer prior, com.legend.platform.Registrations registrations) {
+        com.legend.base.RunScope.planning("build a typed model (phase F)");
         // THE Phase-E -> Phase-F gate (T4.1 step 2): the index Phase E read
         // gains Phase E's products — the compiled mappings (their facts
         // stamped on them), the lifted functions — and the boot layer's

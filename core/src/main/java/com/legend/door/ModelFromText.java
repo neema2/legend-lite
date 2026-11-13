@@ -32,6 +32,7 @@ public final class ModelFromText {
      *  drop-in/parity surface, {@link Dialect#LEGEND_PLATFORM} the bootstrap/m2 superset (naming it in production
      *  trips the guardrail; the platform's own declarations are its consumers). */
     public static ParsedModel parse(String source, Dialect dialect) {
+        com.legend.base.RunScope.planning("parse a model (phases A and B)");
         PmcdParser.Parsed parsed = PmcdParser.parse(Objects.requireNonNull(source, "source"),
                 Objects.requireNonNull(dialect, "dialect"));
         List<ParsedModel.UnclaimedSection> unclaimed = new ArrayList<>();

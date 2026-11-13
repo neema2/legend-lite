@@ -109,6 +109,7 @@ public final class ModelNormalizer {
      */
     public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
+        com.legend.base.RunScope.planning("normalize a model (phase E)");
         Objects.requireNonNull(parsed, "parsed");
         Objects.requireNonNull(model, "model");
         // Association QUALIFIED properties were adopted into their owning
