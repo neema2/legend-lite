@@ -68,6 +68,13 @@ public enum SqlFn {
      *  indexed; NULL past the end (batch 139). Semantic — each dialect spells it. */
     PURE_SPLIT_PART,
     REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
+    /** Its one text argument in the database's BINARY collation, an order key: texts ordered by their code points,
+     *  whatever the column's or the database's own collation (the test-data generator's seed, the user's ruling R4 of
+     *  docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §5, its design's §3.1; register S198's
+     *  note; the B2d.3 audit's M4, 2026-11-12): Postgres {@code COLLATE "C"}, SQLite {@code COLLATE BINARY}; DuckDB and
+     *  H2 compare texts by their code points already (measured 2026-11-12), so the text as it is; a dialect whose
+     *  binary collation is not measured refuses it by name. */
+    BINARY_COLLATE,
     ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256,
     /** The database's random float in [0, 1) (lite's {@code random()}, the Cypher island's {@code rand()}): a value
      *  of the call, not of the data, read once per row it is spelled in. */
@@ -112,6 +119,11 @@ public enum SqlFn {
     ROUND_HALF_UP, ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
+    /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic
+     *  node the Lowerer marks by the operand's Pure type, as {@link #BOOL_TO_TEXT} is -- each dialect spells it, most
+     *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
+     *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
+    DECIMAL_TO_TEXT,
     /** A Float's Pure literal spelling (2026-10-11): every zero {@code 0.0}, the exponent unfolded to fixed point, at
      *  least one fraction digit -- the kind-faithful carrier's text of a double (lowering/LiteralSpelling). One call
      *  per value, which each dialect spells (dialect/FloatCanonText the portable decomposition). */

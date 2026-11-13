@@ -307,7 +307,7 @@ the trimmed labels are each one level, as in Snowflake's text above.
 
 ```sql
 SELECT
-  t7."Row Id",
+  t7."Row Id" AS "Row Id",
   concat(coalesce(CASE WHEN t7.vc IS NULL THEN NULL ELSE left(t7.vc, CASE WHEN FALSE THEN 0 ELSE 3 END) END, ''), ':', coalesce(t7.labels, '')) AS Tag,
   t7.n AS Labels,
   t7.last_u AS "Last u",

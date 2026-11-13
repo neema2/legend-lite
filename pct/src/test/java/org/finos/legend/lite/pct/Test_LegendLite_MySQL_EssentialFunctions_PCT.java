@@ -69,7 +69,7 @@ public class Test_LegendLite_MySQL_EssentialFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"a date past the year 9999 has no MySQL value\""),
             // MYSQL'S OWN LIMIT: no named time zone without the server's zone tables (loaded from the host's
             // zoneinfo, which a hermetic server does not read)
-            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached MySQL: MySQL knows no named time zone but UTC without its zone tables\"")
+            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached MySQL: MySQL knows no named time zone but UTC without its zone tables\""),
             // NOTE 2026-10-20 (the parity phase): testRemoveDuplicatesPrimitiveStandardFunctionExplicit unpinned -- an
             // ordered derived table takes a LIMIT here, so the server keeps its ORDER BY (MariaDb.subselectSource)
             // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor crosses
@@ -78,6 +78,10 @@ public class Test_LegendLite_MySQL_EssentialFunctions_PCT extends PCTReportConfi
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): MySQL keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "fraction digits; MySql keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

@@ -3654,6 +3654,9 @@ class Page:
                 raise ValueError('; '.join(said['problems']))
             # the file as DataCube writes it, byte for byte (the S7 audit's Y-4: Python added a newline)
             Path(path).write_text(said['file'], 'utf-8', newline='')
+            # a remote file's link written without its query string (a presigned link's token), said as DataCube says it
+            if 'warning' in said:
+                warnings.warn(said['warning'], stacklevel=2)
             return None
         return self._saved(name, as_new=False)
 
@@ -3672,6 +3675,9 @@ class Page:
                                                         as_new))
         if 'problems' in made:
             raise ValueError('; '.join(made['problems']))
+        # a remote file's link saved without its query string (a presigned link's token), said as DataCube's Save says it
+        if 'warning' in made:
+            warnings.warn(made['warning'], stacklevel=3)
         id, record = made['id'], made['record']
         # over the record it is saved as, else a new one, as the tab's Save decides (headless pageRecord's `over`:
         # page-document.ts pageSaving -- the S7 confirmation audit's Y2-5) -- a record deleted since (in DataCube's
@@ -3738,11 +3744,11 @@ class Page:
 
     @classmethod
     def open(cls, id: str, frames: Mapping[str, Any] | None = None, *,
-             files: Mapping[str, str | Path] | None = None) -> Page:
+             files: Mapping[str, str | Path] | None = None, links: Mapping[str, str] | None = None) -> Page:
         """A page saved in this user's saved pages (``ll.home()/pages``: what ``save()`` and DataCube's Save keep there,
         what Open… lists), by its id, opened as DataCube's Open… opens it (headless pageOfRecord: a page, or a cube saved
         alone before pages, a page of its one grid) and then as ``load`` opens a page -- its ``frames`` and ``files``
-        given as ``load`` takes them. Saved again, it saves over that record."""
+        given as ``load`` takes them, and its fresh ``links``. Saved again, it saves over that record."""
         from ._home import THIS_USER, pages_folder, store_call
         from .datacube import _current
         status, said = store_call('lite_saved_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)
@@ -3753,7 +3759,7 @@ class Page:
         opened = json.loads(_current().headless().call('pageOfRecord', said))
         if 'problems' in opened:
             raise ValueError('; '.join(opened['problems']))
-        page = cls.load(_plain(_json.loads(opened['page'])), frames, files=files)
+        page = cls.load(_plain(_json.loads(opened['page'])), frames, files=files, links=links)
         # the saved page it is, by its command (savedAs, no step: B13) -- a page loaded from a document is none (the S7
         # confirmation audit's Y2-3: a page loaded from another's document saved over that one's record)
         page._apply_page([_commands.page_saved_as(record=id)])
@@ -3761,24 +3767,43 @@ class Page:
 
     @classmethod
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any] | None = None, *,
-             files: Mapping[str, str | Path] | None = None) -> Page:
+             files: Mapping[str, str | Path] | None = None, links: Mapping[str, str] | None = None) -> Page:
         """A page document (a file, or its dict) as a page again: the document as DataCube reads it (its own version
         only; refused in its words when DataCube would not open it), each cube as DataCube opens it over what this host
         serves now -- what DataCube leaves out of it warned, in its words. Its grids read ``frames`` by their frame names
         (each cube's ``{"_type": "frame", "name": ...}``), each served; the files it reads given by their names
         (``files``: a file's name, its path -- docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D14), each read in, one that is
         not the file a cube was saved over opened over all the same and said, as DataCube's tab says a file picked for
-        it; its remote files mounted again by their URLs. A frame or a file not given is refused in words. A grid saved
-        snapped opens live, said: its copy lasted only as long as the session that made it (``grid.snap()`` takes one
-        anew)."""
+        it; its remote files mounted again by their URLs -- one saved without its link's query string (a presigned link's
+        token is never saved: DataCube's Save strips it) given a fresh link by its address (``links``: its address, the
+        link). A frame, a file or a fresh link not given is refused in words. A grid saved snapped opens live, said: its
+        copy lasted only as long as the session that made it (``grid.snap()`` takes one anew)."""
         from .datacube import _current
         # read on the session the page will be made on (Page() takes the current one)
         doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'),
                          _current())
         session = _current()
-        frames, files = frames or {}, files or {}
+        frames, files, links = frames or {}, files or {}, dict(links or {})
         # what it reads, as DataCube says (headless cubeLeaves: each leaf's kind, its name, a file's hash, a remote URL)
         leaves = [leaf for c in doc['cubes'] for leaf in _cube_leaves(session, c['cube'], doc, c['id'])]
+        # a remote file saved needing a fresh link given the one ``links`` holds for its address, as DataCube gives it
+        # (headless pageLinks); one not given refused in words, as a file not given is, and a link for no such address too
+        fresh = sorted({leaf['url'] for leaf in leaves if leaf.get('freshLink')})
+        unknown = sorted(set(links) - set(fresh))
+        if unknown:
+            raise ValueError(f'the page saved no remote file needing a fresh link at {", ".join(unknown)}'
+                             + (f': its files needing one are at {", ".join(fresh)}' if fresh else ''))
+        if fresh:
+            given = json.loads(session.headless().call('pageLinks', _json.dumps(doc), _json.dumps(links)))
+            if 'problems' in given:
+                raise ValueError('; '.join(given['problems']))
+            if given['needed']:
+                raise ValueError('the page reads the remote files '
+                                 + ', '.join(f"{n['name']} ({n['address']})" for n in given['needed'])
+                                 + ", saved without their links' query strings (a presigned link's token is never saved):"
+                                 + ' give fresh links, links={address: link}')
+            doc = _plain(_json.loads(given['page']))
+            leaves = [leaf for c in doc['cubes'] for leaf in _cube_leaves(session, c['cube'], doc, c['id'])]
         wanted = sorted({leaf['name'] for leaf in leaves if leaf['_type'] == 'frame'})
         missing = [n for n in wanted if n not in frames]
         if missing:

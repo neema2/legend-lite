@@ -503,6 +503,93 @@ class BodyRouterParityTest {
     private static final String EXECUTE_CLASS = "meta::pure::router::execute(|x::Firm.all(), x::M, x::RT.runtimeValue,"
             + " [])";
 
+    /**
+     * THE SAME BODY PLANNED TWICE IS THE SAME PLAN, byte for byte (G10, the C checkpoint's follow-up, 2026-11-12):
+     * planning makes no value of its own. Until then an inline execute's activity comment under the database judge's
+     * batch was a UUID minted at planning ({@code ActivityComments}), so each planning of the body wrote another plan.
+     * Under every judge: the host's, the database's and the agreement's.
+     */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aBodyPlannedTwiceIsTheSamePlan(TestBackend backend) {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            for (String body : List.of(
+                    "{| assertSize(" + EXECUTE + ".activities, 1);}",
+                    "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
+                            + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));}",
+                    "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}",
+                    // two executions (the execution id as upstream, 2026-11-12): their stamps in the plan, no id
+                    "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
+                            + " != $b.activities->at(0)" + COMMENT + ");}",
+                    "{| assert(" + EXECUTE + ".activities->at(0)" + COMMENT + " != " + EXECUTE
+                            + ".activities->at(0)" + COMMENT + ");}")) {
+                ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
+                String first = com.legend.testexecutionplan.TestPlanJson.write(
+                        TestExecution.planBody(typed(ctx, body), "x::RT", options));
+                String second = com.legend.testexecutionplan.TestPlanJson.write(
+                        TestExecution.planBody(typed(ctx, body), "x::RT", options));
+                assertEquals(first, second, backend + " " + mode + ": " + body);
+            }
+        }
+    }
+
+    /** An activity's comment, read by the body: its execution's trace comment. */
+    private static final String COMMENT = "->cast(@meta::relational::mapping::RelationalActivity).comment->toOne()";
+
+    /** Every execution-trace comment an answer holds, in order. */
+    private static List<String> traceIds(String answer) {
+        List<String> out = new ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                "executionTraceID\\\\?\" : \\\\?\"([0-9a-f-]{36})").matcher(answer);
+        while (m.find()) {
+            out.add(m.group(1));
+        }
+        return out;
+    }
+
+    /**
+     * ONE EXECUTION ID PER RUN (the user's ruling of 2026-11-12, the simple execution id): every stamp a body's plan reads
+     * -- each frame let's, each inline execute's -- binds the run's one id, its door's, as a product query's do; a second
+     * run of the same plan has a new id, and the plan itself is byte for byte the same (no id is in it). Under every
+     * judge: the host's, the database's and the agreement's.
+     */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aRunsExecutesShareItsId_aSecondRunHasAnotherAndTheSamePlan(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            for (String body : List.of(
+                    "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
+                            + " == $b.activities->at(0)" + COMMENT + ");}",
+                    "{| assert(" + EXECUTE + ".activities->at(0)" + COMMENT + " == " + EXECUTE + ".activities->at(0)"
+                            + COMMENT + ");}")) {
+                Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertEquals("ok", r.outcome(), backend + " " + mode + ": " + body);
+                assertEquals(1, r.verdicts().size(), backend + " " + mode + ": " + body + " -> " + r.verdicts());
+                assertTrue(r.verdicts().get(0).contains(" true "), backend + " " + mode + ": two executes, one run, one"
+                        + " id: " + body + " -> " + r.verdicts());
+            }
+            // the ids themselves: the run's one, in each execute's comment; another in a second run of the same plan
+            String answer = "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; $a.activities->at(0)" + COMMENT
+                    + " + '|' + $b.activities->at(0)" + COMMENT + ";}";
+            List<String> first = traceIds(run(backend, ctx, "x::RT", answer, "select count(*) from FIRM", FIRM_ROWS,
+                    mode).answer());
+            List<String> second = traceIds(run(backend, ctx, "x::RT", answer, "select count(*) from FIRM", FIRM_ROWS,
+                    mode).answer());
+            assertEquals(2, first.size(), mode + ": " + first);
+            assertEquals(1, new java.util.HashSet<>(first).size(), mode + ": two executes, one run, one id: " + first);
+            assertEquals(2, second.size(), mode + ": " + second);
+            assertEquals(1, new java.util.HashSet<>(second).size(), mode + ": " + second);
+            assertTrue(!first.get(0).equals(second.get(0)), mode + ": the same plan run again, a new id: " + first
+                    + " / " + second);
+            ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
+            assertEquals(com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(typed(ctx, answer),
+                    "x::RT", options)), com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                    typed(ctx, answer), "x::RT", options)), mode + ": the same plan, byte for byte");
+        }
+    }
+
     /** The frame programs (M9a): {@code let r = execute(...)} read by the asserts after it -- the corpus's idiom --
      *  run both ways: every statement (the frame's eager run under LET, the asserts' sides), the census, the verdicts,
      *  the answer. */
@@ -784,6 +871,63 @@ class BodyRouterParityTest {
         }
     }
 
+    /** A {@code data:} source's rows as a relation of the frame model's runtime: two elements. */
+    private static final String DATA_SOURCE = "sourceUrl('data:application/json,[{\"ID\":1},{\"ID\":2}]')"
+            + "->extend(~[ID: r|cast(get($r.data, 'ID'), @meta::pure::metamodel::type::Integer)])->select(~[ID])"
+            + "->from(x::RT)";
+
+    /**
+     * A test body reading a {@code data:} source (B2a and its audit, 2026-11-11; the JSON pass, the same day: the payload
+     * is its statement's own, bound or inline, so no load, no session table and no release), under both judges, on every
+     * in-process backend: an engine-text appeal held before it is still decided; a failing body fails as its assert says;
+     * and a system-routed body reads its payload on the process's catalog, its plan holding no load of a payload's.
+     */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void dataSourcePrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
+                + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
+        String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
+        // the golden a text of its own with ours's rows, so the referee replays it after the run
+        String sameRows = "SELECT * FROM (" + ours + ") AS q";
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
+                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+            // the appeal held at the first assert, the payload's read after it -- decided, MATCH
+            String appealThenData = "{| meta::relational::functions::asserts::assertSameSQL('" + pure(sameRows)
+                    + "', " + producer + "); assertEquals(2, " + DATA_SOURCE + "->size());}";
+            Run[] decided = new Run[1];
+            com.legend.testplan.PlanningOptions.JudgeMode m = mode;
+            inCompatibilityMode(() -> decided[0] = run(backend, ctx, "x::RT", appealThenData,
+                    "select count(*) from FIRM", FIRM_ROWS, m));
+            assertEquals("ok", decided[0].outcome, mode + ": the appeal before a payload's read is decided: "
+                    + decided[0].verdicts);
+            assertTrue(originsOf(decided[0].origins)[StatementOrigin.REFEREE_OURS.ordinal()] >= 1,
+                    mode + ": the appeal's rows leg ran: " + decided[0].statements);
+            assertTrue(decided[0].statements.stream().noneMatch(st -> st.toLowerCase(java.util.Locale.ROOT)
+                    .contains("legend_data_")), mode + ": no session table: " + decided[0].statements);
+            Run failed = run(backend, ctx, "x::RT", "{| assertEquals(3, " + DATA_SOURCE + "->size());}",
+                    "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertTrue(failed.outcome.startsWith("AssertFailed"), mode + ": " + failed.outcome);
+            // a system-routed body reads its payload on the process's catalog, in the catalog's dialect
+            String systemAndData = "{| assertEquals('M', x::M.name); assertEquals(2, "
+                    + DATA_SOURCE.replace("->from(x::RT)", "") + "->size());}";
+            assertTrue(BodyClass.systemRouted(typed(ctx, systemAndData), "x::RT"), "system-routed: " + systemAndData);
+            Run routed = run(backend, ctx, "x::RT", systemAndData, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals("ok", routed.outcome, mode + ": " + routed.verdicts);
+            com.legend.testexecutionplan.TestPlan routedPlan = com.legend.TestExecution.planBody(typed(ctx,
+                    systemAndData), "x::RT", com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
+            assertTrue(routedPlan.steps().stream().noneMatch(st -> st instanceof com.legend.testexecutionplan.TestPlan.Run r
+                    && r.node() instanceof com.legend.executionplan.ExecutionPlan.Load l
+                    && !(l.cadence() == com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_TRANSACTION)),
+                    mode + ": no load of a payload's: " + routedPlan.steps());
+            // and the catalog intact after: the next system-routed run registers the model again
+            Run again = run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", "select count(*) from FIRM",
+                    FIRM_ROWS, mode);
+            assertEquals("ok", again.outcome, mode + ": " + again.verdicts);
+        }
+    }
+
     /** M10c item 3: a LINEAGE TREE PRINT against its golden ({@code $scan->relationTreeAsString()} under
      *  {@code assertEquals}) is judged as LINES on both roads (the golden's lines a String collection, ours the prelude's
      *  rows over the scan's handle); the scan is a read of the system store, so a body whose only store read is the scan
@@ -1022,6 +1166,9 @@ class BodyRouterParityTest {
             assertEquals(0, originsOf(moved.origins)[StatementOrigin.SYSTEM.ordinal()],
                     "nothing sent to the system session: " + body);
         }
+        // B1 (2026-11-11, docs/data-delivery-homework/B_BRIEF_2026_11_10.md §1; census M7-seed STAYING): the form's
+        // statements are the effect script's -- its bracket, abort and ledger theirs -- and in no load of the plan
+        assertSeedFormInTheScriptAlone(ctx, body);
         // the data computed: the walk evaluates it as a statement; the program road refuses by name, so the body stays
         String computed = body.replace("[$firmCsv]", "[$firmCsv->toUpper()]");
         assertNull(BodyClass.of(typed(ctx, computed), "x::RT", true), "a computed seed stays: " + computed);
@@ -1031,6 +1178,36 @@ class BodyRouterParityTest {
         assertEquals(BodyClass.EFFECT_PROGRAM, BodyClass.of(typed(ctx, seedOnly), "x::RT", true), seedOnly);
         assertParity(backend, ctx, "x::RT", seedOnly, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST);
+    }
+
+    /** {@code body}'s seed form ({@code 'Cyl'}'s row) planned into an effect's script and into no load: neither a step's
+     *  load nor the session's (B1, census M7-seed STAYING: the form's texts are the author's folded effect). */
+    private static void assertSeedFormInTheScriptAlone(ModelContext ctx, String body) {
+        com.legend.testexecutionplan.TestPlan plan = com.legend.TestExecution.planBody(typed(ctx, body), "x::RT",
+                com.legend.ExecuteOptions.NONE);
+        List<String> scripts = new ArrayList<>();
+        List<com.legend.executionplan.ExecutionPlan.Load> loads = new ArrayList<>(plan.session().loads());
+        for (com.legend.testexecutionplan.TestPlan.TestStep step : plan.steps()) {
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Run r) {
+                if (r.node() instanceof com.legend.executionplan.ExecutionPlan.Effect e && e.script() != null) {
+                    scripts.addAll(e.script().statements());
+                }
+                if (r.node() instanceof com.legend.executionplan.ExecutionPlan.Load u) {
+                    loads.add(u);
+                }
+            }
+        }
+        List<String> loaded = new ArrayList<>();
+        for (com.legend.executionplan.ExecutionPlan.Load u : loads) {
+            loaded.addAll(u.content().values());
+            for (com.legend.executionplan.ExecutionPlan.LoadStep step : u.steps()) {
+                if (step instanceof com.legend.executionplan.ExecutionPlan.LoadStep.Statement st) {
+                    loaded.add(st.sql());
+                }
+            }
+        }
+        assertTrue(scripts.stream().anyMatch(t -> t.contains("Cyl")), "the form's insert in a script: " + scripts);
+        assertTrue(loaded.stream().noneMatch(t -> t.contains("Cyl")), "the form's insert in a load: " + loaded);
     }
 
     /** M7: the frame programs under the DATABASE judge: a frame is never run at its let -- the asserts' sides reference
@@ -1135,11 +1312,12 @@ class BodyRouterParityTest {
                 + " assertEquals(1, $d.tables->size()); assertEquals('FIRM', $d.tables->at(0).table);}";
         assertFalse(BodyClass.systemRouted(typed(ctx, censusBody), "x::RT"), "a binding consumed: " + censusBody);
         assertNull(BodyClass.of(typed(ctx, censusBody), "x::RT", true), "the census carrier: no class admits it");
-        // the test-data generator's census carrier was folded in Java by the walk; with the walk deleted (2026-11-06)
-        // the body is refused by name (lite offers no test-data generator yet: S143)
-        assertTrue(run(backend, ctx, "x::RT", censusBody, "select count(*) from FIRM", FIRM_ROWS,
-                com.legend.testplan.PlanningOptions.JudgeMode.HOST).outcome.startsWith(
-                        "NotImplementedException: the program road does not plan this body"), "the census body refused");
+        // the census carrier is a planning constant since B2d.3b (2026-11-12): the test planner replaces it with the
+        // instance it is before the body is classed (GeneratedTestData.withCensus), so the body runs and its asserts
+        // read constants (until then it was refused by name, S143)
+        Run census = run(backend, ctx, "x::RT", censusBody, "select count(*) from FIRM", FIRM_ROWS,
+                com.legend.testplan.PlanningOptions.JudgeMode.HOST);
+        assertEquals("ok", census.outcome, "the census body runs: " + census.outcome);
     }
 
     /** M10b: the ENGINE-TEXT asserts on the program road -- the two texts a verdict step's constant sides, a byte-equal
@@ -1759,8 +1937,8 @@ class BodyRouterParityTest {
             // a run under the compatibility rules is handed the edge, which records the ledger; lite's own records
             // none (the plan-as-data design's step 8, 2026-11-08: an edge implies the compatibility rules)
             ExecuteOptions options = (COMPAT.get()
-                    ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder),
-                            com.legend.executionplan.DataStores.none())
+                    ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder,
+                            com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
                     : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's

@@ -7,9 +7,7 @@ import com.legend.json.Json;
 import com.legend.sql.dialect.HostOperation;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A host's named operations as its JSON writes them (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5; engine-client's
@@ -33,17 +31,34 @@ final class HostOperationsJson {
         return out;
     }
 
+    /** The keys an operation once carried SQL in, each refused by name (the final audit, 2026-11-12, the user's ruling:
+     *  a host operation takes no SQL; a source's {@code query} is refused where a source is read). */
+    private static final List<String> SQL_KEYS = List.of("selectList", "replacing");
+
     private static HostOperation operation(Json.Obj o) {
+        for (String key : SQL_KEYS) {
+            if (o.has(key)) {
+                throw new IllegalArgumentException("a host operation takes no SQL, and " + key + " is SQL: a copy's"
+                        + " conversions are written by the platform from its columns' catalog (convert)");
+            }
+        }
         String op = string(o, "op");
         return switch (op) {
             case "relation" -> new HostOperation.MakeRelation(kind(string(o, "kind")), name(object(o, "target")),
-                    bool(o, "replace"), stringOrNull(o, "selectList"), conversions(o), source(object(o, "from")));
-            case "insert" -> new HostOperation.Insert(name(object(o, "target")), columns(o), source(object(o, "from")));
+                    bool(o, "replace"), convert(o), source(object(o, "from")));
+            // rows put into a declared table come from a person's file: a planned load's (B3: Boundary.fileLoad)
+            case "insert" -> throw new IllegalArgumentException("rows put into a declared table are a planned load's"
+                    + " (fileLoad), not an operation");
             case "drop" -> new HostOperation.Drop(kind(string(o, "kind")), name(object(o, "target")));
             case "schema" -> new HostOperation.MakeSchema(stringOrNull(o, "database"), string(o, "name"));
             case "dropSchema" -> new HostOperation.DropSchema(stringOrNull(o, "database"), string(o, "name"));
             case "count" -> new HostOperation.Count(source(object(o, "from")));
-            case "secret" -> new HostOperation.Secret(string(o, "name"), string(o, "scope"), strings(object(o, "credentials")));
+            // a remote file's secret is a step of its planned mount, its fields bound from the host's store (B3's
+            // Q3, 2026-11-11: Boundary.remoteMount), never an operation
+            case "secret" -> throw new IllegalArgumentException("a remote file's secret is made by its planned mount"
+                    + " (remoteMount), not an operation");
+            case "dropSecret" -> new HostOperation.DropSecret(string(o, "name"));
+            case "resetVariable" -> new HostOperation.ResetVariable(string(o, "held"));
             case "extensions" -> new HostOperation.Extensions(stringList(o, "names"));
             case "extensionRepository" -> new HostOperation.ExtensionRepository(string(o, "url"));
             case "extensionDirectory" -> new HostOperation.ExtensionDirectory(string(o, "folder"));
@@ -86,68 +101,52 @@ final class HostOperationsJson {
             return new HostOperation.Source.Relation(name(object(o, "relation")));
         }
         if (o.has("file")) {
-            Json.Obj f = object(o, "file");
-            String format = string(f, "format");
-            return new HostOperation.Source.File(string(f, "at"), switch (format) {
-                case "csv" -> HostOperation.FileFormat.CSV;
-                case "csvText" -> HostOperation.FileFormat.CSV_TEXT;
-                case "parquet" -> HostOperation.FileFormat.PARQUET;
-                case "json" -> HostOperation.FileFormat.JSON;
-                default -> throw new IllegalArgumentException("a file is read as csv, csvText, parquet or json, not " + format);
-            });
+            // a host's own file is read by a planned load (B3, 2026-11-11: Boundary.fileLoad, run by the hosts'
+            // runner), never by an operation naming its path
+            throw new IllegalArgumentException("a host's file is read by a planned load (fileLoad), not an operation");
         }
         if (o.has("remote")) {
-            Json.Obj r = object(o, "remote");
-            String format = string(r, "format");
-            return new HostOperation.Source.Remote(string(r, "url"), switch (format) {
-                case "csv" -> HostOperation.RemoteFormat.CSV;
-                case "parquet" -> HostOperation.RemoteFormat.PARQUET;
-                case "iceberg" -> HostOperation.RemoteFormat.ICEBERG;
-                default -> throw new IllegalArgumentException("a remote file is csv, parquet or iceberg, not " + format);
-            });
+            // a remote file is mounted by a planned load (B3's Q3, 2026-11-11: Boundary.remoteMount), its bearer URL
+            // and its keys bound from the host's store, never written in an operation
+            throw new IllegalArgumentException("a remote file is mounted by a planned load (remoteMount), not an"
+                    + " operation");
         }
         if (o.has("query")) {
-            return new HostOperation.Source.Query(string(o, "query"));
+            // a host hands an operation no SQL (the final audit, 2026-11-12, the user's ruling): a pull is planned
+            throw new IllegalArgumentException("a query is planned from its pull (snapCopy, or a Pure query's plan),"
+                    + " never handed to a host operation");
         }
-        throw new IllegalArgumentException("a source is a relation, a file, a remote file or a query");
+        throw new IllegalArgumentException("a source is a relation");
     }
 
-    private static List<HostOperation.Conversion> conversions(Json.Obj o) {
-        List<HostOperation.Conversion> out = new ArrayList<>();
-        if (!o.has("replacing")) {
+    /** A copy's columns as its source's catalog answers them -- {@code {"name", "dataType", "logicalType"?,
+     *  "precision"?, "scale"?, "notNull"?}}, the rows {@code Boundary.tableModel} takes -- whose conversions the platform
+     *  writes ({@link HostOperation.MakeRelation#convert}); none when absent. */
+    private static List<com.legend.sql.dialect.CatalogModel.Column> convert(Json.Obj o) {
+        List<com.legend.sql.dialect.CatalogModel.Column> out = new ArrayList<>();
+        if (!o.has("convert")) {
             return out;
         }
-        if (!(o.get("replacing") instanceof Json.Arr arr)) {
-            throw new IllegalArgumentException("a relation's replacing is an array");
+        if (!(o.get("convert") instanceof Json.Arr arr)) {
+            throw new IllegalArgumentException("a relation's convert is an array of catalog columns");
         }
         for (Json.Node n : arr.items()) {
-            Json.Obj c = object(n, "a conversion");
-            out.add(new HostOperation.Conversion(string(c, "column"), string(c, "sql")));
+            Json.Obj c = object(n, "a catalog column");
+            out.add(new com.legend.sql.dialect.CatalogModel.Column(string(c, "name"), string(c, "dataType"),
+                    stringOrNull(c, "logicalType"), intOrNull(c, "precision"), intOrNull(c, "scale"),
+                    bool(c, "notNull")));
         }
         return out;
     }
 
-    private static List<HostOperation.Column> columns(Json.Obj o) {
-        if (!(o.has("columns") && o.get("columns") instanceof Json.Arr arr)) {
-            throw new IllegalArgumentException("rows put in name their columns, an array");
+    private static @com.legend.base.Nullable Integer intOrNull(Json.Obj o, String field) {
+        if (!o.has(field) || o.get(field) instanceof Json.Null) {
+            return null;
         }
-        List<HostOperation.Column> out = new ArrayList<>();
-        for (Json.Node n : arr.items()) {
-            Json.Obj c = object(n, "a column");
-            out.add(new HostOperation.Column(string(c, "target"), string(c, "from")));
+        if (!(o.get(field) instanceof Json.Num n) || !n.isInteger()) {
+            throw new IllegalArgumentException("an operation's " + field + " is a whole number");
         }
-        return out;
-    }
-
-    private static Map<String, String> strings(Json.Obj o) {
-        Map<String, String> out = new LinkedHashMap<>();
-        for (Map.Entry<String, Json.Node> e : o.fields().entrySet()) {
-            if (!(e.getValue() instanceof Json.Str s)) {
-                throw new IllegalArgumentException("a credential is a string: " + e.getKey());
-            }
-            out.put(e.getKey(), s.value());
-        }
-        return out;
+        return Integer.valueOf(Math.toIntExact(n.longValue()));
     }
 
     private static List<String> stringList(Json.Obj o, String field) {

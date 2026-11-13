@@ -3,7 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.sql.ValueKind;
 
 import java.util.List;
 import java.util.Map;
@@ -14,8 +13,8 @@ import java.util.Objects;
  * bound parameter, and the parameters in placeholder order ({@link SqlDialect#renderStatement}), each with how it is
  * bound (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3).
  *
- * @param sql   the statement text; where a placeholder's type is its value's ({@link TypeHole}), the type is missing
- *              from the text at the hole's place, written there when the value is known
+ * @param sql   the statement text, sent as it is: a placeholder is typed by its parameter's declared type when the
+ *              statement is written (D1; the type hole the runner wrote into was deleted 2026-11-09, P4)
  * @param binds one per {@code ?}, in order
  */
 public record RenderedStatement(String sql, List<Bind> binds, List<Region> regions) {
@@ -24,17 +23,6 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
         Objects.requireNonNull(sql, "sql");
         binds = List.copyOf(binds);
         regions = List.copyOf(regions);
-        int previous = -1;
-        for (Bind b : binds) {
-            if (b.binding() instanceof Binding.One one && one.hole() != null) {
-                int at = one.hole().at();
-                if (at <= previous || at > sql.length()) {
-                    throw new IllegalArgumentException("type hole of '" + b.parameter() + "' at " + at + " is not after"
-                            + " the previous one (" + previous + ") within the statement (" + sql.length() + ")");
-                }
-                previous = at;
-            }
-        }
         Region.check(sql.length(), binds, regions, b -> b.binding() instanceof Binding.Key);
     }
 
@@ -114,19 +102,21 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
     }
 
     /** How a placeholder is bound. */
-    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key {
+    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key, Binding.Source, Binding.Payload {
 
         /** One value, as the caller's checked value is; an absent one a null of {@code nullType} (a
-         *  {@code java.sql.JDBCType}'s name). {@code hole}: set where the database must be told the value's type in the
-         *  statement (H2 types a placeholder when it prepares it), the hole the type is written into. */
-        record One(String nullType, @com.legend.base.Nullable TypeHole hole) implements Binding {
+         *  {@code java.sql.JDBCType}'s name). {@code asText}: set where the placeholder is a date or date-time cast to the
+         *  declared type's SQL type, which takes the value as its text (D1, P4). */
+        record One(String nullType, @com.legend.base.Nullable AsText asText) implements Binding {
             public One {
                 Objects.requireNonNull(nullType, "nullType");
             }
         }
 
-        /** The parameter's whole list, as one array of {@code elementSqlType} (the target's form of a list). */
-        record Array(String elementSqlType) implements Binding {
+        /** The parameter's whole list, as one array of {@code elementSqlType} (the target's form of a list);
+         *  {@code fraction} the digits of a second its database keeps of a date's or date-time's element, null where it
+         *  keeps every digit or the elements are no date (S181). */
+        record Array(String elementSqlType, @com.legend.base.Nullable Integer fraction) implements Binding {
             public Array {
                 Objects.requireNonNull(elementSqlType, "elementSqlType");
             }
@@ -141,45 +131,34 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
                 }
             }
         }
-    }
 
-    /**
-     * Where a placeholder's type is its value's: the statement's text has no type at {@code at}, and the value's is
-     * written there, spelled by {@code types} for the value's kind ({@code absent}'s for an absent value) -- the type the
-     * database gives a literal of that value, so the placeholder answers as the literal does.
-     */
-    public record TypeHole(int at, Map<ValueKind, TypeSpelling> types, ValueKind absent) {
-        public TypeHole {
-            if (types.isEmpty()) {
-                throw new IllegalArgumentException("a type hole with no spelling");
+        /** A live source's location as its model declares it (a {@code file:} URL), the runner's to bind as the path
+         *  it admits (L6, 2026-11-10). */
+        record Source(String location) implements Binding {
+            public Source {
+                Objects.requireNonNull(location, "location");
             }
-            // in the kinds' declared order: the order a plan's JSON writes them in
-            types = java.util.Collections.unmodifiableMap(new java.util.EnumMap<>(types));
-            if (!types.containsKey(absent)) {
-                throw new IllegalArgumentException("an absent value's kind " + absent + " has no spelling in " + types);
+        }
+
+        /** A {@code data:} payload's one JSON array, bound as its text to the placeholder of a statement that splits it
+         *  itself (the dialect's {@code deliver}, 2026-11-11): the plan's value, never written into the statement. */
+        record Payload(String json) implements Binding {
+            public Payload {
+                Objects.requireNonNull(json, "json");
             }
         }
     }
 
-    /** A type's spelling for one kind of value: its name, followed by the value's own digits as {@code digits} says.
-     *  {@code fraction}: for a date-time, the digits of a second its value keeps, finer ones cut, as its literal's are
-     *  (Postgres keeps six); null where the value keeps its own. */
-    public record TypeSpelling(String name, Digits digits, @com.legend.base.Nullable Integer fraction) {
-        public TypeSpelling {
-            Objects.requireNonNull(name, "name");
-            Objects.requireNonNull(digits, "digits");
+    /** A date or date-time value bound as its TEXT to a placeholder cast to its declared type's SQL type: the drivers
+     *  pass no digit finer than a microsecond alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt).
+     *  {@code fraction}: the digits of a second the slot keeps, a value of more refused by the statement's own raise,
+     *  which the dialect writes around the placeholder (S181, A7, 2026-11-10: never cut); null for all nine. The plan's
+     *  binding carries no count: the runner sends every digit. */
+    public record AsText(@com.legend.base.Nullable Integer fraction) {
+        public AsText {
             if (fraction != null && (fraction < 0 || fraction > 9)) {
                 throw new IllegalArgumentException("a second's fraction of " + fraction + " digits");
             }
         }
-
-        public TypeSpelling(String name, Digits digits) {
-            this(name, digits, null);
-        }
-    }
-
-    /** The value's own digits a type spelling takes: none, {@code (precision)}, or {@code (precision, scale)}. */
-    public enum Digits {
-        NONE, PRECISION, PRECISION_AND_SCALE
     }
 }

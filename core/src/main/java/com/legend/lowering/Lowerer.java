@@ -430,6 +430,31 @@ public final class Lowerer {
     }
 
     /**
+     * {@code bound}, a DateTime parameter read on a connection with a time zone, as that zone's wall time: upstream's
+     * {@code processDatePlaceHolder} wraps such a placeholder in {@code GMTtoTZ} (dbExtension.pure, a value converted
+     * from GMT to the connection's zone, as a literal is: {@link MatchFold#dateLit}) -- here the database converts it
+     * ({@code TIMEZONE(zone, TIMEZONE('UTC', p))}, the local-in rule), planned once (the re-audit's B-2, 2026-11-09). A
+     * Date parameter there is refused by name: upstream converts a date-time value and leaves a date-only one
+     * ({@code PlanDateParameterDateFormat}: the value's shape decides), which one placeholder of a declared type cannot
+     * tell apart. Any other expression, and every parameter on a GMT or UTC connection, as it is.
+     */
+    private @com.legend.base.Nullable SqlExpr zoned(@com.legend.base.Nullable SqlExpr bound) {
+        String zone = dbTimeZone;
+        if (!(bound instanceof SqlExpr.PlanParam p) || p.declared() == null || zone == null || zone.equals("GMT")
+                || zone.equals("UTC")) {
+            return bound;
+        }
+        return switch (p.declared()) {
+            case FLOAT, DECIMAL, NUMBER -> bound;
+            case DATE -> throw new com.legend.error.NotImplementedException("the Date parameter '" + p.name()
+                    + "' on a connection whose time zone is " + zone + ": upstream converts a date-time value to it and"
+                    + " leaves a date-only one, which a placeholder of the declared type cannot tell apart");
+            case DATE_TIME -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit(zone),
+                    new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), bound))));
+        };
+    }
+
+    /**
      * Lower a typed QUERY BODY: leading {@code let} statements bind their
      * lowered values into query scope (substitution — the lean output has no
      * trace of the lets); the final statement is the query.
@@ -569,6 +594,61 @@ public final class Lowerer {
         }
         throw new IllegalStateException(op + ": the table's scan reads " + scan.from().getClass().getSimpleName()
                 + ", not the table");
+    }
+
+    /** The read-only reload's swap being lowered (B2d.2), at most one: its source's tables read from the slice. */
+    private final ArrayDeque<com.legend.compiler.spec.typed.TypedTableSwap> swaps = new ArrayDeque<>();
+
+    /** The swap's scans, by alias: the rows each is read from. */
+    private final Map<String, SqlQuery> swappedScans = new HashMap<>();
+
+    /** {@code ts}'s source lowered with each table it reads by its typed reference swapped ({@link TableSwaps}). */
+    private SqlSelect overSlice(com.legend.compiler.spec.typed.TypedTableSwap ts) {
+        if (!swaps.isEmpty()) {
+            throw TableSwaps.refused("another reloaded slice");
+        }
+        swaps.push(ts);
+        try {
+            return TableSwaps.swapped(relation(ts.source()), ts, swappedScans);
+        } finally {
+            swaps.pop();
+            swappedScans.clear();
+        }
+    }
+
+    /** {@code source}, a read the reloaded slice cannot answer ({@code what}): itself, or refused by name under a
+     *  swap. */
+    private <T> T unswapped(T source, String what) {
+        if (!swaps.isEmpty()) {
+            throw TableSwaps.refused(what + (source instanceof String url ? url : ""));
+        }
+        return source;
+    }
+
+    /** The scan of the typed table {@code t}: a planned frame's CTE where its rows are a frame's (rung 12: the CTE's
+     *  columns keep the table's declared spelling, a quoted one quoted at every reader), else the table; under a
+     *  reloaded slice's swap, the slice's rows for it ({@link TableSwaps#read}). */
+    private SqlSelect tableRead(TypedTableReference t) {
+        if (t.frame() != null) {
+            unswapped(t, "a planned frame");
+            return SqlSelect.starOf(new SqlSource.Cte(t.frame(),
+                    com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
+                    OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())));
+        }
+        if (t.call()) {
+            unswapped(t, "the tabular function " + t.table());
+        }
+        // its declared key noted under its alias (keyed: KeyedCounts, PR #81's final review, 2026-11-09)
+        SqlSource.Table table = keyed(t, new SqlSource.Table(t.table(), nextAlias(),
+                OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
+                t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable())));
+        if (!swaps.isEmpty()) {
+            SqlQuery rows = TableSwaps.rows(t, swaps.peek());
+            if (rows != null) {
+                swappedScans.put(table.alias(), rows);
+            }
+        }
+        return SqlSelect.starOf(table);
     }
 
     private static @com.legend.base.Nullable String schemaOf(TypedTableReference t) {
@@ -1062,18 +1142,10 @@ public final class Lowerer {
         }
         return switch (spec) {
             case TypedSourceUrl su -> SqlSelect.starOf(
-                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL)));
-            case TypedTableReference t -> t.frame() != null
-                    // rung 12: the class extent's rows are a planned frame's CTE
-                    // (its body reads the table, so the CTE's columns keep the table's
-                    // declared spelling: a quoted one stays quoted at every reader)
-                    ? SqlSelect.starOf(new SqlSource.Cte(t.frame(),
-                            com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
-                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())))
-                    : SqlSelect.starOf(keyed(t,
-                    new SqlSource.Table(t.table(), nextAlias(),
-                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
-                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable()))));
+                    new SqlSource.SourceUrl(unswapped(su.url(), "the source URL "), nextAlias(),
+                            outputsOf(su.info(), OutputCol.Origin.PHYSICAL),
+                            su.records() ? SqlSource.SourceUrl.Form.RECORDS : SqlSource.SourceUrl.Form.ELEMENTS));
+            case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position: the engine plans it as an inline
@@ -1084,11 +1156,14 @@ public final class Lowerer {
                     ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
                     : relation(v.body());
 
-            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(raw);   // Phase 1c
-            case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(g);
+            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
+            case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
 
             // leg 3.4 step 2: a planned frame, referenced by name (FrameRefs)
-            case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this, fr);
+            case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this,
+                    unswapped(fr, "a planned frame"));
+            // a relation read over a reloaded slice's rows (B2d.2): each table it reads by its typed reference swapped
+            case com.legend.compiler.spec.typed.TypedTableSwap ts -> overSlice(ts);
 
             case TypedFilter f -> filter(f);
 
@@ -2702,7 +2777,7 @@ public final class Lowerer {
                 String parameter = tds.parameterAt(r, i);
                 if (parameter != null) {
                     // a cell bound when the plan runs (an activity's trace stamp, M3f): the statement's own parameter
-                    SqlExpr bound = letBindings.get(parameter);
+                    SqlExpr bound = zoned(letBindings.get(parameter));
                     if (bound == null) {
                         throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
                                 + " the statement's lowering does not bind (bindPlanParam)");
@@ -3495,6 +3570,8 @@ public final class Lowerer {
                     : new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
+            // a value a planned statement answers (B2d.2, 2026-11-11): its statement, read where the value stands
+            case com.legend.compiler.spec.typed.TypedPlannedValue v -> new SqlExpr.ScalarSubquery(v.statement());
             // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
             case TypedCFloat c -> c.exact() != null
                     ? new SqlExpr.DecimalLit(c.exact())
@@ -3840,7 +3917,7 @@ public final class Lowerer {
             // A bare variable: a query-level let binding substitutes; else a
             // lambda variable (a list element inside exists/forAll etc.).
             case TypedVariable v -> {
-                SqlExpr bound = letBindings.get(v.name());
+                SqlExpr bound = zoned(letBindings.get(v.name()));
                 yield bound != null ? bound
                         : Objects.requireNonNull(columns.resolve(v.name(), null),
                                 () -> "unresolvable variable '$" + v.name() + "'");

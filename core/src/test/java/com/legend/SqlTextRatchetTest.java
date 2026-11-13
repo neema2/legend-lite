@@ -138,7 +138,9 @@ class SqlTextRatchetTest {
         // 2026-10-29 (D65, the three routings): the connector DECLARES the read and the reset as data
         // (DatabaseConnector.raiseRecovery) and the seam runs them (JdbcStatements.held); the one SQL-shaped
         // literal is the same SELECT, the count unmoved
-        REGISTER.put("exec/MariaDbConnector.java", 1);
+        // 1 -> 0, row deleted (2026-11-12, C2, D4): the read and the reset are the PLAN's -- MariaDB's dialect
+        // declares them (SqlDialect.raiseReadBack), the target carries them, the seam sends them as written (the
+        // charter's A3(c)); exec holds no SQL text of its own
         // 0 -> 1 (2026-10-16, the Cypher island's zoned date-time leg, docs/CYPHER_STUDY_2026_10_15.md §12.8): no
         // SQL -- Neo4j's own error text "Cannot select datetime from: <value>", which the translator raises as
         // Neo4j does when a datetime is asked of a date or a time; the rule reads its "select ... from"

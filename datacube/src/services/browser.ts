@@ -7,7 +7,6 @@
 // planner, its DuckDB, its configuration).
 
 import type { TsItemAnswer } from '../lite-planner.ts';
-import type { AsyncDuckDB } from '../../../engine-client/src/duckdb-wasm.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ProjectDatabases, ProjectDataSource } from '../../../engine-client/src/project-data.ts';
 import type { WarehouseBinding } from '../../../engine-client/src/warehouse.ts';
@@ -21,7 +20,7 @@ import type { TableModels } from '../infer.ts';
 import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
 import { PlanThenRun } from '../runner.ts';
-import { forgetUpload, ingestFile, mountRemoteView } from '../upload.ts';
+import { forgetUpload, ingestFile, mountRemoteView, type DuckDbFiles } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
 import type {
   ConfiguredProject,
@@ -70,7 +69,7 @@ export interface BrowserServicesOptions {
   readonly plane: PlaneService;
   readonly planner: TabPlanner;
   /** This tab's DuckDB: its connection's engine, the database files are registered on, and its other connections. */
-  readonly duckdb: { readonly engine: DuckDbEngine; readonly db: AsyncDuckDB; connect(): Promise<DuckDbEngine> };
+  readonly duckdb: { readonly engine: DuckDbEngine; readonly db: DuckDbFiles; connect(): Promise<DuckDbEngine> };
   readonly config: TabConfig;
   /** Where the page is, for the links it makes (Studio on a project). */
   readonly location: { readonly href: string };
@@ -141,7 +140,7 @@ function tabModelWriting(writer: ModelWriter, engine: DuckDbEngine): ModelWritin
 }
 
 /** DuckDB in this tab: every grid's rows, and where a file, a remote file or a Snap goes. */
-function tabDatabase(duck: { readonly engine: DuckDbEngine; readonly db: AsyncDuckDB }, tables: TableModels): DatabaseService {
+function tabDatabase(duck: { readonly engine: DuckDbEngine; readonly db: DuckDbFiles }, tables: TableModels): DatabaseService {
   const { engine, db } = duck;
   return {
     ingestFile: (file, options) => ingestFile(engine, db, file, tables, options),

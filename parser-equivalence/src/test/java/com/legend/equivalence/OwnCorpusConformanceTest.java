@@ -90,6 +90,14 @@ class OwnCorpusConformanceTest {
             // connection type the engine's DatabaseType enum lacks
             return "LITE-DESIGN-sqlite-backend";
         }
+        if (msg.contains("Unsupported column data type 'TIMESTAMP_NS'")) {
+            // the TIMESTAMP_NS column type (2026-11-13, REVIEWED, the final
+            // audit's item 2; docs/SEMANTICS_REGISTER.md S64): a lite
+            // ###Relational grammar extension the engine's column types
+            // lack -- a nanosecond key's test needs one
+            // (TestDataRoutesTest.aNanosecondKeyFindsItsOwnRow)
+            return "LITE-DESIGN-timestamp-ns";
+        }
         // mappings-as-functions (the standing design exception): a
         // CLEAN-SHEET mapping body parses to MappingDefinition (function
         // form) — the engine's grammar has no arm for it. Also covers the
@@ -278,6 +286,9 @@ class OwnCorpusConformanceTest {
                 // routed-navigate witness is a function-form mapping by design
                 Map.entry("LITE-DESIGN-mapping-as-function", 21),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
+                // 0 -> 1 (2026-11-13, REVIEWED, the final audit's item 2; S64): the TIMESTAMP_NS column of
+                // TestDataRoutesTest.aNanosecondKeyFindsItsOwnRow, lite's grammar extension
+                Map.entry("LITE-DESIGN-timestamp-ns", 1),
                 Map.entry("PURE-DIALECT-diagram", 1),
                 // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): UserFunctionIntegrationTest
                 // $RelationGeneric's columns-by-name library (test::mean<T,X,Z,V,O>, ColSpec<X⊆T>: DataCube's

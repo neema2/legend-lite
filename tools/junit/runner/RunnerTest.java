@@ -171,4 +171,25 @@ class RunnerTest {
         assertEquals(unsharded.size(), union.size(), "a test ran in two shards: " + union);
         assertEquals(unsharded, new TreeSet<>(union));
     }
+
+    /** The heap's live peak is taken only after a collection that reclaims the old generation (2026-11-10: under G1 a
+     *  young pause leaves the old generation's garbage in place, and the PCT ClickHouse relation lane read 4093 of 4096
+     *  MB "live" while its true live set was under 2 GB); a young pause that has grown past the live peak by a quarter,
+     *  above the floor, asks for a full collection to measure it, a bounded number of times per run. */
+    @Test
+    void theLivePeakIsAFullCollectionsAfterUsage() {
+        assertTrue(JUnitMain.reclaimsOldGeneration("end of major GC"));
+        assertFalse(JUnitMain.reclaimsOldGeneration("end of minor GC"));
+        assertFalse(JUnitMain.reclaimsOldGeneration("end of concurrent GC"));
+        long mb = 1L << 20;
+        // below the floor: never asked for
+        assertFalse(JUnitMain.measureNow(200 * mb, 0, 0));
+        // above the floor, past the live peak by more than a quarter: asked for
+        assertTrue(JUnitMain.measureNow(300 * mb, 0, 0));
+        assertTrue(JUnitMain.measureNow(1300 * mb, 1000 * mb, 0));
+        // within a quarter of the live peak: not
+        assertFalse(JUnitMain.measureNow(1200 * mb, 1000 * mb, 0));
+        // the run's measures spent: not
+        assertFalse(JUnitMain.measureNow(4000 * mb, 1000 * mb, JUnitMain.MAX_MEASURES));
+    }
 }

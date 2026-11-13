@@ -33,8 +33,6 @@ public final class Census {
         FRAME_CLASS_CTE("frame.class-cte"),
         SQL_ROUND_TRIPS("sql.round-trips"),
         SQL_CHARS("sql.chars"),
-        /** Row loads an engine's own bulk API took ({@link BulkLoad}). */
-        BULK_LOADS("sql.bulk-loads"),
         ULP_FIRINGS("host.ulp-firings"),
         EFFECTS_IN_SCRIPT("effects.in-script"),
         /** Test bodies the body router moved whole onto the program road (the test-is-the-product plan's M5, R16). */

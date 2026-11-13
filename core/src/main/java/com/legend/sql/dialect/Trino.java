@@ -78,6 +78,67 @@ public final class Trino extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
     }
 
+    /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal is typed by the digits it is written with (measured) (S181,
+     *  A7, 2026-11-10). Kept at nine by the user's rule, "refuse if the db cannot handle" (round 34, 2026-11-11): Trino's
+     *  {@code TIMESTAMP(9)} keeps them, and so does every arm that reads a date-time (the orchestrator's correction,
+     *  B, 2026-11-11, measured on Trino 483: {@code CAST(t AS TIMESTAMP(6))} ROUNDS a nanosecond value,
+     *  {@code .123456789} to {@code .123457}, so the time zone's, a parse's, the time bucket's, the date difference's
+     *  and a microsecond's arithmetic read {@code TIMESTAMP(9)}: {@link #micros}, {@link #nanos}); where Trino has no
+     *  such digits ({@code parse_datetime}, milliseconds), a format that asks for them is refused by name. The engine
+     *  reads every database timestamp as nine digits ({@code JdbcDecode}), so no answer's text moves. */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11; until then
+     *  the statement's own VALUES rows: Trino holds no session table, probes/TrinoDataTable.java.txt). Trino's driver
+     *  writes a parameter into the statement's text, which the server bounds by its {@code query.max-length} -- a SERVER
+     *  setting (1,000,000 characters by default), so the database enforces it and its refusal reaches the caller under
+     *  the payload's planned label, as ClickHouse's {@code max_query_size} and MySQL's {@code max_allowed_packet} do (the
+     *  B checkpoint's correctness audit, C5, 2026-11-11: until then a payload whose literal passed 1,000,000 characters
+     *  was refused here, at planning -- wrongly on a server configured larger, and blind to the rest of the statement
+     *  and to its other payloads). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 483): each
+     *  element a {@code JSON}, a frame's record its place as the ordinality from 0 (the payload's order); an empty
+     *  array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.legend_element AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.legend_ord - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM UNNEST(CAST(json_parse(");
+        return bindPayload(writer, u).append(") AS ARRAY(JSON))) WITH ORDINALITY AS legend_payload(legend_element,"
+                + " legend_ord)");
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code TIMESTAMP(6)} (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -90,8 +151,11 @@ public final class Trino extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
-            case TIMESTAMP -> "TIMESTAMP(6)";
-            case TIMESTAMPTZ -> "TIMESTAMP(6) WITH TIME ZONE";
+            // nine digits (the audit of 862a4d02..2f164ec4, M1, 2026-11-11): a cast to TIMESTAMP(6) ROUNDS a value's
+            // digits past the microsecond (measured on 483: .123456789 to .123457), so every cast to a date-time --
+            // a parse's, cast(@DateTime)'s -- keeps the nine Trino holds; a column's DDL is ddlType's own
+            case TIMESTAMP -> "TIMESTAMP(9)";
+            case TIMESTAMPTZ -> "TIMESTAMP(9) WITH TIME ZONE";
             case JSON -> "JSON";
             case TIME -> "TIME(6)";
             case DECIMAL_TEXT -> 
@@ -316,6 +380,18 @@ public final class Trino extends AnsiSqlRenderer {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(" ").append(fields.get(i).getValue());
         }
         return sb.append(")").toString();
+    }
+
+    /** A Date and a DateTime parameter: upstream's literal processor writes both {@code Timestamp'%s'}
+     *  (trinoExtension.pure), a timestamp of the value's own digits; the placeholder is a {@code TIMESTAMP(9)}, so no
+     *  digit of a DateTime's nine is lost (a plain {@code TIMESTAMP} is three), bound as its text (D1, P4; the re-audit's
+     *  B-1, 2026-11-09; kept by round 34's rule, 2026-11-11). A number is bound bare. */
+    @Override
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP(9)", new RenderedStatement.AsText(null));
+        };
     }
 
     /** A timestamp literal keeps its digits (TIMESTAMP(p) by the literal's own precision, measured); its date and
@@ -871,6 +947,9 @@ public final class Trino extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on Trino, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached Trino, whose binary collation is not measured");
             case TODAY -> writer.append("current_date");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
@@ -956,6 +1035,7 @@ public final class Trino extends AnsiSqlRenderer {
             case REM -> writer.append("MOD(").expr(a.get(0), 0).append(", ").piece(divisor(a.get(1))).append(")");
             case MOD -> writer.append("MOD(MOD(").expr(a.get(0), 0).append(", ").piece(divisor(a.get(1))).append(") + ")
                     .expr(a.get(1), 6).append(", ").piece(divisor(a.get(1))).append(")");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS VARCHAR)");
             case BIT_NOT -> writer.append("bitwise_not(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
             // floor without the BIGINT conversion
@@ -1009,7 +1089,8 @@ public final class Trino extends AnsiSqlRenderer {
             case NOW -> writer.append("CAST(current_timestamp AS TIMESTAMP(6))");
             case DATE_TRUNC_DAY -> writer.append("CAST(").expr(a.get(0), 0).append(" AS DATE)");
             case DATE_TRUNC -> dateTrunc(writer, c);
-            case PARSE_DATE -> writer.append("CAST(").expr(a.get(0), 0).append(" AS TIMESTAMP(6))");
+            // the text's own digits, nine at most (a TIMESTAMP(6) rounds a nanosecond text: measured)
+            case PARSE_DATE -> writer.append("CAST(").expr(a.get(0), 0).append(" AS TIMESTAMP(9))");
             case EXTRACT -> writer.piece(extract(a));
             case MAKE_DATE -> writer.append("date_add('day', ").expr(a.get(2), 0).append(" - 1, date_add('month', ")
                     .expr(a.get(1), 0).append(" - 1, date_add('year', ").expr(a.get(0), 0)
@@ -1024,11 +1105,11 @@ public final class Trino extends AnsiSqlRenderer {
             case TIMEZONE -> timezone(writer, c);
             // Trino adds no date and time: the date-time is read from their texts (designed, not measured here)
             case DATE_AT_TIME -> writer.append("CAST(CAST(").expr(a.get(0), 0).append(" AS VARCHAR) || ' ' || CAST(")
-                    .expr(a.get(1), 0).append(" AS VARCHAR) AS TIMESTAMP(6))");
+                    .expr(a.get(1), 0).append(" AS VARCHAR) AS TIMESTAMP(9))");
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("to_unixtime(with_timezone(").expr(a.get(0), 0).append(", 'UTC'))");
-            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Trino keeps"
-                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch has no Trino spelling"
+                    + " here (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(truncate(to_unixtime(with_timezone(").expr(a.get(0), 0)
                     .append(", 'UTC')) * 1000) AS BIGINT)");
             case FROM_EPOCH_SECONDS -> writer.append("CAST(from_unixtime(").expr(a.get(0), 0)
@@ -1107,6 +1188,12 @@ public final class Trino extends AnsiSqlRenderer {
             case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc to " + part
                     + " has no Trino spelling");
         };
+        if (part == com.legend.sql.DatePart.MICROSECOND) {
+            // Trino's date_trunc takes no microsecond unit ("'microsecond' is not a valid TIMESTAMP field", measured on
+            // 483: the audit of 862a4d02..2f164ec4, S13): the value's exact epoch microseconds, floored, as a timestamp
+            SqlWriter.Piece t = w -> w.expr(a.get(1), 0);
+            return writer.piece(fromMicros(micros(t)));
+        }
         writer.append(toDate ? "CAST(date_trunc(" : "date_trunc(").append(stringLit(intervalUnit(part))).append(", ")
                 .expr(a.get(1), 0).append(")");
         return toDate ? writer.append(" AS DATE)") : writer;
@@ -1129,8 +1216,10 @@ public final class Trino extends AnsiSqlRenderer {
         com.legend.sql.DatePart part = part(a.get(0));
         String unit = intervalUnit(part);
         if (part == com.legend.sql.DatePart.MICROSECOND) {
-            return writer.piece(fromMicros(w -> w.piece(micros(v -> v.expr(a.get(2), 0))).append(" + ")
-                    .expr(a.get(1), 6)));
+            // date_add has no microsecond unit: through the value's epoch nanoseconds, so its own nine digits stay
+            // (measured: exact from the year 1 to 9999, before 1970 too)
+            return writer.piece(fromNanos(w -> w.piece(nanos(v -> v.expr(a.get(2), 0))).append(" + CAST(")
+                    .expr(a.get(1), 0).append(" AS DECIMAL(38, 0)) * 1000")));
         }
         return writer.append("date_add(").append(stringLit(unit)).append(", ").expr(a.get(1), 0).append(", ")
                 .expr(a.get(2), 0).append(")");
@@ -1139,20 +1228,28 @@ public final class Trino extends AnsiSqlRenderer {
     /** The {@code TIMEZONE} arm of {@link #call}. */
     private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
+        if (!zonedInstant(a.get(1))) {
+            // a plain value read as a wall time in the zone (instantIn's inner call; a UTC read is the same): its
+            // instant, as the naive UTC value the arm below reads back (the correctness audit's S3, A6, 2026-11-10:
+            // until then read as a UTC instant, shifted the wrong way). Measured on Trino 483 against DuckDB's
+            // timezone(): equal, but at a DST change's repeated hour, read in its earlier offset (DuckDB: its later)
+            return writer.append("CAST(at_timezone(with_timezone(").expr(a.get(1), 0).append(", ")
+                    .piece(zone(a.get(0))).append("), 'UTC') AS TIMESTAMP(9))");
+        }
         writer.append("CAST(at_timezone(");
         if (typeOf(a.get(1)) == SqlType.Scalar.TIMESTAMPTZ) {
             writer.expr(a.get(1), 0);
         } else {
             writer.append("with_timezone(").expr(a.get(1), 0).append(", 'UTC')");
         }
-        return writer.append(", ").piece(zone(a.get(0))).append(") AS TIMESTAMP(6))");
+        return writer.append(", ").piece(zone(a.get(0))).append(") AS TIMESTAMP(9))");
     }
 
     /** The {@code STRFTIME} arm of {@link #call}: {@code format_datetime}, whose Joda letters carry no digit finer
      *  than a millisecond (measured 2026-10-19, Trino 483: {@code 'SSSSSS'} of {@code 13:11:11.338001} is
-     *  {@code 338000}), so a microsecond or nanosecond part is the value's own six digits, the tail of its
-     *  {@code TIMESTAMP(6)} text (a nanosecond part padded with {@code 000}, as the Joda form was), the parts around
-     *  it {@code format_datetime}'s. */
+     *  {@code 338000}), so a microsecond or nanosecond part is the value's own digits, read from its
+     *  {@code TIMESTAMP(9)} text (six or nine of its nine; B, 2026-11-11: a {@code TIMESTAMP(6)} rounded a nanosecond
+     *  value's), the parts around it {@code format_datetime}'s. */
     private SqlWriter strftime(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
@@ -1166,11 +1263,9 @@ public final class Trino extends AnsiSqlRenderer {
                     pieces.add(formatDatetime(a.get(0), new SqlExpr.FormatLit(run)));
                     run = new ArrayList<>();
                 }
+                boolean nano = p == com.legend.sql.DateFmt.Part.SUBSEC_NANO;
                 pieces.add(w -> w.append("substr(CAST(CAST(").expr(a.get(0), 0)
-                        .append(" AS TIMESTAMP(6)) AS VARCHAR), -6)"));
-                if (p == com.legend.sql.DateFmt.Part.SUBSEC_NANO) {
-                    pieces.add(w -> w.append("'000'"));
-                }
+                        .append(" AS TIMESTAMP(9)) AS VARCHAR), -9" + (nano ? "" : ", 6") + ")"));
             } else {
                 run.add(p);
             }
@@ -1189,11 +1284,21 @@ public final class Trino extends AnsiSqlRenderer {
         return w -> w.append("format_datetime(").expr(x, 0).append(", ").expr(format, 0).append(")");
     }
 
-    /** The {@code STRPTIME} arm of {@link #call}. */
+    /** The {@code STRPTIME} arm of {@link #call}: {@code parse_datetime}, whose result keeps milliseconds (a
+     *  {@code timestamp(3)}, measured on Trino 483: {@code .123456} and {@code .123456789} under {@code SSSSSS} and
+     *  {@code SSSSSSSSS} both read {@code .123}), so a format that reads a microsecond or a nanosecond part is refused
+     *  by name, never cut (S181's rule; B, 2026-11-11). */
     private SqlWriter strptime(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
             throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        for (com.legend.sql.DateFmt p : fl.parts()) {
+            if (p == com.legend.sql.DateFmt.Part.SUBSEC_MICRO || p == com.legend.sql.DateFmt.Part.SUBSEC_NANO) {
+                throw new DialectCapability("a date format reading a " + (p == com.legend.sql.DateFmt.Part.SUBSEC_NANO
+                        ? "nanosecond" : "microsecond") + " part: Trino's parse_datetime keeps milliseconds (3):"
+                        + " refused, never cut (S181)");
+            }
         }
         return writer.append("CAST(parse_datetime(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
                 .append(") AS TIMESTAMP(6))");
@@ -1434,24 +1539,52 @@ public final class Trino extends AnsiSqlRenderer {
         return w -> w.append("CAST(").piece(body).append(" AS BIGINT)");
     }
 
-    /** {@code t}'s microseconds since 1970 (BIGINT): Trino's date_diff stops at milliseconds, so its whole seconds
-     *  (floored) and its six fraction digits, read from its text (measured: -500000 for 1969-12-31 23:59:59.5). */
+    /** {@code t}'s microseconds since 1970 (BIGINT), floored: Trino's date_diff stops at milliseconds, so its whole
+     *  seconds (floored) and the first six of the nine fraction digits of its {@code TIMESTAMP(9)} text (measured:
+     *  -500000 for 1969-12-31 23:59:59.5 and for 23:59:59.500000001; a {@code TIMESTAMP(6)} would round the second). */
     private static SqlWriter.Piece micros(SqlWriter.Piece t) {
         return w -> w.append("(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(").piece(t)
-                .append(" AS TIMESTAMP(6)))) * 1000000 + CAST(substr(CAST(CAST(").piece(t)
-                .append(" AS TIMESTAMP(6)) AS VARCHAR), 21, 6) AS BIGINT))");
+                .append(" AS TIMESTAMP(9)))) * 1000000 + CAST(substr(CAST(CAST(").piece(t)
+                .append(" AS TIMESTAMP(9)) AS VARCHAR), -9, 6) AS BIGINT))");
+    }
+
+    /** {@code t}'s nanoseconds since 1970, a {@code DECIMAL(38, 0)} (a BIGINT stops at 2262): its whole seconds and the
+     *  nine fraction digits of its {@code TIMESTAMP(9)} text (measured exact from the year 1 to 9999). */
+    private static SqlWriter.Piece nanos(SqlWriter.Piece t) {
+        return w -> w.append("(CAST(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(")
+                .piece(t).append(" AS TIMESTAMP(9)))) AS DECIMAL(38, 0)) * 1000000000 + CAST(substr(CAST(CAST(")
+                .piece(t).append(" AS TIMESTAMP(9)) AS VARCHAR), -9) AS DECIMAL(38, 0)))");
     }
 
     /** The naive UTC timestamp {@code x} microseconds after 1970 (through from_unixtime_nanos: date_add has no
-     *  microsecond unit). */
+     *  microsecond unit), its nanoseconds a {@code DECIMAL(38, 0)}: a BIGINT's overflows past 2262 (measured on 483,
+     *  S13: "bigint multiplication overflow" for 2300). */
     private static SqlWriter.Piece fromMicros(SqlWriter.Piece x) {
-        return w -> w.append("CAST(at_timezone(from_unixtime_nanos((").piece(x).append(") * 1000), 'UTC') AS TIMESTAMP(6))");
+        return w -> w.append("CAST(at_timezone(from_unixtime_nanos(CAST(").piece(x)
+                .append(" AS DECIMAL(38, 0)) * 1000), 'UTC') AS TIMESTAMP(6))");
     }
 
-    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too. */
+    /** The naive UTC timestamp {@code x} nanoseconds after 1970 (a {@code DECIMAL}: from_unixtime_nanos takes one),
+     *  its nine digits kept. */
+    private static SqlWriter.Piece fromNanos(SqlWriter.Piece x) {
+        return w -> w.append("CAST(at_timezone(from_unixtime_nanos(").piece(x).append("), 'UTC') AS TIMESTAMP(9))");
+    }
+
+    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too, in
+     *  exact BIGINT arithmetic (the audit of 862a4d02..2f164ec4, S13, 2026-11-11: a DOUBLE holds a microsecond epoch
+     *  exactly only to about 2255, measured on Trino 483: 9007199254740993 floored to ...992). */
     private static SqlWriter.Piece epochBoundaries(SqlWriter.Piece from, SqlWriter.Piece to, long perUnit) {
-        return w -> w.append("(floor(CAST(").piece(micros(to)).append(" AS DOUBLE) / " + perUnit
-                + ") - floor(CAST(").piece(micros(from)).append(" AS DOUBLE) / " + perUnit + "))");
+        SqlWriter.Piece unit = w -> w.append(String.valueOf(perUnit));
+        return w -> w.append("(").piece(floorDiv(micros(to), unit)).append(" - ").piece(floorDiv(micros(from), unit))
+                .append(")");
+    }
+
+    /** {@code a} divided by the positive {@code b}, floored (before 1970 too), in BIGINT: {@code a} less its
+     *  non-negative remainder, divided exactly (Trino's {@code mod} takes the dividend's sign; measured exact past
+     *  2^53 and floored for negatives on 483). */
+    private static SqlWriter.Piece floorDiv(SqlWriter.Piece a, SqlWriter.Piece b) {
+        return w -> w.append("((").piece(a).append(" - mod(mod(").piece(a).append(", ").piece(b).append(") + ")
+                .piece(b).append(", ").piece(b).append(")) / ").piece(b).append(")");
     }
 
     /** DuckDB's time_bucket: fixed units binned from 1970-01-01 (weeks from the Monday 1969-12-29) in microseconds,
@@ -1459,13 +1592,16 @@ public final class Trino extends AnsiSqlRenderer {
     private SqlWriter.Piece timeBucket(List<SqlExpr> a) {
         com.legend.sql.DatePart unit = part(a.get(0));
         Long micros = bucketMicros(unit);
-        SqlWriter.Piece t = w -> w.append("CAST(").expr(a.get(2), 0).append(" AS TIMESTAMP(6))");
+        // read at nine digits: its microseconds floored ({@link #micros}), never a rounded TIMESTAMP(6)
+        SqlWriter.Piece t = w -> w.append("CAST(").expr(a.get(2), 0).append(" AS TIMESTAMP(9))");
         SqlWriter.Piece n = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS BIGINT)");
         if (micros != null) {
             long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
-            return w -> w.piece(fromMicros(v -> v.append("CAST(floor(CAST(").piece(micros(t)).append(" - (" + origin
-                    + ") AS DOUBLE) / (").piece(n).append(" * " + micros + ")) AS BIGINT) * ").piece(n)
-                    .append(" * " + micros + " + (" + origin + ")")));
+            // exact BIGINT floor division (S13: a DOUBLE rounded a microsecond epoch past about 2255)
+            SqlWriter.Piece size = w -> w.append("(").piece(n).append(" * " + micros + ")");
+            SqlWriter.Piece since = w -> w.append("(").piece(micros(t)).append(" - (" + origin + "))");
+            return w -> w.piece(fromMicros(v -> v.piece(floorDiv(since, size)).append(" * ").piece(size)
+                    .append(" + (" + origin + ")")));
         }
         Integer months = unit == com.legend.sql.DatePart.MONTH ? Integer.valueOf(1)
                 : unit == com.legend.sql.DatePart.YEAR ? Integer.valueOf(12) : null;
@@ -1891,12 +2027,6 @@ public final class Trino extends AnsiSqlRenderer {
     // Session tables and DDL
     // ==================================================================
 
-    /** Trino has no temporary table: a plan's metamodel tables are its query's own rows. */
-    @Override
-    public boolean temporaryTables() {
-        return false;
-    }
-
     /** {@inheritDoc} Yes: Trino writes a WITH's query in place at each read, never once for every read (#81's final
      *  review, item 14k (9), 2026-11-10). */
     @Override
@@ -1908,15 +2038,6 @@ public final class Trino extends AnsiSqlRenderer {
     @Override
     public boolean stagesSharedRelations() {
         return false;
-    }
-
-    /** Trino has no temporary table, so no table only one session sees: the server engine's system database is
-     *  refused by name here. */
-    @Override
-    public List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        throw new DialectCapability("a session's own table reached Trino, which has no temporary tables: "
-                + table.table());
     }
 
     /** Trino DDL: a nullable column says nothing (an explicit NULL is a syntax error). */

@@ -153,7 +153,10 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     SAN, 2011
                 #->pivot(~[year], ~[cnt:x|1:y|$y->plus()])
                 """);
-            assertTrue(sql.contains("SUM(1)"), "Should use SUM(1) for literal count. Got: " + sql);
+            // the keyed body (B3, 2026-11-11: the text plan is the execution plan's, a keyed result on every database):
+            // each key's count a SUM of the literal 1 where the row is the key's (until then DuckDB's native SUM(1))
+            assertTrue(sql.replace("\"", "").matches("(?s).*SUM\\(CASE WHEN .* = \\? THEN 1 END\\).*"),
+                    "Should use SUM of a literal 1 per key for literal count. Got: " + sql);
 
             assertEquals(2, result.rowCount(), "Should have 2 rows (NYC, SAN)");
             int cityIdx = columnIndex(result, "city");
@@ -646,25 +649,29 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
     class SqlGeneration {
 
         @Test
-        @DisplayName("single-column pivot SQL — PIVOT ON col USING agg AS alias")
+        @DisplayName("single-column pivot SQL — the keys read from the column itself, a SUM per key, named <key>__|__alias")
         void testSingleColumnPivotSql() throws SQLException {
-            String sql = generateSql("""
+            // B3, 2026-11-11: the text plan renders from the execution plan, which runs a pivot whose columns the data
+            // names as a KEYED result on every database -- its keys statement first, then its body written once per key
+            // (until then the text was DuckDB's native PIVOT ... ON ... USING, which no plan runs)
+            var keyed = generateKeyed("""
                 #TDS
                     city, year, treePlanted
                     NYC, 2011, 5000
                     SAN, 2012, 2000
                 #->pivot(~[year], ~[total:x|$x.treePlanted:y|$y->plus()])
                 """);
-
-            assertTrue(sql.contains("PIVOT"), "Should contain PIVOT keyword");
-            assertTrue(sql.contains("ON \"year\""), "Should pivot ON the source's year column directly (no synthetic key)");
-            assertTrue(sql.contains("USING"), "Should contain USING keyword");
-            assertTrue(sql.contains("SUM("), "Should use SUM aggregate");
-            assertTrue(sql.contains("\"_|__total\""), "Should alias as \"_|__total\"");
+            String keys = keyed.keys().statement().replace("\"", "");
+            String body = keyed.body().statement().replace("\"", "");
+            assertTrue(keys.contains("SELECT DISTINCT _tds0.year AS _pct_k"),
+                    "the keys are the source's year column directly (no synthetic key): " + keys);
+            assertTrue(body.matches("(?s).*SUM\\(CASE WHEN CAST\\(_tds0.year AS \\w+.*\\) = \\? THEN _tds0.treePlanted END\\).*"),
+                    "each key's SUM of its rows' value: " + body);
+            assertTrue(keys.contains("'__|__total'"), "each per-key column named <key>__|__total: " + keys);
             // Single-column pivot must NOT take the multi-column path:
             // no SelectExcept wrapper, no separator concatenation.
-            assertFalse(sql.contains("EXCLUDE"), "Single-column pivot should not emit EXCLUDE");
-            assertFalse(sql.contains("'__|__'"),
+            assertFalse(keys.contains("EXCLUDE") || body.contains("EXCLUDE"), "Single-column pivot should not emit EXCLUDE");
+            assertFalse(keys.contains("'__|__'") || body.contains("'__|__'"),
                     "Single-column pivot should not synthesize a composite key");
         }
 
@@ -686,7 +693,14 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     "EXCLUDE should drop the source pivot columns");
             assertTrue(sql.contains("'__|__'"),
                     "Should concatenate pivot columns with __|__ separator");
-            assertTrue(sql.contains("\"_|__total\""), "Should alias aggregate as \"_|__total\"");
+            // B3, 2026-11-11: the keyed plan's keys statement names each per-key column <key>__|__total (until then
+            // DuckDB's native PIVOT aliased the aggregate "_|__total")
+            assertTrue(generateKeyed("""
+                #TDS
+                    country, city, year, sales
+                    USA, NYC, 2020, 100
+                #->pivot(~[country, city], ~[total:x|$x.sales:y|$y->plus()])
+                """).keys().statement().contains("'__|__total'"), "Should name each per-key column <key>__|__total");
         }
     }
 

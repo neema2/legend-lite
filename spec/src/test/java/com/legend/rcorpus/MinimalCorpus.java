@@ -18,7 +18,6 @@ import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
 import com.legend.protocol.spec.NewInstance;
 import com.legend.protocol.spec.ValueSpecification;
-import com.legend.testbackend.FixtureAside;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 
@@ -508,14 +507,6 @@ public final class MinimalCorpus {
         return java.util.Collections.unmodifiableMap(textDecided);
     }
 
-    /** Fixtures the runner seeded ON DEMAND (corpus-zero program):
-     * {@code test + ' ' + store} → the setup that seeded it. */
-    private final Map<String, String> fixturesProvided = new LinkedHashMap<>();
-
-    public Map<String, String> fixturesProvided() {
-        return java.util.Collections.unmodifiableMap(fixturesProvided);
-    }
-
     /** Setups the platform derived as INERT (no statement effects) and so
      * never ran — counted and pinned by the run (Phase 0.2). */
     public Set<String> inertSetups() {
@@ -604,8 +595,10 @@ public final class MinimalCorpus {
             referee = new com.legend.harness.ReplayReferee(recorder);
             // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
             // 2026-11-09): a CSV load's plan names its file by reference and digest, the run reads it from here
-            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder),
-                            com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()))
+            // the same stores the edge's: the referee's copy of a CSV load reads the bytes the plan's load read (B2b)
+            com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
+                    Corpus.RELATIONAL.getParent().getParent());
+            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
                     // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
                     // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                     .withEngineCompat(true);
@@ -669,59 +662,6 @@ public final class MinimalCorpus {
         public void declined(String name, String reason) {
             // a text-decided verdict, named by the arm (Phase 0.6)
             textDecided.merge(reason + " " + currentTest, 1, Integer::sum);
-        }
-
-        /** A clashing fixture set aside in the workspace by its backend ({@code TestBackend.setFixtureAside}): names
-         * stay as written, the session's own tables keep winning, the fixture's tables resolve last. A backend that
-         * cannot set one aside refuses by name: no fixture runs over the session's tables (the plan's defect 5). */
-        private @com.legend.base.Nullable FixtureAside aside;
-
-        @Override
-        public com.legend.exec.Sessions.Session isolateFixture(com.legend.exec.Sessions.Session conn, String setupFqn) {
-            FixtureAside set;
-            try {
-                set = BACKEND.setFixtureAside(com.legend.testbackend.TestSessions.connectionOf(conn));
-            } catch (SQLException e) {
-                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
-            }
-            aside = set;
-            System.err.println("[fixture-aside] " + setupFqn + " -> " + set.name()
-                    + (set.connection() == com.legend.testbackend.TestSessions.connectionOf(conn) ? " (" + BACKEND.name() + ")" : "") + " during " + currentTest);
-            // the referee's MIRROR replays the seed ledger: it sets the same aside
-            // its own way -- the fixture's DDL lands there, the golden SQL resolves
-            // the mirror's own tables first (fixtureIsolated)
-            if (recorder != null && !refereeLane()) {
-                for (String s : TestBackends.referee().replayAside(set.name())) {
-                    recorder.recordExecuted(s, false);
-                }
-            }
-            // the fixture's session: a view the runner never closes (the aside is restored and released below)
-            return com.legend.testbackend.TestSessions.over(set.connection());
-        }
-
-        @Override
-        public void fixtureIsolated(com.legend.exec.Sessions.Session conn) {
-            FixtureAside done = java.util.Objects.requireNonNull(aside,
-                    "fixtureIsolated without isolateFixture: the runner balances a set-aside fixture");
-            aside = null;
-            try {
-                done.restore();
-                if (recorder != null && !refereeLane()) {
-                    for (String s : TestBackends.referee().replayRestore(done.held())) {
-                        recorder.recordExecuted(s, false);
-                    }
-                }
-            } catch (SQLException e) {
-                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
-            }
-        }
-
-        @Override
-        public void fixtureProvided(String storeFqn, String setupFqn) {
-            // fixture on demand (corpus-zero program): the rows leg reads a
-            // mapping over a store another package's setup seeds; the
-            // runner ran that setup
-            fixturesProvided.put(currentTest + " " + storeFqn, setupFqn);
         }
     }
 

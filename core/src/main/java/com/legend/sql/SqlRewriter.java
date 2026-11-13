@@ -118,7 +118,7 @@ public abstract class SqlRewriter {
                         r -> mapList(r, this::rewriteExpr));
                 yield rows == v.rows() ? v
                         : new SqlSource.Values(rows, v.columns(), v.alias(),
-                                v.outputs());
+                                v.outputs(), v.payload());
             }
             case SqlSource.Join j -> {
                 SqlSource l = rewriteSource(j.left());

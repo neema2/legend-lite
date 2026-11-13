@@ -5,7 +5,6 @@ package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -18,13 +17,14 @@ import java.util.Objects;
  * for each target -- the caller's code deciding, inside the run, which session a statement goes to. Now a caller names
  * one of these and exec decides by its rule: a session the caller holds ({@link Given}), the server's project databases
  * ({@link ProjectDatabases}), a new session per use from the host's connection ({@link Fresh}), the plan's declared
- * connection by its connector ({@link Declared}), a held session for a target whose session statements are the given
- * options alone, else a new one ({@link Held}), or none ({@link None}). The host's connection itself ({@link Sessions.Opener}) is a resource the
+ * connection by its connector ({@link Declared}), or none ({@link None}). (A held session for a target whose session
+ * statements were a dialect's options alone, else a new one -- the system metamodel store's session tables, round 14
+ * -- went with B4, 2026-11-11: a held session is {@link Given}.) The host's connection itself ({@link Sessions.Opener}) is a resource the
  * host owns, as a data source is: it opens a connection and decides nothing of the run.
  */
 public sealed interface SessionSource
         permits SessionSource.Given, SessionSource.None, SessionSource.ProjectDatabases, SessionSource.Fresh,
-        SessionSource.Declared, SessionSource.Held {
+        SessionSource.Declared {
 
     /** The session for {@code target}: a view where the source holds it, an owned one where it opens one for the use. */
     default Sessions.Session open(ExecutionPlan.Target target) {
@@ -39,9 +39,6 @@ public sealed interface SessionSource
                 }
                 yield Connectors.of(declared.connection().databaseType()).open(declared.connection());
             }
-            case Held h -> target.session().equals(h.optionsOnly())
-                    ? Sessions.view(h.held())
-                    : Sessions.open(h.fresh());
             case None n -> throw new IllegalStateException(n.why());
         };
     }
@@ -81,19 +78,5 @@ public sealed interface SessionSource
     /** The plan's declared connection, opened by its database's connector (a database whose sessions are its
      *  connector's: MongoDB's). */
     record Declared() implements SessionSource {
-    }
-
-    /**
-     * A held session for a target whose session statements are {@code optionsOnly} -- a dialect's own options, run on
-     * any session again as on a new one -- and a new owned session from {@code fresh} for any other (a plan that makes a
-     * table of the session's own, the system metamodel store's, runs on a new session, which drops the table when it
-     * closes: the PCT's round 14, 2026-11-03, measured it on ClickHouse and Snowflake).
-     */
-    record Held(Sessions.Session held, List<String> optionsOnly, Sessions.Opener fresh) implements SessionSource {
-        public Held {
-            Objects.requireNonNull(held, "held");
-            optionsOnly = List.copyOf(optionsOnly);
-            Objects.requireNonNull(fresh, "fresh");
-        }
     }
 }

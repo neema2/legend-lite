@@ -87,10 +87,6 @@ public final class ConnectionWire {
             case ConnectionSpecification.LocalH2 x -> {
                 o.put("_type", SpecificationTag.LocalH2.name());
                 putIfSet(o, "url", x.url());
-                putIfSet(o, "testDataSetupCsv", x.testDataSetupCsv());
-                if (x.testDataSetupSqls() != null) {
-                    o.put("testDataSetupSqls", x.testDataSetupSqls());
-                }
             }
             case ConnectionSpecification.EmbeddedH2 x -> {
                 o.put("_type", SpecificationTag.EmbeddedH2.name());
@@ -226,9 +222,7 @@ public final class ConnectionWire {
         return switch (named(SpecificationTag.values(), o.string("_type"), "connection specification _type")) {
             case InMemory -> new ConnectionSpecification.InMemory();
             case LocalFile -> new ConnectionSpecification.LocalFile(o.string("path"));
-            case LocalH2 -> new ConnectionSpecification.LocalH2(o.optionalString("url"),
-                    o.optionalString("testDataSetupCsv"),
-                    o.has("testDataSetupSqls") ? o.strings("testDataSetupSqls") : null);
+            case LocalH2 -> new ConnectionSpecification.LocalH2(o.optionalString("url"));
             case EmbeddedH2 -> new ConnectionSpecification.EmbeddedH2(o.string("databaseName"),
                     o.string("directory"), o.bool("autoServerMode"));
             case StaticDatasource -> new ConnectionSpecification.StaticDatasource(o.string("host"),

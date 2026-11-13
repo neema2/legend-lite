@@ -8,11 +8,13 @@ compiled once and planned against many times, for as long as it is open.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
 from . import _json
 from ._library import library
+from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer
 
 Tree = dict[str, Any]
 
@@ -57,10 +59,60 @@ class Answer:
 
 @dataclass(frozen=True)
 class Plan:
-    """A query planned: the SQL to run, and the compiler's type of what it returns."""
+    """A query planned: the SQL to run, the compiler's type of what it returns, and the values its ``?``s bind, in
+    order -- the plan's own data: payloads (``plan_params``: the tenets audit's M3); none for a text that runs alone."""
 
-    sql: str
+    sql: PlannedSql
     columns: tuple[Column, ...]
+    params: tuple[str, ...] = ()
+
+
+class PlanParamsRefused(ValueError):
+    """A plan whose statement binds what a host running its text does not bind, or whose payload is not the data it was
+    planned against: refused by name."""
+
+
+def plan_params(plan: Any) -> tuple[str, ...]:
+    """THE VALUES A PLAN'S STATEMENT BINDS THAT THE PLAN CARRIES (the tenets audit's M3, 2026-11-11; engine-client
+    plan-params.ts, the same rule): each data: payload -- the plan's own value, one JSON array -- read from the answering
+    statement's content by the digest its slot names, its bytes checked against that SHA-256, once, here where the host
+    reads the plan; any other slot (a parameter the run supplies, a key's cell, a file's path, a list) refused by name.
+    ``plan``: the execution plan (PlanJson, parsed), or None for a text that runs alone."""
+    if plan is None:
+        return ()
+    root = plan.get('root') if isinstance(plan, dict) else None
+    statement = root.get('sql') if isinstance(root, dict) else None
+    if not isinstance(statement, dict):
+        raise PlanParamsRefused(f"a text plan's statement is its root's (a typed result's), not a "
+                                f"{root.get('_type') if isinstance(root, dict) else root!r}'s")
+    return statement_params(statement)
+
+
+def statement_params(statement: dict[str, Any]) -> tuple[str, ...]:
+    """The values ``statement``'s slots bind (``plan_params``' rule), in its placeholders' order. What the planner always
+    writes is required, never defaulted (G7; the final audit, 2026-11-12, plan-params.ts's twin): a statement with no
+    slots, and a payload its statement does not carry (no digest, no content), each refused by name."""
+    if 'slots' not in statement:
+        raise PlanParamsRefused("this plan's statement does not carry its slots")
+    content = statement.get('content')
+    out = []
+    for slot in statement['slots']:
+        kind = slot['binding'].get('_type')
+        if kind != 'payload':
+            what = {'key': "a key's cell", 'source': "a file source's path", 'array': 'a list'}.get(kind, 'a value the run supplies')
+            raise PlanParamsRefused(f"'{slot['parameter']}' binds {what}, which a host running the plan's text does not bind")
+        digest = slot['binding'].get('digest')
+        if digest is None or content is None:
+            raise PlanParamsRefused(f"'{slot['parameter']}' binds a payload its statement does not carry")
+        text = content.get(digest)
+        if text is None:
+            raise PlanParamsRefused(f"the plan's statement binds the payload {digest}, which its content does not carry")
+        actual = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        if actual != digest:
+            raise PlanParamsRefused(f"the data: source's payload is not the data it was planned against: its digest is "
+                                    f'{actual}, where the plan names {digest}')
+        out.append(text)
+    return tuple(out)
 
 
 def _answer(text: str) -> str:
@@ -124,10 +176,11 @@ def read_planned(answer: str) -> Plan:
 
 
 def read_plan(answer: str) -> Plan:
-    """The planner's plan (``{"sql", "type"}``, the answer after its ``OK`` tag) as a Plan: the one reading of it, as
-    DataCube's planner reads it (lite-planner.ts ``readPlan``)."""
+    """The planner's plan (``{"sql", "type", "plan"?}``, the answer after its ``OK`` tag) as a Plan: the one reading of
+    it, as DataCube's planner reads it (lite-planner.ts ``readPlan``) -- the values its statement binds read once, here
+    (``plan_params``)."""
     out = _json.loads(answer)
-    return Plan(out['sql'], _columns(out['type']))
+    return Plan(from_plan(out['sql']), _columns(out['type']), plan_params(out.get('plan')))
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:
@@ -213,36 +266,77 @@ def table_model(table: dict[str, Any]) -> dict[str, Any]:
     "local"), "convertible", "columns"}]}`` instead, the model of SEVERAL tables of one database (a join's inputs, read
     in one place): each package's Database declaring its tables as each one's own model does, one connection, and a
     runtime binding every Database to it. Returns ``{"model", "runtime", "tables": [{"source", "accessor",
-    "conversions", "excluded"}]}``, the tables in the order given; a table given twice is refused."""
+    "conversions", "excluded"}]}``, the tables in the order given; a table given twice is refused.
+"""
     return _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
 
 
-def catalog_columns_sql(schema: str, table: str) -> str:
+def catalog_columns_sql(schema: str, table: str) -> PlannedSql:
     """The catalog question for one table of a DuckDB: SQL whose rows (``column_name``, ``data_type``,
     ``logical_type``, ``numeric_precision``, ``numeric_scale``, ``not_null``) describe its columns."""
-    return _answer(library().call('lite_catalog_columns_sql', schema, table))
+    return from_plan(_answer(library().call('lite_catalog_columns_sql', schema, table)))
 
 
-def session_setup(database_type: str) -> list[str]:
+def session_setup(database_type: str) -> list[PlannedSql]:
     """What a session of the given database runs before it is queried, so that it answers as the planner's
     SQL expects: the dialect's own setup (a DuckDB session in UTC)."""
-    return _json.loads(_answer(library().call('lite_session_setup', database_type)))
+    return all_from_plan(_json.loads(_answer(library().call('lite_session_setup', database_type))))
 
 
-def host_operations(database_type: str, operations: list[dict[str, Any]]) -> list[list[str]]:
+def host_operations(database_type: str, operations: list[dict[str, Any]]) -> list[list[PlannedSql]]:
     """A host's named operations on its own database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5):
     each operation's statements, in order -- what Python's host runs instead of spelling SQL (engine-client's
-    host-operations.ts writes the same operations). One the database has not is refused by name."""
-    return _json.loads(_answer(library().call('lite_host_operations', database_type, _json.dumps(operations))))
+    host-operations.ts writes the same operations). One the database has not is refused by name, and so is one carrying
+    SQL -- a source ``query``, a ``selectList``, a ``replacing`` expression -- by the platform (the final audit's item 1,
+    2026-11-12: a host operation takes no SQL; a copy's conversions are the platform's, from its columns' catalog,
+    ``convert``)."""
+    answered = _json.loads(_answer(library().call('lite_host_operations', database_type, _json.dumps(operations))))
+    return [all_from_plan(statements) for statements in answered]
+
+
+def snap_stream(request: dict[str, Any]) -> PlanText:
+    """A SNAPSHOT FROM A REMOTE PLANE, as a plan (the native library's Boundary.snapStream; the user's ruling of
+    2026-11-11, "This is the right plan"): ``request`` is ``{"databaseType", "plane", "model", "runtime", "lambda",
+    "schema"?, "table"}`` -- the name this host holds the remote plane under, the PULL (the model's text, its runtime and
+    the query as a lambda's protocol JSON, which the planner plans in this call for the plane's own database: the user's
+    ruling of 2026-11-12, "that is a real off platform problem" -- a request carries no statement), and the table of this
+    database it lands in; never a row, never SQL (any other key is refused by name). The plan: one HOST_SESSION load
+    whose stream step ``projects.run_host_load`` runs in one transaction."""
+    # the plan as the planner answered it (the re-audit's M1): what run_host_load takes, and nothing else does
+    return plan_from_answer(_answer(library().call('lite_snap_stream', _json.dumps(request))))
+
+
+def snap_copy(request: dict[str, Any]) -> PlanText:
+    """A SNAPSHOT'S LOCAL COPY, as a plan (the native library's Boundary.snapCopy; the final audit's item 1(b),
+    2026-11-12): ``request`` is ``{"databaseType", "model", "runtime", "lambda", "schema"?, "table"}`` -- the PULL, which
+    the planner plans in this call, and the table it is copied into; never SQL (any other key is refused by name). The
+    plan: one write -- the table there before dropped, the table made from the pull, its data: payloads bound by digest
+    -- in its target's transaction, which ``projects.run_write`` runs."""
+    return plan_from_answer(_answer(library().call('lite_snap_copy', _json.dumps(request))))
+
+
+def frame_load(request: dict[str, Any]) -> PlanText:
+    """A HOST'S VALUE READ AS A RELATION, as a plan (the native library's Boundary.frameLoad; the user's ruling of
+    2026-11-11: a frame named, attached at run): ``request`` is ``{"databaseType", "held", "as", "live", "schema"?,
+    "relation"}`` -- the name this host holds the frame under, the relation it is attached as, whether it is read at each
+    query (a view) or once (a table), and the relation it is read through; never its bytes. The plan: one HOST_SESSION
+    load whose attach step ``projects.run_host_load`` runs, binding the value this host holds by that name."""
+    return plan_from_answer(_answer(library().call('lite_frame_load', _json.dumps(request))))
 
 
 def project_data(model: str, database_type: str) -> dict[str, Any]:
     """A project's own database on a database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5): where
     ``model``'s Data rows live on this host, named by what it holds (the model's Databases and Data rows: an edited row
     is a fresh database). ``name``, and the statements of each step in order: ``open`` makes it, ``use`` points a
-    connection of its own at it, ``fill`` makes and fills every table a relational Data element fills (on that
-    connection), ``close`` drops it. A database without the operations is refused by name."""
-    return _json.loads(_answer(library().call('lite_project_data', model, database_type)))
+    connection of its own at it, ``close`` drops it; and ``load``, the plan whose root is the ONCE load that makes and
+    fills every table a relational Data element fills (on that connection; ``projects.run_load``), absent for a model
+    with no Data rows (B3, 2026-11-11: until then ``fill``, its statements as text). A database without the operations
+    is refused by name."""
+    answered = _json.loads(_answer(library().call('lite_project_data', model, database_type)))
+    # each step's statements as the planner wrote them (_planned.py); the load, the plan the planner answered (M1),
+    # its steps typed as it runs
+    load = {} if answered.get('load') is None else {'load': plan_from_answer(_json.dumps(answered['load']))}
+    return {**answered, **load, **{step: all_from_plan(answered[step]) for step in ('open', 'use', 'close')}}
 
 
 

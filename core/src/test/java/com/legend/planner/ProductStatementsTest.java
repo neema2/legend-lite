@@ -25,9 +25,9 @@ import org.junit.jupiter.api.Test;
 /**
  * The product's statement road (the test-is-the-product plan's M2, B11): a query's and a program's statements planned
  * by the test road's front half. A String or a Boolean literal answer is the plan's own value, a CONSTANT node that
- * sends nothing (D26, step 6); a raw grid's rows or column names are a KEYED result whose keys are the grid's
- * reported columns, as the test road plans them (D29, step 7; until then the product refused them, "per-key regions
- * are a keyed result's body").
+ * sends nothing (D26, step 6). A raw grid ({@code executeInDb}'s read) is the TEST road's alone since 2026-11-13 (the
+ * user's ruling (a) on the orchestrator's item 5): its keyed result is pinned on the test door (TestDoorTest), its
+ * refusal on the product's doors (QueryDoorTest).
  */
 class ProductStatementsTest {
 
@@ -59,8 +59,8 @@ class ProductStatementsTest {
     private static List<List<Object>> rows(ExecutionPlan plan) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             return PlanRunner.rows(plan, Map.of(), plan.sendsTheAnswer()
-                    ? PlanSessions.setUp(TestSessions.over(c), plan.answerSql().target())
-                    : PlanSessions.of(TestSessions.over(c))).rows();
+                    ? PlanSessions.acquired(TestSessions.over(c), plan.answerSql().target())
+                    : PlanSessions.of(TestSessions.over(c)), java.util.UUID.randomUUID()).rows();
         }
     }
 
@@ -88,38 +88,6 @@ class ProductStatementsTest {
         assertInstanceOf(ExecutionPlan.Update.class, seq.steps().get(0));
         ExecutionPlan.Constant last = assertInstanceOf(ExecutionPlan.Constant.class, seq.steps().get(1));
         assertEquals(List.of(List.of("done")), last.cells());
-    }
-
-    @Test
-    void aRawGridsRowsAreAKeyedResult() throws Exception {
-        ExecutionPlan values = plan("{|" + CONN
-                + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).rows->map(r|$r.values);}");
-        assertInstanceOf(ExecutionPlan.Keyed.class, values.root());
-        // a value read off the grid answers as a value, not a relation (M2's audit: a writer chooses its layout by the
-        // answer's shape, and the server refuses a value's answer by name)
-        assertEquals(ExecutionPlan.TdsResult.Shape.VALUE, values.answerShape());
-        // the test road's own answer to the same statement (its rows plan, JudgePlans.rowsPlan, keyed the same way)
-        try (Connection c = TestBackends.platform().open()) {
-            assertEquals(com.legend.testing.Program.last(StorelessRuntime.with("", Databases.PLATFORM), "{|" + CONN
-                    + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).rows->map(r|$r.values);}",
-                    StorelessRuntime.RUNTIME, c).rows(), rows(values));
-        }
-        // the column names too: the grid's reported columns are the keys
-        ExecutionPlan names = plan("{|" + CONN
-                + "meta::relational::metamodel::execute::executeInDb('select 7 as A, 8 as B', $c).columnNames;}");
-        assertInstanceOf(ExecutionPlan.Keyed.class, names.root());
-        assertEquals(ExecutionPlan.TdsResult.Shape.VALUE, names.answerShape());
-        try (Connection c = TestBackends.platform().open()) {
-            assertEquals(com.legend.testing.Program.last(StorelessRuntime.with("", Databases.PLATFORM), "{|" + CONN
-                    + "meta::relational::metamodel::execute::executeInDb('select 7 as A, 8 as B', $c).columnNames;}",
-                    StorelessRuntime.RUNTIME, c).rows(), rows(names));
-        }
-        assertEquals(List.of(List.of("A"), List.of("B")), rows(names));
-        // the grid itself is a relation of the columns its result reports, as before
-        ExecutionPlan grid = plan("{|" + CONN
-                + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c, 0, 1000);}");
-        ExecutionPlan.TdsResult result = assertInstanceOf(ExecutionPlan.TdsResult.class, grid.root());
-        assertEquals(List.of(), result.columns());
     }
 
     @Test
@@ -202,7 +170,7 @@ class ProductStatementsTest {
                     public void end() throws java.io.IOException {
                         collector.end();
                     }
-                });
+                }, java.util.UUID.randomUUID());
         assertEquals(List.of(List.of("alone")), collector.collected().rows());
     }
 

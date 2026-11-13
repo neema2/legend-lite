@@ -276,9 +276,14 @@ class ResultWritersTest {
     @Test
     void thePureV1RelationIsTheEnginesTdsLayout_inTheEnginesColumnOrder() throws IOException {
         StringWriter out = new StringWriter();
-        String json = write(PureV1Writer.relation(out, columns -> new PureV1Writer.Envelope(
-                "{\"_type\":\"tdsBuilder\"}", "[]", List.of("F", "ID", "NAME"))), out, ROWS, DATA);
-        assertEquals("{\"builder\": {\"_type\":\"tdsBuilder\"}, \"activities\": [], \"result\" : {\"columns\" : "
+        // the execution the writer is made for, the door's id: the activity's comment reports it (C1's second half)
+        PureV1Writer writer = PureV1Writer.relation(out, columns -> new PureV1Writer.Envelope(
+                "{\"_type\":\"tdsBuilder\"}", "SELECT 1", List.of("F", "ID", "NAME")),
+                java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        String json = write(writer, out, ROWS, DATA);
+        assertEquals("{\"builder\": {\"_type\":\"tdsBuilder\"}, \"activities\": [{\"_type\":\"relational\",\"comment\":"
+                + "\"-- \\\"executionTraceID\\\" : \\\"00000000-0000-0000-0000-000000000001\\\"\",\"sql\":\"SELECT 1\"}],"
+                + " \"result\" : {\"columns\" : "
                 + "[\"F\",\"ID\",\"NAME\"], \"rows\" : [{\"values\": [2.0,1,\"a,b\"]},{\"values\": [0.5,2,null]},"
                 + "{\"values\": [1.0E15,3,\"say \\\"hi\\\"\"]}]}}", json);
         Json.parse(json);

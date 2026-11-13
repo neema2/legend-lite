@@ -624,8 +624,6 @@ public final class PlatformTypes {
      * (AssertVerdicts' root arms). */
     public static final String ASSERT_SAME_SQL =
             "meta::relational::functions::asserts::assertSameSQL";
-    public static final String ASSERT_SQL_EQUALS_TDG =
-            "meta::relational::testDataGeneration::tests::assertSqlEquals";
     /** The engine's {@code assertEqualsH2Compatible(legacy, upgraded, $result)}: an assert with two goldens, the
      *  engine's own body picking one by its test database's version ({@code SqlTextVerdicts.tryArmDualGolden}). */
     public static final String ASSERT_EQUALS_DUAL_GOLDEN =
@@ -639,7 +637,6 @@ public final class PlatformTypes {
     public static boolean isVerdictFunction(String fqn) {
         return fqn.startsWith(ASSERTS_PACKAGE)
                 || ASSERT_SAME_SQL.equals(fqn)
-                || ASSERT_SQL_EQUALS_TDG.equals(fqn)
                 || ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 || ASSERT_TDS_EQUIVALENT.equals(fqn);
     }

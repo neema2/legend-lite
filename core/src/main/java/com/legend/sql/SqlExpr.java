@@ -750,7 +750,7 @@ public sealed interface SqlExpr
      * Allocation-bound variable), its {@code type} unknown. */
     record PlanParam(String name, Kind kind, boolean optional,
             @com.legend.base.Nullable String enumMapFn,
-            TypeFact type, @com.legend.base.Nullable ValueTyping byValue) implements SqlExpr {
+            TypeFact type, @com.legend.base.Nullable DeclaredKind declared) implements SqlExpr {
         /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
          * protocol's {@code inFilterClause_X} wrapper variable
          * (processInOperation.pure); plan-text vocabulary only. */
@@ -761,10 +761,10 @@ public sealed interface SqlExpr
         public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
             OTHER, RAW }
 
-        /** {@code byValue}: set when the database types the parameter's literal by its value, how (a Float's, a
-         *  Decimal's, a Number's and a Date's fact is {@code UNKNOWN}; a DateTime's is {@code TIMESTAMP}, its precision
-         *  the value's); null when its type is the fact's alone, or when it is a legacy plan's template parameter (the
-         *  four-argument and shorter forms). */
+        /** {@code declared}: set when each database types the parameter's placeholder by its declared Pure type (a
+         *  Float's, a Decimal's, a Number's and a Date's fact is {@code UNKNOWN}; a DateTime's is {@code TIMESTAMP}:
+         *  {@link DeclaredKind}, D1); null when its type is the fact's alone, or when it is a legacy plan's template
+         *  parameter (the four-argument and shorter forms). */
         public PlanParam {
             java.util.Objects.requireNonNull(type, "type");
         }

@@ -22,6 +22,12 @@ public interface ResultSink {
     default void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
     }
 
+    /** The execution's id, before its columns: one per execution exec runs, the id its statements' stamps bind (C1's
+     *  second half, 2026-11-12: base.RunScope#execution) -- what an activity a writer reports names, as upstream's activity's
+     *  comment names its {@code execID}. A writer that reports none ignores it. */
+    default void execution(java.util.UUID id) {
+    }
+
     /** The result's columns, in order, before any batch. */
     void columns(List<ExecutionPlan.Column> columns) throws IOException;
 

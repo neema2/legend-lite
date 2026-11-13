@@ -42,7 +42,7 @@ import socketserver
 import sys
 import threading
 import traceback
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Container, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 from pathlib import Path
@@ -58,12 +58,13 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
+from ._planned import PlannedSql, across_the_bridge, connect, from_plan, send
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, Reading, UntypedColumn, typed_by_plan
+from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
 from .keeper import PageKeeper, Refused
-from .projects import ProjectDatabases
+from .projects import ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 _API = '/api/pure/v1/'
@@ -85,6 +86,10 @@ _WAREHOUSE = '/warehouse.json'
 # a grid's Snap on a page Python serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its base query copied into a
 # table of the frames' database of its own -- a frame's, a page's file's, or a warehouse table's -- and let go of
 _SNAP = '/snap.json'
+# What a table's model answer keeps from the page: its accessor (the page reads the table by its source), and its copy
+# select list -- the planner's instruction Python applied as it made the table, a statement's text the page never sends
+# (2026-11-12, the C final audit's H5: the page read it into a PlannedSql field by a cast of the answer's JSON)
+_NOT_THE_PAGES = frozenset({'accessor'})
 # the id a page open on another asks by (follower=): a tab's or a notebook widget's, made by DataCube's code
 _FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
 
@@ -182,6 +187,25 @@ def _said(status: int, message: str) -> Answer:
     return Answer(status, 'text/plain; charset=utf-8', message.encode('utf-8'))
 
 
+def _count_of(pull: str) -> str:
+    """A pull's rows counted, as a query (the final audit's item 1, 2026-11-12; snap.ts countQuery's twin): its one
+    expression's ``size()`` (meta::pure::functions::relation::size), which the planner plans as the database's count of
+    its rows -- never the pull's statement handed back to the planner as a host operation's query."""
+    lam = json.loads(pull)
+    body = lam.get('body') if isinstance(lam, dict) else None
+    if not isinstance(body, list) or len(body) != 1:
+        raise ValueError(f"a snap's pull is one expression, not {len(body) if isinstance(body, list) else repr(body)}")
+    return json.dumps({**lam, 'body': [{'_type': 'func', 'function': 'size', 'parameters': body}]})
+
+
+def _copy_said(made: dict[str, Any], name: str, rows: int, receipt: dict[str, Any] | None) -> Answer:
+    """A snap's copy as the page reads it: DataCube's model of it (``made``, less what is not the page's), its table, its
+    rows and, a warehouse's, who pulled them (``receipt``)."""
+    said = {**{k: v for k, v in made.items() if k not in _NOT_THE_PAGES}, 'table': name, 'rowCount': rows,
+            **({'pulledBy': receipt} if receipt is not None else {})}
+    return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+
+
 def _snap_refused(headless: Any, rows: int) -> Answer:
     """A copy of ``rows`` rows past this machine's limit (N3: each host its own), refused in the tab's own sentence
     (headless snapRefused: snap.ts snapRefusal)."""
@@ -256,6 +280,55 @@ def _bytes_of(path: Path) -> tuple[int, str]:
     return path.stat().st_size, digest.hexdigest()
 
 
+def _connection_settings(settings: Any, url: str, bearer: str | None, answered: Container[str]) -> tuple[
+        tuple[tuple[PlannedSql, tuple[Any, ...]], ...], tuple[str, ...]]:
+    """A remote file's settings of the connection, as its planned mount answers them (B3's Q3: a bearer URL's session
+    variable -- its statement, and its binds by name, never a value), each with its values: what this engine holds for
+    the mount -- the URL the page gave, under the name the mount holds it by (``bearer``, the mount's answer) and the
+    field ``URL`` -- or the plan's own value as it is; and the values held so (what a failure's words are cleared of:
+    M2). Every read's cursor runs them (``Frames.reading``): a variable is one connection's. A bind this engine holds
+    nothing for -- another name, another field -- is refused in words (``ValueError``), naming it, never a value."""
+    out = []
+    held: list[str] = []
+    held_url = url[:-len('#iceberg')] if url.lower().endswith('#iceberg') else url
+    for setting in settings:
+        params: list[Any] = []
+        for bind in setting['binds']:
+            if bind.get('_type') == 'value':
+                params.append(bind['text'])
+            elif bind.get('_type') == 'held' and bearer is not None and bind.get('name') == bearer \
+                    and bind.get('field') == 'URL':
+                params.append(held_url)
+                if held_url not in held:
+                    held.append(held_url)
+            else:
+                raise ValueError(f"a remote file's setting binds {bind.get('name')}.{bind.get('field')}, which this engine"
+                                 ' holds nothing for')
+        # the setting's statement, as DataCube's plan runner kept it (a PlannedSql there: planned-sql.ts), typed again
+        # at the crossing (_planned.py)
+        out.append((across_the_bridge(setting['sql'], "a remote file's setting of the connection", answered),
+                    tuple(params)))
+    return tuple(out), tuple(held)
+
+
+# a warehouse runs SQL text alone (the tenets audit's M3): a plan whose statement binds a data: payload is not sent there
+_WAREHOUSE_BINDS_NONE = ("this query's statement binds a data: source's payload, which the warehouse does not take: it runs "
+                         "on this engine's own database or legend-lite's server")
+
+
+def _bearer(url: str) -> list[str]:
+    """The values a remote URL holds that a message must not name: the URL itself where its query string carries a token
+    (a presigned link: DataCube's remote.ts ``isBearer``), else none -- an address is said as it is."""
+    return [url] if '?' in url else []
+
+
+def shown_address(url: str) -> str:
+    """A remote URL as a message names it: its address without its query string (a presigned link's token never in
+    words: M2; DataCube's remote.ts ``shownAddress``)."""
+    at = url[:-len('#iceberg')] if url.lower().endswith('#iceberg') else url
+    return at.partition('?')[0]
+
+
 def remote_url(url: str) -> bool:
     """Whether a page's URL is a remote one this engine reads: exactly ``<scheme>://<host>...`` for one of the schemes,
     as written -- DuckDB matches its remote file systems by that very prefix, case and all, and reads anything else
@@ -269,7 +342,7 @@ def remote_url(url: str) -> bool:
 @functools.cache
 def _duckdb_platform() -> str:
     """The platform DuckDB names its extensions by here (``osx_arm64``, ``linux_amd64``, ``windows_amd64``, ...)."""
-    return _host.ask(duckdb.connect(), {'op': 'platform'})[0][0]
+    return _host.ask(connect(), {'op': 'platform'})[0][0]
 
 
 def private(path: str) -> bool:
@@ -692,10 +765,11 @@ class Engine:
         try:
             said = self._mount(url, asked['name'], asked.get('s3'))
         except ValueError as refused:
-            return _said(400, str(refused))
+            return _said(400, redact_held(str(refused), _bearer(url)))
         except Exception as failure:
-            # the file not read (not there, its keys refused, a format DuckDB cannot read): said, as the tab says it
-            return _said(422, f'{type(failure).__name__}: {failure}')
+            # the file not read (not there, its keys refused, a format DuckDB cannot read): said, as the tab says it,
+            # the link's token in no word (M2)
+            return _said(422, redact_held(f'{type(failure).__name__}: {failure}', _bearer(url)))
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
 
     def _mount(self, url: str, asked: str, s3: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -725,7 +799,9 @@ class Engine:
                 if refused is not None:
                     raise ValueError(refused)
             said: dict[str, Any] = json.loads(headless.call('mount', json.dumps(mount)))
-            self.frames.keep_file(name, said, view=True)
+            settings, held = _connection_settings(said.pop('settings', []), url, said.pop('bearer', None),
+                                                  headless.answered)
+            self.frames.keep_file(name, said, view=True, settings=settings, held=held)
         return {**said, 'table': name}
 
     def mount_remote(self, url: str, s3: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -733,12 +809,19 @@ class Engine:
         under the view DataCube names one (headless tableFor), as the tab's mount does (``_mount``). One not read (not
         there, its keys refused, a format DuckDB cannot read) refused in words (``ValueError``), as the tab says it."""
         assert self._headless is not None
+        refusal: ValueError | None = None
         try:
             return self._mount(url, self._headless().call('tableFor', None), s3)
         except ValueError:
             raise
         except Exception as failure:
-            raise ValueError(f'the remote file {url} is not read: {type(failure).__name__}: {failure}') from failure
+            if '?' not in url:
+                raise ValueError(f'the remote file {url} is not read: {type(failure).__name__}: {failure}') from failure
+            # a presigned link: named by its address, the database's words without its token (M2) -- raised outside, so
+            # the database's own error, which still holds it, is not chained to it
+            said = redact_held(f'{type(failure).__name__}: {failure}', _bearer(url))
+            refusal = ValueError(f'the remote file {shown_address(url)} is not read: {said}')
+        raise refusal
 
     def mount_remote_once(self, url: str) -> tuple[dict[str, Any], bool]:
         """A remote file mounted for a grid (``page.grid(remote=...)``), once for its URL: the view a remote file of the
@@ -875,6 +958,13 @@ class Engine:
         with headless.turn(), self.frames.reading_file(asked) as table:
             read: dict[str, Any] = json.loads(headless.call('ingest', json.dumps(
                 {'path': str(path), 'name': name, 'table': table, 'size': size, 'sha256': sha256})))
+            # the bytes the database read are the bytes the plan names (the tenets audit's LOW 9, 2026-11-11): the plan
+            # names the file by the digest taken before the read, and DuckDB reads the path, so the file is hashed again
+            # once read -- one changed meanwhile is refused, its table dropped (reading_file), never kept as the file
+            again = _bytes_of(path)
+            if again != (size, sha256):
+                raise ValueError(f'the file {name} changed while it was read ({size} bytes of digest {sha256} before, '
+                                 f'{again[0]} bytes of digest {again[1]} after): read it again')
             self.frames.keep_file(table, read)
         return read
 
@@ -1042,7 +1132,7 @@ class Engine:
             _on_compiler_threads(spare.close)
         if refusal is not None:
             return _said(409, refusal)
-        said = {k: v for k, v in written.items() if k != 'accessor'}
+        said = {k: v for k, v in written.items() if k not in _NOT_THE_PAGES}
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
 
     def _snap_said(self, body: str) -> Answer:
@@ -1079,7 +1169,7 @@ class Engine:
             made = self.copy_of(table) if isinstance(table, str) else None
             if made is None:
                 return _said(404, f'{table!r} is no copy this engine holds')
-            said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': table}
+            said = {**{k: v for k, v in made.items() if k not in _NOT_THE_PAGES}, 'table': table}
             return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
         if not all(isinstance(asked.get(k), str) for k in ('model', 'runtime', 'pull')):
             return _said(400, 'a snap is {"model", "runtime", "pull"}, the pull its lambda as JSON')
@@ -1195,7 +1285,7 @@ class Engine:
         elif not all(isinstance(asked.get(k), str) for k in ('page', 'mine', 'theirs')):
             return _said(400, shape)
         if (op not in ('sides', 'together') and 'how' not in asked) \
-                or (op == 'cube' and not isinstance(asked.get('sheet', 0), (str, type(None)))):
+                or (op == 'cube' and not (asked.get('sheet', 0) is None or isinstance(asked.get('sheet', 0), str))):
             return _said(400, shape)
         if self._headless is None:
             return _said(404, 'this engine makes no join: legend-lite makes one with DataCube\'s own code, headless, '
@@ -1326,11 +1416,11 @@ class Engine:
         self.keeper.gone(name)
         return Answer(200, 'application/json', b'{}')
 
-    def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int,
-                receipt: dict[str, Any] | None) -> Answer:
-        """A copy made: ``land`` puts the rows into the table named (on the frames' connection, held), DataCube's code
-        (``headless``, asked for before the frames were held: the session's lock first, then the frames') models it,
-        and it is served from then on; a copy that fails leaves nothing under its name."""
+    def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int) -> Answer:
+        """A copy of a grid this engine serves made: ``land`` puts the rows into the table named (on the frames'
+        connection, held still: a frame copied as it is now), DataCube's code (``headless``, asked for before the frames
+        were held: the session's lock first, then the frames') models it, and it is served from then on; a copy that
+        fails leaves nothing under its name. (A warehouse's copy streams with the frames let go: ``_streamed``.)"""
         with self._warehouse_lock:
             self._copies_made += 1
             asked = 'snap' if self._copies_made == 1 else f'snap_{self._copies_made}'
@@ -1346,56 +1436,91 @@ class Engine:
         except Exception as failure:
             return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
                               f'{failure}')
-        said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': name, 'rowCount': rows,
-                **({'pulledBy': receipt} if receipt is not None else {})}
-        return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+        return _copy_said(made, name, rows, None)
+
+    def _streamed(self, headless: Any, land: Callable[[Any, dict[str, Any]], int], receipt: dict[str, Any]) -> Answer:
+        """A warehouse snap's copy made with the frames let go (the final audit's item 3, 2026-11-12: its rows streamed
+        holding the frames' lock and the headless turn, so a slow warehouse held every other read): its name reserved
+        under the frames' lock, its rows streamed in by ``land`` on a session of its own outside the lock and the turn
+        (``Frames.streaming_file``) -- answering the rows the copy holds, as its database counted them -- then, its turn
+        first and the frames held (D15), DataCube's code models it and it is kept and served. A copy that fails leaves
+        nothing under its name; a session that expired while its rows streamed is raised (401, by the route)."""
+        with self._warehouse_lock:
+            self._copies_made += 1
+            asked = 'snap' if self._copies_made == 1 else f'snap_{self._copies_made}'
+        try:
+            with self.frames.streaming_file(asked) as (name, session):
+                rows = land(session, _host.name(name, schema='main'))
+                with headless.turn(), self.frames.holding():
+                    made = json.loads(headless.call('landed', json.dumps({'table': name})))
+                    self.frames.keep_file(name, made)
+                    # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
+                    with self._warehouse_lock:
+                        self._copies[name] = made
+        except warehouse.SessionExpired:
+            raise
+        except Exception as failure:
+            return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
+                              f'{failure}')
+        return _copy_said(made, name, rows, receipt)
 
     def _warehouse_snap(self, table: _WarehouseTable, asked: dict[str, Any]) -> Answer:
-        """A warehouse grid's copy (C3): the pull planned with the table's live runtime, counted and pulled on the
-        warehouse as the signed-in person, its Arrow chunks landed in the copy."""
+        """A warehouse grid's copy (C3): the pull planned with the table's live runtime, counted on the warehouse as the
+        signed-in person, and its answer streamed into the copy by a PLANNED LOAD (the user's ruling of 2026-11-11: the
+        plan names the warehouse, its statement and the copy's table, never a row; ``projects.run_host_load`` streams the
+        Arrow chunks in one transaction, kept only when the stream completed and the copy holds the rows the warehouse
+        counted). Until then the whole answer was pulled into memory and landed through a registered table outside any
+        plan (census M14-snap)."""
         if asked['runtime'] != table.runtime:
             return _said(422, table.refused_runtime(asked['runtime']) or '')
         on = _on_planner_threads()
-        planned = on(self.planner.plan, asked['pull'], table.held, table.runtime)
         try:
-            plan = on(self.planner.read, planned)
-        except LegendError as refused:
+            # the pull's rows counted where they are: the planner's plan of its count, in the warehouse's SQL (the final
+            # audit's item 1, 2026-11-12: never the pull's statement handed back as a host operation's query)
+            plan = on(self.planner.read, on(self.planner.plan, _count_of(asked['pull']), table.held, table.runtime))
+        except (LegendError, ValueError) as refused:
             return _said(422, f'the snap could not be planned: {refused}')
+        if plan.params:
+            # the warehouse runs SQL text alone: a statement binding a data: payload (M3) is refused by name, never sent
+            return _said(422, _WAREHOUSE_BINDS_NONE)
         try:
             # DataCube's own code: what says a count past the limit, and what models the copy
             headless = self._headless()
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
         try:
-            # counted where the rows are, before anything is copied (the tab's preflight), by the catalog's own
-            # database's statement (a Postgres catalog's, Postgres's: D5)
-            (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}},
-                                           database_type=table.database_type)
-            counted = _arrow_of(table.warehouse.arrow_chunks(counting))
-            rows = int(counted.column(0)[0].as_py()) if counted.num_rows else 0
+            # counted where the rows are, before anything is copied (the tab's preflight)
+            counted = _arrow_of(table.warehouse.arrow_chunks(plan.sql))
+            # the count is the warehouse's one value: none is refused by name, never read as no rows (G7; the final
+            # audit, 2026-11-12)
+            if counted.num_rows != 1 or counted.num_columns != 1 or counted.column(0)[0].as_py() is None:
+                return _said(422, f'the snap could not be counted: the warehouse answered {counted.num_rows} row(s), '
+                                  'not its rows\' count')
+            rows = int(counted.column(0)[0].as_py())
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
-            receipt: dict[str, Any] = {}
-            pulled = _arrow_of(table.warehouse.arrow_chunks(plan.sql, receipt.update))
         except warehouse.SessionExpired:
             # said as one (401: the page offers to sign in again), by the route
             raise
         except (warehouse.WarehouseError, pa.ArrowInvalid) as refused:
-            return _said(422, f'the snap could not be pulled: {refused}')
-        landing = '__legend_lite_snap'
+            return _said(422, f'the snap could not be counted: {refused}')
+        pulled_by: dict[str, Any] = {'plane': 'warehouse'}
 
-        def land(connection: Any, target: dict[str, Any]) -> None:
-            connection.register(landing, pulled)
-            try:
-                _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
-                                       'from': {'relation': _host.name(landing)}})
-            finally:
-                connection.unregister(landing)
+        def land(connection: Any, target: dict[str, Any]) -> int:
+            # the pull, planned again by the planner in the stream's own plan (the user's ruling of 2026-11-12): the
+            # request carries no statement
+            snap = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'model': table.held.model,
+                                         'runtime': table.runtime, 'lambda': asked['pull'],
+                                         **({'schema': target['schema']} if 'schema' in target else {}),
+                                         'table': target['name']})
+            (made,) = run_host_load(snap, connection, planes={'warehouse': table.warehouse}).landed
+            said = made.receipt
+            pulled_by.update({'where': said.get('where', ''), 'as': said.get('as', ''),
+                              **({'statementId': said['statementId']} if 'statementId' in said else {}),
+                              **({'serverRows': said['serverRows']} if 'serverRows' in said else {})})
+            return made.rows
 
-        return self._landed(headless, land, rows, {
-            'plane': 'warehouse', 'where': receipt.get('where', ''), 'as': receipt.get('as', ''),
-            **({'statementId': receipt['statementId']} if 'statementId' in receipt else {}),
-            **({'serverRows': receipt['serverRows']} if 'serverRows' in receipt else {})})
+        return self._streamed(headless, land, pulled_by)
 
     def _served_snap(self, asked: dict[str, Any]) -> Answer:
         """A grid's copy over a model this engine serves (a frame's, a page's file's): planned on the compiler's thread,
@@ -1413,24 +1538,29 @@ class Engine:
             if held is None:
                 return _said(404, 'this engine serves no model of that text: it snaps a page\'s frames and files, and '
                                   'warehouse tables it opened')
-            planned = self.planner.plan(asked['pull'], held, asked['runtime'])
             try:
-                plan = self.planner.read(planned)
-            except LegendError as refused:
+                # its rows counted: the planner's plan of the pull's count (the final audit's item 1, 2026-11-12: never
+                # the pull's statement handed back as a host operation's query), its own values bound
+                plan = self.planner.read(self.planner.plan(_count_of(asked['pull']), held, asked['runtime']))
+            except (LegendError, ValueError) as refused:
                 return _said(422, f'the snap could not be planned: {refused}')
-            (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}}, database_type='DuckDB')
             try:
-                rows = int(self.frames.connection.execute(counting).fetchone()[0])
+                rows = int(send(self.frames.connection, plan.sql, list(plan.params)).fetchone()[0])
             except duckdb.Error as refused:
                 return _said(422, f'the snap could not be counted: {refused}')
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
 
             def land(connection: Any, target: dict[str, Any]) -> None:
-                _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
-                                       'from': {'query': plan.sql}})
+                # the copy: ONE PLAN the planner makes of the pull (Boundary.snapCopy, the final audit's item 1(b)) -- the
+                # table made from it, its data: payloads bound by digest, in its target's transaction -- never the pull's
+                # statement handed back as a host operation's query
+                run_write(compiler.snap_copy({'databaseType': 'DuckDB', 'model': asked['model'],
+                                              'runtime': asked['runtime'], 'lambda': asked['pull'],
+                                              **({'schema': target['schema']} if 'schema' in target else {}),
+                                              'table': target['name']}), connection)
 
-            return self._landed(headless, land, rows, None)
+            return self._landed(headless, land, rows)
 
     def _warehouse_table_of(self, body: str) -> _WarehouseTable | None:
         """The warehouse table a plan-and-run's model is the model of, or None."""
@@ -1465,6 +1595,8 @@ class Engine:
             plan = on(self.planner.read, planned)
         except LegendError:
             return _planned({'plan': planned})
+        if plan.params:
+            return _planned({'plan': planned, 'error': _WAREHOUSE_BINDS_NONE}, 422)
         try:
             said: dict[str, Any] = {}
             rows = typed_by_plan(_arrow_of(table.warehouse.arrow_chunks(plan.sql, said.update)), plan)
@@ -1590,7 +1722,7 @@ class Engine:
             except LegendError:
                 return _planned({'plan': planned})
             try:
-                rows = typed_by_plan(project.cursor.execute(plan.sql).to_arrow_table(), plan)
+                rows = typed_by_plan(send(project.cursor, plan.sql, plan.params).to_arrow_table(), plan)
             except (duckdb.Error, UntypedColumn) as failure:
                 return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
@@ -1641,7 +1773,10 @@ class Engine:
                 if answer.status != 200:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
-                rows = connection.execute(planned['sql']).to_arrow_table()
+                # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
+                # value this engine holds (a bearer URL: M2)
+                rows = execute_redacted(connection, from_plan(planned['sql']), self.frames.held_values(),
+                                        compiler.plan_params(planned.get('plan'))).to_arrow_table()
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -1657,7 +1792,9 @@ class Engine:
                 planned = self.planner.execute_json_plan(body, served)
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
-                cursor = connection.execute(json.loads(planned.body)['run'])
+                said = json.loads(planned.body)
+                cursor = execute_redacted(connection, from_plan(said['run']), self.frames.held_values(),
+                                          compiler.plan_params(said.get('plan')))
                 names = [d[0] for d in cursor.description]
                 rows = compiler.host_rows(names, cursor.fetchall())
         answer = self.planner.execute_json_answer(planned.body, rows)

@@ -24,7 +24,7 @@ public final class PlanSessions {
      *  a write runs on a database of its own, a database the user names or a URL reaches keeps it). A closed set of
      *  exec's own (2026-11-09, the user's question "why do we have any callbacks?"): a caller names one, exec decides by
      *  its rule; until then a caller's function decided, inside the run, which session a statement went to. */
-    public sealed interface Source permits Marked, Shared, Given, SetUp, Refusing, Lane {
+    public sealed interface Source permits Marked, Admitting, Shared, Given, Acquired, Refusing, Lane, OnCatalog {
         Sessions.Session open(ExecutionPlan.Target target);
 
         default Sessions.Session openToChange(ExecutionPlan.Target target) {
@@ -35,6 +35,35 @@ public final class PlanSessions {
          *  2026-11-09: a thread-scoped mark until then). */
         default StatementOrigin mark() {
             return StatementOrigin.OTHER;
+        }
+
+        /** The files a plan's live sources may read on these sessions ({@link SourceAdmission}; L6, 2026-11-10): any
+         *  file unless the caller fences them ({@link #admitting}; the user's ruling, A5: any file by default). */
+        default SourceAdmission admitted() {
+            return SourceAdmission.any();
+        }
+    }
+
+    /** {@code sessions} on which a plan's live sources may read under {@code admitted}'s directories (L6, 2026-11-10:
+     *  a test admits its resource roots; a server only what it is configured with). */
+    public static Source admitting(Source sessions, SourceAdmission admitted) {
+        return new Admitting(sessions, admitted);
+    }
+
+    private record Admitting(Source inner, SourceAdmission admitted) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            return inner.open(target);
+        }
+
+        @Override
+        public Sessions.Session openToChange(ExecutionPlan.Target target) {
+            return inner.openToChange(target);
+        }
+
+        @Override
+        public StatementOrigin mark() {
+            return inner.mark();
         }
     }
 
@@ -53,6 +82,11 @@ public final class PlanSessions {
         @Override
         public Sessions.Session openToChange(ExecutionPlan.Target target) {
             return inner.openToChange(target);
+        }
+
+        @Override
+        public SourceAdmission admitted() {
+            return inner.admitted();
         }
     }
 
@@ -90,6 +124,24 @@ public final class PlanSessions {
         return new Refusing(why);
     }
 
+    /** A source whose every target names the graph's SYSTEM database, opened through {@code system}'s leases (the
+     *  process's catalog, its run's turn taken; L4's product half, 2026-11-10: a product query reading the metamodel
+     *  alone); any other target refused by name. */
+    public static Source system(SystemDatabase.Leases system) {
+        return new OnCatalog(system);
+    }
+
+    private record OnCatalog(SystemDatabase.Leases system) implements Source {
+        @Override
+        public Sessions.Session open(ExecutionPlan.Target target) {
+            if (!(target.database() instanceof ExecutionPlan.Database.System)) {
+                throw new IllegalStateException("a plan answered on the system catalog names another database: "
+                        + target.database());
+            }
+            return Sessions.view(system.sessionFor(target));
+        }
+    }
+
     private record Refusing(String why) implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
@@ -99,26 +151,24 @@ public final class PlanSessions {
 
     /**
      * A SERVER LANE'S SESSIONS (the PCT's, moved here from its harness as data, 2026-11-09): a target with setup on the
-     * plan's own sessions ({@link #shared}: a server's database is the user's, so its own source refuses it by name); a
-     * target whose session statements are {@code optionsOnly} -- the dialect's own options, run on any session again as
-     * on a new one -- on {@code held}, the lane's held session, where it holds one; any other on a new owned session from
-     * {@code fresh}, closed with the plan's use of it (a table of the session's own, the system metamodel store's, lives
-     * only on a session of its own: round 14, 2026-11-03).
+     * plan's own sessions ({@link #shared}: a server's database is the user's, so its own source refuses it by name);
+     * any other on {@code held}, the lane's held session, where it holds one, else on a new owned session from
+     * {@code fresh}, closed with the plan's use of it. (A target whose session statements were more than the dialect's
+     * options -- the system metamodel store's session tables, round 14 -- took a new session even beside a held one,
+     * until B4, 2026-11-11: the store is the process's in-process catalog.)
      */
-    public static Source lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
-            Sessions.Opener fresh) {
-        return new Lane(held, java.util.List.copyOf(optionsOnly), java.util.Objects.requireNonNull(fresh, "fresh"));
+    public static Source lane(Sessions.@com.legend.base.Nullable Session held, Sessions.Opener fresh) {
+        return new Lane(held, java.util.Objects.requireNonNull(fresh, "fresh"));
     }
 
-    private record Lane(Sessions.@com.legend.base.Nullable Session held, java.util.List<String> optionsOnly,
-            Sessions.Opener fresh) implements Source {
+    private record Lane(Sessions.@com.legend.base.Nullable Session held, Sessions.Opener fresh) implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
-            if (!target.setup().isEmpty()) {
+            if (!target.loads().isEmpty()) {
                 return openShared(target);
             }
             Sessions.Session h = held;
-            return h != null && target.session().equals(optionsOnly) ? Sessions.view(h) : Sessions.open(fresh);
+            return h != null ? Sessions.view(h) : Sessions.open(fresh);
         }
     }
 
@@ -129,121 +179,156 @@ public final class PlanSessions {
         return of(session, null);
     }
 
-    /** {@link #of(Sessions.Session)} whose statements publish each query's execution-trace stamp to {@code trace}
-     *  (the body driver's, track B's B1b). */
-    public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace) {
-        return of(session, trace, null);
-    }
-
-    /** {@link #of(Sessions.Session, ExecutionTrace)} where a target naming the graph's SYSTEM database
+    /** {@link #of(Sessions.Session)} where a target naming the graph's SYSTEM database
      *  ({@link ExecutionPlan.Database.System}) opens {@code system}'s session for it instead -- a non-closing view, as
      *  the caller's own (the test-is-the-product plan's M10a: the body driver holds the graph's system database,
      *  opened once per graph -- its store written by the plan's own seed step -- and hands it here; the runner knows
      *  no database). Null {@code system}: every target the caller's session. */
-    public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace,
-            SystemDatabase.@com.legend.base.Nullable Leases system) {
-        return new Given(session, trace, system);
+    public static Source of(Sessions.Session session, SystemDatabase.@com.legend.base.Nullable Leases system) {
+        return new Given(session, system);
     }
 
-    private record Given(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace,
-            SystemDatabase.@com.legend.base.Nullable Leases system) implements Source {
+    private record Given(Sessions.Session session, SystemDatabase.@com.legend.base.Nullable Leases system)
+            implements Source {
         @Override
         public Sessions.Session open(ExecutionPlan.Target target) {
             var sys = system;
-            return target.database() instanceof ExecutionPlan.Database.System s && sys != null
-                    ? Sessions.view(sys.sessionFor(s), trace)
-                    : Sessions.view(session, trace);
+            if (target.database() instanceof ExecutionPlan.Database.System && sys != null) {
+                // the system database's leases make and establish what its target loads (the catalog, L4b)
+                return Sessions.view(sys.sessionFor(target));
+            }
+            // the caller's session as it set it up: a target that loads data would run without it, refused by name,
+            // never skipped (the re-audit's A-3, 2026-11-09: until then this source ran none and said nothing)
+            refuseUnrun(target, "a session the caller holds, as it set it up", false);
+            return Sessions.view(session);
         }
     }
 
-    /** {@link #of(Sessions.Session)} with {@code target}'s setup run on the session first, once (the plan's seeds, the
-     *  session statements, under the SEED mark): run INSIDE the plan's run, when the runner first opens a session
-     *  of this source (THE WALL's rule 3, 2026-11-06: until then it ran here, before the run, a statement sent
-     *  outside every run); a plan whose setup has rows for a bulk loader is refused by name there, before any
-     *  statement, on a database that has none. */
-    public static Source setUp(Sessions.Session session, ExecutionPlan.Target target) {
-        return new SetUp(session, target);
+    /** {@code target}'s loads and its project's refusal, refused by name where {@code what} runs them not: every load,
+     *  or (where {@code acquires}) every one but its acquisition's ({@code PER_ACQUISITION}). A source runs the loads its
+     *  target names or refuses the target: never a plan run with less data than it names (the re-audit's A-3). */
+    static void refuseUnrun(ExecutionPlan.Target target, String what, boolean acquires) {
+        java.util.List<ExecutionPlan.Load> unrun = target.loads().stream()
+                .filter(l -> !(acquires && l.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION)).toList();
+        ExecutionPlan.Project project = switch (target.database()) {
+            case ExecutionPlan.Database.Declared d -> d.project();
+            case ExecutionPlan.Database.Platform p -> p.project();
+            case ExecutionPlan.Database.System s -> null;
+        };
+        if (!unrun.isEmpty()) {
+            throw new IllegalStateException("the plan's target names " + unrun.size() + " load(s) "
+                    + unrun.stream().map(ExecutionPlan.Load::cadence).collect(java.util.stream.Collectors.toCollection(
+                            () -> java.util.EnumSet.noneOf(ExecutionPlan.Load.Cadence.class))) + " that " + what
+                    + " does not run: a database the platform makes runs them (the project's databases), never skipped");
+        }
+        if (project != null && project.refused() != null) {
+            throw new IllegalArgumentException(project.refused());
+        }
     }
 
-    private static final class SetUp implements Source {
+    /** {@link #of(Sessions.Session)} with {@code target}'s loads established on the session first, once
+     *  ({@link ExecutionPlan.Load.Cadence#PER_ACQUISITION}: the session is acquired for the target): run INSIDE the
+     *  plan's run, when the runner first opens a session of this source (THE WALL's rule 3, 2026-11-06), each through
+     *  the one deliverer ({@link PlanRunner#establishOn}). Until L2 (2026-11-09) the target's {@code setup}. */
+    public static Source acquired(Sessions.Session session, ExecutionPlan.Target target) {
+        // its ONCE loads and its project's refusal are the made database's: refused by name on a session the caller
+        // holds (the re-audit's A-3, 2026-11-09: until then skipped silently)
+        refuseUnrun(target, "a session acquired for it", true);
+        return new Acquired(session, target);
+    }
+
+    /** {@link #acquired} on a session of a database made for the target -- a project's own ({@link #projectDatabase}),
+     *  its ONCE loads run and its refusal raised where it was made: what each acquisition establishes, run here. */
+    public static Source acquiredOnMade(Sessions.Session session, ExecutionPlan.Target target) {
+        return new Acquired(session, target);
+    }
+
+    private static final class Acquired implements Source {
         private final Sessions.Session session;
         private final ExecutionPlan.Target target;
-        private final Source source;
-        // [0] established, [1] a setup that failed: never run again on the same source (some of its steps ran)
+        // [0] established, [1] an establishing that failed: never run again on the same source (some of its steps ran)
         private final boolean[] state = {false, false};
 
-        SetUp(Sessions.Session session, ExecutionPlan.Target target) {
+        Acquired(Sessions.Session session, ExecutionPlan.Target target) {
             this.session = session;
             this.target = target;
-            this.source = of(session);
         }
 
         @Override
         public Sessions.Session open(ExecutionPlan.Target t) {
             synchronized (state) {
                 if (state[1]) {
-                    throw new IllegalStateException("the session's setup failed on its first open, and is not run"
-                            + " again (some of its steps ran)");
+                    throw new IllegalStateException("the session's loads failed on its first open, and are not run"
+                            + " again (some of their steps ran)");
                 }
                 if (!state[0]) {
                     state[1] = true;
-                    establish(session, target);
+                    loads(session, target);
                     state[1] = false;
                     state[0] = true;
                 }
             }
-            return source.open(t);
+            // the loads established above: a view of the session for every target (the caller's own, never the
+            // source that refuses a target's loads)
+            return Sessions.view(session);
         }
     }
 
-    /** {@code target}'s setup run on {@code session} now, inside the run that opened it (the runner's own setup steps:
-     *  {@link PlanRunner#setUpIn}); refused by name before any statement where its rows need a bulk loader the
-     *  session's database has none of. */
-    private static void establish(Sessions.Session session, ExecutionPlan.Target target) {
-        if (target.setup().stream().anyMatch(ExecutionPlan.LoadStep.Rows.class::isInstance)
-                && !Sessions.loadsRows(session)) {
-            throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
-                    + " database has none (" + Sessions.product(session) + ")");
+    /** {@code target}'s loads established on {@code session} now, inside the run that acquired it. */
+    private static void loads(Sessions.Session session, ExecutionPlan.Target target) {
+        loads(session, target, ExecutionPlan.Load.Cadence.PER_ACQUISITION);
+    }
+
+    /** {@code target}'s loads of {@code cadence} established on {@code session}: its acquisition's, or the project's
+     *  Data where the platform makes its database ({@link #made}). */
+    private static void loads(Sessions.Session session, ExecutionPlan.Target target,
+            ExecutionPlan.Load.Cadence cadence) {
+        java.util.List<ExecutionPlan.Load> loads = target.loads().stream().filter(l -> l.cadence() == cadence)
+                .toList();
+        for (ExecutionPlan.Load load : loads) {
+            PlanRunner.establishOn(load, session);
         }
-        PlanRunner.setUpIn(target.setup(), target, marked(of(session), StatementOrigin.SEED), null);
     }
 
     /** A session on the target's database kept by the target's content (its setup run once when opened): a view of a
      *  stored owned session, or an owned session of the target's own where the database keeps itself (the user's
      *  named in-memory database, a URL). */
     private static Sessions.Session openShared(ExecutionPlan.Target target) {
+        // a kept database is reached without its loads running: each verified against its content where the key that
+        // finds it is made (the re-audit's A-7, 2026-11-09)
+        target.loads().forEach(PlanRunner::verifyIdentity);
         Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
         return switch (target.database()) {
             // the graph's system database is the body driver's (opened once per graph, its store the plan's seed step):
             // it reaches the runner through a caller's source with a system opener (M10a), never the shared one
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not the shared one");
-            case ExecutionPlan.Database.Platform p -> Sessions.view(SHARED.getOrOpenSlowly(key, Sessions::closed,
-                    () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
+            case ExecutionPlan.Database.Platform p -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
+                            () -> setUpOpened(Sessions.openPrivate(p.type(), target.settings()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
                 if (connector.ownSessions()) {
-                    refuseSetup(target, d, "a database its connector opens");
+                    refuseLoads(target, d, "a database its connector opens");
                     yield connector.open(d.connection());
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
-                    case Sessions.Opening.Held h -> Sessions.view(SHARED.getOrOpenSlowly(key, Sessions::closed,
-                            () -> setUpOpened(Sessions.openHeld(h), target)));
+                    case Sessions.Opening.Held h -> Sessions.locked(SHARED.getOrOpenSlowly(key, Sessions::closed,
+                                    () -> setUpOpened(Sessions.openHeld(h, target.settings()), target)));
                     case Sessions.Opening.Named n -> {
                         String usersName = n.name();
                         if (usersName != null) {
-                            refuseSetup(target, d, "an in-memory database the user named ('" + usersName + "')");
-                            yield Sessions.openNamed(n, usersName);
+                            refuseLoads(target, d, "an in-memory database the user named ('" + usersName + "')");
+                            yield Sessions.openNamed(n, usersName, target.settings());
                         }
                         Named named = NAMED.getOrOpenSlowly(key, held -> Sessions.closed(held.keeper()), () -> {
                             String name = "plan_" + key.hex().substring(0, 16) + "_" + ATTEMPTS.incrementAndGet();
-                            return new Named(setUpOpened(Sessions.openKept(n, name), target), name);
+                            return new Named(setUpOpened(Sessions.openKept(n, name, target.settings()), target), name);
                         });
-                        yield Sessions.joinKept(n, named.name());
+                        yield Sessions.joinKept(n, named.name(), target.settings());
                     }
                     case Sessions.Opening.Url u -> {
-                        refuseSetup(target, d, "a database reached by a URL");
-                        yield Sessions.open(u);
+                        refuseLoads(target, d, "a database reached by a URL");
+                        yield Sessions.open(u, connector, target.settings());
                     }
                 };
             }
@@ -256,25 +341,25 @@ public final class PlanSessions {
         return switch (target.database()) {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " is read-only: no plan writes it");
-            case ExecutionPlan.Database.Platform p -> setUpOpened(Sessions.openPrivate(p.type()), target);
+            case ExecutionPlan.Database.Platform p -> setUpOpened(Sessions.openPrivate(p.type(), target.settings()), target);
             case ExecutionPlan.Database.Declared d -> switch (Sessions.openingFor(d.connection())) {
-                case Sessions.Opening.Held h -> setUpOpened(Sessions.openHeld(h), target);
+                case Sessions.Opening.Held h -> setUpOpened(Sessions.openHeld(h, target.settings()), target);
                 case Sessions.Opening.Named n -> {
                     if (n.name() != null) {
                         yield openShared(target);
                     }
                     String name = "plan_own_" + ATTEMPTS.incrementAndGet();
-                    yield setUpOpened(Sessions.openKept(n, name), target);
+                    yield setUpOpened(Sessions.openKept(n, name, target.settings()), target);
                 }
                 case Sessions.Opening.Url u -> openShared(target);
             };
         };
     }
 
-    private static void refuseSetup(ExecutionPlan.Target target, ExecutionPlan.Database.Declared d, String what) {
-        if (!target.setup().isEmpty()) {
+    private static void refuseLoads(ExecutionPlan.Target target, ExecutionPlan.Database.Declared d, String what) {
+        if (!target.loads().isEmpty()) {
             throw new IllegalStateException("connection '" + d.connection().qualifiedName() + "' is " + what
-                    + ", and the plan has setup for it: never run on it");
+                    + ", and the plan loads data into it: never run on it");
         }
     }
 
@@ -310,75 +395,113 @@ public final class PlanSessions {
             throw new IllegalArgumentException("the server's project databases run a plan the server planned "
                     + "(TypedQuery.projectPlan); this plan's target names no project: " + target.database());
         }
-        // the database's identity: its connection and its project's key -- never the statements that make it, which
-        // the key already names (the full audit, 2026-11-09: the whole fill was serialized and hashed on every open)
-        ExecutionPlan.Target identity = new ExecutionPlan.Target(identityOf(target.database()), java.util.List.of(),
-                java.util.List.of());
-        Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(identity));
+        Hash key = projectKey(target);
         return switch (target.database()) {
             case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
                     + " database on " + s.type() + " opens through its holder's sessions source, not a project's");
-            case ExecutionPlan.Database.Platform p -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
-                    () -> Sessions.openPrivate(p.type())));
+            // a kept session serves one request at a time (§3 rule 4, A4): the view holds its lock until closed
+            case ExecutionPlan.Database.Platform p -> Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+                    () -> made(Sessions.openPrivate(p.type(), target.settings()), target)));
             case ExecutionPlan.Database.Declared d -> {
                 DatabaseConnector connector = Connectors.of(d.connection().databaseType());
                 if (connector.ownSessions()) {
+                    refuseFill(target, d, "a database its connector opens");
                     yield connector.open(d.connection());
                 }
                 yield switch (Sessions.openingFor(d.connection())) {
-                    case Sessions.Opening.Url u -> Sessions.open(u);
+                    case Sessions.Opening.Url u -> {
+                        refuseFill(target, d, "a database reached by a URL");
+                        yield Sessions.open(u, connector, target.settings());
+                    }
                     // a named in-memory database is kept alive by its name: the user's, else one per project and
-                    // connection (D5); each use opens a connection the caller closes
-                    case Sessions.Opening.Named n -> Sessions.openNamed(n, n.name() != null ? n.name()
-                            : "c_" + key.hex().substring(0, 16));
-                    case Sessions.Opening.Held h -> Sessions.view(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
-                            () -> made(Sessions.openHeld(h), target, d.project())));
+                    // connection (D5), made once with the project's Data; its maker is the kept session, served one
+                    // request at a time as every kept store's is (§3 rule 4; the correctness audit's C2, 2026-11-10:
+                    // until then each use opened a new, unlocked connection to it, so two requests' drops, makes and
+                    // inserts interleaved)
+                    case Sessions.Opening.Named n -> {
+                        if (n.name() != null) {
+                            refuseFill(target, d, "an in-memory database the user named ('" + n.name() + "')");
+                            yield Sessions.openNamed(n, n.name(), target.settings());
+                        }
+                        String name = "c_" + key.hex().substring(0, 16);
+                        yield Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+                                () -> made(Sessions.openNamed(n, name, target.settings()), target)));
+                    }
+                    case Sessions.Opening.Held h -> Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
+                            () -> made(Sessions.openHeld(h, target.settings()), target)));
                 };
             }
         };
     }
 
-    /** {@code database} as its identity: a project named by its key alone (its statements dropped). */
-    private static ExecutionPlan.Database identityOf(ExecutionPlan.Database database) {
-        return switch (database) {
-            case ExecutionPlan.Database.Declared d -> d.project() == null ? d
-                    : new ExecutionPlan.Database.Declared(d.connection(), keyOnly(d.project()));
-            case ExecutionPlan.Database.Platform p -> p.project() == null ? p
-                    : new ExecutionPlan.Database.Platform(p.type(), keyOnly(p.project()));
-            case ExecutionPlan.Database.System s -> s;
-        };
+    /**
+     * A project's database's KEEPING KEY: what the database holds -- its connection and its project (whose key names the
+     * stores, the Data rows and the declared test data: the planner's) -- and the ONCE loads it is made with, BY
+     * IDENTITY, each verified against its content first (the re-audit's A-7, 2026-11-09: a kept database is reached
+     * without its loads running, so a load claiming another fill's identity is refused here). A query's own
+     * per-acquisition loads and session statements are not what the database holds, so they name none (the re-audit's
+     * A-4: until then the whole target was hashed, and a query reading the metamodel's tables kept a database of its
+     * own, with the whole fill; the M1 correctness audit's C1 is kept by the project's key).
+     */
+    public static Hash projectKey(ExecutionPlan.Target target) {
+        // the database and the settings it is made with: no session statement, no load and no read-back is what it
+        // holds (the plan's writer's, J2: exec builds no plan record)
+        StringBuilder key = new StringBuilder(com.legend.executionplan.PlanJson.writeHeldDatabase(target));
+        for (ExecutionPlan.Load load : target.loads()) {
+            if (load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
+                PlanRunner.verifyIdentity(load);
+                key.append('\u0001').append(load.identity());
+            }
+        }
+        return Hash.ofUtf8(key.toString());
     }
 
-    private static ExecutionPlan.Project keyOnly(ExecutionPlan.Project project) {
-        return new ExecutionPlan.Project(project.key(), java.util.List.of(), project.refused());
-    }
-
-    /** {@code session} made into the project's database: the project's {@code made} steps run on it once (the
-     *  statements that make and fill its tables from the Data rows) as a run of their own (THE WALL: a statement is
-     *  sent only inside a plan's run), under the SEED mark; a failure closes it. */
-    private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target,
-            ExecutionPlan.@com.legend.base.Nullable Project project) {
-        if (project != null && project.refused() != null) {
-            // the model's Data rows cannot make it: refused where it is made, as the server refused before hole 7
-            String refused = project.refused();
-            return closedOnFailure(session, () -> {
-                throw new IllegalArgumentException(refused);
-            });
-        }
-        if (project == null || project.made().isEmpty()) {
-            return session;
-        }
+    /** {@code session} made into the project's database: the project's refusal raised, then the target's ONCE loads
+     *  (the project's Data rows, S171) run on it once, as a run of their own (THE WALL: a statement is sent only inside a
+     *  plan's run), under the SEED mark; a failure closes it. Kept by the caller for the process; each query's
+     *  PER_ACQUISITION loads run on the session it acquires ({@link #acquired}). */
+    private static Sessions.Session made(Sessions.Session session, ExecutionPlan.Target target) {
         return closedOnFailure(session, () -> {
-            ExecutionPlan.Target filling = new ExecutionPlan.Target(target.database(), target.session(),
-                    project.made());
-            PlanRunner.setUp(filling.setup(), filling, marked(of(session), StatementOrigin.SEED), null);
+            refuseRefused(target);
+            try (var run = com.legend.base.RunScope.enter()) {
+                loads(session, target, ExecutionPlan.Load.Cadence.ONCE);
+            }
         });
     }
 
-    /** {@code session} with {@code target}'s setup run on it; a setup that fails closes the session it was opened
-     *  for, the setup's failure the one told. */
+    /** The project's refusal, raised where its database would be made (the model's Data rows cannot make it). */
+    private static void refuseRefused(ExecutionPlan.Target target) {
+        ExecutionPlan.Project project = switch (target.database()) {
+            case ExecutionPlan.Database.Declared d -> d.project();
+            case ExecutionPlan.Database.Platform p -> p.project();
+            case ExecutionPlan.Database.System s -> null;
+        };
+        if (project != null && project.refused() != null) {
+            throw new IllegalArgumentException(project.refused());
+        }
+    }
+
+    /** A project's Data (a ONCE load), or its refusal, for a database the platform does not make: refused by name, never
+     *  loaded into the user's own database nor skipped (the planner plans neither there: ConnectionSpecification's
+     *  platformMakes, the one rule). */
+    private static void refuseFill(ExecutionPlan.Target target, ExecutionPlan.Database.Declared d, String what) {
+        boolean fills = target.loads().stream().anyMatch(l -> l.cadence() == ExecutionPlan.Load.Cadence.ONCE);
+        if (fills || (d.project() != null && d.project().refused() != null)) {
+            throw new IllegalStateException("connection '" + d.connection().qualifiedName() + "' is " + what
+                    + ", and the plan fills it with its project's Data: never run on it");
+        }
+    }
+
+    /** {@code session} with {@code target}'s loads established on it, as a run of their own; a load that fails closes
+     *  the session it was opened for, the load's failure the one told. */
     private static Sessions.Session setUpOpened(Sessions.Session session, ExecutionPlan.Target target) {
-        return closedOnFailure(session, () -> establish(session, target));
+        // a database the platform made for the target: the project's refusal, its Data (ONCE), then what each
+        // acquisition establishes (the M1 tenets audit's finding 1: until then the ONCE loads were skipped here)
+        return closedOnFailure(session, () -> {
+            refuseRefused(target);
+            loads(session, target, ExecutionPlan.Load.Cadence.ONCE);
+            loads(session, target);
+        });
     }
 
     /** {@code session} after {@code work} ran on it; closed, and the failure raised, where {@code work} fails. */

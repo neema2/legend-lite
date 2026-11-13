@@ -43,7 +43,8 @@ filegroup(
 filegroup(
     name = "main_srcs",
     srcs = glob(["src/main/**"], exclude = ["**/*.md"]),
-    visibility = ["//spec:__pkg__"],
+    # the planned-SQL guard reads who reaches the authored door (the C final audit's H1, 2026-11-12)
+    visibility = ["//spec:__pkg__", "//tools/guards:__pkg__"],
 )
 
 # the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
@@ -76,7 +77,7 @@ legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache
 legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
-legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":sql"])
+legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":cache", ":sql"])
 # THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's steps 2 and 3, 2026-11-08): a test
 # body's plan as data, around the product's (:execution_plan) -- its steps, its verdict groups and branches, an error known
 # at planning (Failure) -- and its JSON. Data alone: it depends on no planning or runtime library.
@@ -201,7 +202,7 @@ legend_java_library(
 legend_java_library(
     name = "setup",
     srcs = glob(["src/main/java/com/legend/setup/*.java"]),
-    deps = ["//base", ":cache", ":compiler", ":execution_plan", ":model", ":protocol", ":sql", ":sql_dialect"],
+    deps = ["//base", ":cache", ":compiler", ":error", ":execution_plan", ":model", ":protocol", ":sql", ":sql_dialect"],
 )
 legend_java_library(
     name = "exec",
@@ -244,8 +245,8 @@ legend_java_library(
 legend_java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
-    # planning alone since slice 5 (2026-11-09): the generator's own run, which planned and ran interleaved, is the tests'
-    # (core/src/test/.../testdatagen/TestDataGeneratorRun.java); the product keeps its planning (planText)
+    # planning alone since slice 5 (2026-11-09); since B2d.2 (2026-11-11) the generator is one planned read-only
+    # statement (TestDataPlanner) on the test road, and its interleaved run (the tests' TestDataGeneratorRun) is deleted
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":plan", ":protocol", ":test_plan", ":sql", ":sql_dialect", ":values"],
 )
 
@@ -332,7 +333,8 @@ legend_java_library(
 )
 # legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
-# with the same code as the server. execute's run is its host's: the server hands in its driver (ConnectionResolver.RUNNER).
+# with the same code as the server. execute's run is its host's: the server hands in its product door under its file
+# fence (ConnectionResolver.runner(sources); ConnectionResolver.RUNNER is the library's, any file).
 legend_java_library(
     name = "pure_v1",
     srcs = [
@@ -342,9 +344,10 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
+        "src/main/java/com/legend/server/TestDataRoutes.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
-    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect"],
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
 )
 legend_java_library(
     name = "server_lib",
@@ -357,6 +360,7 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
+            "src/main/java/com/legend/server/TestDataRoutes.java",
             "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
@@ -411,7 +415,7 @@ legend_java_library(
 legend_java_library(
     name = "drivers",
     runtime_deps = [
-        ":duckdb_load",
+        ":duckdb_cells",
         # MongoDB's connector rides with the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a running core
         # is given its connectors as it is given its drivers, by ServiceLoader
         ":mongodb_connector",
@@ -448,7 +452,8 @@ legend_java_library(
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
     resource_strip_prefix = "core/src/main/edge",
-    deps = ["//base", "//json", ":sql_dialect", ":test_plan"],
+    # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec
+    deps = ["//base", "//json", ":execution_plan", ":sql_dialect", ":test_plan"],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
@@ -475,10 +480,12 @@ legend_java_library(
     runtime_deps = ["@bson_record_codec//jar"],
 )
 
-# DuckDB's bulk load (its Appender) behind core's BulkLoad seam, found by
-# ServiceLoader: it rides with the drivers, so core still compiles against none.
+# DuckDB's own cell types behind core's DriverCells seam, found by ServiceLoader: it rides with the drivers, so core
+# still compiles against none. Until A2 (2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md) it was :duckdb_load and
+# held DuckDB's bulk load too (its Appender behind a BulkLoad seam), deleted with the plan's rows step: the model's
+# data is statements in the plan.
 legend_java_library(
-    name = "duckdb_load",
+    name = "duckdb_cells",
     srcs = glob(["src/main/duckdb/**/*.java"]),
     resources = glob(["src/main/duckdb/META-INF/**"]),
     resource_strip_prefix = "core/src/main/duckdb",
@@ -515,6 +522,13 @@ legend_java_binary(
 _CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 
 _CENSUS_READS = _CORE_READS + [
+    # the host's plan runner, whose plan version the census holds equal to the planner's (P7, 2026-11-09)
+    "//engine-client:plan_runner_src",
+    # the hosts' sources, where a deleted mechanism's host spellings must read zero too (the B checkpoint's tenets
+    # audit, M4, 2026-11-11)
+    "//datacube:census_src",
+    "//engine-client:census_src",
+    "//python:census_src",
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",
@@ -531,20 +545,27 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    # PostgresArmTest, SqlIslandPostgresTest, SqlParityPostgresTest and HostOperationsPostgresTest are their own
-    # targets' alone: they need the embedded Postgres in their runfiles
+    # PostgresArmTest, SqlIslandPostgresTest and SqlParityPostgresTest are their own targets' alone: they need the
+    # embedded Postgres in their runfiles (HostOperationsPostgresTest went with Postgres's one host operation, the
+    # final audit, 2026-11-12)
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = [
             "src/test/java/com/legend/server/PostgresArmTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
-            "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
             # MongoDbPlanTest and MongoDbDifferentialTest are :mongodb_plan_test's alone: the embedded MongoDB and
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
-            "src/test/java/com/legend/FixtureAsidePostgresTest.java",
+            # a data: source on every server database is :data_source_servers_test's alone (2026-11-11)
+            "src/test/java/com/legend/exec/DataSourceServersTest.java",
+            # the keyed expansion's one fixture is :keyed_expansion_conformance_test's alone: it reads the fixture
+            # (the C final audit's H8, 2026-11-12)
+            "src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java",
+            "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
+            # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
+            "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # DataCube's timeseries library on every in-process database is :timeseries_library_test's alone: it reads
             # DataCube's Pure file (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B)
@@ -632,9 +653,9 @@ legend_java_library(
             "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
         ],
     ),
-    # :duckdb_load: the bulk-load path RowLoadDuckDbTest judges, declared, not borrowed from :drivers (P3-02)
+    # :duckdb_cells: DuckDB's cell types, declared, not borrowed from :drivers (P3-02)
     runtime_deps = [
-        ":duckdb_load",
+        ":duckdb_cells",
         ":shadow_binding",
     ],
     deps = [
@@ -645,6 +666,9 @@ legend_java_library(
         # the Arrow writer's gate frames the stream it checks (ZstdFrame; track A, 2026-10-29)
         "//arrow_ipc",
         "//testing",
+        # the hosts' boundary, its plans and refusals held by the tests that call it as a host does (the final audit,
+        # 2026-11-12: a host operation takes no SQL; a snapshot's copy and a table output as one plan each)
+        "//wasm:boundary",
         "@maven_test//:com_tngtech_archunit_archunit",
         # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
         # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
@@ -932,19 +956,6 @@ java_test(
     runtime_deps = [":core_tests_lib"],
 )
 
-# THE BULK-LOAD PATH, on its own (Bazel workplan P3-02): DuckDB's Appender is found through ServiceLoader
-# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadDuckDbTest asserts the Appender ran.
-junit_test(
-    name = "duckdb_load_test",
-    memory_mb = 768,
-    size = "small",
-    select = ["--select-class=com.legend.exec.RowLoadDuckDbTest"],
-    runtime_deps = [
-        ":core_tests_lib",
-        ":drivers",
-    ],
-)
-
 # THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
 # ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
 # gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, and the cases it shares with
@@ -1059,52 +1070,134 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@mongodb_driver_core//jar",
         "@mongodb_driver_sync//jar",
+        # the connector's statements, compiled against: the sent command checked against the plan's (C4, 2026-11-12)
+        ":mongodb_connector",
     ],
     visibility = ["//gates:__pkg__"],
 )
 
-# Snap's preflight count as Postgres's host operations write it (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5), run on the
-# embedded Postgres 16: the count a warehouse whose catalog is Postgres answers before a copy
+# THE KEYED EXPANSION'S ONE FIXTURE (the total wall's C final audit, H8, 2026-11-12): Java's PlanRunner.expand writes
+# each case of engine-client/test/fixtures/keyed-expansion.json as the tab's expandKeyed and Python's _keyed_text do
 junit_test(
-    name = "host_operations_postgres_test",
-    memory_mb = 768,
-    size = "medium",
-    srcs = ["src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java"],
-    data = [
-        "@embedded_postgres//:pg/PG_ROOT",
-        "@embedded_postgres//:postgres",
-    ],
-    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.sql.dialect.HostOperationsPostgresTest"],
-    runtime_deps = [":drivers"],
-    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    name = "keyed_expansion_conformance_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/keyed-expansion.json"],
+    jvm_flags = ["-Dkeyed.fixture=$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)"],
+    select = ["--select-class=com.legend.exec.KeyedExpansionConformanceTest"],
+    visibility = ["//gates:__pkg__"],
     deps = [
         ":core",
+        "//json",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+)
+
+# A data: source on every server database this session runs (the user, 2026-11-11: JSON on every database;
+# docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): the payload read by the delivery each dialect declares -- MariaDB's and
+# MySQL's session table, Trino's, ClickHouse's and MongoDB's own rows -- on their embedded servers (Linux x86_64: every
+# server's builds), its own target as MongoDB's plan test is
+junit_test(
+    name = "data_source_servers_test",
+    memory_mb = 1536,
+    size = "large",
+    srcs = [
+        "src/test/java/com/legend/exec/DataSourceServersTest.java",
+        # each payload form read back on every SQL server (the JSON pass, 2026-11-11)
+        "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
+    ],
+    data = [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+        "@embedded_mariadb//:mariadb",
+        "@embedded_mariadb//:mariadb/MARIADB_ROOT",
+        "@embedded_mongodb//:mongodb",
+        "@embedded_mongodb//:mongodb/MONGODB_ROOT",
+        "@embedded_mysql//:mysql",
+        "@embedded_mysql//:mysql/MYSQL_ROOT",
+        "@embedded_trino//:trino",
+        "@embedded_trino//:trino/TRINO_ROOT",
+    ],
+    jvm_flags = [
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        "-Dembedded.mariadb.root=$(rlocationpath @embedded_mariadb//:mariadb/MARIADB_ROOT)",
+        "-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)",
+        "-Dembedded.mysql.root=$(rlocationpath @embedded_mysql//:mysql/MYSQL_ROOT)",
+        "-Dembedded.trino.root=$(rlocationpath @embedded_trino//:trino/TRINO_ROOT)",
+    ],
+    select = ["--select-class=com.legend.exec.DataSourceServersTest"],
+    tags = ["manual"],
+    # the product's driver set (MongoDB's connector among them) and the servers' test-only JDBC drivers
+    runtime_deps = [":drivers", "@clickhouse_jdbc//jar", "@mariadb_jdbc//jar", "@trino_jdbc//jar"],
+    target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        ":test_backends",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
     visibility = ["//gates:__pkg__"],
 )
 
-# a clashing fixture set aside in a Postgres corpus workspace survives the rollback of the test body's attempt it was
-# set in (the dialect program's defect 5), on the embedded Postgres 16
+# a CSV file's load on Postgres: refused by name (A3, 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md option 1;
+# until then the runner's cells streamed into its insert, at every edge of DataLoadsTest's pins)
 junit_test(
-    name = "fixture_aside_postgres_test",
+    name = "data_loads_postgres_test",
     memory_mb = 768,
     size = "medium",
-    srcs = ["src/test/java/com/legend/FixtureAsidePostgresTest.java"],
+    srcs = [
+        "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
+        "src/test/java/com/legend/exec/DataLoadsTest.java",
+    ],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
         "@embedded_postgres//:postgres",
     ],
     jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.FixtureAsidePostgresTest"],
+    select = ["--select-class=com.legend.exec.DataLoadsPostgresTest"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the data delivery matrix (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5, A1) on the embedded Postgres 16, run as an
+# unprivileged user: every door, data kind and failure case, with Postgres's own red list
+junit_test(
+    name = "data_delivery_matrix_postgres_test",
+    memory_mb = 1536,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/CsvJsonColumnTest.java",
+        "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
+        "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
+        # each payload form read back on Postgres (the JSON pass, 2026-11-11)
+        "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.DataDeliveryMatrixPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        "//json",
+        ":core",
+        ":core_tests_lib",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -2117,6 +2210,7 @@ junit_test(
     data = [
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
         "src/main/java/com/legend/sql/dialect/DuckDb.java",
+        ":authored_door_jars",
         ":core_test_jar",
         ":guardrails_sources",
         ":product_jars",
@@ -2129,20 +2223,37 @@ junit_test(
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",
+        "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
     ],
     select = [
         "--select-package=com.legend",
         "--include-tag=guardrail",
     ],
-    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
+    # :duckdb_cells too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
     # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)
     runtime_deps = [
         ":core_tests_lib",
-        ":duckdb_load",
+        ":duckdb_cells",
         ":mongodb_connector",
+        # the MongoDB choke rule's planted violator, compiled against the driver (the C final audit's J3, 2026-11-12)
+        ":mongodb_planted",
         ":postgres_cells",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# A class planted to send a MongoDB command outside the one method that sends (the C final audit's J3, the user's
+# ruling of 2026-11-12): ArchitectureTest.theMongoDbRuleBitesAPlantedCommand reads it from :guardrails's classpath.
+# Its own library because it is compiled against the driver, which :core_tests_lib is not.
+legend_java_library(
+    name = "mongodb_planted",
+    testonly = True,
+    srcs = ["src/test/mongodb/com/legend/exec/PlantedMongoCommand.java"],
+    deps = [
+        "@bson//jar",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
+    ],
 )
 
 # THE PRODUCT'S JARS, declared: what ArchitectureTest imports and NoEagerTypeReferencesTest loads (Bazel workplan
@@ -2154,7 +2265,23 @@ java_jars(
     transitive = False,
     # //arrow_ipc (2026-11-09, the follow-up audit): the result library's framer is the product's too, so the static
     # state guard holds its constants
-    deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_load", ":mongodb_connector", ":postgres_cells"],
+    deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_cells", ":mongodb_connector", ":postgres_cells"],
+)
+
+# the hosts' doors to the authored statement, by class: the boundary, the tab's adapter and the native entry, whose
+# reach of the planner's Authored.plan ArchitectureTest.theAuthoredDoorIsReachedFromTheBoundaryAlone pins (the third
+# re-audit's SHOULD-FIX 5, 2026-11-12: until then a source regex alone, PlannedSqlTest.AUTHORED_JAVA_REFERENCE, which a
+# method reference or a static import passed)
+java_jars(
+    name = "authored_door_jars",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    deps = [
+        "//native:entry",
+        "//wasm:boundary",
+        "//wasm:tab",
+    ],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
@@ -2532,8 +2659,9 @@ core_layer_queries(not_layers = {
     "core_next": "core as the generators rewrite it, for the claims generator (spec)",
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
+    "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
-    "duckdb_load": "the drivers' bulk loader, beside the layers",
+    "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "postgres_cells": "Postgres's JSON cells behind the DriverCells seam, beside the drivers (the plan path program's step 9, 2026-10-19)",

@@ -190,10 +190,10 @@ describe('the saved spec\'s reader', () => {
       { kind: 'projection', series: 'A', window: 126, ahead: '6m', label: 'Trend' }],
     view: { compare: 'rebase', legend: true, lastValues: true, navigator: true, stats: false, crosshair: true, subtitle: 'Since 2020', note: 'Source: the exchange' },
   };
-  const with_ = (change: Record<string, unknown>): unknown => ({ ...JSON.parse(JSON.stringify(OK)), ...change });
+  const with_ = (change: Record<string, unknown>): unknown => ({ ...looseJson(JSON.stringify(OK)), ...change });
 
   it('reads a spec of every slot', () => {
-    assert.equal(tsProblem(JSON.parse(JSON.stringify(OK))), null);
+    assert.equal(tsProblem(looseJson(JSON.stringify(OK))), null);
     // a window of a calendar period, and a lag of one
     assert.equal(tsProblem(with_({ series: [{ id: 'A', text: text(returns(mean(close, '3m'), '1y')) }] })), null);
     // the next phases' 3: a view of its series, and each view's settings

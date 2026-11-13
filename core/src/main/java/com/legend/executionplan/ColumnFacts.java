@@ -62,7 +62,7 @@ public final class ColumnFacts {
                 // engine reads a raw result set's cell by the type the database reports
                 boolean wire = rawGridCell(lowered, out.name(), Map.of());
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), wire ? null : slot(out.type()),
-                        stored == null ? null : store(stored), wire ? null : precision(p.type(), out.type(), shape)));
+                        stored, wire ? null : precision(p.type(), out.type(), shape)));
                 continue;
             }
             String bare = p.name().length() > 1 && p.name().startsWith("'") && p.name().endsWith("'")

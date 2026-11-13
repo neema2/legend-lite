@@ -75,26 +75,44 @@ class HostSqlTest(unittest.TestCase):
                          [5, 6, 7, 10, 11, 11, 11, 11, 11, 13])
 
     def test_no_module_of_pythons_host_spells_sql_but_the_sites_kept(self):
-        r = rule()
-        # the package's modules, beside its __init__.py
-        package = Path(FILES.Rlocation(os.environ['HOST_SQL_PACKAGE'])).parent
-        modules = sorted(package.glob('*.py'))
-        self.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
-        found, used = [], []
-        for module in modules:
-            name = f'{r["python"][0]}/{module.name}'
-            for line, text in literals(module.read_text(encoding='utf-8')):
-                if not r['statement'].match(text):
-                    continue
-                kept = next((k for k in r['kept'] if k['file'] == name and text == k['text']), None)
-                if kept is None:
-                    found.append(f'{name}:{line}: {text[:80]!r}')
-                else:
-                    used.append(kept)
-        self.assertEqual(found, [], "SQL spelled in Python's host: name the operation and its data instead "
-                                    "(legend_lite/_host.py), which the native library writes by the database's type")
-        stale = [f"{k['file']}: {k['text']}" for k in r['kept'] if k['file'].endswith('.py') and k not in used]
-        self.assertEqual(stale, [], 'a site kept is no longer there: take it out of host_sql.txt')
+        spells_sql_but_the_sites_kept(self, package_modules(self))
+
+    def test_the_census_fails_on_a_planted_statement(self):
+        """CHECK 6 (the final audit's item 5, 2026-11-12): the census's own comparison, run over the package with one
+        module planted beside its modules, FAILS naming it -- never merely that its reader finds the literal."""
+        planted = 'planted_violator.py'
+        self.maxDiff = None
+        with self.assertRaises(AssertionError, msg='the census passed over a planted statement') as failed:
+            spells_sql_but_the_sites_kept(self, {**package_modules(self), planted: "q = 'SELECT * FROM trades'"})
+        self.assertIn(planted, str(failed.exception))
+
+
+def package_modules(case: unittest.TestCase) -> dict[str, str]:
+    """The package's modules, beside its __init__.py: each its text by its file's name."""
+    package = Path(FILES.Rlocation(os.environ['HOST_SQL_PACKAGE'])).parent
+    modules = sorted(package.glob('*.py'))
+    case.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
+    return {m.name: m.read_text(encoding='utf-8') for m in modules}
+
+
+def spells_sql_but_the_sites_kept(case: unittest.TestCase, modules: dict[str, str]) -> None:
+    """The census over ``modules`` (each module's text by its file's name), compared with the sites kept."""
+    r = rule()
+    found, used = [], []
+    for module_name, module_text in sorted(modules.items()):
+        name = f'{r["python"][0]}/{module_name}'
+        for line, text in literals(module_text):
+            if not r['statement'].match(text):
+                continue
+            kept = next((k for k in r['kept'] if k['file'] == name and text == k['text']), None)
+            if kept is None:
+                found.append(f'{name}:{line}: {text[:80]!r}')
+            else:
+                used.append(kept)
+    case.assertEqual(found, [], "SQL spelled in Python's host: name the operation and its data instead "
+                                "(legend_lite/_host.py), which the native library writes by the database's type")
+    stale = [f"{k['file']}: {k['text']}" for k in r['kept'] if k['file'].endswith('.py') and k not in used]
+    case.assertEqual(stale, [], 'a site kept is no longer there: take it out of host_sql.txt')
 
 
 if __name__ == '__main__':

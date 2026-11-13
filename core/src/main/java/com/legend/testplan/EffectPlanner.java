@@ -154,10 +154,13 @@ public final class EffectPlanner {
         };
     }
 
-    /** A CSV file's load as the program runs it ({@code step}), with the text the replay ledger records for it
-     *  ({@code recorded}: the referee's insert of the file's rows -- the referee's copy of the data, as every seed's is
-     *  until the design's L8 replays the plan's loads), or none where the file holds no row (no load is planned). */
-    public record PlannedLoad(ExecutionPlan.LoadStep.File step, String recorded) {
+    /** A CSV file's load as the program runs it ({@code step}), with THE REFEREE'S COPY of it ({@code referee}, B2b,
+     *  2026-11-11): the same file by the same reference, read by the replay referee's own H2 ({@code CSVREAD}), as
+     *  every seed's copy is the plan's load in the referee's dialect -- written when an edge asks for it (a format its
+     *  reader cannot take refused by name there). Until B2b the referee's copy was the file's cells, split in Java
+     *  ({@code base.CsvCells}, census M15). */
+    public record PlannedLoad(ExecutionPlan.LoadStep.File step,
+            java.util.function.Supplier<ExecutionPlan.LoadStep.File> referee) {
     }
 
     /**
@@ -165,12 +168,11 @@ public final class EffectPlanner {
      * 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L1): the file by its reference {@code ref} -- never its path, never
      * its rows -- delivered as the program's database takes it ({@link SqlDialect#csvLoad}); the table the store
      * navigation the call names, its columns in declared order, the file's cells loaded positionally after its header
-     * (legend-engine's native drops the header and inserts each row into the table's columns). {@code bytes} are the
-     * bytes {@code ref} digests, read at planning: the referee's copy is their rows (null where there are none: a file
-     * of no row loads nothing, and no load is planned).
+     * (legend-engine's native drops the header and inserts each row into the table's columns); the referee's copy the
+     * same file read by its own H2, written only when an edge asks.
      */
-    public static @com.legend.base.Nullable PlannedLoad loadCsv(TypedNativeCall call,
-            com.legend.executionplan.DataRef ref, byte[] bytes, List<TypedSpec> body, PlanEnv env) {
+    public static PlannedLoad loadCsv(TypedNativeCall call,
+            com.legend.executionplan.DataRef ref, List<TypedSpec> body, PlanEnv env) {
         var table = com.legend.compiler.spec.typed.StoreElementIdentity.tableRef(call.args().get(1),
                 x -> peelToOne(x, body));
         if (table == null) {
@@ -185,28 +187,55 @@ public final class EffectPlanner {
         List<String> columns = env.ctx().findTable(table.dbFqn(), table.table()).orElseThrow(() ->
                 new IllegalStateException("loadCsvToDbTable: no table '" + table.table() + "' in store "
                         + table.dbFqn())).columns().stream().map(c -> c.name()).toList();
-        List<List<String>> rows = com.legend.base.CsvCells.rows(
-                new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
-        if (rows.size() < 2) {
-            // a header alone, or nothing: no row loads, and the plan loads what it was planned against
-            return null;
-        }
-        if (rows.get(0).size() != columns.size()) {
-            throw new com.legend.error.DataError("loadCsvToDbTable: the CSV file '" + ref.name() + "' names "
-                    + rows.get(0).size() + " column(s) in its header, and table '" + qualified + "' takes "
-                    + columns.size(), new IllegalArgumentException(ref.name()));
-        }
         java.util.Set<String> quoted = com.legend.setup.CsvSeed.quotedColumns(def);
         com.legend.sql.NameQuoting quoting = Ddl.quoting(def, schema);
-        SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted);
-        SqlDialect.CsvLoad spelled = env.writtenIn().csvLoad(load);
-        ExecutionPlan.LoadStep.Delivery delivery = spelled.readsFile()
-                ? new ExecutionPlan.LoadStep.Delivery.DatabaseReads(spelled.sql())
-                : new ExecutionPlan.LoadStep.Delivery.Streamed(spelled.sql(), columns.size());
-        String recorded = refereeDdl().render(new com.legend.setup.RowLoad(schema, table.table(), quoting, columns,
-                quoted, columns.size(), com.legend.base.CsvCells.body(rows, columns.size())).values());
-        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, delivery), recorded);
+        // a test's resource is CSV by upstream's rule: a statements blob is the content store's, and a host's upload
+        // formats (B3) are a host's
+        if (!(ref.format() instanceof com.legend.executionplan.DataRef.Csv csv)) {
+            throw new IllegalStateException("loadCsvToDbTable reads a CSV file, not a "
+                    + ref.format().getClass().getSimpleName() + " reference: " + ref.name());
+        }
+        // READ by the program's database itself (SqlDialect.csvLoad; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.2-§1.3,
+        // A3): DuckDB's read_csv, H2's CSVREAD, their record checks refusing a malformed record in the database; a
+        // database that reads no file refuses the load by name, here, naming the file. Each column's declared type is the
+        // store's, cast into by the INSERT
+        java.util.Map<String, com.legend.sql.SqlDdl.ColumnType> declared = new java.util.LinkedHashMap<>();
+        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
+            declared.put(col.name(), com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
+        }
+        List<com.legend.sql.SqlDdl.ColumnType> types = columns.stream().map(c -> java.util.Objects.requireNonNull(
+                declared.get(c), () -> "loadCsvToDbTable: no declared type for column '" + c + "' of " + qualified))
+                .toList();
+        SqlDml.LoadCsv load = new SqlDml.LoadCsv(schema, table.table(), quoting, columns, quoted, types,
+                csv.delimiter(), csv.quote(), SIZE_LIMIT_MEGABYTES);
+        SqlDialect.CsvLoad reads;
+        try {
+            reads = env.writtenIn().csvLoad(load);
+        } catch (com.legend.sql.DialectCapability e) {
+            throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the CSV file '" + ref.name() + "' for table '"
+                    + qualified + "': " + e.getMessage());
+        }
+        // the referee's copy (B2b): the same file, read by the replay referee's own H2 with its CSVREAD and record
+        // checks (the referee's H2 2.1.214 runs H2's spelling as written, measured 2026-11-11), the edge's data, never
+        // the product's path -- written when an edge asks, a format H2's reader cannot take refused by name there
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Reads(
+                reads.statements(), reads.after()), SIZE_LIMIT_MEGABYTES), () -> {
+                    SqlDialect.CsvLoad referee;
+                    try {
+                        referee = refereeDdl().csvLoad(load);
+                    } catch (com.legend.sql.DialectCapability e) {
+                        throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the referee's copy of the CSV"
+                                + " file '" + ref.name() + "' for table '" + qualified + "': " + e.getMessage());
+                    }
+                    return new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Reads(
+                            referee.statements(), referee.after()), SIZE_LIMIT_MEGABYTES);
+                });
     }
+
+    /** The largest file {@code loadCsvToDbTable} loads: upstream's, in both its natives (legend-pure 5.99.0:
+     *  {@code RelationalGen.loadCsvToDbTable} passes 500 to {@code CsvReader.readCsv}, the interpreted native its
+     *  {@code _500_MB_SIZE_LIMIT}; the user's ruling, 2026-11-09, D-b). */
+    public static final int SIZE_LIMIT_MEGABYTES = 500;
 
     /** {@code n} with its lets chased and its {@code toOne()}s peeled (a store navigation's links). */
     private static TypedSpec peelToOne(TypedSpec n, List<TypedSpec> body) {

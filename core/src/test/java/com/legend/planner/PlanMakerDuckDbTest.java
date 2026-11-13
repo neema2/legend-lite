@@ -26,10 +26,12 @@ class PlanMakerDuckDbTest {
         ExecutionPlan.Target duck = target(plan(DUCKDB, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])"
                 + "->sort(~ID->ascending())", com.legend.testcases.PlanCases.Written.JSON));
         assertEquals(List.of("SET TimeZone='UTC'"), duck.session());
-        // DuckDB's rows go to its bulk loader: the create, the rows, the copy and the drop
-        ExecutionPlan.LoadStep.Rows rows = (ExecutionPlan.LoadStep.Rows) duck.setup().get(duck.setup().size() - 1);
-        assertEquals(List.of(List.of("1", "a", "1.50"), java.util.Arrays.asList("2", "O'Brien", null),
-                java.util.Arrays.asList("3", null, "3.25")), rows.rows());
+        // the rows are statements in a content blob, each cell its column's typed literal (A2, 2026-11-10: until then
+        // DuckDB's bulk loader took them as text)
+        ExecutionPlan.Load load = duck.loads().get(0);
+        ExecutionPlan.LoadStep.Statements rows = (ExecutionPlan.LoadStep.Statements) load.steps().get(load.steps().size() - 1);
+        assertEquals(List.of("INSERT INTO T (ID, NAME, PRICE) VALUES (1, 'a', 1.50), (2, 'O''Brien', NULL), (3, NULL, 3.25);"),
+                com.legend.executionplan.DataRef.Statements.decode(load.content().get(rows.ref().digest())));
     }
 
     /** DuckDB binds a parameter typed by its value bare, as the database types the value (H2 casts it to a type hole:
@@ -42,14 +44,12 @@ class PlanMakerDuckDbTest {
                 duck.slots());
     }
 
-    /** A DateTime parameter is cast to the type of its value's literal: DuckDB's is a TIMESTAMP_NS only when the value
-     *  has digits finer than a microsecond (probes/timestamp-results.txt). */
+    /** A DateTime parameter is upstream's own type, DuckDB's microsecond TIMESTAMP, whatever the value, bound as its
+     *  whole text (the user's ruling, 2026-11-09: "Duckdb timestamp is fine"; until then TIMESTAMP_NS, which holds 1677
+     *  to 2262 only and refused every milestoned table's 9999-12-31), a value of a finer digit raised by the statement
+     *  (S181, A7, 2026-11-10: until then the database cut it). */
     @Test
-    void aDateTimeParameterIsCastToItsLiteralsType() {
-        assertEquals(java.util.Map.of(
-                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                        ExecutionPlan.Digits.NONE),
-                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP_NS",
-                        ExecutionPlan.Digits.NONE)), PlanMakerTest.dateTimeBinding(DUCKDB).hole().types());
+    void aDateTimeParameterIsCastToTimestamp() {
+        assertEquals("CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS VARCHAR)) - 2) <> '000' THEN … WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP) text", PlanMakerTest.dateTimeCast(DUCKDB));
     }
 }

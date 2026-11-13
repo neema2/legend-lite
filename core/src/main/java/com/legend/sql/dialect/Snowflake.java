@@ -72,6 +72,39 @@ public final class Snowflake extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached Snowflake, which has no translation of it");
     }
 
+    /** {@inheritDoc} 9: its {@code TIMESTAMP_NTZ} keeps nanoseconds (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 9: its date-time column is a {@code TIMESTAMP_NTZ}, of nine digits (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 9;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
+    /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
+     *  2026-11-11, on round 2's measurement, probes/SnowflakeDelivery2.java.txt): at 100,000 records 0.48 s, against
+     *  17.0 s as the statement's own rows and 73 s as a temporary table (whose one safe drop, a Snowflake Scripting block
+     *  that drops a LOCAL TEMPORARY table alone, costs 1-2 s: round 1 measured {@code DROP TABLE IF EXISTS} dropping a
+     *  user's permanent table of the name); no size limit met; the quote, the line break, the order and the empty
+     *  array kept. */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -304,24 +337,10 @@ public final class Snowflake extends AnsiSqlRenderer {
         return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'";
     }
 
-    /** {@code TIMESTAMP '...'} is TIMESTAMP_NTZ under the session's mapping ({@code TIMESTAMP_NTZ '...'} is a syntax
-     *  error, measured). Snowflake keeps nanoseconds; DuckDB and the platform keep microseconds: finer digits are cut. */
-    @Override
-    protected String timestampLit(String iso) {
-        return super.timestampLit(microseconds(iso));
-    }
-
-    private static String microseconds(String iso) {
-        int dot = iso.lastIndexOf('.');
-        if (dot < 0) {
-            return iso;
-        }
-        int end = dot + 1;
-        while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
-            end++;
-        }
-        return end - dot - 1 > 6 ? iso.substring(0, dot + 7) + iso.substring(end) : iso;
-    }
+    // A timestamp literal is the base's TIMESTAMP '...', TIMESTAMP_NTZ under the session's mapping (TIMESTAMP_NTZ '...' is
+    // a syntax error, measured), every digit written: Snowflake keeps nanoseconds, as upstream's '…'::timestamp does (the
+    // orchestrator's note, 2026-11-09, upstream fidelity: until then the finer digits were cut to a microsecond, and a
+    // literal and its parameter answered apart).
 
     /** A Float literal's plain spelling; NaN and the infinities as FLOAT text (a bare {@code NaN} is no literal). */
     @Override
@@ -360,15 +379,14 @@ public final class Snowflake extends AnsiSqlRenderer {
         return "OBJECT";
     }
 
-    /** A date and a date-time placeholder take the NTZ timestamp; finer than a microsecond is cut to six digits, as
-     *  its literal is. */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP_NTZ(9)} ({@code '…'::timestamp}, upstream's, which keeps
+     *  nine digits of a second), bound as its text whole (D1: the database's finest precision; the re-audit's B-2,
+     *  2026-11-09 -- until then cut to six, as lite's own literal was). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("TIMESTAMP_NTZ", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("TIMESTAMP_NTZ", RenderedStatement.Digits.NONE, 6);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP_NTZ(9)", new RenderedStatement.AsText(null));
         };
     }
 
@@ -1373,8 +1391,12 @@ public final class Snowflake extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on Snowflake, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached Snowflake, whose binary collation is not measured");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
@@ -3273,13 +3295,67 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
-    /** VALUES takes constants only (ARRAY_CONSTRUCT and PARSE_JSON are refused there, measured): rows holding any
-     *  other expression are a UNION ALL of selects. */
+    /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a
+     *  VARIANT, a frame's record its place as FLATTEN's index (from 0, the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.index AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(");
+        return bindPayload(writer, u).append("))) legend_payload");
+    }
+
+    /** VALUES takes constants only (ARRAY_CONSTRUCT and PARSE_JSON are refused there, measured): a column of JSON
+     *  texts is VALUES of the texts, which the select over it parses ({@code data:}'s inline rows: the lane's form,
+     *  measured 2026-11-11, the rows' order and a quote and a line break kept; a NULL text a {@code NULL::STRING}, as
+     *  measured); rows holding any other expression are a UNION ALL of selects. */
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
         boolean constants = v.rows().stream().allMatch(r -> r.stream().allMatch(Snowflake::constant));
         if (constants && !v.rows().isEmpty()) {
             return super.valuesSource(writer, v);
+        }
+        boolean[] parsed = new boolean[v.columns().size()];
+        boolean texts = !v.rows().isEmpty();
+        for (int c = 0; c < parsed.length && texts; c++) {
+            int col = c;
+            parsed[c] = v.rows().stream().allMatch(r -> jsonText(r.get(col)));
+            texts = parsed[c] || v.rows().stream().allMatch(r -> constant(r.get(col)));
+        }
+        if (texts) {
+            // each other column cast to its declared type: a VALUES column types by its literals (the empty form's one 0
+            // is a NUMBER(1,0), measured by the lane, 2026-11-11), so both forms answer one type
+            boolean declared = v.outputs().size() == v.columns().size();
+            writer.append("(SELECT ");
+            for (int c = 0; c < parsed.length; c++) {
+                String column = "column" + (c + 1);
+                writer.append(c > 0 ? ", " : "").append(parsed[c] ? "PARSE_JSON(" + column + ")"
+                        : declared ? "CAST(" + column + " AS " + castTypeName(v.outputs().get(c).type()) + ")"
+                        : column).append(" AS ").append(aliasIdent(v.columns().get(c)));
+            }
+            writer.append(" FROM VALUES ");
+            for (int r = 0; r < v.rows().size(); r++) {
+                writer.append(r > 0 ? ", (" : "(");
+                List<SqlExpr> row = v.rows().get(r);
+                for (int c = 0; c < row.size(); c++) {
+                    writer.append(c > 0 ? ", " : "");
+                    SqlExpr cell = parsed[c] ? ((SqlExpr.Cast) row.get(c)).value() : row.get(c);
+                    if (cell instanceof SqlExpr.NullLit) {
+                        writer.append(parsed[c] ? "NULL::STRING" : "NULL");
+                    } else {
+                        writer.expr(cell, 0);
+                    }
+                }
+                writer.append(")");
+            }
+            return writer.append(") AS ").append(aliasIdent(v.alias()));
         }
         if (v.rows().isEmpty()) {
             throw new DialectCapability("an empty VALUES reached Snowflake");
@@ -3302,6 +3378,13 @@ public final class Snowflake extends AnsiSqlRenderer {
             }
         }
         return writer.append(") AS ").append(aliasIdent(v.alias()));
+    }
+
+    /** A JSON text written as a value: a constant text (or NULL) cast to JSON. */
+    private static boolean jsonText(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.JSON
+                && (c.value() instanceof SqlExpr.NullLit || c.value() instanceof SqlExpr.StringLit s
+                        && s.value().indexOf('\u0000') < 0);
     }
 
     private static boolean constant(SqlExpr e) {

@@ -69,7 +69,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the session and fails on a fixed error. The site is MariaDbConnector.raisedMessage's since
  * 2026-10-16, the dialect program's Phase 5: the same one getString, moved with the read;
  * JdbcStatements.held's since 2026-10-29, D65: the connector declares the two statements as
- * data and the seam runs them -- the same one getString, moved again with the read.)
+ * data and the seam runs them -- the same one getString, moved again with the read. Since C2,
+ * 2026-11-12, the statements are the plan target's, declared by the dialect: the same getString.)
  */
 @Tag("guardrail")
 class TenetRatchetTest {

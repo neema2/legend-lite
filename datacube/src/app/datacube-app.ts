@@ -39,6 +39,8 @@ import {
   leftOutWhenUnopened,
   noneOpened,
   pageSaving,
+  freshLinksWarning,
+  pageAsSaved,
   savedPage,
   type PageDocument,
   type SavedDocument,
@@ -147,7 +149,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const engine = local?.engine;
     const tables = place.tables;
     if (local === undefined || engine?.exclusive === undefined || tables === undefined || tables.length === 0 || place.runner || place.snapTarget) return undefined;
-    const planner = place.planner ?? local.planner;
     return async (rows, output) => {
       const { writeTable } = await import('../table-output.ts');
       const wrote = await writeTable(rows, output, {
@@ -156,16 +157,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         held: (table) => tablesTaken?.(table) ?? true,
         models: local.tables,
         hold: (work) => engine.exclusive!(work),
-        sqlOf: async (query) => (await planner.plan(query)).sql,
-        executionPlan: async (model, runtime, program) => {
-          const p = local.another(model, runtime);
-          try {
-            if (p.executionPlan === undefined) throw new Error("this page's planner plans no write");
-            return await p.executionPlan(program);
-          } finally {
-            p.dispose?.();
-          }
-        },
       });
       // its table this tab's from now on: no file read in after takes its name (and replaces it)
       tableWritten?.(output.name);
@@ -573,6 +564,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // its classes are in a project (§15.3; a file carrying its model comes with the Studio line's export, S23)
     pageNow: (name) => pageKept!(name),
     refuse: (text) => window.alert(text),
+    // a page file written without a link's token (pageFile), said as the status line's warning at rest
+    warn: (text) => sayResting({ text, warn: true }),
     // A TIMESERIES SERIES OF SEVERAL GRIDS (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): one query over one model
     // of their tables -- the tab's or the host's (togetherOf, set with the page's sources below)
     together: (cubes: readonly string[]) => {
@@ -1313,6 +1306,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           grids.length > 1 ? 'Each grid\'s formats, widths, colours and settings' : 'Its formats, widths, colours and settings',
         ];
         const leaves = `Not the rows: ${sourcesSaid(doc, 'save') || 'opening it reads its sources again'}.`;
+        // a remote file's link with a query string is saved as its address alone, said before the save (the user's
+        // ruling of 2026-11-11: strip the presigned link's token and save the rest, with a warning)
+        const stripping = doc ? freshLinksWarning(pageAsSaved(doc).freshLinks) : undefined;
+        const lostWarning = current.lost?.length
+          ? `The saved “${current.savedName ?? offered}” has parts this page cannot show: ${current.lost.join('; ')}.` : undefined;
+        const warning = [lostWarning, stripping].filter((w): w is string => w !== undefined).join(' ');
         await saveDialog(document, {
           purpose: asNew ? 'saveAs' : 'save',
           name: offered,
@@ -1321,8 +1320,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           where: pages.where,
           keeps,
           leaves,
-          ...(current.lost?.length
-            ? { warning: `The saved “${current.savedName ?? offered}” has parts this page cannot show: ${current.lost.join('; ')}.` } : {}),
+          ...(warning ? { warning } : {}),
           save: async (name, saveAsNew) => {
             if (refused) throw new Error(refused);
             await saveTo(name, saveAsNew);
@@ -1357,9 +1355,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         note.className = 'sharenote bad';
         return;
       }
-      const link = shareLink(address(), shared);
+      // a link's token never in a share link: a remote file's link with a query string carried as its address alone, said
+      const sharedAs = pageAsSaved(shared);
+      const link = shareLink(address(), sharedAs.page);
       field.value = link.url;
-      const about = `It holds the page's settings, filter values included, not its data; ${sourcesSaid(shared, 'share')}.`
+      const stripped = freshLinksWarning(sharedAs.freshLinks);
+      const about = `It holds the page's settings, filter values included, not its data; ${sourcesSaid(sharedAs.page, 'share')}.`
+        + (stripped ? ` ${stripped}` : '')
         // the page's classes are in this browser's model home (Studio's): a link carries none of them
         + (page.model ? ` Its classes stay in ${page.model.project}, in this browser: the link does not carry them.` : '');
       const put = async (): Promise<void> => {

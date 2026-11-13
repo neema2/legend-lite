@@ -1117,7 +1117,10 @@ public final class Pure {
      *  docs/CYPHER_STUDY_2026_10_15.md §12.8): {@code instantIn} is the instant a wall time names in a zone,
      *  {@code localIn} the wall time of an instant in a zone — each two of the database's zone conversions (the
      *  convertTimeZone lowering's pair), a Pure DateTime in and out. Upstream knows zones only at formatting and on
-     *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). */
+     *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). At a DST change the
+     *  rule is java.time's ({@code ZonedDateTime.ofLocal}): a repeated wall time names its EARLIER offset's instant, a
+     *  missing one is shifted forward by the gap (A6, 2026-11-10). Measured: Trino and Databricks follow it whole; H2 and
+     *  ClickHouse read a missing wall time in its later offset; DuckDB reads a repeated one in its later offset. */
     public static final NativeFunctionDefinition QUOTIENT__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::quotient(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");

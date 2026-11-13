@@ -69,6 +69,28 @@ public final class DuckDb extends AnsiSqlRenderer {
         }
     }
 
+    /** {@inheritDoc} 9: a literal with a nonzero digit past the microsecond is a {@code TIMESTAMP_NS} ({@link #timestampLit}) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds (measured: a finer digit is cut) (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -128,13 +150,6 @@ public final class DuckDb extends AnsiSqlRenderer {
             }
         }
         return writer.function("strftime", args);
-    }
-
-    /** {@inheritDoc} DuckDB's: one giant INSERT cost most of a 61 s first query (its loader, the Appender, stages the
-     *  rows as text, and one INSERT ... SELECT casts them). */
-    @Override
-    public boolean loadsRowsInBulk() {
-        return true;
     }
 
     /** {@inheritDoc} Yes: an embedded engine. */
@@ -237,12 +252,30 @@ public final class DuckDb extends AnsiSqlRenderer {
         return c.materialized() ? " AS MATERIALIZED (" : " AS (";
     }
 
-    /** A date-time finer than a microsecond is a {@code TIMESTAMP_NS}, as its literal is ({@link #timestampLit}). */
+    /** A Date and a DateTime parameter are upstream's own type, DuckDB's microsecond {@code TIMESTAMP}
+     *  (duckdbExtension.pure: {@code TIMESTAMP '%s'} for both), bound as its whole text, which DuckDB reads as upstream's
+     *  literal does -- a value of a digit past the microsecond refused by the statement's own raise, never cut (S181,
+     *  A7; D1, P4; the correctness re-audit's 1, 2026-11-09: until
+     *  then {@code TIMESTAMP_NS}, which holds 1677 to 2262 only and so refused every milestoned table's 9999-12-31). A
+     *  number is bound bare, typed as its literal is. */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
-        return kind == com.legend.sql.ValueKind.DATE_TIME_NANOS
-                ? new RenderedStatement.TypeSpelling("TIMESTAMP_NS", RenderedStatement.Digits.NONE)
-                : super.holeType(kind);
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
+        };
+    }
+
+    /** {@code e}, refused by name where it is a literal with a nonzero digit past the microsecond, which {@code where}
+     *  keeps no more of (S181: never cut; the A delta audit's 7, 2026-11-11, measured on 1.5.6: {@code date_add} and
+     *  {@code + INTERVAL} over a {@code TIMESTAMP_NS} answer microseconds, and a cast to {@code TIMESTAMP} cuts;
+     *  {@code strftime} and {@code epoch_ns} keep all nine). */
+    private SqlExpr microsecondsOnly(SqlExpr e, String where) {
+        if (e instanceof SqlExpr.TimestampLit t && timestampLit(t.iso()).startsWith("TIMESTAMP_NS")) {
+            throw new DialectCapability("the date-time " + t.iso() + " has a digit past the microsecond, which "
+                    + where + " on DuckDB keeps no more of (6): refused, never cut (S181)");
+        }
+        return e;
     }
 
     /** DuckDB's bare {@code TIMESTAMP} is MICROSECOND precision — a
@@ -490,7 +523,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case INT_DIVIDE -> DuckDbSpellings.intDivide(writer, a);
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(
+                            microsecondsOnly(a.get(2), "a date's arithmetic"), 5)
                     .append(" + ").append(DuckDbSpellings.intervalFunction(part(a.get(0)))).append("(").expr(a.get(1), 0)
                     .append(")"));
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
@@ -523,6 +557,9 @@ public final class DuckDb extends AnsiSqlRenderer {
             case RPAD -> padWithSpaceToInteger(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation: this database compares texts by their code points already (measured 2026-11-12,
+            // the B2d.3 audit's M4), so the order key is the text as it is
+            case BINARY_COLLATE -> writer.expr(c.args().get(0), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
             // the database's random float in [0, 1), once per row
@@ -538,6 +575,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
@@ -801,14 +839,35 @@ public final class DuckDb extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
-    /** {@inheritDoc} DuckDB's own CSV reader over the runner's copy of the file, its path a bound parameter (2026-11-06;
-     *  the path bound since 2026-11-09, measured). */
+    /** {@inheritDoc} DuckDB's own reader over the runner's copy, its path the one {@code ?} (the user's ruling of
+     *  2026-11-09): strict -- no detection, the header read and dropped, each column named and text (the INSERT casts
+     *  each cell into its column), a record of another width refused ({@code strict_mode}), an empty or quoted empty
+     *  cell NULL -- in the declared delimiter and quote, a quote doubled within a quoted cell (Commons CSV's
+     *  {@code EXCEL}). A record may be as long as the load admits a file ({@code max_line_size}, the load's size limit:
+     *  DuckDB's default, 2 MB, refused a 3 MB record, measured 2026-11-10 on 1.5.6; the limit allocates no buffer of its
+     *  size: 200 loads of a small file read at 500 MB and at 2 MB measured alike, 340 ms and 308 ms, the process's peak
+     *  resident memory 103 MB and 105 MB, the correctness audit's note, 2026-11-10). Its read buffer ({@code buffer_size})
+     *  is the same size, said: left unsaid DuckDB reserves sixteen times the line limit, 7.8 GiB for 500 MB, against its
+     *  memory limit (80% of the machine's), and a 7 GB macOS runner refused every load before reading a byte ("could
+     *  not allocate block of size 7.8 GiB", PR #95's CI, 2026-11-12); DuckDB refuses a buffer smaller than the line
+     *  limit, so the two are equal (measured on 1.5.6 at a 2 GB memory limit: unsaid refused, equal loads). Where its rule is not upstream's (a
+     *  blank line skipped, a quote after a space read as quoted, mixed line breaks refused, a record wide by one EMPTY
+     *  cell loaded) is a register row (S184), pinned by {@code DataLoadsTest}. A3's one try at refusing that last case
+     *  in DuckDB's SQL (one column more, {@code null_padding}, a record check) works only where the file holds no quoted
+     *  line break -- DuckDB's parallel reader refuses one under {@code null_padding}, and its serial reader drops a
+     *  record whose quote never closes, in silence (measured 2026-11-10) -- so it is the user's to rule (S184). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        // the embedded database reads the file itself: comma-separated, its first line a header, every cell text
-        // (the INSERT casts each into its column, as a seed's cells are cast)
-        return csvReadsFile(load, "read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"',"
-                + " all_varchar = true)");
+        StringBuilder columns = new StringBuilder();
+        for (int i = 0; i < load.columns().size(); i++) {
+            columns.append(i == 0 ? "" : ", ").append(stringLit("c" + i)).append(": 'VARCHAR'");
+        }
+        String delimiter = stringLit(String.valueOf(load.delimiter()));
+        String quote = stringLit(String.valueOf(load.quote()));
+        return new CsvLoad(java.util.List.of(csvInsertInto(load) + " SELECT * FROM read_csv(?, header = true, delim = "
+                + delimiter + ", quote = " + quote + ", escape = " + quote + ", auto_detect = false, strict_mode = true,"
+                + " nullstr = '', max_line_size = " + (long) load.sizeLimitMegabytes() * 1024 * 1024 + ", buffer_size = "
+                + (long) load.sizeLimitMegabytes() * 1024 * 1024 + ", columns = {" + columns + "})"), java.util.List.of());
     }
 
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's
@@ -816,6 +875,13 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
         return createTemporaryTableAs(ct);
+    }
+
+    /** {@inheritDoc} DuckDB runs the standard spelling: every host's copy is made in its own DuckDB (the tab's,
+     *  Python's; a snapshot's copy, the final audit's 1(b), 2026-11-12). */
+    @Override
+    protected SqlWriter tableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        return createTableAs(ct);
     }
 
     /** DuckDB's catalog names a column's type as its JDBC driver does, a DECIMAL with its precision and scale
@@ -845,34 +911,44 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     /**
-     * {@code data:application/json,[...]} inlines the payload as a JSON
-     * array unnested one row per element; {@code file:} reads objects.
-     * One {@code data} column either way (the engine's scheme dispatch).
+     * {@code file:} reads objects, the file a POINTER bound at the run (L6a, the user's ruling of 2026-11-10: the runner
+     * binds the path its admission allows, never written into the statement), its one {@code data} column (the engine's
+     * scheme dispatch). A {@code data:} source never reaches here: it is one bound parameter its own
+     * {@link #sourceUrl(SqlWriter, SqlSource.SourceUrl)} splits ({@code planner.DataSources}; the JSON pass, 2026-11-11).
      */
     @Override
-    protected String sourceUrl(String url) {
-        if (url.startsWith("data:")) {
-            int comma = url.indexOf(',');
-            if (comma < 0) {
-                throw new IllegalStateException("invalid data: URI (no comma): " + url);
-            }
-            String content = url.substring(comma + 1);
-            return "SELECT unnest(CAST(" + stringLit(content) + " AS JSON[])) AS data";
-        }
+    protected SqlWriter sourceUrl(SqlWriter writer, String url) {
         if (url.startsWith("file:")) {
-            // Path.of(URI), NOT URI.getPath(): a file: URI's PATH component is
-            // "/D:/data/x.json" on Windows, which is not a filesystem path at
-            // all — DuckDB reports "No files found that match the pattern" and
-            // every file:-backed JSON source is unreadable there. Path.of
-            // resolves the URI through the filesystem provider, giving
-            // D:\data\x.json on Windows and /data/x.json on POSIX. Forward
-            // slashes then keep the SQL literal free of backslashes; Windows
-            // accepts them everywhere. (Windows CI, 2026-09-09.)
-            String path = java.nio.file.Path.of(java.net.URI.create(url))
-                    .toString().replace(java.io.File.separatorChar, '/');
-            return "SELECT json AS data FROM read_json_objects(" + stringLit(path) + ")";
+            return writer.append("SELECT json AS data FROM read_json_objects(").bind(new RenderedStatement.Bind("",
+                    new RenderedStatement.Binding.Source(url))).append(")");
         }
-        throw new IllegalStateException("unsupported sourceUrl scheme: " + url);
+        // a data: source never reaches here (AnsiSqlRenderer.refuseUnread); any other scheme has no reader here
+        return super.sourceUrl(writer, url);
+    }
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in its {@code temp} schema its load made and its release dropped). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 1.5: 100,000
+     *  records in 83 ms): each element its {@code JSON}, a frame's record its place as the array's key (from 0, the
+     *  payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.key AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM json_each(CAST(");
+        return bindPayload(writer, u).append(" AS JSON)) AS legend_payload");
     }
 
     /** Pure semantics ride the expansion: exists([])=false, forAll([])=true. */
@@ -1129,6 +1205,9 @@ public final class DuckDb extends AnsiSqlRenderer {
      */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP) {
+            microsecondsOnly(c.value(), "a cast to its TIMESTAMP");
+        }
         if (!(c.target() instanceof com.legend.sql.SqlType.Array)
                 && c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
             writer.append("CAST((");

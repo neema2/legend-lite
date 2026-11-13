@@ -500,6 +500,26 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  425,000 / 414,000 -> 430,500 (2026-10-28, main merged into the flow mode's PR #79: the two chains above, each grown
  *  from 408,500 apart -- the flow mode's roadmap and main's timeseries work -- in one bundle; no startup file added by
  *  the merge). Measured 430,054.
+ *  430,500 -> 431,000 (2026-11-11, the total wall's B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: a remote file's
+ *  credentials by name -- the secret's operation names its fields, their values held in the host's store and bound
+ *  (remote.ts credentialSecret, host-operations.ts SecretStore) -- and a picked file read by a planned load, named by its
+ *  SHA-256 and size (upload.ts readFileInto); the hosts' plan runner that runs it is a chunk fetched with the first file
+ *  read (upload.ts planRunner): at startup it measured 434,801). Measured 430,886.
+ *  431,000 -> 432,000 (2026-11-11, the total wall's B3, its Q3: the user's ruling "Yes do option 2" -- a remote file's
+ *  mount a planned load, its keys and a bearer URL held by name and bound: remote.ts mountRequest, sourceStore, the
+ *  bearer URL's address shown without its token and redacted by value, and the tab's connection settings, kept and
+ *  replayed on every connection it opens (engine-client's connection-settings.ts, a module of its own so the tab carries
+ *  them without the plan runner, which stays a chunk fetched with the first mount or file read). Measured 431,646.
+ *  432,000 -> 433,000 (2026-11-11, the user's ruling on a saved page's presigned link: "can we strip the presigned and
+ *  save the rest of report with warning?" -- agreed): every way a page leaves the screen -- Save, a page file, a share
+ *  link -- writes a remote file's link without its query string (cube-document.ts savedSource, page-document.ts
+ *  pageAsSaved) and says so (freshLinksWarning); a saved page reopened asks for a fresh link (sources.ts reopenRemote).
+ *  Measured 432,386.
+ *  433,000 -> 434,500 (2026-11-11, the B checkpoint's tenets audit, M3, the orchestrator's go: a JSON connection's
+ *  data: payload, which DuckDB binds as a parameter, is read where the tab reads a plan -- from the plan beside the text,
+ *  by its digest, verified (engine-client plan-params.ts, the synchronous SHA-256 moved there from page-hash.ts) -- and
+ *  bound where the engine runs it (duckdb.ts #bound), the snap, the join summary and the Output carrying it).
+ *  Measured 433,818.
  *  430,500 -> 431,000 (2026-10-30, the timeseries language's P5, docs/TS_LANGUAGE_BUILD_2026_10_30.md: a query holding a
  *  #TS{...}# island is planned over the timeseries library, every figure of the island being the library's
  *  (pure-library.ts callsLibrary reads the island); no startup file added). Measured 430,509.
@@ -528,8 +548,9 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the catalog; the user: "Merge #91, then unify"): each word's signature says what its span takes no form of
  *  (observations, period, all: winsorize's, count's, first's, last's, a lag's), and the saved series' judge refuses
  *  those forms as core does (timeseries-spec.ts) -- winsorize(x, 1.5, 20) was taken and refused only when it ran.
- *  Measured 433,405. */
-const BUDGET = 433_700;
+ *  Measured 433,405.
+ *  434,500 -> 437,700 (2026-11-13, main's #95 merged into the timeseries branch: both sides' raises over 2026-10-30's budget together, +3,200 and +4,000; provisional until measured on the merge). */
+const BUDGET = 437_700;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -736,6 +757,15 @@ const BUDGET = 433_700;
  *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506.
  *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
  *  same date). Measured 417,953.
+ *  418,500 -> 419,500 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
+ *  same date). Measured 419,122.
+ *  419,500 -> 420,500 (2026-11-11, the B checkpoint's tenets audit, M2: the engine says every database failure with the
+ *  values its kept settings bind taken out -- a presigned link's URL, its query string, each parameter -- so an expired
+ *  link's error names no token; connection-settings.ts heldTexts/redactHeld, duckdb.ts #failed). Measured 420,058.
+ *  420,500 -> 421,500 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 420,811.
+ *  421,500 -> 422,000 (2026-11-12, the total wall's B and C3 together: a planner client's answers typed as a plan's
+ *  statements where they are read -- planned-sql.ts fromPlan, allFromPlan and plannedProjectData -- and the planner's
+ *  synthesize door, LitePlanner.synthesize; each fit alone, the two over by 169 bytes). Measured 421,669.
  *  418,500 -> 419,000 (2026-11-01, the library's text, which the engine page carries for its timeseries -- the
  *  timeseries budget's note of the same date: O1's ramp and O2's compare, 0.8 KB gzipped). Measured 418,511; S4 (the
  *  planner resolving the library) takes the text out.
@@ -749,8 +779,9 @@ const BUDGET = 433_700;
  *  420,300 -> 421,300 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
  *  Measured 421,116.
  *  421,300 -> 421,600 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
- *  date). Measured 421,329. */
-const ENGINE_BUDGET = 421_600;
+ *  date). Measured 421,329.
+ *  422,000 -> 425,100 (2026-11-13, main's #95 merged into the timeseries branch: both sides' raises over 2026-10-30's budget together, +3,100 and +3,500; provisional until measured on the merge). */
+const ENGINE_BUDGET = 425_100;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1236,6 +1267,16 @@ const EXAMPLE_BUDGET = 4_000;
  *  box's style, app.css .dc-ts-draw). Measured 429,265.
  *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
  *  same date). Measured 446,209.
+ *  446,500 -> 447,000 (2026-11-11, the total wall's B3 -- the grid-only page's note of the same date; with the hosts'
+ *  plan runner at startup it measured 449,333). Measured 446,567.
+ *  447,000 -> 448,000 (2026-11-11, a saved page's presigned link stripped and said -- the grid-only page's note of the
+ *  same date). Measured 447,348.
+ *  448,000 -> 449,000 (2026-11-11, the tenets audit's M2 -- the engine page's note of the same date). Measured 448,290.
+ *  449,000 -> 450,000 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 449,043.
+ *  450,000 -> 450,500 (2026-11-12, the total wall's B3 items 1 and 4: the user's ruling that a snapshot's request carries
+ *  the pull, never SQL -- the cube asks its planner for the pull, LitePlanner.pullRequest, and a remote snap without one
+ *  is refused by name -- and the snap's count and its copy's drop refused or said by name, never defaulted or swallowed;
+ *  the re-audit's own growth was trimmed back under 450,000 first, c3191d097). Measured 450,200.
  *  446,500 -> 447,000 (2026-10-30, main -- PR #80, the plan path -- merged into the timeseries platform branch: main's
  *  module and the branch's together, the library enumerations among the branch's, src/generated/library-enums.ts;
  *  neither measured alone). Measured 446,637.
@@ -1250,8 +1291,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  448,700 -> 449,700 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
  *  Measured 449,486.
  *  449,700 -> 450,000 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
- *  date). Measured 449,707. */
-const WIDGET_BUDGET = 450_000;
+ *  date). Measured 449,707.
+ *  450,500 -> 454,000 (2026-11-13, main's #95 merged into the timeseries branch: both sides' raises over 2026-10-30's budget together, +3,500 and +4,000; provisional until measured on the merge). */
+const WIDGET_BUDGET = 454_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

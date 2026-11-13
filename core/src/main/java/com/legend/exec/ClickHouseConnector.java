@@ -45,9 +45,16 @@ final class ClickHouseConnector implements DatabaseConnector {
         return new DatabaseConnector.Decoding(true, false, false, false, true, false);
     }
 
-    /** {@inheritDoc} None: {@code ClickHouse}'s errors carry their raise. */
+    /** {@inheritDoc} No: ClickHouse holds no transaction the platform opens across statements (none is kept in a turn). */
     @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} No: ClickHouse's driver refuses autocommit off ("setAutoCommit(false) is not supported", measured
+     *  2026-11-07, PR #81): its statements run each their own. */
+    @Override
+    public boolean takesTransactions() {
+        return false;
     }
 }

@@ -14,12 +14,14 @@
 // arithmetic. Left alone it produces a crash far from its cause, so it
 // is narrowed here, once, at the boundary.
 
+import type { ConnectionSettings } from './connection-settings.ts';
 import type { Receipt } from './receipt.ts';
 import type { QueryEngine, RawColumn, RawTable } from './engine.ts';
 import { QueryError, typedByPlan } from './engine.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
 import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /**
  * The slice of duckdb-wasm's connection we actually use. Declaring it
@@ -28,7 +30,7 @@ import { dayText, decimalText, exactInteger, timeText, timestampText } from './v
  * public surface.
  */
 export interface ArrowishConnection {
-  query(sql: string): ArrowishTable | Promise<ArrowishTable>;
+  query(sql: PlannedSql): ArrowishTable | Promise<ArrowishTable>;
   /**
    * The STREAMING form, and the only real cancellation DuckDB-WASM
    * offers. `query()` runs to completion inside one call and cannot be
@@ -41,13 +43,13 @@ export interface ArrowishConnection {
    * not a fallback anyone falls back to, and a guardrail test pins
    * that so it cannot quietly become one.
    */
-  send?(sql: string): Promise<AsyncIterable<ArrowishTable>>;
+  send?(sql: PlannedSql): Promise<AsyncIterable<ArrowishTable>>;
   /** Cancel a query started with `send()`. True if it was still pending. */
   cancelSent?(): Promise<boolean>;
   /**
-   * Load one Arrow IPC stream into a table: `create` makes it, otherwise the
-   * rows are appended. How a snap of a REMOTE plane lands here: the server's
-   * Arrow chunks, unconverted.
+   * Load one Arrow IPC stream into a table: `create` makes it, otherwise the rows are appended. How a snap of a REMOTE
+   * plane lands here, the server's Arrow chunks unconverted -- only ever as a planned stream step, on the held connection
+   * (HeldConnection.insertArrow, in the step's transaction: plan-runner.ts runLoad).
    */
   insertArrowFromIPCStream?(
     buffer: Uint8Array,
@@ -58,7 +60,7 @@ export interface ArrowishConnection {
    * count into the query that answers it: plan-runner.ts). DuckDB-WASM's bindings send the values as JSON, so a value
    * bound is text, a number, true or false, or null.
    */
-  prepare?(sql: string): ArrowishPrepared | Promise<ArrowishPrepared>;
+  prepare?(sql: PlannedSql): ArrowishPrepared | Promise<ArrowishPrepared>;
   close?(): void | Promise<void>;
 }
 
@@ -66,14 +68,22 @@ export interface ArrowishConnection {
 export interface HeldConnection {
   /** A statement's rows, each its values by column; one with values to bind, prepared and run with them (refused by
    *  name where the connection prepares none). */
-  rows(sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
+  rows(sql: PlannedSql, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
   /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
-  table(sql: string): Promise<RawTable>;
+  table(sql: PlannedSql): Promise<RawTable>;
+  /**
+   * One Arrow IPC stream's rows into `target` by the connection's own Arrow import, no statement spelled: `create` makes
+   * the table, else the rows are appended -- a planned stream step's chunks (plan-runner.ts runLoad: a snapshot from a
+   * remote plane, in the step's transaction). A connection without the import refuses it by name.
+   */
+  insertArrow(bytes: Uint8Array, target: { readonly schema?: string; readonly table: string }, create: boolean): Promise<void>;
 }
 
 /** A prepared statement, as DuckDB-WASM's connections give one. */
 export interface ArrowishPrepared {
   query(...params: unknown[]): ArrowishTable | Promise<ArrowishTable>;
+  /** Its result a batch at a time, as the connection's `send` gives one (DuckDB-WASM's prepared statements). */
+  send?(...params: unknown[]): AsyncIterable<ArrowishTable> | Iterable<ArrowishTable> | Promise<AsyncIterable<ArrowishTable> | Iterable<ArrowishTable>>;
   close?(): void | Promise<void>;
 }
 
@@ -349,8 +359,14 @@ export class DuckDbEngine implements QueryEngine {
   /** Remote files a mounted source reads over HTTP (`readsRemote`), for the receipt. */
   readonly #reads: string[] = [];
 
-  constructor(connection: ArrowishConnection) {
+  /** Where this engine's database keeps the settings a remote file's mount made on a connection (a session variable:
+   *  B3's Q3), replayed on every connection its host opens: the tab's (duckdb-tab.ts), none where the host keeps them
+   *  itself (Python's: the mount's answer carries them). */
+  readonly settings: ConnectionSettings | undefined;
+
+  constructor(connection: ArrowishConnection, options: { readonly settings?: ConnectionSettings } = {}) {
     this.#conn = connection;
+    this.settings = options.settings;
   }
 
   /**
@@ -411,27 +427,43 @@ export class DuckDbEngine implements QueryEngine {
       t.schema.fields.map((_f, c) => t.getChildAt(c)?.get(r)));
     return this.#serialised(() => work({
       rows: async (sql, params) => {
-        if (params.length === 0) return rowsOf(await conn.query(sql));
-        if (conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
-        const prepared = await conn.prepare(sql);
+        if (params.length > 0 && conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
         try {
-          return rowsOf(await prepared.query(...params));
-        } finally {
-          await prepared.close?.();
+          if (params.length === 0) return rowsOf(await conn.query(sql));
+          const prepared = await conn.prepare!(sql);
+          try {
+            return rowsOf(await prepared.query(...params));
+          } finally {
+            await prepared.close?.();
+          }
+        } catch (cause) {
+          // the database's words, any value a kept setting binds taken out (M2)
+          throw this.#failed(cause, sql);
         }
       },
       table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
+      insertArrow: async (bytes, target, create) => {
+        const insert = conn.insertArrowFromIPCStream;
+        if (typeof insert !== 'function') throw new Error("this tab's database has no Arrow import: a remote plane's rows cannot stream into it");
+        try {
+          await insert.call(conn, bytes, { name: target.table, ...(target.schema ? { schema: target.schema } : {}), create });
+        } catch (cause) {
+          throw this.#failed(cause, `the rows streamed into ${target.schema ? `${target.schema}.` : ''}${target.table}`);
+        }
+      },
     }));
   }
 
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
-    return { ...typedByPlan(await this.run(plan.sql, epoch, signal), plan), receipt: this.receipt() };
+    // the plan's own values its statement binds (a data: payload: plan-params.ts, M3), bound to its `?`s
+    return { ...typedByPlan(await this.run(plan.sql, epoch, signal, plan.params ?? []), plan), receipt: this.receipt() };
   }
 
   async run(
-    sql: string,
+    sql: PlannedSql,
     epoch: number,
     signal?: AbortSignal,
+    params: readonly string[] = [],
   ): Promise<RawTable> {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return this.#serialised(async () => {
@@ -443,11 +475,30 @@ export class DuckDbEngine implements QueryEngine {
       const started = performance.now();
       if (typeof this.#conn.send === 'function') {
         const acc = new BatchAccumulator();
-        await this.#batches(sql, signal, (batch) => acc.add(batch));
+        await this.#batches(sql, signal, (batch) => acc.add(batch), params);
         return acc.build(epoch, performance.now() - started);
       }
-      return this.#whole(sql, epoch, signal, started);
+      return this.#whole(sql, epoch, signal, started, params);
     });
+  }
+
+  /**
+   * `sql` prepared and its `?`s bound to `params` in order (a plan's payloads, M3): its result a batch at a time where
+   * the prepared statement streams (DuckDB-WASM's), else whole as one batch -- the prepared statement closed once read.
+   * A connection that prepares none refuses it by name.
+   */
+  async *#bound(sql: PlannedSql, params: readonly string[]): AsyncIterable<ArrowishTable> {
+    if (this.#conn.prepare === undefined) throw new Error("this database binds no statement's values: a plan's payload is not run here");
+    const prepared = await this.#conn.prepare(sql);
+    try {
+      if (prepared.send !== undefined) {
+        for await (const batch of await prepared.send(...params)) yield batch;
+      } else {
+        yield await prepared.query(...params);
+      }
+    } finally {
+      await prepared.close?.();
+    }
   }
 
   /**
@@ -465,43 +516,13 @@ export class DuckDbEngine implements QueryEngine {
     return this.#serialised(async () => {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
       const started = performance.now();
+      const params = plan.params ?? [];
       if (typeof this.#conn.send === 'function') {
         await this.#batches(plan.sql, signal, (batch) =>
-          onChunk(typedByPlan(toRawTable(batch, epoch, performance.now() - started), plan)));
+          onChunk(typedByPlan(toRawTable(batch, epoch, performance.now() - started), plan)), params);
         return;
       }
-      onChunk(typedByPlan(await this.#whole(plan.sql, epoch, signal, started), plan));
-    });
-  }
-
-  /**
-   * Replace `target` with the rows of `chunks`, each a whole Arrow IPC stream
-   * (the warehouse's chunks): the first creates the table, the rest append.
-   * On the query queue, so no query reads a half-loaded table.
-   */
-  async loadArrow(
-    target: { readonly schema?: string; readonly table: string },
-    chunks: AsyncIterable<Uint8Array>,
-    /** The planner's statements run first, in the same turn (its schema made, the table there dropped: snap.ts). */
-    prepare: readonly string[] = [],
-  ): Promise<void> {
-    const insert = this.#conn.insertArrowFromIPCStream;
-    if (typeof insert !== 'function') {
-      throw new Error('this DuckDB connection cannot load Arrow data');
-    }
-    const where = target.schema ? `${target.schema}.${target.table}` : target.table;
-    return this.#serialised(async () => {
-      for (const sql of prepare) await this.#conn.query(sql);
-      let first = true;
-      for await (const bytes of chunks) {
-        await insert.call(this.#conn, bytes, {
-          name: target.table,
-          ...(target.schema ? { schema: target.schema } : {}),
-          create: first,
-        });
-        first = false;
-      }
-      if (first) throw new Error(`no data came back to load into ${where}`);
+      onChunk(typedByPlan(await this.#whole(plan.sql, epoch, signal, started, params), plan));
     });
   }
 
@@ -534,21 +555,37 @@ export class DuckDbEngine implements QueryEngine {
     }
   }
 
+  /**
+   * A database's failure as this engine says it (the B checkpoint's tenets audit, M2, 2026-11-11): its words with every
+   * value a kept setting binds taken out (ConnectionSettings.redact) -- an expired presigned link's read repeats the
+   * whole URL -- and, where any was, without the database's own error, which still holds it.
+   */
+  #failed(cause: unknown, sql: string): QueryError {
+    const said = cause instanceof Error ? cause.message : String(cause);
+    const message = this.settings === undefined ? said : this.settings.redact(said);
+    return new QueryError(message, sql, message === said ? { cause } : {});
+  }
+
   async #whole(
-    sql: string,
+    sql: PlannedSql,
     epoch: number,
     signal: AbortSignal | undefined,
     started: number,
+    params: readonly string[] = [],
   ): Promise<RawTable> {
     let table: ArrowishTable;
     try {
-      table = await this.#conn.query(sql);
+      if (params.length === 0) {
+        table = await this.#conn.query(sql);
+      } else {
+        const batches: ArrowishTable[] = [];
+        for await (const batch of this.#bound(sql, params)) batches.push(batch);
+        const acc = new BatchAccumulator();
+        for (const batch of batches) acc.add(batch);
+        return acc.build(epoch, performance.now() - started);
+      }
     } catch (cause) {
-      throw new QueryError(
-        cause instanceof Error ? cause.message : String(cause),
-        sql,
-        { cause },
-      );
+      throw this.#failed(cause, sql);
     }
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return toRawTable(table, epoch, performance.now() - started);
@@ -563,9 +600,10 @@ export class DuckDbEngine implements QueryEngine {
    * identical either way; with one, the query is cancelled between batches.
    */
   async #batches(
-    sql: string,
+    sql: PlannedSql,
     signal: AbortSignal | undefined,
     onBatch: (batch: ArrowishTable) => void,
+    params: readonly string[] = [],
   ): Promise<void> {
     const send = this.#conn.send;
     if (!send) throw new Error('streaming unavailable');
@@ -583,14 +621,11 @@ export class DuckDbEngine implements QueryEngine {
 
     let batches: AsyncIterable<ArrowishTable>;
     try {
-      batches = await send.call(this.#conn, sql);
+      // a statement that binds values prepared and bound (#bound: its own batches); any other sent as it is
+      batches = params.length === 0 ? await send.call(this.#conn, sql) : this.#bound(sql, params);
     } catch (cause) {
       if (signal?.aborted) throw signal.reason ?? cause;
-      throw new QueryError(
-        cause instanceof Error ? cause.message : String(cause),
-        sql,
-        { cause },
-      );
+      throw this.#failed(cause, sql);
     }
 
     try {
@@ -606,11 +641,7 @@ export class DuckDbEngine implements QueryEngine {
         await cancel();
         throw signal.reason ?? cause;
       }
-      throw new QueryError(
-        cause instanceof Error ? cause.message : String(cause),
-        sql,
-        { cause },
-      );
+      throw this.#failed(cause, sql);
     }
 
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');

@@ -44,7 +44,10 @@ class PlanRunnerH2Test {
                 .orElseThrow();
         ExecutionPlan another = counting(inMemory("s::Other", other, new ConnectionSpecification.InMemory()), "T");
         try (Connection h2 = TestBackends.of(H2).open()) {
-            var otherDatabase = assertThrows(RuntimeException.class, () -> run(another, PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
+            // its loads established on the session it is acquired on (a caller's session as it is refuses a target that
+            // loads: the re-audit's A-3, 2026-11-09)
+            var otherDatabase = assertThrows(RuntimeException.class, () -> run(another, PlanSessions.acquired(
+                    com.legend.testbackend.TestSessions.over(h2), another.answerSql().target())));
             assertTrue(otherDatabase.getMessage().contains("dialect/connection mismatch"), otherDatabase.getMessage());
         }
     }
@@ -60,54 +63,48 @@ class PlanRunnerH2Test {
         assertEquals(2, setupStatements() - before, "set up once");
     }
 
-    /** H2's spelling of each kind of value, as its dialect writes a type hole's (H2.holeType). */
-    private static final Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> H2_TYPES = Map.of(
-            ExecutionPlan.ValueKind.INTEGER, new ExecutionPlan.TypeSpelling("BIGINT", ExecutionPlan.Digits.NONE),
-            ExecutionPlan.ValueKind.DECIMAL, new ExecutionPlan.TypeSpelling("NUMERIC",
-                    ExecutionPlan.Digits.PRECISION_AND_SCALE),
-            ExecutionPlan.ValueKind.FLOATING, new ExecutionPlan.TypeSpelling("DECFLOAT", ExecutionPlan.Digits.PRECISION),
-            ExecutionPlan.ValueKind.DATE, new ExecutionPlan.TypeSpelling("DATE", ExecutionPlan.Digits.NONE),
-            ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                    ExecutionPlan.Digits.NONE),
-            ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                    ExecutionPlan.Digits.NONE));
-
-    /** A plan reading one value typed by its value, through a type hole, as text: {@code type} is the parameter's. */
-    private static ExecutionPlan holed(String type) {
-        String before = "SELECT CAST(CAST(? AS ";
+    /** A plan reading one value of a declared kind as text, its placeholder cast to the declared kind's fixed type
+     *  ({@code cast}: H2's, D1, P4) -- the statement the plan's own, never written at run. */
+    private static ExecutionPlan declaredCast(String type, String cast, ExecutionPlan.@com.legend.base.Nullable AsText asText) {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
-                H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of());
+                H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null,
+                com.legend.testbackend.TestBackends.settings(H2), null);
         return ExecutionPlan.reading(List.of(declared("v", type, 0, 1)), PlanRunnerTest.cell(
-                new ExecutionPlan.Sql(before + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
-                        new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(before.length(), H2_TYPES,
-                                type.equals("Date") ? ExecutionPlan.ValueKind.DATE
-                                        : ExecutionPlan.ValueKind.DECIMAL)))), target, null)));
+                new ExecutionPlan.Sql("SELECT CAST(CAST(? AS " + cast + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
+                        new ExecutionPlan.Binding.One("DECIMAL", asText))), target, null)));
     }
 
-    /** The runner fills a type hole with the type of the value's own literal: each value answers on H2 exactly as its
-     *  literal does, text included (the whole sweep, every position: probes/value-typed-cast-results.txt). */
+    /** A placeholder of a declared kind answers as the database's own cast of the value to the declared kind's fixed
+     *  type (D1, P4, 2026-11-09: until then the runner wrote the type of the value's literal into a hole), the same
+     *  statement for every value; a date or date-time is bound as its text, a StrictDate value a midnight timestamp. */
     @Test
-    void aTypeHoleIsFilledWithTheTypeOfTheValuesLiteral_andAnswersAsTheLiteralDoes() throws Exception {
-        Map<Object, String> literals = new java.util.LinkedHashMap<>();
-        literals.put(1.1d, "1.1");
-        literals.put(new BigDecimal("2.50"), "2.50");
-        literals.put(1e-6d, "0.0000010");
-        literals.put(1.5e15d, "1.5E15");
-        literals.put(2.5e-7d, "2.5E-7");
-        literals.put(7L, "CAST(7 AS BIGINT)");
+    void aDeclaredKindsPlaceholderAnswersAsTheFixedTypesCast() throws Exception {
+        // each value, its literal as upstream writes it bare (H2 types it by its digits), and lite's answer where it is
+        // not upstream's: the DECFLOAT placeholder's, PENDING THE USER'S RULING (S175; the correctness re-audit's 3,
+        // 2026-11-09: until then this compared the plan with H2's own DECFLOAT cast, which proved nothing)
+        record Number(Object value, String literal, @com.legend.base.Nullable String pending) {
+        }
+        List<Number> numbers = List.of(new Number(1.1d, "1.1", null), new Number(new BigDecimal("2.50"), "2.50", "2.5"),
+                new Number(1e-6d, "0.000001", null), new Number(7L, "7", null), new Number(100L, "100", "1E+2"),
+                new Number(new BigDecimal("1000"), "1000", "1E+3"));
         try (Connection h2 = TestBackends.of(H2).open()) {
-            for (var e : literals.entrySet()) {
-                assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Number"), Map.of("v", e.getKey()),
-                        PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
+            for (Number n : numbers) {
+                String upstream = literalText(h2, n.literal());
+                String lite = PlanRunnerTest.run(declaredCast("Number", "DECFLOAT", null), Map.of("v", n.value()),
+                        PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)));
+                assertEquals(n.pending() == null ? upstream : n.pending(), lite, n.literal() + " (upstream: " + upstream
+                        + ")");
             }
-            Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "DATE '2024-01-02'",
-                    LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "TIMESTAMP '2024-01-02 10:30:00.123456789'");
+            Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "2024-01-02 00:00:00",
+                    LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "2024-01-02 10:30:00.123456789");
             for (var e : dates.entrySet()) {
-                assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Date"), Map.of("v", e.getKey()),
+                assertEquals(e.getValue(), PlanRunnerTest.run(declaredCast("Date", "TIMESTAMP(9)",
+                        new ExecutionPlan.AsText()), Map.of("v", e.getKey()),
                         PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
             }
-            // an absent value: a null of its absent kind's type, by name alone
-            assertEquals(null, PlanRunnerTest.run(holed("Number"), Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
+            // an absent value: a null of the binding's type
+            assertEquals(null, PlanRunnerTest.run(declaredCast("Number", "DECFLOAT", null), Map.of(),
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
         }
     }
 
@@ -125,7 +122,8 @@ class PlanRunnerH2Test {
     void typedRowsAreReadFromTheDriverByThePlansColumns() throws Exception {
         try (Connection h2 = TestBackends.of(H2).open()) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(inMemory("s::H2",
-                    H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of());
+                    H2, new ConnectionSpecification.LocalH2(null))), null), List.of(), List.of(), null,
+                com.legend.testbackend.TestBackends.settings(H2), null);
             ExecutionPlan plan = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
                     ExecutionPlan.TdsResult.Shape.RELATION,
                     List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null,
@@ -137,7 +135,7 @@ class PlanRunnerH2Test {
                     new ExecutionPlan.Sql("SELECT CAST(? AS BIGINT) AS N, 'a' AS S, DATE '2024-01-02' AS D",
                             List.of(new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null))), target,
                             null)));
-            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)));
+            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)), java.util.UUID.randomUUID());
             assertEquals(List.of(List.of(7L, "a", com.legend.values.PureDateLiteral.parse("2024-01-02"))), rows.rows());
             assertEquals(List.of("N", "S", "D"), rows.columns().stream().map(ExecutionPlan.Column::name).toList());
         }
@@ -149,8 +147,8 @@ class PlanRunnerH2Test {
         ExecutionPlan p = counting(inMemory("s::Named", H2,
                 new ConnectionSpecification.EmbeddedH2("users_own", "/never", false)), "NAMED_T");
         var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
-        assertEquals("connection 's::Named' is an in-memory database the user named ('users_own'), and the plan has"
-                + " setup for it: never run on it", refused.getMessage());
+        assertEquals("connection 's::Named' is an in-memory database the user named ('users_own'), and the plan loads"
+                + " data into it: never run on it", refused.getMessage());
     }
 
     /** Runs of one target that start together set it up once: its two setup statements sent once, every run answered

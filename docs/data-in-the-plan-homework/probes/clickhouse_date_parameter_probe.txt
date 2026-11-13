@@ -1,0 +1,17 @@
+# ClickHouse's Date/DateTime parameter placeholder (S179, the user's ruling 2026-11-10 "Okay on click")
+# measured 2026-11-10 with the embedded clickhouse local (25.8.2.29); the text is bound as the runner binds it (six digits); {p:...} stands for each ?
+# query: SELECT CASE WHEN {p:Nullable(String)} IS NULL THEN NULL WHEN toInt32(substring({p:Nullable(String)}, 1, 4)) BETWEEN 1900 AND 2299 THEN toDateTime64({p:Nullable(String)}, 6, 'UTC') ELSE CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)'), '\'', char(29)), char(31)))) AS Nullable(DateTime64(6, 'UTC'))) END
+## 2024-01-02 03:04:05.123456
+2024-01-02 03:04:05.123456
+## 1900-01-01 00:00:00.000000
+1900-01-01 00:00:00.000000
+## 2299-12-31 23:59:59.999999
+2299-12-31 23:59:59.999999
+## 9999-12-31 00:00:00.000000
+Code: 6. DB::Exception: Cannot parse string 'a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)' as Int64: syn
+## 1800-01-01 00:00:00.000000
+Code: 6. DB::Exception: Cannot parse string 'a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)' as Int64: syn
+## 2024-01-02
+2024-01-02 00:00:00.000000
+## the literal's type without the check, 9999-12-31 (the clamp)
+2299-12-31 00:00:00.000000

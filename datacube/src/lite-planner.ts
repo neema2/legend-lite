@@ -26,18 +26,21 @@
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { Planner, TsShown } from './cube.ts';
-import type { CatalogColumn, InferOptions, InferredModel, ModelTable, TableModels, TablesModel } from './infer.ts';
+import type { CatalogColumn, InferOptions, InferredModel, ModelTable, OutputRequest, TableModels, TablesModel } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
-import type { SeedTable, TableSeed } from '../../engine-client/src/model-data.ts';
+import { planParams } from '../../engine-client/src/plan-params.ts';
+import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
+import type { RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
+import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../../engine-client/src/planned-sql.ts';
 
 interface TeavmRuntime {
   load(
@@ -140,6 +143,18 @@ export interface TsNode {
   readonly k: string;
   readonly at: readonly [number, number];
   readonly [part: string]: unknown;
+}
+
+/**
+ * A text plan as the planner answers it (Boundary.planned: `{"sql", "type", "plan"?}`): its SQL, the compiler's type of
+ * its result in upstream's RelationType shape, and -- where the text does not run alone -- the values its statement binds,
+ * read ONCE here from the plan it carries (plan-params.ts: each data: payload from the statement's content by its
+ * digest, verified by SHA-256; any other slot refused by name: the tenets audit's M3).
+ */
+function textPlan(text: string): Plan {
+  const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown };
+  const params = planParams(body.plan);
+  return { sql: fromPlan(body.sql), columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
 }
 
 /**
@@ -467,8 +482,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     // `{"sql", "type"}`: the SQL and the compiler's type of its result, in upstream's
     // RelationType shape -- the same renderer legend-lite's pure/v1 answers use.
-    const body = JSON.parse(decode(answer, pureGrammar)) as { sql: string; type: unknown };
-    const plan: Plan = { sql: body.sql, columns: relationColumns(body.type) };
+    const plan = textPlan(decode(answer, pureGrammar));
     // kept only while it is the planner's model still: an answer for a model since replaced is not this one's
     if (useCache && this.#options.model === model) this.#cache.set(key, plan);
     return plan;
@@ -545,14 +559,14 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * rows (engine-client/src/plan-runner.ts; a plan names no output format since the result boundary program's phase
    * 4). Never cached: a write is planned for the one run that asks it.
    */
-  async executionPlan(program: Lambda, signal?: AbortSignal): Promise<string> {
+  async executionPlan(program: Lambda, signal?: AbortSignal): Promise<PlanText> {
     // a program calling DataCube's Pure library planned over it, as a query is (plan)
     const over = await this.#over(program);
     if (over !== this) return over.executionPlan(program, signal);
     const { lambda: json, runtime } = await this.planRequest(program);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     const handle = await this.#handle();
-    return decode(await this.#call({ kind: 'executionPlan', handle, lambda: json, runtime }), program);
+    return planFromAnswer(decode(await this.#call({ kind: 'executionPlan', handle, lambda: json, runtime }), program));
   }
 
   /**
@@ -573,10 +587,21 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return { lambda: toJson(this.#overMapping(query)), model, runtime, ...library };
   }
 
+  /**
+   * What a pull of `query` asks a planner that plans it where its rows are -- a snapshot's stream, which plans it again
+   * in its own plan (Boundary.snapStream; the user's ruling of 2026-11-12: a request carries the pull, never SQL): the
+   * model's text (the library's after it, where the query calls it), its runtime and its lambda.
+   */
+  async pullRequest(query: Lambda): Promise<SnapPull> {
+    const over = await this.#over(query);
+    if (over !== this) return over.pullRequest(query);
+    const { lambda, model, runtime } = await this.planRequest(query);
+    return { lambda, model, runtime };
+  }
+
   /** A plan's answer (planJson's, tagged) read as this planner reads its own: its SQL and the compiler's columns. */
   readPlan(answer: string, query: Lambda): Plan {
-    const body = JSON.parse(decode(answer, query)) as { sql: string; type: unknown };
-    return { sql: body.sql, columns: relationColumns(body.type) };
+    return textPlan(decode(answer, query));
   }
 
   /**
@@ -707,14 +732,49 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /**
-   * A model's test data as the statements the server seeds DuckDB with, and each table's names as they spell them
-   * (engine-client's SeedSource, model-data.ts): for each table `database` declares, its TableSeed, in order. The model
-   * is the one given, not this planner's own.
+   * A host's own file read into its database, as a plan (Boundary.fileLoad, B3: uploads and Studio's file puts as
+   * planned loads): one HOST_SESSION load the hosts' runner runs (runLoad), the file a reference the host's store binds
+   * -- PlanJson's text. A declared table's model is the one given, not this planner's own.
    */
-  async testDataSql(model: string, database: string, tables: readonly SeedTable[]): Promise<TableSeed[]> {
-    const tablesJson = JSON.stringify(tables);
-    const answer = await this.#call({ kind: 'testData', model, database, tables: tablesJson });
-    return JSON.parse(decode(answer, `the test data of ${database}`)) as TableSeed[];
+  async fileLoad(request: FileLoadRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'fileLoad', request: JSON.stringify(request) }), `the load of ${request.file.name}`));
+  }
+
+  /**
+   * A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): one HOST_SESSION load the hosts' runner runs,
+   * binding by name what this host holds (its keys, a bearer URL) -- PlanJson's text, holding no value.
+   */
+  async remoteMount(request: RemoteMountRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'remoteMount', request: JSON.stringify(request) }), `the mount of ${request.view ?? 'a remote file'}`));
+  }
+
+  /**
+   * A snapshot from a remote plane, as a plan (Boundary.snapStream, the user's ruling of 2026-11-11): one HOST_SESSION
+   * load whose stream step the hosts' runner runs in one transaction -- PlanJson's text, the plane by name, never a row.
+   */
+  async snapStream(request: SnapStreamRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'snapStream', request: JSON.stringify(request) }), `the snap into ${request.table}`));
+  }
+
+  /** A table Output, as ONE plan made before anything runs (Boundary.outputPlan, the final audit's item 2, the user's
+   *  ruling (b)): the table made where the Output makes it, then the write, in its target's transaction. */
+  async outputPlan(request: OutputRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'outputPlan', request: JSON.stringify(request) }), `the output into ${request.output.name}`));
+  }
+
+  /** A snapshot's local copy, as a plan (Boundary.snapCopy, the final audit's item 1(b)): one write in its target's
+   *  transaction, the table made from the pull, planned in the call -- never the pull's statement. */
+  async snapCopy(request: SnapCopyRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'snapCopy', request: JSON.stringify(request) }), `the copy into ${request.table}`));
+  }
+
+  /**
+   * Rows the database generates into a declared table, as a plan (Boundary.synthesize: SYNTHESIZE, the user's ruling of
+   * 2026-11-12, DuckDB alone): one HOST_SESSION load the hosts' runner runs -- the table made as declared, then one
+   * statement filling it, each column a formula of the row's number -- PlanJson's text, never a row.
+   */
+  async synthesize(request: SynthesizeRequest): Promise<PlanText> {
+    return planFromAnswer(decode(await this.#call({ kind: 'synthesize', request: JSON.stringify(request) }), `the rows made for ${request.table}`));
   }
 
   /**
@@ -748,15 +808,15 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** THE catalog question for one table of a DuckDB, its schema and table as SQL string literals. */
-  async catalogColumnsSql(schema: string, table: string): Promise<string> {
+  async catalogColumnsSql(schema: string, table: string): Promise<PlannedSql> {
     const answer = await this.#call({ kind: 'catalogColumnsSql', schema, table });
-    return decode(answer, `the catalog of ${table}`);
+    return fromPlan(decode(answer, `the catalog of ${table}`));
   }
 
   /** What a session of the database runs before it is queried (the dialect's own setup: a DuckDB session in UTC). */
-  async sessionSetup(databaseType: string): Promise<readonly string[]> {
+  async sessionSetup(databaseType: string): Promise<readonly PlannedSql[]> {
     const answer = await this.#call({ kind: 'sessionSetup', databaseType });
-    return JSON.parse(decode(answer, `a ${databaseType} session's setup`)) as string[];
+    return allFromPlan(JSON.parse(decode(answer, `a ${databaseType} session's setup`)) as string[]);
   }
 
   /**
@@ -766,13 +826,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    */
   async projectData(model: string, databaseType: string): Promise<ProjectDataStatements> {
     const answer = await this.#call({ kind: 'projectData', model, databaseType });
-    return JSON.parse(decode(answer, `a project's database on ${databaseType}`)) as ProjectDataStatements;
+    return plannedProjectData(JSON.parse(decode(answer, `a project's database on ${databaseType}`)));
   }
 
   /** A host's named operations on a database of that type (D5, Boundary.hostOperations): each one's statements. */
-  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]> {
+  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]> {
     const answer = await this.#call({ kind: 'hostOperations', databaseType, operations: JSON.stringify(operations) });
-    return JSON.parse(decode(answer, `a host's operations on ${databaseType}`)) as string[][];
+    return (JSON.parse(decode(answer, `a host's operations on ${databaseType}`)) as string[][]).map(allFromPlan);
   }
 
   /**

@@ -84,7 +84,8 @@ import type { TsReader } from './timeseries-text.ts';
 import type { PageCommand, PageDraft } from './page-commands.ts';
 import type { PageState } from './page-state.ts';
 import {
-  PAGE_CUBE, cubesHeld, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
+  PAGE_CUBE, cubesHeld, freshLinksWarning, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy,
+  type PageDocument, type PageViews,
 } from './page-document.ts';
 import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
@@ -3504,6 +3505,9 @@ export class CubeApp {
       return;
     }
     download(`${exportFileName(title, new Date())}.json`, 'application/json', made.file);
+    // a remote file's link written without its query string (a presigned link's token), said
+    const warning = freshLinksWarning(made.freshLinks);
+    if (warning) this.#status(warning, 'warn');
   }
 
   // -- where its rows are: Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) ---------------

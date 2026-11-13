@@ -163,6 +163,43 @@ seven-family "regression" that does not exist. It cost an hour and a false
 check the flag before reading the scoreboard. Prefer `tools/allgates.sh`,
 which cannot make this mistake.
 
+## The total wall's M1, 2026-11-09 -- data in the plan, L2 and L3 (branch `claude/total-wall`, 34eeb5a8)
+
+What landed: `docs/DATA_IN_THE_PLAN_2026_11_09.md` "L2 and L3 as built" (the declared CSV format, upstream's rule, every
+database streamed; a target's loads written once per plan; the seeds and seed forms as loads; the plan's connection
+without raw test data; a project's Data its target's ONCE load; the census at 6 of 17 deleted -- corrected 2026-11-09 by the M1 tenets audit and its re-audit: 2 deleted, M2 and M8,
+and M4 bounded). Measured on that
+commit, in a root container (one heavy lane at a time):
+
+- `bazel test --lockfile_mode=error //gates:local`: 488 pass, 1 skipped by design; the 10 that refuse root (the eight
+  Postgres targets and `//datacube:verify_app_test`) re-run under `tools/postgres/as_unprivileged.sh ubuntu`
+  (`--strategy=TestRunner=standalone`, the script copied outside the workspace): 10 pass. Green.
+- `//spec:corpus_duckdb` and `//spec:corpus_h2`: green at bc4bd99c and again at 14a714df (the rosters' verdicts
+  hold). `corpus_one duckdb|h2 host testLoadCsv`: pass on both.
+- `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b`: green.
+- `//core:stress_suites`, `//core:stress_suites_h2`: green.
+- `//wasm:planner` builds; `//engine-client:plan_runner_test` green.
+- Not run here: CI's other operating systems; the lanes CI does not run (SQLite, MongoDB, MariaDB, MySQL, ClickHouse,
+  Trino, BigQuery, Databricks, Snowflake), measured by the warm lane sessions on request.
+
+## The total wall's M1 fixes and M2 (P4, the type hole deleted), 2026-11-09 (branch `claude/total-wall`, 732b25e1)
+
+What landed: the M1 audits' findings (`8c75dcba`, `06b06728`: a project database keyed by its whole target with its
+loads' identities; the seed forms back on the effect script; upstream's exact too-large text; `CsvCells` registered in
+the ledger by name; the Postgres arm pinning a Date parameter's upstream outcome) and P4 (a placeholder typed by its
+declared Pure type at planning, per database; `TypeHole` and the runner's statement rewriting deleted;
+`TypeHoleDeletedTest`). Merged with main at `732b25e1` (register rows renumbered S171-S174). Measured:
+
+- `bazel test --lockfile_mode=error //gates:local` at `8c75dcba`: 488 pass; the 10 that refuse root re-run
+  unprivileged: 10 pass after `06b06728` (the Postgres arm's Date case, fixed in its test).
+- At `732b25e1`, one lane at a time: `//core:census`, `//core:guardrails`; `//gates:pct_duckdb`, `//gates:pct_h2`,
+  `//gates:pct_channel_b`; `//spec:corpus_duckdb`, `//spec:corpus_h2` (the rosters' verdicts hold);
+  `//core:stress_suites`, `//core:stress_suites_h2`: all green.
+- Open, for the user: R1/R2 -- lite's H2 placeholder casts a Float to `FLOAT` (upstream's own `CAST(%s AS FLOAT)`), and a
+  Decimal and a Number to `DECFLOAT`, where upstream writes both bare; the Decimal and Number arms are PENDING THE USER'S
+  RULING (row S175 drafted). Corrected 2026-11-09 by the re-audit's B-7: this line said until then that the Float
+  parameter was `DECFLOAT`, which the code never wrote.
+
 ## Read this before trusting a green
 
 Three ways this chain reports success without having checked anything:
@@ -21366,3 +21403,670 @@ with no assert's verdict where the split rung used to record each assert): four 
   user's, as built.
 
   Marker branch `claude/plan-as-data-slice-5`.
+
+## 2026-11-11 — B2d.2: the test-data generator on the test road; S143 narrowed, S192 and S193
+
+The generator design the user approved on 2026-11-10 (`docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md`)
+and the read-only reload the user ruled on 2026-11-11 ("Read only reload is fine"), on the test road
+(`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §4.4 item 5, §5.2):
+
+- A body's `generateTestData` is planned before the body is classed (`testplan/GeneratedTestData`,
+  `compiler/spec/GeneratorSplice`): its `sqls` the fetch texts as constants, its `dataCsvString` the one read-only
+  statement's cell (`TypedPlannedValue`); `assertTestData`'s inlined `assertSameElements` over two texts' loads is the
+  database's comparison of their rows (CORRECTED by the audit round below: not a set per table but each table's rows
+  counted, as upstream decides it, S195); `loadAndTestExecution`'s reload sends nothing and the
+  query after it reads every table of the database from the slice (`TypedTableSwap`), read only (register S192).
+- Deleted: the tests' interleaved run (`TestDataGeneratorRun`), the TDG appeal (`Appeal.Kind.TDG`, `tryArmTdgSql`,
+  `tryArmTdgRoot`, `hasTdgProducer`, the generator's `assertSqlEquals` root and its FQN), the generator's statement
+  origin; census M13-output DELETED.
+
+The corpus lanes, measured (host and database judges, both lanes alike):
+
+- **Pass now (8):** the six milestoning tests (`testDataGenerationWith{BiTemporal,BusinessDate,Snapshot}Milestoning` and
+  their `_WithMilestoningDates`) and `testUnionToUnionMultipleLevels` (and `WithStringHashing`): their data checks --
+  the text compared as data, the slice reloaded and the query run over it -- hold. Their accepted rows are deleted.
+- **Accepted under S193 (19):** each fails at its first fetch-text check (`assertSqlEquals`, or `assertEquals` of
+  `sqls->at(0)`), whose golden names upstream's temporary tables: bucket
+  `by-design:test-data-generator-fetch-text(S193)`, witness `expected: 'select top 20`. Every count check before
+  them holds.
+- **Accepted under S143, narrowed (17):** the six whose relation tree holds a view (witness `in the query's relation
+  tree`, the planner's refusal by name); the seven default-starting-rows tests (B2d.3), `generateSeedDataString`'s one
+  and the census carrier's three keep "no class admits the body".
+- **The database judge (5):** `testConstant`, `testQualifier`, `testSimpleSingleTable`,
+  `testSimpleSingleTableWithNoDataToInsert` and `testSimpleTwoTable` are refused by the database judge's planner (the
+  static gate refuses `createTableRowIdentifiers`' quantified guard, a `map` of asserts): the known parity gap the
+  seven alloy rows already carry, `judge-parity-gap:database-planner-refuses(P5)`, added to both
+  `*-database-accepted-register.txt`.
+- **Outside the body (database judge):** the six of the eight that end with `loadAndTestExecution` answer its tail (the
+  frame's non-empty check) as a statement of its own, as they did before 2026-11-06 (their rows then were
+  `statement=1 tdg=N`; the generator's own statements are inside the body's artifact now): both
+  `*-database-outside-body-register.txt` gain them, `statement=1` each, `statement=2` for the test reloading twice.
+- **Engine order:** the DuckDB host register gains 27 of the generator's tests and the DuckDB database register 22 (the
+  scan-order emulation changes their statements, as it did before 2026-11-06); H2's are unchanged.
+- **Unchanged:** both fail rosters (DuckDB 108, H2 273: `testAlloyTestDatGenWithQuotedColumnsForViews` stays, its own
+  view refusal), the skipped and unordered registers, and the strength floors (DuckDB differential 990, spelling 22,
+  cardinality 27, the eight passes literal-decided, LITERAL 1405; H2 differential 964 >= 944).
+
+## 2026-11-11 — B2d.2's audit round: upstream's comparison, the reload's window, the reader's rules (S191, S192, S195, S196)
+
+The orchestrator's audit of B2d.2 (8e5f43c4a) and the user's two rulings of the day -- M3, "Agreed" (`assertTestData`
+passes or fails exactly as upstream decides, the failure message lite's own) and "read where read", "Yes accept that
+with a register row" -- each fixed and pinned:
+
+- **M3 (S195, new):** `TestDataPlanner.same` decides as upstream: per table and header, each row's cells by
+  `convertValuesToCsvH2` (an empty or `---null---` cell NULL, BIT by `bitValueFromString`, any other its text),
+  COUNTED on both sides by the database (two null-safe anti-joins on the cells and the count), so a row twice is not a
+  row once; upstream's own words for a missing schema, table or column; a row narrower than its header refused by
+  name; a header-only block compares nothing; a header the generator does not write, or rows of a table it did not
+  fetch, fail at planning. The failure's words name the differing rows (a planned statement, the assert's message):
+  register S195. The earlier text that called the comparison a set per table is corrected (S143's row, the B2d.2 entry
+  above).
+- **H1 (S192, amended):** after a reload, any statement but the query run over the slice that REACHES the database
+  (`StatementEffects.reaches`, through the user functions it calls) is refused by name -- a write no longer ends the
+  swap, a user function is no longer taken for one.
+- **H2 (S191, amended):** `CsvSeed.records` and `cells` follow the deleted `base.CsvCells`' rules (a cell quoted only
+  where it starts with a quote; an unterminated quote, or text after a closing quote, refused by name,
+  `CsvSeed.Malformed`); S191's "strict extension" claim is corrected: the two readers agree on a text with no double
+  quote (every upstream golden is one) and may differ on one that has.
+- **M1 (S192):** the swap is by typed identity in the Lowerer's table arm (`TableSwaps.rows`, the scan recorded by
+  alias and replaced once the source is lowered): a reference whose one declaration lies in the reloaded database's
+  include closure, whatever database names it; a different table of a reloaded physical name, a raw, URL, catalog or
+  frame source, a tabular function, a reloaded table left read by name and a duplicate physical name across the
+  includes are refused by name; the query must run on the runtime whose connection the slice was reloaded on.
+- **M2 (S196, new):** a database effect between the generator's let and any read of its result is refused by name.
+- **M4 (S192):** the slice's empty or `---null---` text cells reload as NULL, as upstream's reload reads them.
+- **M5:** the generator's runtime argument must be the body's runtime where it names an element; a runtime the body
+  constructs (`testRuntime($db)`, a new instance, a copy) is the harness's, as `execute`'s runtime argument is.
+- **L2, L3, L5:** tests for each (`GeneratedTestDataProgramTest`, its every case collected and named on a miss;
+  `GeneratorSpliceTest`, `TableSwapsTest`, `CsvSeedRecordsTest`), one fetch text pinned as a literal, the
+  `Holds`/`Comparison(null, null)` case deleted, the generator's plan round-tripped as JSON, and the frame program's
+  last statement shown to run after the asserts (the body is planned whole first, so a last statement the road cannot
+  plan refuses the body by name and is never a pass).
+- **Guards moved, each with its note:** `FixtureWriteCensusTest` 912 -> 911 (TestDataPlannerTest's two writes are its
+  CSV now, the reader quote-aware; GeneratedTestDataProgramTest seeds one empty text, which no CSV can);
+  parser-equivalence `own_corpus.matched` 3117 -> 3136 (the generator's tests' models).
+
+The corpus lanes, measured (both judges, both lanes alike):
+
+- **Refused now (1):** `testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates` calls `initDatabase()` after
+  its first reload (then generates and reloads again): a user function that writes, after the reload, refused by name
+  (H1) -- upstream's `initDatabase()` re-creates the tables, which no rule here reads from a function's body. Accepted
+  on both lanes, bucket `by-design:read-only-reload(S192)`, witness `after the test-data generator's slice was
+  reloaded`; the DuckDB engine-order registers (host and database) lose its row, and both
+  `*-database-outside-body-register.txt` its `statement=2` row (stale: the body is refused before it runs).
+- **Kept:** the seven other passes pass under upstream's comparison; `testTableToTdsWithJoinAndUnion` reaches its S193
+  text check again (it reloads `dbInc` and reads its tables through `db`, which includes it: the swap's typed identity);
+  `testUnionToUnionMultipleLevelsWithStringHashing` keeps passing (its runtime a constructed `^Runtime`).
+- **Unchanged:** both fail rosters (DuckDB 108, H2 273), H2's registers, the skipped and unordered registers.
+
+## 2026-11-11 — B2d.3a: a view in the generator's relation tree, fetched as upstream fetches it (S143 narrowed)
+
+The user's rulings R1-R5 on docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md (2026-11-11), and
+its first slice (§2): `TestDataPlanner` plans a view as upstream's interpreted generator fetches it
+(`testDataGeneration.pure:339-438`).
+- **The fetches:**
+  - the view's main table by its given identifiers;
+  - then the tables of its own join web (`nestedViewTree`), each joined to its parent;
+  - then the view's own fetch, one per view layer, inner first. Each is the view's lifted relation as the compiler plans
+    a read of it (`BodyPlanner.viewFetch`), each table it reads swapped for the first clause that fetched it (the
+    reload's swap, `TypedTableSwap`; upstream's `oldToNew`). It takes no limit.
+- **The view's children:** the query's joins from the view join the view's own fetch, on the view's columns. This
+  replaces `substituteViewRefs`' rewrite to base columns.
+- **The texts:** the view's fetch is one more text per layer, as upstream counts it. The test-data text writes tables
+  only.
+- **A child view** starts from its main table's given identifiers, whatever the parent's rows (TDG:429).
+- **No identifiers** for a root, or for a view's main table, is upstream's error, its example's list empty (R3, register S300).
+
+Tests: `TestDataPlannerTest.aViewIsFetchedAsUpstreamFetchesIt` (DuckDB, H2, SQLite):
+- a view root, its filtered row kept in the main table's fetch, 4 texts;
+- the query's join from the view, which reads the view's rows only, 5 texts;
+- a child view, 5 texts;
+
+and `noStartingRowsIsUpstreamsError`: the root's message and the view's.
+
+The corpus lanes, measured (both judges, both lanes alike):
+- **Pass now (5 of the 6 the view refusal held):** `testSimpleViewRoot`, `testSimpleViewRootToJoin`,
+  `testSimpleTableToViewJoin`, `testUnionViewOnView`, `testViewEmbeddedInChainedJoin`. Their counts, data and reloads
+  are as upstream's. They leave both accepted rosters. Their `loadAndTestExecution` tail is a statement of its own, as
+  B2d.2's passes' is, so both `*-database-outside-body-register.txt` gain them, `statement=1` each.
+- **Refused now:** `TestDatGenForNestedViews`. Its views now plan, and it reloads twice: the second
+  `loadAndTestExecution` after the first's query is S192's "reloading again", refused by name (state tracking is on
+  the later list). Both accepted rosters relabel it `by-design:read-only-reload(S192)`, witness `after the test-data
+  generator's slice was reloaded`.
+- **Engine order:** the DuckDB engine-order registers (host and database) gain the five, as they gained B2d.2's passes
+  (the scan-order emulation changes their statements); H2's are unchanged.
+- **Unchanged:** both fail rosters (`testAlloyTestDatGenWithQuotedColumnsForViews` still fails on the host, as
+  rostered), the skipped and unordered registers, the strength floors.
+- **Guards:** none moved. The view fetch's typed swap is minted in the compiler layer (`GeneratorSplice.overSlice`),
+  per invariant 7; the planner only lowers it (`BodyPlanner.viewFetch`, which replaces the dead `viewSql`).
+
+## 2026-11-12 — B2d.3b: the test-data census as a planning constant (S143 narrowed)
+
+The B2d.3 design's §3.2. Upstream's `getRelationalCSVDataFromQuery(query, mapping)` (`testDataGeneration.pure:753-777`)
+is a fact of the model: the tables a query reads through its mapping, and per table the columns a test's data for it
+needs.
+- **Where it is computed:** at planning, from lite's one lineage (`TestDataCensus`, over `ScanRelations.relTree`). The
+  checker's carrier is replaced by the `RelationalCSVData` instance it is, before the body is classed
+  (`GeneratedTestData.withCensus`), so the body's navigation and asserts read constants. Nothing is executed; the
+  charter's "build-time model text -> typed constants".
+- **Upstream's order:** per table, its primary key sorted by name, then the columns read of it sorted by name (a value,
+  both sides of a join), then its milestoning date columns sorted by name, without repeats; the tables sorted by schema
+  and name.
+
+Tests: `TestDataPlannerTest.theCensusIsAModelFact`.
+
+The corpus lanes, measured (DuckDB's host judge at this commit, `corpus_one`; both lanes' full runs reported with the next slice):
+- **Pass now (3):** `testGenerateNecessaryTableColumnsForSingleTable`, `...ForMultiTables` and `...ForMilestoningTable`.
+  They leave both accepted rosters.
+- **Unchanged:** both fail rosters, the other registers, the strength floors.
+- **Guards:** none moved.
+
+## 2026-11-12 — B2d.3b, completed: both lanes measured, the census typed in the compiler layer
+
+- **Both lanes' full runs (both judges):**
+  - DuckDB: the three census tests pass under both judges; the database registers are unchanged.
+  - H2: the three fail with `DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list
+    encoding`. Their `->joinStrings` over the census's constant tables is a list reduction, and the H2 dialect has no
+    list encoding: the lane's known gap, shared by 104 other H2 fail-roster rows (`LIST_FILTER`, `STRING_AGG`). They
+    move from the accepted roster's S143 rows to `h2-fail-roster.txt` (3 rows).
+- **Guards:**
+  - Invariant 7: the census's `RelationalCSVData` literal is minted in the compiler layer
+    (`GeneratorSplice.relationalCsvData`); `TestDataCensus` computes the model fact alone (`rows`).
+  - The funnel register gains `TestDataCensus.java` with its tenet argument (`JavaEvalLedgerTest`, dated).
+- **Tests:** `BodyRouterParityTest.systemRoutedPrograms`' census body, refused until B2d.3b, now runs and passes.
+
+## 2026-11-12 — the B checkpoint's generator items G2 and G4 (B2d.2's reload)
+
+- **G2 (MEDIUM): the reload read every schema's tables twice.** `TestDataPlanner.tablesOf` and `declarations` walked
+  the database's flat table list, which also holds each named schema's tables by bare name. Consequences:
+  - two schemas' `T`, or a default `T` beside `S.T`, were refused as "declared twice";
+  - a lone `S.T` also read as a phantom default `T`, so another database's default `T` was taken for a reloaded one.
+
+  Both now read the default schema's own tables (`defaultSchemaTables()`) and each schema's under its name.
+  `TestDataPlannerTest.theReloadReadsEachTableInItsSchema` (DuckDB, H2, SQLite) fails without it: "the table T is
+  declared by t::DB and by t::DB".
+- **G4 (LOW): the reload merged rows only its NULL reading made equal.** The slice's statement applied DISTINCT after
+  reading an empty or `---null---` text as NULL, so a keyless table's `('', 1)` and `(NULL, 1)` reloaded as one row;
+  upstream inserts two. The DISTINCT is dropped: the fetches' rows are already distinct.
+  `TestDataPlannerTest.theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual` fails without it (1 row for 2).
+- **Guard moved:** `FixtureWriteCensusTest` 907 -> 908. The G4 test seeds its empty text, which no CSV can load, with
+  one write; the table and its NULL row come from the CSV. The test's pin is 1, dated.
+- **G7 (CRLF):** posted to the orchestrator (2026-11-12), not landed. Upstream reads both sites through one Pure reader
+  that keeps the `'\r'`; lite strips it. The corpus impact is being measured.
+
+## 2026-11-12 — B2d.3c: the seed and the seed string (S198; S143 narrowed)
+
+The B2d.3 design's §1.2 and §3.1, with the user's rulings R2 and R4 (2026-11-11). `TestDataPlanner.seed` plans
+upstream's seed rule (`generateSeedDataGenerationFunction`, TDG:256-290; `columnProjectionsFromRoot`,
+pureToSQLQuery.pure:7328):
+- **The table:** the query's one root table (a view root's main table, where the caller admits a view: the server's
+  route); two or more roots are refused with upstream's words.
+- **The keys:** its primary key, else its non-null columns except a text or binary one over 1000, else refused with
+  upstream's words.
+- **Carried:** the keys go to the query's root select, through each derived table and into each GROUP BY (upstream's
+  `recursiveAddColumnsToRoot`), over the query as the planner lowers it on the body's runtime. A root the pass cannot
+  reach is refused by name.
+- **Chosen (R2):** the keys are DISTINCT and sorted by key. With 10 or fewer, all of them are taken; otherwise the 10 at
+  rows `1 + floor(i*(n-1)/9)`, i = 0..9 (register S198). Upstream takes any 10 the database picks.
+
+`TestDataPlanner.seedString` writes upstream's `generateSeedDataString` text in SQL: the `createTableRowIdentifiers(...)`
+code with a line per key row, sorted, each value as Pure's `toRepresentation` writes it (a text key's quote, backslash
+and line feed escaped; a whole number its digits; another type refused by name). The lines are sorted in the
+database's order of their text (R4, S198's note). The test planner plans a body's `generateSeedDataString` as that
+statement (`GeneratedTestData.withSeedStrings`): a root table only, as upstream's; bound query parameters are refused by
+name.
+
+Tests: `TestDataPlannerTest.theSeedSpreadsItsTenKeys` (DuckDB, H2, SQLite):
+- 25 keys, of which the 10 at rows 1, 3, 6, 9, 11, 14, 17, 19, 22, 25;
+- the 13 keys a filtered query reaches, spread;
+- 3 keys as the seed string;
+- a text key's three escapes.
+
+The corpus lanes: `testGenerateSeedDataWithQuotedColumns` passes on both (3 quoted key columns, 4 rows), off both
+accepted rosters.
+
+## 2026-11-12 — G4 reverted (a pruning interaction found); B2d.3c's two guard findings fixed
+
+- **G4 reverted.** The full corpus runs after 6563a7506 lost 10 passing generator tests on both lanes: every reload
+  over a table the slice holds (the milestoning three, the two union-to-union, the five views). The cause:
+  - without the slice's outer DISTINCT, the lowering's `SubselectPrune` drops the slice statement's plain
+    projections whose label the query does not read by its EXACT name;
+  - the slice labels a fetched column as a fetch does (`tempColumn`: `FIRMID`), while the query reads the store's
+    spelling (`FirmID`);
+  - the two meet only by the database's case folding, and the DISTINCT was what kept the prune off.
+
+  Measured: G4 undone alone, `testUnionToUnionMultipleLevels` passes again. G4's change, its test and its guard pin
+  (`FixtureWriteCensusTest` 908 -> 907) are reverted; G2 stays.
+- **The real fix**, posted to the orchestrator: the slice's columns labelled as the swapped table's own outputs are
+  spelled (the pruner's and every dialect's names agreeing), then G4's DISTINCT dropped.
+- **B2d.3c's guard findings:**
+  - L7 step 3 and the protocol-construction ratchet: the seed lowered its query through a hand-built
+    `->from(mapping, runtime)` call. It now lowers the query on the body's runtime, whose mappings resolve it, as the
+    pure/v1 execute route does. A runtime that does not declare a mapping that maps anything is refused by name; a
+    mapping that maps nothing (a TDS query's `EmptyMapping`) needs none.
+  - Invariant 7: the seed string's planned value is minted in the compiler layer (`GeneratorSplice.plannedValue`).
+
+## 2026-11-12 — B2d.3d: the seven `_Alloy` default-seed rows relabelled with their true reason (S143 narrowed)
+
+The rows are `testAlloyTestDatGenWithQuotedColumns`, `testAlloyTestDatGenWithViewAsDriver`, `alloy::testTableToTDSSimple`,
+`alloy::testTableToTdsWithAppliedFunctions`, `testViewRootWithDefaultSeed_Alloy`, `testViewWithGroupByChild_Alloy` and
+`testViewWithGroupByRoot_Alloy`. They were filed under S143, but none reaches the generator.
+- **Their shape:** each body is lets (the query's lambda, the mapping, the store, the runtime), then
+  `createTablesAndFillDb()`, then `mayExecuteAlloyTest(server, {| true})`. The default-seed call
+  (`alloyGenerateTestDataWithDefaultSeed{Interactive,SemiInteractive}`) and its `assertTestData` sit in the server leg.
+  That leg runs only against an Alloy server, so upstream's own CI passes these tests vacuously.
+- **Lite's refusal:** the body is refused by its class rule. An effect program admits no `let` of a query lambda
+  (measured with `//spec:consumption_probe`: `class(oneJudge)=null`, the `_s1_query` let), the same refusal as before.
+- **The relabel:** both accepted rosters relabel them `not-offered:alloy-shell-body-class`, witness `no class admits
+  the body`. Like the 15 of the 2026-11-07 entry above, their S143 label named a reason they never reached.
+
+The mislabelled refusal is gone: `generateTestData` with no identifiers for a starting table is upstream's error
+(B2d.3a, register S300). The planner's old text, "the default starting rows: B2d's next slice", went with it.
+
+S143 now names, of the generator, the server's routes alone (B2d.3e).
+
+## 2026-11-12 — B2d.3e: the generator's product doors, legend-engine's four routes (S143 narrowed; S191, S300 amended)
+
+The B2d.3 design's §3.3, with the user's rulings R1 (the default seed is the server's route alone) and R5 (the routes
+write S191's faithful cells in the routes' table order). `TestDataRoutes` (in `pure_v1`, beside `PureV1Api`, which
+routes the four paths to it) answers upstream's `TestDataGenerationAPI` and the census's `TestDataGeneration`. Each route
+that reads the database composes one planning call and one run on the server's door (the `Runner`, as for an execute).
+The planning call is the generator's statement, with the database building the answer's text in its one cell. The run
+is that statement, a value the query answers (`GeneratorSplice.plannedValue`, minted in the compiler layer), with its one
+cell written as it is (`Output.Rows`). Every route is read only.
+- **`generateSeedData`:** the seed (B2d.3c's rule, a view root's main table admitted) as upstream's JSON
+  (`TestDataPlanner.seedJson`): `{"table":{"_type":"table",...},"rowIdentifiers":[{"columnValuePairs":[...]}]}`, built
+  by the database's JSON functions, the identifiers by key (S198).
+- **`generateTestData_WithSeed`:** the test data from the request's `tableRowIdentifiers` (`TestDataPlanner.route`), as
+  `text/plain`: tables by schema then table (upstream's `manageTestDataResult`, :282), cells as the function writes
+  them (S191, amended). A root that no identifier names is upstream's error node's answer: a 500 whose text is the
+  message, `Example:\n` and the table's identifiers as JSON, which hold no keys (S300, amended).
+- **`generateTestData_WithDefaultSeed`:** the same, started from the default seed. The seed's chosen keys are the
+  statement's first clause, and the root's rows are read through them by key, at most 20: the rows the seed holds, or
+  every row where it holds none (upstream's `orFilters([])`). Upstream runs two plans, lite one statement.
+- **`DONOTUSE_generateTestData`:** the census (B2d.3b) as upstream's embedded data,
+  `{"data":[{"_type":"relationalCSVData","tables":[...]}]}`, a model fact: nothing runs.
+- **Refused by name:**
+  - a view in the query's relation tree on the routes (upstream's plan form fetches a view's own rows `top 20` and a
+    child view's main table through its parent, TDG:1023-1201, which lite does not plan);
+  - a runtime given inline (`engineRuntime`);
+  - the query's parameters bound.
+
+  `ProductStatements.noGenerator` stays for a generator inside a product query (S143's remainder).
+- **One upstream behaviour taken on the function road too:** an identifier list holding none is no filter (upstream's
+  `orFilters([])`; until now lite raised a planning error, "no row identifiers").
+
+Layers: `pure_v1` reaches `testdatagen` (`core-layers.txt`, dated). The seed's mapping check (the runtime declares the
+mapping) moved from the test planner into `TestDataPlanner.declares`, so the test road and the routes share it.
+
+Tests:
+- `TestDataRoutesTest` (DuckDB file, through `PureV1Api.route` and the server's runner): the routes' order (FIRM
+  before the root PERSON); the default seed from the query's keys and from an empty seed; the route's error node; the
+  seed's JSON; the census; an inline runtime refused.
+- `TestDataPlannerTest.thePlannedStatementAnswersTheTestData` (DuckDB, H2, SQLite): an empty identifier list.
+
+Measured on 3e's tree (2026-11-12):
+- Both corpus lanes are green, with no roster or register movement.
+- `//gates:local` is green. Its ten Postgres tests (the nine `*_postgres_test` and `//datacube:verify_app_test`) were
+  run as `ubuntu` through `tools/postgres/as_unprivileged.sh`: as root, `initdb` refuses them.
+- parser-equivalence's `own_corpus.matched` moved 3140 -> 3159 (the B2d.3 tests' models; `PeRatchets`, dated).
+
+## 2026-11-12 — the B checkpoint's G4, built: the reload's rows as upstream inserts them, read by construction
+
+G4 asked for the reload slice's DISTINCT to go, because upstream inserts every text row. Its first landing was
+reverted the same day: dropping the DISTINCT let `SubselectPrune` prune the slice's columns, and the label spelling
+did not match the reads, which had only worked through each database's case folding. The real fix, with the
+orchestrator's go:
+- **The slice labels each column by its declared name** (`TestDataPlanner.slice`), not the fetch's upper-cased label.
+- **`TableSwaps` re-stamps every read of a swapped scan's column** as a read of that label (a DERIVED name, through the
+  stamped doors: `Column.of` with the read's type, else `Column.derived`). A projection's label is always DERIVED, and
+  a table read is PHYSICAL (bare), so matching the names alone still leaned on H2 folding a bare `name` to `NAME`. Now
+  the pruner (exact name) and every dialect (one quoting) read one spelling by construction.
+- **The slice's DISTINCT is dropped:** a keyless table's `('', 1)` and `(NULL, 1)` reload as two rows, as upstream
+  inserts them.
+- **A view's own fetch reads its tables the same way.** The generator's fetch clauses (B2d.3a) are now read under the
+  tables' declared names (`TestDataPlanner.Walk.declaredNames`), since the view fetch goes through the same swap. The
+  first measurement found this: the H2 lane lost four view tests (`testSimpleViewRoot`, `testSimpleViewRootToJoin`,
+  `testSimpleTableToViewJoin`, `testUnionViewOnView`) when the re-stamped reads met the clauses' upper-cased labels.
+  With the clauses relabelled, both lanes are green: 12 of 12, no roster or register movement.
+
+Tests, each failing without its half:
+- `TestDataPlannerTest.theReloadKeepsRowsThatOnlyItsNullReadingMakesEqual` (DuckDB, H2, SQLite): 1 row with the
+  DISTINCT.
+- `GeneratedTestDataProgramTest.theReloadReadsALowerCaseColumnByItsOwnLabel` (each backend and judge): a table and
+  columns declared in lower case. Without the re-stamp, H2 answers `Column "t0.NAME" not found`.
+- `TestDataPlannerTest.aViewOverLowerCaseColumnsReadsItsClauseByTheirNames` (DuckDB, H2, SQLite): with the clauses
+  under their fetch labels, H2 answers `Column "t0.order_id" not found`.
+
+Guards: `FixtureWriteCensusTest` 907 -> 908, plus its per-file pin for TestDataPlannerTest (the empty text no CSV can
+seed). Both are dated. parser-equivalence `own_corpus.matched` 3159 -> 3163 (the new tests' models; `PeRatchets`,
+dated).
+
+The S301 draft's third part, built in the same slice (the orchestrator's go: an exact upstream behaviour): the
+test-data routes bind the request's `parameterValues` by name, as upstream does (TestDataGenerationAPI.java:84-90,
+:121-128, :161-168) and as `execute` does (`PureV1Api.boundParameters`). A parameter with no value is refused with
+upstream's words, and the seed route's own `parameters` field is read by nothing. Test:
+`TestDataRoutesTest.theQuerysParametersAreBoundByName`. S143 amended.
+
+The generator's other name matches, audited (the orchestrator's question):
+- **Labels against the database.** No other read leans on case folding. A fetch clause's columns are labelled
+  `tempColumn(...)` and read `Column.derived(alias, tempColumn(...))`: one string, one origin. A view clause's children
+  read `Column.derived(PARENT, m.name())`, the view relation's own label.
+- **Five model-level matches that ignore case** (a name the model holds matched to a declared column; not the
+  database's folding):
+  - `TestDataGenerator.column` (:408, the planner's column lookup);
+  - `TestDataGenerator` :100 (merging a table's demanded columns);
+  - `TestDataCensus` :106;
+  - `TestDataPlanner` :283 (a join's view column);
+  - `TestDataPlanner.same` :1004 (an expected text's header).
+
+  The last is upstream's own behaviour: its reload inserts with the header names as unquoted identifiers, which H2
+  folds. The first four are leniencies, because upstream's Pure resolves a column by its exact name. Tightening them is
+  a separate slice measured on the corpus; it was not done here.
+
+## 2026-11-12 — G7 built as ruled: a test-data text's values as written, a CRLF a line break (S302)
+
+The user's ruling (2026-11-12, option C, "Def want windows files accepted"), relayed by the orchestrator. `CsvSeed` now
+reads a test-data text as upstream's loader does (`setUpDataSQLs`, `loadCsvDataToDbTable`), at both use sites (a
+connection's CSV test data, and assertTestData's expected text), with one leniency:
+- **A CRLF line ending is a line break** (`records`): the `\r` before a `\n` is never part of a value or a name, in a
+  quoted cell too. A lone `\r` is a character.
+- **The schema and table lines are read verbatim.** A schema or table the database does not declare is refused with
+  upstream's words at the connection's site (`declared`), as the comparison already refused it. Lite used to load an
+  undeclared table by its text.
+- **Each cell is as written** (`rowLoad`): a padded cell keeps its spaces, as upstream's does. Lite used to strip it.
+  The empty and `---null---` cells are NULL, as before.
+- **Header names stay trimmed**, as upstream's.
+
+Outside the ruling and unchanged (S302 posts them):
+- the block separator, a line of dashes;
+- an empty line inside a block, skipped;
+- a quoted column's header, matched by exact name.
+
+Tests:
+- `TestDataTextAsWrittenTest` (DuckDB, H2, SQLite): a CRLF text loads exactly, with its padded cell; a padded schema or
+  table is refused with upstream's words.
+- `CsvSeedRecordsTest.aBlockIsReadAsWrittenACrlfALineBreak`.
+- `GeneratedTestDataProgramTest.theGeneratedTextIsComparedAsUpstreamDecides`, under assertTestData: a CRLF expected
+  text holds, a padded cell differs, a padded schema line fails with upstream's words.
+
+Measured on the built change (2026-11-12): both corpus lanes are green, their roster shards cached (the judge passes'
+outputs byte-identical). The three core integration lanes and PCT DuckDB's five suites are green. No test changes
+outcome, as the G7 measurement found before the build. Guards: parser-equivalence `own_corpus.matched` 3163 -> 3164
+(`PeRatchets`, dated).
+
+## 2026-11-12 — S197 amended (its empty-line half), and a header matched as upstream matches it at the connection's site
+
+The orchestrator's two calls after G7, no new ruling:
+- **S197, amended (dated):** an empty line inside a block is the same ruling's other half. Upstream ends a block at an
+  empty one-cell record; lite skips the line, which neither ends the block nor is a row. A one-column table's NULL row
+  is written `---null---`. S302's note now points to S197 for both reader differences.
+- **A header names its column as upstream's loader matches it** (`loadCsvDataToDbTable`: trimmed, its matching quotes
+  stripped, any case, the first match), at the connection's site too (`CsvSeed.columnsOf`). This is exactness. Until
+  now lite matched a quoted column by its exact name alone. The load is written by the declared columns' names, and a
+  header no column matches is refused with upstream's words.
+
+Test: `TestDataTextAsWrittenTest.aHeaderNamesItsColumnAsUpstreamMatchesIt` (DuckDB, H2, SQLite): a padded, re-cased,
+quoted header loads the quoted column `"Name"`; an unknown header is refused with upstream's words.
+
+## 2026-11-12 — the generator resolves a column by its exact name (four case leniencies gone)
+
+The orchestrator's go after the G4 audit. Upstream's compiler resolves a column by its exact name
+(`HelperRelationalBuilder.getColumn`: "Can't find column"), and its plan form matches a row identifier's column the
+same way (`$x.name == $cv.first`). Every name at these four sites is the model's or a row identifier's, never a
+database's folding, so each now resolves exactly, a quoted name's quotes aside:
+- `TestDataGenerator.column`, the planner's column lookup: its any-case fallback is deleted. A name no column holds is
+  refused by name, as before.
+- `TestDataGenerator.mergeCols`: a demanded name is the column of that exact name (`column`).
+- `TestDataCensus`: a read name is the column of that exact name.
+- `TestDataPlanner`'s join on a view's column: the view's column of the join's exact name.
+
+`TestDataPlanner.same`'s header match stays: it is upstream's own rule. So does the connection site's header match,
+which matches as upstream's loader does (the previous entry).
+
+Measured before landing: both corpus lanes (roster shards cached: the judge passes' outputs byte-identical), the three
+core integration lanes, and testdatagen, testplan, server and setup are green. No test changes outcome.
+
+Test: `TestDataPlannerTest.aColumnIsResolvedByItsExactName`: a row identifier's column spelled `id` against `ID` is
+refused by name (until now it was matched in any case).
+## 2026-11-12 — SYNTHESIZE, the simple slice: a declared table filled by one planned DuckDB statement (S303)
+
+The user's ruling of 2026-11-12 ("Let's do the most simple thing that will work on duckdb for now - can extend later",
+then "Go ahead"), built on `claude/total-wall-synth`: a lite-only scope (register S303, one row; upstream has no
+synthesizer -- its DataCube samples are shipped CSVs).
+
+- **The planner's entry:** `com.legend.planner.Synthesize.plan(SqlDialect, DatabaseType, LoadPlanner.DeclaredTable,
+  long count, Map<String, Synthesize.Knob>)` -- a table the model declares, a row count, an optional knob per column
+  (`Knob.Values`, its values in turn; `Knob.Range`, numbers at a scale or ISO dates). The answer is ONE `HOST_SESSION`
+  load: the table made as declared, empty (`CsvSeed`'s header-only steps), then ONE statement
+  `INSERT INTO <table> (<columns>) SELECT <formula per column> FROM range(N) AS t(i)` -- `HostOperation.Synthesize`,
+  written by `DuckDbHostOperations`; every other database's host operations refuse it by name ("a host's Synthesize on
+  <database> is not built"). Each formula is the dialect's, a function of the row's number the database computes. The
+  columns taken in turn -- a value list, a text without one (`<column>_1`..`<column>_5`), a BIT -- are the row number's
+  digits in mixed radix in declaration order (`[..][((i // every) % k) + 1]`, `every` the product of the earlier ones'
+  sizes), so every combination occurs; a number or a date (a timestamp to the second; the five years ending 2025-12-31
+  by default) is spread over its range as `((i * m_j) % (2^31 - 1)) % n`, each spread column its own multiplier `m_j`
+  (742938285^(j+1) mod 2^31 - 1), so no two columns move together (the orchestrator's fix, the B3 worker's finding:
+  one shared index made the demo's year-by-desk and quarter-by-book pivots diagonals). No NULL in this slice; over
+  2^32 rows and a range of more than 2^31 - 1 values are refused by name. A column of another type (binary, JSON, an array, a time), a knob for an undeclared column, a
+  range on a text column and a value a number column cannot take are refused by name.
+- **The doors:** the WASM planner's `TabExports.synthesizeOrError(request)` (`Boundary.synthesize`; the request
+  `{"databaseType","model","database","schema","table","count","columns"?}`, each column `{"values":[..]}` or
+  `{"range":[lo,hi],"scale"?}`, any other key refused by name), the native library's `lite_synthesize`, Python's
+  `synthesize` planner kind, the TS `LitePlanner.synthesize(SynthesizeRequest)` and `WasmGrammar.synthesize`. The
+  server route and the Pure face are later.
+- **Tests:** `DuckDbSynthesizeTest` (each type's and each knob's statement pinned; the demo's TRADES table filled with
+  200,000 rows on DuckDB and its aggregates exact -- sums, distinct counts, min and max, each region's count, every
+  pair's product covered (region by desk 15, desk by year 25, quarter by book 16, the four lists' 240, each 833 or 834
+  times), the spread columns' correlations near 0 over all the rows and over the first 1,000; the plan's
+  size the count's digits and every step a statement; every other database refused by name, and each refusal above);
+  `plan-runner.test.ts` (the WASM planner's plan run on DuckDB-WASM by the hosts' runner: 100,000 rows, their counts
+  exact; Postgres refused).
+- **Measured:** 200,000 rows planned, made and aggregated on DuckDB (JDBC) in 0.28 s, the test's own time; 100,000
+  rows planned by the WASM planner and run on DuckDB-WASM in 0.13 s; the plan of 200,000 rows is the plan of 10 plus
+  4 bytes (the count's digits).
+- **Guards moved, each with its note:** `JavaEvalLedgerTest` PLANNER_CLASSES registers `Synthesize.java` (S303: it
+  computes no value, it names formulas); parser-equivalence `own_corpus.matched` 3140 -> 3142 (`DuckDbSynthesizeTest`'s
+  two models).
+
+## 2026-11-12 — L9: the generator prints a timestamp in full in lite's own text, as upstream cuts it in backwards compatibility (S306)
+
+The user's ruling of 2026-11-12 on the L9 printing question: "Our clean sheet lite plan should always do the
+clean/nice/right thing. In backwards compat we can chop the timestamp and we can make float a known divergence".
+Until now every cell of the generator's text was the database's own `CAST(cell AS VARCHAR)` (`2020-01-02
+03:04:05.123` on DuckDB and H2, SQLite's stored text), and the seed route's JSON wrote a timestamp key as the
+database's JSON builder spelled it.
+
+- **`TestDataPlanner.Printing`:** CLEAN prints a timestamp in full, as lite's writers spell a relation's
+  time-bearing cell (`CellText`, `Precision.INSTANT`): `yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000` on every database.
+  COMPAT prints it as upstream's text does: `toCSVString`'s `SimpleDateTimeFormat`, `yyyy-MM-dd HH:mm:ss`, the
+  fraction cut. Each is the database's spelling: STRFTIME of a typed `DateFmt` (`ISO_NANO`, or the seconds form), the
+  dialect's strftime, never Java.
+- **Where it applies:** the text's cells, and the `assertTestData` comparison's generated side, which reads the text
+  as it printed it. The seed route's JSON writes a timestamp key in the canonical form in both printings; it is
+  upstream's own (`SeedDataGeneration.java:192`, the `ValueTransformer`). A date is `yyyy-MM-dd` in both.
+- **How the mode reaches the generator:**
+  - a test body takes it from its judging rules (`TestPlanner.plan`): lite's rules give CLEAN; the compatibility
+    rules (`ExecuteOptions.withEngineCompat`, which the corpus lanes run under) give COMPAT;
+  - the four `pure/v1` test-data routes always plan COMPAT. They are legend-engine's API, and every `pure/v1` route
+    writes legend-engine's spellings with no mode.
+- **Floats:** the database's own text in both printings, the known divergence the ruling names (S306): `1e20` is
+  `1e+20` / `1.0E20` / `1.0e+20` on DuckDB / H2 / SQLite, and `0.00001` is `1e-05` / `1.0E-5` / `1.0e-05`. Pure prints
+  `100000000000000000000.0` and `0.00001`; ordinary values agree.
+- **Line order:** a table's lines are ordered NULLS LAST, named. SQLite's default put a NULL first, DuckDB's and H2's
+  last; the printing test's NULL row found it. One text is now one text on every database.
+- **Tests:**
+  - `TestDataPlannerTest.aTimestampPrintsInFullOrAsUpstreamCutsIt` (DuckDB, H2, SQLite): both printings; a timestamp
+    with three, none and six fraction digits, and NULL; a date; the floats against the database's own cast, never
+    Pure's; the seed JSON's timestamp key;
+  - `GeneratedTestDataPrintingTest`: a test body under each rule set, on each in-process database and judge;
+  - `TestDataRoutesTest.theRoutesPrintATimestampAsUpstreamDoes` (DuckDB): the route's text cut, the seed's key whole.
+- **Guards moved, each with its note:** parser-equivalence `own_corpus.matched` 3164 -> 3177 (the three tests'
+  models).
+- **The corpus lanes** (DuckDB and H2, both judges, under the compatibility rules: COMPAT): unchanged, every roster
+  and register as committed (`//spec:corpus_duckdb`, `//spec:corpus_h2`, 12 of 12).
+
+## 2026-11-12 — the B close: the demo on a planned load, the result labels, the lane check (round 37), one gate
+
+The total wall's B closes (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §5.11, §6): the generator's B2d.3 and L9, the
+simple SYNTHESIZE step, the demo made by it, and the result labels merged onto `claude/total-wall`.
+
+- **The demo** (4856d7b0a on `claude/total-wall-b3`, picked as 83ad97a5f; the patch identical): `datacube/demo/boot.ts`
+  fills the start's TRADES table from the planner's plan, one `HOST_SESSION` load (the table made as declared, one
+  `INSERT ... SELECT` over `range(200000)`, no row in the plan), run on the held connection by the hosts' runner.
+  `DuckDbEngine.loadArrow` deleted; census M14's host spellings gain `loadArrow(`, `generateTrades(`, `sampleTrades(`.
+  `DESK_TRADES_FILE` moved once (8,989,263 bytes; the saved page's file written with b58d24265's formulas). Boot, 9
+  cold runs each, alternated: first row median 2041/2135 ms before, 2023/2111 ms after (unchanged within noise).
+- **The result labels** (0276a473e): every root column labeled with its Pure name, as upstream aliases every projected
+  column (`pureToSQLQuery.pure`); a table lite's DDL stored folded answers the name the query asked for. Closes F44.
+- **Round 37 at 5ef3e93a8** (measure only; against bd632536):
+  - Databricks: 15 of 15 (channel A, B under BOTH, B under DATABASE), the 27 error names unchanged.
+  - Trino and H2: 18 of 18, the error sets unchanged.
+  - Postgres, SQLite, MongoDB: 46 of 46, the ten core Postgres targets unprivileged.
+  - BigQuery: 15 of 15, the error sets unchanged test for test.
+  - MariaDB, MySQL, ClickHouse: 43 of 45. ClickHouse relation, channel A (5) and channel B under BOTH (1), new red:
+    "the statement answers 4 columns, and the plan declares 3". Cause: the labels spelled a root star as every
+    source's columns, the ARRAY JOIN's included, after ClickHouse's own pass had named the exploded column after its
+    star (ClickHouse's `*` reads no ARRAY JOIN column). Fixed at the root, 50001a8df: the pass spells that star as a
+    star over each other source (`ClickHouseDialectTest.aStarOverAnArrayJoinNamesEachColumnOnce`);
+    `//pct:pct_clickhouse_relation` and `//pct:pct_channel_b_clickhouse_relation` PASS locally on the fix.
+  - Snowflake: 15 of 15, every census unchanged; every suite 16-29% slower, evenly, and bd6325362 itself about
+    18% slower on the day (back to back); the remainder, 7-9%, is inside the warehouse's variance on one sample (an
+    interleaved A/B is asked of the lane).
+- **S301** (70e530362, the user's ruling: views on the test-data routes and runtimes written out in a request to the
+  later list): `pure/v1`'s execute routes read a runtime written out in the request as none and planned on the query's
+  own `->from` runtime, a silent fallback; now refused by name (`PureV1HttpTest.aRuntimeWrittenOutIsRefusedByName`).
+- **The gate** at 5ef3e93a8 (after `bazel clean`): `//gates:local` with `//spec:corpus_duckdb` and `//spec:corpus_h2`,
+  511 tests: 500 pass, 1 skipped, 10 refused as root (nine Postgres targets and `//datacube:verify_app_test`), 10 of 10
+  pass unprivileged; 55 min. The L9 worker's cross-check at b7a595b94 (the same tree less the labels and the demo):
+  500 pass, 10 of 10 unprivileged, the corpora 12 of 12.
+- **On the delta since** (83ad97a5f..a1d8bb611: the demo, the ClickHouse fix, S301): `//core:core_tests_sql`,
+  `//core:core_tests_server`, `//core:census`, `//core:guardrails`, `//datacube:sample_trades_test`,
+  `//datacube:bundle_budget_test`, `//datacube:typecheck_test`, `//engine-client:tests` (7), `//datacube:verify_app_test`
+  (unprivileged), and the two ClickHouse relation targets: all PASS. The rest of the matrix runs in the PR's CI.
+- **The audit** of the new code (SYNTHESIZE, the labels, the demo, the ClickHouse fix, S301): no MUST-FIX; the wall holds (every synthesized value
+  a formula DuckDB computes in one planned load, no row, path or secret in the plan; the demo loads nothing outside a
+  plan; every guard move dated). SHOULD-FIX, fixed in the commits that follow this entry: (1) the labels pass skipped a
+  source that declares no columns, and left a whole select unlabeled when nothing was spelled (latent: no root reaches
+  it); (2) ClickHouse appended an explosion's columns after every source's star, not in the join's order (predates the
+  fix; no test put a source after an explosion); (3) SYNTHESIZE inputs dropped or unchecked (a stray `scale`, a
+  fractional `count`, a value list on a date, timestamp or bit column); (4) no cap on a value list, so a large one is
+  data in the plan's text. NOTEs: the formulas' comments, a range past (2^31-1)/2, the bounds off the scale's grid,
+  the demo's TypeScript twin of the formulas for a saved page (held equal by its test), `ResultLabelsTest`'s shapes,
+  a guard reason rewritten without a date (`datacube/BUILD.bazel` `_HEADLESS_LEFT_OUT`).
+
+## 2026-11-12 — C: exec sends only the plan's statements, proven on every road; the C checkpoint; rounds 38 and 39; one gate
+
+The total wall's C (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §5.5, §6), merged onto `claude/total-wall` in four
+merges: 5afc4de7c (C1-C3 from `claude/total-wall-b3` @ d2b92ae80), 5429e6aab (the hosts' audit fixes, b3 @ 7e273300a),
+970f0a992 (the Java side, `claude/total-wall-c4` @ 2a116936a), 2d8e991ee (G10, c4 @ cf56a1e25); then PR #95's CI fixes
+(427f6e513, da55507b0, b1ddf9a68, 3a20560f9).
+
+- **C1** (5592d2c86): the database receives exactly the plan's text; the per-execution trace comment is out of the sent
+  statement, the id a bound value (S304).
+- **C2** (e45f603ea): MariaDB's and MySQL's error read-back is the plan's -- declared by `SqlDialect.raiseReadBack()`,
+  carried by the target, sent as written, counted as the session's, its reset always sent; `RaiseRecovery` and the
+  connector overrides deleted.
+- **C3** (76590e57f, 2f05905b4): a host sends only a plan's statement -- TypeScript by a type made only by reading a
+  plan, Python by a checked send. Follow-ups: the V8 bridge's check (e0a90d7c5), Studio's playground named
+  (31e7e008e), Query's demo warehouse by its project's planned Data load (3a3fd4d3f).
+- **The C checkpoint's two audits.** The code audit: one MUST-FIX (the TS guard's import holes) and five SHOULD-FIX, all
+  fixed (4e63be027 no defaulted read-back and every execution reports its id; 42e33640d Python's guard by Python's own
+  parser; eebbbe9b2 the bridge admits only what a session's planner answered; 4da1e9d6b the NOTEs; the second round,
+  f08ffb89c, da9240edf, 4ea13c0a4: every mint counted by identifier, the tab hands out its file registry, Python's
+  modules hold the host's Database). The wall audit's verdict, "true today, not yet provable on the Java side", closed by
+  C4: Java's senders take a `PlannedSql` minted only where a plan is read (6ffc269f1,
+  `onlyThePlansReadersMintPlannedSql`, `aSessionsStatementsTakeNoText`) and the sent-text proof covers every road
+  (a7798b074, `SentStatementsAreThePlansTest`).
+- **The user's rulings, built** (§5.5): the playground through the planner (85669a3be, `Authored`, `notPlanned`
+  deleted); MongoDB's parameters bound by the command's `let` (93e318dbf, 041f2f05b; a 5.0 floor; `mongodb_plan_test`
+  9 -> 20 cases); the execution id minted by the door, no caller ids (8ed2114fd, ed7bce10e,
+  `execMakesNoValueOfItsOwn`, a writer made for its execution); H2's settings as plan data (947008159, plan version 49,
+  test plan 18; as session statements measured and reverted, 9a1bf98c4); G10 (cf56a1e25,
+  `planningMakesNoValueOfItsOwn`, `aBodyPlannedTwiceIsTheSamePlan`). The bridge on intent (#6) is on
+  `claude/total-wall-bridge` (77c084e8a), for the next PR.
+- **Found on the way and fixed:** the B3 execution-id change left PCT's plan route writing rows with no execution (about
+  429 PCT H2 failures on the worker's branch): fixed (378ec4f1b), then made impossible by type (ed7bce10e);
+  `//datacube:headless_test` refused the tests' own SQL through the bridge's check and ran in no session's gate: the
+  tests get a test host's database, and the lane joined `//gates:local` (7e273300a).
+- **The gate** at 970f0a992 (after `bazel clean`): `//gates:local` with `//spec:corpus_duckdb` and `//spec:corpus_h2`,
+  515 tests: 504 pass, 1 skipped, 10 refused as root (nine Postgres targets and `//datacube:verify_app_test`), 10 of 10
+  pass unprivileged; 55 min. On the delta since (2d8e991ee, 3a20560f9): `//core:core_tests_architecture`,
+  `core_tests_exec`, `//core:guardrails`, `//datacube:headless_test`, `//datacube:typecheck_test`, `//engine-client`'s
+  eight, `//python:planned_test`, `planned_guard_test`, `//studio:typecheck_test`, `//tools/guards`' eight: 25 PASS, 1
+  skipped; the G10 worker's own run at cf56a1e25: `core_tests_testplan`, `core_tests_testexec`, `//core:census` PASS.
+- **Round 38 at 5afc4de7c and round 39 at 970f0a992** (measure only, each against the round before): every database
+  green both times, every census and error set unchanged test for test -- MariaDB, MySQL, ClickHouse 45 of 45;
+  Postgres, SQLite, MongoDB 46 of 46 (the ten core Postgres targets unprivileged); Trino and H2 18 of 18 (H2's 37
+  channel B errors identical in name and text, no settings message); Databricks 15 of 15 (the 27 error names
+  unchanged); BigQuery 15 of 15; Snowflake 15 of 15. Snowflake's round: 71 min (38), 66 min (39; channel A 730 s,
+  channel B under BOTH 2,098 s, under DATABASE 1,018 s).
+- **CI** at 2d8e991ee (run 43269720233): green but linux-arm's warehouse lane, where `//datacube:headless_test_bundles`
+  had never declared `engine-client/test/unplanned.ts`, which C3's tests import (a local sandbox found it anyway):
+  declared, 3a20560f9.
+- **C's final audit (three independent read-only audits at 3a20560f9: Java, hosts, tenets).** The tenets audit's
+  verdict was that "provably separated" DID NOT HOLD as worded, though it was close. Each proof could be bypassed, and none
+  had a planted violator:
+  - exec could mint a planned statement through a plan record;
+  - MongoDB's version check was a command exec wrote itself;
+  - the hosts' operations took plain strings, and the playground's door was open to every caller.
+
+  The fixes are with the C4 worker (Java) and the B3 worker (hosts): the user's rulings, and one choke point per
+  transport with an unfiltered witness on every road. The sanctioned run-time forms are ratified as one list (the
+  charter's A3, rewritten with what and why). The audit also found three guard moves justified only in their commit
+  messages, now recorded here: `spec/src/test/resources/rcorpus/h2-fail-roster.txt` gained three
+  `testGenerateNecessaryTableColumns*` rows (0d9353d5a; the roster's format takes no comments); the corpus
+  database-accepted registers gained five P5 rows each, plus the engine-order and outside-body rows (8e5f43c4a,
+  generated); and `//core:fixture_aside_postgres_test` left `gates/BUILD.bazel` (961bf5352).
+
+## 2026-11-13 — C closed: the six checks, the final audits, round 41, the CI fixes; the A/B/C landing candidate
+
+The total wall's C after its final audit rounds (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §5.12, "C's acceptance
+standard"): one choke point per transport taking only the plan's statement type, minted only where a plan is read; no
+runner writes text beyond A3's three forms, with an unfiltered witness on every road; data only through planned loads;
+no run asks the planner; every guard bites a planted violator. Merged onto `claude/total-wall` from bd6da4f6b to
+1c4c86c56 (the first-parent merges name each worker's branch and SHA).
+
+- **The final audit round 2** (fd7c8d5c0, 4ef947a92, 5b1f1246b, ca6d6b8f8): JDBC sends from one place; a declared H2
+  file or server database gets no settings written or read back; one execution id per plan run, minted by the door,
+  bound by exec (S304, the simple version); the hosts take only the plan's statement type (`PlanText`); the plan
+  carries its transaction statements; a snapshot's request carries the pull, never SQL (plan JSON 51); the Python
+  authored door deleted (27f29669c).
+- **The full audit at 549c018d7** (four independent read-only auditors: planning, run, hosts, guards and records) and
+  its fixes: the snapshot's count and copy and a table Output each one plan of the pull or the rows, no host operation
+  taking SQL (d7c037ebf); test-data temporal keys cast or refused by name, guards that could not fail made to bite
+  (38fe1a5c0); the G7 twins said or refused by name (761d411cd); every TypeScript and Python text census bites a
+  planted file (2a57f6593); Python's warehouse snap outside the frames lock (1fdeb2928); AGENTS.md's mint claim
+  corrected (ca29e3e31). The delta audit's items: S307, an `executeInDb` read refused by name on every product door,
+  the test road keeping it (77e6ab798, 6da2959b9); every constructor rule sees a `::new` reference (554434c32).
+- **The six checks, B3's table at aa860ba38: all six CLOSED**, each with its guard and planted-violator test. C4's
+  one-off global probe (run-depth counters, planner-entry, mint and send hooks in Java, TypeScript and Python): no
+  product violation; its gaps (the DataCube grid road has no run frame; the browser and mini-racer unmeasured) are the
+  next PR's standing witness (start-here §6.1).
+- **The gate at aa860ba38** (B3): `//gates:local` with both corpora: 495 pass, 9 Postgres targets refused as root and
+  passing unprivileged, 1 `//datacube:app_dom_test` flake (fixed as a class below); the corpora 12 of 12; PCT Postgres
+  1,249 of 1,249 unprivileged.
+- **Round 41 at 549c018d7** (measure only, against round 40): 155 of 155 on every database -- MariaDB, MySQL,
+  ClickHouse 45; Postgres, SQLite, MongoDB 46 (Postgres unprivileged); Trino, H2 18; Databricks 15; BigQuery 16;
+  Snowflake 15 (about 57 min, round 40's 66) -- every census and error set identical test for test, no settings
+  message on H2, no "Or add" or ledger line. Rounds 41b and 41c at aa860ba38: H2 3 of 3, Postgres 14 of 14, the same
+  counts; a back-to-back on aa860ba38 and d7c037ebf measured no cost from the `executeInDb` scan (an earlier 20-40%
+  slowdown was the machine's load, not the commit).
+- **CI's findings since, each fixed as a class:** parser parity's TIMESTAMP_NS column classified as lite's grammar
+  extension, S64 (451271134); `own_corpus.matched` 3192 -> 3211 for the audit fixes' test models (19a838160); the
+  DuckDB owner's transaction test enumerates every other database (0bf2ea17a); Windows: the headless link marked gone
+  (f7722ffec), `planned_sql_test` scans the tree once (2a5a53be7); the snap and gesture tests wait for their outcome,
+  bounded and said in words, never a tick count or a time (0ee3da632, bb22cf8f2; the gestures suite about 100 s ->
+  26 s); the one browser test that asserts a wall-clock budget runs alone, `exclusive` (24ba92720; first red on
+  6b0cc7e47, never before; about 2% of the Linux datacube lane).
+- **The Linux warehouse lane's V8 crash** (runs 43370111355 and 43380062329, ubuntu-24.04 image 20261111.127.1): a
+  second mini-racer engine segfaulted in `_make_context`. A probe (806643298, reverted b68f95188) reached only image
+  .370.1 (AMD, no `pku`), where all twelve scenarios passed and so did the lane, so the cause is UNPROVEN; memory
+  protection keys fit the pattern. V8 now starts once per process with `--single-threaded
+  --no-memory-protection-keys`, and V8 started first by other code is refused in words (2f2bacc34; the user's ruling,
+  2026-11-13: protection off for now, the parent-thread start a follow-up, start-here §6.1).
+- **Found by the next PR's fuzzing, not in this landing** (the user's ruling, 2026-11-13): ClickHouse's delimited
+  identifiers double only `"`, while ClickHouse reads backslash escapes inside them, so a column name such as
+  `a\" , version() AS v --` breaks out (confirmed on the pinned ClickHouse 25.8). It predates the total wall; the fix
+  (every dialect's identifier escaped for its own lexer) is the first item of the foolproof stream's PR.
+- **CI on the landing head** (1c4c86c56 plus these records): recorded in PR #95's description (a commit here would restart the run).

@@ -1,8 +1,8 @@
 ###Data
 // The trading demo's rows, for demo::trading::DB where the browser runs it (runtime-duckdb.pure: DuckDB in the tab, or
 // Python's): every app that opens the project fills a database of the project's own from them (C5, engine-client's
-// project-data.ts). The server's H2 connection seeds the same rows itself (runtime-h2.pure), and the warehouse's
-// fixture holds them too (trading-seed.sql).
+// project-data.ts). The server's H2 connection seeds the same rows itself (runtime-h2.pure), and the warehouse is made
+// from these by the same planned load (query/demo/main.ts; its own SQL file, trading-seed.sql, deleted 2026-11-12).
 Data demo::trading::TradingData
 {
   Relational

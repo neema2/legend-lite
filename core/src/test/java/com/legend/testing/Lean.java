@@ -46,6 +46,13 @@ public final class Lean {
             java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF);
 
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c) {
+        return run(model, query, runtime, c, com.legend.exec.SourceAdmission.any());
+    }
+
+    /** {@link #run(String, String, String, Connection)} whose live sources may read under {@code admitted}'s
+     *  directories (a {@code file:} source, L6: the user's ruling of 2026-11-10). */
+    public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c,
+            com.legend.exec.SourceAdmission admitted) {
         StringWriter out = new StringWriter();
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
@@ -55,7 +62,9 @@ public final class Lean {
             plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query)
                             .withOptions(TEST_OPTIONS), runtime,
                     com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
-                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), com.legend.exec.ProductRun.Establish.AS_GIVEN,
+                    PlanSessions.admitting(PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), admitted),
+                    // the string door's establishment (main's #95: the target's loads on the session it acquires)
+                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP,
                     new com.legend.result.Output.Rows(sink));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

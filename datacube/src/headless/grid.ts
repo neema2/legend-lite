@@ -328,7 +328,7 @@ export async function sourceCube(model: string | null, given: string, host: Host
  * WHAT A CUBE READS, as its host names it (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its source's leaves
  * (cube-document.ts leavesOf, a join's in its order), each its kind and its name -- a frame's name its table in the
  * host's database -- and what a host reads it by (a file's bytes' hash, a remote file's URL). JSON: `[{_type, name,
- * sha256?, url?}]`.
+ * sha256?, url?, freshLink?}]`.
  */
 // `page`, `id`: the page it is on and its cube there -- a grid over another grid's rows reads what that grid reads (onPage)
 export function cubeLeaves(cube: string, page: string | null = null, id: string | null = null, opened = false): string {
@@ -338,10 +338,13 @@ export function cubeLeaves(cube: string, page: string | null = null, id: string 
   if (opened) {
     return JSON.stringify(openedLeaves(source).map((l) => (l._type === 'copy' ? { _type: 'copy', name: l.table } : {
       _type: l._type, name: l.name, ...(l._type === 'file' ? { sha256: l.sha256 } : {}), ...(l._type === 'remoteFile' ? { url: l.url } : {}),
+      ...(l._type === 'remoteFile' && l.freshLink ? { freshLink: true } : {}),
     })));
   }
   return JSON.stringify(leavesOf(source).map((l) => ({
     _type: l._type, name: l.name, ...(l._type === 'file' ? { sha256: l.sha256 } : {}), ...(l._type === 'remoteFile' ? { url: l.url } : {}),
+    // a remote file saved needing a fresh link (its link's token never saved): the host asks for one by its address
+    ...(l._type === 'remoteFile' && l.freshLink ? { freshLink: true } : {}),
   })));
 }
 
@@ -1301,8 +1304,9 @@ function readSetUp(given: unknown): GridSetUp | string {
   const pairs = (key: 'measures' | 'sorts', what: string): readonly (readonly [string, string])[] | string => {
     const v = o[key];
     if (!Array.isArray(v)) return `its ${key} are a list of pairs`;
-    const odd = v.find((x) => !Array.isArray(x) || x.length !== 2 || !x.every((y) => typeof y === 'string'));
-    return odd === undefined ? v : `a ${what}, not ${JSON.stringify(odd)}`;
+    const isPair = (x: unknown): x is readonly [string, string] =>
+      Array.isArray(x) && x.length === 2 && x.every((y) => typeof y === 'string');
+    return v.every(isPair) ? v : `a ${what}, not ${JSON.stringify(v.find((x) => !isPair(x)))}`;
   };
   const dimensions = names('dimensions');
   const rows = names('rows');
@@ -1636,15 +1640,6 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
         held: (t) => given.held.some((h) => h.toLowerCase() === t.toLowerCase()),
         models: o.planner,
         hold: (work) => engine.exclusive(work),
-        sqlOf: async (q) => (await o.planner.plan(q)).sql,
-        executionPlan: async (model, runtime, program) => {
-          const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });
-          try {
-            return await p.executionPlan(program);
-          } finally {
-            p.dispose();
-          }
-        },
       });
       return JSON.stringify({ rows });
     } catch (e) {

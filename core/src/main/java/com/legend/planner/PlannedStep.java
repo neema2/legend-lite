@@ -15,12 +15,22 @@ import java.util.Objects;
  * which the planner knows only by the extension's handle and the statements it may read. The product's plan holds
  * product nodes alone; the test door's caller turns each extension step back into its own (the test plan's).
  */
-public sealed interface PlannedStep permits PlannedStep.Product, PlannedStep.Extension {
+public sealed interface PlannedStep permits PlannedStep.Product, PlannedStep.FrameRun, PlannedStep.Extension {
 
     /** A product node. */
     record Product(ExecutionPlan.Node node) implements PlannedStep {
         public Product {
             Objects.requireNonNull(node, "node");
+        }
+    }
+
+    /** A frame let's eager run (M9): a product check the test door sends under its own statement origin (LET). Marked
+     *  where it is planned, so its place needs no reckoning after the steps placed ahead of the program's first (the
+     *  second audit's S7, 2026-11-11: it was tracked by its place, shifted by their count). The product's plan holds
+     *  none. */
+    record FrameRun(ExecutionPlan.Check check) implements PlannedStep {
+        public FrameRun {
+            Objects.requireNonNull(check, "check");
         }
     }
 

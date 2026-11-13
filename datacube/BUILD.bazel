@@ -126,6 +126,18 @@ js_library(
 )
 
 # the cube's stylesheets, for the Query app, which shows its results in a CubeApp
+# the host sources the data mechanism census reads (DataMechanismCensusTest: a deleted mechanism's host spellings read
+# zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
+filegroup(
+    name = "census_src",
+    # the demo's page code too (2026-11-12: its sample was the last load outside a plan, the census's M14)
+    srcs = glob([
+        "src/**/*.ts",
+        "demo/**/*.ts",
+    ]),
+    visibility = ["//core:__pkg__"],
+)
+
 filegroup(
     name = "styles",
     srcs = glob(["src/**/*.css"]),
@@ -268,6 +280,9 @@ _EXTRA_ENV = {
     "chart-rules": {
         "CHART_RULES": "$(rlocationpath test/fixtures/chart-rules.json)",
     },
+    "sample-trades": {
+        "TRADES_MODEL": "$(rlocationpath demo/trades.pure)",
+    },
     "parity-screen": {
         "PARITY": "$(rlocationpath test/fixtures/parity/parity.json)",
     },
@@ -321,7 +336,31 @@ _DUCKDB_USERS = [
 _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
+    # the brand's casts, read by TypeScript's own checker (the re-audit's S5, 2026-11-12): the three programs' sources and
+    # their configs, the pinned compiler's API, and the planted violators with their own config
+    "brand-casts": [
+        "package.json",
+        "tsconfig.json",
+        "test/brand-casts.ts",
+        "test/fixtures/brand-casts/planted.ts",
+        "test/fixtures/brand-casts/tsconfig.json",
+        # every product source of the package, which the census reads (its imports are none of them)
+        ":src",
+        ":node_modules/typescript",
+        "//depot-client:depot_client",
+        "//engine-client:engine_client",
+        "//engine-client:typescript_sources",
+        # (legend-art, Studio's and Query's icons: theirs, carried by //query:src and //studio:src)
+        "//model-changes:model_changes",
+        "//pure-protocol:typescript_sources",
+        "//query:src",
+        "//query-store:typescript_sources",
+        "//sdlc-client:sdlc_client",
+        "//studio:src",
+    ],
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
+    # the demo's model, whose TRADES the sample's plan fills (src/sample-trades.ts, SYNTHESIZE)
+    "sample-trades": ["demo/trades.pure"],
     "stress-markets": [
         "demo/config.json",
         ":markets_project",
@@ -379,6 +418,8 @@ _EXTRA_DATA = {
     "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
     "live-soak": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts", "test/page-same.ts"],
     "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts"],
+    # a snap's pull and its held connection, the fixture's (the final audit's item 1, 2026-11-12)
+    "app-dom": ["test/cube-fixture.ts", "test/gate.ts"],
     # DataCube's app on a page Python serves, over a stand-in editor (the S4 audit's 1, 4 and 5)
     "datacube-app-live": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
     "one-api-ledger": ["test/one-api/scan.ts"],
@@ -469,6 +510,8 @@ _WASM_TESTS = [
     "remote",
     "plane",
     "app-dom",
+    # a grid's snap: its copy the planner's plan of the pull (snapCopy, the final audit's item 1, 2026-11-12)
+    "one-api-gestures",
     "parity-screen",
     # the start's trades read in as the sample file a saved start page rebuilds, by the tab's own ingest (2026-10-23)
     "sample-trades",
@@ -504,6 +547,8 @@ _SLOW_WALK_TESTS = [
         ":node_modules/jsdom",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
+        # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12)
+        "//engine-client:unplanned",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
         [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
     ) + (
@@ -698,9 +743,9 @@ _HEADLESS_TESTS = [
 # headless_roster_test reads. A file that mixed them is split in two: its screen or Node half `<name>-dom` or
 # `<name>-node`, the rest in the lane under its own name.
 _HEADLESS_LEFT_OUT = {
-    # rows put in by DuckDB-WASM's Arrow reader (insertArrowFromIPCStream), the tab's: a headless host's database has
-    # none
-    "sample-trades": "the tab's Arrow reader",
+    # the demo's sample made by the tab's planner and DuckDB-WASM, and its file read in by the tab's reader (upload.ts
+    # ingestFile): the tab's
+    "sample-trades": "the tab's planner and file reader",
     # DataCube's HTTP clients against a stubbed fetch: the host has no fetch API (nothing headless speaks HTTP: §3)
     "cancel-http": "the planner client's HTTP",
     "engine-remote-http": "the engine executor's HTTP",
@@ -739,6 +784,9 @@ esbuild_bundle(
         ":node_modules/fflate",
         ":node_modules/echarts",
         ":src",
+        # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12): the headless bundles
+        # import it as the node tests do (linux-arm's sandbox found it missing, CI run 43269720233)
+        "//engine-client:unplanned",
     ],
     out_dirs = ["headless-tests"],
     args = ["test/%s.test.ts" % t for t in _HEADLESS_TESTS] + [
@@ -898,6 +946,8 @@ typescript.tsc_test(
         ":node_modules/@types/node",
         ":node_modules/jsdom",
         ":node_modules/playwright",
+        # the pinned compiler's own API, which test/brand-casts.ts reads the brand's casts with (the re-audit's S5)
+        ":node_modules/typescript",
     ],
 )
 
@@ -1331,6 +1381,7 @@ node_test(
     size = "medium",
     data = [
         "test/pivot-rows/pivot-rows.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1347,6 +1398,7 @@ node_test(
     size = "medium",
     data = [
         "test/json-read/json-read.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1380,6 +1432,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1395,6 +1448,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1410,6 +1464,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1428,6 +1483,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/live-snap/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],
@@ -1473,6 +1529,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/python-engine/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],
@@ -1626,6 +1683,7 @@ node_test(
     name = "python_execute_test",
     size = "medium",
     data = [
+        "//engine-client:unplanned",
         "test/host/node.ts",
         "test/python-engine/execute.test.ts",
         ":dist",
@@ -2046,14 +2104,14 @@ copy_to_directory(
     ],
 )
 
-# The trading rows' other two copies, for the test that holds them equal to the project's Data (saved-queries): the
-# warehouse's fixture and the H2 connection's setup, copied as :projects is (a test's data is its own package's).
+# The trading rows' other copy, for the test that holds it equal to the project's Data (saved-queries): the H2
+# connection's setup, copied as :projects is (a test's data is its own package's). (2026-11-12: the warehouse's own SQL
+# file went; the warehouse is made by the project's Data load.)
 copy_to_directory(
     name = "trading_copies",
     testonly = True,
     srcs = [
         "//query:demo/models/runtime-h2.pure",
-        "//query:demo/models/trading-seed.sql",
     ],
     out = "test/trading-copies",
     root_paths = ["query/demo/models"],
@@ -2255,6 +2313,13 @@ _BROWSER_TESTS = {
     "verify-wasm-browser": "large",
 }
 
+# THE BROWSER TESTS THAT ASSERT A WALL-CLOCK BUDGET, each measured alone (Bazel's "exclusive": no other test runs
+# beside it). 2026-11-13, CI's run 43433798750 (linux / datacube): verify-layout's "no task over 100 ms, nor two over
+# 50 ms, while a tile is dragged" read 127 ms with three other tests on the runner's four CPUs -- a budget of the
+# page's own work, measured while the machine's CPUs were shared. The budget stays; the measurement is made alone.
+# The other harnesses read the page's clock only to wait for quiet (settle), which asserts no time.
+_TIMED_BROWSER_TESTS = ["verify-layout"]
+
 [js_binary(
     name = h.replace("-", "_"),
     # make-sample writes a CSV from the sources: it needs no site, no browser (P4-08)
@@ -2319,8 +2384,9 @@ browser_test(
     entry_point = "demo/" + h + ".mjs",
     env = _SITE_ENV,
     # CI runs these on Linux only (gates-run.yml filters the tag on macOS and Windows): the same on every platform,
-    # and live-vs-snap already checks x86_64 against the arm64 desks (the build rebuild's L1b, 2026-10-07)
-    tags = ["ci-linux-only"],
+    # and live-vs-snap already checks x86_64 against the arm64 desks (the build rebuild's L1b, 2026-10-07); a test
+    # that asserts a wall-clock budget runs alone (_TIMED_BROWSER_TESTS)
+    tags = ["ci-linux-only"] + (["exclusive"] if h in _TIMED_BROWSER_TESTS else []),
     wasm = True,
 ) for h, size in _BROWSER_TESTS.items()]
 

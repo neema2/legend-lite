@@ -17,6 +17,8 @@
 # NO testdatagen; driver, test and server_lib reach it.
 # 2026-10-08: `setup` (a connection's setup as text and rows, moved out of exec: execution plan boundary step 2's
 # opening piece, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9); exec, testdatagen and driver reach it.
+# 2026-11-10 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md A2, §3 rule 5): setup reaches `error`: the model's data written as
+# typed literals at planning, a cell its column's type cannot hold refused by name (a DataError naming the table).
 # 2026-10-08: planner reaches `execution_plan` (QueryParameters, the one parameter list: step 2).
 # 2026-10-09: step 2's landing 2 (the planner makes lite plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9):
 # planner reaches `setup` (a target's declared test data written into the plan) and database reaches
@@ -92,7 +94,7 @@ validation	base builtin compiler compiler_element_type error model protocol
 lowering	base builtin compiler compiler_element_type error model platform protocol sql values
 plan	base builtin compiler compiler_element_type error execution_plan lineage model sql
 resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
-setup	base cache compiler execution_plan model protocol sql sql_dialect
+setup	base cache compiler error execution_plan model protocol sql sql_dialect
 # D71, 2026-10-30 (the seam-and-wall program's B1, the decisions log): the judges and the probes left exec for `judge` and the
 # root, taking exec's reaches into `lowering`, `plan` and `platform` with them; `judge` reads the compiler's types and renders
 # through the dialect, and stands on exec (its verdicts read typed rows). exec's remaining planning reaches are B2's to cut.
@@ -105,14 +107,19 @@ exec	base cache diagnostics error execution_plan json result sql values
 exec_program	base error exec execution_plan result
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the plan-as-data design's step 8): `edge`, the compatibility edge --
 # its records in a test plan (the referee's ledger texts), their codec and the edge a harness hands a run; the product
-# reaches it not at all (G5), the harnesses do.
-edge	base json sql_dialect test_plan
+# reaches it not at all (G5), the harnesses do. 2026-11-11 (B2b, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): it reaches
+# the plan's records (execution_plan) -- a seed's referee's copy is a load, its steps the plan's, written by the plan's
+# codec, a file's bytes verified against the plan's reference.
+edge	base execution_plan json sql_dialect test_plan
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
 # read-backs typed rows of plan columns.
 testdatagen	base builtin compiler compiler_element_type error lineage model plan protocol sql sql_dialect test_plan values
-execution_plan	base json sql
+# 2026-11-10 (docs/DATA_IN_THE_PLAN_2026_11_09.md L6c): `execution_plan` reaches `cache` -- a load verifies its bundle
+# against each text's digest with the one portable SHA-256 (cache.Hash: the planner runs on WebAssembly, which has no
+# MessageDigest).
+execution_plan	base cache json sql
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 2): `test_plan`, a test body's plan as data (base, error); judge and
 # driver reach it (a planning failure recorded as data, raised at its turn). Step 3: it holds the test plan around the
 # product's (execution_plan) and its JSON (json); testplan reaches it (the test door builds the test plan).
@@ -124,7 +131,11 @@ testexec	base diagnostics error exec exec_program execution_plan json result sql
 test_plan	base error execution_plan json sql values
 result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
-pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql sql_dialect
+# 2026-11-12 (the total wall's B2d.3e, the generator's product doors; docs/data-delivery-homework/
+# TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §3.3): `pure_v1` reaches `testdatagen` -- the server's test-data routes
+# (TestDataRoutes) plan the generator's statement and the census, as legend-engine's TestDataGenerationAPI does; the run
+# is the host's door, handed in as for an execute.
+pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql sql_dialect testdatagen
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
 # 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5): `driver` deleted. Its planning classes are

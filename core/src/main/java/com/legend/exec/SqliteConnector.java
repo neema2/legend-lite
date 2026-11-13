@@ -46,7 +46,8 @@ final class SqliteConnector implements DatabaseConnector {
     }
 
     @Override
-    public Connection openPrivate() throws SQLException {
+    public Connection openPrivate(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
+        DatabaseConnector.noSettings(type(), settings);
         return DriverManager.getConnection("jdbc:sqlite::memory:");
     }
 
@@ -55,9 +56,15 @@ final class SqliteConnector implements DatabaseConnector {
         return "specification: SQLite { };\n  auth: Test";
     }
 
-    /** {@inheritDoc} None: {@code SQLite}'s errors carry their raise. */
+    /** {@inheritDoc} No: SQLite rolls back the failed statement alone; its transaction goes on. */
     @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
     }
 }

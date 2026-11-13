@@ -284,8 +284,11 @@ lane's memory also needs fixing: it keeps one seeded DuckDB per test runtime ope
     suffix its database extension picks from the declared type, fixed when the plan is made. Only the value's text is
     substituted at run time.
     - The planner writes each placeholder with the SQL type upstream's extension uses for that declared type on that
-      database. The runner checks the caller's value against the declared type and binds it. Nothing at run time picks
-      a type from the value, and the SQL text is the same on every call.
+      database. The runner checks the caller's value against the declared type and binds it. Nothing at run time writes
+      a type into the statement, and the SQL text is the same on every call. (Corrected 2026-11-09 by the tenets
+      re-audit's B-4: where a number is bound bare, the driver passes the value's own class -- a `BigDecimal`, a
+      `Double`, a `Long` -- and the database types the value from it, as upstream's bare literal is typed by its
+      digits. That is the database typing a value, not the runner choosing a type, and no divergence.)
     - **`Date`** (a StrictDate or a DateTime) is a timestamp almost everywhere. Upstream writes `TIMESTAMP'…'` on H2,
       Postgres, Trino, Presto, Redshift and Spanner, `'…'::timestamp` on Snowflake, and `'…'::DateTime` on ClickHouse.
       On BigQuery it is a date (`PARSE_DATE`). A StrictDate value passed to a `Date` parameter becomes a midnight

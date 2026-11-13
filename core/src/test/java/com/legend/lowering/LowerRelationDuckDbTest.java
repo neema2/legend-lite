@@ -166,8 +166,9 @@ class LowerRelationDuckDbTest {
                 + "->select(~[NAME, AGE])"
                 + "->sort(~AGE->descending())"
                 + "->limit(2)");
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.NAME, t0.AGE
+                SELECT t0.NAME AS NAME, t0.AGE AS AGE
                 FROM T_PERSON AS t0
                 WHERE t0.AGE > 30
                 ORDER BY t0.AGE DESC NULLS FIRST
@@ -207,8 +208,9 @@ class LowerRelationDuckDbTest {
         // (corpus row-data pin: restrict(['lastName','averageAge'])
         // ->renameColumns(lastName->name) keeps name FIRST) — SQL and typed
         // schema must agree, since executors read columns by index.
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.NAME AS FULL_NAME, t0.AGE, t0.FIRM
+                SELECT t0.NAME AS FULL_NAME, t0.AGE AS AGE, t0.FIRM AS FIRM
                 FROM T_PERSON AS t0""", sql);
         assertEquals(List.of("Ann|25|ACME", "Bob|35|ACME", "Cat|45|Widget", "Dan|55|null"),
                 execUnordered(sql));
@@ -309,8 +311,9 @@ class LowerRelationDuckDbTest {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
                 + "->filter(x|$x.AGE > 20)"
                 + "->groupBy(~FIRM, ~total : x|$x.AGE : y|$y->sum())");
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.FIRM, SUM(t0.AGE) AS total
+                SELECT t0.FIRM AS FIRM, SUM(t0.AGE) AS total
                 FROM T_PERSON AS t0
                 WHERE t0.AGE > 20
                 GROUP BY t0.FIRM
@@ -435,8 +438,9 @@ class LowerRelationDuckDbTest {
     void windowExtendFlat() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
                 + "->extend(over(~FIRM, ~AGE->descending()), ~rn : {p, w, r | $p->rowNumber($r)})");
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.*, ROW_NUMBER() OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE DESC NULLS FIRST) AS rn
+                SELECT t0.NAME AS NAME, t0.AGE AS AGE, t0.FIRM AS FIRM, ROW_NUMBER() OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE DESC NULLS FIRST) AS rn
                 FROM T_PERSON AS t0""", sql);
         assertEquals(List.of("Bob|35|ACME|1", "Ann|25|ACME|2", "Cat|45|Widget|1", "Dan|55|null|1"),
                 exec(sql + "\nORDER BY t0.FIRM NULLS LAST, rn"));
@@ -478,8 +482,9 @@ class LowerRelationDuckDbTest {
         // ->toOne() the run is the SQL chain: the database's concat decides the empty row
         // (docs/MULTIPLICITY_AUDIT_2026_08_20.md §4)
         String sql = sqlOf("#>{test::DB.T_PERSON}#->extend(~tag : r|$r.FIRM->toOne() + '!')");
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.*, concat(t0.FIRM, '!') AS tag
+                SELECT t0.NAME AS NAME, t0.AGE AS AGE, t0.FIRM AS FIRM, concat(t0.FIRM, '!') AS tag
                 FROM T_PERSON AS t0""", sql);
         assertEquals(List.of("Ann|25|ACME|ACME!", "Bob|35|ACME|ACME!", "Cat|45|Widget|Widget!", "Dan|55|null|!"),
                 exec(sql));
@@ -607,8 +612,9 @@ class LowerRelationDuckDbTest {
     void joinFlat() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#->join(#>{test::DB.T_FIRM}#,"
                 + " JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME})");
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT *
+                SELECT t0.NAME AS NAME, t0.AGE AS AGE, t0.FIRM AS FIRM, t1.F_NAME AS F_NAME, t1.CITY AS CITY
                 FROM T_PERSON AS t0
                 JOIN T_FIRM AS t1 ON t0.FIRM = t1.F_NAME""", sql);
         assertEquals(List.of("Ann|25|ACME|ACME|NYC", "Bob|35|ACME|ACME|NYC",
@@ -630,8 +636,9 @@ class LowerRelationDuckDbTest {
     void prefixJoinRenames() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#->join(#>{test::DB.T_FIRM}#,"
                 + " JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME}, 'f_')");
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.*, t1.F_NAME AS f_F_NAME, t1.CITY AS f_CITY
+                SELECT t0.NAME AS NAME, t0.AGE AS AGE, t0.FIRM AS FIRM, t1.F_NAME AS f_F_NAME, t1.CITY AS f_CITY
                 FROM T_PERSON AS t0
                 JOIN T_FIRM AS t1 ON t0.FIRM = t1.F_NAME""", sql);
         assertEquals(3, exec(sql).size());
@@ -683,7 +690,8 @@ class LowerRelationDuckDbTest {
         // forms were made up and are gone.
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
                 + "->extend(over(~FIRM), ~avgAge:{p,w,r|$p->average($w, $r, ~AGE)})");
-        assertEquals("SELECT t0.*, AVG(t0.AGE) OVER (PARTITION BY t0.FIRM) AS avgAge\n"
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
+        assertEquals("SELECT t0.NAME AS NAME, t0.AGE AS AGE, t0.FIRM AS FIRM, AVG(t0.AGE) OVER (PARTITION BY t0.FIRM) AS avgAge\n"
                 + "FROM T_PERSON AS t0", sql);
         assertEquals(4, exec(sql).size());
     }

@@ -316,7 +316,8 @@ final class JdbcDecode {
     }
 
     /** A timestamp as the engine reads one from a database: nine subsecond digits
-     *  ({@link PureDateLiteral#fromDatabaseTimestamp}); a date a day; a text its written precision. */
+     *  ({@link PureDateLiteral#fromDatabaseTimestamp}); a date a day; a text its written precision, but a store's
+     *  declared TIMESTAMP column's text read as the database's timestamp, as every other database's is. */
     private static Object temporal(Object v, ExecutionPlan.Column c) {
         return switch (v) {
             case LocalDateTime t -> PureDateLiteral.fromDatabaseTimestamp(t);
@@ -328,10 +329,23 @@ final class JdbcDecode {
             // declared DATE may hold timestamps, and the driver's kind says which)
             case LocalDate d -> PureDateLiteral.fromLocalDate(d);
             case java.sql.Date d -> PureDateLiteral.fromLocalDate(day(d));
-            // a database that holds its dates as text (SQLite)
-            case String s -> PureDateLiteral.parse(s.trim().replace(' ', 'T'));
+            // a database that holds its dates as text (SQLite): a store's declared TIMESTAMP column read as every other
+            // database's driver hands one, the database's timestamp (the user's ruling, 2026-11-10, "Yes to both": the
+            // type round trip's SQLite cells); any other text at its written precision
+            case String s -> declaredTimestamp(c)
+                    ? PureDateLiteral.fromDatabaseTimestamp(PureDateLiteral.parse(s.trim().replace(' ', 'T'))
+                            .toInstantFloor())
+                    : PureDateLiteral.parse(s.trim().replace(' ', 'T'));
             default -> throw refused(v, c);
         };
+    }
+
+    /** Whether {@code c} is a store's column the store declares a date-time (the plan's typed {@code store} fact; the
+     *  checkpoint tenets audit's 3, 2026-11-10: until then its grammar spelling matched by its text). */
+    private static boolean declaredTimestamp(ExecutionPlan.Column c) {
+        return c.store() instanceof com.legend.sql.SqlDdl.ColumnType.Plain p
+                && (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP
+                        || p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP_NS);
     }
 
     /** A driver's Timestamp as the wall clock it holds, its era kept: {@code Timestamp.toLocalDateTime} reads the

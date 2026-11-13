@@ -3800,7 +3800,7 @@ class Flows(Paged):
         big.output_table('big_trades')
         box = next(b for b in self.boxes(page, flow) if b['tile'] == big.id)
         self.assertEqual(box['output'], {'format': 'table', 'name': 'big_trades', 'mode': 'create'})
-        con = page._session.frames.connection
+        con = page._session.frames.connection._con
         table = lambda: sorted(con.execute('SELECT notional FROM big_trades').fetchall())
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(flow.run(folder), ['table big_trades'])
@@ -3828,6 +3828,25 @@ class Flows(Paged):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, "one of this page's own tables"):
                 flow.run(folder)
+
+    def test_a_table_output_is_refused_a_name_a_streaming_snap_has_reserved(self):
+        # the closing audit's item 1 (2026-11-13): a warehouse snap streams its rows into a name reserved with the frames
+        # let go (frames.streaming_file), and the name was in none of the page's own tables a table Output is refused, so
+        # an Output could make the table the snap's copy then dropped and replaced; refused by name now, nothing written
+        page, flow, _source, big = self.flowed()
+        frames = page._session.frames
+        con = frames.connection._con
+        big.output_table('snap', 'create')
+        with tempfile.TemporaryDirectory() as folder, frames.streaming_file('snap') as (name, _cursor):
+            self.assertEqual(name, 'snap')
+            with self.assertRaisesRegex(ValueError, "'snap' is one of this page's own tables"):
+                flow.run(folder)
+            self.assertEqual(con.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'snap'")
+                             .fetchone()[0], 0, 'the Output wrote nothing under the reserved name')
+        # the snap let go of the name: the Output takes it
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(flow.run(folder), ['table snap'])
+        self.assertEqual(sorted(con.execute('SELECT notional FROM snap').fetchall()), [(100.0,), (250.0,)])
 
     def test_an_output_writes_what_the_box_hands_on(self):
         # one writer (flow-output.ts outputCsv, headless gridOutput; the review of 2026-10-26's B2, C1, C9, C10): every row
@@ -4903,6 +4922,31 @@ class OverFiles(Paged):
         self.assertNotIn(gone, datacube._session.frames.hosted()['remotes'])
         self.assertEqual(len(page.grids), 2)
 
+    def test_a_presigned_link_is_saved_without_its_token_said_and_loaded_again_given_a_fresh_one(self):
+        # the user's ruling of 2026-11-11 ("can we strip the presigned and save the rest of report with warning?" --
+        # agreed): a remote file's link with a query string saved as its address alone, marked as needing a fresh link,
+        # said at the save; loaded again, its fresh link given by that address (links=), as a file is given (files=)
+        sentinel = 'SENTINEL-' + os.urandom(4).hex()
+        address = f'{self.base}/desks.csv'
+        page = ll.Page('Signed')
+        page.grid(remote=f'{address}?X-Amz-Signature={sentinel}', rows=['desk'], measures={'qty': 'sum'})
+        path = Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))) / 'signed.page.json'
+        with self.assertWarnsRegex(UserWarning, "“desks.csv” is saved without its link's query string"):
+            page.save(path)
+        text = path.read_text('utf-8')
+        self.assertNotIn(sentinel, text)
+        source = json.loads(text)['cubes'][0]['cube']['source']
+        self.assertEqual((source['url'], source['freshLink']), (address, True))
+        # no fresh link given: refused in words, naming the file and its address
+        with self.assertRaisesRegex(ValueError, f'desks.csv \\({re.escape(address)}\\).*give fresh links, links='):
+            ll.Page.load(path)
+        # a link for an address the page saved none needing one at: refused, never ignored
+        with self.assertRaisesRegex(ValueError, 'the page saved no remote file needing a fresh link at https://elsewhere/x.csv'):
+            ll.Page.load(path, links={'https://elsewhere/x.csv': f'{address}?fresh=1'})
+        # given one: read from it (this machine's server ignores the query string, as a presigned link's host reads it)
+        loaded = ll.Page.load(path, links={address: f'{address}?X-Amz-Signature=fresh'})
+        self.assertEqual(groups_of(loaded.grids[0].view(), 'qty'), {'FX': 4, 'EQ': 2})
+
     def test_a_page_refused_as_it_loads_lets_go_of_the_files_it_read_for_it(self):
         path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
         page = ll.Page('Files')
@@ -5466,12 +5510,12 @@ class PublishedQueries(Paged):
         grid = page.grid(query='trades-1', rows=['desk'], measures={'notional': 'sum'})
         source = page.to_dict()['cubes'][-1]['cube']['source']
         self.assertEqual((source['query']['versionId'], [c['name'] for c in source['columns']]), ('1.0.0', ['desk', 'notional']))
-        # its rows are the version's own (the sample Create a Class… wrote, in the version's database) -- F44, declared:
-        # that database's tables are made by the DuckDB dialect's DDL, which spells an unquoted column upper case
-        # (DuckDb.ddlIdentifier), so a query selecting `t0.desk` unaliased is answered `DESK`, which its plan does not
-        # type. When the dialect line closes F44 this fails: assert the rows instead ({'FX': 100.0, 'Rates': 325.5})
-        with self.assertRaisesRegex(Exception, "the plan does not type the result column 'DESK'"):
-            grid.view()
+        # its rows are the version's own (the sample Create a Class… wrote, in the version's database). F44 closed
+        # 2026-11-12 (the total wall's B): that database's tables are made by the DuckDB dialect's DDL, which spells an
+        # unquoted column upper case (DuckDb.ddlIdentifier), and a query selecting `t0.desk` unlabeled was answered
+        # `DESK`, which its plan does not type; every column a statement answers now carries its Pure name
+        # (AnsiSqlRenderer#labeled)
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'FX': 100.0, 'Rates': 325.5})
 
 
 class CorpusPage(unittest.TestCase):

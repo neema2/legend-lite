@@ -42,8 +42,11 @@ public sealed interface Output
     record Rows(ResultSink sink) implements Output {
     }
 
-    /** The writer of {@code plan}'s answer in this format, made before any of the plan's statements runs. */
-    default ResultSink writerFor(ExecutionPlan plan) {
+    /** The writer of {@code plan}'s answer in this format, made before any of the plan's statements runs -- or after,
+     *  from the rows a run collected -- for {@code execution}, the id the run's door minted, which an engine answer's
+     *  activity reports (refused by name where there is none: 2026-11-12, the exec-id item -- until then the run told
+     *  the writer, and one made after the run was told nothing). */
+    default ResultSink writerFor(ExecutionPlan plan, java.util.@com.legend.base.Nullable UUID execution) {
         ExecutionPlan.TdsResult.Shape shape = plan.answerShape();
         return switch (this) {
             case Engine e -> switch (shape) {
@@ -55,10 +58,11 @@ public sealed interface Output
                     // builder entry refuses before a write program changes anything; made from the announced columns
                     // only where the plan states none (a dynamic pivot's: the phase 3 audit, 2026-10-27)
                     if (stated == null) {
-                        yield PureV1Writer.relation(e.out(), columns -> PureV1Writer.envelope(e.facts(), sql, columns));
+                        yield PureV1Writer.relation(e.out(), columns -> PureV1Writer.envelope(e.facts(), sql, columns),
+                                execution);
                     }
                     PureV1Writer.Envelope made = PureV1Writer.envelope(e.facts(), sql, stated);
-                    yield PureV1Writer.relation(e.out(), columns -> made);
+                    yield PureV1Writer.relation(e.out(), columns -> made, execution);
                 }
                 case VALUE -> throw new com.legend.error.NotImplementedException(e.facts().valueRefusal());
             };
@@ -70,9 +74,14 @@ public sealed interface Output
                     java.util.List<ExecutionPlan.Column> stated = plan.answerColumns();
                     // the JSON route's rule (Engine above): the metadata from the plan's stated columns before any
                     // statement runs; from the announced columns only where the plan states none
-                    yield stated == null
-                            ? new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, columns))
-                            : new ArrowWriter(a.out(), PureV1Writer.arrowMetadata(a.facts(), sql, stated));
+                    // the metadata's activity names the execution the writer is made for (the door's id)
+                    java.util.UUID ran = PureV1Writer.ran(execution);
+                    if (stated == null) {
+                        yield new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, columns,
+                                ran));
+                    }
+                    PureV1Writer.envelope(a.facts(), sql, stated);
+                    yield new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, stated, ran));
                 }
                 case VALUE -> throw new com.legend.error.NotImplementedException(a.facts().valueRefusal());
             };

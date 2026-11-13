@@ -842,6 +842,7 @@ TEST_IMPORTS = {
     "bands": [
         "src/layout/bands.ts",
     ],
+    "brand-casts": [],
     "bundle-budget": [],
     "calc-fix": [
         "src/box-columns.ts",

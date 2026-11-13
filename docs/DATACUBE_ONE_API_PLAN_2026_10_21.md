@@ -792,7 +792,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   the DuckDB dialect's DDL, which spells an unquoted column upper case (`DuckDb.ddlIdentifier`, 2026-09-22), so a
   grid's query selecting `t0.desk` unaliased is answered `DESK`, which its plan does not type (`UntypedColumn`) —
   declared (S6, found by F33's end-to-end test): core's dialect, not this line's; said in IN_FLIGHT for the dialect
-  line; test_page.py `PublishedQueries` asserts the refusal, and fails when it is fixed
+  line; test_page.py `PublishedQueries` asserts the refusal, and fails when it is fixed. FIXED 2026-11-12 (the total
+  wall's B): every column a statement answers carries its Pure name as its label (core's AnsiSqlRenderer#labeled,
+  ResultLabelsTest); `PublishedQueries` asserts the version's rows
 - [x] **F45** a grid's undo or redo of a presentation change (a width, a pin, a format) told nothing: the keeper, Python
   and any other tab kept the change the screen undid (S7 audit G-1) — fixed S7: the owner's presentation event says
   when an undo or a redo landed it (`moved`) and the grid writes the page whole, a restore (N2), as a move that queries

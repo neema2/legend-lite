@@ -19,12 +19,28 @@ import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { SnapTarget } from '../src/cube.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
-import type { HostFrozen } from '../../engine-client/src/snap.ts';
+import { countQuery, type HostFrozen } from '../../engine-client/src/snap.ts';
+import type { HostStreams } from '../../engine-client/src/plan-runner.ts';
+import type { Receipt } from '../../engine-client/src/receipt.ts';
 import { TreeState } from '../src/tree.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type ColSpecArrayInstance, type Lambda } from '../../pure-protocol/src/index.ts';
 import { accessor, from } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
+
+/** The trades table these cubes read, as a model on DuckDB: what a snap's pull is planned over where its rows are (the
+ *  user's ruling of 2026-11-12: a stream's request carries the pull, which the planner plans in the call). */
+const TRADES_MODEL = `###Relational
+Database trades::DB ( Table TRADES ( region VARCHAR(8), notional DOUBLE, "trade date" DATE ) )
+
+###Connection
+RelationalDatabaseConnection trades::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime trades::RT { mappings: []; connections: [ trades::DB: [ c: trades::Conn ] ]; }
+`;
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('trades::DB', 'TRADES') },
@@ -62,18 +78,28 @@ class RecordingPlanner implements Planner {
     // no Pure reaches the engine, and a stub that pasted the
     // query into its own output would fail that for the wrong
     // reason.
-    return { sql: `SELECT * FROM planned_${this.pure.length}`, columns: [] };
+    // a pull's count (countQuery: its one expression's size()) is planned as a count, which the engines answer as one
+    // (a host's own query may be no lambda: its body read only where it has one)
+    const f = Array.isArray(query.body) ? query.body[0] : undefined;
+    if (f?._type === 'func' && f.function === 'size') return { sql: unplanned(`SELECT count(*) AS value FROM planned_${this.pure.length}`), columns: [] };
+    return { sql: unplanned(`SELECT * FROM planned_${this.pure.length}`), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
+  }
+  /** The pull a remote plane's snap asks the planner to plan: the trades model, its runtime, the query. */
+  async pullRequest(query: Lambda): Promise<SnapPull> {
+    return { model: TRADES_MODEL, runtime: 'trades::RT', lambda: toJson(query) };
   }
   parse = fakeParse;
   print = fakePrint;
 }
 
-/** A `source->select(~[...])` query's source (as the stand-in parse holds it) and columns. */
+/** A `source->select(~[...])` query's source (as the stand-in parse holds it) and columns; a pull's count
+ *  (countQuery: `size()` of it) read through to the pull it counts. */
 function selectOf(q: Lambda): { readonly source: unknown; readonly columns: readonly string[] } | undefined {
-  const f = q.body[0];
+  const outer = q.body[0];
+  const f = outer?._type === 'func' && outer.function === 'size' ? outer.parameters[0] : outer;
   if (f?._type !== 'func' || f.function !== 'select') return undefined;
   const [source, columns] = f.parameters;
   return {
@@ -109,13 +135,19 @@ const snapInto = (planner: Planner = new RecordingPlanner(), made: Copies = { ta
 class RecordingEngine extends FakeEngine {
   readonly name = 'recording';
   readonly sql: string[] = [];
-  /** The tables Arrow was loaded into (DuckDbEngine.loadArrow). */
+  /** The tables a planned stream made (plan-runner.ts runLoad's stream step: the held connection's Arrow import). */
   readonly loaded: string[] = [];
-  async loadArrow(target: { readonly schema?: string; readonly table: string }, chunks: AsyncIterable<Uint8Array>,
-    prepare: readonly string[] = []): Promise<void> {
-    this.sql.push(...prepare);
-    for await (const _ of chunks) void _;
-    this.loaded.push(target.table);
+  /** The connection held for a plan (DuckDbEngine.exclusive): its statements answered as every query is. */
+  async exclusive<T>(work: (held: HostStreams['held']) => Promise<T>): Promise<T> {
+    return work({
+      rows: async (sql) => {
+        const t = await this.answer(sql, 0);
+        return Array.from({ length: t.rowCount }, (_, r) => t.columns.map((c) => c.values[r]));
+      },
+      insertArrow: async (_bytes, target, create) => {
+        if (create) this.loaded.push(target.table);
+      },
+    });
   }
   async answer(sql: string, epoch: number): Promise<ResultTable> {
     this.sql.push(sql);
@@ -132,11 +164,13 @@ class RecordingEngine extends FakeEngine {
   }
 }
 
-/** A warehouse: counts, and streams the rows of whatever SQL it is asked to pull. */
+/** A warehouse: counts, and streams the rows of whatever SQL it is asked to pull -- its done step's count the two rows
+ *  the tab's stand-in counts in the copy (RecordingEngine.answer). */
 class PullingEngine extends RecordingEngine {
   readonly pulled: string[] = [];
-  async *arrowChunks(sql: string): AsyncIterable<Uint8Array> {
+  async *arrowChunks(sql: string, _signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array> {
     this.pulled.push(sql);
+    onReceipt?.({ plane: 'warehouse', where: 'a stand-in warehouse', serverRows: 2 });
     yield new Uint8Array([1]);
   }
 }
@@ -204,20 +238,21 @@ describe('snapping goes through the planner', () => {
     assert.equal(c.snaps.isSnapped, true);
   });
 
-  it('materialises what the planner returned', async () => {
+  it('materialises the planner\'s own copy of the pull, in its plan\'s transaction (snapCopy)', async () => {
+    // the final audit's item 1(b) (2026-11-12): the copy is the planner's plan of the PULL (Boundary.snapCopy), never the
+    // live plan's statement handed back to it as a host operation's query
     const planner = new RecordingPlanner();
     const engine = new RecordingEngine();
     const c = new CubeController(engine, planner, { snapTarget: snapInto() });
     const ran: CubeSnapshot = SNAPSHOT;
     await c.run(at(ran));
+    engine.sql.length = 0;
     await c.snap(ran, 'test');
-
-    assert.ok(
-      engine.sql.some(
-        (q) => /CREATE OR REPLACE TABLE/i.test(q) && q.includes('planned_'),
-      ),
-      engine.sql.join(' ;; '),
-    );
+    const copied = engine.sql.slice(engine.sql.indexOf('BEGIN TRANSACTION'));
+    assert.deepEqual(copied.slice(0, 3), ['BEGIN TRANSACTION', 'DROP TABLE IF EXISTS "snap_1"', copied[2]], engine.sql.join(' ;; '));
+    assert.match(copied[2]!, /^CREATE TABLE "snap_1" AS SELECT .*\sFROM TRADES AS t0/s);
+    assert.equal(copied[3], 'COMMIT');
+    assert.ok(!engine.sql.some((q) => q.includes('planned_1') && /CREATE/i.test(q)), 'the live plan\'s statement is never copied by text');
   });
 });
 
@@ -241,7 +276,7 @@ describe('a snap is a copy of its own (§18.3)', () => {
     await c.run(at(SNAPSHOT));
     engine.sql.length = 0;
     await c.snap(SNAPSHOT, 'test');
-    assert.ok(engine.sql.some((q) => /CREATE OR REPLACE TABLE "snap_1" AS /.test(q) && !q.includes('REPLACE (')), engine.sql.join(' ;; '));
+    assert.ok(engine.sql.some((q) => /^CREATE TABLE "snap_1" AS /.test(q) && !q.includes('REPLACE (')), engine.sql.join(' ;; '));
     assert.ok(landedAfter?.some((q) => /"snap_1"/.test(q)), 'modelled once the rows are in');
   });
 
@@ -326,9 +361,22 @@ describe('the snapped plane actually redirects', () => {
     live.queries.length = 0;
     live.pure.length = 0;
     await c.snap(SNAPSHOT, 'test');
-    assert.equal(live.queries.length, 1, `the pull is planned once, live: ${live.pure.join(' ;; ')}`);
+    // the live planner plans the pull's count alone (the final audit's item 1, 2026-11-12: the planner's plan of the
+    // pull's size(), never the pull's statement handed back as a host operation's query); the pull itself is planned
+    // in the stream's own plan
+    assert.equal(live.queries.length, 1, `the count is planned once, live: ${live.pure.join(' ;; ')}`);
     assert.equal(selectOf(live.queries[0]!)?.source, toJson(accessor('trades::DB', 'TRADES')));
-    assert.deepEqual(warehouse.pulled, ['SELECT * FROM planned_1'], 'the live plan is what the warehouse ran');
+    const pullOf = (q: Lambda): Lambda => {
+      const f = q.body[0];
+      return { ...q, body: [f?._type === 'func' ? f.parameters[0]! : f!] };
+    };
+    assert.deepEqual(live.queries[0], countQuery(pullOf(live.queries[0]!)), 'a count of the pull');
+    assert.deepEqual(warehouse.sql.filter((q) => /count\(\*\)/i.test(q)), ['SELECT count(*) AS value FROM planned_1'],
+      'the warehouse counted by the live planner\'s plan of the count');
+    // what the warehouse ran is the planner's own plan of the pull, made in the stream's plan (the user's ruling of
+    // 2026-11-12: the request carries the pull, never the statement)
+    const pulled = await plannerFor(TRADES_MODEL, 'trades::RT').plan(pullOf(live.queries[0]!));
+    assert.deepEqual(warehouse.pulled, [pulled.sql], 'the planner\'s plan of the live pull is what the warehouse ran');
     assert.equal(copy.pure.length, 0, 'nothing is planned for the copy before it exists');
     tab.sql.length = 0;
     await c.run(at(SNAPSHOT));

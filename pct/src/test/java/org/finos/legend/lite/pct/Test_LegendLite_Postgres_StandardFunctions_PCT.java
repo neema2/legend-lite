@@ -34,6 +34,16 @@ public class Test_LegendLite_Postgres_StandardFunctions_PCT extends PCTReportCon
 
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): Postgres keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

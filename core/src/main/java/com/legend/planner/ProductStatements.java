@@ -72,7 +72,10 @@ public final class ProductStatements {
 
     /** A statement on the product's road, prepared: its kind ({@link Prepared}), and whether it reads a temporal
      *  class (decided on the inlined body, before the resolver, as the product always has). */
-    public record Statement(Prepared prepared, boolean temporal, ProgramFrames.Reads reads) {
+    public record Statement(Prepared prepared, boolean temporal, ProgramFrames.Reads reads, Set<String> stores) {
+        public Statement {
+            stores = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(stores));
+        }
     }
 
     /** {@code statements} (a query's body, or a program's statement after its lets) prepared for {@code runtime};
@@ -149,12 +152,13 @@ public final class ProductStatements {
         CrossStoreGuard.check(body, ctx, runtime);
         // one session per statement: none reads the system metamodel store beside a user store (the walk's route
         // refuses it alike, SystemRoutes.of)
-        CrossStoreGuard.oneSession(SystemRoutes.stores(body));
+        Set<String> stores = SystemRoutes.stores(body);
+        CrossStoreGuard.oneSession(stores);
         // widened LAST, after resolution: the renames of the frames the statement reads (the walk's order)
         Map<String, String> renames = FramePlanner.renames(statements.get(statements.size() - 1),
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
-        return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads());
+        return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads(), stores);
     }
 
     /** The planning environment of a statement on this road over {@code planRows}: the model, the runtime, the

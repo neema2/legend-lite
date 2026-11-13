@@ -123,6 +123,61 @@ public final class ClickHouse extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
     }
 
+    /** {@inheritDoc} 9: a literal of a digit past the microsecond is a {@code DateTime64(9)} ({@link #timestampLit}),
+     *  which keeps all nine (round 34, 2026-11-11, the user's rule "refuse if the db cannot handle": ClickHouse can;
+     *  measured on 25.8: arithmetic, a time zone, a comparison and a mixed if keep nine; until then 6, and nine PCT tests
+     *  refused here). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11; until then
+     *  the statement's own rows: ClickHouse keeps a TEMPORARY table only in an HTTP session, which the plan cannot name,
+     *  probes/ClickHouseDataTable.java.txt). Its driver writes the parameter into the statement's text, bounded by the
+     *  connection's {@code max_query_size} (256 KiB by default), a setting the database enforces (its refusal reaches
+     *  the caller). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 25.8:
+     *  probes/ClickHouseDelivery2.java.txt, 100,000 records in 390 ms at a 16 MiB {@code max_query_size}): each
+     *  element its raw JSON text, a frame's record its place as its index from 0 (the payload's order); an empty array
+     *  no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_elements[legend_index] AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_index - 1 AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM (SELECT JSONExtractArrayRaw(");
+        return bindPayload(writer, u).append(") AS legend_elements) ARRAY JOIN arrayEnumerate(legend_elements) AS"
+                + " legend_index");
+    }
+
+    /** {@inheritDoc} 0: its {@code TIMESTAMP} column is a {@code DateTime}, of whole seconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 0;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -357,6 +412,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
      * names them after its star, each labeled with its own name: an enclosing select reads {@code "_pct0"."key"}. (Within
      * the select an exploded column is {@code "t1.key"}, which {@code "t1"."key"} reads, {@link #source}: two
      * explosions in one select may name their columns alike.)
+     *
+     * <p>The star itself is spelled in the join's order: a star over each source that is not an explosion, and each
+     * explosion's columns in its place (round 37, 2026-11-12). A star over the whole FROM means every source's columns,
+     * the explosions' included, once the root's columns are labeled ({@code AnsiSqlRenderer#labeled}, 0276a473e), which
+     * named an exploded column twice ({@code testVariantMapColumn_values_LateralFlatten}: 4 columns for 3); and an
+     * explosion's columns written after every source's star answered a source joined after it out of the plan's order
+     * (the B close's audit, SHOULD-FIX 2: rows are read by position).
      */
     static final class ArrayJoinColumnsNamed extends com.legend.sql.SqlRewriter {
         @Override
@@ -369,18 +431,17 @@ public final class ClickHouse extends AnsiSqlRenderer {
             named.replaceAll((alias, ps) -> ps.stream().map(p -> new SqlSelect.Projection(
                     SqlExpr.Column.derived(alias, ExplosionMarkers.markerColumn(p)), ExplosionMarkers.markerColumn(p),
                     p.out())).toList());
-            List<SqlSelect.Projection> all = named.values().stream().flatMap(List::stream).toList();
+            List<SqlSelect.Projection> inOrder = new ArrayList<>();
+            inJoinOrder(s.from(), named, inOrder);
             List<SqlSelect.Projection> ps = new ArrayList<>();
             if (s.projections().isEmpty()) {
-                ps.add(new SqlSelect.Projection(new SqlExpr.Star(null), null, null));
-                ps.addAll(all);
+                ps.addAll(inOrder);
             }
             for (SqlSelect.Projection p : s.projections()) {
                 if (p.expr() instanceof SqlExpr.Star st && st.table() != null && named.containsKey(st.table())) {
                     ps.addAll(named.get(st.table()));
                 } else if (p.expr() instanceof SqlExpr.Star st && st.table() == null) {
-                    ps.add(p);
-                    ps.addAll(all);
+                    ps.addAll(inOrder);
                 } else if (p.expr() instanceof SqlExpr.StarExcept se) {
                     throw new DialectCapability("a star exclusion over a lateral explosion reached ClickHouse: " + se);
                 } else {
@@ -394,14 +455,40 @@ public final class ClickHouse extends AnsiSqlRenderer {
         private static void markerAliases(SqlSource src, java.util.Map<String, List<SqlSelect.Projection>> into) {
             if (src instanceof SqlSource.Join j) {
                 markerAliases(j.left(), into);
-                if (j.right() instanceof SqlSource.Subselect sub && ExplosionMarkers.isMarker(sub.inner())
-                        && (j.kind() == SqlSource.Join.Kind.CROSS_LATERAL
-                                || j.kind() == SqlSource.Join.Kind.LEFT_LATERAL)) {
-                    into.put(sub.alias(), ((SqlSelect) sub.inner()).projections());
+                if (explodes(j)) {
+                    into.put(j.right().alias(), ((SqlSelect) ((SqlSource.Subselect) j.right()).inner()).projections());
                 } else {
                     markerAliases(j.right(), into);
                 }
             }
+        }
+
+        /** {@code src}'s columns in the join's order: a star over each source that is not an explosion, each
+         *  explosion's named columns ({@code named}, by its alias) in its place. */
+        private static void inJoinOrder(SqlSource src, java.util.Map<String, List<SqlSelect.Projection>> named,
+                List<SqlSelect.Projection> into) {
+            if (src instanceof SqlSource.Join j) {
+                inJoinOrder(j.left(), named, into);
+                if (explodes(j)) {
+                    into.addAll(named.get(j.right().alias()));
+                } else {
+                    inJoinOrder(j.right(), named, into);
+                }
+                return;
+            }
+            if (src instanceof SqlSource.Dual) {
+                return;
+            }
+            if (src.alias() == null) {
+                throw new DialectCapability("a source with no alias beside a lateral explosion reached ClickHouse: " + src);
+            }
+            into.add(new SqlSelect.Projection(new SqlExpr.Star(src.alias()), null, null));
+        }
+
+        /** Whether {@code j}'s right side is a lateral explosion marker, written as an ARRAY JOIN. */
+        private static boolean explodes(SqlSource.Join j) {
+            return j.right() instanceof SqlSource.Subselect sub && ExplosionMarkers.isMarker(sub.inner())
+                    && (j.kind() == SqlSource.Join.Kind.CROSS_LATERAL || j.kind() == SqlSource.Join.Kind.LEFT_LATERAL);
         }
     }
 
@@ -696,21 +783,66 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return iso;
     }
 
-    /** A naive UTC date-time of six digits (finer ones cut, as DuckDB's TIMESTAMP does); a {@code T} is a space. */
+    /** A Date and a DateTime parameter are lite's own literal's type, a naive UTC {@code DateTime64(6, 'UTC')}, bound
+     *  as its text to six digits (the user's ruling, 2026-11-10, "Okay on click": S179). ClickHouse's date-time types
+     *  hold 1900 to 2299 and clamp a value outside it in silence (measured: 9999-12-31 reads 2299-12-31), so the
+     *  placeholder ({@link #placeholder}) refuses one in the database, as the literal refuses one at planning
+     *  ({@link #inRange}). A number is bound bare. */
+    @Override
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("Nullable(DateTime64(6, 'UTC'))",
+                    new RenderedStatement.AsText(6));
+        };
+    }
+
+    /** {@inheritDoc} A Date or DateTime parameter's text read in range or raised by the dialect's error arm
+     *  ({@link #error}, the literal's message): {@code CASE WHEN ? IS NULL THEN NULL WHEN toInt32(substring(?, 1, 4))
+     *  NOT BETWEEN 1900 AND 2299 THEN CAST(<raise> AS ...) WHEN <a digit past the sixth> THEN CAST(<raise> AS ...)
+     *  ELSE toDateTime64(substring(?, 1, 26), 6, 'UTC') END}, the value bound at each of its places. The year first
+     *  (the A delta audit's note 8, 2026-11-11): a year outside the range is refused as one, and inside it the text is
+     *  fixed-width ('uuuu-MM-dd HH:mm:ss.SSSSSSSSS', a date's 'uuuu-MM-dd'), so its digits past the sixth are its text from
+     *  the 27th character and the kept ones its first 26 (the delta audit's MUST-FIX 1: read without the zeros past the
+     *  sixth). Measured with {@code clickhouse local} 2026-11-10: 2024, 1900-01-01 and 2299-12-31 23:59:59.999999 read
+     *  as the literal reads them; 9999-12-31 and 1800-01-01 raise. */
+    @Override
+    protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        com.legend.sql.DeclaredKind declared = p.declared();
+        if (declared != com.legend.sql.DeclaredKind.DATE && declared != com.legend.sql.DeclaredKind.DATE_TIME) {
+            return super.placeholder(writer, p);
+        }
+        ParameterType type = java.util.Objects.requireNonNull(parameterType(declared), "a date's placeholder type");
+        RenderedStatement.AsText asText = java.util.Objects.requireNonNull(type.asText(), "a date bound as its text");
+        // a value of a digit past the six kept raises too (S181, A7: never cut)
+        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN toInt32(substring(")
+                .bind(textBind(p, asText)).append(", 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(")
+                .piece(x -> error(x, raised(DATE_RANGE))).append(" AS " + type.name() + ") WHEN substring(")
+                .bind(textBind(p, asText)).append(", 27) NOT IN ('', '000') THEN CAST(")
+                .piece(x -> error(x, raised(FRACTION))).append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
+                .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
+    }
+
+    /** A naive UTC date-time of six digits, or of nine where it has a digit past the microsecond (round 34,
+     *  2026-11-11: a {@code DateTime64(9)} keeps them; measured on 25.8); a {@code T} is a space. A nine-digit one holds
+     *  only 1900-01-01 to 2262-04-11 23:47:16.854775807 (measured: past it, a DECIMAL_OVERFLOW), so one later is refused
+     *  by name. */
     @Override
     protected String timestampLit(String iso) {
-        String t = iso.replaceFirst("T", " ");
-        int dot = t.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < t.length() && Character.isDigit(t.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                t = t.substring(0, dot + 7) + t.substring(end);
-            }
+        String text = iso.replaceFirst("T", " ");
+        int dot = text.lastIndexOf('.');
+        String fraction = dot < 0 ? "" : text.substring(dot + 1).replaceAll("\\D.*$", "");
+        boolean nanos = fraction.length() > 6 && !fraction.substring(6).matches("0*");
+        if (!nanos && fraction.length() > 6) {
+            // zeros past the microsecond are no digit of the value: a six-digit literal, written so
+            text = text.substring(0, dot + 7) + text.substring(dot + 1 + fraction.length());
         }
-        return "toDateTime64('" + inRange(t) + "', 6, 'UTC')";
+        String spelled = inRange(text);
+        if (nanos && spelled.compareTo("2262-04-11 23:47:16.854775807") > 0) {
+            throw new DialectCapability("the date-time " + iso + " has a digit past the microsecond, which ClickHouse's"
+                    + " DateTime64(9) keeps only until 2262-04-11 23:47:16.854775807: refused, never cut (S181)");
+        }
+        return "toDateTime64('" + spelled + "', " + (nanos ? 9 : 6) + ", 'UTC')";
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is an exact Decimal of its own digits ({@code 1.5} alone is a Float64
@@ -1729,6 +1861,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     .append(") + ").piece(operand(a, 1)).append(", ").piece(operand(a, 1)).append(") END)");
             case INT_DIVIDE -> writer.append("(CASE WHEN ").expr(a.get(1), 0).append(" = 0 THEN NULL ELSE intDivOrZero(")
                     .expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") END)");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("toString(").expr(a.get(0), 0).append(")");
             case BIT_NOT -> writer.append("bitNot(toInt64(").expr(a.get(0), 0).append("))");
             case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");
@@ -1753,6 +1886,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     .append(", 1, 1)), substringUTF8(").expr(a.get(0), 0).append(", 2))");
             case LC_FIRST -> writer.append("concat(lowerUTF8(substringUTF8(").expr(a.get(0), 0)
                     .append(", 1, 1)), substringUTF8(").expr(a.get(0), 0).append(", 2))");
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on ClickHouse, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached ClickHouse, whose binary collation is not measured");
             case SUBSTRING -> writer.append("substringUTF8(").list(a).append(")");
             case LEFT -> writer.append("leftUTF8(").list(a).append(")");
             case RIGHT -> writer.append("rightUTF8(").list(a).append(")");
@@ -1888,6 +2024,10 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 .append("), '\\'', char(29)), char(31), substring(toString(rand(" + (++raises[0])
                         + ")), 1, 0)))");
     }
+
+    /** The message a date-time parameter of a digit past the microsecond raises (S181, A7). */
+    private static final String FRACTION = "a DateTime parameter has more fraction digits than ClickHouse keeps (6):"
+            + " refused, never cut (S181)";
 
     /** The message a date past ClickHouse's years raises. */
     private static final String DATE_RANGE = "a date outside the years 1900 to 2299 has no ClickHouse value (it clamps"
@@ -2176,9 +2316,19 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // the wall clock in the zone at the instant (DuckDB's of a zoned value, Trino's), as a naive UTC value:
             // toTimeZone keeps the instant and changes only how it prints (measured)
             case DATE_AT_TIME -> throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
-            case TIMEZONE -> writer.append("addSeconds(toDateTime64(").expr(a.get(1), 0)
-                    .append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(").expr(a.get(1), 0).append(", 6, 'UTC'), ")
-                    .expr(a.get(0), 0).append(")))");
+            // a plain value read as a wall time in the zone (instantIn's inner call): its text read in the zone, the
+            // instant as the naive UTC value every other arm reads (the correctness audit's S3, A6, 2026-11-10: until
+            // then read as a UTC instant, shifted the wrong way). Measured with clickhouse local 25.8 against DuckDB's
+            // timezone(): equal, but at a DST change's repeated hour, read in its earlier offset (DuckDB: its later)
+            case TIMEZONE -> {
+                if (!zonedInstant(a.get(1))) {
+                    yield writer.append("toTimeZone(toDateTime64(toString(").expr(a.get(1), 0).append("), 6, ")
+                            .expr(a.get(0), 0).append("), 'UTC')");
+                }
+                yield writer.append("addSeconds(toDateTime64(").expr(a.get(1), 0)
+                        .append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(").expr(a.get(1), 0)
+                        .append(", 6, 'UTC'), ").expr(a.get(0), 0).append(")))");
+            }
             // (of a DateTime64: a Date32 is refused, measured)
             case EPOCH_SECONDS -> writer.append("(toFloat64(toUnixTimestamp64Micro(toDateTime64(").expr(a.get(0), 0)
                     .append(", 6, 'UTC'))) / 1000000)");
@@ -2977,21 +3127,6 @@ public final class ClickHouse extends AnsiSqlRenderer {
     // Session tables and DDL
     // ==================================================================
 
-    /** A session's own table is a TEMPORARY table, and ClickHouse keeps one only in an HTTP session: the connection
-     *  names it ({@code session_id}, which the driver passes as a {@code clickhouse_setting_} property). That is the
-     *  host's to open (SystemDatabase's system connection). Over a connection with no session the table is made
-     *  and gone with its request, so the read after it is refused (an unknown table, measured), never answered from
-     *  another session, which does not see it. The table and its INSERT are this interface's own renders;
-     *  ClickHouse's temporary table is a Memory one without saying so (measured). */
-    @Override
-    public List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        if (!table.temporary()) {
-            throw new IllegalArgumentException("a session table is temporary: " + table.table());
-        }
-        return rows == null ? List.of(render(table)) : List.of(render(table), render(rows));
-    }
-
     /** {@inheritDoc} ClickHouse's own: {@code CREATE TEMPORARY TABLE t ENGINE = Memory AS <query>}, a table of the HTTP
      *  session (a connection with none makes it and loses it with the request) -- a statement's shared relations
      *  staged (writesEachReadOfAWithAgain), measured 2026-11-07 on the documents' examples on 25.8. */
@@ -3008,12 +3143,6 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return true;
     }
 
-    /** A table of the database's own (not a session's TEMPORARY one, a Memory one without saying so) is legend-engine's
-     *  ClickHouse table: {@code ENGINE = MergeTree ORDER BY tuple()} (clickHouseExtension.pure,
-     *  translateCreateTableStatementForClickHouse). Without an engine the server's default, MergeTree, refuses a table
-     *  with no ORDER BY ("ORDER BY or PRIMARY KEY clause is missing", measured 2026-11-07 on 25.8, the gallery's replay,
-     *  docs/TS_DECISIONS_2026_11_07.md item 9). A keyed table sorts by its key: the engine's text is refused for one
-     *  ("Primary key must be a prefix of the sorting key", measured that day; register S157, ruled "Sort by its key"). */
     /** {@inheritDoc} {@code DROP TEMPORARY TABLE}: the plain drop of a name the session holds no temporary table of
      *  drops the database's table of that name (measured 2026-11-09 on 26.3.60.2 with {@code clickhouse local}: a
      *  staged table's drop after its session was lost; the final review of PR #81). */
@@ -3022,6 +3151,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return "DROP TEMPORARY TABLE IF EXISTS ";
     }
 
+    /** A table of the database's own (not a session's TEMPORARY one, a Memory one without saying so) is legend-engine's
+     *  ClickHouse table: {@code ENGINE = MergeTree ORDER BY tuple()} (clickHouseExtension.pure,
+     *  translateCreateTableStatementForClickHouse). Without an engine the server's default, MergeTree, refuses a table
+     *  with no ORDER BY ("ORDER BY or PRIMARY KEY clause is missing", measured 2026-11-07 on 25.8, the gallery's replay,
+     *  docs/TS_DECISIONS_2026_11_07.md item 9). A keyed table sorts by its key: the engine's text is refused for one
+     *  ("Primary key must be a prefix of the sorting key", measured that day; register S157, ruled "Sort by its key"). */
     @Override
     protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
         if (ct.temporary()) {

@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.legend.edge.EffectTexts;
-import com.legend.edge.SeedTexts;
+import com.legend.edge.RefereeLoad;
 import com.legend.executionplan.DatabaseType;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.Agreement;
@@ -74,11 +74,10 @@ class TestPlanJsonRoundTripTest {
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
-                new EffectTexts.Statement("select", true))), new SeedTexts(List.of("create table t"))));
+                new EffectTexts.Statement("select", true))), refereeLoad()));
         Map<Integer, List<Extension>> byVerdict = new LinkedHashMap<>();
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
-                new Appeal.Batched("golden", null, false), 1), new Appeal(3, "tdg", Appeal.Kind.TDG, null, null, null,
-                RootLoop.NO_APPEAL)));
+                new Appeal.Batched("golden", null, false), 1)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict,
                 true, anyTarget());
 
@@ -129,7 +128,7 @@ class TestPlanJsonRoundTripTest {
     /** Any database's target: the round trip does not depend on which. */
     private static ExecutionPlan.Target anyTarget() {
         return new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.values()[0], null), List.of(),
-                List.of());
+                List.of(), null, null, null);
     }
 
     private static Appeal rowsAppeal() {
@@ -137,7 +136,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.Read(null, null, null, new Appeal.Unlisted("DateTimeParseException", "bad text")),
                 "select 1", "my::Mapping", "my::C", true, false, List.of("k"), "plan", Map.of("p", List.of("1")),
                 List.of(new Appeal.TempTable("temp", "Integer", List.of("1", "2"))),
-                new Appeal.InListSeed("String", List.of("a")), List.of("my::Store"),
+                new Appeal.InListSeed("String", List.of("a")),
                 anyTarget(),
                 new Appeal.Enums(List.of("my::E"), Map.of("my::E", Map.of("1", "A")), Map.of("kind", "my::E")));
         return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null, RootLoop.NO_APPEAL);
@@ -151,5 +150,21 @@ class TestPlanJsonRoundTripTest {
     private static SideShape shape() {
         return new SideShape(SideShape.Kind.TABULAR, "Relation", List.of(new SideShape.Column("v", "String", ONE)),
                 List.of(new SideShape.Column("sum", "Integer", null)), true, false, 1, "[1]", false, true, false);
+    }
+
+    /** A seed's referee's copy (B2b): a statement, the rows as a content blob, a file by its reference read by the
+     *  referee's own statements. */
+    private static RefereeLoad refereeLoad() {
+        com.legend.setup.LoadSteps rows = com.legend.setup.LoadSteps.blob(List.of("INSERT INTO T VALUES (1)"),
+                "the data of the table T");
+        List<com.legend.executionplan.ExecutionPlan.LoadStep> steps = new java.util.ArrayList<>();
+        steps.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement("create table t"));
+        steps.addAll(rows.steps());
+        steps.add(new com.legend.executionplan.ExecutionPlan.LoadStep.File(new com.legend.executionplan.DataRef(
+                com.legend.executionplan.DataRef.Namespace.RESOURCE, "people.csv", "0".repeat(64), 3,
+                com.legend.executionplan.DataRef.Csv.DEFAULT), new com.legend.executionplan.ExecutionPlan.LoadStep
+                .Delivery.Reads(List.of("SET @legend_csv = ?", "INSERT INTO T SELECT 1"), List.of(
+                "SET @legend_csv = NULL")), 500));
+        return new RefereeLoad(steps, rows.content());
     }
 }

@@ -160,7 +160,7 @@ class WritePlansTest {
     static String run(ExecutionPlan plan, PlanSessions.Source sessions, Map<String, ?> values)
             throws Exception {
         StringWriter out = new StringWriter();
-        PlanRunner.stream(plan, values, sessions, new com.legend.result.JsonRowsWriter(out, plan.answerShape()));
+        PlanRunner.stream(plan, values, sessions, new com.legend.result.JsonRowsWriter(out, plan.answerShape()), java.util.UUID.randomUUID());
         return out.toString();
     }
 

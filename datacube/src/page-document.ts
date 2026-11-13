@@ -25,7 +25,9 @@
 
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
 import { readChart, type ChartSpec } from './chart-spec.ts';
-import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import {
+  CUBE_KIND, cubeToJson, definitionText, freshLinksOf, readCube, savedSource, sourceWithLinks, type CubeDocument, type CubeSource,
+} from './cube-document.ts';
 import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as tilesOf } from './layout/bands.ts';
 import { flowProblems, flowTiles, readMessage, readOutput, type Flow } from './layout/flow.ts';
 import type { PageModelRef } from './page-model.ts';
@@ -376,11 +378,48 @@ export class PageDocumentError extends Error {
 export const NOTHING_TO_SAVE = 'There is nothing on this page to save: add a data source first.';
 
 /**
+ * A PAGE AS IT IS SAVED (2026-11-11, the user's ruling: "can we strip the presigned and save the rest of report with
+ * warning?" -- agreed): each cube's source as a saved document keeps it (cube-document.ts savedSource) -- a remote
+ * file's link with a query string saved as its address alone, marked as needing a fresh link -- and the files so saved,
+ * by name, for the warning the save shows. Every way a page leaves the screen takes it: a saved page (savedRecord: the
+ * tab's Save, Python's save), a page file (pageFile: Export, Python's save(path)) and a share link.
+ */
+export function pageAsSaved(page: PageDocument): { readonly page: PageDocument; readonly freshLinks: readonly string[] } {
+  const stripped: string[] = [];
+  const cubes = page.cubes.map((c) => ({ ...c, cube: { ...c.cube, source: savedSource(c.cube.source, stripped) } }));
+  return { page: { ...page, cubes }, freshLinks: [...new Set(stripped)] };
+}
+
+/** What a save says of the files it saved without their links' query strings (`freshLinks`, by name), or nothing. */
+export function freshLinksWarning(freshLinks: readonly string[]): string | undefined {
+  if (freshLinks.length === 0) return undefined;
+  const files = freshLinks.map((n) => `“${n}”`).join(', ');
+  return `${files} ${freshLinks.length === 1 ? 'is' : 'are'} saved without ${freshLinks.length === 1 ? 'its link\'s' : 'their links\''}`
+    + ' query string (a presigned link\'s token is never saved): opening the page asks for a fresh link.';
+}
+
+/** Each remote file of the page saved needing a fresh link: its name and its address (what a fresh link is given by). */
+export function freshLinksOfPage(page: PageDocument): { readonly name: string; readonly address: string }[] {
+  const byAddress = new Map<string, { readonly name: string; readonly address: string }>();
+  for (const link of page.cubes.flatMap((c) => freshLinksOf(c.cube.source))) {
+    if (!byAddress.has(link.address)) byAddress.set(link.address, link);
+  }
+  return [...byAddress.values()];
+}
+
+/** The page with each remote file that needs a fresh link given one by its address (`links`): Python's load(links=)
+ *  and the tab's reopening read the file from that link from now on. */
+export function pageWithLinks(page: PageDocument, links: ReadonlyMap<string, string>): PageDocument {
+  return { ...page, cubes: page.cubes.map((c) => ({ ...c, cube: { ...c.cube, source: sourceWithLinks(c.cube.source, links) } })) };
+}
+
+/**
  * A PAGE AS A PAGE FILE -- Export ▸ Page File, and Python's `save(path)` (headless pageFile): its text as DataCube
  * writes it, what a newer writer put in it kept -- or why it is none, in one wording for both (B5): nothing on it
  * (NOTHING_TO_SAVE), or classes kept in a project, which a page file cannot carry yet (§15.3).
  */
-export function pageFile(page: PageDocument): { readonly file: string; readonly name: string } | { readonly refused: string } {
+export function pageFile(page: PageDocument):
+  { readonly file: string; readonly name: string; readonly freshLinks: readonly string[] } | { readonly refused: string } {
   if (page.cubes.length === 0) return { refused: NOTHING_TO_SAVE };
   if (page.model) {
     return { refused: `This page's classes are in ${page.model.project}: a page file cannot carry them yet -- save the `
@@ -395,9 +434,10 @@ export function pageFile(page: PageDocument): { readonly file: string; readonly 
     ...(page.macros ? { macros: page.macros } : {}),
     ...(page.copies ? { copies: page.copies } : {}), ...(page.unknown ? { unknown: page.unknown } : {}),
   });
-  // a page file is no saved record: opened elsewhere, its first save is a new one
+  // a page file is no saved record: opened elsewhere, its first save is a new one; a link's token never in it
   const { record: _record, ...file } = named;
-  return { file: pageToJson(file), name };
+  const saved = pageAsSaved(file);
+  return { file: pageToJson(saved.page), name, freshLinks: saved.freshLinks };
 }
 
 const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'parameters', 'macros', 'copies', 'record']);
@@ -595,20 +635,22 @@ export function savedRecord(name: string, page: PageDocument, fresh: string): Sa
   const given = givenName('page', name);
   if ('refused' in given) return given;
   if (given.name === undefined) throw new Error("a page's name is never left to what it shows");
-  // over the record it was last saved as, whichever editor saved it (B13); else a new one, under `fresh`
+  // over the record it was last saved as, whichever editor saved it (B13); else a new one, under `fresh`; a link's token
+  // never in it (pageAsSaved)
   const id = page.record ?? fresh;
-  return { id, name: given.name, content: pageContent({ ...page, name: given.name, record: id }) };
+  return { id, name: given.name, content: pageContent(pageAsSaved({ ...page, name: given.name, record: id }).page) };
 }
 
 /** A page saved as the Save window saves it -- the tab's Save and Save As, Python's save() and save_as() (headless
  *  pageRecord): over the saved page it is, or, Save As (`asNew`), as a new one under `fresh`, the record it was saved as
  *  left alone (K13); its record (savedRecord) and whether it saves over one (`over`), or why not, in its words. */
 export function pageSaving(name: string, page: PageDocument, fresh: string, asNew: boolean):
-  { readonly record: SavedRecord; readonly over: boolean } | { readonly refused: string } {
+  { readonly record: SavedRecord; readonly over: boolean; readonly freshLinks: readonly string[] } | { readonly refused: string } {
   const { record: _was, ...asItself } = page;
   const saving = asNew ? asItself : page;
   const record = savedRecord(name, saving, fresh);
-  return 'refused' in record ? record : { record, over: savesOver(saving) };
+  // the files saved without their links' query strings, for the warning the save shows (the save's own: savedRecord)
+  return 'refused' in record ? record : { record, over: savesOver(saving), freshLinks: pageAsSaved(saving).freshLinks };
 }
 
 /** The page as JSON text (exact numbers kept, as the cube's own document keeps them). */

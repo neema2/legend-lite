@@ -39,7 +39,7 @@ public final class AliasPrefix extends SqlRewriter {
             case SqlSource.Join j -> j;   // no alias of its own; children renamed
             case SqlSource.Table t -> new SqlSource.Table(t.name(), p(t.alias()), t.outputs(), t.call(), t.storedTypes(), t.quoting());
             case SqlSource.Cte c -> new SqlSource.Cte(c.name(), p(c.alias()), c.outputs());
-            case SqlSource.SourceUrl u -> new SqlSource.SourceUrl(u.url(), p(u.alias()), u.outputs());
+            case SqlSource.SourceUrl u -> new SqlSource.SourceUrl(u.url(), p(u.alias()), u.outputs(), u.form());
             case SqlSource.VarSetPlaceholder vp ->
                     new SqlSource.VarSetPlaceholder(vp.varName(), p(vp.alias()), vp.outputs());
             case SqlSource.RawSql r -> new SqlSource.RawSql(r.sql(), p(r.alias()), r.outputs(), r.writtenFor());
@@ -49,7 +49,7 @@ public final class AliasPrefix extends SqlRewriter {
             case SqlSource.Subselect sub ->
                     new SqlSource.Subselect(sub.inner(), p(sub.alias()), sub.frameName());
             case SqlSource.Values v ->
-                    new SqlSource.Values(v.rows(), v.columns(), p(v.alias()), v.outputs());
+                    new SqlSource.Values(v.rows(), v.columns(), p(v.alias()), v.outputs(), v.payload());
             case SqlSource.Pivot pv -> new SqlSource.Pivot(pv.source(), pv.on(), pv.in(), pv.named(),
                     pv.usings(), p(pv.alias()), pv.outputs());
         };

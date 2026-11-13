@@ -1,0 +1,34 @@
+// Measured 2026-11-11 on sqlite-jdbc 3.47.1.0 (B2a: SQLite's data: session table). Output:
+// 1 user kept after temp drop: USER
+// 2 unqualified read: {"a":1}|0
+// 3 after drop, user's: USER
+// 4 second drop a no-op; user's: USER
+// 5 another connection: [SQLITE_ERROR] SQL error or missing database (no such table: t)
+import java.sql.*;
+public class SqliteTemp {
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:sqlite::memory:"); Statement s = c.createStatement()) {
+            s.execute("CREATE TABLE legend_data_x (data TEXT)");
+            s.execute("INSERT INTO legend_data_x VALUES ('USER')");
+            s.execute("DROP TABLE IF EXISTS temp.legend_data_x");
+            System.out.println("1 user kept after temp drop: " + one(s, "SELECT data FROM main.legend_data_x"));
+            s.execute("CREATE TEMPORARY TABLE legend_data_x (data TEXT NULL, u_frame_ord__ INTEGER NULL)");
+            s.execute("INSERT INTO legend_data_x VALUES (json('{\"a\":1}'), 0)");
+            System.out.println("2 unqualified read: " + one(s, "SELECT data || '|' || u_frame_ord__ FROM legend_data_x"));
+            s.execute("DROP TABLE IF EXISTS temp.legend_data_x");
+            System.out.println("3 after drop, user's: " + one(s, "SELECT data FROM legend_data_x"));
+            s.execute("DROP TABLE IF EXISTS temp.legend_data_x");
+            System.out.println("4 second drop a no-op; user's: " + one(s, "SELECT data FROM legend_data_x"));
+            try (Connection c2 = DriverManager.getConnection("jdbc:sqlite:file:shared1?mode=memory&cache=shared");
+                 Connection c3 = DriverManager.getConnection("jdbc:sqlite:file:shared1?mode=memory&cache=shared");
+                 Statement s2 = c2.createStatement(); Statement s3 = c3.createStatement()) {
+                s2.execute("CREATE TEMPORARY TABLE t (x INTEGER)");
+                try { s3.executeQuery("SELECT * FROM t"); System.out.println("5 visible to another connection (BAD)"); }
+                catch (SQLException e) { System.out.println("5 another connection: " + e.getMessage()); }
+            }
+        }
+    }
+    static String one(Statement s, String q) throws SQLException {
+        try (ResultSet r = s.executeQuery(q)) { r.next(); return r.getString(1); }
+    }
+}

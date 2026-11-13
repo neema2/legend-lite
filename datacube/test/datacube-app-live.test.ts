@@ -23,6 +23,10 @@ import { cubeToJson, writeCube } from '../src/cube-document.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 /** A promise held until the test settles it. */
 function held<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
   let resolve!: (v: T) => void;
@@ -33,7 +37,7 @@ function held<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
 const settle = (): Promise<void> => new Promise((done) => { setTimeout(done, 0); });
 
 /** Python's page before its first grid (`ll.Page('Q3')` shown): a page of no grid, as pageNew makes one. */
-const EMPTY: PageDocument = readPage(JSON.parse((JSON.parse(pageNew('Q3')) as { page: string }).page), { empty: true });
+const EMPTY: PageDocument = readPage(looseJson((looseJson(pageNew('Q3')) as { page: string }).page), { empty: true });
 
 /** The editor Python is, as the tab sees it (test/fake-keeper.ts: a keeper applying a write's edits by DataCube's rule,
  *  answering the hash of the page it keeps): what it is asked, and what it answers, the test's to say. */
@@ -207,7 +211,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     // every grid of the page Python serves is
     assert.deepEqual(asked[0], ['made', null, '{"class":"p::domain::Trade","project":"p:q","revision":"r1"}', 'Q3', 1]);
     assert.deepEqual(asked[1]!.slice(0, 1), ['opened']);
-    assert.equal(JSON.parse(asked[1]![1] as string).source.class, 'p::domain::Trade');
+    assert.equal(looseJson(asked[1]![1] as string).source.class, 'p::domain::Trade');
     assert.equal(doc.querySelector('.dc-picker-status')?.textContent, 'the host read no rows', 'its refusal said in the window');
   });
 
@@ -245,7 +249,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     for (let i = 0; i < 5; i += 1) await settle();
     // made by the host -- the page's model, the class as class-source.ts classGiven takes it, beside the grid's one other
     assert.deepEqual(asked[0]?.slice(0, 1), ['made']);
-    assert.deepEqual(JSON.parse(asked[0]![1] as string).classes, model.classes);
+    assert.deepEqual(looseJson(asked[0]![1] as string).classes, model.classes);
     assert.equal(asked[0]![2], '{"class":"p::domain::Trade"}');
     assert.equal(asked[0]![4], 2, 'a grid beside another: capped');
   });

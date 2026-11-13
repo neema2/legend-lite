@@ -270,8 +270,6 @@ public final class ChannelB {
                             // bodies under one judge, to read which shapes the program road plans for it
                             .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
                                     System.getProperty("pct.channelb.judge", "BOTH")))
-                            // a server lane's system connection, as channel A's (PctBackend)
-                            .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections())
                             // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
                             // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                             .withEngineCompat(true));

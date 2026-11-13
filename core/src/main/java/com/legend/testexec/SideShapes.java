@@ -127,6 +127,19 @@ final class SideShapes {
             this.multiplicity = multiplicity;
         }
 
+        /** {@inheritDoc} Handed on: the holder decides nothing of the answer's shape. */
+        @Override
+        public void answers(ExecutionPlan.TdsResult.Shape shape) {
+            sink.answers(shape);
+        }
+
+        /** {@inheritDoc} Handed on: the execution the run names is the answer's, whatever holds it on its way (2026-11-12,
+         *  B3's check: until then a writer under this holder was told none). */
+        @Override
+        public void execution(java.util.UUID id) {
+            sink.execution(id);
+        }
+
         @Override
         public void columns(List<ExecutionPlan.Column> columns) throws java.io.IOException {
             sink.columns(columns);

@@ -84,6 +84,48 @@ class QueryDoorTest {
                         + " $c, 0, 1000); 1;}"), StorelessRuntime.RUNTIME));
     }
 
+    /** An {@code executeInDb}'s read -- a statement's own SQL text -- is the TEST road's: every product door refuses
+     *  it by name, before anything is planned (2026-11-13, the user's ruling (a) on the orchestrator's item 5: until
+     *  then a product query planned it, its text sent as written); its writes are effects, refused above. The test
+     *  door's scan does not hold it, so a test's program plans it (TestDoorTest). */
+    @Test
+    void anExecuteInDbsReadIsRefusedByNameOnEveryProductDoor() {
+        String refused = "an executeInDb's SQL in a query: a statement's own SQL text is the test road's (PCT and the"
+                + " corpus); the product's one authored SQL is the playground, and the product's query door plans none";
+        String rows = CONN_LET + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c)"
+                + ".rows->map(r|$r.values);}";
+        String names = CONN_LET + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).columnNames;}";
+        String grid = CONN_LET + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c, 0, 1000);}";
+        for (String body : java.util.List.of(rows, names, grid)) {
+            assertEquals(refused, refusal(storeless(body), StorelessRuntime.RUNTIME), body);
+            assertEquals(refused, assertThrows(NotImplementedException.class,
+                    () -> storeless(body).plan(StorelessRuntime.RUNTIME)).getMessage(), body);
+            assertEquals(refused, assertThrows(NotImplementedException.class,
+                    () -> storeless(body).projectPlan(StorelessRuntime.RUNTIME)).getMessage(), body);
+        }
+        // the hosts' doors: a snapshot's stream and copy, each over the query a request carries (a table output's rows
+        // are planned through executionPlan too, OutputPlan, once they read one of the page's tables)
+        String model = StorelessRuntime.with("", Databases.PLATFORM);
+        String lambda = com.legend.parser.SpecParser.lambdaJson(grid, false);
+        java.util.Map<String, Object> copy = new java.util.LinkedHashMap<>();
+        copy.put("databaseType", "DuckDB");
+        copy.put("model", model);
+        copy.put("runtime", StorelessRuntime.RUNTIME);
+        copy.put("lambda", lambda);
+        copy.put("table", "snapped");
+        assertEquals(refused, assertThrows(NotImplementedException.class,
+                () -> planner.Boundary.snapCopy(com.legend.json.Json.toCompact(copy))).getMessage());
+        java.util.Map<String, Object> stream = new java.util.LinkedHashMap<>(copy);
+        stream.put("plane", "warehouse");
+        assertEquals(refused, assertThrows(NotImplementedException.class,
+                () -> planner.Boundary.snapStream(com.legend.json.Json.toCompact(stream))).getMessage());
+        // the test door's scan: no test-only kind, so a test's program plans the statement
+        TypedQuery read = storeless(rows);
+        assertNull(new QueryDoor.Scan(read, StorelessRuntime.RUNTIME).of(read.body().get(1)));
+        assertEquals(QueryDoor.TestOnly.RAW_SQL,
+                new QueryDoor.Scan(read, StorelessRuntime.RUNTIME).refusedByTheProduct(read.body().get(1)));
+    }
+
     @Test
     void aLetBoundExecuteIsRefusedAndAFailIsNoAssert() {
         TypedQuery let = Compiler.query(Compiler.compileModel(SEEDED), "{| let r = meta::pure::router::execute("
@@ -105,7 +147,7 @@ class QueryDoorTest {
         // the plan's own runtime: its test data is its target's setup step
         ExecutionPlan own = Compiler.query(Compiler.compileModel(SEEDED), read).executionPlan("x::Seeded");
         assertInstanceOf(ExecutionPlan.TdsResult.class, own.root());
-        assertFalse(own.answerSql().target().setup().isEmpty(), "the declared rows, the target's setup");
+        assertFalse(own.answerSql().target().loads().isEmpty(), "the declared rows, the target's load");
     }
 
     /** M3f, D15: an inline execute(...)'s result read lazily is the product's: planned as its chain, its activity's

@@ -24,7 +24,8 @@
 import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import { SnapManager } from '../../../engine-client/src/snap.ts';
+import { countQuery, SnapManager } from '../../../engine-client/src/snap.ts';
+import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import {
   listObjects,
   loadWarehouseBinding,
@@ -38,6 +39,7 @@ import { levelLambda } from '../../src/query.ts';
 import { PlanThenRun } from '../../src/runner.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { CASES, MODEL, queries, RUNTIME } from '../wasm-differential/cases.ts';
+import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 const SOURCE = accessor('trades::DB', 'TRADES');
 const COLUMNS = ['region', 'desk', 'book', 'year', 'qtr', 'notional', 'pnl', 'qty'];
@@ -174,9 +176,10 @@ async function run(): Promise<void> {
       }
     }
     // SNAP: exactly the rows the reader may read, through the real SnapManager
-    const sourceSql = (await planner.plan(from(SOURCE).select(COLUMNS).lambda())).sql;
+    // the pull: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
+    const pull = await planner.pullRequest(from(SOURCE).select(COLUMNS).lambda());
     const snaps = new SnapManager(local, live, planner);
-    const info = await snaps.snap(sourceSql, 0, { target: { table: 'TRADES', landed: async () => SOURCE } });
+    const info = await snaps.snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'TRADES', landed: async () => SOURCE } });
     equal(info.rowCount, 10, 'the snap holds every row the reader may read:');
     const refused: string[] = [];
     const differ: string[] = [];
@@ -216,16 +219,70 @@ async function run(): Promise<void> {
     const pure = levelLambda(snapshot, { level: 1, parent: [] });
     const liveOut = await new PlanThenRun(own, live).run(pure, snapshot);
     const snaps = new SnapManager(local, live, planner);
-    await snaps.snap((await own.plan(from(m.source).select(COLUMNS).lambda())).sql, 0,
-      { target: { schema: trades.schema, table: trades.name, landed: async () => m.source } });
+    const pulled = from(m.source).select(COLUMNS).lambda();
+    await snaps.snap(0,
+      { pull: await own.pullRequest(pulled), count: await own.plan(countQuery(pulled)), target: { schema: trades.schema, table: trades.name, landed: async () => m.source } });
     const localOut = await new PlanThenRun(own, local).run(pure, snapshot);
     equal(shape(localOut.rows, true), shape(liveOut.rows, true), 'live and snapped:');
     equal(liveOut.rows.rowCount, 4, 'groups:');
     await snaps.release();
   });
 
+  await check('a snap lands exactly through its planned stream; a tampered or cut stream from the warehouse rolls back', async () => {
+    // the user's ruling of 2026-11-11: a snapshot from a remote plane is a planned load whose source is a stream, kept
+    // only when the stream completed and the table holds the rows the warehouse counted
+    const sourceSql = (await planner.plan(from(SOURCE).select(COLUMNS).lambda())).sql;
+    // the pull it was planned from: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
+    const pull = await planner.pullRequest(from(SOURCE).select(COLUMNS).lambda());
+    const snaps = new SnapManager(local, live, planner);
+    const info = await snaps.snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'EXACT', landed: async () => SOURCE } });
+    equal(info.rowCount, 10, 'the rows the copy holds, as its database counted them:');
+    equal(info.pulledBy?.serverRows, 10, 'the warehouse\'s own count:');
+    // every column's type as the warehouse's table declares it, every row as the warehouse answered it
+    const types = await local.run(unplanned("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'EXACT' ORDER BY column_index"), 0);
+    deepEqual(types.columns.map((c) => c.values), [COLUMNS,
+      ['VARCHAR', 'VARCHAR', 'VARCHAR', 'INTEGER', 'VARCHAR', 'DOUBLE', 'DOUBLE', 'INTEGER']], 'the copy\'s columns:');
+    const rowsOf = (t: { readonly columns: readonly { readonly values: readonly unknown[] }[]; readonly rowCount: number }): string[] =>
+      Array.from({ length: t.rowCount }, (_, i) => JSON.stringify(t.columns.map((c) => {
+        const v = c.values[i];
+        return typeof v === 'bigint' ? v.toString() : v;
+      }))).sort();
+    deepEqual(rowsOf(await local.run(unplanned(`SELECT ${COLUMNS.join(', ')} FROM "EXACT"`), 0)), rowsOf(await live.run(sourceSql, 0)),
+      'the copy\'s rows and the warehouse\'s:');
+    await snaps.release();
+    // a stream from the real warehouse, tampered (each chunk sent twice) or cut short (the read fails after its first
+    // chunk): rolled back, refused by name, no table left
+    const tampered = {
+      databaseType: live.databaseType,
+      run: live.run.bind(live),
+      async *arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (r: Receipt) => void): AsyncIterable<Uint8Array> {
+        for await (const bytes of live.arrowChunks(unplanned(sql), signal, onReceipt)) {
+          // a copy first: DuckDB-WASM takes a chunk's buffer into its worker as it puts the rows in
+          yield bytes.slice();
+          yield bytes;
+        }
+      },
+    };
+    await rejects(new SnapManager(local, tampered, planner).snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'TAMPERED', landed: async () => SOURCE } }),
+      /landed 20 rows in TAMPERED, where its plane counted 10: nothing of it is kept/);
+    const cut = {
+      databaseType: live.databaseType,
+      run: live.run.bind(live),
+      async *arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (r: Receipt) => void): AsyncIterable<Uint8Array> {
+        for await (const bytes of live.arrowChunks(unplanned(sql), signal, onReceipt)) {
+          yield bytes;
+          throw new Error('the connection was reset');
+        }
+      },
+    };
+    await rejects(new SnapManager(local, cut, planner).snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'CUT', landed: async () => SOURCE } }),
+      /the connection was reset/);
+    const left = await local.run(unplanned("SELECT count(*) AS n FROM duckdb_tables() WHERE table_name IN ('TAMPERED', 'CUT')"), 0);
+    equal(Number(left.columns[0]!.values[0]), 0, 'no table left by a stream rolled back:');
+  });
+
   await check('a table the reader was not granted is refused, live', async () => {
-    await rejects(live.run('SELECT * FROM secret', 0), /FORBIDDEN/);
+    await rejects(live.run(unplanned('SELECT * FROM secret'), 0), /FORBIDDEN/);
   });
 
   await check('every live answer carries the server\'s receipt, and the server confirms it; a snap names its pull', async () => {
@@ -241,9 +298,10 @@ async function run(): Promise<void> {
     match(await r.check!(), new RegExp(`^On the warehouse's record for rita: statement ${r.statementId}, succeeded`));
     // an id the server never issued is not on its record
     match(await live.check('00000000-0000-0000-0000-000000000000'), /^Not on the warehouse's record for rita/);
-    const sourceSql = (await planner.plan(from(SOURCE).select(COLUMNS).lambda())).sql;
+    // the pull: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
+    const pull = await planner.pullRequest(from(SOURCE).select(COLUMNS).lambda());
     const snaps = new SnapManager(local, live, planner);
-    const info = await snaps.snap(sourceSql, 0, { target: { table: 'TRADES', landed: async () => SOURCE } });
+    const info = await snaps.snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'TRADES', landed: async () => SOURCE } });
     equal(info.pulledBy?.as, 'rita');
     match(await info.pulledBy!.check!(), /^On the warehouse's record for rita/);
     // snapped, the tab's own engine answers, and its receipt says so
@@ -258,14 +316,14 @@ async function run(): Promise<void> {
     const stale = new WarehouseEngine(binding, {
       baseUrl: base, token: 'cml0YXwx.bm90LWEtcmVhbC1zaWduYXR1cmU', principal: 'rita', expiresAt: '',
     }, 'main', 'DuckDB');
-    const refused = await stale.run('SELECT 1 AS one', 0).catch((e: unknown) => e);
+    const refused = await stale.run(unplanned('SELECT 1 AS one'), 0).catch((e: unknown) => e);
     const expired = sessionExpired(refused);
     ok(expired instanceof SessionExpired, `not a SessionExpired: ${String(refused)}`);
     equal(expired.principal, 'rita');
     equal(expired.baseUrl, base);
     await rejects(stale.signInAgain('wrong'), /sign-in failed/);
     await stale.signInAgain('rita-pw');
-    const again = await stale.run('SELECT 1 AS one', 0);
+    const again = await stale.run(unplanned('SELECT 1 AS one'), 0);
     equal(again.rowCount, 1);
     match(await again.receipt!.check!(), /^On the warehouse's record for rita/);
   });
@@ -275,7 +333,7 @@ async function run(): Promise<void> {
     const engine = new WarehouseEngine(binding, s, 'main', 'DuckDB');
     await engine.refreshToken();
     ok(Date.parse(engine.expiresAt) >= Date.parse(s.expiresAt), 'a refreshed token lives at least as long');
-    const out = await engine.run('SELECT 1 AS one', 0);
+    const out = await engine.run(unplanned('SELECT 1 AS one'), 0);
     match(await out.receipt!.check!(), /^On the warehouse's record for rita/, 'the fresh token is rita, on the server:');
     await engine.close();
     // BY ITSELF: a session the page believes ends in 1.5s is refreshed at 80% of that, unasked. The engine's clock is
@@ -291,7 +349,7 @@ async function run(): Promise<void> {
     for (let i = 0; i < 1_000 && soon.expiresAt === before; i++) await new Promise((r) => setTimeout(r, 10));
     ok(soon.expiresAt !== before, 'the timer swapped the token');
     ok(Date.parse(soon.expiresAt) > Date.now() + 30 * 60_000, 'for one with the server\'s full life');
-    equal((await soon.run('SELECT 1 AS one', 0)).rowCount, 1);
+    equal((await soon.run(unplanned('SELECT 1 AS one'), 0)).rowCount, 1);
     await soon.close();
   });
 }

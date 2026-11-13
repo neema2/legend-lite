@@ -284,6 +284,45 @@ junit_test(
     ],
 )
 
+# THE PLANNED-SQL GUARD (the total wall's C3, 2026-11-12): a host sends its database only what a plan carries or the
+# planner wrote -- engine-client's PlannedSql in the tab, _planned.send in Python -- and this pins where that type is
+# made, what is named instead, and that Python's every statement goes through the one send. Its folders are
+# host_sql.txt's.
+junit_test(
+    name = "planned_sql_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["PlannedSqlTest.java"],
+    data = [
+        ":host_sql.txt",
+        # the Java that reaches the authored door (the C final audit's H1, 2026-11-12)
+        "//core:main_srcs",
+        "//native:main_java",
+        "//wasm:planner_java",
+        "//datacube:all_files",
+        "//depot-client:all_files",
+        "//engine-client:all_files",
+        "//legend-art:all_files",
+        "//model-changes:all_files",
+        "//pure-protocol:all_files",
+        "//python:all_files",
+        "//query:all_files",
+        "//query-store:all_files",
+        "//sdlc-client:all_files",
+        "//studio:all_files",
+        "@repo_inventory//:files.txt",
+    ],
+    jvm_flags = [
+        "-Dhost.sql.rule=$(rlocationpath :host_sql.txt)",
+        "-Dinventory.files=$(rlocationpath @repo_inventory//:files.txt)",
+    ],
+    select = ["--select-class=com.legend.tools.guards.PlannedSqlTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 exports_files(
     ["host_sql.txt"],
     visibility = ["//python:__pkg__"],

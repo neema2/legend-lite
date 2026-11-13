@@ -117,34 +117,30 @@ public final class TestDoor {
         TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
         PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
         List<PlannedStep> planned = program.steps();
-        for (int place : kinds.frameRuns()) {
-            if (place >= planned.size() || !(planned.get(place) instanceof PlannedStep.Product p
-                    && p.node() instanceof ExecutionPlan.Check)) {
-                throw new IllegalStateException("the frame run at place " + place + " of the test door's plan is not"
-                        + " a check of its steps");
-            }
-        }
         // each step the planner holds as the test plan holds it: a product node, a frame let's eager run (M9: sent under
-        // its own origin, LET -- a fact of the plan), or the verdict step the library placed under its handle
+        // its own origin, LET -- a fact of the plan, marked where it was planned), or the verdict step the library
+        // placed under its handle
         List<TestPlan.TestStep> steps = new java.util.ArrayList<>(planned.size());
         for (int i = 0; i < planned.size(); i++) {
-            boolean frameRun = kinds.frameRuns().contains(i);
             steps.add(switch (planned.get(i)) {
-                case PlannedStep.Product p when frameRun ->
-                        new TestPlan.FrameRun((ExecutionPlan.Check) p.node());
+                case PlannedStep.FrameRun f -> new TestPlan.FrameRun(f.check());
                 case PlannedStep.Product p -> new TestPlan.Run(p.node());
                 case PlannedStep.Extension e -> kinds.extension(e.handle());
             });
         }
         Map<Integer, Effect> effects = byStep(planned, kinds.effects());
-        Map<Integer, List<String>> seeds = byStep(planned, kinds.seeds());
+        Map<Integer, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds = byStep(planned, kinds.seeds());
         // the ledger texts are the compatibility edge's to plan, by the step's index (the plan-as-data design's step 8,
         // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
         if (edge != null) {
+            unseededLoads(planned, seeds);
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
                     e.statements().stream().map(Recorded::query).toList())));
-            seeds.forEach((i, texts) -> byStep.put(i, edge.seed(texts)));
+            seeds.forEach((i, copy) -> {
+                com.legend.setup.LoadSteps referee = copy.get();
+                byStep.put(i, edge.seed(referee.steps(), referee.content()));
+            });
         }
         // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
         // (the slice 2 invariant audit's hole 3, 2026-11-08)
@@ -153,6 +149,24 @@ public final class TestDoor {
         // door planned it beside the plan until then)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
                 PlanMaker.testSessionTarget(body.context(), runtime));
+    }
+
+    /**
+     * Under the compatibility edge, every load step of the body's program is a seed the test planner planned texts for
+     * ({@code TestKinds.seeds}), which the edge's ledger records; one with none is refused by name, since it would fail
+     * the run at it. The graph's system store's load is no body's, and the ledger records none of it, as at the run.
+     * (A {@code data:} payload's session table, recorded as nothing, went with the JSON pass, 2026-11-11: a payload is
+     * bound or inline.)
+     */
+    private static void unseededLoads(List<PlannedStep> steps,
+            Map<Integer, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds) {
+        for (int i = 0; i < steps.size(); i++) {
+            if (steps.get(i) instanceof PlannedStep.Product p && p.node() instanceof ExecutionPlan.Load u
+                    && !(u.target().database() instanceof ExecutionPlan.Database.System) && !seeds.containsKey(i)) {
+                throw new IllegalStateException("a load step of the test door's plan (" + u.identity() + ") is not a"
+                        + " seed the edge's ledger records");
+            }
+        }
     }
 
     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library

@@ -3,14 +3,12 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.sql.DialectCapability;
 
 import com.legend.Compiler;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -160,8 +158,9 @@ class PostgresDialectTest {
                 ORDER BY "qualify_src"."sym" NULLS LAST
                 LIMIT 3""", plan("->extend(over(~sym, ~id->descending()), ~[rn:{p,w,r|$p->rowNumber($r)}])"
                 + "->filter(r|$r.rn == 1)->select(~[sym, id])->sort(~sym->ascending())->limit(3)"));
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT *
+                SELECT "qualify_src"."id" AS "id", "qualify_src"."sym" AS "sym", "qualify_src"."rn" AS "rn"
                 FROM (
                   SELECT "t0".id AS "id", "t0".sym AS "sym", ROW_NUMBER() OVER (PARTITION BY "t0".sym ORDER BY "t0".id NULLS LAST) AS "rn"
                   FROM trades AS "t0"
@@ -201,8 +200,9 @@ class PostgresDialectTest {
     void silentWrongAnswersAreSpelledAway() {
         // matches() anchors (~ is a PARTIAL match here); no ends_with; error() raises
         // lazily in the CASE's own type; a shift widens to BIGINT first (an INTEGER
-        // shift is masked to 32 bits); sub-microsecond literal digits truncate (Postgres
-        // would ROUND 9999-12-31 23:59:59.999999999 into year 10000)
+        // shift is masked to 32 bits); a literal of sub-microsecond digits is refused, never
+        // cut (S181, A7, 2026-11-10: Postgres would ROUND 9999-12-31 23:59:59.999999999 into
+        // year 10000; until A7 the dialect cut it to .999999)
         assertEquals("""
                 SELECT ("t0".sym ~ '(?p)^(?:S1.*)$') AS "m", (right("t0".sym, length('1')) = '1') AS "ew", \
                 CASE WHEN "t0".qty - 1 = 0 THEN CAST(CAST(CAST(chr(31) || ('Division by zero') || chr(31) AS TIMESTAMPTZ) \
@@ -210,10 +210,15 @@ class PostgresDialectTest {
                 END AS "dv", (CAST(CAST("t0".id AS BIGINT) AS BIGINT) << CAST(40 AS INTEGER)) AS "sh"
                 FROM trades AS "t0"
                 WHERE "t0".ts < TIMESTAMP '9999-12-31T23:59:59.999999'""",
-                plan("->filter(r|$r.ts->toOne() < %9999-12-31T23:59:59.999999999)"
+                plan("->filter(r|$r.ts->toOne() < %9999-12-31T23:59:59.999999000)"
                         + "->extend(~[m: r|$r.sym->toOne()->matches('S1.*'), ew: r|$r.sym->toOne()->endsWith('1'),"
                         + " dv: r|$r.qty->toOne() / ($r.qty->toOne() - 1),"
                         + " sh: r|$r.id->toOne()->bitShiftLeft(40)])->select(~[m, ew, dv, sh])"));
+        var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.sql.DialectCapability.class,
+                () -> plan("->filter(r|$r.ts->toOne() < %9999-12-31T23:59:59.999999999)->select(~[id])"));
+        org.junit.jupiter.api.Assertions.assertTrue(refused.getMessage().contains(
+                "the date-time 9999-12-31T23:59:59.999999999 has 9 fraction digits; Postgres keeps 6"),
+                refused.getMessage());
     }
 
     @Test
@@ -244,8 +249,13 @@ class PostgresDialectTest {
         assertTrue(plan("->extend(~[r: r|$r.f8->toOne()->round(2)])->select(~[id, r])").contains(
                 "(round(CAST(\"t0\".f8 AS DOUBLE PRECISION) * power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"
                         + " / power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"));
-        // a dynamic pivot needs a key-discovery round trip a planner cannot make
-        assertThrows(DialectCapability.class, () -> plan("->pivot(~[ok], ~[t: r|$r.qty : y|$y->sum()])"));
+        // a dynamic pivot's key-discovery round trip is its plan's keys statement, read before its body (B3,
+        // 2026-11-11: the text plan is the execution plan's keyed result; until then the one-statement text refused it
+        // here as a capability Postgres lacks): a plan whose text does not run alone
+        com.legend.plan.QueryPlan pivot = Compiler.query(Compiler.compileModel(MODEL),
+                "#>{pg::DB.trades}#->pivot(~[ok], ~[t: r|$r.qty : y|$y->sum()])").plan("pg::RT");
+        assertTrue(pivot.plan().root() instanceof com.legend.executionplan.ExecutionPlan.Keyed, pivot.sql());
+        assertFalse(pivot.textAlone(), pivot.sql());
         // a DateTime's text (the one owner, 2026-10-18): the fraction read at nine digits -- to_char's US, six, and
         // three written zeros -- and trimmed of its trailing zeros by the database
         String toString = plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])");
@@ -256,8 +266,9 @@ class PostgresDialectTest {
     void theOtherDialectsAreUntouched() {
         // the same query on a DuckDB runtime: bare identifiers, DuckDB's ROUND_EVEN
         String duck = Compiler.query(Compiler.compileModel(MODEL.replace("type: Postgres", "type: DuckDB")), "#>{pg::DB.trades}#->extend(~[r: r|$r.f8->toOne()->round()])->select(~[id, r])").plan("pg::RT").sql();
+        // 2026-11-12 (the total wall's B): the root's columns labeled (AnsiSqlRenderer#labeled)
         assertEquals("""
-                SELECT t0.id, CAST(ROUND_EVEN(t0.f8, 0) AS BIGINT) AS r
+                SELECT t0.id AS id, CAST(ROUND_EVEN(t0.f8, 0) AS BIGINT) AS r
                 FROM trades AS t0""", duck);
         assertEquals("""
                 SELECT "t0".id AS "id", CAST(round(CAST("t0".f8 AS DOUBLE PRECISION)) AS BIGINT) AS "r"

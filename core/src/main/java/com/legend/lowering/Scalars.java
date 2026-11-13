@@ -2892,6 +2892,11 @@ final class Scalars {
         if (t == Type.Primitive.BOOLEAN) {
             return SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, x);
         }
+        // a Decimal's or a Number's text is a SEMANTIC node too (the tenets audit's M-6, A6, 2026-11-10): the operand's
+        // Pure type is known HERE, its plain digits each dialect's to spell
+        if (t == Type.Primitive.DECIMAL || t == Type.Primitive.NUMBER) {
+            return SqlExpr.Call.of(SqlFn.DECIMAL_TO_TEXT, x);
+        }
         return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
     }
 
@@ -3022,6 +3027,29 @@ final class Scalars {
                 ? cell.substring(0, cell.length() - 1) : cell;
     }
 
+    /** A TDS cell's date, in its ISO shape (the final audit, 2026-11-12: the class of the test-data routes' literal). */
+    private static final Pattern TDS_DATE = Pattern.compile("[+-]?\\d{1,9}-\\d{2}-\\d{2}");
+
+    /** A TDS cell's date or date-time, in its ISO shape: a date, then optionally a time (to the second, a fraction of up
+     *  to nine digits) and an offset. */
+    private static final Pattern TDS_DATE_TIME = Pattern.compile("[+-]?\\d{1,9}-\\d{2}-\\d{2}"
+            + "([T ]\\d{2}(:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?)?)?([+-]\\d{2}(:?\\d{2})?|Z)?");
+
+    /**
+     * {@code text}, a TDS literal's cell for a column of {@code type}, where it has {@code shape}: a typed literal's text
+     * is written into the statement as it is ({@code DATE '<text>'}), so a cell of any other shape -- a quote above all,
+     * which would end the literal -- is refused by name, never written (the final audit, 2026-11-12: a query's own
+     * {@code #TDS} cell for an annotated StrictDate, Date or DateTime column reached the literal unchecked).
+     */
+    private static String isoCell(String text, Pattern shape, Type type) {
+        if (!shape.matcher(text).matches()) {
+            throw new IllegalArgumentException("a TDS cell '" + text + "' of a " + type.typeName() + " column is no"
+                    + " ISO " + (shape == TDS_DATE ? "date (yyyy-MM-dd)" : "date or date-time (yyyy-MM-dd[THH:mm[:ss[.f]]]"
+                    + "[offset])") + ": refused, never written into a statement");
+        }
+        return text;
+    }
+
     static SqlExpr tdsCell(String cell, Type type) {
         if (cell == null || cell.isEmpty()
                 || cell.equals(PlatformTypes.TDS_NULL_CELL)
@@ -3057,7 +3085,7 @@ final class Scalars {
             return new SqlExpr.BoolLit(Boolean.parseBoolean(cell));
         }
         if (type == Type.Primitive.STRICT_DATE) {
-            return new SqlExpr.DateLit(cell.startsWith("%") ? cell.substring(1) : cell);
+            return new SqlExpr.DateLit(isoCell(cell.startsWith("%") ? cell.substring(1) : cell, TDS_DATE, type));
         }
         if (type == Type.Primitive.DATE_TIME || type == Type.Primitive.DATE) {
             String v = cell.startsWith("%") ? cell.substring(1) : cell;
@@ -3070,6 +3098,7 @@ final class Scalars {
             if (frac.find()) {
                 v = v.substring(0, frac.start()) + "." + frac.group(1).substring(0, 6);
             }
+            v = isoCell(v, TDS_DATE_TIME, type);
             // pure Date is VALUE-polymorphic (cluster 40 companion): a
             // date-only cell stays a DATE literal — without this a
             // Date[1] column of date-only cells would render

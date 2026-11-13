@@ -195,7 +195,13 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   catalogColumnsSql: "a catalog's reading is the tab's own database's",
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
   executeAnswer: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
-  testData: "a model's test data is the tab's own database's",
+  fileLoad: "a host's own file is read into the tab's own database",
+  remoteMount: "a remote file is mounted on the tab's own database (Python mounts its own: remote.json)",
+  snapStream: "a snap of a remote plane streams into the tab's own database (Python snaps its own: snap.json)",
+  snapCopy: "a snap's copy is the tab's own database's (Python snaps its own: snap.json)",
+  outputPlan: "a table Output is written into the tab's own database (Python's flow.run writes its own)",
+  synthesize: "rows made for a declared table are the tab's own database's (SYNTHESIZE, DuckDB alone)",
+  authored: "a person's own statement is Studio's SQL playground's, on the tab's own database",
   sessionSetup: "a session's setup is the tab's own database's",
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",
@@ -570,7 +576,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
       release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }, true); },
       // a copy Python made for its page (grid.snap(), §18.8): what the page follows the snap command with
       held: async (table: string) =>
-        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as InferredModel & { readonly table: string },
+        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as PythonModel & { readonly table: string },
     } : {}),
     ...(offers.files ? {
       ingestFile: async (file: File, options: { readonly table: string }) => {
@@ -596,7 +602,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
     // remote URL, never from its own machine's files
     ...(offers.remote ? {
       mountRemote: async (url: string, s3: S3Credentials | undefined, name: string) =>
-        JSON.parse(await posted(link, 'remote.json', { url, name, ...(s3 ? { s3 } : {}) })) as InferredModel,
+        JSON.parse(await posted(link, 'remote.json', { url, name, ...(s3 ? { s3 } : {}) })) as PythonModel,
     } : {}),
   };
 }
@@ -617,9 +623,13 @@ function pythonWarehouse(link: PythonLink): WarehouseService {
     signInWithKey: () => Promise.reject(new Error('a page on Python signs in to a warehouse by its user and password')),
     table: async (session, object) => JSON.parse(await posted(link, 'warehouse.json', {
       op: 'table', url: session.baseUrl, catalog: object.catalog, schema: object.schema, name: object.name,
-    })) as InferredModel,
+    })) as PythonModel,
   };
 }
+
+/** A table's model as Python's page answers it: the model Python wrote and holds. It holds no plan's statement (the
+ *  final audit's item 1(d), 2026-11-12: a model carries no copy select list; a copy's conversions are the platform's). */
+type PythonModel = InferredModel;
 
 /** A fetch of Python's that carries the engine's token, for the clients of what it serves. */
 function tokened(link: PythonLink): typeof fetch {

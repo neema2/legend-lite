@@ -30,6 +30,7 @@ import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
 import { runfileDirUrl, runfileFromEnv } from '../../../tools/js/runfiles.mts';
 import { openDatabase } from '../host/node.ts';
+import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 const home = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? '.', 'legend-lite-home-'));
 const engine = spawn(runfileFromEnv('ENGINE_FIXTURE'), ['--site', runfileFromEnv('DATACUBE_SITE')], {
@@ -111,12 +112,12 @@ before(async () => {
   const duck = new DuckDbEngine(database.connection);
   // the same frame in the tab's DuckDB: its table as the model declares it, the same rows
   const t = declaredTable(served.model);
-  if (t.name.includes('.')) await duck.run(`CREATE SCHEMA IF NOT EXISTS ${t.name.split('.')[0]}`, 0);
-  await duck.run(`CREATE TABLE ${t.name} (${t.columns.map(([n, ty]) => `"${n}" ${ty}`).join(', ')})`, 0);
-  await duck.run(`INSERT INTO ${t.name} VALUES ${served.rows.map((r) => `(${r.map(sqlValue).join(', ')})`).join(', ')}`, 0);
+  if (t.name.includes('.')) await duck.run(unplanned(`CREATE SCHEMA IF NOT EXISTS ${t.name.split('.')[0]}`), 0);
+  await duck.run(unplanned(`CREATE TABLE ${t.name} (${t.columns.map(([n, ty]) => `"${n}" ${ty}`).join(', ')})`), 0);
+  await duck.run(unplanned(`INSERT INTO ${t.name} VALUES ${served.rows.map((r) => `(${r.map(sqlValue).join(', ')})`).join(', ')}`), 0);
   // the zone a browser in Kathmandu gives DuckDB-WASM, then the session set up as every tab's DuckDB is as it opens
   // (engine-client's setUpSession, which startDuckDbInTab runs): UTC, the server's
-  await duck.run("SET TimeZone = 'Asia/Kathmandu'", 0);
+  await duck.run(unplanned("SET TimeZone = 'Asia/Kathmandu'"), 0);
   await setUpSession(duck, (databaseType) => grammar.sessionSetup(databaseType));
   tab = new BrowserEngine(grammar, duck, 'this browser');
 });

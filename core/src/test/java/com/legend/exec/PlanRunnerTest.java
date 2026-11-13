@@ -114,6 +114,13 @@ class PlanRunnerTest {
         assertEquals(invalid("parameter 't' (DateTime[1]): +10000-01-01T00:00 is outside the years 1 to 9999: no"
                 + " date-time text a database reads stands for it"),
                 refusal(declared("t", "DateTime", 1, 1), LocalDateTime.of(10000, 1, 1, 0, 0)));
+        // and a date alike, whether a StrictDate's or a Date's (the correctness re-audit's 4, 2026-11-09)
+        assertEquals(invalid("parameter 'd' (StrictDate[1]): +10000-01-01 is outside the years 1 to 9999: no date text"
+                + " a database reads stands for it"),
+                refusal(declared("d", "StrictDate", 1, 1), java.time.LocalDate.of(10000, 1, 1)));
+        assertEquals(invalid("parameter 'd' (Date[1]): -0001-01-01 is outside the years 1 to 9999: no date text a"
+                + " database reads stands for it"),
+                refusal(declared("d", "Date", 1, 1), java.time.LocalDate.of(-1, 1, 1)));
         // what no plan binds yet (the planner refuses it first; PARK-21)
         assertEquals(invalid("parameter 'b' (Byte[1]): a Byte value is not bound by a plan (PARK-21)"),
                 refusal(declared("b", "Byte", 1, 1), 1L));
@@ -170,30 +177,49 @@ class PlanRunnerTest {
         ExecutionPlan given = ExecutionPlan.reading(List.of(declared("n", "Integer", 1, 1)),
                 counting(inMemory("s::C", Databases.PLATFORM, new ConnectionSpecification.InMemory()), "UNOPENED_T").root());
         var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.rows(given, Map.of("n", "1"),
-                com.legend.exec.PlanSessions.refusing("a session was opened")));
+                com.legend.exec.PlanSessions.refusing("a session was opened"), java.util.UUID.randomUUID()));
         assertEquals(invalid("parameter 'n' (Integer[1]): given \"1\" (String): an Integer is a Long"),
                 refused.getMessage());
+    }
+
+    /** A key cell's slot in each copy of a per-key region is the PLAN's own key slot, told apart by its type, its value
+     *  the copy's key's text (the C final audit's J7, 2026-11-12: until then exec made a slot of its own for it, its
+     *  type a VARCHAR exec wrote, told apart by an empty name). */
+    @Test
+    void anExpandedKeySlotIsThePlansOwn_itsValueTheKeysText() {
+        String text = "SELECT X FROM T WHERE K IN (?)";
+        int at = text.indexOf('?');
+        ExecutionPlan.Slot key = new ExecutionPlan.Slot("", new ExecutionPlan.Binding.Key(0));
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null,
+                TestBackends.settings(Databases.PLATFORM), null);
+        ExecutionPlan.Sql sql = new ExecutionPlan.Sql(text, List.of(key), target, null, List.of(
+                new ExecutionPlan.Region(at, at + 1, "", ", ", null, 0, 1, List.of())));
+        PlanRunner.Expanded expanded = PlanRunner.expand(sql, List.of(List.of("a"), List.of("b")), Map.of());
+        assertEquals("SELECT X FROM T WHERE K IN (?, ?)", expanded.statement().text());
+        assertEquals(List.of(key, key), expanded.slots());
+        assertEquals(List.of(new PlanParameters.One("a"), new PlanParameters.One("b")), expanded.values());
     }
 
     /** A slot's null type is a JDBC type's name, or the plan is refused by name before any session is opened. */
     @Test
     void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of());
+                List.of(), List.of(), null, null, null);
         ExecutionPlan bad = ExecutionPlan.reading(List.of(declared("n", "Integer", 0, 1)), cell(
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
         var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(),
-                com.legend.exec.PlanSessions.refusing("a session was opened")));
+                com.legend.exec.PlanSessions.refusing("a session was opened"), java.util.UUID.randomUUID()));
         assertEquals("slot of 'n': its null type 'NOT_A_TYPE' is no JDBC type", refused.getMessage());
     }
 
     // ---- sessions -------------------------------------------------------------------------------------------------
 
     static ExecutionPlan counting(ConnectionDefinition connection, String table) {
-        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                List.of(), List.of(new ExecutionPlan.LoadStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
-                        new ExecutionPlan.LoadStep.Statement("INSERT INTO " + table + " VALUES (1)")));
+        ExecutionPlan.Target target = target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
+                new ExecutionPlan.LoadStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
+                new ExecutionPlan.LoadStep.Statement("INSERT INTO " + table + " VALUES (1)"));
         return ExecutionPlan.reading(List.of(), cell(
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
@@ -213,7 +239,7 @@ class PlanRunnerTest {
     /** {@link #run(ExecutionPlan, PlanSessions.Source)} with {@code values}. */
     static @com.legend.base.Nullable String run(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions)
             throws Exception {
-        List<List<Object>> rows = PlanRunner.rows(plan, values, sessions).rows();
+        List<List<Object>> rows = PlanRunner.rows(plan, values, sessions, java.util.UUID.randomUUID()).rows();
         assertEquals(1, rows.size(), "one row");
         return (String) rows.get(0).get(0);
     }
@@ -254,7 +280,9 @@ class PlanRunnerTest {
     }
 
     static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.LoadStep... setup) {
-        return new ExecutionPlan.Target(database, List.of(), List.of(setup));
+        return com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(database, List.of(), List.of(), null,
+                TestBackends.settings(database.type()), null),
+                List.of(setup));
     }
 
     static ExecutionPlan.LoadStep.Statement statement(String sql) {
@@ -277,32 +305,54 @@ class PlanRunnerTest {
         }
     }
 
-    /** Rows for a bulk loader, into table K (A, B). */
-    static ExecutionPlan.LoadStep.Rows kRows(List<String> row) {
-        return new ExecutionPlan.LoadStep.Rows("K_STAGE", "CREATE TEMP TABLE K_STAGE (A VARCHAR, B VARCHAR)",
-                "INSERT INTO K SELECT A, B FROM K_STAGE", "DROP TABLE K_STAGE", List.of(row));
+    /** A load's model data is a content blob of statements (A2, 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+     *  §1.1): the runner sends each, as written, under the seeds' mark, on every in-process database. */
+    @Test
+    void aLoadsStatementsBlobSendsEachStatementAsWritten() throws Exception {
+        for (var connection : inMemoryConnections()) {
+            ExecutionPlan.Target target = com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(
+                    new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
+                    List.of(), List.of(), null, TestBackends.settings(connection.databaseType()), null), com.legend.setup.LoadSteps.of(List.of(statement(
+                            "CREATE TABLE K (A VARCHAR(10), B VARCHAR(10))"))).then(com.legend.setup.LoadSteps.blob(
+                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "the data of the table K")));
+            long before = setupStatements();
+            assertEquals("3", run(ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(
+                    "SELECT CAST(COUNT(*) AS VARCHAR(10)) FROM K", List.of(), target, null))), PlanSessions.shared()),
+                    connection.qualifiedName());
+            assertEquals(3, setupStatements() - before, "the DDL and the blob's two inserts: "
+                    + connection.qualifiedName());
+        }
     }
 
-    /** A setup refused before any statement runs -- rows for a bulk loader, on a database with none -- fails the same
-     *  way again: the refusal, a runtime error, closed what was opened, and nothing was kept. */
+    /** A load happens whole or not at all, and its refusal names its data (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3
+     *  rules 1 and 5, A4): a blob whose second insert the database refuses leaves none of the first's rows, on every
+     *  in-process database, and the refusal names the table's data in the database's own words. */
     @Test
-    void aSetupRefusedForWantOfABulkLoaderFailsTheSameWayAgain() {
-        int checked = 0;
-        for (var connection : inMemoryConnections()) {
-            if (Databases.dialect(connection.databaseType()).loadsRowsInBulk()) {
-                continue;
-            }
-            checked++;
-            ExecutionPlan p = plan("SELECT 'never'",
-                    target(new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
-                            statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
-            for (int attempt = 1; attempt <= 2; attempt++) {
-                var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
-                assertEquals("the plan's setup has rows for a bulk loader, and the session's database has none ("
-                        + connection.databaseType() + ")", refused.getMessage(), "attempt " + attempt);
+    void aLoadThatFailsPartWayLeavesNoneOfItsRows_andItsRefusalNamesItsData() throws Exception {
+        for (com.legend.testbackend.TestBackend b : TestBackends.inProcess()) {
+            try (java.sql.Connection c = b.open(); java.sql.Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE WHOLE_K (A VARCHAR(10))");
+                ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(b.planType(),
+                        null), List.of(), List.of(), null, TestBackends.settings(b.type()), null);
+                com.legend.setup.LoadSteps steps = com.legend.setup.LoadSteps.blob(List.of(
+                        "INSERT INTO WHOLE_K VALUES ('a')", "INSERT INTO NO_SUCH_TABLE VALUES ('b')"),
+                        "the data of the table WHOLE_K");
+                ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
+                        steps, target);
+                Sessions.Session session = com.legend.testbackend.TestSessions.over(c);
+                var refused = assertThrows(com.legend.error.DataError.class, () -> {
+                    try (var run = com.legend.base.RunScope.enter()) {
+                        PlanRunner.seed(load, session, PlanRunner.opened(session, load.target()),
+                                com.legend.executionplan.DataStores.none(), ran -> { });
+                    }
+                }, b.name());
+                assertTrue(refused.getMessage().startsWith("the data of the table WHOLE_K: "), refused.getMessage());
+                try (java.sql.ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM WHOLE_K")) {
+                    rs.next();
+                    assertEquals(0, rs.getInt(1), b.name() + ": the load left a row of its");
+                }
             }
         }
-        assertTrue(checked > 0, "no in-process database without a bulk loader: the refusal went unchecked");
     }
 
     /** A database reached by a URL is the user's: a plan with setup for it is refused, and it is never opened (only an
@@ -313,7 +363,7 @@ class PlanRunnerTest {
         ExecutionPlan p = counting(inMemory("s::File", Databases.PLATFORM,
                 new ConnectionSpecification.LocalFile(file.toString())), "URL_T");
         var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
-        assertEquals("connection 's::File' is a database reached by a URL, and the plan has setup for it: never run on"
+        assertEquals("connection 's::File' is a database reached by a URL, and the plan loads data into it: never run on"
                 + " it", refused.getMessage());
         assertTrue(java.nio.file.Files.notExists(file), "opened: " + file);
     }

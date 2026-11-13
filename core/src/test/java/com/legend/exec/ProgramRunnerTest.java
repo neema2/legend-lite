@@ -43,7 +43,7 @@ final class ProgramRunnerTest {
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
         target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of());
+                List.of(), List.of(), null, null, null);
     }
 
     @AfterAll
@@ -52,37 +52,72 @@ final class ProgramRunnerTest {
     }
 
     private static PlanSessions.Source sessions() {
-        return PlanSessions.setUp(TestSessions.over(conn), target);
+        return PlanSessions.acquired(TestSessions.over(conn), target);
     }
 
-    /** The test-is-the-product plan's M10a: a target naming the graph's SYSTEM database opens the session its holder
-     *  hands the source for it (a non-closing view), every other target the caller's own; the shared source and a
-     *  writing open refuse a System target by name (the runner knows no database). */
+    /** The test-is-the-product plan's M10a: a target naming the process's catalog opens the session its leases hand the
+     *  source for it (a non-closing view), every other target the caller's own; with no leases, the caller's own
+     *  session, the shared source and a writing open refuse it by name (the runner knows no database). */
     @Test
     void aSystemTargetOpensTheSystemOpenersSession() throws Exception {
         try (Connection other = TestBackends.platform().open()) {
             Sessions.Session body = TestSessions.over(conn);
             Sessions.Session system = TestSessions.over(other);
-            ExecutionPlan.Target systemTarget = new ExecutionPlan.Target(
-                    new ExecutionPlan.Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
-                    List.of(), List.of());
+            // the process's catalog as the planner names it (B4, 2026-11-11: a target of no load that makes it is
+            // refused by name, aSystemTargetThatMakesNoCatalogIsRefusedByName)
+            ExecutionPlan.Target systemTarget = com.legend.planner.SystemCatalog.target(
+                    com.legend.Compiler.compileModel(""), com.legend.planner.ConnectionPlans.type(Databases.PLATFORM));
             // the run's leases of the system databases (2026-11-09: the leases themselves, where a function was handed)
-            try (SystemDatabase.Leases leases = SystemDatabase.leases(java.util.Map.of())) {
-                PlanSessions.Source source = PlanSessions.of(body, null, leases);
-                assertEquals(Sessions.identity(leases.sessionFor(
-                                (ExecutionPlan.Database.System) systemTarget.database())),
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
+                PlanSessions.Source source = PlanSessions.of(body, leases);
+                assertEquals(Sessions.identity(leases.sessionFor(systemTarget)),
                         Sessions.identity(source.open(systemTarget)), "the System target opens the leased session");
                 assertEquals(Sessions.identity(body), Sessions.identity(source.open(target)),
                         "any other target the caller's own");
             }
-            assertEquals(Sessions.identity(body), Sessions.identity(PlanSessions.of(body, null, null).open(systemTarget)),
-                    "no opener: the caller's own for every target");
+            // no leases: the caller's own session does not make the catalog, so the catalog's target is refused by
+            // name there, never answered on a session holding none of it (B4, 2026-11-11: until then a target of no load
+            // opened the caller's own)
+            var unmade = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    () -> PlanSessions.of(body, null).open(systemTarget));
+            assertTrue(unmade.getMessage().contains("ONCE"), unmade.getMessage());
             var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
                     () -> PlanSessions.shared().open(systemTarget));
             assertTrue(refused.getMessage().contains("system database"), refused.getMessage());
             var refusedWrite = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
                     () -> PlanSessions.shared().openToChange(systemTarget));
             assertTrue(refusedWrite.getMessage().contains("read-only"), refusedWrite.getMessage());
+        }
+    }
+
+    /** A system database's target names the process's catalog by the load that makes it (B4, 2026-11-11, the audit's
+     *  finding 5): a target with none -- a graph's own system database, which no plan names since -- is refused by
+     *  name. */
+    @Test
+    void aSystemTargetThatMakesNoCatalogIsRefusedByName() {
+        ExecutionPlan.Target bare = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"), List.of(), List.of(), null, null, null);
+        try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
+            var refused = assertThrows(IllegalStateException.class, () -> leases.sessionFor(bare));
+            assertTrue(refused.getMessage().contains("makes the catalog"), refused.getMessage());
+        }
+    }
+
+    /** A system database is the process's in-process catalog (B4, 2026-11-11): a target naming one on a server engine
+     *  is refused by name when a run reaches it -- the host's system connection that served it is deleted, and nothing
+     *  routes it to a user's session. */
+    @Test
+    void aSystemDatabaseOnAServerEngineIsRefusedByName() {
+        for (var type : Databases.relational()) {
+            if (Databases.dialect(type).inProcess()) {
+                continue;
+            }
+            ExecutionPlan.Target server = new ExecutionPlan.Target(new ExecutionPlan.Database.System(
+                    com.legend.planner.ConnectionPlans.type(type), "a-graph"), List.of(), List.of(), null, null, null);
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
+                var refused = assertThrows(IllegalStateException.class, () -> leases.sessionFor(server), type.name());
+                assertTrue(refused.getMessage().contains("in process"), type + ": " + refused.getMessage());
+            }
         }
     }
 
@@ -140,7 +175,7 @@ final class ProgramRunnerTest {
 
     private static Recording run(ProgramRunner.Program program) throws IOException {
         Recording sink = new Recording();
-        ProgramRunner.run(program, Map.of(), sessions(), DataStores.none(), NONE, sink);
+        ProgramRunner.run(program, Map.of(), sessions(), DataStores.none(), NONE, sink, java.util.UUID.randomUUID());
         return sink;
     }
 
@@ -163,7 +198,7 @@ final class ProgramRunnerTest {
                     if (id == 1) {
                         read.add(o.read(declared, null, Map.of()).rows().get(0).get(0));
                     }
-                }, sink);
+                }, sink, java.util.UUID.randomUUID());
         assertEquals(List.of(5L), read);
         assertTrue(open[0] == open[1], "one open program for the whole program");
         assertEquals(List.of("columns", "batch", "end"), sink.events);
@@ -181,7 +216,7 @@ final class ProgramRunnerTest {
                 List.of(col("value", "Integer", "INTEGER")));
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> ProgramRunner.run(
                 new ProgramRunner.Program(List.of(), List.of(new ProgramRunner.Callback(1, List.of(declared), null))),
-                Map.of(), sessions(), DataStores.none(), (id, o) -> o.read(other, null, Map.of()), new Recording()));
+                Map.of(), sessions(), DataStores.none(), (id, o) -> o.read(other, null, Map.of()), new Recording(), java.util.UUID.randomUUID()));
         assertTrue(e.getMessage().contains("no step of the program declared"), e.getMessage());
     }
 
@@ -192,8 +227,9 @@ final class ProgramRunnerTest {
         // the savepoint's three texts are stand-ins that log their step (DuckDB has no savepoint)
         exec("CREATE OR REPLACE TABLE m3c_sp (step VARCHAR)");
         exec("CREATE OR REPLACE TABLE m3c_w (a INTEGER)");
-        ProgramRunner.Savepoint sp = new ProgramRunner.Savepoint("INSERT INTO m3c_sp VALUES ('set')",
-                "INSERT INTO m3c_sp VALUES ('rollbackTo')", "INSERT INTO m3c_sp VALUES ('release')");
+        ProgramRunner.Savepoint sp = new ProgramRunner.Savepoint(com.legend.testbackend.Unplanned.sql("INSERT INTO m3c_sp VALUES ('set')"),
+                com.legend.testbackend.Unplanned.sql("INSERT INTO m3c_sp VALUES ('rollbackTo')"),
+                com.legend.testbackend.Unplanned.sql("INSERT INTO m3c_sp VALUES ('release')"));
         ExecutionPlan.TdsResult good = relation("SELECT 5 AS value", List.of(col("value", "Integer", "INTEGER")));
         ExecutionPlan.TdsResult bad = relation("SELECT * FROM no_such_table_m3c",
                 List.of(col("value", "Integer", "INTEGER")));
@@ -210,7 +246,7 @@ final class ProgramRunnerTest {
                         raised.add(e instanceof com.legend.error.DataError ? "raised" : "other: " + e);
                         return null;
                     });
-                }, new Recording());
+                }, new Recording(), java.util.UUID.randomUUID());
         assertEquals(List.of("raised"), raised);
         assertEquals(List.of("set", "release", "set", "rollbackTo"), column("SELECT step FROM m3c_sp"));
     }
@@ -262,7 +298,7 @@ final class ProgramRunnerTest {
     @Test
     @DisplayName("a seed step runs once on a session, is skipped while the session holds its seeds, re-runs after a write")
     void aSeedStepRunsOnceUntilAWrite() throws Exception {
-        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3b-seeds", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
+        ExecutionPlan.Load seeds = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE OR REPLACE TABLE m3b_seed AS SELECT 1 AS a")), target);
         ExecutionPlan.TdsResult read = relation("SELECT count(*) AS n FROM m3b_seed",
                 List.of(col("n", "Integer", "BIGINT")));
@@ -301,7 +337,7 @@ final class ProgramRunnerTest {
     @Test
     @DisplayName("seeds before a constant answer: the seed step opens the program's session")
     void seedsBeforeAConstantOpenTheSession() throws Exception {
-        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3x-seeds", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
+        ExecutionPlan.Load seeds = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE OR REPLACE TABLE m3x_c AS SELECT 1 AS a")), target);
         ExecutionPlan.Constant answer = new ExecutionPlan.Constant(List.of(new ExecutionPlan.Column("value", "String",
                 new ExecutionPlan.Multiplicity(1, 1), null, null, null)), List.of(List.of("x")));
@@ -315,7 +351,7 @@ final class ProgramRunnerTest {
     @DisplayName("a seed step undone by a rollback runs again in the next program")
     void aSeedUndoneByARollbackRunsAgain() throws Exception {
         exec("DROP TABLE IF EXISTS m3x_r");
-        ExecutionPlan.Load seeds = new ExecutionPlan.Load("m3x-rollback", ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
+        ExecutionPlan.Load seeds = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP, List.of(new ExecutionPlan.LoadStep.Statement(
                 "CREATE TABLE m3x_r AS SELECT 1 AS a")), target);
         ExecutionPlan.Update failing = new ExecutionPlan.Update(ExecutionPlan.Sql.of(
                 "INSERT INTO no_such_table_m3x VALUES (1)", target), null);

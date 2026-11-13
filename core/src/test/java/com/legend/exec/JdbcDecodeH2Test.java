@@ -29,7 +29,7 @@ class JdbcDecodeH2Test {
 
     @Test
     void theSlotDecidesTheCarrier_onH2() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode" + H2Connector.SETTINGS)) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode" + com.legend.testbackend.TestBackends.h2UrlSettings())) {
             List<Object> r = JdbcDecodeCases.row(c, H2, "SELECT CAST(7 AS BIGINT) AS I, 'seven' AS S, CAST(1.5 AS DOUBLE) AS F,"
                     + " CAST(2.50 AS DECIMAL(10,2)) AS D, DATE '2024-01-02' AS DAY,"
                     + " TIMESTAMP '2024-01-02 10:30:00.123' AS TS, TIME '10:30:00' AS T, TRUE AS B,"
@@ -92,7 +92,7 @@ class JdbcDecodeH2Test {
      *  standing for the stripped one. */
     @Test
     void aDecimalsDroppedZerosArePaddedToItsSlotsScale() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_zeros" + H2Connector.SETTINGS);
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_zeros" + com.legend.testbackend.TestBackends.h2UrlSettings());
                 java.sql.Statement st = c.createStatement();
                 java.sql.ResultSet rs = st.executeQuery("SELECT CAST(3 AS DECIMAL(10,0)) AS D, CAST(2 AS DECIMAL(10,0)) AS E")) {
             rs.next();
@@ -113,7 +113,7 @@ class JdbcDecodeH2Test {
      *  regardless; the legacy executor's rule, {@code DatabaseConnector.decoding().javaTime}). */
     @Test
     void aTimestampTheDriverDoesNotReReadIsTheDriversOwn() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_keep" + H2Connector.SETTINGS);
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_keep" + com.legend.testbackend.TestBackends.h2UrlSettings());
                 java.sql.Statement st = c.createStatement();
                 java.sql.ResultSet rs = st.executeQuery("SELECT TIMESTAMP '2024-01-02 10:30:00.123456' AS TS")) {
             rs.next();
@@ -139,7 +139,7 @@ class JdbcDecodeH2Test {
         List<Object> expected = java.util.Arrays.asList(null, PureDateLiteral.parse("2024-01-02T10:30:00.123456000"),
                 null, PureDateLiteral.parse("1999-12-31T23:59:59.000000000"),
                 PureDateLiteral.parse("2024-06-03T09:07:00.500000000"));
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_reader" + H2Connector.SETTINGS)) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_reader" + com.legend.testbackend.TestBackends.h2UrlSettings())) {
             for (boolean javaTime : new boolean[] {false, true}) {
                 List<String> calls = new java.util.ArrayList<>();
                 List<Object> cells = new java.util.ArrayList<>();

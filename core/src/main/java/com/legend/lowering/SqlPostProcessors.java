@@ -267,7 +267,7 @@ public final class SqlPostProcessors {
             case SqlSource.Values v -> new SqlSource.Values(
                     v.rows().stream().map(r -> r.stream()
                             .map(x -> expr(x, m)).toList()).toList(),
-                    v.columns(), v.alias(), v.outputs());
+                    v.columns(), v.alias(), v.outputs(), v.payload());
             case SqlSource.SourceUrl u -> u;
             case SqlSource.Dual d -> d;
         };

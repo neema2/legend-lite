@@ -59,10 +59,11 @@
 > statement a session runs is the plan runner's: the probes, the seeds,
 > the system store's rows, the plan path's and the server's held database's
 > seeds are plan setup steps it sends -- "the doors", 2026-10-29, and the
-> three routings, D65; a raise a MariaDB session holds is read back by the
-> seam from the two statements its connector declares as data; in core's
-> main sources the seam `JdbcStatements` and its DuckDB bulk loader are
-> the only JDBC senders, the census's SENDS act -- the warehouse's server
+> three routings, D65; a raise a MariaDB or MySQL session holds is read
+> back by the seam from the two statements the plan's target declares (C2,
+> 2026-11-12; the charter's A3(c)); in core's
+> main sources the seam `JdbcStatements` is the only JDBC sender (its
+> DuckDB bulk loader went with A2, 2026-11-10), the census's SENDS act -- the warehouse's server
 > and client, the datacube's Postgres tool and the test harnesses send
 > their own) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
@@ -189,7 +190,7 @@ user-visible error carries one of these eight.
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
 | `Execution.run(...)` | A→K: the query planned by its one planning entry (`TypedQuery.executionPlan`), the plan run by exec's product run (`ProductRun`), its rows written in the caller's `Output` (a format and a stream, data: the result library makes the writer from the plan; 2026-11-09); `Execution.runOnProjectDatabases` is the server's (pure/v1's execute) | STRICT — **the production seam** |
-| `TestExecution.runProgram(...)` | a TEST BODY planned whole by the test planner (`testplan/TestPlanner`; `testplan/BodyClass` names its class) into a test plan, which is data, and run by the test runner (`testexec/TestRunner`), its asserts judged at their verdict steps; a body the program road does not plan is refused by name (the walk was deleted 2026-11-06); the verdicts to a listener, the last statement's answer written in the caller's `Output` (data, the writer the result library's). Its halves `planBody`/`runBody` (and `planProgram`/`runFixture`) let a caller provide fixtures between them | STRICT |
+| `TestExecution.runProgram(...)` | a TEST BODY planned whole by the test planner (`testplan/TestPlanner`; `testplan/BodyClass` names its class) into a test plan, which is data, and run by the test runner (`testexec/TestRunner`), its asserts judged at their verdict steps; a body the program road does not plan is refused by name (the walk was deleted 2026-11-06); the verdicts to a listener, the last statement's answer written in the caller's `Output` (data, the writer the result library's). Its halves `planBody`/`runBody` let a caller run a package's setups (`runFixture`) before a body; no fixture is provided between a body's halves (2026-11-10, census M9) | STRICT |
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
@@ -210,7 +211,7 @@ exec's program runner with the judges as its callback), which reaches no plannin
 (`NotImplementedException: the program road does not plan this body`, with its kinds and the class rule's reason).
 The root package holds the public doors alone: `Compiler`, `TypedQuery`, `HeldModels` (the plan side, `//core:planner`),
 `Execution` (the product's door, `//core:execution`) and `TestExecution`, `ExecuteOptions` (the test body's door,
-`//core:test_execution`). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
+`//core:test_execution`); each door mints its run's one execution id (C's final audit, 2026-11-12); beside the doors, only the server's two host routes mint one, `PureV1Api.arrowPlan` and `jsonPlan`, for the run a host performs, which `jsonAnswer` reads back (`ArchitectureTest.theServersMintsAreItsHostDoorsAlone`; the final full audit, 2026-11-12). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
 `JavaEvalLedgerTest.theDoorsHoldNoLogic`); only the test door sees both halves of a test (`onlyTheDoorSeesBothHalves`),
 and a class above the doors reaches each side through its public types alone (`onlyTheDoorsCompose`). The planner depends
 on no execution class (`plannerIsExecutionFree`).
@@ -297,11 +298,27 @@ writer (so its dispatching switch stays an expression javac checks, below) — n
 pastes (a piece pasted twice would carry its parameter once); a method that only spells a name, a literal or a type
 returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
 text. E is complete (2026-10-09): every dialect writes all of a query, and DML's rows, into the writer; DDL spells only
-names, types and keywords, so it is text. Never edit rendered SQL after it is written — but for one designed hole
-(2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3): where a plan's placeholder takes the type of its
-value's literal (H2 types a placeholder when it prepares it; a date-time on every database), the dialect writes no type
-at a place the writer records (`SqlWriter.typeHole`), and the runner writes there, before it prepares the statement,
-the type the plan's own spelling table gives the value's kind; the value itself is bound, never written. The legacy engine-text printer
+names, types and keywords, so it is text. Never edit rendered SQL after it is written, at planning or at run: the
+runner sends a plan's text as it is. Exec may do THREE things beyond that, and nothing else (`docs/TENET_CHARTER.md`
+A3 says what and why; the user ratified the list, 2026-11-12):
+(a) **keyed regions**: a dynamic pivot's columns are data, so the runner writes the plan's fragment once per key read
+by the plan's first statement, each copy's key BOUND (`PlanRunner.expand`; the hosts' `expandKeyed`);
+(b) **planned branches**: a test body's `if` whose sides hold asserts -- the database computes the Boolean, the runner
+sends the named side's planned statements and never the other (a product `if` stays the database's `CASE`);
+(c) **declared read-backs**: statements the plan's target declares, sent as written -- MariaDB's and MySQL's raised
+error (a SELECT cannot raise our text there: `SIGNAL` runs only in a stored program, so the message waits in
+`@legend_raise` and is read back after the failure, `SqlDialect.raiseReadBack`; D4, C2), and H2's settings, which the
+DATABASE compares on a session lite did not open (`JdbcStatements.verifySettings`). A bound parameter is not an
+exception. The per-execution trace comment `JdbcStatements.stamped`
+wrote at run (D3) went with C1, 2026-11-12: the execution id is a bound value, S304. It is proven by type: a session's
+statements take a `PlannedSql` and no `String`, minted only where a plan is read and by `expand`
+(`ArchitectureTest.onlyThePlansReadersMintPlannedSql`, `aSessionsStatementsTakeNoText`; the C checkpoint's MUST-FIX 1,
+2026-11-12), and witnessed at run on every road (`SentStatementsAreThePlansTest`; MongoDB's command,
+`MongoDbPlanTest.theCommandSentIsThePlans_itsParametersBoundByTheLet`).
+A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
+is made, per database, as upstream's database extension writes its template (D1 of docs/GOALS_OF_RECORD_2026_11_07.md;
+`SqlDialect`'s `parameterType`, a date or date-time bound as its text); the type hole that let the runner write a
+value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printer
 (`EngineStyleH2`, the backwards-compatibility mode) writes legend-engine's own spellings directly — lowercase keywords and
 function names through the `keyword` and `aggregateName` hooks, `listagg ... within group` — and its one text step is
 legend-engine's own: a rendered column quoted into a FreeMarker template argument (each `'` as `\'`).
@@ -437,6 +454,7 @@ otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
+| `docs/TOTAL_WALL_START_HERE_2026_11_11.md` | **Start here for the total-wall program** (branch `claude/total-wall`, the user's go of 2026-11-11): total plan/exec separation, phases A-F, then ONE PR. The orchestrator's handoff: every ruling, the state, what remains in order, the runbook (fast loop, lane rounds, audits, checkpoints), the sessions, and the templates for a fresh worker, lane round and audit |
 | `docs/DATA_IN_THE_PLAN_2026_11_09.md` | **Data in the plan** (the user's go, 2026-11-09): data enters a database through a load and only a load -- a reference with a digest (never a machine path, never large rows), resolved, verified and delivered by exec, the delivery chosen at planning per database; today's 17 mechanisms each replaced and deleted (13) or bounded by a guard (4, not loads); the deletion census as the proof; slices L1-L8. Evidence: `docs/data-in-the-plan-homework/` |
 | `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |
 | `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` | **Start here for the test-is-the-product program** (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83): the state on 2026-11-06, the user's rulings, the concepts (the program road, the three judges, the runtime and exec walls, channels A and B), the roadmap from PCT and core at 100% through the corpus, the walk's deletion, the special-casing audit and lean SQL, the measurements and the lessons |

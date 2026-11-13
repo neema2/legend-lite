@@ -34,10 +34,10 @@ public final class SidePlanner {
     public record Routed(Prepared prepared, SystemRoutes.@Nullable Route route) {
     }
 
-    /** {@code body} prepared under the system route it reads, the route's table names on its planning half. */
+    /** {@code body} prepared under the system route it reads, written in the route's catalog's dialect (B4). */
     public static Routed prepare(List<TypedSpec> body, PlanEnv env) {
         SystemRoutes.Route route = SystemRoutes.of(body, env);
-        PlanEnv routed = route == null ? env : SystemRoutes.routed(env, SystemRoutes.renames(route));
+        PlanEnv routed = route == null ? env : SystemRoutes.onCatalog(env, route);
         return new Routed(BodyPlanner.prepare(body, routed), route);
     }
 

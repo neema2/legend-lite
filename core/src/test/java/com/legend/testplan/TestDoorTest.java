@@ -60,14 +60,14 @@ class TestDoorTest {
         ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, test.root());
         assertEquals(2, seq.steps().size(), seq.steps().toString());
         ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class, seq.steps().get(1));
-        assertEquals(List.of(), answer.sql().target().setup(), "R17 C6: the test door's target carries no setup");
+        assertEquals(List.of(), answer.sql().target().loads(), "R17 C6: the test door's target carries no load");
         // the statement is the query door's: one road
         ExecutionPlan query = body.executionPlan("x::RT");
         assertEquals(query.answerSql().statement(), answer.sql().statement());
-        assertFalse(query.answerSql().target().setup().isEmpty(), "the query door's target: the declared rows");
+        assertFalse(query.answerSql().target().loads().isEmpty(), "the query door's target: the declared rows");
         // M3e: the runtime's seeds are a step of the program, the same steps the query door's target carries
         ExecutionPlan.Load seeds = assertInstanceOf(ExecutionPlan.Load.class, seq.steps().get(0));
-        assertEquals(query.answerSql().target().setup(), seeds.steps());
+        assertEquals(query.answerSql().target().loads().get(0).steps(), seeds.steps());
     }
 
     /** M3e: a statement's seeds are placed once until a write; after an effect the next statement's are placed
@@ -158,7 +158,7 @@ class TestDoorTest {
                     @Override
                     public void end() {
                     }
-                });
+                }, java.util.UUID.randomUUID());
         return rows;
     }
 
@@ -193,6 +193,28 @@ class TestDoorTest {
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(List.of(List.of("done")), run(plan, c));
             assertEquals(2, count(c, "m3d_a"));
+        }
+    }
+
+    /** A raw grid's rows or column names are a KEYED result whose keys are the grid's reported columns (D29, step 7):
+     *  on the TEST road, whose programs plan {@code executeInDb}'s read -- PCT and the corpus run it. Moved from the
+     *  product's ProductStatementsTest on 2026-11-13 (the user's ruling (a) on the orchestrator's item 5: the product's
+     *  doors refuse it by name, QueryDoorTest). */
+    @Test
+    void aRawGridsRowsAreAKeyedResultOnTheTestRoad() throws Exception {
+        String valuesBody = CONN + EXEC + "'select 7 as A', $c).rows->map(r|$r.values);}";
+        ExecutionPlan values = storeless(valuesBody);
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, values.root()).steps();
+        assertInstanceOf(ExecutionPlan.Keyed.class, steps.get(steps.size() - 1), steps.toString());
+        String namesBody = CONN + EXEC + "'select 7 as A, 8 as B', $c).columnNames;}";
+        ExecutionPlan names = storeless(namesBody);
+        List<ExecutionPlan.Node> nameSteps = assertInstanceOf(ExecutionPlan.Sequence.class, names.root()).steps();
+        assertInstanceOf(ExecutionPlan.Keyed.class, nameSteps.get(nameSteps.size() - 1), nameSteps.toString());
+        try (Connection c = TestBackends.platform().open()) {
+            // the test road's own answer to each body, as its program runs it
+            assertEquals(com.legend.testing.Program.last(StorelessRuntime.with("", Databases.PLATFORM), valuesBody,
+                    StorelessRuntime.RUNTIME, c).rows(), run(values, c));
+            assertEquals(List.of(List.of("A"), List.of("B")), run(names, c));
         }
     }
 
@@ -456,15 +478,18 @@ class TestDoorTest {
 
     /** A seed step's key spells its content unambiguously (the design audit's H1, 2026-11-02): one cell {@code "a, b"}
      *  and two cells {@code "a"}, {@code "b"} printed one record text, so the second seed's key equalled the first's
-     *  and a session holding the first skipped it. */
+     *  and a session holding the first skipped it. Since A2 (2026-11-10) a table's rows are a content blob of inserts,
+     *  named by the digest of their statements: the two loads' keys differ as their statements do. */
     @Test
     void twoSeedsThatPrintAlikeHaveTwoKeys() {
-        ExecutionPlan.LoadStep one = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
-                java.util.List.of(java.util.List.of("a, b")));
-        ExecutionPlan.LoadStep two = new ExecutionPlan.LoadStep.Rows("t", "create", "copy", "drop",
-                java.util.List.of(java.util.List.of("a", "b")));
-        assertEquals(one.toString(), two.toString(), "the two steps print alike");
-        assertFalse(Seeds.key(java.util.List.of(one)).equals(Seeds.key(java.util.List.of(two))),
-                "and their keys differ");
+        var d = com.legend.database.Databases.dialect(com.legend.database.Databases.PLATFORM);
+        var one = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null, "t",
+                com.legend.sql.NameQuoting.BARE, java.util.List.of(), java.util.Set.of(), 1,
+                java.util.List.of(java.util.List.of("a, b"))), d);
+        var two = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null, "t",
+                com.legend.sql.NameQuoting.BARE, java.util.List.of(), java.util.Set.of(), 2,
+                java.util.List.of(java.util.List.of("a", "b"))), d);
+        assertFalse(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, one.steps()).equals(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, two.steps())),
+                "their keys differ");
     }
 }

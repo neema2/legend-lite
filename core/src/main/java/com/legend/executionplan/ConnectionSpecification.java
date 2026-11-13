@@ -9,7 +9,8 @@ package com.legend.executionplan;
 *
  * <p>THE PLAN'S OWN COPY (docs/PLAN_AS_DATA_2026_11_07.md 2.6, the design's step 7, 2026-11-08: the plan holds its own
  * connection description, FAITHFUL -- the same variants under the same names with the same fields as the model's
- * {@code com.legend.model.ConnectionSpecification}, which the planner copies field by field: {@code planner/ConnectionPlans}). Exec opens
+ * {@code com.legend.model.ConnectionSpecification}, which the planner copies field by field: {@code planner/ConnectionPlans};
+ * but a connection's declared test data, which the plan carries as its target's loads, L2). Exec opens
  * a session from this copy alone; the model keeps its own (invariant 6j: the model depends on no plan).
  */
 public sealed interface ConnectionSpecification
@@ -24,13 +25,22 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.Databricks,
                 ConnectionSpecification.BigQuery {
 
-    default @com.legend.base.Nullable TestData testData() {
-        return null;
+    /** Whether the platform MAKES the database a connection of {@code spec} names (an in-memory database: an
+     *  {@code InMemory} one, or legend-engine's {@code LocalH2}), as opposed to one the user names or a server holds.
+     *  A project's Data rows load only into a database the platform makes (the M1 tenets audit's finding 1,
+     *  2026-11-09): the planner plans the fill only there, and exec refuses a fill for any other. The one rule both
+     *  read; {@code exec.ConnectorsTest} holds it equal to each connector's opening (held, or named by the opener). */
+    static boolean platformMakes(ConnectionSpecification spec) {
+        return spec instanceof InMemory || spec instanceof LocalH2;
     }
 
-    /** A specification's test data: CSV blocks to seed, and SQL statements written in the database its connection
-     *  declares; either may be absent. */
-    record TestData(@com.legend.base.Nullable String csv, java.util.@com.legend.base.Nullable List<String> sqls) {
+    /** Whether the opener makes the database a connection of {@code spec} names, in this process's memory: one the
+     *  platform makes ({@link #platformMakes}), or an {@code EmbeddedH2}, whose name is the user's -- so it is shared,
+     *  never filled with a project's data -- but which the opener makes here all the same. Such a database is made with
+     *  the settings its dialect declares; any other a connection declares (a file, a server, a warehouse) is the user's,
+     *  run as it is and never modified (the third re-audit's MUST-FIX 2, 2026-11-12). */
+    static boolean madeInProcess(ConnectionSpecification spec) {
+        return platformMakes(spec) || spec instanceof EmbeddedH2;
     }
 
     /**
@@ -50,21 +60,12 @@ public sealed interface ConnectionSpecification
      *  LocalH2DatasourceSpecification carries NO url at all (it
      *  synthesizes an in-memory database) — a bare {@code LocalH2 {}}
      *  is the common grammar form; an explicit url is a legend-lite
-     *  extension carried verbatim when present. Engine's
-     *  {@code testDataSetupCSV} / {@code testDataSetupSqls} keys are
-     *  carried as data for the test-seeding path. */
-    record LocalH2(@com.legend.base.Nullable String url,
-            @com.legend.base.Nullable String testDataSetupCsv,
-            java.util.@com.legend.base.Nullable List<String> testDataSetupSqls)
-            implements ConnectionSpecification {
-        public LocalH2(@com.legend.base.Nullable String url) {
-            this(url, null, null);
-        }
-
-        @Override
-        public TestData testData() {
-            return new TestData(testDataSetupCsv, testDataSetupSqls);
-        }
+     *  extension carried verbatim when present. The model's
+     *  {@code testDataSetupCSV} / {@code testDataSetupSqls} are NOT
+     *  copied: the plan carries a connection's test data as its target's
+     *  loads (docs/DATA_IN_THE_PLAN_2026_11_09.md L2, M3, 2026-11-09: the
+     *  same data carried twice in one plan until then). */
+    record LocalH2(@com.legend.base.Nullable String url) implements ConnectionSpecification {
     }
 
     /** Engine's EmbeddedH2DatasourceSpecification — carried WHOLE

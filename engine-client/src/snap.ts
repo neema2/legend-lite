@@ -33,11 +33,13 @@
 // its cube behaviour on top): the manager, the stamp it carries, the refusals and the preflight. Where a snap's
 // queries are planned is the app's (DataCube's SnapTarget adds its planner).
 
-import type { HostName, HostOperation, HostOperationsSource } from './host-operations.ts';
+import type { HostName, HostOperation, HostOperationsSource, SnapPull, SnapStreamSource } from './host-operations.ts';
+import type { HostStreams } from './plan-runner.ts';
 import { UI_LOCALE } from './locale.ts';
-import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { fn, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from './engine.ts';
 import type { Receipt } from './receipt.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /**
  * A LIVE plane on another machine (the warehouse): where a snap's rows come
@@ -50,16 +52,30 @@ export interface RemoteSource {
   /** Raw SQL on the remote plane: the preflight count, as the planner writes it for that database. */
   run: QueryEngine['run'];
   /** `onReceipt` hears, once the statement has succeeded, what the server issued for it. */
-  arrowChunks(sql: string, signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array>;
+  arrowChunks(sql: PlannedSql, signal?: AbortSignal, onReceipt?: (receipt: Receipt) => void): AsyncIterable<Uint8Array>;
 }
 
-/** A local store that can take Arrow chunks (DuckDbEngine). */
-interface ArrowLoader {
-  loadArrow(
-    target: { readonly schema?: string; readonly table: string },
-    chunks: AsyncIterable<Uint8Array>,
-    prepare?: readonly string[],
-  ): Promise<void>;
+/** The name a snap's plan names the remote live plane by (LoadPlanner.snapStream's `plane`): the warehouse a grid reads. */
+export const REMOTE_PLANE = 'warehouse';
+
+/** A pull's rows counted, as its planner plans it where the rows are (the live planner's plan of `countQuery(pull)`):
+ *  its statement and the values it binds. */
+export interface SnapCount {
+  readonly sql: PlannedSql;
+  readonly params?: readonly string[];
+}
+
+/** `query`'s rows counted, as a query: its one expression's `size()` (meta::pure::functions::relation::size), which the
+ *  planner plans as the database's count of the query's rows -- what a snap's preflight runs where the rows are. */
+export function countQuery(query: Lambda): Lambda {
+  if (query.body.length !== 1) throw new SnapRefusal('a pull is one expression');
+  return { ...query, body: [fn('size', ...query.body)] };
+}
+
+/** A local store a remote plane's rows stream into: its connection held for the plan (DuckDbEngine.exclusive), with
+ *  its database's Arrow import. */
+interface StreamStore {
+  exclusive<T>(work: (held: HostStreams['held']) => Promise<T>): Promise<T>;
 }
 
 /**
@@ -163,19 +179,20 @@ export class SnapManager implements Snaps {
   readonly #engine: (QueryEngine & { readonly databaseType: string }) | null;
   /** The live plane, when it is remote; absent when live is the local store. */
   readonly #remote: RemoteSource | null;
-  /** What writes the copy's statements (the tab's planner: D5); none, a snap is refused by name. */
-  readonly #host: HostOperationsSource | undefined;
+  /** What writes the copy's statements (the tab's planner: D5) and plans a remote plane's stream; none, a snap is
+   *  refused by name. */
+  readonly #host: (HostOperationsSource & Partial<SnapStreamSource>) | undefined;
   #state: PlaneState = { mode: 'live' };
 
   constructor(engine: (QueryEngine & { readonly databaseType: string }) | null, remote: RemoteSource | null = null,
-    host?: HostOperationsSource) {
+    host?: HostOperationsSource & Partial<SnapStreamSource>) {
     this.#engine = engine;
     this.#remote = remote;
     this.#host = host;
   }
 
   /** The planner's statements for `operations` on a database of `databaseType`, in order. */
-  async #statements(databaseType: string, operations: readonly HostOperation[]): Promise<string[]> {
+  async #statements(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[]> {
     if (!this.#host) throw new SnapRefusal('this cube has no planner to write its copy\u2019s statements: it cannot be snapped');
     return (await this.#host.hostOperations(databaseType, operations)).flat();
   }
@@ -224,14 +241,18 @@ export class SnapManager implements Snaps {
    * Check size before materialising anything, so the user is told
    * "this is 40 million rows" instead of watching a tab die.
    */
-  async preflight(sourceSql: string, epoch: number): Promise<PreflightEstimate> {
-    // counted where the rows are: the remote live plane when there is one, by its own database's statement (a
-    // warehouse catalog that is Postgres, Postgres's: D5)
+  async preflight(count: SnapCount, epoch: number): Promise<PreflightEstimate> {
+    // counted where the rows are: the remote live plane when there is one, by the planner's own plan of the pull's
+    // count in that database's SQL (the final audit's item 1, 2026-11-12: until then the live plan's text was handed back
+    // to the planner as a host operation's query) -- its values bound to its `?`s (a remote plane takes none: refused by
+    // name, WarehouseEngine)
     const engine = this.#remote ?? this.#localStore();
-    const [count] = await this.#statements(engine.databaseType, [{ op: 'count', from: { query: sourceSql } }]);
-    const r = await engine.run(count!, epoch);
-    const raw = r.columns[0]?.values[0] ?? 0;
-    const rowCount = typeof raw === 'number' ? raw : Number(raw);
+    const r = await engine.run(count.sql, epoch, undefined, count.params ?? []);
+    const raw = r.rowCount === 1 ? r.columns[0]?.values[0] : undefined;
+    // the count is the database's one value: none, or one that is no count, is refused by name -- never read as nothing
+    // to copy (G7; the orchestrator's item 4, 2026-11-12: `?? 0` copied on as if the rows were none)
+    const rowCount = raw === null || raw === undefined ? Number.NaN : Number(raw);
+    if (!Number.isSafeInteger(rowCount) || rowCount < 0) throw new SnapRefusal(`the snap's count is ${String(raw)}: nothing is copied`);
 
     if (rowCount > MAX_SNAP_ROWS) {
       return {
@@ -244,12 +265,11 @@ export class SnapManager implements Snaps {
   }
 
   /**
-   * Freeze `sourceSql` into a local table and switch to snapped. A
-   * pivot's values are found by the cube's own query (plan.ts) on every
-   * refresh, snapped or not, so nothing about them is captured here.
+   * Freeze the pull into a local table and switch to snapped: counted, then copied, each by a plan the planner makes of
+   * the PULL -- never its statement (the final audit's item 1, 2026-11-12). A pivot's values are found by the cube's
+   * own query (plan.ts) on every refresh, snapped or not, so nothing about them is captured here.
    */
   async snap(
-    sourceSql: string,
     epoch: number,
     options: {
       readonly label?: string;
@@ -259,45 +279,70 @@ export class SnapManager implements Snaps {
        * which owns the model.
        */
       readonly target: SnapTable;
+      /** The pull's rows counted: the live planner's plan of `size(pull)` (countQuery), in the live plane's SQL. */
+      readonly count: SnapCount;
+      /** The pull (its planner's planRequest): what the planner plans again in the copy's own plan -- a remote plane's
+       *  stream (snapStream), a local copy (snapCopy) -- never its statement (the user's ruling of 2026-11-12). */
+      readonly pull: SnapPull;
     },
   ): Promise<SnapInfo> {
-    const estimate = await this.preflight(sourceSql, epoch);
+    const estimate = await this.preflight(options.count, epoch);
     if (!estimate.withinLimit) {
       throw new SnapRefusal(estimate.refusal ?? 'snap refused');
     }
 
     let pulledBy: Receipt | undefined;
+    let rowCount = estimate.rowCount;
     const schema = options.target.schema;
     const bare = options.target.table;
     const table = named(schema, bare);
     const engine = this.#localStore();
+    const store = engine as unknown as Partial<StreamStore>;
+    if (typeof store.exclusive !== 'function') throw new SnapRefusal('the local store holds no connection a copy is made on: it cannot be snapped');
+    const host = this.#host;
+    if (host === undefined) throw new SnapRefusal('this cube has no planner to write its copy\u2019s statements: it cannot be snapped');
+    // the hosts' plan runner, fetched with the first snap (a grid-only page carries none of it)
+    const { runLoad, runPlan } = await import('./plan-runner.ts');
     if (this.#remote) {
-      // The rows live on the server: the live plan runs there, and its Arrow
-      // chunks stream into the copy's own table here -- exactly the rows the
-      // server let this user read.
-      const loader = engine as unknown as Partial<ArrowLoader>;
-      if (typeof loader.loadArrow !== 'function') {
-        throw new SnapRefusal('the local store cannot load Arrow data, so a remote live plane cannot be snapped');
+      // The rows live on the server: the live plan runs there, and its Arrow chunks stream into the copy's own table
+      // here -- exactly the rows the server let this user read -- as a PLANNED LOAD (the user's ruling of 2026-11-11):
+      // the plan names the plane, its statement and the table, never a row; the hosts' runner streams the chunks in
+      // one transaction, kept only when the stream completed and the table holds the rows the plane counted
+      if (typeof host.snapStream !== 'function') {
+        throw new SnapRefusal('this cube\u2019s planner plans no stream from a remote plane, so a remote live plane cannot be snapped');
       }
-      // its schema made and the table there before dropped, by the planner's statements, before the rows load
-      const prepare = await this.#statements(engine.databaseType, [
-        ...(schema ? [{ op: 'schema' as const, name: schema }] : []),
-        { op: 'drop', kind: 'table', target: table },
-      ]);
-      await loader.loadArrow({ ...(schema ? { schema } : {}), table: bare },
-        this.#remote.arrowChunks(sourceSql, undefined, (r) => { pulledBy = r; }), prepare);
+      // the request is the PULL, planned again in this plan for the plane's own database: never the statement it runs
+      const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, ...options.pull,
+        ...(schema ? { schema } : {}), table: bare });
+      const remote = this.#remote;
+      const { landed } = await store.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
+        { streams: { planes: { [REMOTE_PLANE]: remote }, held } }));
+      const [made] = landed;
+      if (made === undefined) throw new SnapRefusal('the snap\u2019s plan streamed nothing into the copy');
+      pulledBy = made.receipt;
+      // the rows the copy holds, as its database counted them once they landed (the plane's own count)
+      rowCount = made.rows;
     } else {
-      for (const sql of await this.#statements(engine.databaseType, [
-        { op: 'relation', kind: 'table', target: table, replace: true, from: { query: sourceSql } },
-      ])) await engine.run(sql, epoch);
+      // ONE PLAN the planner makes of the pull for this database (Boundary.snapCopy, the final audit's item 1(b)): its
+      // schema, the table there before dropped, the table made from the pull (its data: payloads bound by digest), in
+      // the plan's own transaction -- never the pull's statement handed back to the planner
+      if (typeof host.snapCopy !== 'function') throw new SnapRefusal('this cube\u2019s planner plans no copy of a pull: it cannot be snapped');
+      const plan = await host.snapCopy({ databaseType: engine.databaseType, ...options.pull, ...(schema ? { schema } : {}), table: bare });
+      await store.exclusive((held) => runPlan(plan, { databaseType: engine.databaseType, run: (sql, params) => held.rows(sql, params) }));
     }
     // the copy made to hold what its model declares, and what reads it: the app's (SnapTable.landed); refused, it goes
     let source: ValueSpecification;
     try {
       source = await options.target.landed();
     } catch (e) {
-      for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
-        await engine.run(sql, epoch).catch(() => {});
+      // the copy dropped with it; a drop that fails too is said with the failure, never swallowed (the orchestrator's
+      // item 4, 2026-11-12: the copy was left behind in silence)
+      try {
+        for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
+          await engine.run(sql, epoch);
+        }
+      } catch (d) {
+        throw new Error(`${e instanceof Error ? e.message : String(e)} -- and dropping the copy ${bare} failed: ${d instanceof Error ? d.message : String(d)}`, { cause: e });
       }
       throw e;
     }
@@ -307,7 +352,7 @@ export class SnapManager implements Snaps {
       ...(pulledBy ? { pulledBy } : {}),
       label: options.label ?? defaultLabel(takenAt),
       takenAt,
-      rowCount: estimate.rowCount,
+      rowCount,
       table: bare,
       ...(schema ? { schema } : {}),
       source,
@@ -512,7 +557,9 @@ export class HostSnaps implements Snaps {
    */
   leaving(): void {
     if (this.#state.mode !== 'snapped') return;
-    void this.#target.release(this.#state.snap.table).catch(() => undefined);
+    const { table } = this.#state.snap;
+    // a release that fails is said, even as the page goes -- never swallowed (G7; the orchestrator's ruling, 2026-11-12)
+    void this.#target.release(table).catch((e: unknown) => console.error(`the snap's copy ${table} was not let go:`, e));
   }
 
   /** The grid is gone: the copy it holds let go, and one a snap in flight makes let go once it is made. */
