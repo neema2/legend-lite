@@ -1476,6 +1476,10 @@ public final class NameResolver {
         List<String> mappings = resolveFqnList(rd.mappings(), scope);
         // jsonConnections (List<JsonModelConnection>) carry only literal
         // JSON payloads; no element FQN inside the public record shape.
+        // two keys that name one store keep both connection lists, in order, under the first key's place: a rename
+        // never drops a connection (until 2026-11-13 the second REPLACED the first's -- the names fixes, item 3,
+        // docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28; the engine refuses several connections against one
+        // store, HelperRuntimeBuilder, a check lite makes for no runtime)
         Map<String, List<String>> bindings = new java.util.LinkedHashMap<>();
         boolean bindingsChanged = false;
         for (Map.Entry<String, List<String>> e
@@ -1484,7 +1488,14 @@ public final class NameResolver {
             List<String> conns = resolveFqnList(e.getValue(), scope);
             bindingsChanged |= !store.equals(e.getKey())
                     || conns != e.getValue();
-            bindings.put(store, conns);
+            List<String> prior = bindings.get(store);
+            if (prior == null) {
+                bindings.put(store, conns);
+            } else {
+                List<String> merged = new ArrayList<>(prior);
+                merged.addAll(conns);
+                bindings.put(store, List.copyOf(merged));
+            }
         }
         List<PackageableElement> inline = new java.util.ArrayList<>();
         boolean inlineChanged = false;
@@ -1493,11 +1504,17 @@ public final class NameResolver {
             inlineChanged |= r != el;
             inline.add(r);
         }
-        if (mappings == rd.mappings() && !bindingsChanged && !inlineChanged) {
+        // the connection ids' stores resolve whatever else changed (until 2026-11-13 only on a rebuild: item 3)
+        Map<String, String> ids = new java.util.LinkedHashMap<>();
+        boolean idsChanged = false;
+        for (Map.Entry<String, String> e : rd.connectionIds().entrySet()) {
+            String store = resolveName(e.getValue(), scope);
+            idsChanged |= !store.equals(e.getValue());
+            ids.put(e.getKey(), store);
+        }
+        if (mappings == rd.mappings() && !bindingsChanged && !inlineChanged && !idsChanged) {
             return rd;
         }
-        Map<String, String> ids = new java.util.LinkedHashMap<>();
-        rd.connectionIds().forEach((id, store) -> ids.put(id, resolveName(store, scope)));
         return new RuntimeDefinition(rd.qualifiedName(), mappings, bindings,
                 rd.jsonConnections(), inline, ids);
     }

@@ -1934,6 +1934,43 @@ class NameResolverTest {
         assertEquals("a::b::f", call.apply("c::h").function());
     }
 
+    /** The names fixes, item 3 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): two binding keys that
+     * name one store keep both connection lists under the first key's place (the second replaced the first's), and the
+     * connection ids' stores resolve whatever else changed (only on a rebuild before). A text spells an id's store as
+     * its binding key, so they change together; a model given as protocol records need not. */
+    @Test
+    void aRuntimesBindingsAndIdsResolveAndMerge() {
+        ParsedModel m = com.legend.testing.Own.model("""
+                ###Relational
+                Database a::S ( Table T (ID INTEGER) )
+                ###Connection
+                RelationalDatabaseConnection a::C1 { store: a::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }
+                RelationalDatabaseConnection a::C2 { store: a::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }
+                ###Runtime
+                import a::*;
+                Runtime a::R { mappings: []; connections: [ S: [ id1: a::C1 ], a::S: [ id2: a::C2 ] ]; }
+                Runtime a::Q { mappings: []; connections: [ a::S: [ id3: a::C1 ] ]; }
+                """);
+        java.util.function.BiFunction<ParsedModel, String, RuntimeDefinition> runtime = (pm, fqn) ->
+                pm.elements().stream().filter(e -> e instanceof RuntimeDefinition rd && rd.qualifiedName().equals(fqn))
+                        .map(e -> (RuntimeDefinition) e).findFirst().orElseThrow();
+        ParsedModel r = NameResolver.resolve(m);
+        RuntimeDefinition rd = runtime.apply(r, "a::R");
+        assertEquals(java.util.Map.of("a::S", List.of("a::C1", "a::C2")), rd.connectionBindings());
+        assertEquals(List.of("id1", "id2"), List.copyOf(rd.connectionIds().keySet()));
+        assertEquals(List.of("a::S", "a::S"), List.copyOf(rd.connectionIds().values()));
+        List<PackageableElement> elements = new java.util.ArrayList<>();
+        for (PackageableElement e : m.elements()) {
+            elements.add(e instanceof RuntimeDefinition q && q.qualifiedName().equals("a::Q")
+                    ? new RuntimeDefinition(q.qualifiedName(), q.mappings(), q.connectionBindings(),
+                            q.jsonConnections(), q.inlineConnections(), java.util.Map.of("id3", "S"))
+                    : e);
+        }
+        ParsedModel bare = NameResolver.resolve(new ParsedModel(elements, m.imports(), m.source(),
+                m.elementOffsets(), m.elementImports(), m.elementSources()));
+        assertEquals(java.util.Map.of("id3", "a::S"), runtime.apply(bare, "a::Q").connectionIds());
+    }
+
     @Test
     void resolveProducesSameInstanceWhenNothingChanges() {
         // Already-FQN tree round-trips through resolve with reference
