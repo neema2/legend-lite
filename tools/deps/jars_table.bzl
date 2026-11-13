@@ -62,15 +62,18 @@ JARS = {
     # and BigQuery, on real accounts. Test-only until the server opens those databases; each is one self-contained
     # jar (Snowflake's and Databricks' POMs declare no dependency; BigQuery's is its shaded "all" jar). Apache-2.0,
     # each checked against Maven Central's sha1 on 2026-10-11.
+    # 2026-11-13 (the separation stream's item 4): core too, for one manual probe alone,
+    # //core:identifier_escaping_cloud_probe -- the dialects' identifier escaping asked of a live Databricks and
+    # Snowflake, its class beside the escaping tests it extends (core's dialect tests); no other core target names them.
     "databricks_jdbc": struct(
         coordinate = "com.databricks:databricks-jdbc:3.4.3",
         sha256 = "191917c5a45629d33f4734ff599f9a4d4f4bdfc82f159ed7dc9f2b285a1d35d2",
-        users = ["pct"],
+        users = ["core", "pct"],
     ),
     "snowflake_jdbc": struct(
         coordinate = "net.snowflake:snowflake-jdbc:4.4.0",
         sha256 = "eeabc114d2fd429365f8bdde0cb5dd00f0cf529b22aab754751bab1b09fc65c0",
-        users = ["pct"],
+        users = ["core", "pct"],
     ),
     # group:artifact:version:classifier -- the shaded jar; the plain one declares 109 runtime dependencies
     "bigquery_jdbc": struct(
