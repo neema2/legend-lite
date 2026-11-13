@@ -114,7 +114,9 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
         assertEquals(TWO_ROWS, sums("|" + sum("rows(-1, 0)")));
         String sql = generateSql("|test::frames::back(-1)");
         assertTrue(sql.contains("ROWS BETWEEN 1 PRECEDING AND CURRENT ROW"), sql);
-        assertFalse(sql.contains("CASE"), "no check around a literal frame: " + sql);
+        // no frame check (either of its raises); a CASE of another rule may stand -- SQLite's 64-bit guard on an integer
+        // sum, now that the statement read is the one that runs (main's #95 merged in, 2026-11-13)
+        assertFalse(sql.contains("Invalid window frame boundary"), "no check around a literal frame: " + sql);
     }
 
     @Test
@@ -123,7 +125,9 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
         assertEquals(TWO_ROWS, sums("|test::frames::window(2)"));
         String sql = generateSql("|test::frames::window(2)");
         assertTrue(sql.contains("ROWS BETWEEN 1 PRECEDING AND CURRENT ROW"), sql);
-        assertFalse(sql.contains("CASE"), "no check around a literal frame: " + sql);
+        // no frame check (either of its raises); a CASE of another rule may stand -- SQLite's 64-bit guard on an integer
+        // sum, now that the statement read is the one that runs (main's #95 merged in, 2026-11-13)
+        assertFalse(sql.contains("Invalid window frame boundary"), "no check around a literal frame: " + sql);
     }
 
     @Test
