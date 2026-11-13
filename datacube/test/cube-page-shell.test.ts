@@ -11,6 +11,7 @@
 // one (page-app.test.ts), or on a cube alone (chart-tiles.test.ts). No test here needs the WebAssembly planner.
 
 import assert from 'node:assert/strict';
+import { PlanThenRun } from '../src/runner.ts';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -1380,7 +1381,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     const now = writeCube({ name: 'Q3', source: file('trades.csv'), snapshot: SNAPSHOT, configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty() });
     const services = {
       engine: {
-        rows: () => ({ planner: new StubPlanner(), engine }),
+        rows: () => ({ runner: new PlanThenRun(new StubPlanner(), engine) }),
         database: {
           opened: async (doc: string) => {
             asked.push(doc);
@@ -1409,7 +1410,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     const now = writeCube({ name: 'Q3', source: file('trades.csv'), snapshot: SNAPSHOT, configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty() });
     const services = {
       engine: {
-        rows: () => ({ planner: new StubPlanner(), engine }),
+        rows: () => ({ runner: new PlanThenRun(new StubPlanner(), engine) }),
         database: {
           opened: async (doc: string) => {
             asked.push(doc);
@@ -2297,7 +2298,7 @@ describe("a remote file saved without its link's token: reopened, the tab asks f
     });
     const services = {
       engine: {
-        rows: () => ({ planner: new StubPlanner(), engine }),
+        rows: () => ({ runner: new PlanThenRun(new StubPlanner(), engine) }),
         database: {
           mountRemote: async (url: string) => {
             mounted.push(url);
@@ -2335,7 +2336,7 @@ describe("a remote file saved without its link's token: reopened, the tab asks f
       });
       const services = {
         engine: {
-          rows: () => ({ planner: new StubPlanner(), engine }),
+          rows: () => ({ runner: new PlanThenRun(new StubPlanner(), engine) }),
           database: {
             mountRemote: async (url: string) => {
               mounted.push(url);

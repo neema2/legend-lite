@@ -239,6 +239,14 @@ def model_elements(text: str) -> list[dict[str, Any]]:
     return _json.loads(_engine('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text))['elements']
 
 
+def lite_elements(text: str) -> list[dict[str, Any]]:
+    """A model's text as its elements READ IN LITE'S OWN DIALECT (the native library's Boundary.elements; the DataCube
+    engine contract's Q27): the parse the planner compiles a model with, lite's declared extensions read (a function
+    generic over relations, S112) where ``model_elements``'s upstream grammar refuses them. An engine's own reading for
+    its own checks (R3a, a library's: Q17, a write's tables); nothing planned."""
+    return _json.loads(_answer(library().call('lite_elements', text)))['elements']
+
+
 def model_text(elements: list[dict[str, Any]]) -> str:
     """Elements (PureModelContextData's, as ``model_elements`` reads them) as Pure text (``grammar/jsonToGrammar/model``):
     what the engine contract hands DataCube of a model it wrote, less the Connection and Runtime it owns (R3a (c))."""

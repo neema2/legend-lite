@@ -196,6 +196,9 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/verify-real-data.mjs", List.of("conn.query(", "conn.query(", "conn.query(")),
             Map.entry("datacube/demo/verify-remote.mjs", List.of("conn.query(", "conn.query(", "conn.query(", "db.copyFileToBuffer")),
             Map.entry("datacube/demo/widget-loader.ts", List.of("model.send(")),
+            // 2026-11-13 (the DataCube engine contract's step 4a): a grid's runner asks its EngineSession a query -- Pure
+            // intent to an engine (the tab's, Python's, a server's), never a statement; the engine plans it and runs its plan
+            Map.entry("datacube/src/engine-run.ts", List.of("session.query(", "session.query(")),
             // (datacube/src/headless/host.ts's calls.query(: GONE 2026-11-13, the DataCube stream's merge of the #6 bridge --
             // the hosted code sends Python's database no statement, only intent)
             Map.entry("engine-client/src/duckdb.ts", List.of("conn.insertArrowFromIPCStream", "conn.query(", "prepared.query(", "prepared.query(", "prepared.send(", "this.#conn.prepare(", "this.#conn.query(")),
@@ -209,7 +212,9 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/verify-remote.mjs", List.of("db.connect(")),
             Map.entry("datacube/src/app/datacube-app.ts", List.of("modelHome.connect(", "modelHome.connect(")),
             Map.entry("datacube/src/app/sources.ts", List.of(".connect(", "modelHome.connect(", "on.connect(", "on.connect(")),
-            Map.entry("datacube/src/services/browser.ts", List.of("driver.connect(", "o.duckdb.connect(")),
+            // 2026-11-13 (the DataCube engine contract's step 4a, Q25/Q23): the tab's engine resolves a project's version
+            // (its Depot) and a workspace's revision (its SDLC) through the page's model home -- a model home, no database
+            Map.entry("datacube/src/services/browser.ts", List.of("driver.connect(", "modelHome.connect(", "modelHome.connect(", "o.duckdb.connect(")),
             // THE raw connection, made once and handed to DuckDbEngine
             Map.entry("engine-client/src/duckdb-tab.ts", List.of("db.connect(")),
             Map.entry("engine-client/src/project-data.ts", List.of("this.#host.connect(")),

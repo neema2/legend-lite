@@ -252,7 +252,7 @@ describe('the example page over the classes, opened the page\'s way', () => {
       const t0 = performance.now();
       const q = savedQuerySource(g).query;
       let planner: LitePlanner | undefined;
-      const { source } = await savedQueryOpened(q, PROJECT, reading, (runtime, how) => {
+      const { source } = await savedQueryOpened(q, { parse: reading.parse, elements: () => reading.elements(PROJECT) }, (runtime, how) => {
         // the page's planner of a source's own model: another on the page's module (demo/planners.ts `another`)
         planner = page.withModel(PROJECT, runtime, how);
         planners.push(planner);

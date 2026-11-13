@@ -11,6 +11,7 @@ import type { HeldCopy } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts';
 import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
+import type { LitePlanner } from '../src/lite-planner.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
 import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesRequest } from '../src/sample-trades.ts';
@@ -187,7 +188,7 @@ export interface Engine {
    * table -- whichever planner plans it (infer.ts): the planner itself in this tab; legend-lite's
    * module, loaded when first asked, beside a planner on a server (planners.ts).
    */
-  readonly tables: TableModels;
+  readonly tables: LitePlanner;
   /**
    * legend-lite's planner in this tab for a project's own database (a saved query opened by name; C5): the statements
    * that make, fill and drop it (engine-client's project-data.ts) -- the same module as `tables`.

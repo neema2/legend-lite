@@ -188,6 +188,8 @@ UUID_MINTS = {
     # never an execution's but the one per plan run
     ('contract.py', '_add_source'): 2,
     ('contract.py', 'hold'): 1,
+    # 2026-11-13 (step 4a): a model over several sources, its connection's name (so its runtime is its own)
+    ('contract.py', '_model_of'): 1,
     # 2026-11-13 (step 2): a write's execution id, its door's one mint for that plan run
     ('contract.py', '_write'): 1,
     ('page.py', '_saved'): 1,

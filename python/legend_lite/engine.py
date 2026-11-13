@@ -571,14 +571,20 @@ class _ContractSide(contract.EngineSide):
         return made
 
     def snap(self, model: str, runtime: str, query: Any) -> dict[str, Any]:
-        frames = self._of().frames
+        engine = self._of()
+        frames = engine.frames
         with frames.reading_file('snap') as table:
-            plan = compiler.snap_copy({'databaseType': 'DuckDB', 'model': model, 'runtime': runtime,
+            # its rows counted where they are, as every snap's are (snap.ts countQuery's twin, _count_of): the planner's
+            # plan of the pull's size(), its own values bound -- the count the answer gives (Q26)
+            with compiler.HeldModel(model) as held:
+                plan = engine.planner.read(engine.planner.plan(_count_of(json.dumps(query)), held, runtime))
+            rows = int(send(frames.connection, plan.sql, list(plan.params)).fetchone()[0])
+            copy = compiler.snap_copy({'databaseType': 'DuckDB', 'model': model, 'runtime': runtime,
                                        'lambda': json.dumps(query), 'table': table})
-            run_write(plan, frames.connection)
+            run_write(copy, frames.connection)
             made = self._model(table, convertible=True)
             frames.keep_file(table, made)
-        return made
+        return {**made, 'rowCount': rows}
 
     def drop(self, table: str, view: bool) -> None:
         frames = self._of().frames
@@ -586,6 +592,38 @@ class _ContractSide(contract.EngineSide):
             _host.run(frames.connection, {'op': 'drop', 'kind': 'view' if view else 'table',
                                           'target': _host.name(table, schema='main')})
         frames.forget_file(table)
+
+    def project_model(self, group: str, artifact: str, version: str) -> str | None:
+        """A project's version as one model text through this engine's own Depot (its model home's), as Depot's model
+        text is read (depot-client model-text.ts): every file of the version and of its dependency closure, each entering
+        the Pure section. None: the Depot holds no such version."""
+        from ._home import home_call
+        status, said = home_call(self._of().model_home_folder(), 'depot', 'POST',
+                                 '/projects/dependencies/pure?transitive=true',
+                                 json.dumps([{'groupId': group, 'artifactId': artifact, 'versionId': version}]))
+        if status == 404:
+            return None
+        if status >= 300:
+            raise OSError(f'the Depot answered {status}: {said}')
+        closure = json.loads(said)
+        return '\n'.join(f"###Pure\n{f['pureCode']}" for v in closure for f in v.get('files', []))
+
+    def revision_model(self, project: str, workspace: str, revision: str) -> str | None:
+        """A project's workspace at a revision as one model text through this engine's own model home's SDLC (Q23): its
+        files (lite's text route, ``GET …/revisions/{r}/pure``) joined by the project-text rule (sdlc-client
+        project-text.ts): a file led by a section as it is, every other led by ``###Pure``. None: no such project,
+        workspace or revision."""
+        from urllib.parse import quote
+        from ._home import home_call
+        path = '/'.join(['/projects', quote(project, safe=''), 'workspaces', quote(workspace, safe=''), 'revisions',
+                         quote(revision, safe=''), 'pure'])
+        status, said = home_call(self._of().model_home_folder(), 'sdlc', 'GET', path, None)
+        if status == 404:
+            return None
+        if status >= 300:
+            raise OSError(f'the SDLC answered {status}: {said}')
+        return '\n'.join(f['pureCode'] if f['pureCode'].startswith('###') else f"###Pure\n{f['pureCode']}"
+                         for f in json.loads(said))
 
     def spool(self, name: str, data: bytes) -> str:
         if self._spool is None:

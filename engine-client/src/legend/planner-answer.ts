@@ -27,6 +27,7 @@ export interface PlannerModule {
     remoteMountOrError(request: string): string;
     snapStreamOrError(request: string): string;
     snapCopyOrError(request: string): string;
+    elementsOrError(text: string): string;
     outputPlanOrError(request: string): string;
     synthesizeOrError(request: string): string;
     authoredOrError(request: string): string;
@@ -45,6 +46,7 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'plan': return m.exports.planHeldOrError(r.handle, r.query, r.runtime);
     case 'relationType': return m.exports.relationTypeHeldOrError(r.handle, r.query);
     case 'tableModel': return m.exports.tableModelOrError(r.table);
+    case 'elements': return m.exports.elementsOrError(r.text);
     case 'catalogColumnsSql': return m.exports.catalogColumnsSqlOrError(r.schema, r.table);
     case 'planJson': return m.exports.planJsonHeldOrError(r.handle, r.lambda, r.runtime);
     case 'executionPlan': return m.exports.executionPlanJsonHeldOrError(r.handle, r.lambda, r.runtime);

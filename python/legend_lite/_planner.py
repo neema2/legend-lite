@@ -20,6 +20,7 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'plan': ('lite_plan_text_held', lambda m: (str(m['handle']), m['query'], m['runtime'])),
     'relationType': ('lite_relation_type_text_held', lambda m: (str(m['handle']), m['query'])),
     'tableModel': ('lite_table_model', lambda m: (m['table'],)),
+    'elements': ('lite_elements', lambda m: (m['text'],)),
     'catalogColumnsSql': ('lite_catalog_columns_sql', lambda m: (m['schema'], m['table'])),
     'planJson': ('lite_plan_json_held', lambda m: (str(m['handle']), m['lambda'], m['runtime'])),
     'executionPlan': ('lite_execution_plan_json_held', lambda m: (str(m['handle']), m['lambda'], m['runtime'])),

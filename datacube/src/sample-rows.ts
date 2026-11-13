@@ -4,7 +4,8 @@
 // docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 7).
 
 import type { Lambda } from '../../pure-protocol/src/index.ts';
-import type { PlanAndRunHost } from './runner.ts';
+import type { QueryRunner } from './runner.ts';
+import { rowsOnce } from './rows-once.ts';
 
 /** A class's sample: its columns' names and its rows, each a value per column. */
 export interface SampleRows {
@@ -26,8 +27,8 @@ export class SampleRefusal extends Error {
  * as JSON, which has neither, and JSON.stringify would write `null` -- a value the data never had (AGENTS.md invariant
  * 4; found 2026-10-15, refused 2026-10-16).
  */
-export async function sampleOf(host: PlanAndRunHost, sample: Lambda): Promise<SampleRows> {
-  const { rows } = await host.planAndRun(sample, 0);
+export async function sampleOf(runner: QueryRunner, sample: Lambda): Promise<SampleRows> {
+  const { rows } = await rowsOnce(runner, sample);
   return {
     columns: rows.columns.map((c) => c.name),
     rows: [...Array(rows.rowCount).keys()].map((r) => rows.columns.map((c) => {

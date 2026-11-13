@@ -282,6 +282,43 @@ class TheDoorTest(_Served):
         self.assertEqual(said['error']['what'], "a query's parameters")
 
 
+PROJECT = {'groupId': 'demo', 'artifactId': 'party', 'versionId': '1.0.0'}
+
+
+def publish_party(folder):
+    """The run-load fixture's party model published in ``folder``'s model home as demo:party:1.0.0, through its own
+    SDLC -- a project, a workspace, one change per element, a review approved and committed, a version: what this
+    engine's Depot then resolves by its coordinates (Q19); and a workspace opened on it, w2, at its revision -- what its
+    SDLC resolves by its coordinates (Q23). Its text, and the revision's coordinates."""
+    from legend_lite import _home
+    with open(os.environ['LEGEND_LITE_RUN_LOAD_FIXTURE'], encoding='utf-8') as f:
+        text = json.load(f)['model']
+
+    def sdlc(method, target, body=None):
+        status, said = _home.home_call(folder, 'sdlc', method, target, None if body is None else json.dumps(body))
+        if status >= 300:
+            raise AssertionError(f'{method} {target}: {status} {said}')
+        return json.loads(said) if said else None
+    sdlc('POST', '/projects', {'name': 'party', 'description': 'the party fixture', 'groupId': 'demo',
+                               'artifactId': 'party'})
+    project = 'demo:party'
+    sdlc('POST', f'/projects/{project}/workspaces/w1')
+    chunks = [c if i == 0 else f'###{c}' for i, c in enumerate(text.split('\n###'))]
+    changes = []
+    for chunk in chunks:
+        elements = [e for e in compiler.model_elements(chunk) if e['_type'] != 'sectionIndex']
+        assert len(elements) == 1, chunk
+        changes.append({'type': 'CREATE', 'path': f"{elements[0]['package']}::{elements[0]['name']}", 'pureCode': chunk})
+    sdlc('POST', f'/projects/{project}/workspaces/w1/pureChanges', {'message': 'party', 'changes': changes})
+    review = sdlc('POST', f'/projects/{project}/reviews', {'workspaceId': 'w1', 'title': 'party', 'description': 'party'})['id']
+    sdlc('POST', f'/projects/{project}/reviews/{review}/approve', {})
+    sdlc('POST', f'/projects/{project}/reviews/{review}/commit', {'message': 'party'})
+    sdlc('POST', f'/projects/{project}/versions', {'versionType': 'MAJOR'})
+    sdlc('POST', f'/projects/{project}/workspaces/w2')
+    revision = sdlc('GET', f'/projects/{project}/workspaces/w2/revisions/HEAD')['id']
+    return text, {'project': project, 'workspace': 'w2', 'revision': revision}
+
+
 class ConformanceSuiteTest(_Served):
     """ENGINE-CLIENT'S CONFORMANCE SUITE, against Python headless, through the V8 bridge: every case passes."""
 
@@ -291,7 +328,12 @@ class ConformanceSuiteTest(_Served):
         self.addCleanup(served.close)
         held_file = Path(served.folder.name, 'held.csv')
         held_file.write_text(CSV, encoding='utf-8')
+        text, revision = publish_party(self.engine.model_home_folder())
         fixture = {
+                   'project': {'coordinates': PROJECT, 'runtime': 'demo::party::Runtime',
+                               'mapping': 'demo::party::PartyMapping', 'cls': 'demo::party::Party', 'rows': 2, 'text': text,
+                               'query': '|demo::party::Party.all()->project(~[id: x|$x.id, name: x|$x.name])',
+                               'revision': {'coordinates': revision, 'text': text}},
                    'upload': {'name': 'up.csv', 'text': CSV, 'rows': 3}, 'sentinel': SENTINEL,
                    'held': self.engine.contract.hold(str(held_file)), 'served': {'base': served.base},'model': self.model, 'runtime': self.runtime, 'source': self.table.source,
                    'columns': [{'name': 'id', 'type': 'Integer'}, {'name': 'name', 'type': 'String'}],
@@ -304,7 +346,7 @@ class ConformanceSuiteTest(_Served):
             results = json.loads(h.evaluate(f'legendLiteConformance.run({json.dumps(json.dumps(fixture))})'))
         for r in results:
             print(f"{'ok  ' if r['ok'] else 'FAIL'} {r['name']}{'' if r['ok'] else ': ' + r.get('error', '')}", flush=True)
-        self.assertGreaterEqual(len(results), 19)
+        self.assertGreaterEqual(len(results), 27)
         self.assertEqual([r for r in results if not r['ok']], [])
         self.assertEqual([r for r in results if r.get('notRun')], [], 'every case runs against Python headless')
 

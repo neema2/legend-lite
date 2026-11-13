@@ -519,8 +519,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  data: payload, which DuckDB binds as a parameter, is read where the tab reads a plan -- from the plan beside the text,
  *  by its digest, verified (engine-client plan-params.ts, the synchronous SHA-256 moved there from page-hash.ts) -- and
  *  bound where the engine runs it (duckdb.ts #bound), the snap, the join summary and the Output carrying it).
- *  Measured 433,818. */
-const BUDGET = 434_500;
+ *  Measured 433,818.
+ *  434,500 -> 438,500 (2026-11-13, the DataCube engine contract's step 4a: every grid's rows through the tab's engine
+ *  -- EngineRun, the engine opened lazily by the tab's services, its version and revision resolvers, its Snap through
+ *  addSource -- the engine's own code a chunk of its own, fetched with a grid's first rows; and apache-arrow's vector
+ *  building (vectorFromArray: its factories and vector modules, already in the start, keep the code a module's live
+ *  exports need) for the tab engine's in-process RecordBatch (Q9), which goes at 4d when DuckDB-WASM's own Arrow
+ *  batches pass through: over by 3,778 bytes). Measured 438,278. */
+const BUDGET = 438_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -735,8 +741,14 @@ const BUDGET = 434_500;
  *  420,500 -> 421,500 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 420,811.
  *  421,500 -> 422,000 (2026-11-12, the total wall's B and C3 together: a planner client's answers typed as a plan's
  *  statements where they are read -- planned-sql.ts fromPlan, allFromPlan and plannedProjectData -- and the planner's
- *  synthesize door, LitePlanner.synthesize; each fit alone, the two over by 169 bytes). Measured 421,669. */
-const ENGINE_BUDGET = 422_000;
+ *  synthesize door, LitePlanner.synthesize; each fit alone, the two over by 169 bytes). Measured 421,669.
+ *  422,000 -> 422,500 (2026-11-13, the DataCube engine contract's step 4a: the wire client's two reading calls the
+ *  orchestrator's Q15 and Q19 rulings add -- modelOf, and elements asked of a project by its coordinates -- carried by
+ *  the page's engine-client; over by 39 bytes). Measured 422,039.
+ *  422,500 -> 423,000 (2026-11-13, the same step 4a: the contract's SourceAnswer.rowCount and its reading-call kinds, the
+ *  planner protocol's `elements` request (Q27), carried by the engine page's engine-client; over by 98 bytes).
+ *  Measured 422,598. */
+const ENGINE_BUDGET = 423_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1125,8 +1137,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  450,000 -> 450,500 (2026-11-12, the total wall's B3 items 1 and 4: the user's ruling that a snapshot's request carries
  *  the pull, never SQL -- the cube asks its planner for the pull, LitePlanner.pullRequest, and a remote snap without one
  *  is refused by name -- and the snap's count and its copy's drop refused or said by name, never defaulted or swallowed;
- *  the re-audit's own growth was trimmed back under 450,000 first, c3191d097). Measured 450,200. */
-const WIDGET_BUDGET = 450_500;
+ *  the re-audit's own growth was trimmed back under 450,000 first, c3191d097). Measured 450,200.
+ *  450,500 -> 451,000 (2026-11-13, the DataCube engine contract's step 4a: the page's grids' rows through their runner
+ *  alone (GridRows), a grid's Snap through its host's copy, a saved query's project by its coordinates -- the app's
+ *  shared code the notebook's module carries; over by 335 bytes). Measured 450,835. */
+const WIDGET_BUDGET = 451_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

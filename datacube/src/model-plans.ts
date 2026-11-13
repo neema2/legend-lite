@@ -7,16 +7,17 @@
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { ClassAction, ColumnChoice, GridSource, Joinable } from './model-writer.ts';
 import type { ClassBasis } from './query.ts';
-import type { PlanAndRun } from './runner.ts';
+import type { QueryRunner } from './runner.ts';
+import { rowsOnce } from './rows-once.ts';
 import { sampleOf, type SampleRows } from './sample-rows.ts';
 
 /**
  * Each table a class is made over, its first rows as the window writes them into the project (sample-rows.ts sampleOf),
  * read where the grid's rows are: a NaN or an infinity the sample cannot carry refused in words (SampleRefusal).
  */
-export async function classSamples(rows: PlanAndRun, basis: ClassBasis): Promise<Record<string, SampleRows>> {
+export async function classSamples(rows: QueryRunner, basis: ClassBasis): Promise<Record<string, SampleRows>> {
   const samples: Record<string, SampleRows> = {};
-  for (const t of basis.tables) samples[t.table] = await sampleOf(rows.host, t.sample);
+  for (const t of basis.tables) samples[t.table] = await sampleOf(rows, t.sample);
   return samples;
 }
 
@@ -44,9 +45,9 @@ export function classAction(made: { readonly basis: ClassBasis; readonly source:
 }
 
 /** Whether the planned query answers no row: the column is unique over the rows; undefined when it cannot be run. */
-export async function noRow(rows: PlanAndRun, query: Lambda): Promise<boolean | undefined> {
+export async function noRow(rows: QueryRunner, query: Lambda): Promise<boolean | undefined> {
   try {
-    return (await rows.host.planAndRun(query, 0)).rows.rowCount === 0;
+    return (await rowsOnce(rows, query)).rows.rowCount === 0;
   } catch {
     // the rows are not where this host reads them (a class made in another browser, its table not opened here): asked,
     // not guessed
@@ -66,7 +67,7 @@ export interface KeyQueries {
  * as the query for a value held twice: no row, and it is. Undefined when it cannot be read (no function, no column, the
  * rows not here): left for the writer to refuse in words, as the window leaves it for the person.
  */
-export function keyUnique(facts: PlanAndRun, joinable: readonly Joinable[], cls: string, on: string, q: KeyQueries):
+export function keyUnique(facts: QueryRunner, joinable: readonly Joinable[], cls: string, on: string, q: KeyQueries):
   Promise<boolean | undefined> {
   const j = joinable.find((x) => x.class === cls);
   const column = j?.keys.find((k) => k.name === on)?.column;

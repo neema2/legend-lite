@@ -20,6 +20,7 @@ import { layoutTiles, readPage, type PageDocument } from '../page-document.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { pythonRunner } from '../services/python-host.ts';
+import { rowsOnce } from '../rows-once.ts';
 import { hostCalls, hostData, hostEngine, hostWorker } from './host.ts';
 import { leafTables, type HostTables } from './host-tables.ts';
 
@@ -260,7 +261,7 @@ export async function joinQuestions(spec: string): Promise<string> {
     const rows = pythonRunner(hostEngine(calls), inputs.model, inputs.runtime, {}, () => hostWorker(calls));
     try {
       const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, s.how),
-        async (query) => (await rows.host.planAndRun(query, 0)).rows);
+        async (query) => (await rowsOnce(rows, query)).rows);
       return JSON.stringify({ counts, words: summaryWords(s.how, counts) });
     } finally {
       (rows.host.planner as LitePlanner).dispose();

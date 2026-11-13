@@ -13,6 +13,7 @@ export const REQUEST_KINDS = [
   'plan',
   'relationType',
   'tableModel',
+  'elements',
   'catalogColumnsSql',
   'planJson',
   'executionPlan',
@@ -44,6 +45,8 @@ export type RequestBody =
   | { readonly kind: 'plan'; readonly handle: number; readonly query: string; readonly runtime: string }
   | { readonly kind: 'relationType'; readonly handle: number; readonly query: string }
   | { readonly kind: 'tableModel'; readonly table: string }
+  // a model's elements in lite's own dialect: an engine's own reading, nothing planned (Boundary.elements, Q27)
+  | { readonly kind: 'elements'; readonly text: string }
   | { readonly kind: 'catalogColumnsSql'; readonly schema: string; readonly table: string }
   // a query's protocol JSON planned against a model held
   | { readonly kind: 'planJson'; readonly handle: number; readonly lambda: string; readonly runtime: string }

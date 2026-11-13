@@ -126,7 +126,11 @@ Today's special cases (`heldDataHost` handing the UI a held DuckDB connection, `
    2026-11-13: the runners (Python's run_plan, the tab's runPlan) take the door's id and bind every `#stamp` slot to its
    trace comment; a stamped plan run with no id, or a write's own stamp, refused by name (G10, G11: a stamped plan runs
    the same on every host); no runner makes an id (Python's UUID_MINTS, the TypeScript ID_MINTS).
-4. **The tab behind `Engine`, in-thread** (amendment (a), 2026-11-13): no Worker move; `heldDataHost` goes.
+4. **The tab behind `Engine`, in-thread** (amendment (a), 2026-11-13): no Worker move; `heldDataHost` goes. In four
+   sub-steps (Q18), each green and reported with its SHA: **4a** every grid's rows through the tab's engine (§12: Q15-Q27;
+   built 2026-11-13); **4b** the data flows (an upload, a remote file by its secret, the writing flows, forget as drop);
+   **4c** the browser lane's C17; **4d** native Arrow batches, and `heldDataHost` and `LocalEngine` off DataCube's surface
+   (a guard biting a planted violator).
 5. **Python's page on the contract:** its routes become the contract's; `write` offered on the page.
 6. **The warehouse and the Java server:** `capabilities`, `describe`, `typeOf`, `query`, named refusals; and a query's
    `parameters` on every engine (refused by name until then: the Java server's runs take them, and D3's imported engine
@@ -186,3 +190,55 @@ today); the UI's look.
 - **Q14 the tab's own tables (step 3):** the ones it issued handles for -- Q11 (b)'s rule; the page's held check stays
   UI policy.
 - **Q9 Arrow:** `RecordBatch` objects in-process for the tab; IPC bytes only on the wire transports.
+
+## 12. The step-4 answers (the orchestrator, 2026-11-13)
+
+- **Q15 `modelOf(handles[])`:** a reading call: ONE model the engine writes over several of its sources (a join's
+  inputs, read in one place), one runtime it owns, and each source's relation (`{model, runtime, relations[]}`).
+  Refused by name: a handle of another session, sources of different databases, sources that cannot be read together.
+- **Q16 how a query reads its model:** `how.mapping` (the query goes `->from(mapping, runtime)`) and `how.project`
+  (Q19, Q23), on every engine.
+- **Q17 DataCube's Pure library:** an explicit `library` field of a QueryAsk, sent beside the model when a query calls
+  it, never in it; the engine checks it on its PARSED elements (functions alone, anything else refused by name) and
+  holds it by its digest.
+- **Q18 the tab's step 4 in sub-steps** 4a-4d, each green on its own and reported with its SHA. Step 4 is complete when
+  the tab's `notRun` list is empty and no DataCube source reaches `heldDataHost` or `LocalEngine` (a guard, biting a
+  planted violator).
+- **Q19 a project by its coordinates:** `how.project` carries a version's `{groupId, artifactId, versionId}`; the
+  engine resolves the model through its own model home (its Depot) and owns the project's runtimes by path; its rows
+  are the project's own Data (C5). `QueryAsk.model` carries only DataCube's additions. `elements({project})` answers
+  the project's elements without its connections or runtimes. Refused by name: an unknown project; a project's text
+  sent as `model` (R3a); a mapping that is neither the project's nor one the query adds.
+- **Q20 the tab's planes:** the tab's engine takes the PLANE's planner (legend-lite's module, legend-lite on a server,
+  legend-engine) for `typeOf`, `query`, `describe`, `parse`, `print` and `elements`; legend-lite's module stays its
+  writer (a table's model, the catalog, a write's and a snap's plan, the engine's own reading for R3a and Q17), and
+  `capabilities().engine.name` names the plane. On the legend-engine plane, today's UpstreamPlanner behaviour is
+  carried unchanged behind the interface -- no new compatibility logic in this stream: the real-engine engine (O7) is
+  step 8. A server planning rows the tab runs is an arrangement inside the engine (§4).
+- **Q21 BIT columns:** derived by the engine from the parsed model's stores (columns declared `BIT`); no contract field.
+- **Q22 enumerations:** derived by the engine from the model's parsed elements and reported as
+  `ResultColumn.enumeration`; no contract field.
+- **Q23 a workspace's revision:** `how.project` (and `elements({project})`) also takes SDLC coordinates `{project,
+  workspace, revision}`, resolved through the engine's model home; its rows are the engine's own tables (a class reads
+  the tables the page that made it opened). DataCube never strips or edits model text. Refused by name: unknown
+  coordinates; a revision's text sent as `model` (R3a).
+- **Q24 4a's scope:** a grid's rows (`GridRows`) are its runner alone, and every read of them -- its levels, its typing,
+  a class's first read, a join's questions, a model action's samples and keys, grids opened together -- goes through
+  it. The writing flows (Create Class's facts, a table output, a join's inputs' model) keep a planner over the grid's
+  model until they move at 4b; each is named in 4a's report.
+- **Q25 a saved query's version:** resolved behind the engine (the page's configured projects, then its Depot); the
+  page sends coordinates and asks `elements({project})`, and fetches no text of it.
+- **Q26 the tab's Snap moves at 4a** (its runner-only grids could not Snap otherwise): through the `hostSnap` road
+  Python's page already uses -- `snap` is `addSource({query}, 'snap')`, `release` is `drop`, the copy read through a
+  runner over the handle's model. `SourceAnswer.rowCount`, given for a `{query}` snap alone (the pull's `size()`,
+  planned and run where the rows are: the engine's own fact); absent for every other kind, never a guessed 0. A
+  warehouse grid keeps its own Snap until step 6.
+- **Q27 the engines' own reading:** (1) a library admits FUNCTIONS and ENUMERATIONS (DataCube's own declares both);
+  anything else -- a class, an association, a store, a mapping, a connection, a runtime -- is refused by name.
+  (2) An engine reads a model for its own checks (R3a, a library's, a write's tables) in lite's OWN dialect -- a new
+  planner door, reading only: `Boundary.elements(text)` (`PmcdParser.parse(text, Dialect.LEGEND_LITE)`'s elements,
+  no source information; the module's `elementsOrError`, the native library's `lite_elements`; one parameter, the
+  model's text; nothing planned, no statement) -- the parse the planner compiles with, so lite's declared extensions
+  (a function generic over relations, S112) are read where upstream's exact grammar refuses them. The contract's
+  `elements` call stays upstream-exact. C4's closed-planner-surface census lists the door (whichever branch merges
+  second adds the row).

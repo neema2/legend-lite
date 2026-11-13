@@ -246,7 +246,8 @@ node_test(
 js_library(
     name = "conformance",
     testonly = True,
-    srcs = ["test/engine-conformance.ts"],
+    # the load fixture's model is the party project an engine serves by its coordinates (C23, step 4a, 2026-11-13)
+    srcs = ["test/engine-conformance.ts", "test/fixtures/run-load-conformance.json"],
     visibility = ["//datacube:__pkg__"],
 )
 

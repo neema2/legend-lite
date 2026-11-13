@@ -30,7 +30,8 @@ import type { GridCommand } from '../grid-commands.ts';
 import type { ModelOptions } from '../planner.ts';
 import type { S3Credentials } from '../remote.ts';
 import type { ModelWriter } from '../model-writer.ts';
-import type { PlanAndRun } from '../runner.ts';
+import type { PlanAndRun, QueryRunner } from '../runner.ts';
+import type { ProjectAt } from '../../../engine-client/src/engine-contract.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { UploadResult } from '../upload.ts';
 import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
@@ -80,13 +81,11 @@ export interface PlaneService {
 }
 
 /**
- * A grid's rows (§4.5), in the two shapes a grid takes: planned here and run here -- a planner over the source's own
- * model and the database it runs on (the tab, headless) -- or planned and run by the host, the page sending Pure and
- * never SQL (a Python host: R4).
+ * A grid's rows (§4.5): its runner, every read of them through it -- on the tab, a runner over the engine contract (the
+ * tab's engine: its planner and DuckDB-WASM behind it, step 4a, 2026-11-13); on a Python host, the host's plan-and-run
+ * (until step 5). The page reaches no planner or database past it.
  */
-export type GridRows =
-  | { readonly planner: Planner; readonly engine: QueryEngine; readonly runner?: undefined }
-  | { readonly runner: PlanAndRun; readonly planner?: undefined; readonly engine?: undefined };
+export type GridRows = { readonly runner: QueryRunner };
 
 /**
  * WHAT THE MODEL ACTIONS NEED OF A HOST (Create a Class…, Create an Association…, Create a Data Space…;
@@ -119,8 +118,18 @@ export interface EngineService {
   readonly label: string;
   /** What a saved query's text and its project's model are read by. */
   readonly reading: QueryReading;
-  /** A grid's rows over a source's model (§4.5): its own (a page's grids share no model), in the host's shape. */
+  /** A grid's rows over a source's model (§4.5): its own (a page's grids share no model) -- on the tab, the model the
+   *  page's writer wrote, which the tab's engine serves (R3a (c)). */
   rows(model: string, runtime: string, how?: ModelOptions): GridRows;
+  /**
+   * A project's grid by its coordinates (Q19, Q23, Q25): a version's or a workspace revision's, resolved by the host's
+   * engine -- its text never fetched by the page -- its rows where the engine reads them. Absent: the page reads a
+   * project's text itself (a Python host, until step 5).
+   */
+  readonly projects?: {
+    rows(project: ProjectAt, runtime: string, mapping?: string): GridRows;
+    elements(project: ProjectAt): Promise<unknown[]>;
+  };
   /** Where data comes in. */
   readonly database: DatabaseService;
   /** What the model actions need (`ModelWriting`); absent, they are not offered (§3.4). */

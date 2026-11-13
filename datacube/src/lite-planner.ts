@@ -172,6 +172,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const other = new LitePlanner({ ...readsOf(this.#options), model, runtime, ...readsHow(how) });
     other.#t = this.#t;
     other.#borrowed = true;
+    other.#ofLibrary = how.library === true;
     return other;
   }
 
@@ -670,6 +671,17 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return elements;
   }
 
+  /** A model's elements READ IN LITE'S OWN DIALECT (Boundary.elements; the engine contract's Q27): the parse the planner
+   *  compiles a model with, so lite's declared extensions are read (a function generic over relations, S112), where
+   *  `modelElements`' upstream grammar refuses them -- an engine's own reading for its own checks (R3a, a library's,
+   *  a write's tables). Nothing is planned. */
+  async liteElements(text: string): Promise<unknown[]> {
+    const answer = await this.#call({ kind: 'elements', text });
+    const elements = (JSON.parse(decode(answer, text)) as { elements?: unknown }).elements;
+    if (!Array.isArray(elements)) throw new PlanError('the model came back without elements', text);
+    return elements;
+  }
+
   /** A model's elements as Pure text (`grammar/jsonToGrammar/model`): what the tab's engine hands DataCube of a model it
    *  wrote, less the Connection and Runtime it owns (the engine contract's R3a (c), step 2, 2026-11-13). */
   async modelText(elements: readonly unknown[]): Promise<string> {
@@ -747,8 +759,9 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * THE MODEL OF SEVERAL TABLES of one database (a join's inputs, read in one place): the same writer, given `tables`
    * (planner.Boundary.tableModel) -- each package's Database, one connection, one runtime over them all.
    */
-  async tablesModel(tables: readonly ModelTable[], databaseType: string): Promise<TablesModel> {
-    const answer = await this.#call({ kind: 'tableModel', table: JSON.stringify({ databaseType, tables }) });
+  async tablesModel(tables: readonly ModelTable[], databaseType: string, connection?: string): Promise<TablesModel> {
+    // `connection`: the connection's name, so the runtime is this model's alone (the engine contract's modelOf, Q15)
+    const answer = await this.#call({ kind: 'tableModel', table: JSON.stringify({ databaseType, ...(connection !== undefined ? { connection } : {}), tables }) });
     const written = fromJson(decode(answer, `the model of ${tables.map((t) => t.table).join(', ')}`)) as
       Omit<TablesModel, 'tables'> & { readonly tables: readonly (Omit<TablesModel['tables'][number], 'source'> & { readonly source: unknown; readonly accessor: string })[] };
     return {

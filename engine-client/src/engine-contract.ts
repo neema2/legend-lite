@@ -21,7 +21,7 @@ export type CallName =
   | 'capabilities' | 'open' | 'close'
   | 'addSource' | 'describe' | 'drop'
   | 'typeOf' | 'query' | 'write' | 'cancel'
-  | 'parse' | 'print' | 'elements' | 'bindSecret';
+  | 'parse' | 'print' | 'elements' | 'bindSecret' | 'modelOf';
 
 /** A request's id, the client's: what `cancel` names. */
 export type RequestId = string;
@@ -56,8 +56,43 @@ export interface QueryAsk {
   readonly query: Lambda;
   /** The query's parameters' values, by name. */
   readonly parameters?: Readonly<Record<string, ValueSpecification>>;
-  /** How the query reads the model: through a mapping (`->from(mapping, runtime)`), or as a project's own. */
-  readonly how?: { readonly mapping?: string; readonly project?: true };
+  /** How the query reads the model: through a mapping (`->from(mapping, runtime)`), and over a project the ENGINE
+   *  resolves by its coordinates (Q19: never its text; the project's runtimes the engine's by their paths, its rows
+   *  the project's own -- `model` then carries only what DataCube adds over it). */
+  readonly how?: { readonly mapping?: string; readonly project?: ProjectAt };
+  /**
+   * DataCube's Pure library (datacube::ts: the functions a timeseries tile's queries call), sent beside the model, never
+   * appended to it (Q17): the engine checks it on its PARSED elements -- functions only, no connection, runtime, store,
+   * mapping or class -- refuses anything else by name, and may hold it by its digest.
+   */
+  readonly library?: string;
+}
+
+/** A project's version, by its coordinates (Q19): resolved through the engine's Depot, its rows its own Data (C5). */
+export interface ProjectCoordinates {
+  readonly groupId: string;
+  readonly artifactId: string;
+  readonly versionId: string;
+}
+
+/** A project's workspace at a revision, by its SDLC coordinates (Q23): resolved through the engine's model home, its
+ *  rows the engine's own tables (a class reads the tables the page that made it opened). */
+export interface RevisionCoordinates {
+  readonly project: string;
+  readonly workspace: string;
+  readonly revision: string;
+}
+
+/** A project a query reads over, by its coordinates: a version's or a workspace revision's. DataCube never sends its
+ *  text (R3a: the engine resolves it and owns its runtimes). */
+export type ProjectAt = ProjectCoordinates | RevisionCoordinates;
+
+/** What `modelOf` answers: ONE model the engine wrote over several sources, one runtime it owns, and each source's
+ *  relation in the order its handle was given (Q15). */
+export interface ModelOver {
+  readonly model: string;
+  readonly runtime: string;
+  readonly relations: readonly ValueSpecification[];
 }
 
 /** A result column: its name and its Pure type, as the compiler typed it (never the database's wire type). */
@@ -120,6 +155,9 @@ export interface SourceAnswer {
   readonly runtime: string;
   /** The relation a query over the source starts from. */
   readonly relation: ValueSpecification;
+  /** A query's rows copied (a `{query}` snap): how many, the engine's own count (Q26). Absent for every other kind,
+   *  whose rows the engine did not count -- never a guessed 0. */
+  readonly rowCount?: number;
 }
 
 /** What `describe` answers: a source's columns, as the engine's catalog types them. */
@@ -167,6 +205,8 @@ export interface Capabilities {
     readonly elements: boolean;
     /** bindSecret: a secret held by name for this session (Q13). */
     readonly bindSecret: boolean;
+    /** modelOf: one model over several sources (Q15; a reading call, compile-only). */
+    readonly modelOf: boolean;
     readonly addSource?: { readonly sources: readonly SourceKind[]; readonly how: readonly SourceHow[] };
     readonly write?: { readonly modes: readonly WriteModeName[] };
   };
@@ -198,14 +238,21 @@ export interface EngineSession {
   parse(text: string, o?: CallOptions): Promise<Lambda>;
   /** A query as Pure text for a person to read (compile-only). */
   print(query: Lambda, style?: PrintStyle, o?: CallOptions): Promise<string>;
-  /** A model's elements as the compiler reads them: a saved query's project (compile-only). */
-  elements(model: string, o?: CallOptions): Promise<unknown[]>;
+  /** A model's elements as the compiler reads them -- a model's text, or a project the engine resolves by its
+   *  coordinates (Q19), answered without its connections and runtimes: a saved query's data spaces, enumerations. */
+  elements(model: string | { readonly project: ProjectAt }, o?: CallOptions): Promise<unknown[]>;
   /**
    * A secret held under `name` for this session, its fields as a person gave them (Q13): WRITE-ONLY -- it answers nothing,
    * and nothing ever echoes it back (no answer, error, receipt, explain text or plan); dropped when the session closes. A
    * plan carries its name alone; the engine binds the value at run. The caller keeps no copy.
    */
   bindSecret(name: string, fields: Readonly<Partial<Record<SecretField, string | boolean>>>, o?: CallOptions): Promise<void>;
+  /**
+   * ONE model over the sources behind `handles`, one runtime the engine owns (Q15: a join's grid, a timeseries tile's
+   * grids read together): compile-only. Refused by name, never split: a handle of another session, sources of different
+   * databases, sources that cannot be read together.
+   */
+  modelOf(handles: readonly Handle[], o?: CallOptions): Promise<ModelOver>;
   /** Best effort; an unknown request is no error, and an answer already streamed stays valid. */
   cancel(request: RequestId): Promise<void>;
   close(): Promise<void>;
@@ -319,6 +366,7 @@ export function refusalOf(caps: Capabilities, call: CallName, option?: { readonl
     case 'print':
     case 'elements':
     case 'bindSecret':
+    case 'modelOf':
       return caps.calls[call] ? undefined : not(call, 'its capabilities do not list it');
     case 'addSource': {
       const offered = caps.calls.addSource;

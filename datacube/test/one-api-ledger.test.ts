@@ -824,7 +824,6 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   // second read, `place.planner ?? local.planner`, gone with planOf and executionPlan); table-output.ts is handed the
   // catalog's question and the Output's plan alone (`local.tables`)
   'src/app/datacube-app.ts:tableWriter:local': { count: 1, other: `${BOTH} a box's rows written into a table of the host's database by the one writer (table-output.ts): the tab's own here, Python's flow.run by headless gridWriteTable`, ability: 'write' },
-  'src/app/datacube-app.ts:tableWriter:place.runner': { other: `${BOTH} a grid whose rows a host runs (Python's) has its table written by that host: flow.run, headless gridWriteTable`, ability: 'write' },
   'src/app/datacube-app.ts:hostMenu:services.pages': { other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)`, ability: 'pages' },
   'src/app/datacube-app.ts:hostMenu:browser.address': { other: `${NATURE} Share… needs an address others can open; Python's is this machine's loopback` },
   'src/app/datacube-app.ts:empty:services.live': { other: `${NATURE} the empty page's words: a page Python serves is filled from Python` },
@@ -845,7 +844,6 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2)
   'src/app/datacube-app.ts:openDataCube:tabEngine': { other: `${BOTH} a timeseries series of several grids read together over one model of the tab's tables, or the host's (join.json together: headless joinTogether)`, ability: 'join' },
   'src/app/datacube-app.ts:openDataCube:hostTables': { other: `${BOTH} the host's half of grids read together (headless joinTogether, join-open.ts openSources)`, ability: 'join' },
-  'src/app/datacube-app.ts:rows:rows.runner': { other: `${BOTH} a timeseries' combined query run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
   // 2026-10-27 (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D3): an example over a project's saved queries
   'src/app/datacube-app.ts:examplesList:services.queries': { other: `${NATURE} the Open window's examples, one offered where the page compiles against its project; Python has no Open window -- a page of its own opens a saved query by its record (grid(record=...))` },
   // -- the sources (sources.ts) --
@@ -881,7 +879,6 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:savedSection:queries': { other: `${NATURE} a store watched for another tab's save: the browser's own store` },
   'src/app/sources.ts:savedSection:modelHome': { other: `${BOTH} a query's unconfigured project read through the host's model home`, ability: 'queries' },
   'src/app/sources.ts:savedSection:address': { other: `${NATURE} a query's link needs an address others can open` },
-  'src/app/sources.ts:snapTarget:local': { other: `${BOTH} a grid snaps into the tab's copy, or the host's`, ability: 'snap' },
   'src/app/sources.ts:frameAgain:database.frame': { other: `${NATURE} a dataframe lives in Python` },
   // -- found by the review's widened scan (D23): runners read off a source's rows or a grid's place, destructured
   // abilities, a database's place, every read on a line --
@@ -900,21 +897,25 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:hostSnapOf:held': { other: `${BOTH} a copy the host holds followed, where it gives one`, ability: 'snap' },
   'src/app/sources.ts:hostSnapOf:release': { other: `${BOTH} a copy the host holds let go, where it gives one`, ability: 'snap' },
   'src/app/sources.ts:hostSnapOf:snap': { other: `${BOTH} a grid snaps into the host's copy where it gives one, else the tab's`, ability: 'snap' },
-  'src/app/sources.ts:openedClass:rows.runner': { other: `${BOTH} a class's first row read by the host's runner, or the tab's engine`, ability: 'class' },
   'src/app/sources.ts:openedFile:database.forgetFile': { other: `${BOTH} a file read in, let go by the database that took it`, ability: 'files' },
   'src/app/sources.ts:openedFile:forgetFile': { other: `${BOTH} a file read in, let go by the database that took it`, ability: 'files' },
   'src/app/sources.ts:openedFile:ingestFile': { other: `${BOTH} a file read into the database that takes files (the tab's, Python's)`, ability: 'files' },
-  'src/app/sources.ts:openedOnHost:rows.runner': { other: `${BOTH} a grid the host opened, snapped where the host copies it`, ability: 'reopen' },
-  'src/app/sources.ts:openedRemote:rows.runner': { other: `${BOTH} a remote file's grid snapped into the tab's copy, or the host's`, ability: 'remote' },
   'src/app/sources.ts:pick:database.made': { other: `${BOTH} Classes where the host makes a class's grid (K17)`, ability: 'class' },
   'src/app/sources.ts:pick:engine.modelWriting': { other: `${BOTH} Classes where the tab reads classes through its place's runtime (K17)`, ability: 'class' },
   'src/app/sources.ts:pick:local': { other: `${BOTH} Classes where the tab reads classes itself, or the host makes them (K17)`, ability: 'class' },
   'src/app/sources.ts:picksSources:database.ingestFile': { other: `${BOTH} the picker offered where a database takes files`, ability: 'files' },
   'src/app/sources.ts:picksSources:local': { other: `${BOTH} the picker offered where the tab reads saved queries itself, or the host does`, ability: 'queries' },
   'src/app/sources.ts:picksSources:services.queries': { other: `${BOTH} the picker offered where the host has a query store`, ability: 'queries' },
-  'src/app/sources.ts:rowsPlace:rows.runner': { other: `${BOTH} a grid's place: the host's runner, or the tab's planner and engine`, ability: 'rows' },
-  'src/app/sources.ts:typer:rows.runner': { other: `${BOTH} a source's columns typed by the host's runner, or the tab's planner`, ability: 'rows' },
-  'src/app/sources.ts:openedFrame:rows.runner': { other: `${NATURE} a dataframe lives in Python: a frame's grid is read by its runner` },
+  // 2026-11-13 (the DataCube engine contract's step 4a, Q24/Q26): a grid's rows are its runner alone on every host --
+  // the tab's engine's or the host's -- so the nine branches on `rows.runner` (a grid's place, its typer, a class's
+  // first read, a remote file's, a frame's and a reopened grid's Snap, a timeseries' rows, the table Output's check, the
+  // tab's snapTarget) are gone; a host's own grid is now told by the page holding no planner over it
+  // (`hostGrid`, `writing`), and the tab's writing flows keep a planner over a grid's model until 4b
+  'src/app/datacube-app.ts:hostGrid:place.runner': { other: `${BOTH} a grid whose rows a host runs alone (Python's) has its table written by that host: flow.run, headless gridWriteTable; the tab's grids, read through its engine, by the tab`, ability: 'write' },
+  'src/app/datacube-app.ts:gridMaker:local': { other: `${BOTH} the start's grid read through the tab's engine over the page's own model; a host's grid always comes with its runner`, ability: 'rows' },
+  'src/app/sources.ts:(top):writing': { other: `${BOTH} a grid snaps where its host copies it: Python's copy for a grid it runs alone, the tab's engine's copy for the tab's (Q26)`, ability: 'snap' },
+  'src/app/sources.ts:rowsOver:local': { other: `${BOTH} a grid's rows through its runner on both hosts; the tab's writing flows keep a planner over its model until 4b, Python writes models itself`, ability: 'rows' },
+  'src/app/sources.ts:openedClass:local': { other: `${BOTH} a class's rows through the tab's engine by its revision (Q23), or the host's runner; the tab's writing flows keep a planner over its files until 4b`, ability: 'class' },
   // -- a grid (app.ts) --
   'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner`, ability: 'rows' },
   'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in`, ability: 'warehouse' },

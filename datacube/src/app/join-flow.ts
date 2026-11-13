@@ -6,6 +6,7 @@
 // loads none of it (test/bundle-budget.test.ts).
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { rowsOnce } from '../rows-once.ts';
 import { gridCapped, isLive, leavesOf, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { gridInput } from '../live-inputs.ts';
 import { boundIn } from '../page-parameters.ts';
@@ -25,7 +26,7 @@ import { FLOW_TOOLS, pageBoxName, readersOf } from '../flow-boxes.ts';
 import type { LineEnd } from '../layout/flow-board.ts';
 import { catalogColumns } from '../upload.ts';
 import type { GridRows, HostJoin, LocalEngine, Services } from './services.ts';
-import type { PageSources } from './sources.ts';
+import type { Over, PageSources } from './sources.ts';
 
 /**
  * WHAT JOIN… IS ASKED (a right-click's Join ▸, the user 2026-10-23): the window, at their grid and on a key when the
@@ -130,25 +131,21 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
   const opened = new JoinInputs<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): void }>(async (their) => {
     const other = others.get(their)!;
     let rows: GridRows | undefined;
-    try {
-      // each read with the page's parameters' values now (page-parameters.ts boundIn), as a grid's base is
-      const inputs = await openInputs(boundIn(mine.input, now.parameters ?? []), boundIn(other.input, now.parameters ?? []), {
-        here: TAB_TABLES,
-        tables: [...mine.tables, ...other.tables],
-        models: local.tables,
-        catalog: (table) => catalogColumns(local.engine, local.tables, table),
-        databaseType: local.engine.databaseType,
-        typer: (model, runtime) => {
-          rows = services.engine.rows(model, runtime);
-          return rows.planner!;
-        },
-      });
-      const held = rows!;
-      return { inputs, rows: held, dispose: () => held.planner?.dispose?.() };
-    } catch (e) {
-      rows?.planner?.dispose?.();
-      throw e;
-    }
+    // each read with the page's parameters' values now (page-parameters.ts boundIn), as a grid's base is; typed through
+    // the engine's runner, which holds no model in the page: nothing is let go after
+    const inputs = await openInputs(boundIn(mine.input, now.parameters ?? []), boundIn(other.input, now.parameters ?? []), {
+      here: TAB_TABLES,
+      tables: [...mine.tables, ...other.tables],
+      models: local.tables,
+      catalog: (table) => catalogColumns(local.engine, local.tables, table),
+      databaseType: local.engine.databaseType,
+      typer: (model, runtime) => {
+        rows = services.engine.rows(model, runtime);
+        return rows.runner;
+      },
+    });
+    if (rows === undefined) throw new Error('unreachable: a join\'s inputs are typed over their rows');
+    return { inputs, rows, dispose: () => {} };
   });
   try {
     await asked(page, o.ask, {
@@ -158,7 +155,7 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
       parse: (text) => local.planner.parse(text),
       // over their grid's own planner, held until it is answered
       summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
-        async (query) => { const p = await rows.planner!.plan(query); return rows.engine!.run(p.sql, 0, undefined, p.params); })),
+        async (query) => (await rowsOnce(rows.runner, query)).rows)),
       make: async (their, how) => {
         const other = others.get(their);
         if (!other) throw new Error('that grid is no longer on the page');
@@ -299,7 +296,7 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
   const readers = o.box === undefined ? new Set<string>() : readersOf(o.box, o.boxes, cubeOf);
   const others = o.boxes.filter((b) => b !== left && b !== o.box && !readers.has(b)).map((id) => ({ id, name: named(id) }));
   if (others.length === 0) throw new CubeRefusal('a join needs another box on the flow: add one first (an Input)');
-  const opened = new JoinInputs<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void> }>(async (their) => {
+  const opened = new JoinInputs<{ readonly inputs: OpenedInputs; readonly rows: Over; dispose(): Promise<void> }>(async (their) => {
     const at = page.document(page.title) ?? now;
     const bound = (grid: string) => boundIn(gridInput(at, grid), at.parameters ?? []);
     const got = await sources.openedInputs(bound(left), bound(their), named(left));
@@ -313,7 +310,7 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
       inputs: async (their) => (await opened.get(their)).inputs,
       parse: (text) => local.planner.parse(text),
       summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
-        async (query) => { const p = await rows.planner!.plan(query); return rows.engine!.run(p.sql, 0, undefined, p.params); })),
+        async (query) => (await rowsOnce(rows.rows.runner, query)).rows)),
       make: async (their, asked) => {
         if (joined !== undefined) {
           // a Dynamic Input set again an append still: its pick kept (its settings' Keep the rows of sets it)

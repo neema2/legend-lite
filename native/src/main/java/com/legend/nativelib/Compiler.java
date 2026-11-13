@@ -302,6 +302,19 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A model's elements in lite's own dialect ({@code Boundary.elements}, Q27): an engine's own reading, nothing planned. */
+    @CEntryPoint(name = "lite_elements")
+    static CCharPointer elements(IsolateThread thread, CCharPointer text) {
+        String a;
+        try {
+            String t = text(text);
+            a = Folded.of(() -> Boundary.elements(t));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** The model for a table, from its catalog rows: Database, connection and runtime ({@code Boundary.tableModel}). */
     @CEntryPoint(name = "lite_table_model")
     static CCharPointer tableModel(IsolateThread thread, CCharPointer tableJson) {

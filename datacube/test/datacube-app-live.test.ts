@@ -5,6 +5,7 @@
 // nothing (the S4 audit's 4).
 
 import assert from 'node:assert/strict';
+import { PlanThenRun } from '../src/runner.ts';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -83,7 +84,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
       label: 'engine',
       reading: {},
       // a frame's rows, planned and run here over the fixture's planner and engine: what opening a page's grid asks
-      rows: () => ({ planner: new StubPlanner(), engine: new GateEngine() }),
+      rows: () => ({ runner: new PlanThenRun(new StubPlanner(), new GateEngine()) }),
       // a source to pick: the page offers New Page; the host's frames, as the test says them
       database: { ingestFile: async () => { throw new Error('no file here'); }, ...(frame ? { frame } : {}), ...host },
       ...engine,
@@ -280,7 +281,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     });
 
     it("a grid whose rows are no table the page's own database holds: greyed, saying so", async () => {
-      assert.deepEqual(await joinMenuOf({}, { local: { planner: new StubPlanner(), engine: new GateEngine() } }),
+      assert.deepEqual(await joinMenuOf({}, { local: { planner: new StubPlanner(), another: () => new StubPlanner(), engine: new GateEngine() } }),
         [['Join…', 'true', "A join reads tables this page holds, and this grid's rows are none of them"]]);
     });
   });

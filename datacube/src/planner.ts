@@ -40,6 +40,9 @@ export interface ModelOptions {
    * a project's through its project databases, by the source it opens.
    */
   readonly project?: true;
+  /** DataCube's Pure library is already in the model: sent beside it to an engine (the engine contract's `library`, Q17),
+   *  which checked it and put it there -- the planner never fetches it again. */
+  readonly library?: true;
 }
 
 export class PlanError extends Error {
@@ -106,6 +109,7 @@ export class UpstreamPlanner implements Planner {
     this.#client.useModel(model, runtime, how.mapping);
     this.#now = { model, runtime, how };
     this.#library = undefined;
+    this.#ofLibrary = how.library === true;
     this.#bitColumns = new Set(how.bitColumns ?? []);
     this.#enumerations = new Set(how.enumerations ?? []);
     this.#cache.clear();

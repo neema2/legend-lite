@@ -16,6 +16,9 @@ import {
 } from '../cube-store.ts';
 import { FileHandles } from '../file-handles.ts';
 import type { TableModels } from '../infer.ts';
+import type { LitePlanner } from '../lite-planner.ts';
+import type { EngineSession, Handle, ProjectCoordinates, RevisionCoordinates } from '../../../engine-client/src/engine-contract.ts';
+import { EngineRun, type EngineSource } from '../engine-run.ts';
 import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
 import { PlanThenRun } from '../runner.ts';
@@ -42,7 +45,8 @@ const queryStores = () => lazily(() => import('../../../query-store/src/index.ts
 export interface TabPlanner {
   readonly planner: Planner;
   readonly label: string;
-  readonly tables: TableModels;
+  /** legend-lite's module: the tables' model writer on every plane, and the tab engine's writer (Q20). */
+  readonly tables: LitePlanner;
   /** legend-lite's planner for a project's own database (C5, engine-client's project-data.ts). */
   readonly projects: ProjectDataSource;
   readonly models: {
@@ -87,15 +91,60 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       throw e;
     }));
   let projectKeeper: Promise<ProjectDatabases> | undefined;
+  const keeper = (): Promise<ProjectDatabases> => (projectKeeper ??= lazily(() => import('../../../engine-client/src/project-data.ts')).then(({ ProjectDatabases: Keeper }) =>
+    new Keeper({
+      databaseType: o.duckdb.engine.databaseType,
+      run: (sql) => o.duckdb.engine.run(sql, 0),
+      connect: () => o.duckdb.connect(),
+    }, o.planner.projects)));
+  const queries = queryService(config, storeRules);
+  // A PROJECT BY ITS COORDINATES, resolved behind the tab's engine (Q19, Q23, Q25): a version -- the page's configured
+  // projects, then the Depot -- or a workspace's revision through the model home's SDLC; undefined for none
+  const version = async (c: ProjectCoordinates): Promise<string | undefined> => {
+    const configured = config.projects.find((p) => p.groupId === c.groupId && p.artifactId === c.artifactId && p.versionId === c.versionId);
+    if (configured) return (await Promise.all(configured.models.map((url) => queries.fetchText(url)))).join('\n');
+    if (!modelHome) return undefined;
+    const { modelText } = await lazily(() => import('../../../depot-client/src/model-text.ts'));
+    return modelText((await modelHome.connect()).depot, c.groupId, c.artifactId, c.versionId);
+  };
+  const revision = async (r: RevisionCoordinates): Promise<string | undefined> => {
+    if (!modelHome) return undefined;
+    const { projectText } = await lazily(() => import('../../../sdlc-client/src/project-text.ts'));
+    return projectText(await (await modelHome.connect()).client.pure(r));
+  };
+  // THE TAB'S ENGINE (the engine contract, step 4a, 2026-11-13): the plane's planner and this tab's DuckDB behind
+  // DataCube's one `Engine`, in-thread -- its code fetched, and its one session opened, at the first grid's rows
+  let tab: Promise<{ readonly served: (model: string, runtime: string) => Promise<EngineSource>; readonly session: EngineSession }> | undefined;
+  const tabEngine = () => (tab ??= lazily(() => import('../engines/tab-engine.ts')).then(async ({ tabEngine: made }) => {
+    const engine = made({
+      database: o.duckdb.engine,
+      plane: { label: o.planner.label, planner: o.planner.planner, another: (m, r, h) => o.planner.models.another(m, r, h), elements: (t) => o.planner.models.elements(t) },
+      writer: o.planner.tables,
+      // nothing writes through it until 4b, when the page's own tables (its files, its copies) are its census: until
+      // then a write names a table the page owns, and is refused by name
+      owns: () => true,
+      files: o.duckdb.db,
+      projects: { model: version, revision, databases: keeper },
+    });
+    return { served: (m: string, r: string) => engine.served(m, r), session: await engine.open() };
+  }));
+  const session = (): Promise<EngineSession> => tabEngine().then((t) => t.session);
+  const engineRows = (source: EngineSource | Promise<EngineSource>) => ({ runner: new EngineRun(session(), source, `plan+${o.duckdb.engine.name}`) });
   return {
     engine: {
       plane: o.plane,
       label: o.planner.label,
       // the page's own planner reads a saved query and its project's model
       reading: { parse: (text) => o.planner.planner.parse(text), elements: (text) => o.planner.models.elements(text) },
-      // planned here and run here: a planner over the source's own model, on this tab's DuckDB
-      rows: (model, runtime, how) => ({ planner: o.planner.models.another(model, runtime, how), engine: o.duckdb.engine }),
-      database: tabDatabase(o.duckdb, o.planner.tables),
+      // a grid's rows through the tab's engine: the model the page wrote served by it (R3a (c)), its BIT columns and
+      // enumerations the engine's reading of it (Q21, Q22), a mapping how the engine reads it
+      rows: (model, runtime, how) => engineRows(tabEngine().then(async (t) => ({
+        ...(await t.served(model, runtime)), ...(how?.mapping !== undefined ? { how: { mapping: how.mapping } } : {}) }))),
+      projects: {
+        rows: (project, runtime, mapping) => engineRows({ model: '', runtime, how: { project, ...(mapping !== undefined ? { mapping } : {}) } }),
+        elements: async (project) => (await session()).elements({ project }),
+      },
+      database: { ...tabDatabase(o.duckdb, o.planner.tables), ...tabSnaps(session, (m, r) => tabEngine().then((t) => t.served(m, r))) },
       // the model actions: the tab's module writes (beside whichever planner the page chose), the tab's DuckDB answers
       ...(writesModels(o.planner.tables) ? { modelWriting: tabModelWriting(o.planner.tables, o.duckdb.engine) } : {}),
       local: {
@@ -105,18 +154,13 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
         tables: o.planner.tables,
         // a project's own rows, in a database of their own inside this tab's DuckDB (C5): the keeper fetched with the
         // first saved query a page opens by name, never with the grid's start
-        projects: () => (projectKeeper ??= lazily(() => import('../../../engine-client/src/project-data.ts')).then(({ ProjectDatabases: Keeper }) =>
-          new Keeper({
-            databaseType: o.duckdb.engine.databaseType,
-            run: (sql) => o.duckdb.engine.run(sql, 0),
-            connect: () => o.duckdb.connect(),
-          }, o.planner.projects))),
+        projects: keeper,
         engine: o.duckdb.engine,
       },
     },
     // opened now and waited for where a page is saved or opened: the start's first grid does not wait on IndexedDB
     pages: browserPages(storeRules),
-    queries: queryService(config, storeRules),
+    queries,
     ...(modelHome ? { modelHome } : {}),
     warehouse: warehouseService(config, o.location),
     browser: {
@@ -130,6 +174,36 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
 /** The model actions in this tab: the module's writer, a project's facts planned by it and run on the tab's DuckDB. */
 function tabModelWriting(writer: ModelWriter, engine: DuckDbEngine): ModelWriting {
   return { place: 'Browser', writer, rows: (model, runtime) => new PlanThenRun(writer.withModel(model, runtime), engine) };
+}
+
+/**
+ * A GRID'S SNAP IN THE TAB, through its engine (Q26, step 4a): the grid's base query copied by the engine into a table of
+ * its own -- `addSource({query}, 'snap')`, the pull's rows counted by the engine -- and let go by its handle (`drop`).
+ * The copy is read through the engine as every grid's rows are (sources.ts hostSnapOf).
+ */
+function tabSnaps(session: () => Promise<EngineSession>, served: (model: string, runtime: string) => Promise<EngineSource>):
+  Pick<DatabaseService, 'snap' | 'release' | 'place'> {
+  const copies = new Map<string, Handle>();
+  return {
+    place: 'this tab',
+    snap: async (model, runtime, pull) => {
+      const s = await session();
+      const at = await served(model, runtime);
+      const added = await s.addSource({ query: { model: at.model, runtime: at.runtime, query: pull } }, 'snap');
+      if (added.rowCount === undefined) throw new Error("the engine copied the rows and said no count of them");
+      copies.set(added.name, added.handle);
+      // the copy's model as the engine handed it: every column held (none excluded), nothing to convert (it is a copy
+      // made by the database), its BIT columns the engine's own reading (Q21)
+      return { model: added.model, runtime: added.runtime, source: added.relation, conversions: [], excluded: [], bitColumns: [],
+        rowCount: added.rowCount, table: added.name };
+    },
+    release: async (table) => {
+      const handle = copies.get(table);
+      if (handle === undefined) throw new Error(`this tab holds no copy '${table}'`);
+      copies.delete(table);
+      await (await session()).drop(handle);
+    },
+  };
 }
 
 /** DuckDB in this tab: every grid's rows, and where a file, a remote file or a Snap goes. */

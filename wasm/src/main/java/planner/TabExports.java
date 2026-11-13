@@ -165,6 +165,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.databaseFromCatalog(catalogJson));
     }
 
+    /** {@link Boundary#elements}: a model's elements in lite's own dialect, an engine's own reading (Q27). */
+    @JSExport
+    public static String elementsOrError(String text) {
+        return Folded.of(() -> Boundary.elements(text));
+    }
+
     /** {@link Boundary#tableModel}. */
     @JSExport
     public static String tableModelOrError(String tableJson) {

@@ -22,7 +22,7 @@ import { isEveryPair, isFuzzy } from '../join-how.ts';
 import { gridInput } from '../live-inputs.ts';
 import { handleKey, readHandle } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
-import { PlanThenRun, type PlanAndRun } from '../runner.ts';
+import { PlanAndRun, PlanThenRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
 import type { FlowStep } from '../page/cube-page.ts';
 import {
@@ -61,7 +61,7 @@ import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
-import type { OpenedTogether, Sample, Services, Versions } from './services.ts';
+import type { LocalEngine, OpenedTogether, Sample, Services, Versions } from './services.ts';
 import { followBy } from './live-follow.ts';
 import { LiveChannel, type Converge, type Converged } from './live-channel.ts';
 import { convergeOn } from './live-converge.ts';
@@ -132,10 +132,21 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    * its keys' facts) is read here, as its rows are: never the page's own engine, which a Python host has not.
    */
   const rowsOf = (place: GridPlace): PlanAndRun | undefined => {
-    if (place.runner) return place.runner;
+    // what the writing flows read (Create Class's samples and keys, a table output's model; each moves onto the engine
+    // at 4b): a host's own plan-and-run (Python's), or the grid's own planner over the tab's database
+    if (place.planner === undefined && place.runner instanceof PlanAndRun) return place.runner;
     const planner = place.planner ?? local?.planner;
     const engine = place.engine ?? local?.engine;
     return planner && engine ? new PlanThenRun(planner, engine) : undefined;
+  };
+  /** Whether a grid's rows are its host's own (Python's plan-and-run: R4), with no planner of the page's over them. */
+  const hostGrid = (place: GridPlace): boolean => place.runner !== undefined && place.planner === undefined;
+  /** The start's grid's rows (the page's own planner's model, a file opened onto it): through the engine, as every
+   *  grid's are -- the planner's model as the page wrote it, which the tab's engine serves (R3a (c)). */
+  const startRows = (l: LocalEngine) => {
+    const at = l.planner.source?.();
+    if (at === undefined || at.runtime === undefined) throw new Error("the page's planner says no model of its own");
+    return services.engine.rows(at.model, at.runtime).runner;
   };
   /**
    * A GRID'S TABLE OUTPUT in the tab (table-output.ts writeTable): its rows written into the tab's own database, over one
@@ -148,7 +159,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   const tableWriter = (place: GridPlace): ((rows: Lambda, output: TableOutput) => Promise<number>) | undefined => {
     const engine = local?.engine;
     const tables = place.tables;
-    if (local === undefined || engine?.exclusive === undefined || tables === undefined || tables.length === 0 || place.runner || place.snapTarget) return undefined;
+    if (local === undefined || engine?.exclusive === undefined || tables === undefined || tables.length === 0 || hostGrid(place) || place.snapTarget || place.hostSnap) return undefined;
     return async (rows, output) => {
       const { heldTableOutput, writeTable } = await import('../table-output.ts');
       const wrote = await writeTable(rows, output, {
@@ -280,10 +291,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       /** What each entry of its last right-click's Join ▸ asks (joinMenuOf), until one is picked. */
       let joinAsks = new Map<string, JoinAsk>();
       const kept = services.browser.readSettings();
-      // THE ONE BRANCH ON THE ROWS' SHAPE (§4.5): planned here and run here, or planned and run by the host
+      // THE ONE BRANCH ON THE ROWS' SHAPE (§4.5): its runner -- the tab's engine's or the host's -- or, a warehouse's
+      // live grid alone (step 6), planned here and run here or there
       const rows: CubeAppQuerySource = place.runner
         ? { runner: place.runner }
-        : {
+        : !place.live && place.planner === undefined && local
+          ? { runner: startRows(local) }
+          : {
           engine: place.engine ?? must(local, 'a grid over the page\'s own database').engine,
           planner: place.planner ?? must(local, 'a grid over the page\'s own planner').planner,
           // Where the rows are (Live on a warehouse, or Snapped in this tab) is the grid's plane
@@ -695,8 +709,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       togetherOf = (cubes) => lazily(() => import('./join-app.ts')).then(({ openTogether }) => openTogether(cubes, {
         open: opensTogether,
         rows: (model, runtime) => {
-          const rows = services.engine.rows(model, runtime);
-          return { run: rowsOf(rows.runner ? { runner: rows.runner } : { planner: rows.planner, engine: rows.engine })!, letGo: () => rows.planner?.dispose?.() };
+          // through the engine's runner, which holds no model in the page: nothing to let go
+          return { run: services.engine.rows(model, runtime).runner, letGo: () => {} };
         },
       }));
     }
@@ -709,9 +723,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const { sample } = start;
       // generated rows are a copy in the tab from the start; a remote file read through the sample's model is live, and
       // snaps into a copy of its own, as any grid's rows not in the tab do (§18.3)
-      const snapTarget = sources.snapTarget();
+      const at = local?.planner.source?.();
+      const hostSnap = at?.runtime !== undefined ? sources.hostSnap({ model: at.model, runtime: at.runtime }) : undefined;
       page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions, {
-        ...(sample.heldCopy ? { heldCopy: sample.heldCopy } : snapTarget ? { snapTarget } : {}),
+        ...(sample.heldCopy ? { heldCopy: sample.heldCopy } : hostSnap ? { hostSnap } : {}),
         // what its rows are, written down: a page it starts is saved, shared and joined as any file's is
         ...(sample.source ? { cubeSource: sample.source.cube, tables: sample.source.tables } : {}),
       }));

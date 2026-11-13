@@ -579,7 +579,9 @@ class Frames:
         """The tables a model's Databases declare: those of the database's own schema, lower-cased, and those of another,
         as ``SCHEMA.TABLE`` -- or None: it does not read as a model."""
         try:
-            elements = compiler.model_elements(model)
+            # the engine's own reading, in lite's dialect (the DataCube engine contract's Q27): the model the planner
+            # compiles, lite's declared extensions read (a function generic over relations, S112)
+            elements = compiler.lite_elements(model)
         except compiler.LegendError:
             return None
         own: set[str] = set()

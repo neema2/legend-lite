@@ -213,6 +213,12 @@ _NEXT_LINK_VERSION = "p2"
 _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 
 _EXTRA_ENV = {
+    # the tab's engine starts its own DuckDB in Node (a project's database opens connections of its own) and serves the
+    # party project by its coordinates, the run-load fixture's model (the engine contract's C23, step 4a, 2026-11-13)
+    "tab-engine": {
+        "DUCKDB_EXTENSIONS": "$(rlocationpaths //engine-client:duckdb_extensions)",
+        "RUN_LOAD_FIXTURE": "_main/engine-client/test/fixtures/run-load-conformance.json",
+    },
     "warehouse-session-http": {"SQLAPI_PAGE": "$(rlocationpath //warehouse:sqlapi_page_dir)"},
     # the markets project as the site serves it (:markets_project, config.json `projects[]`): the one trading model and
     # the markets sample's days as its Data -- the timeseries over its classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
@@ -292,6 +298,8 @@ _DUCKDB_USERS = [
     "data-host",
     # the tab's engine, held to the engine contract's conformance suite (step 2, 2026-11-13)
     "tab-engine",
+    # a grid's runner over the engine contract (step 4a, 2026-11-13)
+    "engine-run",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -460,6 +468,8 @@ _WASM_TESTS = [
     "data-host",
     # the tab's engine, held to the engine contract's conformance suite (step 2, 2026-11-13)
     "tab-engine",
+    # a grid's runner over the engine contract (step 4a, 2026-11-13)
+    "engine-run",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
@@ -728,6 +738,8 @@ _HEADLESS_LEFT_OUT = {
     # the tab's engine (src/engines/tab-engine.ts) held to the engine contract's suite: the tab's planner and DuckDB-WASM;
     # Python headless is held to the same suite by //python:contract_test (the DataCube stream's step 2, 2026-11-13)
     "tab-engine": "the tab's engine, in-thread",
+    # a grid's runner over the tab's engine (step 4a, 2026-11-13); Python's runner is held to the suite by //python:contract_test
+    "engine-run": "the tab's engine, in-thread",
     # the demo's sample made by the tab's planner and DuckDB-WASM, and its file read in by the tab's reader (upload.ts
     # ingestFile): the tab's
     "sample-trades": "the tab's planner and file reader",

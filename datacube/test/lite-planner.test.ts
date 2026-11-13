@@ -54,6 +54,7 @@ function fakeExports(
     executionPlanJsonHeldOrError: () => 'ERR\nfake\nnot in this fake',
     relationTypeHeldOrError: () => 'OK\n{"_type":"relationType","columns":[]}',
     tableModelOrError: () => 'ERR\nfake\nnot in this fake',
+    elementsOrError: () => 'ERR\nfake\nnot in this fake',
     catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',
     pureV1OrError: () => 'ERR\nfake\nnot in this fake',
     fileLoadOrError: () => 'ERR\nfake\nnot in this fake',

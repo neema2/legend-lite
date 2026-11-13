@@ -11,10 +11,11 @@
 import { eachRelation, TAB_TABLES, openSources, type OpenedSource } from '../join-open.ts';
 import { resolvedSource } from '../live-inputs.ts';
 import type { PageApp } from '../page/page-app.ts';
-import type { PlanAndRun } from '../runner.ts';
+import type { QueryRunner } from '../runner.ts';
+import { rowsOnce } from '../rows-once.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
 import { catalogColumns } from '../upload.ts';
-import type { GridRows, LocalEngine, OpenedTogether, Services } from './services.ts';
+import type { LocalEngine, OpenedTogether, Services } from './services.ts';
 import type { PageSources } from './sources.ts';
 
 /** Where grids are opened together, and how a query over the model they make is planned and run. */
@@ -23,7 +24,7 @@ export interface TogetherOf {
   readonly open: (grids: readonly string[]) => Promise<OpenedTogether>;
   /** A query over `model` planned and run where the grids' rows are, and that let go after (its planner, where the page
    *  made one). */
-  readonly rows: (model: string, runtime: string) => { readonly run: PlanAndRun; letGo(): void };
+  readonly rows: (model: string, runtime: string) => { readonly run: QueryRunner; letGo(): void };
 }
 
 /**
@@ -37,8 +38,7 @@ export async function openTogether(grids: readonly string[], o: TogetherOf): Pro
   return {
     relations: new Map(eachRelation(opened, grids)),
     run: async (query) => {
-      const { plan, rows: answered } = await rows.run.host.planAndRun(query, 0);
-      return { rows: answered, sql: plan.sql };
+      return rowsOnce(rows.run, query);
     },
     dispose: () => rows.letGo(),
   };
@@ -71,22 +71,14 @@ export async function tabSources(grids: readonly string[], o: TabTablesOf): Prom
     // a flow's box reads another's rows: its input resolved against the page first, as the box itself is read
     return { source: resolvedSource(now, cube.source), tables };
   });
-  const typers: GridRows[] = [];
-  try {
-    const opened = await openSources(read.map((r) => r.source), {
-      here: TAB_TABLES,
-      tables: read.flatMap((r) => r.tables),
-      models: o.local.tables,
-      catalog: (table) => catalogColumns(o.local.engine, o.local.tables, table),
-      databaseType: o.local.engine.databaseType,
-      typer: (model, runtime) => {
-        const rows = o.services.engine.rows(model, runtime);
-        typers.push(rows);
-        return rows.planner!;
-      },
-    });
-    return { model: opened.model, runtime: opened.runtime, relations: opened.relations, notes: opened.notes };
-  } finally {
-    for (const t of typers) t.planner?.dispose?.();
-  }
+  // each source typed through the engine's runner: it holds no model in the page, so nothing is let go after
+  const opened = await openSources(read.map((r) => r.source), {
+    here: TAB_TABLES,
+    tables: read.flatMap((r) => r.tables),
+    models: o.local.tables,
+    catalog: (table) => catalogColumns(o.local.engine, o.local.tables, table),
+    databaseType: o.local.engine.databaseType,
+    typer: (model, runtime) => o.services.engine.rows(model, runtime).runner,
+  });
+  return { model: opened.model, runtime: opened.runtime, relations: opened.relations, notes: opened.notes };
 }

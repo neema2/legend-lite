@@ -18,12 +18,12 @@ import {
 import { heldHow } from '../join-how.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import type { HeldCopy } from '../app.ts';
-import type { SnapTarget } from '../cube.ts';
+import type { HostSnap } from '../cube.ts';
 import { sourceColumns, type RelationTyper } from '../source-columns.ts';
 import { boxRows } from '../pure-box.ts';
 import { catalogColumns, tableNameOf } from '../upload.ts';
-import type { DatabaseService, GridRows, LocalEngine, Services } from './services.ts';
-import type { GridPlace, Opened, SourcesOf } from './sources.ts';
+import type { DatabaseService, LocalEngine, Services } from './services.ts';
+import type { GridPlace, Opened, Over, SourcesOf } from './sources.ts';
 
 /** What opening a join needs of the page's sources. */
 export interface JoinSourcesHost {
@@ -57,11 +57,14 @@ export interface JoinSourcesHost {
   /** When each table a file was read into was read, by the table (sources.ts): a join of copies held here says it. */
   readonly readAt: Map<string, Date>;
   /** The tab's own Snap (sources.ts snapInto): a copy of a grid's base query in this tab's database. */
-  snapTarget(): SnapTarget;
-  typer(rows: GridRows): RelationTyper;
-  letGo(rows: GridRows): void;
+  /** A join's Snap (one reading a remote file): a copy the tab's engine makes of its rows (Q26). */
+  hostSnap(over: Over): HostSnap | undefined;
+  /** A grid's rows through the engine, and the writing flows' planner over its model (sources.ts rowsOver). */
+  rowsOver(model: string, runtime: string): Over;
+  typer(over: Over): RelationTyper;
+  letGo(over: Over): void;
   readonly gridMaker: SourcesOf['gridMaker'];
-  rowsPlace(rows: GridRows): Pick<GridPlace, 'planner' | 'engine' | 'runner'>;
+  rowsPlace(over: Over): Pick<GridPlace, 'planner' | 'runner'>;
   /**
    * A grid's source opened as a grid over it opens (sources.ts reopened: a warehouse signed in to, a class at its pin),
    * its maker never made -- its start: the grid's snapshot over its base, and the place it is read through. What a box
@@ -325,7 +328,7 @@ async function leafTablesOf(h: JoinSourcesHost, leaves: readonly (LeafSource | C
 }
 
 /** The tab's opening of `open` over `tables`: its model written over them, its typer the grid's own rows (`made`). */
-function tabOpening(h: JoinSourcesHost, tables: readonly string[], made: (rows: GridRows) => void): JoinOpening {
+function tabOpening(h: JoinSourcesHost, tables: readonly string[], made: (rows: Over) => void): JoinOpening {
   const { local } = h;
   return {
     here: TAB_TABLES,
@@ -335,7 +338,7 @@ function tabOpening(h: JoinSourcesHost, tables: readonly string[], made: (rows: 
     databaseType: local.engine.databaseType,
     // the grid's own rows over the join's model: what types it is what plans it
     typer: (model, runtime) => {
-      const rows = h.services.engine.rows(model, runtime);
+      const rows = h.rowsOver(model, runtime);
       made(rows);
       return h.typer(rows);
     },
@@ -348,10 +351,10 @@ function tabOpening(h: JoinSourcesHost, tables: readonly string[], made: (rows: 
  * while another is shown) -- held, with the rows that type them, until `dispose`.
  */
 export async function openedInputsOf(h: JoinSourcesHost, left: JoinInput, right: JoinInput, name: string, page?: string):
-  Promise<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void> } | undefined> {
+  Promise<{ readonly inputs: OpenedInputs; readonly rows: Over; dispose(): Promise<void> } | undefined> {
   const read = await leafTablesOf(h, [...openedInputLeaves(left), ...openedInputLeaves(right)], name, page, undefined);
   if (read === undefined) return undefined;
-  let rows: GridRows | undefined;
+  let rows: Over | undefined;
   try {
     const inputs = await openInputs(left, right, tabOpening(h, read.tables, (r) => { rows = r; }));
     const held = rows!;
@@ -382,7 +385,7 @@ async function openedOver<T extends { readonly relation: ValueSpecification; rea
   let forget = async (): Promise<void> => {};
   /** What it borrowed of the grids' tables, given back once its grid is made (leafTablesOf; forget gives it back too). */
   let giveBack = (): void => {};
-  let rows: GridRows | undefined;
+  let rows: Over | undefined;
   try {
     let tables = how.tables;
     if (tables === undefined) {
@@ -397,8 +400,9 @@ async function openedOver<T extends { readonly relation: ValueSpecification; rea
     // where its rows are (§18.3): a remote file is read where it lives, so the join is live and the tab's Snap offered;
     // every leaf a file read into the tab, it is a copy held here from the start, as a file's grid is
     const leaves = openedLeaves(over);
-    const plane: Pick<GridPlace, 'heldCopy' | 'snapTarget'> = leaves.some((l) => l._type === 'remoteFile')
-      ? { snapTarget: h.snapTarget() }
+    const snap = h.hostSnap(grid);
+    const plane: Pick<GridPlace, 'heldCopy' | 'hostSnap'> = leaves.some((l) => l._type === 'remoteFile')
+      ? (snap ? { hostSnap: snap } : {})
       : { heldCopy: heldCopyOf(leaves, tables, h.readAt) };
     return {
       label: name,

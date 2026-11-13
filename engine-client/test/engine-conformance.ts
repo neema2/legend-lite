@@ -10,7 +10,7 @@ import { colSpecs, fn, lambda, lit, type Lambda, type ValueSpecification } from 
 import {
   ENGINE_CONTRACT_VERSION, isEngineError, refusalOf, requireContract,
   type Capabilities, type Engine, type EngineError, type EngineSession, type Handle, type QueryAsk, type ResultColumn,
-  type SourceAnswer,
+  type ProjectAt, type ProjectCoordinates, type RevisionCoordinates, type SourceAnswer,
 } from '../src/engine-contract.ts';
 
 /** A source the engine serves, as the engine modelled it, and what the suite expects of it. */
@@ -41,6 +41,19 @@ export interface ConformanceFixture {
    *  absent where the engine's database makes no request from this test (DuckDB-WASM in Node), and the remote cases
    *  then say they did not run, and why. */
   readonly served?: { readonly base: string };
+  /** A project the engine resolves by its coordinates (Q19), as its model home serves it: its runtime and mapping,
+   *  a query of its class, how many rows its own Data holds, and its text (which, sent as a model, R3a refuses). */
+  readonly project?: {
+    readonly coordinates: ProjectCoordinates;
+    readonly runtime: string;
+    readonly mapping: string;
+    readonly query: string;
+    readonly rows: number;
+    readonly text: string;
+    readonly cls: string;
+    /** The same project's workspace at a revision (Q23), its text as that revision's files join. */
+    readonly revision?: { readonly coordinates: RevisionCoordinates; readonly text: string };
+  };
 }
 
 /** One case's outcome: passed, failed (its error), or not run here (why: its host's test pins each). */
@@ -341,6 +354,31 @@ const SOURCES: readonly Case[] = [
     },
   },
   {
+    name: "C25 a query's snap answers its rows' count (Q26): the engine's own, equal to the rows the copy holds",
+    async run(_e, s, caps, f) {
+      if (!offers(caps, 'query')) return;
+      const added = await s.addSource({ query: ask(f, lambda([], f.source)) }, 'snap');
+      try {
+        equal(added.rowCount, f.rowCount, "the snap's count");
+        equal((await rowsOf(s, over(added))).count, added.rowCount, 'the rows the copy holds');
+      } finally {
+        await s.drop(added.handle);
+      }
+    },
+  },
+  {
+    name: 'C26 a source of a kind whose rows the engine did not count answers no rowCount -- never a guessed 0 (Q26)',
+    async run(_e, s, caps, f) {
+      if (!offers(caps, 'upload')) throw new NotRun('the engine offers no upload: no kind but a query to ask');
+      const added = await s.addSource({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } }, 'snap');
+      try {
+        check(!('rowCount' in added), `an upload's answer carries no rowCount (it said ${JSON.stringify((added as { rowCount?: unknown }).rowCount)})`);
+      } finally {
+        await s.drop(added.handle);
+      }
+    },
+  },
+  {
     name: "C19 a closed session's sources are dropped with it: another session finds its runtime gone",
     async run(engine, _s, caps, f) {
       if (!offers(caps, 'upload')) return;
@@ -352,6 +390,111 @@ const SOURCES: readonly Case[] = [
         await rejects(() => rowsOf(two, over(added)), 'refused', "a closed session's source", added.runtime);
       } finally {
         await two.close();
+      }
+    },
+  },
+];
+
+// a library's functions and its enumerations (Q17, Q27): DataCube's own declares both
+const LIBRARY = '###Pure\nEnum conformance::lib::Size\n{\n  small, large\n}\n\nfunction conformance::lib::twice(x: Integer[1]): Integer[1]\n{\n  $x * 2\n}\n';
+// a function generic over relations (lite's declared extension S112), as DataCube's library writes them: upstream's grammar
+// refuses its type parameter, lite's own dialect -- the planner's, and an engine's own reading (Q27) -- reads it
+const GENERIC = '###Pure\nfunction conformance::ext::firstRows<T>(t: Relation<T>[1], n: Integer[1]): Relation<T>[1]\n{\n  $t->limit($n)\n}\n';
+const NOT_A_LIBRARY = '###Pure\nClass conformance::lib::Row\n{\n  id: Integer[0..1];\n}\n';
+
+const READING: readonly Case[] = [
+  {
+    name: "C20 a library beside the model: its functions called, an enumeration in it admitted; a library holding anything else refused by name (Q17, Q27)",
+    async run(_e, s, caps, f) {
+      if (!caps.calls.query) return;
+      const query = lambda([], fn('extend', f.source, {
+        _type: 'classInstance', type: 'colSpec',
+        value: { name: 'twice', function1: lambda(['x'], fn('conformance::lib::twice', fn('toOne', { _type: 'property', property: f.keyColumn, parameters: [{ _type: 'var', name: 'x' }] } as unknown as ValueSpecification))) },
+      } as unknown as ValueSpecification));
+      for (let i = 0; i < 2; i += 1) equal((await rowsOf(s, { ...ask(f, query), library: LIBRARY })).count, f.rowCount, `the library's call, asked ${i + 1}`);
+      await rejects(() => rowsOf(s, { ...ask(f, query), library: NOT_A_LIBRARY }), 'refused', 'a library declaring a class', 'conformance::lib::Row');
+      await rejects(() => rowsOf(s, ask(f, query)), 'compile', 'a call of a library not sent');
+    },
+  },
+  {
+    name: "C27 a model using one of lite's declared extensions (a function generic over relations, S112) passes R3a and plans, read in lite's dialect (Q27)",
+    async run(_e, s, caps, f) {
+      if (!caps.calls.query) return;
+      const query = lambda([], fn('conformance::ext::firstRows', f.source, lit.integer(2)));
+      equal((await rowsOf(s, { ...ask(f, query), model: `${f.model}\n${GENERIC}` })).count, Math.min(2, f.rowCount), "the generic function's rows");
+    },
+  },
+  {
+    name: 'C21 modelOf: ONE model over several sources, one runtime the engine owns; a handle given twice or not this session\'s refused by name (Q15)',
+    async run(engine, s, caps, f) {
+      if (!caps.calls.modelOf || !offers(caps, 'upload')) return;
+      const one = await s.addSource({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } }, 'snap');
+      const two = await s.addSource({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } }, 'snap');
+      const over = await s.modelOf([one.handle, two.handle]);
+      check(!over.model.includes('###Connection') && !over.model.includes('###Runtime'), 'R3a (c): one model naming its runtime alone');
+      check(over.runtime !== one.runtime && over.runtime !== two.runtime, 'a runtime of its own');
+      equal(over.relations.length, 2, 'a relation per source');
+      for (const r of over.relations) equal((await rowsOf(s, { model: over.model, runtime: over.runtime, query: lambda([], r) })).count, f.upload.rows, "each source's rows, read together");
+      await rejects(() => s.modelOf([one.handle, one.handle]), 'refused', 'a handle given twice', 'twice');
+      const other = await engine.open();
+      try {
+        await rejects(() => other.modelOf([one.handle]), 'refused', "another session's handle", one.handle.handle);
+      } finally {
+        await other.close();
+      }
+      await s.drop(one.handle);
+      await s.drop(two.handle);
+    },
+  },
+  {
+    name: 'C22 a class read through a mapping (how.mapping): its rows as the source\'s',
+    async run(_e, s, caps, f) {
+      if (!caps.calls.query || !caps.calls.parse) return;
+      const mapped = `${f.model}\n###Pure\nClass conformance::Row\n{\n  ${f.keyColumn}: Integer[0..1];\n}\n\n###Mapping\nMapping conformance::M\n(\n  conformance::Row: Relational\n  {\n    ~mainTable [${f.store}]${f.ownTable}\n    ${f.keyColumn}: [${f.store}]${f.ownTable}.${f.keyColumn}\n  }\n)\n`;
+      const query = await s.parse(`|conformance::Row.all()->project(~[${f.keyColumn}: x|$x.${f.keyColumn}])`);
+      equal((await rowsOf(s, { model: mapped, runtime: f.runtime, query, how: { mapping: 'conformance::M' } })).count, f.rowCount, "the class's rows");
+    },
+  },
+  {
+    name: "C23 a project by its coordinates (Q19): its rows its own; an unknown project, its text sent as a model, a mapping not its own -- each refused by name",
+    async run(_e, s, caps, f) {
+      if (!caps.calls.query || !caps.calls.parse) return;
+      const p = f.project;
+      if (p === undefined) throw new NotRun('the fixture names no project the engine resolves');
+      const query = await s.parse(p.query);
+      const over = (how: { mapping: string; project: ProjectAt }, model = ''): QueryAsk => ({ model, runtime: p.runtime, query, how });
+      const how = { mapping: p.mapping, project: p.coordinates };
+      equal((await rowsOf(s, over(how))).count, p.rows, "the project's own rows");
+      equal((await s.typeOf(over(how))).columns.length > 0, true, "the project's query typed");
+      const unknown = { ...p.coordinates, versionId: '999.0.0' };
+      await rejects(() => rowsOf(s, over({ ...how, project: unknown })), 'refused', 'an unknown project', '999.0.0');
+      await rejects(() => rowsOf(s, over(how, p.text)), 'refused', "a project's text sent as a model (R3a)", 'connection');
+      await rejects(() => rowsOf(s, over({ ...how, mapping: 'conformance::NoSuchMapping' })), 'refused', 'a mapping not the project\'s', 'conformance::NoSuchMapping');
+      if (caps.calls.elements) {
+        const elements = (await s.elements({ project: p.coordinates })) as { _type?: string; package?: string; name?: string }[];
+        check(elements.some((e) => `${e.package}::${e.name}` === p.cls), "the project's class among its elements");
+        check(!elements.some((e) => e._type === 'connection' || e._type === 'runtime'), "no connection or runtime among them (the engine's)");
+      }
+    },
+  },
+  {
+    name: "C24 a workspace's revision by its SDLC coordinates (Q23): typed over the engine's model home's files; unknown coordinates, the revision's text sent as a model -- each refused by name",
+    async run(_e, s, caps, f) {
+      if (!caps.calls.typeOf || !caps.calls.parse) return;
+      const p = f.project;
+      const r = p?.revision;
+      if (p === undefined || r === undefined) throw new NotRun("the fixture names no workspace revision the engine's model home resolves");
+      const query = await s.parse(p.query);
+      const over = (project: RevisionCoordinates, model = ''): QueryAsk => ({ model, runtime: p.runtime, query, how: { mapping: p.mapping, project } });
+      // its rows are the engine's own tables (the page that made the class opened them): typed here, never read
+      equal((await s.typeOf(over(r.coordinates))).columns.map((c) => c.name).join(','), 'id,name', "the revision's query typed");
+      const unknown = { ...r.coordinates, revision: 'no-such-revision' };
+      await rejects(() => s.typeOf(over(unknown)), 'refused', 'an unknown revision', 'no-such-revision');
+      await rejects(() => s.typeOf(over(r.coordinates, r.text)), 'refused', "a revision's text sent as a model (R3a)", 'connection');
+      if (caps.calls.elements) {
+        const elements = (await s.elements({ project: r.coordinates })) as { _type?: string; package?: string; name?: string }[];
+        check(elements.some((e) => `${e.package}::${e.name}` === p.cls), "the revision's class among its elements");
+        check(!elements.some((e) => e._type === 'connection' || e._type === 'runtime'), "no connection or runtime among them (the engine's)");
       }
     },
   },
@@ -378,7 +521,7 @@ export async function runConformance(engine: Engine, fixture: ConformanceFixture
   }
   const session = await engine.open();
   try {
-    for (const c of [...CASES, ...WRITES, ...SOURCES, CLOSED]) {
+    for (const c of [...CASES, ...WRITES, ...SOURCES, ...READING, CLOSED]) {
       try {
         await c.run(engine, session, caps, fixture);
         out.push({ name: c.name, ok: true });

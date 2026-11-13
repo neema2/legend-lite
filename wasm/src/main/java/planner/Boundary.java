@@ -364,6 +364,31 @@ public final class Boundary {
     }
 
     /**
+     * A MODEL'S ELEMENTS, READ IN LITE'S OWN DIALECT (the DataCube engine contract's Q27, the orchestrator's ruling of
+     * 2026-11-13): {@code text}'s elements as {@code PmcdParser.parse(text, Dialect.LEGEND_LITE)} reads them -- the parse
+     * the planner itself compiles a model with, so lite's DECLARED extensions (a function generic over relations, S112)
+     * are read, where upstream's exact grammar ({@code grammar/grammarToJson/model}) refuses them. An engine's own
+     * reading, for its own checks (a model sent holds no connection or runtime: R3a; a library holds functions and
+     * enumerations: Q17; a write's tables): READING ONLY -- elements of text, no planning, no statement. The answer is
+     * {@code {"_type": "data", "elements": [...]}}, no source information: each element as the protocol writes it, but
+     * a function as its kind, package and name alone -- what the checks read of one. The protocol has no field for a
+     * function's type parameters (legend-engine refuses them; ProtocolEmitter refuses to write one rather than drop
+     * it), and no check reads a function's signature or body.
+     */
+    public static String elements(String text) {
+        StringBuilder out = new StringBuilder("{\"_type\":\"data\",\"elements\":[");
+        String comma = "";
+        for (com.legend.protocol.Protocol.Element e
+                : com.legend.parser.PmcdParser.parse(text, com.legend.parser.Dialect.LEGEND_LITE).model().elements()) {
+            out.append(comma).append(e instanceof com.legend.protocol.Protocol.PFunction f
+                    ? com.legend.json.Json.toCompact(java.util.Map.of("_type", "function", "package", f.pkg(), "name", f.name()))
+                    : com.legend.protocol.ProtocolEmitter.emitElement(e));
+            comma = ",";
+        }
+        return com.legend.protocol.SourceInformation.withoutSpans(out.append("]}").toString());
+    }
+
+    /**
      * A SNAPSHOT'S COPY, AS A PLAN (the final audit's 1(b), 2026-11-12, the user's ruling; B3's contract): {@code request}
      * is {@code {"databaseType", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type, the
      * pull (the model's text, the runtime it runs through -- the host's own store's -- and the grid's base query as a

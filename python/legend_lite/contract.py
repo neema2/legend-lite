@@ -78,7 +78,7 @@ CAPABILITIES: dict[str, Any] = {
     'contract': VERSION,
     'engine': {'name': ENGINE_NAME, 'databaseType': 'DuckDB'},
     'calls': {'typeOf': True, 'query': True, 'cancel': True, 'describe': True, 'drop': True,
-              'parse': True, 'print': True, 'elements': True, 'bindSecret': True,
+              'parse': True, 'print': True, 'elements': True, 'bindSecret': True, 'modelOf': True,
               # step 3 (2026-11-13): sources, behind handles this engine issues
               'addSource': {'sources': ['upload', 'held', 'url', 'remote', 'query'], 'how': ['live', 'snap']},
               # step 2 (2026-11-13): DataCube's five table-output modes (Q10), one call, the engine's transaction
@@ -127,6 +127,8 @@ class _Session:
 
     handles: dict[str, _Source] = field(default_factory=dict)
     secrets: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # the runtimes of the models modelOf wrote for it, let go when it closes
+    together: list[tuple[str, str]] = field(default_factory=list)
 
 
 # a secret's fields, as the hosts' runner binds them (host-operations.ts SecretField)
@@ -165,7 +167,8 @@ class EngineSide:
         raise NotImplementedError
 
     def snap(self, model: str, runtime: str, query: Any) -> dict[str, Any]:
-        """A query's rows copied into a table of its own (a planned snapCopy): its model, runtime, source and table."""
+        """A query's rows copied into a table of its own (a planned snapCopy): its model, runtime, source and table, and
+        its rows' count (``rowCount``, Q26: the pull's size(), planned and run where the rows are)."""
         raise NotImplementedError
 
     def drop(self, table: str, view: bool) -> None:
@@ -174,6 +177,16 @@ class EngineSide:
 
     def spool(self, name: str, data: bytes) -> str:
         """A person's upload kept as a file this engine holds: its path, never handed out."""
+        raise NotImplementedError
+
+    def project_model(self, group: str, artifact: str, version: str) -> str | None:
+        """A project's version as one model text, resolved by this engine's own model home (Q19): its files and its
+        dependency closure's -- or None, no such version."""
+        raise NotImplementedError
+
+    def revision_model(self, project: str, workspace: str, revision: str) -> str | None:
+        """A project's workspace at a revision as one model text, resolved by this engine's own model home's SDLC (Q23):
+        its files joined by the project-text rule -- or None, no such project, workspace or revision."""
         raise NotImplementedError
 
 
@@ -194,6 +207,8 @@ class ContractDoor:
         self._served: dict[tuple[str, str], str] = {}
         # the files this engine holds, by the handles it issued for them (hold)
         self._held: dict[str, str] = {}
+        # the libraries checked, by their digest (Q17)
+        self._libraries: set[str] = set()
 
     # ---- R3a: the engine owns its runtimes
 
@@ -205,12 +220,12 @@ class ContractDoor:
         The engine's own part is the planner's text's ``###Connection`` and ``###Runtime`` sections, verified on their
         parsed elements to be exactly the model's connections and runtimes (the platform's printer prints no DuckDB
         connection, so it is never re-printed): this splits the ENGINE's own text, never one DataCube sent."""
-        elements = [e for e in compiler.model_elements(model) if e.get('_type') != _SECTION_INDEX]
+        elements = [e for e in compiler.lite_elements(model) if e.get('_type') != _SECTION_INDEX]
         owned = sorted(_path(e) for e in elements if e.get('_type') in OWNED_KINDS)
         if runtime not in owned:
             raise ValueError(f"the model declares no runtime '{runtime}' for this engine to own")
         own = _sections(model, ('Connection', 'Runtime'))
-        mine = sorted(_path(e) for e in compiler.model_elements(own) if e.get('_type') != _SECTION_INDEX)
+        mine = sorted(_path(e) for e in compiler.lite_elements(own) if e.get('_type') != _SECTION_INDEX)
         if mine != owned:
             raise ValueError(f"the model's Connection and Runtime sections hold {mine}, its elements {owned}")
         handed = compiler.model_text([e for e in elements if e.get('_type') not in OWNED_KINDS])
@@ -224,19 +239,84 @@ class ContractDoor:
         Runtime, or its runtime is none this engine owns; else the model this engine served as that text, or the text
         with the engine's own runtime added."""
         try:
-            elements = compiler.model_elements(ask['model'])
+            elements = compiler.lite_elements(ask['model'])
         except compiler.LegendError as failure:
             raise ContractError('compile', call, failure.message) from None
         owned = sorted({f"a {e.get('_type')} '{_path(e)}'" for e in elements if e.get('_type') in OWNED_KINDS})
         if owned:
             raise refused(call, f'a model declaring {owned[0]}', 'a model DataCube sends holds classes, stores and mappings'
                           ' only: the engine owns its connections and runtimes (R3a)')
+        project = (ask.get('how') or {}).get('project')
+        if project is not None:
+            return self._with_library(self._project_model(ask, project, elements, call), ask, call)
         with self._lock:
             runtime = self._runtimes.get(ask['runtime'])
             whole = self._served.get((ask['model'], ask['runtime']))
         if runtime is None:
             raise refused(call, f"the runtime '{ask['runtime']}'", 'it is no runtime this engine owns')
-        return whole if whole is not None else f"{ask['model']}\n{runtime.text}"
+        return self._with_library(whole if whole is not None else f"{ask['model']}\n{runtime.text}", ask, call)
+
+    def _with_library(self, model: str, ask: Mapping[str, Any], call: str) -> str:
+        library = ask.get('library')
+        if library is None:
+            return model
+        if not isinstance(library, str):
+            raise refused(call, 'a library that is not text', "a library is Pure text, its functions and enumerations alone")
+        self._library_checked(library, call)
+        return f'{model}\n{library}'
+
+    def _project_text(self, project: Mapping[str, str], call: str) -> str:
+        """A project's model text by its coordinates: a version through Depot (Q19), a workspace's revision through SDLC
+        (Q23) -- refused by name where the model home holds none."""
+        if _version(project):
+            coords = f"{project['groupId']}:{project['artifactId']}:{project['versionId']}"
+            resolve = lambda: self._side.project_model(project['groupId'], project['artifactId'], project['versionId'])
+            none = 'its model home holds no such version'
+        else:
+            coords = f"{project['project']}/{project['workspace']}@{project['revision']}"
+            resolve = lambda: self._side.revision_model(project['project'], project['workspace'], project['revision'])
+            none = 'its model home holds no such project, workspace or revision'
+        try:
+            text = resolve()
+        except Exception as failure:
+            raise refused(call, f"the project {coords}", f'its model home did not resolve it: {failure}') from None
+        if text is None:
+            raise refused(call, f"the project {coords}", none)
+        return text
+
+    def _project_model(self, ask: Mapping[str, Any], project: Mapping[str, str], added: list[dict[str, Any]],
+                       call: str) -> str:
+        """A project's model, resolved by its coordinates (Q19), with what DataCube adds after it: the query's runtime
+        one of the project's (the engine owns it by its path), its mapping the project's or DataCube's own."""
+        text = self._project_text(project, call)
+        try:
+            elements = compiler.lite_elements(text)
+        except compiler.LegendError as failure:
+            raise ContractError('compile', call, failure.message) from None
+        runtimes = {_path(e) for e in elements if e.get('_type') == 'runtime'}
+        if ask['runtime'] not in runtimes:
+            raise refused(call, f"the runtime '{ask['runtime']}'", 'it is no runtime of the project')
+        mapping = (ask.get('how') or {}).get('mapping')
+        mappings = {_path(e) for e in [*elements, *added] if e.get('_type') == 'mapping'}
+        if mapping is not None and mapping not in mappings:
+            raise refused(call, f"the mapping '{mapping}'", 'it is no mapping of the project, nor one the query adds')
+        return f"{text}\n{ask['model']}" if ask['model'].strip() else text
+
+    def _library_checked(self, library: str, call: str) -> None:
+        """DataCube's Pure library (Q17), on its PARSED elements: functions and enumerations alone (Q27), read in lite's dialect, held by its digest once checked."""
+        digest = hashlib.sha256(library.encode('utf-8')).hexdigest()
+        with self._lock:
+            if digest in self._libraries:
+                return
+        try:
+            elements = compiler.lite_elements(library)
+        except compiler.LegendError as failure:
+            raise ContractError('compile', call, failure.message) from None
+        other = sorted({f"a {e.get('_type')} '{_path(e)}'" for e in elements if e.get('_type') not in _LIBRARY_KINDS})
+        if other:
+            raise refused(call, f'a library declaring {other[0]}', 'a library holds functions and enumerations alone (Q17)')
+        with self._lock:
+            self._libraries.add(digest)
 
     # ---- the door
 
@@ -297,6 +377,10 @@ class ContractDoor:
             session = self._sessions.pop(_session_of(asked, 'close'), None)
         if session is not None:
             session.secrets.clear()
+            with self._lock:
+                for handed, runtime in session.together:
+                    self._served.pop((handed, runtime), None)
+                    self._runtimes.pop(runtime, None)
             for source in session.handles.values():
                 self._forget(source)
             session.handles.clear()
@@ -340,9 +424,19 @@ class ContractDoor:
         return _json({'text': _compiled('print', lambda: compiler.print_tree(query, 'PRETTY' if style == 'PRETTY' else 'STANDARD'))})
 
     def _elements(self, asked: Mapping[str, Any], over: Any) -> Said:
+        """A model's elements -- its text's, or a project's resolved by its coordinates (Q19), its connections and
+        runtimes left out (the engine's)."""
         self._session(asked, 'elements')
-        model = _text(asked, 'model', 'elements')
-        return _json({'elements': _compiled('elements', lambda: compiler.model_elements(model))})
+        project = asked.get('project')
+        if project is None:
+            model = _text(asked, 'model', 'elements')
+            return _json({'elements': _compiled('elements', lambda: compiler.model_elements(model))})
+        if not _coordinates(project):
+            raise refused('elements', 'a project that is not its coordinates', "a project is a version's groupId, "
+                          "artifactId and versionId, or a workspace's project, workspace and revision")
+        text = self._project_text(project, 'elements')
+        elements = _compiled('elements', lambda: compiler.model_elements(text))
+        return _json({'elements': [e for e in elements if e.get('_type') not in OWNED_KINDS]})
 
     def _type_of(self, asked: Mapping[str, Any], over: Any) -> Said:
         self._session(asked, 'typeOf')
@@ -359,7 +453,8 @@ class ContractDoor:
         # the shape an execution's trace comment carries (Java's ExecutionPlan.traceComment)
         execution = str(uuid.uuid4())
         request = {'lambda': json.dumps(ask['query']), 'model': model, 'runtime': ask['runtime'],
-                   **({'project': True} if ask.get('how', {}).get('project') is True else {})}
+                   # a version's rows are its project's own Data (C5); a workspace revision's read this engine's tables
+                   **({'project': True} if _version((ask.get('how') or {}).get('project') or {}) else {})}
         said = self._plan_and_run(json.dumps(request), over)
         if said.content_type == 'application/vnd.apache.arrow.stream' and said.status == 200:
             return _rows(said.body, execution)
@@ -439,7 +534,7 @@ def _tables_of(model: str) -> list[dict[str, Any]]:
     """The tables a model's Databases declare, each with its Database's package and its schema (none for the default),
     read off its PARSED elements (Q11 (a))."""
     out: list[dict[str, Any]] = []
-    for e in compiler.model_elements(model):
+    for e in compiler.lite_elements(model):
         if e.get('_type') != 'relational':
             continue
         for schema in e.get('schemas') or []:
@@ -531,7 +626,9 @@ def _add_source(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said
                                       made['source'])
     return _json({'handle': {'handle': handle}, 'name': made['table'], 'model': handed, 'runtime': runtime,
                   'relation': made['source'], 'executionId': execution,
-                  **({'digest': digest, 'size': size} if digest is not None else {})})
+                  **({'digest': digest, 'size': size} if digest is not None else {}),
+                  # a query's rows copied: their count, the engine's own (Q26); no other kind's -- never a guessed 0
+                  **({'rowCount': made['rowCount']} if kind == 'query' else {})})
 
 
 def _mount_of(session: _Session, kind: str, given: Any) -> tuple[str, dict[str, Any], dict[str, dict[str, Any]]]:
@@ -577,6 +674,35 @@ def _source_of(door: ContractDoor, asked: Mapping[str, Any], call: str) -> tuple
     return session, handle, source
 
 
+def _model_of(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
+    """ONE MODEL OVER SEVERAL SOURCES (Q15; compile-only): the tables behind ``handles``, each its session's, written
+    by this engine as one model with one runtime it owns -- each relation in the order given. A handle not this
+    session's, or a source given twice, refused by name; never split."""
+    session = door._session(asked, 'modelOf')
+    handles = asked.get('handles')
+    if not isinstance(handles, list) or not handles:
+        raise refused('modelOf', 'a modelOf of no handle', 'modelOf is asked the handles of the sources read together')
+    sources = []
+    for h in handles:
+        handle = h.get('handle') if isinstance(h, dict) else None
+        source = session.handles.get(handle) if isinstance(handle, str) else None
+        if source is None:
+            raise refused('modelOf', f'the handle {json.dumps(handle)}', 'it is no handle this session issued, or it was '
+                          'dropped')
+        if source in sources:
+            raise refused('modelOf', f'the handle {json.dumps(handle)} given twice', 'each source is read once')
+        sources.append(source)
+    tables = [{'table': s.table, 'pkg': s.table, 'convertible': not s.view,
+               'columns': door._side.catalog(None, s.table)} for s in sources]
+    # a connection of its own name: so the runtime is this model's alone
+    connection = f'together_{uuid.uuid4().hex[:12]}'
+    written = _compiled('modelOf', lambda: compiler.table_model({'databaseType': 'DuckDB', 'connection': connection,
+                                                                 'tables': tables}))
+    handed, runtime = door.served(written['model'], written['runtime'])
+    session.together.append((handed, runtime))
+    return _json({'model': handed, 'runtime': runtime, 'relations': [t['source'] for t in written['tables']]})
+
+
 def _describe(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
     """A source's columns, as the compiler types the relation that reads it (compile-only)."""
     _, _, source = _source_of(door, asked, 'describe')
@@ -603,6 +729,7 @@ _CALLS: dict[str, Callable[[ContractDoor, Mapping[str, Any], Any], Said]] = {
     'cancel': ContractDoor._cancel, 'parse': ContractDoor._parse, 'print': ContractDoor._print,
     'elements': ContractDoor._elements, 'typeOf': ContractDoor._type_of, 'query': ContractDoor._query,
     'write': _write, 'bindSecret': _bind_secret, 'addSource': _add_source, 'describe': _describe, 'drop': _drop,
+    'modelOf': _model_of,
 }
 
 
@@ -649,7 +776,24 @@ def _compiled(call: str, work: Callable[[], Any]) -> Any:
         raise ContractError('compile', call, failure.message) from None
 
 
-_QUERY_KEYS = frozenset({'model', 'runtime', 'query', 'parameters', 'how'})
+_QUERY_KEYS = frozenset({'model', 'runtime', 'query', 'parameters', 'how', 'library'})
+# a project's coordinates (Q19, Q23): a version's by Depot, or a workspace's revision by SDLC
+_VERSION_KEYS = frozenset({'groupId', 'artifactId', 'versionId'})
+_REVISION_KEYS = frozenset({'project', 'workspace', 'revision'})
+
+
+def _coordinates(project: Any) -> bool:
+    """Whether ``project`` is a project's coordinates: a version's or a workspace revision's, each part named text."""
+    return isinstance(project, dict) and set(project) in (_VERSION_KEYS, _REVISION_KEYS) \
+        and all(isinstance(v, str) and v for v in project.values())
+
+
+def _version(project: Mapping[str, str]) -> bool:
+    """Whether coordinates name a version (its rows the project's own Data, C5) rather than a workspace's revision."""
+    return set(project) == _VERSION_KEYS
+
+# a library's elements (Q17, Q27: the orchestrator, 2026-11-13): its functions and its enumerations, nothing else
+_LIBRARY_KINDS = frozenset({'function', 'Enumeration', 'sectionIndex'})
 
 
 def _query_ask(asked: Mapping[str, Any], call: str) -> dict[str, Any]:
@@ -669,10 +813,23 @@ def _query_ask(asked: Mapping[str, Any], call: str) -> dict[str, Any]:
     if ask.get('parameters'):
         raise refused(call, "a query's parameters", 'this engine plans a query of no parameter (step 1)')
     how = ask.get('how') or {}
-    if not isinstance(how, dict) or set(how) - {'project'} or how.get('project') not in (None, True):
+    project = how.get('project') if isinstance(how, dict) else None
+    if not isinstance(how, dict) or set(how) - {'project', 'mapping'} or not isinstance(how.get('mapping', ''), str) \
+            or (project is not None and not _coordinates(project)):
         raise refused(call, f"how a query reads its model ({json.dumps(how)})", "this engine reads a model's own tables, "
-                      "or a project's own rows")
-    return ask
+                      "through a mapping, over a project by its coordinates (a version's groupId, artifactId and "
+                      "versionId, or a workspace's project, workspace and revision)")
+    mapping = how.get('mapping')
+    if mapping is None:
+        return ask
+    # through a mapping: the query as Query sends it, `->from(mapping, runtime)` outermost (lite-planner.ts overMapping)
+    body = query.get('body') or []
+    if len(body) != 1:
+        raise refused(call, 'a query through a mapping of more than one expression', 'it reads `->from(mapping, runtime)`'
+                      ' over one expression')
+    ptr = lambda path: {'_type': 'packageableElementPtr', 'fullPath': path}  # noqa: E731
+    return {**ask, 'query': {**query, 'body': [{'_type': 'func', 'function': 'from',
+                                                 'parameters': [body[0], ptr(mapping), ptr(ask['runtime'])]}]}}
 
 
 def _column(c: compiler.Column, call: str) -> dict[str, Any]:

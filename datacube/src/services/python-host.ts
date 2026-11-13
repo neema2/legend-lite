@@ -192,6 +192,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   planModel: "an unheld plan is Query's, in its tab",
   executionPlan: "a write is planned and run where its rows are: Python's own headless writer, on its database",
   tableModel: "a table's model is the tab's own database's",
+  elements: "an engine's own reading of a model it is sent (R3a, a library: Q27) is the tab's engine's; Python's engine reads its own",
   catalogColumnsSql: "a catalog's reading is the tab's own database's",
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
   executeAnswer: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",

@@ -122,24 +122,25 @@ export function enumsAsStrings(source: ValueSpecification, named: ReadonlySet<st
   return out;
 }
 
-/** What reads a project's model for a saved query: the host's compiler -- its elements, a lambda's text parsed. */
+/** What reads a saved query's project for it: its project's elements (the host's engine's reading of the project by its
+ *  coordinates, Q25, or the host's compiler over its text), a lambda's text parsed. */
 export interface QueryReading {
-  elements(model: string): Promise<readonly unknown[]>;
+  elements(): Promise<readonly unknown[]>;
   parse(text: string): Promise<Lambda>;
 }
 
 /**
  * A SAVED QUERY OPENED AS A GRID'S BASE, the one rule (the tab's app/sources.ts openedRecord; headless host-tables.ts, a
- * page on the host: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, X5): rules 1-4 over its project's model text (`model`)
+ * page on the host: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, X5): rules 1-4 over its project's model (its elements)
  * -- the mapping and runtime it runs on and the model's enumerations (`how`), its one expression with each parameter's
  * saved value, and each column the compiler types with an enumeration read as its value's name (rule 4: typed by
  * `typerOf`, a typer over the model through the runtime and mapping found).
  */
 export async function savedQueryOpened(
   q: Pick<Query, 'name' | 'groupId' | 'artifactId' | 'versionId' | 'content' | 'executionContext' | 'defaultParameterValues'>,
-  model: string, reading: QueryReading, typerOf: (runtime: string, how: ModelOptions) => RelationTyper,
+  reading: QueryReading, typerOf: (runtime: string, how: ModelOptions) => RelationTyper,
 ): Promise<{ readonly runtime: string; readonly how: ModelOptions; readonly source: ValueSpecification }> {
-  const elements = await reading.elements(model) as ModelElement[];
+  const elements = await reading.elements() as ModelElement[];
   const context = contextOf(q, elements);
   const parsed = await reading.parse(q.content);
   const values = new Map<string, ValueSpecification>();

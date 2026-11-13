@@ -286,10 +286,13 @@ py_test(
         ":wheel_duckdb",
         "//datacube:engine_conformance_bundle",
         "//datacube:headless_bundle",
+        "//engine-client:test/fixtures/run-load-conformance.json",
         "//native:compiler",
     ],
     env = _ENV | _HEADLESS_ENV | {
         "LEGEND_LITE_ENGINE_CONFORMANCE": "$(rlocationpath //datacube:engine_conformance_bundle)",
+        # the party project (step 4a, Q19): published in the engine's model home, resolved by its coordinates
+        "LEGEND_LITE_RUN_LOAD_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-load-conformance.json)",
     },
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,

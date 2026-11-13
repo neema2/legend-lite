@@ -11,7 +11,7 @@ import type { Receipt } from './receipt.ts';
 import {
   CompileError, Refused, refusalOf, requireContract, RunError, sourceKind, TransportError, writeModeName,
   type CallName, type CallOptions, type Capabilities, type Engine, type EngineError, type EngineSession,
-  type Described, type QueryAnswer, type ResultColumn, type ResultType, type SourceAnswer, type SourceHow, type WriteAnswer,
+  type Described, type ModelOver, type QueryAnswer, type ResultColumn, type ResultType, type SourceAnswer, type SourceHow, type WriteAnswer,
 } from './engine-contract.ts';
 
 /** The path every call is asked at, its name after it. */
@@ -61,6 +61,7 @@ function wireSession(send: WireSend, where: string, caps: Capabilities, session:
     addSource: async (source, how: SourceHow, o) => (await json('addSource', {
       source: 'upload' in source ? { upload: { name: source.upload.name, bytes: base64(source.upload.bytes) } } : source, how,
     }, o, { source: sourceKind(source), how })) as SourceAnswer,
+    modelOf: async (handles, o) => (await json('modelOf', { handles }, o)) as ModelOver,
     // write-only: the engine answers nothing, and this client keeps nothing of it
     bindSecret: async (name, fields, o) => { await call('bindSecret', { name, fields }, o); },
     describe: async (handle, o) => (await json('describe', { handle }, o)) as Described,
@@ -70,7 +71,7 @@ function wireSession(send: WireSend, where: string, caps: Capabilities, session:
     write: async (ask, o) => (await json('write', { ask }, o, { mode: writeModeName(ask.mode) })) as WriteAnswer,
     parse: async (t, o) => ((await json('parse', { text: t }, o)) as { lambda: Lambda }).lambda,
     print: async (query, style, o) => ((await json('print', { query, ...(style ? { style } : {}) }, o)) as { text: string }).text,
-    elements: async (model, o) => ((await json('elements', { model }, o)) as { elements: unknown[] }).elements,
+    elements: async (model, o) => ((await json('elements', typeof model === 'string' ? { model } : { project: model.project }, o)) as { elements: unknown[] }).elements,
     cancel: async (request) => {
       if (closed) return;
       await call('cancel', { request });

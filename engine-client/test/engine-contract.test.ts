@@ -17,7 +17,7 @@ const CAPS: Capabilities = {
   contract: ENGINE_CONTRACT_VERSION,
   engine: { name: 'Fake', databaseType: 'DuckDB' },
   calls: { typeOf: true, query: true, cancel: true, describe: false, drop: false, parse: true, print: true, elements: true,
-    bindSecret: false, write: { modes: ['create'] } },
+    bindSecret: false, modelOf: false, write: { modes: ['create'] } },
 };
 
 const json = (status: number, body: unknown) => ({ status, contentType: 'application/json', body: new TextEncoder().encode(JSON.stringify(body)) });

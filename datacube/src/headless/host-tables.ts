@@ -5,7 +5,7 @@
 
 import { DepotClient } from '../../../depot-client/src/client.ts';
 import { modelText } from '../../../depot-client/src/model-text.ts';
-import { lambda, toJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { lambda, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { classOpened, type ClassElement } from '../class-source.ts';
 import {
@@ -15,7 +15,7 @@ import {
 import { HOST_TABLES, leafRefusal, openedLeaves } from '../join-open.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { shownAddress } from '../remote.ts';
-import { savedQueryOpened, type QueryReading } from '../saved-queries.ts';
+import { savedQueryOpened } from '../saved-queries.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { hostCalls, hostEngine, hostFetch, hostWorker, type HostCalls } from './host.ts';
 
@@ -118,7 +118,7 @@ function fileBase(file: HostFile): HostBase {
 const relationOf = (source: ValueSpecification): string => toJson(lambda([], source));
 
 /** The host's compiler, for what a project's text is (its elements, a lambda parsed): no model of its own. */
-function compilerOf(calls: HostCalls): { readonly reading: QueryReading; readonly dispose: () => void } {
+function compilerOf(calls: HostCalls): { readonly reading: { elements(text: string): Promise<readonly unknown[]>; parse(text: string): Promise<Lambda> }; readonly dispose: () => void } {
   const planner = new LitePlanner({ model: '', runtime: '', worker: () => hostWorker(calls) });
   return {
     reading: { elements: (text) => planner.modelElements(text), parse: (text) => planner.parse(text) },
@@ -161,7 +161,7 @@ async function savedQueryBase(leaf: QuerySource): Promise<HostBase> {
       throw new CubeRefusal(`${leaf.name} is a saved query of ${q.groupId}:${q.artifactId}:${q.versionId}, which this host's `
         + `depot does not hold: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const { runtime, how, source } = await savedQueryOpened(q, model, reading, (at, options) => {
+    const { runtime, how, source } = await savedQueryOpened(q, { parse: (text) => reading.parse(text), elements: () => reading.elements(model) }, (at, options) => {
       const typer = new LitePlanner({ model, runtime: at, worker: () => hostWorker(calls), ...options });
       typers.push(typer);
       return typer;
