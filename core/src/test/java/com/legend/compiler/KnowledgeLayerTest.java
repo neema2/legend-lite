@@ -380,4 +380,28 @@ class KnowledgeLayerTest {
                 "max over two with no safe type: the first's");
         assertEquals(dec, infer.apply(5), "min over one: its own");
     }
+
+    /** The names fixes, item 10 (2026-11-13, ruling 28): a concatenation with an operand typed other than CHAR or
+     * VARCHAR has no type -- the engine's one concat rule asks every typed operand to be one -- and an operand with no
+     * type drops out. It summed the string operands' sizes and skipped the rest ({@code concat(INT, 'ab')} was
+     * VARCHAR(2)). */
+    @Test
+    @DisplayName("kernel: a concatenation of a non-string has no type")
+    void aConcatenationOfANonStringHasNoType() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10), I INTEGER)
+                  View V (CI: concat(T.S, T.I), CN: concat(T.S, nope(T.ID)), CS: concat(T.S, 'ab'))
+                )
+                """)));
+        com.legend.model.DatabaseDefinition db = ix.findDatabase("a::Db").orElseThrow();
+        var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
+        java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
+                i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
+        assertEquals(null, infer.apply(0), "an INTEGER operand leaves no type");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(10), infer.apply(1),
+                "an operand with no type drops out");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(12), infer.apply(2));
+    }
 }

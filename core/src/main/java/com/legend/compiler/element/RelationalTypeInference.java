@@ -139,18 +139,26 @@ public final class RelationalTypeInference {
                 // 4000 buffer size
                 case "joinstrings" -> new RelationalDataType.Varchar(4000);
                 // string concatenation SUMS the operand sizes (engine
-                // getSize over concat)
+                // getSize over concat); an operand typed other than CHAR or
+                // VARCHAR leaves it no type -- the engine's one rule asks every
+                // typed operand to be one (relationalExtension.pure:463-471);
+                // an operand with no type drops out, as the engine's map does.
+                // Until 2026-11-13 such an operand added 0 (the names fixes,
+                // item 10, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
                 case "concat", "group_concat" -> {
                     int size = 0;
+                    boolean other = false;
                     for (var arg : f.args()) {
                         RelationalDataType at2 = infer(arg, db, ctx, expanding);
                         if (at2 instanceof RelationalDataType.Varchar v2) {
                             size += v2.size();
                         } else if (at2 instanceof RelationalDataType.Char_ c2) {
                             size += c2.size();
+                        } else if (at2 != null) {
+                            other = true;
                         }
                     }
-                    yield new RelationalDataType.Varchar(size);
+                    yield other ? null : new RelationalDataType.Varchar(size);
                 }
                 // case(c1, v1, ..., else): the SAFE type over the value
                 // branches (engine getSafeType lattice)
