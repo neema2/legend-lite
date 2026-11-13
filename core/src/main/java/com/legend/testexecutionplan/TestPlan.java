@@ -200,19 +200,23 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules and the messages are the judges' own code, reading the plan's
      * facts (the agreement's pairing among them, {@code agreement}). {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
      * design's step 5, 2026-11-08), judged once the group's last verdict is in -- under the agreement judge, the
-     * database half's loop of the assert the group closes; null on every other group. {@code agreement}: under the
-     * agreement judge, the pairing of the assert this group closes (step 6), null otherwise.
+     * database half's loop of the asserts the group closes; null on every other group. {@code agreements}: under the
+     * agreement judge, the pairings of the asserts this group closes (step 6), one per root of {@code roots} in root
+     * order (E-5c, the user's ruling O5 of 2026-11-13: a segment's group may carry several asserts) -- or the one
+     * assert of a group with no loop (a raising assert's, or one the database judge declines); empty otherwise.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
             @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
-            @com.legend.base.Nullable RootLoop roots, @com.legend.base.Nullable Agreement agreement)
+            @com.legend.base.Nullable RootLoop roots, List<Agreement> agreements)
             implements TestStep {
         public Verdicts {
             Objects.requireNonNull(rules, "a verdict group names the rules it is judged by");
             verdicts = List.copyOf(verdicts);
+            agreements = List.copyOf(agreements);
             if (verdicts.isEmpty()) {
                 throw new IllegalArgumentException("a verdict group holds at least one verdict");
             }
+            pairsItsRoots(roots, agreements);
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
             }
@@ -221,6 +225,31 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                     if (side instanceof Side.FusedCell cell) {
                         readsFused(fused, cell, v.name());
                     }
+                }
+            }
+        }
+
+        /** The agreements a group closes pair its loop's roots, each once, in root order; a group with no loop
+         *  closes one assert at most, and a raising assert's group that one alone (E-5c, step 5b, 2026-11-13). */
+        private static void pairsItsRoots(@com.legend.base.Nullable RootLoop roots, List<Agreement> agreements) {
+            if (agreements.isEmpty()) {
+                return;
+            }
+            if (roots == null || agreements.stream().anyMatch(Agreement::raising)) {
+                if (agreements.size() != 1 || agreements.get(0).root() != 0) {
+                    throw new IllegalArgumentException("a verdict group with no root loop, or a raising assert's,"
+                            + " closes one agreement, root 0: " + agreements);
+                }
+                return;
+            }
+            if (agreements.size() != roots.roots().size()) {
+                throw new IllegalArgumentException("a verdict group's " + agreements.size() + " agreements pair a loop"
+                        + " of " + roots.roots().size() + " roots: one per root");
+            }
+            for (int i = 0; i < agreements.size(); i++) {
+                if (agreements.get(i).root() != i) {
+                    throw new IllegalArgumentException("a verdict group's agreements pair its roots in root order: "
+                            + agreements);
                 }
             }
         }
@@ -245,29 +274,29 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused, JudgingRules rules) {
-            this(verdicts, fused, null, rules, null, null);
+            this(verdicts, fused, null, rules, null, List.of());
         }
 
         /** A group that closes no database segment and pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
                 @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules) {
-            this(verdicts, fused, savepoint, rules, null, null);
+            this(verdicts, fused, savepoint, rules, null, List.of());
         }
 
         /** A group that pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
                 @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
                 @com.legend.base.Nullable RootLoop roots) {
-            this(verdicts, fused, savepoint, rules, roots, null);
+            this(verdicts, fused, savepoint, rules, roots, List.of());
         }
 
         /** The same group closing a database segment, judged by {@code r} once its last verdict is in. */
         public Verdicts withRoots(@com.legend.base.Nullable RootLoop r) {
-            return new Verdicts(verdicts, fused, savepoint, rules, r, agreement);
+            return new Verdicts(verdicts, fused, savepoint, rules, r, agreements);
         }
 
-        /** The same group closing the agreement judge's assert {@code a}. */
-        public Verdicts withAgreement(@com.legend.base.Nullable Agreement a) {
+        /** The same group closing the agreement judge's asserts {@code a}, in root order. */
+        public Verdicts withAgreements(List<Agreement> a) {
             return new Verdicts(verdicts, fused, savepoint, rules, roots, a);
         }
 

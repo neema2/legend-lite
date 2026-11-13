@@ -225,18 +225,35 @@ public final class TestRunner {
                 if (!(steps.get(i) instanceof TestPlan.Verdicts group)) {
                     continue;
                 }
-                // the host's facts the plan carries on the group's first verdict (step 4, 2026-11-08): an agreement
-                // step's or a host judge's one assert's
-                TestPlan.Host p = judge == TestPlan.Judge.AGREEMENT
-                        || judge == TestPlan.Judge.HOST && group.verdicts().size() == 1
-                        ? group.verdicts().get(0).host() : null;
-                if (p != null) {
-                    // an engine-text assert whose text is a side the step runs: sent under the origin the walk's arm
-                    // marked for it (M10c item 8)
-                    String o = com.legend.testexecutionplan.Verdicts.deferredTextOrigin(p.judgment());
-                    if (o != null) {
-                        textOrigins.put(i, com.legend.exec.StatementOrigin.valueOf(o));
+                // the host's facts the plan carries (step 4, 2026-11-08): under the agreement judge on each assert's
+                // host verdict, several in one group where a segment's group carries several asserts (E-5c, step 5b,
+                // 2026-11-13); a host judge's one assert's on the group's first verdict
+                List<TestPlan.Host> hosts = new java.util.ArrayList<>();
+                if (judge == TestPlan.Judge.AGREEMENT) {
+                    for (TestPlan.Verdict v : group.verdicts()) {
+                        if (v.host() != null) {
+                            hosts.add(v.host());
+                        }
                     }
+                } else if (judge == TestPlan.Judge.HOST && group.verdicts().size() == 1
+                        && group.verdicts().get(0).host() != null) {
+                    hosts.add(group.verdicts().get(0).host());
+                }
+                String origin = null;
+                for (TestPlan.Host p : hosts) {
+                    // an engine-text assert whose text is a side the step runs: sent under the origin the walk's arm
+                    // marked for it (M10c item 8); the step reads under one origin, two asserts naming two refused
+                    String o = com.legend.testexecutionplan.Verdicts.deferredTextOrigin(p.judgment());
+                    if (o != null && origin != null && !o.equals(origin)) {
+                        throw new IllegalStateException("verdict step " + i + " reads our text under two origins: "
+                                + origin + " and " + o);
+                    }
+                    if (o != null) {
+                        origin = o;
+                    }
+                }
+                if (origin != null) {
+                    textOrigins.put(i, com.legend.exec.StatementOrigin.valueOf(origin));
                 }
             }
             this.deferredTextOrigins = textOrigins;
@@ -251,7 +268,8 @@ public final class TestRunner {
         @Override
         public void verdict(TestPlan.Verdict verdict, @Nullable List<Object> row) {
             if (agreementRuns != null) {
-                // both judges have read once the step's last row is in: the agreement rule decides
+                // both judges have read once the segment's last row is in: the agreement rule decides each of its
+                // asserts in root order (E-5c, step 5b, 2026-11-13)
                 TypedSide v;
                 v = agreementRuns.of(verdict).received(verdict, row, listener, reader);
                 if (v != null) {
@@ -295,7 +313,8 @@ public final class TestRunner {
         @Override
         public void fused(TestPlan.Verdicts group, @Nullable DataError rejected) {
             if (agreementRuns != null) {
-                agreementRuns.of(group.verdicts().get(0)).fused(rejected);
+                // the segment the group's verdicts belong to (E-5c, step 5b: one group may carry several asserts)
+                agreementRuns.of(group).fused(rejected);
                 return;
             }
             com.legend.testexec.RootLoops.Runs runs = databaseRuns;
@@ -312,7 +331,7 @@ public final class TestRunner {
         @Override
         public void sides(TestPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
             if (agreementRuns != null) {
-                // the host's verdict held until the database half's rows are in
+                // the host's verdict held until the database half's rows are in: the assert whose host verdict this is
                 agreementRuns.of(verdict).hostSides(verdict, () -> rows, messageOf(verdict), listener,
                         rules(verdict));
                 return;

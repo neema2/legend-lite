@@ -167,8 +167,10 @@ public final class TestPlanJson {
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
                 }
-                if (v.agreement() != null) {
-                    o.put("agreement", HostJson.wAgreement(v.agreement()));
+                if (!v.agreements().isEmpty()) {
+                    List<Object> agreements = new ArrayList<>(v.agreements().size());
+                    v.agreements().forEach(a -> agreements.add(HostJson.wAgreement(a)));
+                    o.put("agreements", agreements);
                 }
             }
             case TestPlan.Branch b -> {
@@ -355,7 +357,13 @@ public final class TestPlanJson {
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
                 Json.Obj roots = o.getObjOr("roots", null);
-                Json.Obj agreement = o.getObjOr("agreement", null);
+                Json.Arr agreementsArr = o.getArrOr("agreements", null);
+                List<com.legend.testexecutionplan.Agreement> agreements = new ArrayList<>();
+                if (agreementsArr != null) {
+                    for (Json.Node an : agreementsArr.items()) {
+                        agreements.add(HostJson.rAgreement((Json.Obj) an));
+                    }
+                }
                 String rules = o.getString("rules");
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
@@ -366,7 +374,7 @@ public final class TestPlanJson {
                             default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
                                     + "': lite or compiledPureCompat");
                         }, roots == null ? null : HostJson.rRootLoop(roots),
-                        agreement == null ? null : HostJson.rAgreement(agreement));
+                        agreements);
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));

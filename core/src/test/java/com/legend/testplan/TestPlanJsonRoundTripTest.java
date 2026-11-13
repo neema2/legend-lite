@@ -70,7 +70,9 @@ class TestPlanJsonRoundTripTest {
                         new RootLoop.Message(null, FAILURE, false))),
                 Map.of("fragment", "reason"));
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null,
-                TestPlan.JudgingRules.COMPILED_PURE_COMPAT, roots, new Agreement(1, 2));
+                TestPlan.JudgingRules.COMPILED_PURE_COMPAT, roots,
+                // E-5c, step 5b (O5, 2026-11-13): a segment's group closing two asserts, one per root of its loop
+                List.of(new Agreement(0, 1, RootLoop.NO_VERDICT), new Agreement(1, 2, RootLoop.NO_VERDICT)));
         // E-5c (O5, 2026-11-13): a side read from its group's fused row
         ExecutionPlan.Column cell = new ExecutionPlan.Column("__h0", "Integer", ONE, null, null, null);
         TestPlan.Verdicts fusedGroup = new TestPlan.Verdicts(List.of(new TestPlan.Verdict(id, "v" + id, "arm",

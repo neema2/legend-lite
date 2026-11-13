@@ -54,8 +54,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
             boolean overAnAssert = HostJudgment.core(host.assertion().check().judgment())
                     instanceof HostJudgment.AssertError ae && ae.inner() != null;
             TestPlan.Verdict hostVerdict = overAnAssert ? host.verdict() : raising.verdicts().get(0);
-            TestPlan.Verdicts step = raising.withAgreement(new com.legend.testexecutionplan.Agreement(hostVerdict.id(),
-                    raising.verdicts().get(0).id()));
+            TestPlan.Verdicts step = raising.withAgreements(List.of(new com.legend.testexecutionplan.Agreement(0,
+                    hostVerdict.id(), raising.verdicts().get(0).id())));
             this.steps = overAnAssert ? List.of(host.step(), step) : List.of(step);
         }
 
@@ -83,8 +83,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
             }
             // the database half's root loop rides the step it closes (null: the database judge declines the assert)
             this.steps = List.of(step.withRoots(database == null ? null : database.planned().loop())
-                    .withAgreement(new com.legend.testexecutionplan.Agreement(hostVerdict.id(),
-                            com.legend.testexecutionplan.RootLoop.NO_VERDICT)));
+                    .withAgreements(List.of(new com.legend.testexecutionplan.Agreement(0, hostVerdict.id(),
+                            com.legend.testexecutionplan.RootLoop.NO_VERDICT))));
         }
     }
 

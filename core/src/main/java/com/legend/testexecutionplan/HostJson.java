@@ -833,15 +833,17 @@ final class HostJson {
 
     static Map<String, Object> wAgreement(Agreement x) {
         Map<String, Object> o = new LinkedHashMap<>();
+        o.put("root", x.root());
         o.put("hostVerdict", x.hostVerdict());
         o.put("raisingVerdict", x.raisingVerdict());
         return o;
     }
 
     static Agreement rAgreement(Json.Obj o) {
+        int v_root = Math.toIntExact(num(field(o, "root", "Agreement")));
         int v_hostVerdict = Math.toIntExact(num(field(o, "hostVerdict", "Agreement")));
         int v_raisingVerdict = Math.toIntExact(num(field(o, "raisingVerdict", "Agreement")));
-        return new Agreement(v_hostVerdict, v_raisingVerdict);
+        return new Agreement(v_root, v_hostVerdict, v_raisingVerdict);
     }
 
     static Map<String, Object> wAppeal(Appeal x) {
