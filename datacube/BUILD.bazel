@@ -1996,6 +1996,13 @@ _BROWSER_TESTS = {
     "verify-wasm-browser": "large",
 }
 
+# THE BROWSER TESTS THAT ASSERT A WALL-CLOCK BUDGET, each measured alone (Bazel's "exclusive": no other test runs
+# beside it). 2026-11-13, CI's run 43433798750 (linux / datacube): verify-layout's "no task over 100 ms, nor two over
+# 50 ms, while a tile is dragged" read 127 ms with three other tests on the runner's four CPUs -- a budget of the
+# page's own work, measured while the machine's CPUs were shared. The budget stays; the measurement is made alone.
+# The other harnesses read the page's clock only to wait for quiet (settle), which asserts no time.
+_TIMED_BROWSER_TESTS = ["verify-layout"]
+
 [js_binary(
     name = h.replace("-", "_"),
     # make-sample writes a CSV from the sources: it needs no site, no browser (P4-08)
@@ -2060,8 +2067,9 @@ browser_test(
     entry_point = "demo/" + h + ".mjs",
     env = _SITE_ENV,
     # CI runs these on Linux only (gates-run.yml filters the tag on macOS and Windows): the same on every platform,
-    # and live-vs-snap already checks x86_64 against the arm64 desks (the build rebuild's L1b, 2026-10-07)
-    tags = ["ci-linux-only"],
+    # and live-vs-snap already checks x86_64 against the arm64 desks (the build rebuild's L1b, 2026-10-07); a test
+    # that asserts a wall-clock budget runs alone (_TIMED_BROWSER_TESTS)
+    tags = ["ci-linux-only"] + (["exclusive"] if h in _TIMED_BROWSER_TESTS else []),
     wasm = True,
 ) for h, size in _BROWSER_TESTS.items()]
 
