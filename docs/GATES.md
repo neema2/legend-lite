@@ -21829,3 +21829,55 @@ merges: 5afc4de7c (C1-C3 from `claude/total-wall-b3` @ d2b92ae80), 5429e6aab (th
   `testGenerateNecessaryTableColumns*` rows (0d9353d5a; the roster's format takes no comments); the corpus
   database-accepted registers gained five P5 rows each, plus the engine-order and outside-body rows (8e5f43c4a,
   generated); and `//core:fixture_aside_postgres_test` left `gates/BUILD.bazel` (961bf5352).
+
+## 2026-11-13 — C closed: the six checks, the final audits, round 41, the CI fixes; the A/B/C landing candidate
+
+The total wall's C after its final audit rounds (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §5.12, "C's acceptance
+standard"): one choke point per transport taking only the plan's statement type, minted only where a plan is read; no
+runner writes text beyond A3's three forms, with an unfiltered witness on every road; data only through planned loads;
+no run asks the planner; every guard bites a planted violator. Merged onto `claude/total-wall` from bd6da4f6b to
+1c4c86c56 (the first-parent merges name each worker's branch and SHA).
+
+- **The final audit round 2** (fd7c8d5c0, 4ef947a92, 5b1f1246b, ca6d6b8f8): JDBC sends from one place; a declared H2
+  file or server database gets no settings written or read back; one execution id per plan run, minted by the door,
+  bound by exec (S304, the simple version); the hosts take only the plan's statement type (`PlanText`); the plan
+  carries its transaction statements; a snapshot's request carries the pull, never SQL (plan JSON 51); the Python
+  authored door deleted (27f29669c).
+- **The full audit at 549c018d7** (four independent read-only auditors: planning, run, hosts, guards and records) and
+  its fixes: the snapshot's count and copy and a table Output each one plan of the pull or the rows, no host operation
+  taking SQL (d7c037ebf); test-data temporal keys cast or refused by name, guards that could not fail made to bite
+  (38fe1a5c0); the G7 twins said or refused by name (761d411cd); every TypeScript and Python text census bites a
+  planted file (2a57f6593); Python's warehouse snap outside the frames lock (1fdeb2928); AGENTS.md's mint claim
+  corrected (ca29e3e31). The delta audit's items: S307, an `executeInDb` read refused by name on every product door,
+  the test road keeping it (77e6ab798, 6da2959b9); every constructor rule sees a `::new` reference (554434c32).
+- **The six checks, B3's table at aa860ba38: all six CLOSED**, each with its guard and planted-violator test. C4's
+  one-off global probe (run-depth counters, planner-entry, mint and send hooks in Java, TypeScript and Python): no
+  product violation; its gaps (the DataCube grid road has no run frame; the browser and mini-racer unmeasured) are the
+  next PR's standing witness (start-here §6.1).
+- **The gate at aa860ba38** (B3): `//gates:local` with both corpora: 495 pass, 9 Postgres targets refused as root and
+  passing unprivileged, 1 `//datacube:app_dom_test` flake (fixed as a class below); the corpora 12 of 12; PCT Postgres
+  1,249 of 1,249 unprivileged.
+- **Round 41 at 549c018d7** (measure only, against round 40): 155 of 155 on every database -- MariaDB, MySQL,
+  ClickHouse 45; Postgres, SQLite, MongoDB 46 (Postgres unprivileged); Trino, H2 18; Databricks 15; BigQuery 16;
+  Snowflake 15 (about 57 min, round 40's 66) -- every census and error set identical test for test, no settings
+  message on H2, no "Or add" or ledger line. Rounds 41b and 41c at aa860ba38: H2 3 of 3, Postgres 14 of 14, the same
+  counts; a back-to-back on aa860ba38 and d7c037ebf measured no cost from the `executeInDb` scan (an earlier 20-40%
+  slowdown was the machine's load, not the commit).
+- **CI's findings since, each fixed as a class:** parser parity's TIMESTAMP_NS column classified as lite's grammar
+  extension, S64 (451271134); `own_corpus.matched` 3192 -> 3211 for the audit fixes' test models (19a838160); the
+  DuckDB owner's transaction test enumerates every other database (0bf2ea17a); Windows: the headless link marked gone
+  (f7722ffec), `planned_sql_test` scans the tree once (2a5a53be7); the snap and gesture tests wait for their outcome,
+  bounded and said in words, never a tick count or a time (0ee3da632, bb22cf8f2; the gestures suite about 100 s ->
+  26 s); the one browser test that asserts a wall-clock budget runs alone, `exclusive` (24ba92720; first red on
+  6b0cc7e47, never before; about 2% of the Linux datacube lane).
+- **The Linux warehouse lane's V8 crash** (runs 43370111355 and 43380062329, ubuntu-24.04 image 20261111.127.1): a
+  second mini-racer engine segfaulted in `_make_context`. A probe (806643298, reverted b68f95188) reached only image
+  .370.1 (AMD, no `pku`), where all twelve scenarios passed and so did the lane, so the cause is UNPROVEN; memory
+  protection keys fit the pattern. V8 now starts once per process with `--single-threaded
+  --no-memory-protection-keys`, and V8 started first by other code is refused in words (2f2bacc34; the user's ruling,
+  2026-11-13: protection off for now, the parent-thread start a follow-up, start-here §6.1).
+- **Found by the next PR's fuzzing, not in this landing** (the user's ruling, 2026-11-13): ClickHouse's delimited
+  identifiers double only `"`, while ClickHouse reads backslash escapes inside them, so a column name such as
+  `a\" , version() AS v --` breaks out (confirmed on the pinned ClickHouse 25.8). It predates the total wall; the fix
+  (every dialect's identifier escaped for its own lexer) is the first item of the foolproof stream's PR.
+- **CI on the landing head 1c4c86c56:** recorded in PR #95's description (a commit here would restart the run).
