@@ -56,9 +56,10 @@ final class SelectLayers extends SqlRewriter {
      *  {@code (reads - 1) * size}, as the lowering's fold bounds its own (Fold.Budget). */
     private static final int INLINE = 24;
 
-    /** How the database labels a column it reads by a bare name: the name as written (DuckDB, SQLite, ClickHouse),
-     *  folded to lower case (Postgres) or to upper case (Snowflake, H2). A projection of a table's own column keeps its
-     *  alias only where that label differs from the name (namedAs; PR #81, 2026-11-13). */
+    /** How the database labels a table's column the dialect writes from its declared name: the name as written
+     *  (DuckDB, SQLite, ClickHouse; Snowflake, which quotes every name), folded to lower case (Postgres) or to upper
+     *  case (H2). A projection of a table's own column keeps its alias only where that label differs from the name
+     *  (namedAs; PR #81, 2026-11-13). */
     private final java.util.function.UnaryOperator<String> bareLabel;
 
     SelectLayers(java.util.function.UnaryOperator<String> bareLabel) {

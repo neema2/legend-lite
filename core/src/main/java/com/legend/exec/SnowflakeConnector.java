@@ -55,6 +55,6 @@ final class SnowflakeConnector implements DatabaseConnector {
      *  date-time parameter go as java.sql.Date and java.sql.Timestamp. */
     @Override
     public DatabaseConnector.Decoding decoding() {
-        return new DatabaseConnector.Decoding(false, false, false, false, false, true);
+        return new DatabaseConnector.Decoding(false, false, false, false, false);
     }
 }

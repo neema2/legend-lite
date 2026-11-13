@@ -243,7 +243,8 @@ public final class Snowflake extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new SelectMerge(n -> n.toUpperCase(java.util.Locale.ROOT)), new SelectLayers(n -> n.toUpperCase(java.util.Locale.ROOT)), new LongRowsFramesAsRanges("Snowflake", 1000, OVER_NUMBERS),
+                new SelectMerge(java.util.function.UnaryOperator.identity()),   // every name quoted: labelled as written
+                new SelectLayers(java.util.function.UnaryOperator.identity()), new LongRowsFramesAsRanges("Snowflake", 1000, OVER_NUMBERS),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 

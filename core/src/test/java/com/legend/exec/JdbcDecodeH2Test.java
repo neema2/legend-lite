@@ -61,9 +61,9 @@ class JdbcDecodeH2Test {
     void aNonFiniteTokenIsReadWhereTheDatabaseSpellsOne() throws Exception {
         ExecutionPlan.Column variant = JdbcDecodeCases.col("V", "meta::pure::metamodel::variant::Variant", "JSON");
         assertEquals("[1.0,NaN,-Infinity]", JdbcDecode.decode("[1.0, NaN, -Infinity]", variant,
-                new DatabaseConnector.Decoding(false, false, false, true, true, true)));
+                new DatabaseConnector.Decoding(false, false, false, true, true)));
         assertThrows(IllegalArgumentException.class, () -> JdbcDecode.decode("[1.0, NaN]", variant,
-                new DatabaseConnector.Decoding(false, false, false, false, true, true)));
+                new DatabaseConnector.Decoding(false, false, false, false, true)));
     }
 
     /** A driver's Timestamp is read as its wall clock with its era: a BC year is negative, never the year of its era
@@ -72,7 +72,7 @@ class JdbcDecodeH2Test {
     @Test
     void aTimestampKeepsItsEra() throws Exception {
         ExecutionPlan.Column ts = JdbcDecodeCases.col("TS", "DateTime", "TIMESTAMP");
-        DatabaseConnector.Decoding driver = new DatabaseConnector.Decoding(false, false, false, false, true, true);
+        DatabaseConnector.Decoding driver = new DatabaseConnector.Decoding(false, false, false, false, true);
         java.time.LocalDateTime bc = java.time.LocalDateTime.of(-21457, 1, 8, 20, 48);
         java.sql.Timestamp held = java.sql.Timestamp.valueOf(bc);
         assertEquals(21458, held.toLocalDateTime().getYear(), "the year of the era, as the JDK reads it");
@@ -98,12 +98,12 @@ class JdbcDecodeH2Test {
             rs.next();
             List<ExecutionPlan.Column> cols = List.of(JdbcDecodeCases.col("D", "Decimal", "DECIMAL(2,1)"),
                     JdbcDecodeCases.col("E", "Decimal", "DECIMAL"));
-            List<Object> padded = JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, true, false, false, true, true));
+            List<Object> padded = JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, true, false, false, true));
             assertEquals(new BigDecimal("3.0"), padded.get(0));
             assertEquals(1, ((BigDecimal) padded.get(0)).scale());
             // a slot with no declared scale pads nothing
             assertEquals(new BigDecimal("2"), padded.get(1));
-            List<Object> kept = JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false, true, true));
+            List<Object> kept = JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false, true));
             assertEquals(0, ((BigDecimal) kept.get(0)).scale());
         }
     }
@@ -120,9 +120,9 @@ class JdbcDecodeH2Test {
             assertTrue(rs.getObject(1) instanceof java.sql.Timestamp, "H2 hands a TIMESTAMP back as a Timestamp");
             List<ExecutionPlan.Column> cols = List.of(JdbcDecodeCases.col("TS", "DateTime", "TIMESTAMP"));
             assertEquals(List.of(PureDateLiteral.parse("2024-01-02T10:30:00.123456000")),
-                    JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false, true, true)));
-            assertEquals(JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(true, false, false, false, true, true)),
-                    JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false, true, true)));
+                    JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false, true)));
+            assertEquals(JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(true, false, false, false, true)),
+                    JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false, true)));
         }
     }
 
@@ -146,7 +146,7 @@ class JdbcDecodeH2Test {
                 try (java.sql.Statement st = c.createStatement(); java.sql.ResultSet real = st.executeQuery(sql)) {
                     java.sql.ResultSet rs = recording(real, calls);
                     JdbcDecode.Reader reader = new JdbcDecode.Reader(cols,
-                            new DatabaseConnector.Decoding(javaTime, false, false, false, true, true));
+                            new DatabaseConnector.Decoding(javaTime, false, false, false, true));
                     while (rs.next()) {
                         cells.add(reader.row(rs).get(0));
                     }

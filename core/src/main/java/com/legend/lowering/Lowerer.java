@@ -3000,7 +3000,10 @@ public final class Lowerer {
         for (OutputCol oc : right.outputs()) {
             SqlExpr.Column col = SqlExpr.Column.of(ra, oc);
             columns.add(new SqlSelect.Projection(col, oc.name(), oc));
-            if (oc.type() instanceof SqlType.Scalar sc && sc != SqlType.Scalar.JSON) {
+            // every column a database orders: a scalar's (not JSON's) and a decimal's -- two tied rows that differ in a
+            // price alone had kept the one the database chose (the tenet audit of PR #81, 2026-11-13)
+            if (oc.type() instanceof SqlType.Scalar sc && sc != SqlType.Scalar.JSON
+                    || oc.type() instanceof SqlType.Decimal) {
                 greatest.add(new SqlSelect.SortKey(col, false, SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
             }
         }

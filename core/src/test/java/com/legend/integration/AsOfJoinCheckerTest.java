@@ -910,6 +910,32 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             var byId = CheckerResults.collect(result, "id", "quote_id");
             assertEquals(2L, ((Number) byId.get(1L)).longValue(), "a at 20: the lit quote at 15, not the older one at 10");
         }
+
+        /** The tenet audit of PR #81 (2026-11-13): two quotes tied on the key and the time that differ in a decimal
+         *  alone (a bid) -- the decimal orders them too, so the greater bid is kept on every database, where the rank had
+         *  read scalars alone and kept the one the database chose. */
+        @Test
+        @DisplayName("quotes tied but for a decimal: the greater decimal is kept")
+        void aDecimalBreaksTheTie() throws SQLException {
+            var result = executeRelation("""
+                    #TDS
+                        id, k, event_time
+                        1, a, 20
+                    #->asOfJoin(
+                        #TDS
+                            rk:String, ts:Integer, bidText:String
+                            a, 15, 1.25
+                            a, 15, 1.50
+                            a, 15, 1.10
+                        #->extend(~bid: r | $r.bidText->parseDecimal())->select(~[rk, ts, bid]),
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | $l.k == $r.rk}
+                    )""");
+            assertEquals(1, result.rowCount(), "one row a left row: " + result.rows());
+            var byId = CheckerResults.collect(result, "id", "bid");
+            assertEquals(0, new java.math.BigDecimal("1.50").compareTo(new java.math.BigDecimal(
+                    String.valueOf(byId.get(1L)))), "a at 20: of the three bids at 15, the greatest: " + byId);
+        }
     }
 
     // ==================== Utilities ====================

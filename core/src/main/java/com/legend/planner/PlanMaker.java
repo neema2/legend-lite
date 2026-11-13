@@ -733,7 +733,7 @@ public final class PlanMaker {
                         && picksRowsByNoOrder(c.query(), ctes, new java.util.HashSet<>())) {
                     throw new NotImplementedException("a relation the query reads more than once picks its rows by no"
                             + " order (a limit, a slice or a drop with no sort before it): this database computes it"
-                            + " again at each read, and each could pick other rows; sort it first");
+                            + " again at each read, and each could pick other rows; sort it by a unique key first");
                 }
             }
             return new Staged(q, List.of(), Map.of());

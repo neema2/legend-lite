@@ -72,7 +72,11 @@ public final class PeRatchets {
             "own_corpus.matched 3192 -> 3211 (2026-11-13, the final full audit's fixes, d7c037ebf, found red by the gate on"
                     + " that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest,"
                     + " EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the"
-                    + " snapshot-copy and output-plan tests)");
+                    + " snapshot-copy and output-plan tests)",
+            "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
+                    + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
+                    + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
+                    + " tests')");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

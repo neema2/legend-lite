@@ -72,6 +72,6 @@ final class DuckDbConnector implements DatabaseConnector {
      *  {@code -Infinity} (a float divided by a zero inside a list; the Cypher TCK's ordered values of every type). */
     @Override
     public DatabaseConnector.Decoding decoding() {
-        return new DatabaseConnector.Decoding(true, false, false, true, true, true);
+        return new DatabaseConnector.Decoding(true, false, false, true, true);
     }
 }

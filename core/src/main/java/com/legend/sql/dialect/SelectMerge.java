@@ -46,9 +46,10 @@ import java.util.Map;
  */
 final class SelectMerge extends SqlRewriter {
 
-    /** How the database labels a column it reads by a bare name: the name as written (DuckDB, SQLite, ClickHouse),
-     *  folded to lower case (Postgres) or to upper case (Snowflake, H2). A projection of a table's own column keeps its
-     *  alias only where that label differs from the name (namedAs; PR #81, 2026-11-13). */
+    /** How the database labels a table's column the dialect writes from its declared name: the name as written
+     *  (DuckDB, SQLite, ClickHouse; Snowflake, which quotes every name), folded to lower case (Postgres) or to upper
+     *  case (H2). A projection of a table's own column keeps its alias only where that label differs from the name
+     *  (namedAs; PR #81, 2026-11-13). */
     private final java.util.function.UnaryOperator<String> bareLabel;
 
     SelectMerge(java.util.function.UnaryOperator<String> bareLabel) {
@@ -150,10 +151,12 @@ final class SelectMerge extends SqlRewriter {
     }
 
     /** Whether {@code e} is a column a select answers under {@code name} with no alias, so the alias may go: a DERIVED
-     *  column or one declared quoted, which every dialect writes quoted as named; or a table's own column written bare
-     *  where the database labels that bare name as the name itself ({@code bareLabel}: DuckDB's {@code t_id} is
-     *  {@code t_id}, Postgres's {@code CODE} is {@code code}). Else the alias stays (main's #95 merged in, 2026-11-13:
-     *  PostgresArmTest's seed read {@code "_d"."CODE"} of a select that answered {@code code}). */
+     *  column or one declared quoted, which every dialect writes so the database labels it as named (quoted, or bare
+     *  where the database keeps a bare name's case: DuckDB, SQLite); or a table's own column the dialect writes from its
+     *  declaration, where the database labels it as the name itself ({@code bareLabel}: DuckDB's {@code t_id} is
+     *  {@code t_id}, Postgres's {@code CODE} is {@code code}, Snowflake quotes it). Else the alias stays (main's #95
+     *  merged in, 2026-11-13: PostgresArmTest's seed read {@code "_d"."CODE"} of a select that answered {@code code};
+     *  SelectMergeAliasTest holds each dialect's rule). */
     static boolean namedAs(SqlExpr e, String name, java.util.function.UnaryOperator<String> bareLabel) {
         if (!(e instanceof SqlExpr.Column c) || !c.name().equals(name)) {
             return false;
