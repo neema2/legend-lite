@@ -513,7 +513,7 @@ class _ContractSide(contract.EngineSide):
             rows = send(frames.connection, compiler.catalog_columns_sql(schema or 'main', table)).fetchall()
         return [dict(zip(('name', 'dataType', 'logicalType', 'precision', 'scale', 'notNull'), r)) for r in rows]
 
-    def write(self, plan: Any) -> str:
+    def write(self, plan: Any, execution: str) -> str:
         frames = self._of().frames
         if frames.reading_now() is not None:
             raise contract.refused('write', 'a write made in a read of the frames', 'a read sees the database as it '
@@ -524,7 +524,7 @@ class _ContractSide(contract.EngineSide):
             return [tuple(r) for r in result.fetchall()] if result.description is not None else []
 
         with frames.using_connection():
-            return run_plan(plan, run, 'DuckDB')
+            return run_plan(plan, run, 'DuckDB', execution=execution)
 
     # ---- sources (step 3, 2026-11-13): each planned and run here, its model written here, kept by the frames as a
     # page's file is (served from now on: a query over it reads it through every read's cursor, its held values out of

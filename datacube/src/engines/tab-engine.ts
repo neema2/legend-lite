@@ -74,9 +74,10 @@ function sections(text: string, names: readonly string[]): string {
   return out.join('');
 }
 
-/** A random id: crypto's where the tab has it. */
+/** A random id, a UUID's canonical text: an execution's (the shape its trace comment carries) and a handle's. The tab's
+ *  engine is the door of its runs: its runners are handed the id, and make none (//tools/guards:planned_sql_test). */
 function mint(): string {
-  return globalThis.crypto.randomUUID().replaceAll('-', '');
+  return globalThis.crypto.randomUUID();
 }
 
 export function tabEngine(o: TabEngineOptions): TabEngine {
@@ -231,7 +232,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
             const table = fresh('snap');
             const plan = await planned('addSource', () => o.planner.snapCopy({ databaseType: o.database.databaseType, model,
               runtime: source.query.runtime, lambda: toJson(source.query.query), table }), executionId);
-            await o.database.exclusive((held) => runPlan(plan, { databaseType: o.database.databaseType, run: held.rows }));
+            await o.database.exclusive((held) => runPlan(plan, { databaseType: o.database.databaseType, run: held.rows }, { execution: executionId }));
             return { table, view: false, ...(await modelled(table, true)) };
           }
           throw new Refused('addSource', `a source of kind '${sourceKind(source)}'`, ENGINE, 'its capabilities do not list it');
@@ -342,7 +343,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
         const executionId = mint();
         const plan = await planned('write', () => o.planner.outputPlan(request), executionId);
         const answer = await ran('write', executionId,
-          () => o.database.exclusive((held) => runPlan(plan, { databaseType: o.database.databaseType, run: held.rows })));
+          () => o.database.exclusive((held) => runPlan(plan, { databaseType: o.database.databaseType, run: held.rows }, { execution: executionId })));
         const read = JSON.parse(answer) as unknown;
         const n = Array.isArray(read) && read.length === 1 ? (read[0] as { value?: unknown }).value : undefined;
         if (typeof n !== 'number' || !Number.isSafeInteger(n)) throw new RunError(`the write answered no count: ${answer}`, 'write', { executionId });

@@ -548,6 +548,8 @@ class PlannedSqlTest {
         bites("the plan format census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
                 "export const plan = JSON.stringify({ format: 'legend-lite-plan', root: {} });");
         bites("the any census", PlannedSqlTest::noAnyInTheProduct, "export let value: any = text;");
+        bites("the id census", PlannedSqlTest::idsAreMintedWhereTheyArePinned_neverByARunner,
+                "export const execution = globalThis.crypto.randomUUID();");
         bites("the tests' statement census", PlannedSqlTest::noProductSourceReachesTheTestsOwnStatement,
                 "import { unplanned } from '../test/unplanned.ts';\nexport const sql = unplanned(text);");
     }
@@ -1429,6 +1431,45 @@ class PlannedSqlTest {
         assertEquals(List.of(), handedOn, "a plan runner is called where it is named, never handed on");
         assertEquals(new TreeSet<>(PLAN_FORMAT_READERS), formats, "the plan format's name is spelled where a plan is read"
                 + " (PlannedSqlTest.PLAN_FORMAT_READERS): a product source that spells it writes a plan");
+    }
+
+    /**
+     * EVERY ID MADE IN THE PRODUCT'S TYPESCRIPT, by call site (the DataCube stream's step 3b, 2026-11-13: the TypeScript
+     * twin of python/tests/test_planned_guard.py UUID_MINTS and of Java's {@code execMakesNoValueOfItsOwn}): an execution
+     * id is minted by the door that starts its run -- the tab's engine (engines/tab-engine.ts) -- and handed to the plan
+     * runner, which makes none (engine-client/src/plan-runner.ts is in no row); the rest name a page, a save, a follower,
+     * a channel's writer and a query's local id, never an execution. A new mint is a new place an id is made: red until
+     * pinned here, with a dated note.
+     */
+    static final Map<String, List<String>> ID_MINTS = Map.ofEntries(
+            // 2026-11-13 (measured): the tab engine's door mint, and the product's other ids
+            Map.entry("datacube/src/app/datacube-app.ts", List.of("crypto.randomUUID(")),
+            Map.entry("datacube/src/app/live-channel.ts", List.of("globalThis.crypto.getRandomValues(")),
+            Map.entry("datacube/src/engines/tab-engine.ts", List.of("globalThis.crypto.randomUUID(")),
+            Map.entry("datacube/src/page-ids.ts", List.of("globalThis.crypto.getRandomValues(")),
+            Map.entry("datacube/src/services/python-host.ts", List.of("crypto.getRandomValues(")),
+            Map.entry("query/src/app/persist.ts", List.of("globalThis.crypto?.randomUUID?.(")));
+
+    private static final Pattern ID_MINT = Pattern.compile("(?<![\\w$])(?:randomUUID|getRandomValues)\\s*(?:\\?\\.)?\\(");
+
+    @Test
+    void idsAreMintedWhereTheyArePinned_neverByARunner() throws IOException {
+        idsAreMintedWhereTheyArePinned_neverByARunner(Sources.TREE);
+    }
+
+    static void idsAreMintedWhereTheyArePinned_neverByARunner(Sources s) throws IOException {
+        List<String> product = folders().get("typescript");
+        Map<String, List<String>> mints = new TreeMap<>();
+        for (String file : s.inventory()) {
+            if (!file.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$") || file.endsWith(".d.ts") || !under(file, product)) {
+                continue;
+            }
+            put(mints, file, sites(ID_MINT, blankModules(code(s.read(file)))));
+        }
+        assertEquals(new TreeMap<>(ID_MINTS), mints, "EVERY ID MADE IN THE PRODUCT'S TYPESCRIPT, by call site"
+                + " (PlannedSqlTest.ID_MINTS): an execution's id is minted by its run's door and handed to the runner, which"
+                + " makes none");
+        assertTrue(!mints.containsKey("engine-client/src/plan-runner.ts"), "the plan runner makes no id");
     }
 
     /**

@@ -8,6 +8,9 @@ import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import { isEngineError } from '../../engine-client/src/engine-contract.ts';
+import { PlanRefusal, runPlan } from '../../engine-client/src/plan-runner.ts';
+import { unplannedPlan } from '../../engine-client/test/unplanned.ts';
 import { runConformance, type ConformanceFixture } from '../../engine-client/test/engine-conformance.ts';
 import { tabEngine } from '../src/engines/tab-engine.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
@@ -57,5 +60,36 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
       [['C17', "the engine's database makes no request from this test: no served file to read"]]);
     const rows = await engine.exclusive((held) => held.rows(unplanned('SELECT id, name FROM conformance_out ORDER BY id'), []));
     assert.deepEqual(rows.map((r) => [Number(r[0]), r[1]]), [[1, 'a'], [2, 'b'], [3, 'c'], [4, 'd']], 'the last write, merged by its key');
+  });
+
+  it("binds a stamped plan's stamp to its door's execution id, and refuses one run with none (step 3b)", async () => {
+    const tab = tabEngine({ database: engine, planner, owns: () => false, files: db.files });
+    const written = await planner.tableModel(await catalogColumns(engine, planner, 'conformance_t'),
+      { table: 'conformance_t', pkg: 'conformance_t', convertible: true, databaseType: 'DuckDB' });
+    const { model, runtime } = await tab.served(written.model, written.runtime);
+    // the real output plan made to read its execution's stamp: its final count `SELECT ? AS value`, a #stamp slot
+    let made: string | undefined;
+    const real = planner.outputPlan.bind(planner);
+    const stamped = async (request: Parameters<typeof real>[0]) => {
+      const plan = JSON.parse(await real(request)) as { root: { steps: { _type: string; sql: Record<string, unknown> }[] } };
+      const last = plan.root.steps.at(-1)!;
+      assert.equal(last._type, 'tdsResult');
+      last.sql = { ...last.sql, statement: 'SELECT ? AS value', slots: [{ parameter: '#stamp0', binding: { _type: 'one' } }] };
+      made = JSON.stringify(plan);
+      return unplannedPlan(made);
+    };
+    (planner as { outputPlan: typeof real }).outputPlan = stamped;
+    try {
+      const s = await tab.open();
+      await assert.rejects(() => s.write({ box: { model, runtime, query: { _type: 'lambda', parameters: [], body: [written.source] } },
+        target: { table: 'stamped_t' }, mode: 'create' }), (e: unknown) => isEngineError(e) && e.kind === 'run'
+        && e.executionId !== undefined && e.message.includes(`executionTraceID\\" : \\"${e.executionId}`) || assert.fail(String(e)));
+      await s.close();
+    } finally {
+      delete (planner as { outputPlan?: unknown }).outputPlan;
+    }
+    // run with no id from a door: refused by name, nothing defaulted
+    await assert.rejects(() => engine.exclusive((held) => runPlan(unplannedPlan(made!), { databaseType: 'DuckDB', run: held.rows })),
+      (e: unknown) => e instanceof PlanRefusal && /'#stamp0' reads its execution's stamp, and the run was given no id by its door/.test(e.message));
   });
 });

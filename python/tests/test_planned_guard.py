@@ -180,6 +180,8 @@ RUNNER_NAMES = {'run_load', 'run_host_load', 'run_write'}
 # made: red until pinned here, with a dated note.
 UUID_MINTS = {
     ('_headless.py', 'hand_out'): 1,
+    # 2026-11-13 (step 3b): the bridge's `output` host call is its run's door, its one execution id
+    ('_headless.py', '_output'): 1,
     ('contract.py', '_open'): 1,
     ('contract.py', '_query'): 1,
     # 2026-11-13 (step 3): a source's execution id and its handle (_add_source), a held file's handle (hold) -- names,

@@ -150,7 +150,8 @@ class EngineSide:
     def catalog(self, schema: str | None, table: str) -> list[dict[str, Any]]:
         raise NotImplementedError
 
-    def write(self, plan: Any) -> str:
+    def write(self, plan: Any, execution: str) -> str:
+        """``plan`` run in its own transaction, any stamp it reads bound to ``execution``, its door's id."""
         raise NotImplementedError
 
     def add_file(self, path: str, name: str, digest: str, size: int, file_format: str) -> dict[str, Any]:
@@ -354,8 +355,9 @@ class ContractDoor:
         self._session(asked, 'query')
         ask = _query_ask(asked, 'query')
         model = self._model_for(ask, 'query')
-        # THE MINT: one execution id for this plan run (Q7), its answer's and every failure's
-        execution = uuid.uuid4().hex
+        # THE MINT: one execution id for this plan run (Q7), its answer's and every failure's -- a UUID's canonical text,
+        # the shape an execution's trace comment carries (Java's ExecutionPlan.traceComment)
+        execution = str(uuid.uuid4())
         request = {'lambda': json.dumps(ask['query']), 'model': model, 'runtime': ask['runtime'],
                    **({'project': True} if ask.get('how', {}).get('project') is True else {})}
         said = self._plan_and_run(json.dumps(request), over)
@@ -402,14 +404,15 @@ def _write(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
                'rows': json.dumps(box['query']),
                # a table there already is named by its columns; none, the planner refuses the write by name
                **({'target': present} if present and mode not in ('create', 'overwrite') else {})}
-    # THE MINT: one execution id for this plan run (Q7), its answer's and every failure's
-    execution = uuid.uuid4().hex
+    # THE MINT: one execution id for this plan run (Q7), its answer's and every failure's; bound where the plan reads
+    # its stamp (step 3b)
+    execution = str(uuid.uuid4())
     try:
         plan = compiler.output_plan(request)
     except compiler.LegendError as failure:
         raise ContractError('compile', 'write', failure.message, executionId=execution) from None
     try:
-        answer = door._side.write(plan)
+        answer = door._side.write(plan, execution)
     except ContractError:
         raise
     except Exception as failure:
@@ -477,7 +480,7 @@ def _add_source(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said
     if not isinstance(source, dict) or len(source) != 1 or how not in ('live', 'snap'):
         raise refused('addSource', 'a source that is not one SourceAsk and how', 'addSource is asked a source and how')
     (kind, given), = source.items()
-    execution = uuid.uuid4().hex
+    execution = str(uuid.uuid4())
     digest = size = None
     try:
         if kind in ('upload', 'held'):

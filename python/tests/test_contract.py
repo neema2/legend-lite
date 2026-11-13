@@ -17,7 +17,10 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.ipc
 
-from legend_lite import contract
+from unittest import mock
+
+from legend_lite import compiler, contract, projects
+from legend_lite._planned import plan_from_answer
 from legend_lite._headless import Headless, bundle
 from legend_lite.engine import Engine
 from legend_lite.frames import Frames
@@ -234,6 +237,43 @@ class TheDoorTest(_Served):
         self.call('close', {'session': s})
         self.assertEqual(self.frames.connection._con.execute(
             f"SELECT count(*) FROM information_schema.tables WHERE table_name = '{table}'").fetchone(), (0,))
+
+    def test_a_stamped_plans_stamp_is_bound_to_its_doors_execution_id(self):
+        """Step 3b (G10, G11: a stamped plan runs the same on every host, never refused on one): the real output plan
+        made to read its execution's stamp -- its final count `SELECT ? AS value`, a `#stamp` slot -- so the write answers
+        the trace comment the runner bound in place of a count: the database's text names the id the DOOR minted."""
+        real = compiler.output_plan
+
+        def stamped(request):
+            plan = json.loads(real(request))
+            last = plan['root']['steps'][-1]
+            self.assertEqual(last['_type'], 'tdsResult')
+            last['sql'] = {**last['sql'], 'statement': 'SELECT ? AS value',
+                           'slots': [{'parameter': '#stamp0', 'binding': {'_type': 'one'}}]}
+            return plan_from_answer(json.dumps(plan))
+
+        s = self.session()
+        with mock.patch.object(compiler, 'output_plan', stamped):
+            status, said = self.write(s, 'stamped_t', 'create')
+        error = said['error']
+        self.assertEqual(error['kind'], 'run')
+        self.assertIn(f'executionTraceID\\" : \\"{error["executionId"]}', error['message'])
+
+    def test_the_runner_refuses_a_stamped_plan_with_no_id_and_a_writes_own_stamp(self):
+        plan = json.loads(compiler.output_plan({
+            'databaseType': 'DuckDB', 'tables': [{'table': 'conformance_t', 'pkg': 'conformance_t', 'convertible': True,
+                                                  'columns': self.engine.contract._side.catalog(None, 'conformance_t')}],
+            'output': {'name': 'never_t', 'mode': 'create'}, 'rows': json.dumps(self.query)}))
+        last = plan['root']['steps'][-1]
+        last['sql'] = {**last['sql'], 'statement': 'SELECT ? AS value',
+                       'slots': [{'parameter': '#stamp0', 'binding': {'_type': 'one'}}]}
+        with self.assertRaisesRegex(projects.PlanRefused, "'#stamp0' reads its execution's stamp, and the run was given no "
+                                                          'id by its door'):
+            projects.run_plan(plan_from_answer(json.dumps(plan)), lambda sql, params: [], 'DuckDB')
+        first = plan['root']['steps'][0]
+        first['sql'] = {**first['sql'], 'stamp': '#stamp0'}
+        with self.assertRaisesRegex(projects.PlanRefused, 'a write or effect statement binds its own execution-trace stamp'):
+            projects.run_plan(plan_from_answer(json.dumps(plan)), lambda sql, params: [], 'DuckDB', execution='x')
 
     def test_parameters_are_refused_by_name_until_step_6(self):
         s = self.session()

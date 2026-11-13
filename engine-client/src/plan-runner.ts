@@ -128,6 +128,17 @@ interface Sql {
 // 51 since 2026-11-12 (the user's ruling: "that is a real off platform problem"): a stream step's sql is the planner's
 // own plan of the snapshot's pull -- its request carries the pull (model, runtime, lambda), never the statement
 const PLAN_VERSION = 51;
+
+/** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the trace comment
+ *  of the run's one execution, the id its DOOR minted (Java's ExecutionPlan.STAMP; the DataCube stream's step 3b,
+ *  2026-11-13, G10 and G11: a plan is portable data, so a stamped plan runs the same on every host). No runner here makes
+ *  an id (//tools/guards:planned_sql_test, ID_MINTS). */
+const STAMP = '#stamp';
+
+/** An execution's trace comment, as legend-engine's executor writes one (Java's ExecutionPlan.traceComment). */
+export function traceComment(execution: string): string {
+  return `-- "executionTraceID" : "${execution}"`;
+}
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -513,7 +524,7 @@ export class PlanRefusal extends Error {
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
 export async function runPlan(plan: PlanText, session: PlanSession,
-  o: { readonly joined?: boolean; readonly established?: boolean } = {}): Promise<string> {
+  o: { readonly joined?: boolean; readonly established?: boolean; readonly execution?: string } = {}): Promise<string> {
   const read = JSON.parse(plan) as ReadPlan;
   if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
     throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
@@ -545,6 +556,10 @@ export async function runPlan(plan: PlanText, session: PlanSession,
   if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
   const t = checkTarget(first!, session, o);
   for (const s of sent) {
+    // a write's or an effect's own stamp is a planner defect (Java's PlanRunner.unstamped): only a query or a check binds one
+    if ((s._type === 'update' || s._type === 'effect') && stepSql(s).stamp !== undefined && stepSql(s).stamp !== null) {
+      throw new PlanRefusal(`a write or effect statement binds its own execution-trace stamp ('${String(stepSql(s).stamp)}'): only a query or a check binds one (the planner's)`);
+    }
     // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
     // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
     if (s._type === 'tdsResult' && (s as { readonly shape?: string }).shape === 'RELATION'
@@ -554,12 +569,11 @@ export async function runPlan(plan: PlanText, session: PlanSession,
   }
   for (const s of sqls) {
     if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
-    // a statement's own execution-trace stamp (an activity's comment, the test-is-the-product plan's M3f): a host's
-    // session sends no trace comment, so a plan that reads one is not run here
-    if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
     for (const slot of s.slots) {
       // a data: payload is the plan's own value, bound from the statement's content (plan-params.ts, M3)
       if (slot.binding._type === 'payload') continue;
+      // an execution's stamp is bound to its door's id (step 3b): a run given none refuses it by name, never defaults one
+      if (slot.parameter.startsWith(STAMP) && o.execution === undefined) throw new PlanRefusal(`'${slot.parameter}' reads its execution's stamp, and the run was given no id by its door`);
       if (slot.binding._type !== 'one') {
         throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : slot.binding._type === 'payload' ? "a data: payload" : 'a list'}, which is not run here`);
       }
@@ -574,6 +588,8 @@ export async function runPlan(plan: PlanText, session: PlanSession,
   const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
     // its payload's text from the statement's content, checked against its digest
     if (slot.binding._type === 'payload') return payloadValue(required(s.content, "a payload slot's statement content"), required(slot.binding.digest, "a payload slot's digest"));
+    // the run's one execution, its door's id, as legend-engine's trace comment (Java's executionsBound; register S304)
+    if (slot.parameter.startsWith(STAMP)) return traceComment(required(o.execution, "the run's execution id"));
     if (!values.has(slot.parameter)) throw new PlanRefusal(`'${slot.parameter}' is bound before any step gives it`);
     return values.get(slot.parameter)!;
   });

@@ -343,7 +343,10 @@ class Headless:
         -- the count the database wrote. Never a statement or a plan of DataCube's. In no read."""
         self._writing('a write')
         plan = compiler.output_plan(json.loads(request))
-        return projects.run_plan(plan, lambda sql, params: [tuple(r) for r in self._rows(sql, params)], DATABASE_TYPE)
+        # this host call is the run's door: its one execution id, bound where the plan reads its stamp (step 3b)
+        execution = str(uuid.uuid4())
+        return projects.run_plan(plan, lambda sql, params: [tuple(r) for r in self._rows(sql, params)], DATABASE_TYPE,
+                                 execution=execution)
 
     async def _fetch(self, method: str, url: str, body: str | None) -> str:
         # a statement the hosted code sends a SQL API over HTTP (a warehouse's submit, its JSON's `sql`) crosses the

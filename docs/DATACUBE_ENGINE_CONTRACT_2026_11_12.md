@@ -122,7 +122,10 @@ Today's special cases (`heldDataHost` handing the UI a held DuckDB connection, `
 2. **`write` as one call** on Python headless and the tab (the engine runs the transaction).
 3. **Handles everywhere** (files on Python headless are in progress; uploads, mounts and snapshots follow).
 3b. **The execution id bound in Python's exec** (the orchestrator, 2026-11-13: not dropped): the id the contract's
-   door mints per plan run is bound by Python's runner as Java's exec binds it (S304), never only reported.
+   door mints per plan run is bound by Python's runner as Java's exec binds it (S304), never only reported. Built
+   2026-11-13: the runners (Python's run_plan, the tab's runPlan) take the door's id and bind every `#stamp` slot to its
+   trace comment; a stamped plan run with no id, or a write's own stamp, refused by name (G10, G11: a stamped plan runs
+   the same on every host); no runner makes an id (Python's UUID_MINTS, the TypeScript ID_MINTS).
 4. **The tab behind `Engine`, in-thread** (amendment (a), 2026-11-13): no Worker move; `heldDataHost` goes.
 5. **Python's page on the contract:** its routes become the contract's; `write` offered on the page.
 6. **The warehouse and the Java server:** `capabilities`, `describe`, `typeOf`, `query`, named refusals; and a query's

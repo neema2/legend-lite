@@ -372,8 +372,18 @@ class PlanRefused(ValueError):
     """A plan this host's runner does not run: refused by name, before any of it runs."""
 
 
+# the prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the trace comment
+# of the run's one execution (Java's ExecutionPlan.STAMP, PlanRunner.executionsBound; register S304)
+STAMP = '#stamp'
+
+
+def trace_comment(execution: str) -> str:
+    """An execution's trace comment, as legend-engine's executor writes one (Java's ExecutionPlan.traceComment)."""
+    return f'-- "executionTraceID" : "{execution}"'
+
+
 def run_plan(plan: PlanText, run: Callable[[PlannedSql, tuple[Any, ...]], list[tuple[Any, ...]]], database_type: str, *,
-             joined: bool = False) -> str:
+             joined: bool = False, execution: str | None = None) -> str:
     """A HOST'S PROGRAM, run (engine-client's plan-runner.ts ``runPlan``, its rules and words): the plan the planner
     answered (a PlanText; the re-audit's M1), its steps in order on ``run`` (one statement and its bound values, its
     rows) -- an update's count bound where a later step reads it, a data: payload's text from the statement's content
@@ -382,9 +392,15 @@ def run_plan(plan: PlanText, run: Callable[[PlannedSql, tuple[Any, ...]], list[t
     transaction (version 50: the plan carries it), committed where it completes, rolled back where it fails, a rollback
     that fails too said with it -- unless ``joined``, inside a transaction its caller began (the write runners' shared
     fixture). Refused by name: another plan's format or version, a parameter, a keyed (dynamic pivot) root, steps on
-    several databases or on one of another type, a load, a raw grid's relation, a per-key region, a trace stamp, a slot
+    several databases or on one of another type, a load, a raw grid's relation, a per-key region, a slot
     the run would supply, an effect's script. (The #6 bridge, 2026-11-12; brought onto the plan-carried transaction by
-    the DataCube stream's merge, 2026-11-13.)"""
+    the DataCube stream's merge, 2026-11-13.)
+
+    A STAMP (the DataCube stream's step 3b, 2026-11-13, G10 and G11: a plan is portable data, so a stamped plan runs the
+    same on every host): every slot reading an execution's stamp (``#stamp...``) is bound to the trace comment of
+    ``execution``, the id its DOOR minted for this run -- never one made here (Java's PlanRunner.executionsBound). A plan
+    reading a stamp, run with no id, is refused by name; a write's or an effect's statement carrying a stamp of its own
+    is a planner defect, refused by name, as Java's runner refuses it (only a query or a check binds one)."""
     p = read_plan(plan, "the hosts' runner")
     if not isinstance(p, dict) or p.get('format') != 'legend-lite-plan' or p.get('version') != PLAN_VERSION:
         said = {'format': p.get('format'), 'version': p.get('version')} if isinstance(p, dict) else {}
@@ -423,19 +439,22 @@ def run_plan(plan: PlanText, run: Callable[[PlannedSql, tuple[Any, ...]], list[t
         raise PlanRefused("a plan that loads data into its database first runs on a database the host made for it and "
                           "established (establish): not on the host's own")
     for s in sent:
+        if s.get('_type') in ('update', 'effect') and _step_sql(s).get('stamp') is not None:
+            raise PlanRefused(f"a write or effect statement binds its own execution-trace stamp "
+                              f"('{_step_sql(s)['stamp']}'): only a query or a check binds one (the planner's)")
         if s.get('_type') == 'tdsResult' and s.get('shape') == 'RELATION' and not s.get('columns'):
             raise PlanRefused("a relation of the columns its result reports (a raw grid's) is not run here: the planner "
                               'runs it')
     for s in sqls:
         if s.get('regions'):
             raise PlanRefused("a statement of per-key regions (a dynamic pivot's) is not run here: a write's has none")
-        if s.get('stamp') is not None:
-            raise PlanRefused(f"a statement binding its own execution-trace stamp ('{s['stamp']}') is not run here: a "
-                              "host's session sends no trace comment")
         for slot in s.get('slots') or []:
             binding = slot['binding']
             if binding.get('_type') == 'payload':
                 continue
+            if slot['parameter'].startswith(STAMP) and execution is None:
+                raise PlanRefused(f"'{slot['parameter']}' reads its execution's stamp, and the run was given no id by its "
+                                  'door')
             if binding.get('_type') != 'one':
                 what = {'key': "a key's cell", 'source': 'a file source'}.get(binding.get('_type'), 'a list')
                 raise PlanRefused(f"'{slot['parameter']}' binds {what}, which is not run here")
@@ -455,6 +474,8 @@ def run_plan(plan: PlanText, run: Callable[[PlannedSql, tuple[Any, ...]], list[t
         for slot in s.get('slots') or []:
             if slot['binding'].get('_type') == 'payload':
                 out.append(compiler.statement_params({'content': s.get('content'), 'slots': [slot]})[0])
+            elif slot['parameter'].startswith(STAMP):
+                out.append(trace_comment(execution))
             elif slot['parameter'] not in values:
                 raise PlanRefused(f"'{slot['parameter']}' is bound before any step gives it")
             else:
