@@ -72,7 +72,10 @@ public final class PeRatchets {
             "own_corpus.matched 3192 -> 3211 (2026-11-13, the final full audit's fixes, d7c037ebf, found red by the gate on"
                     + " that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest,"
                     + " EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the"
-                    + " snapshot-copy and output-plan tests)");
+                    + " snapshot-copy and output-plan tests)",
+            "own_corpus.matched 3211 -> 3215 (2026-11-13, compile errors' sourceInformation): its tests' models"
+                    + " (PureV1ApiTest's compile_* models: my::Ok and my::Desk, my::Ok with a derived property and the"
+                    + " function my::broken) joined and matched; none stopped matching");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * <p>A section index's imports apply to the elements its section lists, as legend-engine compiles them; a model
  * without one (an SDLC's entities) has no imports. An element's position is its record's source information, kept
- * beside the model ({@link ParsedModel#elementSpans}) as a parse keeps its offsets.
+ * whole beside the model ({@link ParsedModel#elementSpans}) -- a parsed model's too, beside its offsets into its text.
  */
 public final class ModelFromProtocol {
 
@@ -57,7 +57,7 @@ public final class ModelFromProtocol {
         }
         List<PackageableElement> elements = new ArrayList<>();
         Map<String, ImportScope> elementImports = new LinkedHashMap<>();
-        Map<String, ParsedModel.Position> spans = new LinkedHashMap<>();
+        Map<String, SourceInfo> spans = new LinkedHashMap<>();
         for (Protocol.Element e : model.elements()) {
             if (e instanceof Protocol.PSectionIndex) {
                 continue;
@@ -82,27 +82,27 @@ public final class ModelFromProtocol {
             }
             SourceInfo span = spanOf(e);
             if (span != null) {
-                spans.putIfAbsent(key, new ParsedModel.Position(span.startLine(), span.startColumn()));
+                spans.putIfAbsent(key, span);
             }
         }
         if (source != null) {
             // a model parsed from a text keeps where each element starts as an offset into that text, as it always
-            // has (what reads a model's text by offset goes on working); one kind of position per model
+            // has (what reads a model's text by offset goes on working), beside the spans its parser gave
             Map<String, Integer> offsets = new LinkedHashMap<>();
             int[] lineStarts = lineStarts(source);
-            for (Map.Entry<String, ParsedModel.Position> p : spans.entrySet()) {
-                int line = p.getValue().line();
+            for (Map.Entry<String, SourceInfo> p : spans.entrySet()) {
+                int line = p.getValue().startLine();
                 int offset = line >= 1 && line <= lineStarts.length
-                        ? lineStarts[line - 1] + p.getValue().column() - 1 : -1;
+                        ? lineStarts[line - 1] + p.getValue().startColumn() - 1 : -1;
                 if (offset < 0 || offset > source.length()) {
                     // the spans were parsed from this text: one outside it is the parser's bug, never clamped
-                    throw new IllegalStateException(p.getKey() + "'s span " + line + ":" + p.getValue().column()
-                            + " is outside the text it was parsed from");
+                    throw new IllegalStateException(p.getKey() + "'s span " + line + ":"
+                            + p.getValue().startColumn() + " is outside the text it was parsed from");
                 }
                 offsets.put(p.getKey(), offset);
             }
             return new ParsedModel(elements, all.build(), source, offsets, elementImports, Map.of(), unclaimed,
-                    Map.of());
+                    spans);
         }
         return new ParsedModel(elements, all.build(), null, Map.of(), elementImports, Map.of(), unclaimed, spans);
     }

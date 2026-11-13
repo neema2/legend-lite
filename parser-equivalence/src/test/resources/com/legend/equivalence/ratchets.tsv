@@ -17,5 +17,6 @@
 # own_corpus.matched 3166 -> 3179 (2026-11-12, the B2d.3 audit's findings M1-M5, L1-L9): their tests' models (TestDataPlannerTest's route text, seed shapes, default-schema and view-with-note models, TestDataTextAsWrittenTest's two-database connection, TestDataRoutesTest's view and unmapped runtime, PostgresArmTest's seed model)
 # own_corpus.matched 3179 -> 3192 (2026-11-12, L9's printing merged, 7d1bfcf8e; it measured 3164 -> 3177 on its branch): its tests' models (TestDataPlannerTest's timestamp store, GeneratedTestDataPrintingTest's, TestDataRoutesTest's timestamp route)
 # own_corpus.matched 3192 -> 3211 (2026-11-13, the final full audit's fixes, d7c037ebf, found red by the gate on that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest, EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the snapshot-copy and output-plan tests)
+# own_corpus.matched 3211 -> 3215 (2026-11-13, compile errors' sourceInformation): its tests' models (PureV1ApiTest's compile_* models: my::Ok and my::Desk, my::Ok with a derived property and the function my::broken) joined and matched; none stopped matching
 mutation.deck	950
-own_corpus.matched	3211
+own_corpus.matched	3215
