@@ -1,0 +1,18 @@
+#!/bin/bash
+# Throwaway (docs/compiler-perf-homework, 2026-11-13): W10, the TeaVM planner's per-query planning time against the JVM
+# on the same boundary calls (held model, then planHeld per query; w10.mjs / W10Jvm.java), two inputs: the wasm
+# differential's own corpus (69 queries) and W5's deep queries over the 1K-class model (54). 3 rounds, alternating.
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+cd $SP; unset JAVA_TOOL_OPTIONS
+W=/home/user/legend-lite/wasm/corpus
+log=raw/w10.log
+for r in 1 2 3; do
+  for set in corpus deep; do
+    if [ $set = corpus ]; then M=$W/model.pure; Q=$W/queries.tsv; RT=trades::RT; else M=models/h100/model.pure; Q=models/deep.tsv; RT=test::RT; fi
+    { echo "### w10 wasm $set r$r load $(cut -d' ' -f1-3 /proc/loadavg)"; } >> $log
+    node --experimental-wasm-exnref w10/w10.mjs $SP/w10/planner $M $Q $RT 15 raw/w10-wasm-$set-r$r.tsv >> $log 2>&1; echo "### end rc=$?" >> $log
+    { echo "### w10 jvm $set r$r load $(cut -d' ' -f1-3 /proc/loadavg)"; } >> $log
+    jdk/bin/java -Xms2g -Xmx2g -cp "probe-classes:$(cat cp.txt)" planner.W10Jvm $M $Q $RT 15 raw/w10-jvm-$set-r$r.tsv >> $log 2>&1; echo "### end rc=$?" >> $log
+  done
+done
+echo W10-DONE >> $log

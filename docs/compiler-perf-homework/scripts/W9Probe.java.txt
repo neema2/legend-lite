@@ -1,0 +1,92 @@
+package com.legend.server;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/** THROWAWAY (docs/compiler-perf-homework, 2026-11-13): W9, a pure/v1 generatePlan request's cost split into model
+ *  work and per-request work, in-process (the HTTP transport is not measured).
+ *  Usage: W9Probe <model.pure> <queries.tsv> <runtime> <nQueries> <repsCompiled> <repsHeld>
+ *  Prints, medians in ms: (a) the route as the server runs it (Models.COMPILED: the model compiled per request);
+ *  (b) the route over a held model (HeldModels.withText: the text hashed per request, compiled no more);
+ *  (c) its parts: Compiler.compileModel(text) alone, Hash of the text alone, Compiler.query + ONE executionPlan over
+ *  the held context (what (b) would cost if the route planned once; generatePlan plans twice: executionPlan then plan). */
+public final class W9Probe {
+    static double med(double[] a) { double[] b = a.clone(); Arrays.sort(b); return b[b.length / 2]; }
+    static double ms(long ns) { return ns / 1e6; }
+
+    public static void main(String[] a) throws Exception {
+        String model = Files.readString(Path.of(a[0]), StandardCharsets.UTF_8);
+        String runtime = a[2];
+        int nq = Integer.parseInt(a[3]), rc = Integer.parseInt(a[4]), rh = Integer.parseInt(a[5]);
+        List<String[]> qs = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(a[1]), StandardCharsets.UTF_8)) {
+            int t = l.indexOf('\t');
+            if (t > 0 && !l.startsWith("#") && qs.size() < nq) qs.add(new String[] {l.substring(0, t), l.substring(t + 1)});
+        }
+        String modelJson = com.legend.json.Json.toCompact(com.legend.json.Json.parse("{}")); // warm the json lib
+        List<String> bodies = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (String[] q : qs) {
+            var g = PureV1Api.route("/api/pure/v1/grammar/grammarToJson/lambda", "returnSourceInformation=false", q[1], null);
+            if (g.status() != 200) { System.out.println("skip " + q[0] + ": grammarToJson " + g.status()); continue; }
+            String body = "{\"model\":{\"_type\":\"text\",\"code\":" + quote(model) + "},\"function\":" + g.json()
+                    + ",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"" + runtime + "\"}}";
+            bodies.add(body); names.add(q[0]);
+        }
+        System.out.printf("model %d bytes; %d requests%n", model.length(), bodies.size());
+        // (c) parts
+        double[] cm = new double[rc];
+        for (int i = 0; i < rc; i++) { long s = System.nanoTime(); com.legend.Compiler.compileModel(model); cm[i] = ms(System.nanoTime() - s); }
+        double[] hs = new double[5];
+        for (int i = 0; i < 5; i++) { long s = System.nanoTime(); com.legend.cache.Hash.ofUtf8(model); hs[i] = ms(System.nanoTime() - s); }
+        System.out.printf("compileModel alone: median %.1f ms (runs %s)%n", med(cm), Arrays.toString(round(cm)));
+        System.out.printf("hash of the model text alone: median %.2f ms%n", med(hs));
+        com.legend.HeldModels held = new com.legend.HeldModels();
+        int h = held.hold(model);
+        PureV1Api.Models heldModels = new PureV1Api.Models() {
+            @Override public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+                return held.withText(text, use);
+            }
+        };
+        System.out.println("name\tcompiled_ms\theld_ms\tquery+1plan_ms\tstatus");
+        double sc = 0, sh = 0, s1 = 0;
+        for (int k = 0; k < bodies.size(); k++) {
+            String body = bodies.get(k);
+            String q = qs.get(k)[1];
+            double[] c = new double[rc], hd = new double[rh], one = new double[rh];
+            int st = 0;
+            for (int i = 0; i < rc; i++) { long s = System.nanoTime(); st = PureV1Api.generatePlan(body, PureV1Api.Models.COMPILED).status(); c[i] = ms(System.nanoTime() - s); }
+            for (int i = 0; i < rh; i++) { long s = System.nanoTime(); PureV1Api.generatePlan(body, heldModels); hd[i] = ms(System.nanoTime() - s); }
+            for (int i = 0; i < rh; i++) {
+                long s = System.nanoTime();
+                try { held.with(h, ctx -> com.legend.Compiler.query(ctx, q).executionPlan(runtime)); } catch (RuntimeException e) { }
+                one[i] = ms(System.nanoTime() - s);
+            }
+            sc += med(c); sh += med(hd); s1 += med(one);
+            System.out.printf("%s\t%.2f\t%.3f\t%.3f\t%d%n", names.get(k), med(c), med(hd), med(one), st);
+        }
+        int n = bodies.size();
+        System.out.printf("MEAN per request: compiled %.2f ms; held %.3f ms; query+one plan %.3f ms%n", sc / n, sh / n, s1 / n);
+    }
+
+    static double[] round(double[] a) { double[] b = new double[a.length]; for (int i = 0; i < a.length; i++) b[i] = Math.round(a[i]); return b; }
+
+    static String quote(String s) {
+        StringBuilder b = new StringBuilder("\"");
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"' -> b.append("\\\"");
+                case '\\' -> b.append("\\\\");
+                case '\n' -> b.append("\\n");
+                case '\r' -> b.append("\\r");
+                case '\t' -> b.append("\\t");
+                default -> { if (c < 0x20) b.append(String.format("\\u%04x", (int) c)); else b.append(c); }
+            }
+        }
+        return b.append('"').toString();
+    }
+}

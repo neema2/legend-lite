@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""Throwaway scaling generator (docs/compiler-perf-homework, 2026-11-13).
+
+The hub-spoke model of core's StressTest10K, parameterized (HUBS hubs, 9 satellites each, a hub ring, cross-links
+every 10th hub, views on every 10th hub, filters on even hubs), plus the MAPPING-side knobs:
+  --mappings K     the class mappings split across K mappings; the runtime names the last, which INCLUDES the
+                   others (--include chain: m_i includes m_{i-1}; flat: the last includes all)
+  --stores S       the tables split across S databases (store i includes store i-1, so joins cross stores)
+Writes <out>/model.pure and <out>/queries.tsv (the 10 query patterns of StressTest10K, 100 queries spread across the
+hubs). Runtime: test::RT.
+
+usage: gen_scale.py OUT --hubs H [--mappings K] [--include chain|flat] [--stores S]
+"""
+import argparse, os
+
+ap = argparse.ArgumentParser()
+ap.add_argument("out")
+ap.add_argument("--hubs", type=int, required=True)
+ap.add_argument("--sats", type=int, default=9)
+ap.add_argument("--mappings", type=int, default=1)
+ap.add_argument("--include", choices=["chain", "flat"], default="chain")
+ap.add_argument("--stores", type=int, default=1)
+a = ap.parse_args()
+H, SP = a.hubs, a.sats
+S = H * SP
+os.makedirs(a.out, exist_ok=True)
+o = []
+w = o.append
+
+for h in range(H):
+    w(f"Class test::H{h} {{\n    id: Integer[1];\n    name: String[1];\n    code: String[1];\n    score: Integer[1];\n    fullLabel: String[1];\n}}\n")
+for s in range(S):
+    w(f"Class test::S{s} {{\n    id: Integer[1];\n    label: String[1];\n    value: Integer[1];\n}}\n")
+for h in range(H):
+    n = (h + 1) % H
+    w(f"Association test::HubRing{h} {{\n    nextHub{h}: test::H{n}[0..1];\n    prevHub{h}: test::H{h}[0..1];\n}}\n")
+for h in range(0, H, 10):
+    t = (h + 5) % H
+    w(f"Association test::HubCross{h} {{\n    crossTo{h}: test::H{t}[0..1];\n    crossFrom{h}: test::H{h}[0..1];\n}}\n")
+for s in range(S):
+    w(f"Association test::SatHub{s} {{\n    hub{s}: test::H{s // SP}[0..1];\n    sat{s}: test::S{s}[0..1];\n}}\n")
+
+# stores: hub h lives in store h * S_ / H; a satellite in its hub's store
+NS = a.stores
+def st(h): return h * NS // H
+def db(i): return f"store::DB{i}" if NS > 1 else "store::DB"
+def hubref(h): return "VH" if h % 10 == 0 else "TH"
+
+w("###Relational\n")
+for i in range(NS):
+    hubs = [h for h in range(H) if st(h) == i]
+    w(f"Database {db(i)} (\n")
+    if i > 0:
+        w(f"    include {db(i - 1)}\n")
+    for h in hubs:
+        w(f"    Table TH{h} (ID INT, NAME VARCHAR(100), CODE VARCHAR(20), SCORE INT, STATUS VARCHAR(10), NEXT_HUB_ID INT{', CROSS_HUB_ID INT' if h % 10 == 0 else ''})\n")
+        for s in range(h * SP, (h + 1) * SP):
+            w(f"    Table TS{s} (ID INT, LABEL VARCHAR(100), VALUE INT, HUB_ID INT)\n")
+    # with several stores, what references across stores (the ring and cross joins, the views, a satellite's join to
+    # a view hub) lives in the LAST store, which includes every other; tables, filters and a satellite's join to a
+    # table hub live in their hub's store
+    last = i == NS - 1
+    allh = range(H)
+    for h in (allh if last else []):
+        n = (h + 1) % H
+        w(f"    Join JHubRing{h}(TH{h}.NEXT_HUB_ID = TH{n}.ID)\n")
+    for h in (allh if last else []):
+        n = (h + 1) % H
+        src = f"VH{h}.v_next_id" if h % 10 == 0 else f"TH{h}.NEXT_HUB_ID"
+        tgt = f"VH{n}.v_id" if n % 10 == 0 else f"TH{n}.ID"
+        w(f"    Join JARing{h}({src} = {tgt})\n")
+    for h in (allh if last else []):
+        if h % 10 == 0:
+            t = (h + 5) % H
+            tgt = f"VH{t}.v_id" if t % 10 == 0 else f"TH{t}.ID"
+            w(f"    Join JCross{h}(VH{h}.v_cross_id = {tgt})\n")
+    for h in allh:
+        here = (last if h % 10 == 0 else st(h) == i)
+        if not here:
+            continue
+        for s in range(h * SP, (h + 1) * SP):
+            tgt = f"VH{h}.v_id" if h % 10 == 0 else f"TH{h}.ID"
+            w(f"    Join JSat{s}(TS{s}.HUB_ID = {tgt})\n")
+    for h in hubs:
+        if h % 2 == 0:
+            w(f"    Filter ActiveHub{h}(TH{h}.STATUS = 'ACTIVE')\n")
+    for h in (allh if last else []):
+        if h % 10 == 0:
+            n = (h + 1) % H
+            w(f"    View VH{h} (\n        ~filter ActiveHub{h}\n        v_id: TH{h}.ID PRIMARY KEY,\n        v_name: TH{h}.NAME,\n"
+              f"        v_code: TH{h}.CODE,\n        v_score: TH{h}.SCORE,\n        v_next_name: @JHubRing{h} | TH{n}.NAME,\n"
+              f"        v_next_id: TH{h}.NEXT_HUB_ID,\n        v_cross_id: TH{h}.CROSS_HUB_ID,\n        v_label: concat(TH{h}.NAME, '-', TH{h}.CODE)\n    )\n")
+    w(")\n")
+TOP = db(NS - 1)  # every store is reachable from the last through the include chain
+
+# mappings: hub h's class mappings (and its satellites') go to mapping h * K / H; association mappings with the
+# source hub's
+K = a.mappings
+def mp(h): return h * K // H
+def mname(i): return f"test::M{i}" if K > 1 else "test::M"
+w("###Mapping\n")
+for i in range(K):
+    w(f"Mapping {mname(i)} (\n")
+    if i > 0:
+        incl = [i - 1] if a.include == "chain" else []
+        if a.include == "flat" and i == K - 1:
+            incl = list(range(K - 1))
+        for j in incl:
+            w(f"    include {mname(j)}\n")
+    hubs = [h for h in range(H) if mp(h) == i]
+    for h in hubs:
+        d = f"[{TOP}]"
+        if h % 10 == 0:
+            w(f"    test::H{h}: Relational {{\n        ~mainTable {d} VH{h}\n        id: {d} VH{h}.v_id,\n        name: {d} VH{h}.v_name,\n"
+              f"        code: {d} VH{h}.v_code,\n        score: {d} VH{h}.v_score,\n        fullLabel: {d} VH{h}.v_label\n    }}\n")
+        else:
+            flt = f"        ~filter {d} ActiveHub{h}\n" if h % 2 == 0 else ""
+            w(f"    test::H{h}: Relational {{\n{flt}        ~mainTable {d} TH{h}\n        id: {d} TH{h}.ID,\n        name: {d} TH{h}.NAME,\n"
+              f"        code: {d} TH{h}.CODE,\n        score: {d} TH{h}.SCORE,\n        fullLabel: concat({d} TH{h}.NAME, '-', {d} TH{h}.CODE)\n    }}\n")
+        for s in range(h * SP, (h + 1) * SP):
+            w(f"    test::S{s}: Relational {{\n        ~mainTable {d} TS{s}\n        id: {d} TS{s}.ID,\n        label: {d} TS{s}.LABEL,\n        value: {d} TS{s}.VALUE\n    }}\n")
+    for h in hubs:
+        w(f"    test::HubRing{h}: Relational {{ AssociationMapping (\n        nextHub{h}: [{TOP}]@JARing{h},\n        prevHub{h}: [{TOP}]@JARing{h}\n    ) }}\n")
+        if h % 10 == 0:
+            w(f"    test::HubCross{h}: Relational {{ AssociationMapping (\n        crossTo{h}: [{TOP}]@JCross{h},\n        crossFrom{h}: [{TOP}]@JCross{h}\n    ) }}\n")
+        for s in range(h * SP, (h + 1) * SP):
+            w(f"    test::SatHub{s}: Relational {{ AssociationMapping (\n        hub{s}: [{TOP}]@JSat{s},\n        sat{s}: [{TOP}]@JSat{s}\n    ) }}\n")
+    w(")\n")
+
+w(f"""###Connection
+RelationalDatabaseConnection store::Conn {{ type: DuckDB; specification: DuckDB {{ }}; auth: Test; }}
+###Runtime
+Runtime test::RT {{ mappings: [ {mname(K - 1)} ]; connections: [ {TOP}: [ environment: store::Conn ] ]; }}
+""")
+open(os.path.join(a.out, "model.pure"), "w").write("".join(o))
+
+q = []
+for i in range(100):
+    h = i * H // 100
+    s = h * SP
+    n = (h + 1) % H
+    pat = [
+        f"test::H{h}.all()->project(~[id, name, code])",
+        f"test::S{s}.all()->project(~[id, label, value])",
+        f"test::H{h}.all()->project(~[id, name, score])->filter(r|$r.score > 50)",
+        f"test::H{h}.all()->project(~[id, name, fullLabel])->sort(~name->ascending())",
+        f"test::H{h}.all()->project(~[id, fullLabel])",
+        f"test::H{h}.all()->project(~[id, name, nh:x|$x.nextHub{h}.name])",
+        f"test::S{s}.all()->project(~[id, label, hubName:x|$x.hub{s}.name])",
+        f"test::H{h}.all()->project(~[id, name, score])->filter(r|$r.id > 0)->sort(~score->descending())->limit(10)",
+        f"test::H{h}.all()->project(~[id, name, nn:x|$x.nextHub{h}.nextHub{n}.name])",
+        f"test::H{h}.all()->project(~[id, name])",
+    ][i % 10]
+    q.append(f"q{i:03d}_p{i % 10}\t{pat}")
+open(os.path.join(a.out, "queries.tsv"), "w").write("\n".join(q) + "\n")
+print(f"{a.out}: hubs={H} classes={H + S} mappings={K} ({a.include}) stores={NS} bytes={sum(map(len, o))}")

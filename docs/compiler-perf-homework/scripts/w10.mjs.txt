@@ -1,0 +1,34 @@
+// Throwaway (docs/compiler-perf-homework, 2026-11-13): W10, per-query PLANNING time in the TeaVM planner.
+//   node --experimental-wasm-exnref w10.mjs <planner dir> <model.pure> <queries.tsv> <runtime> <reps> <out.tsv>
+// The model is HELD once (holdModelOrError), then each query is planned <reps> times (planHeldOrError), so the time
+// is the query's planning alone; also times planOrError (model compiled per call) for the first query, which is what
+// wasm/startup.mjs's "warm plan" measures. Output: name, median ms, min ms, answer length, answer sha (first 16).
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const [dir, modelF, qF, runtime, repsS, out] = process.argv.slice(2);
+const { load } = await import(dir + '/wasm-gc-module-runtime.js');
+const teavm = await load(dir + '/classes.wasm', { stackDeobfuscator: { enabled: false }, installImports(o) {
+  o.teavmConsole = o.teavmConsole || {}; o.teavmConsole.putcharStdout = () => {}; o.teavmConsole.putcharStderr = () => {}; } });
+const x = teavm.exports;
+const model = readFileSync(modelF, 'utf8');
+const qs = readFileSync(qF, 'utf8').split('\n').filter((l) => l.includes('\t') && !l.startsWith('#'))
+  .map((l) => [l.slice(0, l.indexOf('\t')), l.slice(l.indexOf('\t') + 1)]);
+const now = () => process.hrtime.bigint(); const ms = (a, b) => Number(b - a) / 1e6;
+let t = now(); const h = x.holdModelOrError(model); const holdMs = ms(t, now());
+const handle = parseInt(String(h).replace(/^\D*/, ''), 10);
+console.log(`hold: ${holdMs.toFixed(1)} ms -> ${String(h).slice(0, 60)}`);
+const reps = parseInt(repsS, 10); const rows = ['name\tmedian_ms\tmin_ms\tlen\tsha'];
+let total = 0, ok = 0;
+for (let pass = 0; pass < 2; pass++) for (const [n, q] of qs) {   // pass 0 warms every query once
+  const ts = []; let a;
+  for (let i = 0; i < (pass ? reps : 1); i++) { const s = now(); a = String(x.planHeldOrError(handle, q, runtime)); ts.push(ms(s, now())); }
+  if (!pass) continue;
+  ts.sort((p, q2) => p - q2); const med = ts[Math.floor(ts.length / 2)]; total += med;
+  if (a.startsWith("OK")) ok++;
+  rows.push(`${n}\t${med.toFixed(3)}\t${ts[0].toFixed(3)}\t${a.length}\t${createHash('sha256').update(a).digest('hex').slice(0, 16)}`);
+}
+const unheld = []; for (let i = 0; i < 20; i++) { const s = now(); x.planOrError(model, qs[0][1], runtime); unheld.push(ms(s, now())); }
+unheld.sort((p, q) => p - q);
+writeFileSync(out, rows.join('\n') + '\n');
+console.log(`queries ${qs.length} (answers not starting ERROR: ${ok}); sum of medians ${total.toFixed(1)} ms; per query mean ${(total / qs.length).toFixed(3)} ms`);
+console.log(`planOrError (model compiled per call) on ${qs[0][0]}: p50 ${unheld[10].toFixed(1)} ms, min ${unheld[0].toFixed(1)} ms`);

@@ -1,0 +1,14 @@
+#!/bin/bash
+# W1 baseline: the stress corpus, compile only. 5 rounds; each round one probe JVM (5 model builds, 6 query passes)
+# and one CompileLatency JVM (6 passes), alternating which goes first.
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+CP="$SP/probe-classes:$(cat $SP/cp.txt)"
+cd /home/user/legend-lite
+for r in 1 2 3 4 5; do
+  probe() { $SP/scripts/run.sh "w1 probe r$r" $SP/raw/w1.log -- -Xms2g -Xmx2g -Duser.timezone=GMT \
+      -Xlog:gc:file=$SP/raw/w1-gc-probe-r$r.log -cp "$CP" com.legend.integration.PerfProbe stress $SP/raw/w1-probe-r$r 5 6; }
+  cl() { $SP/scripts/run.sh "w1 compile_latency r$r" $SP/raw/w1.log -- -Xms2g -Xmx2g -Duser.timezone=GMT \
+      -Xlog:gc:file=$SP/raw/w1-gc-cl-r$r.log -cp "$CP" com.legend.integration.CompileLatency --corpus stress --passes 6 --out $SP/raw/w1-cl-r$r; }
+  if (( r % 2 )); then probe; cl; else cl; probe; fi
+done
+echo W1-DONE >> $SP/raw/w1.log

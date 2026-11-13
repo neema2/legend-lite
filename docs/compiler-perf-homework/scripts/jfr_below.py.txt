@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""Throwaway (docs/compiler-perf-homework, 2026-11-13): under the OUTERMOST frame matching TARGET, the next N legend
+frames below it (callee chain), counted.  usage: jfr_below.py STACKS.txt TARGET_RX [N] [TOP]"""
+import re, sys, collections
+txt = open(sys.argv[1]).read().split('jdk.ExecutionSample {')[1:]
+t = re.compile(sys.argv[2]); N = int(sys.argv[3]) if len(sys.argv) > 3 else 3; TOP = int(sys.argv[4]) if len(sys.argv) > 4 else 12
+c = collections.Counter(); tot = 0
+for ev in txt:
+    fr = re.findall(r'^\s+([\w.$]+)\.([\w$<>]+)\([^)]*\)\s+line: (\d+)', ev, re.M)
+    idx = [i for i, f in enumerate(fr) if t.search(f[0] + '.' + f[1])]
+    if not idx: continue
+    tot += 1; i = idx[-1]
+    below = [f"{c_.split('.')[-1]}.{m}:{l}" for c_, m, l in reversed(fr[:i]) if c_.startswith('com.legend') and 'lambda$' not in m][:N]
+    leaf = fr[0][0].split('.')[-1] + '.' + fr[0][1]
+    c[" -> ".join(below) + ("  [leaf " + leaf + "]" if not fr[0][0].startswith('com.legend') else "")] += 1
+print(f"## {sys.argv[2]}: {tot}")
+for k, v in c.most_common(TOP): print(f"  {v:6d} {k}")

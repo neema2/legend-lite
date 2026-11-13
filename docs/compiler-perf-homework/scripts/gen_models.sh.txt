@@ -1,0 +1,9 @@
+#!/bin/bash
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+G=$SP/models; P="python3 -I $SP/gen/gen_scale.py"
+for h in 100 300 1000 3000 10000; do $P $G/h$h --hubs $h; done
+$P $G/m10chain --hubs 1000 --mappings 10 --include chain
+$P $G/m100chain --hubs 1000 --mappings 100 --include chain
+$P $G/m100flat --hubs 1000 --mappings 100 --include flat
+$P $G/s10 --hubs 1000 --stores 10
+$P $G/s100 --hubs 1000 --stores 100

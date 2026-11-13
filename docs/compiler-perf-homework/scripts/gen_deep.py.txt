@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Throwaway deep/wide query generator (docs/compiler-perf-homework, 2026-11-13), over gen_scale.py's hub-spoke model
+(run gen_scale.py first with --hubs >= 64). One TSV line per (shape, depth): name TAB query.
+
+Shapes, each at depth d in DEPTHS:
+  filters   d chained ->filter() on a projection
+  extend    d chained ->extend(), each column reading the previous one
+  path      one column navigating the hub ring d hops (nextHub0.nextHub1...)
+  fanout    d columns, each a different association path off one hub (satellites, then ring hops + satellites)
+  wide      d computed columns in one project
+  groupby   d stacked ->groupBy() over the previous result
+  ifs       one column, a tower of d nested if()
+  joins     d+1 projections joined in a chain (each renamed)
+  ands      one filter whose predicate is d conjuncts
+usage: gen_deep.py OUT.tsv [depth ...]
+"""
+import sys
+
+out = sys.argv[1]
+DEPTHS = [int(x) for x in sys.argv[2:]] or [1, 2, 4, 8, 16, 32]
+SP = 9
+L = []
+for d in DEPTHS:
+    q = "test::H1.all()->project(~[id, name, score])" + "".join(f"->filter(r|$r.score > {i})" for i in range(d))
+    L.append((f"filters_{d}", q))
+    q = "test::H1.all()->project(~[id, name, score])->extend(~c0:r|$r.score + 1)" + "".join(
+        f"->extend(~c{i}:r|$r.c{i - 1} + 1)" for i in range(1, d))
+    L.append((f"extend_{d}", q))
+    path = "".join(f".nextHub{i}" for i in range(d))
+    L.append((f"path_{d}", f"test::H0.all()->project(~[id, p:x|$x{path}.name])"))
+    cols = []
+    for i in range(d):
+        hop, sat = divmod(i, SP)
+        pre = "".join(f".nextHub{k}" for k in range(hop))
+        cols.append(f"c{i}:x|$x{pre}.sat{(hop) * SP + sat}.label")
+    L.append((f"fanout_{d}", "test::H0.all()->project(~[id, " + ", ".join(cols) + "])"))
+    L.append((f"wide_{d}", "test::H1.all()->project(~[id, " + ", ".join(f"w{i}:x|$x.score + {i}" for i in range(d)) + "])"))
+    q = "test::H1.all()->project(~[id, name, score])->groupBy(~[name], ~s0:r|$r.score:y|$y->sum())" + "".join(
+        f"->groupBy(~[name], ~s{i}:r|$r.s{i - 1}:y|$y->sum())" for i in range(1, d))
+    L.append((f"groupby_{d}", q))
+    e = "'z'"
+    for i in reversed(range(d)):
+        e = f"if($x.score > {i}, |'v{i}', |{e})"
+    L.append((f"ifs_{d}", f"test::H1.all()->project(~[id, t:x|{e}])"))
+    q = "test::H0.all()->project(~[k0:x|$x.id, n0:x|$x.name])"
+    for i in range(1, d + 1):
+        q = (f"{q}->join(test::H{i}.all()->project(~[k{i}:x|$x.id, n{i}:x|$x.name]), "
+             f"JoinKind.INNER, {{a,b|$a.k{i - 1} == $b.k{i}}})")
+    L.append((f"joins_{d}", q))
+    pred = " && ".join(f"$r.score != {i}" for i in range(d))
+    L.append((f"ands_{d}", f"test::H1.all()->project(~[id, name, score])->filter(r|{pred})"))
+open(out, "w").write("".join(f"{n}\t{q}\n" for n, q in L))
+print(f"{out}: {len(L)} queries")

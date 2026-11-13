@@ -1,0 +1,11 @@
+#!/bin/bash
+# Throwaway (docs/compiler-perf-homework, 2026-11-13): the include-closure reproduction. Same 2,000-class hub-spoke
+# model (200 hubs) split across K mappings (K = 1..200), the runtime naming the last, which includes the others as a
+# CHAIN (inc*) or FLAT (incf*); 100 queries, 10 passes, 3 rounds round-robin. Planning cost per query vs K.
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+cd $SP
+for r in 1 2 3; do for m in inc1 inc10 inc50 inc100 inc200 incf1 incf10 incf50 incf100 incf200; do
+  scripts/run.sh "winc $m r$r" raw/winc.log -- -Xms2g -Xmx2g -cp "probe-classes:$(cat cp.txt)" com.legend.integration.PerfProbe \
+    model raw/winc-$m-r$r 1 10 models/$m/model.pure models/$m/queries.tsv test::RT
+done; done
+echo WINC-DONE >> raw/winc.log

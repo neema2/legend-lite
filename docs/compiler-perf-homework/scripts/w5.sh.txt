@@ -1,0 +1,10 @@
+#!/bin/bash
+# W5 baseline: deep and wide queries (gen_deep.py, 9 shapes x depths 1..32) over the 1K-class hub-spoke model.
+# 5 JVMs, each 1 model build + 8 passes; the report reads the last pass.
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+CP="$SP/probe-classes:$(cat $SP/cp.txt)"
+for r in 1 2 3 4 5; do
+  $SP/scripts/run.sh "w5 r$r" $SP/raw/w5.log -- -Xms2g -Xmx2g -Duser.timezone=GMT -Xlog:gc:file=$SP/raw/w5-gc-r$r.log \
+    -cp "$CP" com.legend.integration.PerfProbe model $SP/raw/w5-r$r 1 8 $SP/models/h100/model.pure $SP/models/deep.tsv test::RT
+done
+echo W5-DONE >> $SP/raw/w5.log

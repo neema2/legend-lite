@@ -1,0 +1,15 @@
+#!/bin/bash
+# W3 baseline: model scaling (hub-spoke, 1K..100K classes) and the mapping side (mappings, include shape, stores) at
+# 10K classes. Each model: 5 JVM rounds (round-robin over the models), each 3 model builds + 6 passes of its 100 queries.
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+CP="$SP/probe-classes:$(cat $SP/cp.txt)"
+G=$SP/models
+MODELS="h100 h300 h1000 h3000 h10000 m10chain m100chain m100flat s10 s100"
+for r in 1 2 3 4 5; do
+  for m in $MODELS; do
+    $SP/scripts/run.sh "w3 $m r$r" $SP/raw/w3.log -- -Xms6656m -Xmx6656m -Duser.timezone=GMT \
+      -Xlog:gc:file=$SP/raw/w3-gc-$m-r$r.log -cp "$CP" com.legend.integration.PerfProbe model $SP/raw/w3-$m-r$r 3 6 \
+      $G/$m/model.pure $G/$m/queries.tsv test::RT
+  done
+done
+echo W3-DONE >> $SP/raw/w3.log

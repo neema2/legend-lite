@@ -1,0 +1,20 @@
+#!/bin/bash
+# Throwaway run harness (docs/compiler-perf-homework, 2026-11-13). One timed JVM run, its environment recorded:
+#   run.sh <label> <log> -- <java args...>
+# Records the load average and /proc/stat's cpu counters (incl. steal) before and after, the wall time, and the
+# java command; the JVM is the product's own JDK (Bazel's remotejdk_25), JAVA_TOOL_OPTIONS cleared.
+set -u
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+label=$1; log=$2; shift 3
+unset JAVA_TOOL_OPTIONS
+stat() { head -1 /proc/stat; }
+b=$(stat); la=$(cut -d' ' -f1-3 /proc/loadavg); t0=$(date +%s.%N)
+{ echo "### $label"; echo "### start $(date -u +%FT%TZ) load $la"; echo "### cmd java $*"; } >> "$log"
+"$SP/jdk/bin/java" "$@" >> "$log" 2>&1; rc=$?
+t1=$(date +%s.%N); a=$(stat)
+python3 - "$b" "$a" "$t0" "$t1" "$rc" >> "$log" <<'PY'
+import sys
+b=[int(x) for x in sys.argv[1].split()[1:]]; a=[int(x) for x in sys.argv[2].split()[1:]]
+d=[y-x for x,y in zip(b,a)]; tot=sum(d) or 1
+print(f"### end rc={sys.argv[5]} wall_s={float(sys.argv[4])-float(sys.argv[3]):.2f} cpu: user={100*(d[0]+d[1])/tot:.1f}% sys={100*d[2]/tot:.1f}% idle={100*(d[3]+d[4])/tot:.1f}% steal={100*d[7]/tot:.2f}%")
+PY

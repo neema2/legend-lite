@@ -1,0 +1,12 @@
+#!/bin/bash
+# Throwaway (docs/compiler-perf-homework, 2026-11-13): W9, a generatePlan request split into model work and request
+# work (W9Probe), over three model sizes: the wasm corpus (small), h100 (0.64 MB, 2K elements), h1000 (6.6 MB, 20K).
+SP=/tmp/claude-0/-home-user-legend-lite/bd466d4e-535d-58c3-8d71-6194e99a4e43/scratchpad
+cd $SP
+W=/home/user/legend-lite/wasm/corpus
+for r in 1 2; do
+  scripts/run.sh "w9 corpus r$r" raw/w9.log -- -Xms4g -Xmx4g -cp "probe-classes:$(cat cp.txt)" com.legend.server.W9Probe $W/model.pure $W/queries.tsv trades::RT 20 9 21
+  scripts/run.sh "w9 h100 r$r" raw/w9.log -- -Xms4g -Xmx4g -cp "probe-classes:$(cat cp.txt)" com.legend.server.W9Probe models/h100/model.pure models/h100/queries.tsv test::RT 10 5 21
+  scripts/run.sh "w9 h1000 r$r" raw/w9.log -- -Xms6656m -Xmx6656m -cp "probe-classes:$(cat cp.txt)" com.legend.server.W9Probe models/h1000/model.pure models/h1000/queries.tsv test::RT 10 3 21
+done
+echo W9-DONE >> raw/w9.log

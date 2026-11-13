@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Throwaway (docs/compiler-perf-homework, 2026-11-13): the share of samples whose stack holds a frame matching each
+given regex, among samples whose stack matches --within. Input: `jfr print --stack-depth 256 --events
+jdk.ExecutionSample` output.  usage: jfr_share.py STACKS.txt --within RX  label=RX ...  (also reports how many samples
+were truncated at the print depth)"""
+import re, sys
+txt = open(sys.argv[1]).read().split('jdk.ExecutionSample {')[1:]
+within = re.compile(sys.argv[sys.argv.index('--within') + 1])
+pats = [(a.split('=', 1)[0], re.compile(a.split('=', 1)[1])) for a in sys.argv[2:] if '=' in a]
+n = trunc = 0; c = {k: 0 for k, _ in pats}
+for ev in txt:
+    if '...' in ev: trunc += 1
+    if not within.search(ev): continue
+    n += 1
+    for k, rx in pats:
+        if rx.search(ev): c[k] += 1
+print(f"samples within: {n} (truncated stacks overall: {trunc} of {len(txt)})")
+for k, _ in pats: print(f"| {k} | {c[k]} | {100 * c[k] / max(n, 1):.1f}% |")

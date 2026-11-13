@@ -1,0 +1,60 @@
+package planner;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+/** THROWAWAY (docs/compiler-perf-homework, 2026-11-13): the JVM twin of w10.mjs -- the same boundary calls
+ *  (Boundary.holdModel, Folded.of(planHeld), Folded.of(plan)) on the same inputs, timed the same way.
+ *  Usage: W10Jvm <model.pure> <queries.tsv> <runtime> <reps> <out.tsv> */
+public final class W10Jvm {
+    public static void main(String[] a) throws Exception {
+        String model = Files.readString(Path.of(a[0]), StandardCharsets.UTF_8);
+        List<String[]> qs = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(a[1]), StandardCharsets.UTF_8)) {
+            int t = l.indexOf('\t');
+            if (t > 0 && !l.startsWith("#")) qs.add(new String[] {l.substring(0, t), l.substring(t + 1)});
+        }
+        String runtime = a[2];
+        int reps = Integer.parseInt(a[3]);
+        long t0 = System.nanoTime();
+        int h = Boundary.holdModel(model);
+        System.out.printf("hold: %.1f ms%n", (System.nanoTime() - t0) / 1e6);
+        List<String> rows = new ArrayList<>();
+        rows.add("name\tmedian_ms\tmin_ms\tlen\tsha");
+        double total = 0;
+        int ok = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            for (String[] q : qs) {
+                int n = pass == 0 ? 1 : reps;
+                double[] ts = new double[n];
+                String ans = null;
+                for (int i = 0; i < n; i++) {
+                    long s = System.nanoTime();
+                    ans = Folded.of(() -> Boundary.planHeld(h, q[1], runtime));
+                    ts[i] = (System.nanoTime() - s) / 1e6;
+                }
+                if (pass == 0) continue;
+                java.util.Arrays.sort(ts);
+                double med = ts[n / 2];
+                total += med;
+                if (ans.startsWith("OK")) ok++;
+                var md = java.security.MessageDigest.getInstance("SHA-256");
+                String sha = java.util.HexFormat.of().formatHex(md.digest(ans.getBytes(StandardCharsets.UTF_8))).substring(0, 16);
+                rows.add(q[0] + "\t" + String.format(java.util.Locale.ROOT, "%.3f\t%.3f", med, ts[0]) + "\t" + ans.length() + "\t" + sha);
+            }
+        }
+        double[] un = new double[20];
+        for (int i = 0; i < 20; i++) {
+            long s = System.nanoTime();
+            Folded.of(() -> Boundary.plan(model, qs.get(0)[1], runtime));
+            un[i] = (System.nanoTime() - s) / 1e6;
+        }
+        java.util.Arrays.sort(un);
+        Files.write(Path.of(a[4]), rows);
+        System.out.printf("queries %d (OK %d); sum of medians %.1f ms; per query mean %.3f ms%n", qs.size(), ok, total, total / qs.size());
+        System.out.printf("plan (model compiled per call) on %s: p50 %.1f ms, min %.1f ms%n", qs.get(0)[0], un[10], un[0]);
+    }
+}
