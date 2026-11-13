@@ -72,7 +72,12 @@ public final class PeRatchets {
             "own_corpus.matched 3192 -> 3211 (2026-11-13, the final full audit's fixes, d7c037ebf, found red by the gate on"
                     + " that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest,"
                     + " EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the"
-                    + " snapshot-copy and output-plan tests)");
+                    + " snapshot-copy and output-plan tests)",
+            "own_corpus.matched 3211 -> 3221 (2026-11-13, claude/total-wall-d with main merged onto total-wall-e,"
+                    + " 8f0037994d, found by //:generated on 3a711976af): as measured, not attributed -- the merge"
+                    + " joined D's, main's and E's new tests (RaisedKindTest, ErrorKindTest, EdgeSpellingHookTest,"
+                    + " LetBindingTest, FusedHostColumnsTest and their siblings); the ten models were not traced one by"
+                    + " one");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
