@@ -789,7 +789,8 @@ public final class Lowerer {
         // truthfully -- the TREE carries the carrier through element-preserving ops (the stored type IS the
         // authority, the judge is gone from this site)
         com.legend.sql.TypeFact rootJudge = e.type();
-        if (anyStamp && !Stamps.isMany(spec)
+        // (a tagged value -- a mixed selection's winner -- is projected as its tag and slots below, never boxed: O2's D2)
+        if (anyStamp && !Stamps.isMany(spec) && !(e instanceof SqlExpr.Tagged)
                 && rootJudge instanceof com.legend.sql.TypeFact.Typed t
                 && t.type() != SqlType.Scalar.JSON) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);

@@ -186,9 +186,10 @@ final class MixedEncoding {
         for (SqlExpr r : ranks) {
             groups.add((int) ((SqlExpr.IntLit) ((SqlExpr.StructLit) r).fields().get(0).value()).value());
         }
+        dropUndecidingPrecision(ranks);
         if (groups.size() == 1) {
             int g = groups.iterator().next();
-            if (g == 0 || g == 1) {
+            if (oneChannelOrders(ranks, g)) {
                 for (int i = 0; i < n; i++) {
                     ranks.set(i, ((SqlExpr.StructLit) ranks.get(i)).fields().get(g == 0 ? 1 : 2).value());
                 }
@@ -322,11 +323,55 @@ final class MixedEncoding {
         } else {
             return null;
         }
+        // a date's precision, its tie-break after the instant (O2's D1, 2026-11-13): legend-pure's
+        // DateFunctions.compare compares component by component, and where one date lacks the other's finer
+        // component they are ordered coarser FIRST -- %2025-02-10 before %2025-02-10T00:00:00, which share an instant
+        SqlExpr p = group == 1 ? new SqlExpr.IntLit(precisionOf(t, e).ordinal()) : new SqlExpr.NullLit();
         return new SqlExpr.StructLit(List.of(
                 new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
                 new SqlExpr.StructLit.Field("n", n != null ? n : new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE),
                 new SqlExpr.StructLit.Field("d", d != null ? d : new SqlExpr.NullLit(), SqlType.Scalar.TIMESTAMP),
-                new SqlExpr.StructLit.Field("s", s != null ? s : new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR)));
+                new SqlExpr.StructLit.Field("s", s != null ? s : new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR),
+                new SqlExpr.StructLit.Field("p", p, SqlType.Scalar.BIGINT)));
+    }
+
+    /** A date's precision, read off its spelling where it has one (a literal, a {@code date()} call), else its type's:
+     *  a StrictDate a day, a DateTime its finest (a column's date-time). */
+    private static PureDateLiteral.Precision precisionOf(Type t, @com.legend.base.Nullable TypedSpec e) {
+        if (e != null) {
+            return Scalars.datePrecision(e);
+        }
+        return t == Type.Primitive.STRICT_DATE ? PureDateLiteral.Precision.DAY : PureDateLiteral.Precision.SUBSECOND;
+    }
+
+    /**
+     * Whether a list's ranks, all of one comparison {@code group}, may be ordered by the group's own channel alone (the
+     * number, or the instant): numbers always; dates only where every element has one precision -- otherwise two
+     * elements may share an instant and be told apart by their precision alone (O2's D1), so the whole rank is kept.
+     */
+    static boolean oneChannelOrders(List<SqlExpr> ranks, int group) {
+        return group == 0 || group == 1 && ((SqlExpr.StructLit) ranks.get(0)).fields().size() == 4;
+    }
+
+    /**
+     * {@code ranks} with the precision field dropped where it decides nothing: where the list's dates (if any) are of
+     * one precision, no two elements are told apart by it, and the rank keeps its four fields (today's SQL, byte for
+     * byte). It stays only where the list holds dates of differing precisions (O2's D1).
+     */
+    static void dropUndecidingPrecision(List<SqlExpr> ranks) {
+        Set<SqlExpr> precisions = new HashSet<>();
+        for (SqlExpr r : ranks) {
+            SqlExpr p = ((SqlExpr.StructLit) r).fields().get(4).value();
+            if (!(p instanceof SqlExpr.NullLit)) {
+                precisions.add(p);
+            }
+        }
+        if (precisions.size() > 1) {
+            return;
+        }
+        for (int i = 0; i < ranks.size(); i++) {
+            ranks.set(i, new SqlExpr.StructLit(((SqlExpr.StructLit) ranks.get(i)).fields().subList(0, 4)));
+        }
     }
 
     /** The channel of a tagged list that holds a value of {@code kind} (a needle's static kind), else -1: a kind

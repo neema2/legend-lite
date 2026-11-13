@@ -193,9 +193,10 @@ final class ValueCollections {
             groups.add((int) ((SqlExpr.IntLit) ((SqlExpr.StructLit) rank).fields().get(0).value()).value());
         }
         // one comparison group of numbers or dates: the group's own channel (MixedEncoding.taggedList's rule)
+        MixedEncoding.dropUndecidingPrecision(ranks);
         if (groups.size() == 1) {
             int g = groups.iterator().next();
-            if (g == 0 || g == 1) {
+            if (MixedEncoding.oneChannelOrders(ranks, g)) {
                 for (int k = 0; k < w; k++) {
                     ranks.set(k, ((SqlExpr.StructLit) ranks.get(k)).fields().get(g == 0 ? 1 : 2).value());
                 }
@@ -212,13 +213,15 @@ final class ValueCollections {
         cells.add(new SqlSelect.Projection(new SqlExpr.Case(tagArms, null, SqlExpr.Reason.CARRIER), tagOut.name(), tagOut));
         cellOuts.add(posOut);
         cellOuts.add(tagOut);
-        List<String> rankFields = struct ? List.of("g", "n", "d", "s") : List.of(SqlExpr.TaggedList.ROW_COMPARABLE);
+        // the rank's fields as built: g, n, d and s, and p where the dates' precisions differ (O2's D1)
+        List<String> rankFields = struct ? ((SqlExpr.StructLit) ranks.get(0)).fields().stream()
+                .map(SqlExpr.StructLit.Field::name).toList() : List.of(SqlExpr.TaggedList.ROW_COMPARABLE);
         // the one-group comparable's type is the group's (numbers a DOUBLE, dates a TIMESTAMP), never read off a
         // column's rank, which a partial date leaves NULL (the L1 audit, 2026-10-29)
         List<SqlType> rankTypes = struct
-                ? List.of(SqlType.Scalar.INTEGER, SqlType.Scalar.DOUBLE, SqlType.Scalar.TIMESTAMP,
-                        SqlType.Scalar.VARCHAR)
-                : List.of(groups.iterator().next() == 0 ? SqlType.Scalar.DOUBLE : SqlType.Scalar.TIMESTAMP);
+                ? List.<SqlType>of(SqlType.Scalar.INTEGER, SqlType.Scalar.DOUBLE, SqlType.Scalar.TIMESTAMP,
+                        SqlType.Scalar.VARCHAR, SqlType.Scalar.BIGINT).subList(0, rankFields.size())
+                : List.<SqlType>of(groups.iterator().next() == 0 ? SqlType.Scalar.DOUBLE : SqlType.Scalar.TIMESTAMP);
         for (int f = 0; f < rankFields.size(); f++) {
             List<SqlExpr.Case.When> arms = new ArrayList<>(w);
             for (int k = 0; k < w; k++) {
@@ -281,7 +284,7 @@ final class ValueCollections {
         }
         // the rank across kinds: its fields the cells' __cmp_<field> columns, in their order
         String rankPrefix = SqlExpr.TaggedList.ROW_COMPARABLE + "_";
-        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(4);
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(5);
         for (OutputCol o : cellsRel.outputs()) {
             if (o.name().startsWith(rankPrefix)) {
                 fields.add(new SqlExpr.StructLit.Field(o.name().substring(rankPrefix.length()), vCell.apply(o.name()),
