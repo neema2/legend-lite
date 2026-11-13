@@ -961,6 +961,13 @@ In order. Nothing here is in the A/B/C PR.
      - DataCube's grid road gets a run marker first: today it has none, so planner-during-run is unmeasured there.
    - **Injection fuzzing.** Quotes, backslashes and malformed values in every route's and planner door's fields, each
      refused by name or escaped.
+   - **The method rules see method references** (C4's finding, 2026-11-13). ArchitectureTest has 22
+     callMethod/callMethodWhere/callCodeUnitWhere clauses that miss a `Type::method` reference: for example `UUID::randomUUID`
+     as a Supplier, in EXEC_MAKES_NO_VALUE and PLANNING_MAKES_NO_VALUE. The constructor rules were closed in this PR
+     (`ArchitectureTest.constructs`, 554434c32); the method rules get the same predicate, each with a planted `::method`
+     violator.
+   - **`TypedQuery.lower` is a public door that skips the query door** (`refuseTestOnly`). Its callers today are doored
+     or on the test road (C4's audit, 2026-11-13). The closed planner surface decides whether it is narrowed.
 2. **DataCube's engine contract: one intent API, every engine behind it** (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`,
    branch `claude/datacube-engine-contract`, PROPOSED, for the user's ratification).
    - It is consolidated with the bridge on intent (branch `claude/total-wall-bridge` @ 77c084e8a: `DataHost`) as §5.5
