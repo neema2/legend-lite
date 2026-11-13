@@ -37,7 +37,11 @@ import { timeseriesEdit } from '../src/headless/timeseries.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
+import { GateEngine, heldBy, isCount, SNAP_PULL, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
+import { plannerFor } from './catalog-builder.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { Plan } from '../../engine-client/src/relation-type.ts';
+import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sameButIds } from './page-same.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { element } from '../../pure-protocol/src/index.ts';
@@ -145,18 +149,32 @@ const overRows = (of: string): GridMaker => (gridHost, spawned, start) => {
 /** The statement a snap counts its rows by, here: the fixture's engine answers it with the fixture's two rows. */
 const COUNT = unplanned('count the rows');
 class CountingGate extends GateEngine {
+  /** The connection held for a snap's copy (its plan's statements answered as every query is). */
+  readonly exclusive = heldBy(this);
   override async answer(sql: string, epoch: number): Promise<ResultTable> {
     if (sql === COUNT) return { columns: [{ name: 'n', type: 'Integer', values: [2] }], rowCount: 1, epoch, elapsedMs: 1 };
     return super.answer(sql, epoch);
   }
 }
-/** A grid over `name` that can snap its rows into the tab (its toggle a toggle): a copy whose statements run nowhere
- *  but its count. */
+/** A planner that gives a snap its pull (SNAP_PULL) and plans its count (the final audit's item 1, 2026-11-12). */
+class SnappingPlanner extends StubPlanner {
+  override async plan(query?: Lambda): Promise<Plan> {
+    return isCount(query) ? { sql: COUNT, columns: [] } : super.plan();
+  }
+  async pullRequest(): Promise<SnapPull> {
+    return SNAP_PULL;
+  }
+}
+/** The planner a grid's copy is planned by (snapCopy): legend-lite's own, its statements reaching the fake engine. */
+const copies = plannerFor('', '');
+after(() => copies.dispose());
+/** A grid over `name` that can snap its rows into the tab (its toggle a toggle): a copy whose statements reach the
+ *  fake engine, its count the fixture's. */
 const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
   const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
-    engine: new CountingGate(), planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+    engine: new CountingGate(), planner: new SnappingPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
     snapTarget: {
-      host: { hostOperations: async (_type, operations) => operations.map((o) => (o.op === 'count' ? [COUNT] : [])) },
+      host: copies,
       copy: () => ({ table: `snap_${name}`, landed: async () => ({ source: SNAPSHOT.source.query, planner: new StubPlanner() }), dispose: () => {} }),
     },
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
