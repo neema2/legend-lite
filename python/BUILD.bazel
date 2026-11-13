@@ -368,6 +368,18 @@ py_test(
     deps = ["@rules_python//python/runfiles"],
 )
 
+# THE RUN WALL, Python's half (the user's ruling M2, 2026-11-13; its TypeScript half //datacube:run_wall_test): the send
+# seam imports no planner, no run calls or takes one, the runs pinned -- read by Python's own parser, no import.
+py_test(
+    name = "run_wall_test",
+    size = "small",
+    srcs = ["tests/test_run_wall.py"],
+    data = glob(["legend_lite/*.py"]),
+    env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
+    main = "tests/test_run_wall.py",
+    deps = ["@rules_python//python/runfiles"],
+)
+
 # a small Iceberg table written for the tests (G5), its files named by the URLs a test serves them at
 py_library(
     name = "iceberg_table",

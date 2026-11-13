@@ -152,6 +152,12 @@ _SCANNED = {
         "src/theme.css",
     ],
     "menu-ids": [":src"],
+    # THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13): the run side's imports and signatures, read
+    # over DataCube's planner and the engine client
+    "run-wall": [
+        ":src",
+        "//engine-client:engine_client",
+    ],
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],
