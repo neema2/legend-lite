@@ -162,9 +162,11 @@ class PivotEngine extends FakeEngine {
 
 /** legend-lite's planner, which writes a snap's statements (D5): in-thread, or Python's library in the headless lane. */
 const copies = plannerFor('', '');
-// its module loaded before any test clicks Snap: a click is followed by a few ticks, not a module's load
+// its module loaded, and its first copy planned, before any test clicks Snap: a click is followed by a few ticks, not a
+// planner's load nor its first compile (2026-11-13, item 7's twin: the full gate on aa860ba38 saw "says WHEN the snapshot
+// was taken" still Live after its ticks, under load, when this warmed the module alone with a host operation)
 before(async () => {
-  await copies.hostOperations('DuckDB', []);
+  await copies.snapCopy({ databaseType: 'DuckDB', ...SNAP_PULL, table: 'warm' });
 });
 
 describe('the app', () => {
