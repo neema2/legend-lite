@@ -566,6 +566,21 @@ _CHANNEL_B_LANES = {
     "bigquery": ("BigQuery", _SUITES, None, [], ["--add-opens=java.base/java.nio=ALL-UNNAMED"], ["//core:drivers", _CLOUD_DRIVERS["bigquery"]], _CLOUD_TAGS, ["LEGENDLITE_PCT_CLOUD_PROPERTIES"], []),
 }
 
+# P3 site 4's measurement (measure only, 2026-11-13, the orchestrator's go): what each lane's driver answers for a
+# date before Christ by each getter the decode could use (BcDateProbeTest); always passes, prints [bc-probe] lines.
+# The in-process lanes check the probe here; the cloud lanes run it in their own sessions.
+[junit_test(
+    name = "pct_bc_date_probe_%s" % lane,
+    memory_mb = 1024,
+    env = {"LEGENDLITE_PCT_BACKEND": lane},
+    env_inherit = inherit,
+    jvm_flags = flags,
+    select = ["--select-class=org.finos.legend.lite.pct.probe.BcDateProbeTest"],
+    tags = ["manual"] + tags,
+    runtime_deps = [":pct_tests_lib"] + deps,
+) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items()
+    if lane in ("h2", "sqlite", "snowflake", "databricks", "bigquery")]
+
 _LANE_LEDGER = "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%s_%sFunctions_PCT.java"
 
 [junit_test(
