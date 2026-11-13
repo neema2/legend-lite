@@ -200,6 +200,19 @@ class MongoDbPlanTest {
                 run(query, PlanCases.Written.JSON, Map.of("lo", 30L, "hi", 50L)));
     }
 
+    /** A field named with a quote and a backslash is written as JSON's lexer reads a string (the user's ruling of
+     *  2026-11-13, every dialect's identifier escaped for its own lexer): a dynamic pivot's per-key aggregate so named
+     *  answers that name exactly, its pipeline whole. (Measured that day: a person's name reaches the pipeline through
+     *  MongoJson's escaping alone; the per-key writers that splice a name around the runner's counter carry the
+     *  plan's own names, {@code _u0} and {@code __agg0}.) */
+    @Test
+    void aFieldNamedWithAQuoteAndABackslashIsItsOwnName() throws Exception {
+        String query = "|#>{test::Store.people}#->select(~[city, age])->pivot(~city, ~['a\"b\\\\c': x | $x.age : y"
+                + " | $y->plus()])";
+        String answered = run(query, PlanCases.Written.JSON, Map.of());
+        assertTrue(answered.contains("\"'Oslo__|__a\\\"b\\\\c'\":"), answered);
+    }
+
     /** A parameter inside the per-key region is refused by name: each copy of the region would bind it again, and a
      *  pipeline variable is bound once. */
     @Test

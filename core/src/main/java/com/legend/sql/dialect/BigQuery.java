@@ -704,10 +704,11 @@ public final class BigQuery extends AnsiSqlRenderer {
         return delimited(name);
     }
 
-    /** A backtick inside a quoted identifier is escaped by a backslash (GoogleSQL has no doubled-quote escape). */
+    /** A backtick inside a quoted identifier is escaped by a backslash (GoogleSQL has no doubled-quote escape), and a
+     *  backslash by one too: its lexer reads backslash escapes there. */
     @Override
-    protected String delimited(String name) {
-        return "`" + name.replace("\\", "\\\\").replace("`", "\\`") + "`";
+    protected String delimitedBody(String name) {
+        return name.replace("\\", "\\\\").replace("`", "\\`");
     }
 
     /** Backslash escapes; {@code ''} is a syntax error (measured), so a quote is {@code \'}; a quoted literal holds no

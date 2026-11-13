@@ -709,14 +709,24 @@ public final class ClickHouse extends AnsiSqlRenderer {
     // Lexical: identifiers, literals, types
     // ==================================================================
 
-    /** Every identifier quoted (ClickHouse's are case-sensitive); a double-quoted declaration is its own spelling. */
+    /** Every identifier quoted (ClickHouse's are case-sensitive); a double-quoted declaration is its inner name,
+     *  re-escaped as ClickHouse reads it (its doubled quotes the name's quotes). */
     @Override
     protected String ident(String name) {
         if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
                 && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
-            return name;
+            return delimited(name.substring(1, name.length() - 1).replace("\"\"", "\""));
         }
         return delimited(name);
+    }
+
+    /** ClickHouse's lexer reads a backslash escape inside a quoted identifier as inside a string (measured, the
+     *  pinned build: {@code "a\""} is the identifier {@code a"}, and what follows it the statement's code): a backslash
+     *  and the quote each escaped by a backslash (the user's ruling of 2026-11-13; until then only the quote was
+     *  doubled, and a name ending {@code \} or holding {@code \"} broke out). */
+    @Override
+    protected String delimitedBody(String name) {
+        return name.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /** A backslash and a quote escaped by a backslash: a string literal reads backslash escapes (measured). */

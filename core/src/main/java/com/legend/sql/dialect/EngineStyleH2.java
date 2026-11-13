@@ -425,7 +425,27 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     }
 
     private String phys(String name) {
-        return quoteIdentifiers ? '"' + name + '"' : name;
+        return quoteIdentifiers ? engineQuoted(name) : engineBare(name);
+    }
+
+    /** A name the store declared quoted carries its quotes, and is its own spelling: a valid quoted body (its quotes
+     *  doubled pairs), as every dialect's {@code ident} passes one through. */
+    private static boolean preQuoted(String name) {
+        return name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
+                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"");
+    }
+
+    /** A name quoted as legend-engine's text quotes it: a pre-quoted name as it is, any other delimited. */
+    private String engineQuoted(String name) {
+        return preQuoted(name) ? name : delimited(name);
+    }
+
+    /** A name as legend-engine's text writes it, bare -- where it IS a plain identifier, H2 reading it as one; any other
+     *  name delimited, its quote doubled (the user's ruling of 2026-11-13, every dialect's identifier escaped as its
+     *  own lexer reads it: until then a name holding a space, a comma or a quote was written bare or quoted as given,
+     *  and walked out of its identifier). The engine's own text is unchanged for every plain name. */
+    private String engineBare(String name) {
+        return name.matches("[A-Za-z_][A-Za-z0-9_]*") || preQuoted(name) ? name : delimited(name);
     }
 
     // ---- DDL: the engine's own H2 TEXT (toDDL.pure / setUpDataSQLs) ----
@@ -672,7 +692,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                             new SqlSelect.Projection(new SqlExpr.Column(
                                     wrap, phCols.contains(o.name())
                                             ? o.name()
-                                            : "\"" + o.name() + "\"",
+                                            // its quote doubled, as H2 reads a delimited
+                                            // identifier (2026-11-13: until then as given)
+                                            : preQuoted(o.name()) ? o.name()
+                                                    : "\"" + o.name().replace("\"", "\"\"") + "\"",
                                     com.legend.sql.SqlTyping.UNKNOWN,
                                     com.legend.sql.OutputCol.Origin
                                             .DERIVED),
@@ -1400,8 +1423,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         }
         if (frameDepth > 0 && p.outputName() != null) {
             // engine view SQL: '"root".ORDER_ID as ORDER_ID' — always
-            // aliased, unquoted
-            return writer.append(" as ").append(p.outputName().replace("\"", ""));
+            // aliased, unquoted where the name is a plain identifier (the
+            // engine's text); any other name delimited, never written bare
+            // (the user's ruling of 2026-11-13: an identifier escaped as its
+            // database's lexer reads it)
+            return writer.append(" as ").append(engineBare(p.outputName().replace("\"", "")));
         }
         if (p.alias() == null) {
             return writer;
@@ -1409,10 +1435,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         // a PRE-QUOTED alias (the corpus's '"firstName"' spellings)
         // must not double-wrap — the engine prints one quote level
         String a = p.alias();
-        if (a.length() > 1 && a.startsWith("\"") && a.endsWith("\"")) {
+        if (a.length() > 1 && a.startsWith("\"") && a.endsWith("\"")
+                && !a.substring(1, a.length() - 1).replace("\"\"", "").contains("\"")) {
             return writer.append(" as ").append(a);
         }
-        return writer.append(" as \"").append(a).append("\"");
+        // its quote doubled inside, as H2 reads a delimited identifier (2026-11-13: until then written as given)
+        return writer.append(" as ").append(delimited(a));
     }
 
     /** The row-order pseudo-column rides the SAME alias plan as

@@ -565,7 +565,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  doubled inside. Refused outside a per-key region. */
     protected SqlWriter perKeyName(SqlWriter writer, String stem) {
         String q = String.valueOf(quoteChar());
-        return writer.append(q + "_pk").counter().append(("_" + stem).replace(q, q + q) + q);
+        return writer.append(q + "_pk").counter().append(delimitedBody("_" + stem) + q);
     }
 
     /** The label an alias-less projection spells, or null for none. Base: a STORED READ keeps
@@ -2051,11 +2051,21 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 : ident(c.name());
     }
 
-    /** {@code name} as a DELIMITED identifier: always quoted, the quote
-     *  character doubled inside ({@code a"b} spells {@code "a""b"}). */
+    /** {@code name} as a DELIMITED identifier: always quoted, its body escaped as the database's own lexer reads a
+     *  delimited identifier ({@link #delimitedBody}). */
     protected String delimited(String name) {
         String q = String.valueOf(quoteChar());
-        return q + name.replace(q, q + q) + q;
+        return q + delimitedBody(name) + q;
+    }
+
+    /** {@code name} escaped for the inside of a delimited identifier, as this database's LEXER reads one (the user's
+     *  ruling of 2026-11-13, the ClickHouse identifier breakout: every dialect's identifier writer escapes what its own
+     *  lexer reads inside a delimited identifier). Base: the quote character doubled ({@code a"b} spells
+     *  {@code "a""b"}) -- every database whose lexer reads no backslash escape there. A dialect whose lexer does
+     *  overrides it (ClickHouse, BigQuery). */
+    protected String delimitedBody(String name) {
+        String q = String.valueOf(quoteChar());
+        return name.replace(q, q + q);
     }
 
     /** EXCEPT/EXCLUDE-list name spelling — DIALECT-owned: the base
@@ -2476,7 +2486,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                         .contains(String.valueOf(q))) {
             return name;
         }
-        return q + name.replace(String.valueOf(q), String.valueOf(q) + q) + q;
+        return delimited(name);
     }
 
     protected SqlWriter nl(SqlWriter writer, int depth) {
