@@ -196,7 +196,8 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/verify-real-data.mjs", List.of("conn.query(", "conn.query(", "conn.query(")),
             Map.entry("datacube/demo/verify-remote.mjs", List.of("conn.query(", "conn.query(", "conn.query(", "db.copyFileToBuffer")),
             Map.entry("datacube/demo/widget-loader.ts", List.of("model.send(")),
-            Map.entry("datacube/src/headless/host.ts", List.of("calls.query(")),
+            // (datacube/src/headless/host.ts's calls.query(: GONE 2026-11-13, the DataCube stream's merge of the #6 bridge --
+            // the hosted code sends Python's database no statement, only intent)
             Map.entry("engine-client/src/duckdb.ts", List.of("conn.insertArrowFromIPCStream", "conn.query(", "prepared.query(", "prepared.query(", "prepared.send(", "this.#conn.prepare(", "this.#conn.query(")),
             Map.entry("query/src/app/app.ts", List.of("recent.query(")),
             Map.entry("query/src/ui/queries.ts", List.of("recent.query(")));
@@ -1377,9 +1378,10 @@ class PlannedSqlTest {
             // (snap.ts), a project's database (project-data.ts; the demos' seeds, boot.ts and query/demo/main.ts), and
             // the playground's authored statement (run.ts)
             Map.entry("datacube/demo/boot.ts", List.of("runLoad(")),
-            Map.entry("datacube/src/remote.ts", List.of("runLoad(")),
+            // 2026-11-13 (the DataCube stream's merge of the #6 bridge): upload.ts's and remote.ts's loads MOVED to the tab's
+            // data host (data-host.ts heldDataHost: a file's load, a mount's), each its planner's plan of the request
+            Map.entry("datacube/src/data-host.ts", List.of("runLoad(", "runLoad(")),
             Map.entry("datacube/src/table-output.ts", List.of("runPlan(")),
-            Map.entry("datacube/src/upload.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),
             // 2026-11-12 (the final audit's item 1(b)): a snapshot's local copy, its plan the planner's of the pull

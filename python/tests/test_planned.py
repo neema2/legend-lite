@@ -454,9 +454,9 @@ class HostRunnersTest(unittest.TestCase):
         sent = []
 
         class Recording(Database):
-            def _run(self, sql, params):
+            def _send_planned(self, sql, params):
                 sent.append((str(sql), tuple(params or ())))
-                return super()._run(sql, params) if str(sql).startswith('SET VARIABLE') else None
+                return super()._send_planned(sql, params) if str(sql).startswith('SET VARIABLE') else None
 
         ran = projects.run_host_load(plan, Recording(self.raw), secrets={'datacube_url_r': {'URL': sentinel}})
         bound = [p for sql, p in sent if sql.startswith('SET VARIABLE')]

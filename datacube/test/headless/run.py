@@ -241,13 +241,11 @@ class DataCubeTests(unittest.TestCase):
                 # none skipped: a test the lane does not run says why in BUILD (its file left out), never by a skip
                 self.assertEqual([r['name'] for r in results if r['status'] == 'skip'], [], f'{name}: skipped')
         print(f'\n{len(bundles)} files: {total["pass"]} pass, {total["fail"]} fail, {total["skip"]} skip; '
-              f"{crossed} of the product's statements crossed its bridge", flush=True)
-        # the lane exercises the product's bridge (H7): the product's statements are checked there, as the bundle's are.
-        # Measured 2026-11-12: 205 crossed (0 with every statement sent to the test calls, as before H7); the floor
-        # leaves the tests room to change
-        self.assertGreater(crossed, 150, "the product's statements no longer cross the product's bridge: the lane's "
-                                          'database sends a test\'s own statements alone to the test calls '
-                                          '(test/host/headless.ts)')
+              f"{crossed} of the product's intent calls made", flush=True)
+        # (H7's floor -- the product's statements crossing its bridge, at least 150 -- RETIRED 2026-11-13, the DataCube
+        # stream's merge of the #6 bridge: no statement crosses the bridge on intent, and the lane's test files read their
+        # own database through the test calls, so it counts 0 here, measured; the product's intent calls are exercised by
+        # //python:headless_test (test_headless.py IntentCalls) and refused-SQL by Host above. Their count is printed.)
         if failed:
             print('\n'.join(failed[:50]), file=sys.stderr)
 

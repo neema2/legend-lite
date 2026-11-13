@@ -1181,8 +1181,8 @@ class IntentCalls(unittest.TestCase):
 
     def test_the_hosts_calls_carry_no_statement(self):
         self.assertEqual(self.headless.evaluate('Object.keys(legendLiteHost)'),
-                         ['planner', 'load', 'operations', 'catalog', 'create', 'write', 'digest', 'fetch', 'engine'])
-        for gone in ('query', 'statement', 'registerFile'):
+                         ['planner', 'load', 'operations', 'catalog', 'output', 'digest', 'fetch', 'engine'])
+        for gone in ('query', 'statement', 'registerFile', 'create', 'write'):
             self.assertIsNone(self.headless.evaluate(f'legendLiteHost.{gone} ?? null'), gone)
 
     def test_a_file_is_loaded_by_pythons_plan_held_by_its_handle_and_the_catalog_and_count_asked_by_name(self):
@@ -1225,26 +1225,35 @@ class IntentCalls(unittest.TestCase):
         with self.assertRaisesRegex(Exception, 'this host runs its operations on DuckDB, not Postgres'):
             self.call('operations', 'Postgres', '[]')
 
-    def test_a_writes_table_and_program_are_planned_and_run_by_python_in_one_transaction(self):
+    def catalog_of(self, table):
+        rows = self.raw.execute(str(compiler.catalog_columns_sql('main', table))).fetchall()
+        return [dict(zip(('name', 'dataType', 'logicalType', 'precision', 'scale', 'notNull'), r)) for r in rows]
+
+    def output(self, name, mode, target=None):
+        """A table Output's request (table-output.ts OutputRequest): the box's table and the target as the catalog says
+        them, its rows the source's whole relation, as the planner's table model reads it."""
+        columns = self.catalog_of('SRC')
+        source = compiler.table_model({'table': 'SRC', 'convertible': True, 'databaseType': 'DuckDB',
+                                       'columns': columns})['source']
+        return json.dumps({'databaseType': 'DuckDB', 'tables': [{'table': 'SRC', 'convertible': True, 'columns': columns}],
+                           'output': {'name': name, 'mode': mode},
+                           'rows': json.dumps({'_type': 'lambda', 'body': [source], 'parameters': []}),
+                           **({'target': target} if target is not None else {})})
+
+    def test_a_table_output_is_one_plan_python_plans_and_runs_in_its_own_transaction(self):
+        # the DataCube stream's merge (2026-11-13): orch's one plan (Boundary.outputPlan) asked as intent, one call
         self.raw.execute("CREATE TABLE SRC (ID INTEGER, NAME VARCHAR); INSERT INTO SRC VALUES (1, 'a'), (2, 'b')")
-        op = json.dumps({'op': 'relation', 'kind': 'table', 'target': {'name': 'DST'}, 'replace': False})
-        transaction = lambda step: self.call('operations', 'DuckDB', json.dumps([{'op': 'transaction', 'step': step}]))  # noqa: E731
-        transaction('begin')
-        self.assertIsNone(self.call('create', op, self.request('|#>{a::DB.SRC}#->limit(0)')))
-        self.assertEqual(self.call('write', self.request('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)')), '[{"value":2}]')
-        transaction('rollback')
-        self.assertEqual(self.raw.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'DST'").fetchone(),
-                         (0,), 'the table made and its rows went with the transaction')
-        transaction('begin')
-        self.call('create', op, self.request('|#>{a::DB.SRC}#->limit(0)'))
-        self.call('write', self.request('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)'))
-        transaction('commit')
+        self.assertEqual(self.call('output', self.output('DST', 'create')), '[{"value":2}]')
         self.assertEqual(self.raw.execute('SELECT ID, NAME FROM DST ORDER BY ID').fetchall(), [(1, 'a'), (2, 'b')])
+        self.assertEqual(self.call('output', self.output('DST', 'append', self.catalog_of('DST'))), '[{"value":2}]')
+        self.assertEqual(self.raw.execute('SELECT count(*) FROM DST').fetchone(), (4,))
+        # a create of a table there already is the database's refusal, and nothing of it is kept
+        with self.assertRaises(Exception):
+            self.call('output', self.output('DST', 'create'))
+        self.assertEqual(self.raw.execute('SELECT count(*) FROM DST').fetchone(), (4,))
         # a write is refused in a read of the frames, which would not see it
         with self.frames.reading():
-            for name, args in (('create', (op, self.request('|#>{a::DB.SRC}#->limit(0)'))),
-                               ('write', (self.request('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)'),)),
-                               ('load', ('{}', '{}'))):
+            for name, args in (('output', (self.output('DST2', 'create'),)), ('load', ('{}', '{}'))):
                 with self.subTest(name), self.assertRaisesRegex(Exception, 'runs in no read of the frames'):
                     self.call(name, *args)
 

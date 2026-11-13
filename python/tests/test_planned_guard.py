@@ -96,8 +96,11 @@ MINT_REFERENCES = {
     # 2026-11-12, 6 -> 9 (M1): the compiler's three plan answers (snap_stream, frame_load, project_data's load) typed;
     # (the final audit's item 1, 2026-11-12) compiler.py 9: the copy select list's typing gone, snap_copy's plan typed;
     # projects.py 9 -> 14: run_write, a snapshot's copy's plan of writes alone -- its effects' statements and its
-    # target's session and transaction statements, typed as read
-    'compiler.py': 9, 'engine.py': 2, 'projects.py': 14}
+    # target's session and transaction statements, typed as read;
+    # 2026-11-13 (the DataCube stream's merge of the #6 bridge): compiler.py 9 -> 13, four plans the planner answered,
+    # typed as read (file_load, remote_mount, execution_plan, output_plan); projects.py 14 -> 22, a host load's file and
+    # bound steps (the bridge) and run_plan's statements, its target's session and its plan-carried transaction's
+    'compiler.py': 13, 'engine.py': 2, 'projects.py': 22}
 
 # A send method's name reached and not called, by module, name and receiver (H4, measured 2026-11-12): each a field of a
 # plan (its sql), a URL (its query) or a view (page.py's), none a method handed on. A method handed on -- `run =
