@@ -481,10 +481,11 @@ public final class KnowledgeLayer {
             }
         }
         // full-arg pass-through: source/offsets/per-element imports,
-        // per-element sources and unclaimed sections all survive
+        // per-element sources, unclaimed sections and element spans all survive (the spans since 2026-11-13: the
+        // seven-argument form dropped them -- the names fixes, item 1, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
         return new ParsedModel(out, parsed.imports(), parsed.source(),
                 parsed.elementOffsets(), parsed.elementImports(),
-                parsed.elementSources(), parsed.unclaimedSections());
+                parsed.elementSources(), parsed.unclaimedSections(), parsed.elementSpans());
     }
 
     /**
