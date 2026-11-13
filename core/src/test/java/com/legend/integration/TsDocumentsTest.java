@@ -290,10 +290,26 @@ class TsDocumentsTest {
      *  fails the test until its row is deleted. */
     private static final Map<String, String> NOT_YET = Map.of();
 
+    /** The SQL {@code node} sends, its statements' text together: what the database prepares. Read from the execution
+     *  plan, which is what runs: a plan that stages a statement's shared relations as tables first (ClickHouse's) is
+     *  steps, and the text plan, one answering statement, refuses steps since main's #95 (2026-11-13). */
+    private static int sqlSize(ExecutionPlan.Node node) {
+        return switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().stream().mapToInt(TsDocumentsTest::sqlSize).sum();
+            case ExecutionPlan.TdsResult t -> t.sql().statement().length();
+            case ExecutionPlan.Update u -> u.sql().statement().length();
+            case ExecutionPlan.Effect e -> e.sql().statement().length();
+            case ExecutionPlan.Check c -> c.sql().statement().length();
+            case ExecutionPlan.Keyed k -> k.keys().statement().length() + k.body().statement().length();
+            case ExecutionPlan.Load l -> 0;
+            case ExecutionPlan.Constant c -> 0;
+        };
+    }
+
     /** {@code query}'s rows, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(ModelContext model, Connection c, String query) throws Exception {
         ExecutionPlan plan = Compiler.query(model, query).executionPlan("docs::RT");
-        int size = Compiler.query(model, query).plan("docs::RT").sql().length();
+        int size = sqlSize(plan.root());
         if (size > SQL_CAP) {
             throw new IllegalStateException(String.format(java.util.Locale.ROOT, "its SQL is %,d characters, past"
                     + " the %,d a database prepares in reasonable time", size, SQL_CAP));
@@ -429,7 +445,7 @@ class TsDocumentsTest {
                 String query = "|#TS{" + e.getValue() + "}#";
                 try {
                     ExecutionPlan plan = Compiler.query(model, query).executionPlan("docs::RT");
-                    int size = Compiler.query(model, query).plan("docs::RT").sql().length();
+                    int size = sqlSize(plan.root());
                     if (size > SQL_CAP) {
                         throw new IllegalStateException(String.format(java.util.Locale.ROOT, "its SQL is %,d"
                                 + " characters, past the %,d a database prepares in reasonable time", size, SQL_CAP));

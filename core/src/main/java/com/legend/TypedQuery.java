@@ -255,7 +255,10 @@ public final class TypedQuery {
             throw new com.legend.error.NotImplementedException("a text plan is the statement that answers, and this"
                     + " query's execution plan " + (!plan.answers() ? "answers nothing"
                     : !plan.sendsTheAnswer() ? "answers a value the program wrote, sending no statement"
-                    : "is a program of steps (a write)") + ": run the execution plan");
+                    // (a reading plan is steps too where its statement's shared relations are made as tables first:
+                    // ClickHouse's, PR #81's staging -- main's #95 merged in, 2026-11-13)
+                    : "is a program of steps (a write, or a statement's shared relations made as tables ahead of"
+                    + " it)") + ": run the execution plan");
         }
         com.legend.compiler.element.type.ExprType root = resultType();
         com.legend.plan.ResultShape shape = switch (plan.answerShape()) {
