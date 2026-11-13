@@ -2068,6 +2068,75 @@ class NameResolverTest {
         assertTrue(!ev.node(), "and its wire spelling: a property on an element pointer, not the enumValue node");
     }
 
+    /** A primitive extension's type variables, fully (2026-11-13, the names landings, docs/rust-port/PHASE3_SHIM_DESIGN.md
+     * §10 ruling 32): a rebuilt PrimitiveExtensionDefinition keeps them (the two-argument form dropped them), and each type
+     * variable's declared type resolves in the element's scope, a primitive extension's and a class's alike (neither was
+     * walked). Held to legend-pure's own tests of the four cases (5.99.0, TestPrimitiveCompile:113-126
+     * testPrimitiveVariableTypeInheritance, :154-166 testPrimitiveWithParameterInClass, :168-181
+     * testPrimitiveWithParameterInClassError; TestNewInstance's a::P(8)) and legend-engine's check of a generic type's
+     * values (4.145.0 CompileContext.newGenericType :756-771, in whose words lite refuses): IntCap(1) with x:Number,
+     * IntCap(2) and a::P(8) with x:Integer compile, IntCap() is refused. The primitives are built as records, the rest
+     * parsed: a {@code Primitive} declaration is the platform dialect's alone, which the own-corpus guards keep to their
+     * declared hosts. */
+    @Test
+    void aPrimitiveExtensionsTypeVariablesRideTheRebuildAndTheirTypesResolve() {
+        java.util.function.BiFunction<String, String, String> compile = (primitive, rest) -> {
+            String[] p = primitive.split("\\|");   // fqn|variable|type
+            ParsedModel parsed = com.legend.door.ModelFromText.parse(rest, com.legend.parser.Dialect.LEGEND_LITE);
+            List<PackageableElement> elements = new java.util.ArrayList<>();
+            elements.add(new com.legend.model.PrimitiveExtensionDefinition(p[0], "Integer", List.of(
+                    new com.legend.protocol.ParameterDefinition(p[1], new TypeExpression.NameRef(p[2]),
+                            Multiplicity.Concrete.PURE_ONE))));
+            elements.addAll(parsed.elements());
+            ParsedModel m = new ParsedModel(elements, parsed.imports(), parsed.source(), parsed.elementOffsets(),
+                    parsed.elementImports(), parsed.elementSources());
+            try {
+                var ctx = com.legend.Compiler.buildModel(m);
+                java.util.Map<String, String> walls = com.legend.Compiler.compileAllBodies(ctx);
+                return walls.isEmpty() ? "ACCEPTED" : "WALLS " + walls;
+            } catch (RuntimeException e) {
+                return "REFUSED " + e.getMessage();
+            }
+        };
+        assertEquals("ACCEPTED", compile.apply("test::IntCap|x|Number",
+                "function test::x():test::IntCap(1)[0..1]\n{\n  [];\n}\n"));
+        assertEquals("ACCEPTED", compile.apply("test::IntCap|x|Integer", "Class x::A\n{\n  v : test::IntCap(2)[1];\n}\n"));
+        assertEquals("ACCEPTED", compile.apply("a::P|x|Integer", "Class a::Container2\n{\n  val : a::P(8)[1];\n}\n"));
+        String refused = compile.apply("test::IntCap|x|Integer", "Class x::A\n{\n  v : test::IntCap()[1];\n}\n");
+        assertTrue(refused.startsWith("REFUSED ") && refused.endsWith(
+                "Wrong type variables count (0) for type: IntCap(x:Integer)"), refused);
+        // resolution itself: the rebuilt extension keeps its variable, whose type resolves through the imports, and a
+        // class's type variable's type resolves too
+        ParsedModel parsed = com.legend.door.ModelFromText.parse("""
+                import a::*;
+                Class a::C
+                {
+                  x : Integer[1];
+                }
+                """, com.legend.parser.Dialect.LEGEND_LITE);
+        List<PackageableElement> elements = new java.util.ArrayList<>(parsed.elements());
+        elements.add(new com.legend.model.PrimitiveExtensionDefinition("a::P", "a::Base", List.of(
+                new com.legend.protocol.ParameterDefinition("x", new TypeExpression.NameRef("C"),
+                        Multiplicity.Concrete.PURE_ONE))));
+        ClassDefinition c = (ClassDefinition) elements.get(0);
+        elements.set(0, new ClassDefinition(c.qualifiedName(), c.typeParams(), List.of(
+                new com.legend.protocol.ParameterDefinition("y", new TypeExpression.NameRef("C"),
+                        Multiplicity.Concrete.PURE_ONE)), c.superClasses(), c.properties(),
+                c.derivedProperties(), c.constraints(), c.stereotypes(), c.taggedValues(), c.isNative(),
+                c.multiplicityParams()));
+        java.util.Map<String, ImportScope> imports = new java.util.LinkedHashMap<>(parsed.elementImports());
+        imports.put("a::P", imports.get("a::C"));
+        ParsedModel r = NameResolver.resolve(new ParsedModel(elements, parsed.imports(), parsed.source(),
+                parsed.elementOffsets(), imports, parsed.elementSources()));
+        com.legend.model.PrimitiveExtensionDefinition pe = (com.legend.model.PrimitiveExtensionDefinition) r.elements()
+                .get(1);
+        assertEquals(1, pe.typeVariables().size(), "the rebuilt extension keeps its type variable");
+        assertEquals("a::C", ((TypeExpression.NameRef) pe.typeVariables().get(0).type()).name(),
+                "and its type resolves in the element's scope");
+        assertEquals("a::C", ((TypeExpression.NameRef) ((ClassDefinition) r.elements().get(0)).typeVariables().get(0)
+                .type()).name(), "a class's type variable's type resolves too");
+    }
+
     @Test
     void resolveProducesSameInstanceWhenNothingChanges() {
         // Already-FQN tree round-trips through resolve with reference

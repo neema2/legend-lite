@@ -410,11 +410,18 @@ public final class NameResolver {
             case com.legend.model.DataDefinition dd -> dd;
             case com.legend.model.PrimitiveExtensionDefinition pe -> {
                 // base primitives (String, Integer...) pass through resolveName
-                // unchanged; an extension-of-extension base resolves via imports
+                // unchanged; an extension-of-extension base resolves via imports.
+                // Its type variables ride the rebuild and each one's declared type resolves in the element's scope
+                // (until 2026-11-13 the two-argument form dropped them and their types were never walked, so
+                // `Primitive IntCap(x:Integer[1])` used as `IntCap(2)` was refused and `IntCap()` accepted -- the
+                // engine compiles the first and refuses the second: legend-pure TestPrimitiveCompile, legend-engine
+                // CompileContext.newGenericType :756-771; the names landings, docs/rust-port/PHASE3_SHIM_DESIGN.md
+                // §10 ruling 32)
                 String base = resolveName(pe.baseTypeName(), scope);
-                yield base.equals(pe.baseTypeName()) ? pe
+                List<ParameterDefinition> typeVariables = resolveParameterList(pe.typeVariables(), scope);
+                yield base.equals(pe.baseTypeName()) && typeVariables == pe.typeVariables() ? pe
                         : new com.legend.model.PrimitiveExtensionDefinition(
-                                pe.qualifiedName(), base);
+                                pe.qualifiedName(), base, typeVariables);
             }
             case ClassDefinition cd -> resolveClass(cd, scope);
             case AssociationDefinition ad -> resolveAssociation(ad, scope);
@@ -836,18 +843,21 @@ public final class NameResolver {
         // inside the body. Push them onto the scope before resolving
         // anything that could mention them.
         Scope scope = outer.withTypeParams(cd.typeParams());
+        // its type variables' declared types resolve in its scope (until 2026-11-13 they were not walked: the names
+        // landings, ruling 32)
+        List<ParameterDefinition> typeVariables = resolveParameterList(cd.typeVariables(), scope);
         List<TypeExpression> superClasses = resolveTypeList(cd.superClasses(), scope);
         List<PropertyDefinition> properties = resolvePropertyList(cd.properties(), scope);
         List<DerivedPropertyDefinition> derived = resolveDerivedList(cd.derivedProperties(), scope);
         List<ConstraintDefinition> constraints = resolveConstraintList(cd.constraints(), scope);
         List<StereotypeApplication> stereotypes = resolveStereotypes(cd.stereotypes(), scope);
         List<TaggedValue> taggedValues = resolveTaggedValues(cd.taggedValues(), scope);
-        if (superClasses == cd.superClasses() && properties == cd.properties()
+        if (typeVariables == cd.typeVariables() && superClasses == cd.superClasses() && properties == cd.properties()
                 && derived == cd.derivedProperties() && constraints == cd.constraints()
                 && stereotypes == cd.stereotypes() && taggedValues == cd.taggedValues()) {
             return cd;
         }
-        return new ClassDefinition(cd.qualifiedName(), cd.typeParams(), cd.typeVariables(),
+        return new ClassDefinition(cd.qualifiedName(), cd.typeParams(), typeVariables,
                 superClasses, properties, derived, constraints,
                 stereotypes, taggedValues, cd.isNative(), cd.multiplicityParams());
     }
