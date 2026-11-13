@@ -2,17 +2,29 @@
 // imports nothing beyond web.ts, so install-web.ts can install the digest before any module that needs it loads.
 
 import { base64, fromBase64 } from './web.ts';
-import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
-/** What the host answers. Bytes cross as base64: an engine and its host share strings, not memory. */
+/**
+ * What the host answers. Bytes cross as base64: an engine and its host share strings, not memory. What DataCube's code
+ * asks of the host's database is INTENT, each planned by the host's planner and run by its runner (data-host.ts; the #6
+ * bridge, the user's go of 2026-11-12): no call carries a statement or a plan of DataCube's -- until then `query` and
+ * `statement` carried each statement DataCube's code had planned, both deleted.
+ */
 export interface HostCalls {
   /** One planner request (engine-client's planner-protocol.ts's Request, as JSON), answered as its Response (JSON). */
   planner(request: string): Promise<string>;
-  /** One SQL statement run by the host's database: its result as an Arrow IPC stream, base64. */
-  query(sql: PlannedSql): Promise<string>;
-  /** One SQL statement run with its `?`s bound (`params`: their values, a JSON list) -- a write's step (an Output into a
-   *  table: table-output.ts), run in no read of the host's: its result as `query`'s. */
-  statement(sql: PlannedSql, params: string): Promise<string>;
+  /** One load (data-host.ts LoadRequest, JSON: the planner's request), planned and run by the host on its database,
+   *  binding what `holds` names (LoadHolds, JSON); a mount's settings of the connection kept by the host. */
+  load(request: string, holds: string): Promise<void>;
+  /** Host operations (host-operations.ts HostOperation[], JSON) planned for `databaseType` and run in order by the host:
+   *  each one's last statement's rows, JSON. */
+  operations(databaseType: string, operations: string): Promise<string>;
+  /** A table's columns as the host's catalog says them: `{"columns", "rows"}`, JSON. */
+  catalog(schema: string, table: string): Promise<string>;
+  /** A table Output (table-output.ts OutputRequest, JSON: the box's tables and the target as the catalog answered them,
+   *  the output, its rows as a lambda), planned by the host as ONE plan (Boundary.outputPlan) and run in the plan's own
+   *  transaction: its answer, lite's JSON rows (the DataCube stream's merge, 2026-11-13: until then a dialogue of a
+   *  transaction's steps, a create and a write, which the one plan replaced). */
+  output(request: string): Promise<string>;
   /** A digest (crypto.subtle.digest): the algorithm's name ('SHA-256', ...) and the data, base64; the digest, base64. */
   digest(algorithm: string, data: string): Promise<string>;
   /**

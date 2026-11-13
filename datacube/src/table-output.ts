@@ -8,13 +8,16 @@
 // catalog before the plan is asked for. Every value is the database's: the rows it writes, the count it answers. A
 // failure anywhere takes back everything, the table made among it.
 //
-// One writer for the tab (app.ts writeOutput) and Python's flow.run (headless gridWriteTable). PURE: no DOM; a host gives
-// its database, held for the write, and its planner.
+// One writer for the tab (app.ts writeOutput) and Python's flow.run (headless gridWriteTable). PURE: no DOM. A host is
+// asked two things, each INTENT (the #6 bridge, 2026-11-12, met by the one plan in the DataCube stream's merge,
+// 2026-11-13): a table's columns as its catalog says them, and the Output's request, which the host plans as one plan
+// and runs (heldTableOutput, the tab's; headless/host.ts hostTableOutput, Python's) -- never a statement or a plan of
+// DataCube's.
 
 import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
 import { runPlan } from '../../engine-client/src/plan-runner.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
-import type { ModelTable, OutputRequest, TableModels } from './infer.ts';
+import type { CatalogColumn, ModelTable, OutputRequest, TableModels } from './infer.ts';
 import type { TableOutput } from './layout/flow.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { catalogColumnsOf } from './upload.ts';
@@ -31,17 +34,17 @@ export interface TableWriteHost {
   readonly sources: readonly { readonly table: string; readonly convertible: boolean; readonly pkg?: string }[];
   /** Tables of the host's database no Output may write: the page's own (its files, its copies). */
   readonly held: (table: string) => boolean;
-  /** The catalog's question, and the Output's plan (Boundary.outputPlan). */
-  readonly models: Pick<TableModels, 'catalogColumnsSql' | 'outputPlan'>;
-  /** The host's database held for the write alone (duckdb.ts exclusive). */
-  hold<T>(work: (held: HeldConnection) => Promise<T>): Promise<T>;
+  /** A table's columns as the host's catalog says them now (none: no such table). */
+  catalog(schema: string, table: string): Promise<CatalogColumn[]>;
+  /** The Output's request planned by the host as ONE plan (Boundary.outputPlan) and run by its runner in the plan's own
+   *  transaction: its answer, lite's JSON rows (the count the database wrote). */
+  output(request: OutputRequest): Promise<string>;
 }
 
 /**
  * THE BOX'S ROWS WRITTEN INTO ITS TABLE (`rows`: its rows as it hands them on, flow-output.ts outputQuery's query): the
- * count of rows the database wrote. Refused in words: a table of the page's own, a box that reads none of the host's
- * tables; the database's own words for the rest (a table that exists already for a create, none for an append, a column
- * of the box's the table has not).
+ * count of rows the database wrote. Refused in words: a table of the page's own; the database's own words for the rest
+ * (a table that exists already for a create, none for an append, a column of the box's the table has not).
  */
 export async function writeTable(rows: Lambda, output: TableOutput, host: TableWriteHost): Promise<number> {
   if (host.held(output.name)) {
@@ -50,16 +53,13 @@ export async function writeTable(rows: Lambda, output: TableOutput, host: TableW
   const makes = output.mode === 'create' || output.mode === 'overwrite';
   // the box's tables and, where it is there already, the target, as the catalog answers them now: read BEFORE the plan
   // is asked for, which then runs whole (the orchestrator's ruling, 2026-11-12: the sources' model is read before the run)
-  const { tables, target } = await host.hold(async (held) => {
-    const engine = { run: (sql: PlannedSql) => held.table(sql) };
-    const read: ModelTable[] = [];
-    for (const s of [...new Set(host.sources.map((x) => x.table))]) {
-      const given = host.sources.find((x) => x.table === s)!;
-      read.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
-        columns: await catalogColumnsOf(engine, host.models, SCHEMA, s) });
-    }
-    return { tables: read, target: makes ? [] : await catalogColumnsOf(engine, host.models, SCHEMA, output.name) };
-  });
+  const tables: ModelTable[] = [];
+  for (const s of [...new Set(host.sources.map((x) => x.table))]) {
+    const given = host.sources.find((x) => x.table === s)!;
+    tables.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
+      columns: await host.catalog(SCHEMA, s) });
+  }
+  const target = makes ? [] : await host.catalog(SCHEMA, output.name);
   const request: OutputRequest = {
     databaseType: host.databaseType,
     tables,
@@ -68,8 +68,26 @@ export async function writeTable(rows: Lambda, output: TableOutput, host: TableW
     // a table there already is named by its columns; none, the planner refuses the write by name
     ...(target.length > 0 ? { target } : {}),
   };
-  const plan = await host.models.outputPlan(request);
-  return countOf(await host.hold((held) => runPlan(plan, { databaseType: host.databaseType, run: held.rows })));
+  return countOf(await host.output(request));
+}
+
+/**
+ * A TABLE OUTPUT ON A DATABASE RUN IN THIS PROCESS (the tab's): the catalog's question and the Output's plan its
+ * planner's (`models`), each run on the database held for it alone (duckdb.ts exclusive) -- the plan whole, in its own
+ * transaction (runPlan).
+ */
+export function heldTableOutput(
+  database: { readonly databaseType: string; exclusive<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> },
+  models: Pick<TableModels, 'catalogColumnsSql' | 'outputPlan'>,
+): Pick<TableWriteHost, 'catalog' | 'output'> {
+  return {
+    catalog: (schema, table) => database.exclusive((held) =>
+      catalogColumnsOf({ run: (sql: PlannedSql) => held.table(sql) }, models, schema, table)),
+    output: async (request) => {
+      const plan = await models.outputPlan(request);
+      return database.exclusive((held) => runPlan(plan, { databaseType: database.databaseType, run: held.rows }));
+    },
+  };
 }
 
 /** The count a write's plan answers: its relation's one row (`[{"value": n}]`, as the database wrote it). */

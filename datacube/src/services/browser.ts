@@ -19,7 +19,7 @@ import type { TableModels } from '../infer.ts';
 import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
 import { PlanThenRun } from '../runner.ts';
-import { forgetUpload, ingestFile, mountRemoteView, type DuckDbFiles } from '../upload.ts';
+import { dataHost, forgetUpload, ingestFile, mountRemoteView, type DuckDbFiles } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
 import type {
   ConfiguredProject,
@@ -138,7 +138,8 @@ function tabDatabase(duck: { readonly engine: DuckDbEngine; readonly db: DuckDbF
   return {
     ingestFile: (file, options) => ingestFile(engine, db, file, tables, options),
     forgetFile: (fileName, table) => forgetUpload(engine, tables, db, fileName, table),
-    mountRemote: (url, s3, name) => mountRemoteView(engine, tables, { url, name, ...(s3 ? { s3 } : {}) }),
+    mountRemote: async (url, s3, name) =>
+      mountRemoteView((await dataHost()).heldDataHost(engine, tables), tables, { url, name, ...(s3 ? { s3 } : {}) }),
   };
 }
 

@@ -150,13 +150,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const tables = place.tables;
     if (local === undefined || engine?.exclusive === undefined || tables === undefined || tables.length === 0 || place.runner || place.snapTarget) return undefined;
     return async (rows, output) => {
-      const { writeTable } = await import('../table-output.ts');
+      const { heldTableOutput, writeTable } = await import('../table-output.ts');
       const wrote = await writeTable(rows, output, {
         databaseType: engine.databaseType,
         sources: tables.map((table) => ({ table, convertible: true })),
         held: (table) => tablesTaken?.(table) ?? true,
-        models: local.tables,
-        hold: (work) => engine.exclusive!(work),
+        ...heldTableOutput({ databaseType: engine.databaseType, exclusive: (work) => engine.exclusive!(work) }, local.tables),
       });
       // its table this tab's from now on: no file read in after takes its name (and replaces it)
       tableWritten?.(output.name);

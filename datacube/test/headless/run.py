@@ -38,46 +38,38 @@ TMP = Path(os.environ['TEST_TMPDIR'])
 from legend_lite._headless import KINDS, REFUSED, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
 from legend_lite._library import library  # noqa: E402
 
-# the product host's calls (calls.ts HostCalls): a test's own database is none of them
-PRODUCT_CALLS = ['planner', 'query', 'statement', 'digest', 'fetch', 'engine']
+# the product host's calls (calls.ts HostCalls): intent alone, each planned and run by Python -- no statement, no plan
+PRODUCT_CALLS = ['planner', 'load', 'operations', 'catalog', 'output', 'digest', 'fetch', 'engine']
 
 
 class TestHost(Headless):
-    """THE LANE'S HOST (2026-11-12, the total wall): the product's, and a test's own database beside it
-    (test/host/headless.ts) -- a test runs its own SQL on Python's DuckDB as written (a fixture's table, a planner's
-    statement it checks), which the product's host never takes (its bridge admits only what its planner answered,
-    _planned.py across_the_bridge); and registers a file its database reads by name. Its calls are the lane's, on the
-    same global; the product's bundle has none of them."""
+    """THE LANE'S HOST: the product's, and a test's own database beside it (test/host/headless.ts, the #6 bridge,
+    2026-11-12) -- a test runs its own SQL on Python's DuckDB as written (a fixture's table, a planner's statement it
+    checks), which the product's host never takes; and registers a file its database reads by name. Its calls are the
+    lane's, on the same global; the product's bundle has none of them."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # the product's statements that crossed the product's bridge (the C final audit's H7, 2026-11-12): a test's own
-        # go to the test calls, every other one to the product's `query` and `statement`, checked there as the
-        # bundle's are -- counted, so a lane that stopped crossing it is red (DataCubeTests)
+        # the product's intent calls the bundles made (the C final audit's H7, 2026-11-12, kept on the bridge on intent by
+        # the DataCube stream's merge, 2026-11-13: no statement crosses now, so what is counted is the product's own
+        # calls of its database -- a load, operations, a catalog, an output, the engine's plan-and-run): a lane that
+        # stopped making them is red (DataCubeTests)
         self.crossed = 0
 
+    INTENT = ('load', 'operations', 'catalog', 'output', 'engine')
+
     def _calls(self):
-        return {**super()._calls(), 'testQuery': self._test_query, 'testStatement': self._test_statement,
+        calls = super()._calls()
+
+        def counted(call):
+            async def made(*args):
+                self.crossed += 1
+                return await call(*args)
+            return made
+
+        return {**calls, **{k: counted(calls[k]) for k in self.INTENT},
+                'testQuery': self._test_query, 'testStatement': self._test_statement,
                 'testRegisterFile': self._test_register_file}
-
-    async def _planner(self, request):
-        """A host operation's texts a test typed itself (test/host/headless.ts `testsOwn`): its fake planner's answers,
-        recorded as the session's planner's before the request is checked (the re-audit's S3). The lane's alone: the
-        product's host reads no such field."""
-        asked = json.loads(request)
-        for text in asked.pop('testsOwn', []):
-            self.answered.record('plan', 'OK\n' + json.dumps({'sql': text}))
-        return await super()._planner(json.dumps(asked))
-
-    async def _query(self, sql):
-        answered = await super()._query(sql)
-        self.crossed += 1
-        return answered
-
-    async def _statement(self, sql, params):
-        answered = await super()._statement(sql, params)
-        self.crossed += 1
-        return answered
 
     def _arrow(self, result):
         import pyarrow as pa
@@ -124,12 +116,14 @@ class Host(unittest.TestCase):
             self.assertEqual(h.evaluate("[typeof TextEncoder, typeof URL, typeof AbortController, typeof crypto.subtle.digest]"),
                              ['function'] * 4)
 
-    def test_a_plan_through_the_worker_runs_on_the_database(self):
+    def test_the_planner_answers_through_the_worker_and_the_database_is_asked_intent_alone(self):
+        # the #6 bridge (2026-11-12): the product host's calls carry intent, each planned and run by Python -- a planner
+        # request through the worker answered (a refusal is an answer, not a failure), a table's catalog and a count
+        # asked of the database by name; no call takes a statement
         model = ('###Relational\nDatabase a::DB ( Table t ( x INTEGER, s VARCHAR(8) ) )\n###Connection\n'
                  'RelationalDatabaseConnection a::C { store: a::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n'
                  '###Runtime\nRuntime a::RT { mappings: []; connections: [ a::DB: [ c: a::C ] ]; }')
         with TestHost(PRODUCT, folder=TMP) as h:
-            # the test's own table, through its own host's call; the planner's statement through the product's
             h.evaluate("legendLiteHost.testQuery(\"CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(x, s)\")")
             h.execute("globalThis.planned = (async (model) => {"
                       " const w = legendLite.worker();"
@@ -138,13 +132,20 @@ class Host(unittest.TestCase):
                       " const handle = Number(held.answer.split('\\n')[1]);"
                       " const plan = await ask({ id: 2, kind: 'plan', handle, query: '|#>{a::DB.t}#->filter(r|$r.x > 1)->select(~[s])', runtime: 'a::RT' });"
                       " const refused = await ask({ id: 3, kind: 'plan', handle, query: '|#>{a::DB.t}#', runtime: 'a::NoSuch' });"
-                      " const db = legendLite.database.connection;"
-                      " const t = await db.query(JSON.parse(plan.answer.slice(3)).sql);"
-                      " const rows = []; for (let i = 0; i < t.numRows; i++) rows.push(t.getChildAt(0).get(i));"
-                      " return { rows, refused: [refused.ok, refused.answer.split('\\n')[0]] };"
+                      " const columns = (await legendLite.data.catalog('main', 't')).map((c) => [c.name, c.dataType]);"
+                      " const [count] = await legendLite.data.operations([{ op: 'count', from: { relation: { name: 't' } } }]);"
+                      " return { planned: plan.answer.split('\\n')[0], refused: [refused.ok, refused.answer.split('\\n')[0]], columns, count };"
                       f" }})({json.dumps(model)});")
-            self.assertEqual(h.evaluate('planned'), {'rows': ['b', 'c'], 'refused': [True, 'ERR']},
-                             "planned by the native library, run on Python's DuckDB; a refusal is an answer, not a failure")
+            self.assertEqual(h.evaluate('planned'), {'planned': 'OK', 'refused': [True, 'ERR'],
+                                                     'columns': [['x', 'INTEGER'], ['s', 'VARCHAR']], 'count': [[3]]})
+
+    def test_the_product_hosts_calls_are_intent_alone(self):
+        # no call of the product's host takes a statement or a plan: the lane's own (TestHost) are not the product's
+        with Headless(PRODUCT, folder=TMP) as h:
+            self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'), PRODUCT_CALLS)
+        with TestHost(PRODUCT, folder=TMP) as h:
+            self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'),
+                             [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile'])
 
     def test_every_timeout_fires_as_a_browsers_does(self):
         # HTML's setTimeout: no delay, 0 and a negative one are all 0 (mini-racer's own throws or never fires for them,
@@ -180,32 +181,29 @@ class Host(unittest.TestCase):
         self.assertEqual((TMP / 'files' / 'in.csv').read_text(), 'a\n1\n')
 
     def test_the_products_host_hands_the_planner_no_sql_in_a_host_operation(self):
-        # the final audit's item 1 (2026-11-12; until then the re-audit's S3 admitted a text the planner had answered): a
-        # host operation takes no SQL, so the product's host refuses one carrying any -- whatever else the request names
-        # (the lane's own `testsOwn` is its TestHost's alone)
+        # the final audit's item 1 (2026-11-12): a host operation takes no SQL, so the product's host refuses one carrying
+        # any, the planner never asked (_planned.py host_operation_refusal)
         with Headless(PRODUCT, folder=TMP) as h:
             said = h.evaluate("(async () => { const w = legendLite.worker();"
                               " const ask = (m) => new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.postMessage(m); });"
-                              " return ask({ id: 1, kind: 'hostOperations', databaseType: 'DuckDB', testsOwn: ['DROP TABLE t'],"
+                              " return ask({ id: 1, kind: 'hostOperations', databaseType: 'DuckDB',"
                               " operations: JSON.stringify([{ op: 'count', from: { query: 'DROP TABLE t' } }]) }); })()")
             self.assertFalse(said['ok'])
             self.assertIn('takes no SQL, and its query is SQL', said['error'])
 
-    def test_the_hosted_codes_http_to_a_sql_api_crosses_the_bridge(self):
-        # the re-audit's S9 (2026-11-12): a fetch whose JSON carries a statement (a warehouse's submit) is refused by
-        # name unless the session's planner answered it -- before any connection is made (the port below is closed)
+    def test_the_hosted_codes_http_to_a_sql_api_carries_no_statement(self):
+        # the re-audit's S9 (2026-11-12), on the bridge on intent (the DataCube stream's merge, 2026-11-13): a fetch whose
+        # JSON carries a statement (a warehouse's submit) is refused by name, whatever the statement -- before any
+        # connection is made (the port below is closed)
         with Headless(PRODUCT, folder=TMP) as h:
             said = h.evaluate("legendLiteHost.fetch('POST', 'http://127.0.0.1:9/sql/v1/statements',"
-                              " JSON.stringify({ sql: 'DROP TABLE t', catalog: 'c' })).then(() => 'sent', (e) => String(e))")
-            self.assertIn("not a statement this session's planner answered", said)
+                              " JSON.stringify({ sql: 'SELECT 1', catalog: 'c' })).then(() => 'sent', (e) => String(e))")
+            self.assertIn('carries a statement', said)
 
     def test_a_tests_own_database_is_no_call_of_the_products(self):
-        # 2026-11-12: the tests' setup SQL is the lane's own host's; the product's host takes only what its planner
-        # answered, and refuses a test's statement by name
+        # the product's host takes intent alone; a test's own database is the lane's TestHost's
         with Headless(PRODUCT, folder=TMP) as h:
             self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'), PRODUCT_CALLS)
-            refused = h.evaluate("legendLite.database.connection.query('CREATE TABLE u (x INTEGER)').then(() => 'run', (e) => String(e))")
-            self.assertIn("not a statement this session's planner answered", refused)
         with TestHost(PRODUCT, folder=TMP) as h:
             self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'),
                              [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile'])

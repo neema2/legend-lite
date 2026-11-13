@@ -10,7 +10,10 @@ text by name; this pins, over every module of the package, where the type is mad
   `x.__class__(...)`, no `__new__`.
 - A send -- `.execute`, `.executemany`, `.sql`, `.query`, `.from_query` on ANY receiver -- is _planned.send's, or pinned
   by its module and receiver (SENDS).
-- The bridge's crossings (`across_the_bridge`), counted by module (BRIDGE).
+- No statement crosses the V8 bridge: DataCube's hosted code asks Python for intent, which Python plans and runs (the #6
+  bridge, the user's go of 2026-11-12); the crossing's check and its set (`across_the_bridge`, `Answered`) are deleted,
+  and refused by name should either come back (GONE; BRIDGE's counts went with them: the DataCube stream's merge,
+  2026-11-13).
 - (The C final audit's H4, 2026-11-12) each mint's uses, counted by module (MINT_REFERENCES, as the TypeScript guard's
   MINT_REFERENCES); duckdb imported as itself alone (`import duckdb as d`, `from duckdb import connect` refused); a send
   method reached and not called (`run = con.execute`, `getattr(con, 'execute')`) pinned or refused; and a value attached
@@ -35,14 +38,18 @@ FILES = runfiles.Create()
 # send, the bridge's check or the type's check (require).
 IMPORTS = {
     # 2026-11-12 (the second audit): the host's Database (connect, Database, Result) where a database is made or held
-    '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect', 'send'},
+    # 2026-11-12 (the #6 bridge): the bridge's check and set deleted; the type, for what the host's calls run
+    # 2026-11-13 (the DataCube stream's merge): a host operation's no-SQL refusal at the planner door, and a hosted
+    # fetch carrying a statement refused by name (NotPlanned)
+    '_headless.py': {'Database', 'NotPlanned', 'PlannedSql', 'connect', 'host_operation_refusal', 'send'},
     '_host.py': {'PlannedSql', 'send'},
     # 2026-11-12 (the C final audit's H2): require, a host operation's planner text and a snapshot's stream checked
     # 2026-11-12 (the final audit's item 1): require gone -- a host operation takes no SQL, so none is checked here
     'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan',
                     # 2026-11-12 (the re-audit's M1): the plan the planner answered, typed as read
                     'PlanText', 'plan_from_answer'},
-    'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan', 'send'},
+    # 2026-11-13 (the DataCube stream's merge of the #6 bridge): the bridge's check gone
+    'engine.py': {'PlannedSql', 'connect', 'from_plan', 'send'},
     'frames.py': {'Database', 'PlannedSql', 'Result', 'connect', 'send'},
     # 2026-11-12 (M1): the runners read only a plan the planner answered (read_plan)
     'projects.py': {'PlannedSql', 'PlanText', 'all_from_plan', 'from_plan', 'read_plan', 'send'},
@@ -63,11 +70,10 @@ SENDS = {
     ('_headless.py', 'execute', 'self._over'),
 }
 
-# The bridge's crossings by module. 2026-11-12 (C3): the hosted DataCube's query and statement (_headless.py), and a
-# remote file's settings its plan runner kept (engine.py).
-BRIDGE = {
-    # 2026-11-12 (the re-audit's S9): the hosted code's HTTP to a SQL API, its `sql` crossing as a query's does
-    '_headless.py': 3, 'engine.py': 1}
+# Names that must not come back. 2026-11-12 (the #6 bridge): the crossing that admitted DataCube's statements by the set
+# its planner had answered, deleted with the calls that carried them (calls.ts query, statement). 2026-11-13 (the
+# DataCube stream's merge): BRIDGE, its crossings' counts by module, went with it -- none is left to count.
+GONE = {'across_the_bridge', 'Answered'}
 
 # (TYPE_CALLS -- frames.py's `type(failure)(out)`, a database error rebuilt of its own type: GONE 2026-11-12, the
 # re-audit's S4. Outside _planned.py a value's type is named (`type(x).__name__`) or compared (`type(x) is T`), never
@@ -173,14 +179,14 @@ def _named_or_compared(call: ast.Call, parents: dict) -> bool:
 
 
 def census(name: str, source: str) -> dict:
-    """One module, read: the names it imports from _planned, each form the guard refuses, its sends and its crossings."""
+    """One module, read: the names it imports from _planned, each form the guard refuses, and its sends."""
     tree = ast.parse(source)
     imported: set[str] = set()
     refused: list[str] = []
     sends: set[tuple[str, str, str]] = set()
     references: set[tuple[str, str, str]] = set()
     attaches: set[tuple[str, str, str]] = set()
-    crossings = mints = authored = submits = runner_calls = runner_names = 0
+    mints = authored = submits = runner_calls = runner_names = 0
     network: set[str] = set()
     own = name == '_planned.py'
     called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
@@ -275,9 +281,11 @@ def census(name: str, source: str) -> dict:
                 refused.append(f'line {node.lineno}: duckdb.connect(): a database is the host\'s Database (_planned.connect)')
             if isinstance(f, ast.Attribute) and f.attr in SEND_METHODS:
                 sends.add((name, f.attr, ast.unparse(f.value)))
-            if isinstance(f, ast.Name) and f.id == 'across_the_bridge':
-                crossings += 1
-    return {'imported': imported, 'refused': refused, 'sends': sends, 'crossings': crossings, 'mints': mints,
+        if (isinstance(node, ast.Name) and node.id in GONE or isinstance(node, (ast.FunctionDef, ast.ClassDef))
+                and node.name in GONE or isinstance(node, ast.alias) and node.name in GONE):
+            refused.append(f"line {getattr(node, 'lineno', '?')}: {getattr(node, 'id', None) or node.name}: the bridge's "
+                           'statement check is deleted -- DataCube asks Python for intent (the #6 bridge)')
+    return {'imported': imported, 'refused': refused, 'sends': sends, 'mints': mints,
             'references': references, 'attaches': attaches, 'authored': authored, 'submits': submits,
             'network': network, 'runner_calls': runner_calls, 'runner_names': runner_names}
 
@@ -299,6 +307,9 @@ class PlannedGuardTest(unittest.TestCase):
             'PlannedSql("SELECT 1")',
             'duckdb.connect()',
             'frames.connection._con.execute(q)',
+            'across_the_bridge(text, what, answered)',
+            'class Answered:\n    pass',
+            'from ._planned import Answered',
         ]:
             self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
         self.assertEqual({'from_plan', 'send'}, census('m.py', 'from ._planned import from_plan, send')['imported'])
@@ -364,7 +375,7 @@ class PlannedGuardTest(unittest.TestCase):
             ('a form refused', 'import legend_lite._planned'),
             ('IMPORTS', 'from ._planned import send'),
             ('SENDS', "con.execute('SELECT 1')"),
-            ('BRIDGE', 'across_the_bridge(answered, text)'),
+            ('GONE', 'across_the_bridge(answered, text)'),
             ('MINT_REFERENCES', 'statement = from_plan(text)'),
             ('REFERENCES', 'run = con.execute'),
             ('ATTACHES', "con.register('t', frame)"),
@@ -402,7 +413,6 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
     imports: dict[str, set[str]] = {}
     refused: list[str] = []
     sends: set[tuple[str, str, str]] = set()
-    bridge: dict[str, int] = {}
     mints: dict[str, int] = {}
     references: set[tuple[str, str, str]] = set()
     attaches: set[tuple[str, str, str]] = set()
@@ -417,8 +427,6 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
         if c['imported']:
             imports[name] = c['imported']
         sends |= c['sends']
-        if c['crossings'] and name != '_planned.py':
-            bridge[name] = c['crossings']
         if c['mints']:
             mints[name] = c['mints']
         references |= c['references']
@@ -440,8 +448,6 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
                      {'compiler.py', 'projects.py', 'engine.py'}, 'the mints, by module')
     case.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
                                    ' any text no plan carries (SENDS)')
-    case.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'
-                                     ' crossings alone (BRIDGE)')
     case.assertEqual(MINT_REFERENCES, mints, 'each mint\'s uses, by module (MINT_REFERENCES): a new one is a new'
                                              ' place a text is typed as a plan\'s')
     case.assertEqual(REFERENCES, references, 'a send method reached and not called is a field of a plan, a URL or'

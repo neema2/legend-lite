@@ -1,0 +1,96 @@
+{
+  "_about": "THE WRITE RUNNERS' CONFORMANCE (the #6 bridge, 2026-11-12, the orchestrator's ask): engine-client's runPlan (plan-runner.ts, joined: the tab's table output) and Python's projects.run_plan (a table output asked of Python by DataCube's hosted code) run the same plan -- the planner's executionPlan of this program over this model, inside a transaction the caller began -- and must answer the same count, leave the same rows, and refuse a plan of another database in the same words. Run by //engine-client:plan_runner_test and //python:engine_test.",
+  "model": "###Relational\nDatabase a::DB ( Table SRC ( ID INTEGER, NAME VARCHAR(8) ) Table DST ( ID INTEGER, NAME VARCHAR(8) ) )\n###Connection\nRelationalDatabaseConnection a::C { store: a::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime a::RT { mappings: []; connections: [ a::DB: [ c: a::C ] ]; }\n",
+  "runtime": "a::RT",
+  "databaseType": "DuckDB",
+  "setup": [
+    "CREATE TABLE SRC (ID INTEGER, NAME VARCHAR)",
+    "INSERT INTO SRC VALUES (1, 'a'), (2, 'b'), (3, 'c')",
+    "CREATE TABLE DST (ID INTEGER, NAME VARCHAR)"
+  ],
+  "program": {
+    "_type": "lambda",
+    "body": [
+      {
+        "_type": "func",
+        "function": "write",
+        "parameters": [
+          {
+            "_type": "func",
+            "function": "filter",
+            "parameters": [
+              {
+                "_type": "classInstance",
+                "type": ">",
+                "value": {
+                  "path": [
+                    "a::DB",
+                    "SRC"
+                  ]
+                }
+              },
+              {
+                "_type": "lambda",
+                "body": [
+                  {
+                    "_type": "func",
+                    "function": "greaterThan",
+                    "parameters": [
+                      {
+                        "_type": "property",
+                        "parameters": [
+                          {
+                            "_type": "var",
+                            "name": "r"
+                          }
+                        ],
+                        "property": "ID"
+                      },
+                      {
+                        "_type": "integer",
+                        "value": 1
+                      }
+                    ]
+                  }
+                ],
+                "parameters": [
+                  {
+                    "_type": "var",
+                    "name": "r"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "classInstance",
+            "type": ">",
+            "value": {
+              "path": [
+                "a::DB",
+                "DST"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "parameters": []
+  },
+  "answer": "[{\"value\":2}]",
+  "check": "SELECT ID, NAME FROM DST ORDER BY ID",
+  "rows": [
+    [
+      2,
+      "b"
+    ],
+    [
+      3,
+      "c"
+    ]
+  ],
+  "refused": {
+    "databaseType": "Postgres",
+    "words": "a plan of a DuckDB database is not run on this Postgres one"
+  }
+}

@@ -3,20 +3,20 @@
 // This half touches the duckdb-wasm handle and the browser's File object; the model is written
 // from the table's catalog by legend-lite's one writer (`TableModels`, infer.ts).
 
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { RawTable } from '../../engine-client/src/engine.ts';
-import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import type { Scalar } from '../../engine-client/src/result.ts';
 import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
 import { bearerName, mountRemote, secretName, type S3Credentials } from './remote.ts';
-import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/plan-runner.ts';
-import { runHostOperations } from '../../engine-client/src/host-operations.ts';
 import { isIdentifier } from '../../pure-protocol/src/index.ts';
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
+import type { DataHost, HeldDatabase } from './data-host.ts';
 
 /** The hosts' plan runner, fetched with the first file read (a chunk of its own: a grid-only page carries none of it). */
 const planRunner = (): Promise<typeof import('../../engine-client/src/plan-runner.ts')> =>
   import('../../engine-client/src/plan-runner.ts');
+
+/** The tab's host of its own database (data-host.ts heldDataHost), fetched with the first file read in or let go: a chunk of
+ *  its own, so a page's start carries none of it (the bundle budgets, 2026-11-12). */
+export const dataHost = (): Promise<typeof import('./data-host.ts')> => import('./data-host.ts');
 
 /**
  * The duckdb-wasm surface used here.
@@ -85,11 +85,11 @@ export function tableNameOf(fileName: string): string {
  * file's bytes go, so an open abandoned half-way leaves nothing held in the tab. The caller
  * makes sure no cube reads a table of the same name.
  */
-export async function forgetUpload(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
+export async function forgetUpload(engine: HeldDatabase, models: TableModels,
   db: DuckDbFiles, fileName: string,
   // the table it was read into, when not the file's own name (`ingestFile`'s `table`)
   table = tableNameOf(fileName)): Promise<void> {
-  await dropFileTable(engine, models, table);
+  await dropFileTable((await dataHost()).heldDataHost(engine, models), table);
   await db.dropFile?.(uploadFileName(table, fileName));
 }
 
@@ -259,7 +259,7 @@ export async function fileBytes(file: PickedFile): Promise<Uint8Array> {
 
 export async function ingestFile(
   // the tab's own DuckDB: what it reads the file into, and the database type its model declares
-  engine: DuckDbEngine,
+  engine: HeldDatabase,
   db: DuckDbFiles,
   file: PickedFile,
   // legend-lite's model writer (infer.ts): it reads the catalog and writes the model
@@ -283,7 +283,8 @@ export async function ingestFile(
   const size = bytes.length;
   await db.registerFileBuffer(virtualName, bytes);
   try {
-    return await readFileInto(engine, { at: virtualName, name: virtualName, digest, size, fileName: file.name, table }, models);
+    return await readFileInto((await dataHost()).heldDataHost(engine, models),
+      { handle: virtualName, name: virtualName, digest, size, fileName: file.name, table }, models);
   } catch (e) {
     // not read: its bytes let go of, as an upload overtaken is (forgetUpload)
     await db.dropFile?.(virtualName);
@@ -306,10 +307,11 @@ export function uploadFileName(table: string, fileName: string): string {
  * named -- the path never in a statement's text, the load never outside a plan.
  */
 export async function readFileInto(
-  engine: DuckDbEngine,
+  host: DataHost,
   file: {
-    /** What the database reads it by: a registered name, or a path (bound to the statement's ?, never written). */
-    readonly at: string;
+    /** The handle the host issued for the file (data-host.ts HeldFile): the tab's registered name, or a name in Python's
+     *  registry of the files it handed out -- never a path. Resolved by the host alone, bound to the statement's ?. */
+    readonly handle: string;
     /** The name the plan names it by (a relative name: never a machine's path), and its bytes' SHA-256 and size. */
     readonly name: string;
     readonly digest: string;
@@ -333,30 +335,16 @@ export async function readFileInto(
   // keeping a workaround that has outlived its bug.
   // The table's name is a person's (from a FILENAME: `pivot.csv` is a reserved word in DuckDB), so the planner quotes
   // it; the file read by its format -- a CSV sniffed with a header, Parquet, JSON with each record's keys its columns
-  // (anything nested below them a STRUCT or a LIST, kept: a Variant).
-  const target = { name: table };
-  const plan = await models.fileLoad({
-    databaseType: engine.databaseType,
-    file: { name: file.name, digest: file.digest, size: file.size, format },
-    into: { table },
-  });
-  // this host's store of its own files: the one this read names, by what its database reads it by
-  const files = {
-    located: async (ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string> => {
-      if (ref.name !== file.name || ref.digest !== file.digest || ref.size !== file.size) {
-        throw new Error(`the file '${ref.name}' is not the one this read holds (${file.name}, ${file.size} bytes of digest ${file.digest})`);
-      }
-      return file.at;
-    },
-  };
-  const { runLoad } = await planRunner();
-  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params), { files }));
+  // (anything nested below them a STRUCT or a LIST, kept: a Variant). The host plans the load and runs it, binding the
+  // file it holds by what the plan names it by (data-host.ts: the #6 bridge, 2026-11-12).
+  await host.load({
+    fileLoad: { databaseType: host.databaseType, file: { name: file.name, digest: file.digest, size: file.size, format }, into: { table } },
+  }, { files: [{ name: file.name, digest: file.digest, size: file.size, handle: file.handle }] });
 
-  const inferred = await modelLanded(engine, models, table);
+  const inferred = await modelLanded(host, models, table);
 
-  const [count] = await models.hostOperations(engine.databaseType, [{ op: 'count', from: { relation: target } }]);
-  const counted = await engine.run(count![0]!, 0);
-  const rowCount = Number(counted.columns[0]?.values[0] ?? 0);
+  const [counted] = await host.operations([{ op: 'count', from: { relation: { name: table } } }]);
+  const rowCount = Number(counted?.[0]?.[0] ?? 0);
 
   return {
     ...inferred,
@@ -374,17 +362,14 @@ export async function readFileInto(
  * none: it is a Variant as stored (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md). The table is ours to rewrite, so it is
  * rewritten in place.
  */
-export async function modelLanded(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
-  table: string): Promise<InferredModel> {
+export async function modelLanded(host: DataHost, models: Pick<TableModels, 'tableModel'>, table: string): Promise<InferredModel> {
   const target = { name: table };
-  const columns = await catalogColumns(engine, models, table);
-  const inferred = await models.tableModel(columns, { table, convertible: true, databaseType: engine.databaseType });
+  const columns = await host.catalog('main', table);
+  const inferred = await models.tableModel(columns, { table, convertible: true, databaseType: host.databaseType });
   if (inferred.conversions.length > 0) {
     // rewritten in place: the table's columns as its catalog holds them, each conversion the platform's to write (the
     // final audit's item 1(d), 2026-11-12: never the planner's select list handed back)
-    await runHostOperations(models, engine, [{
-      op: 'relation', kind: 'table', target, replace: true, convert: columns, from: { relation: target },
-    }]);
+    await host.operations([{ op: 'relation', kind: 'table', target, replace: true, convert: columns, from: { relation: target } }]);
   }
   return inferred;
 }
@@ -392,32 +377,24 @@ export async function modelLanded(engine: QueryEngine & { readonly databaseType:
 /**
  * A REMOTE FILE MOUNTED AS A VIEW named `name`, and its model written from what the catalog found -- the one
  * implementation of reading a remote Parquet, CSV or Iceberg file, on every host: the tab's DuckDB-WASM, a host's DuckDB
- * (headless/data-in.ts). A view of a remote file cannot be rewritten: a column that needs a conversion is left out.
+ * (headless/data-in.ts). A view of a remote file cannot be rewritten: a column that needs a conversion is left out. The
+ * settings its mount made on the connection (a bearer URL's session variable) are the host's to keep and replay.
  */
-export async function mountRemoteView(engine: DuckDbEngine, models: TableModels,
+export async function mountRemoteView(host: DataHost, models: Pick<TableModels, 'tableModel'>,
   file: { readonly url: string; readonly s3?: S3Credentials; readonly name: string }): Promise<InferredModel> {
-  return (await mountedView(engine, models, file)).model;
-}
-
-/** {@link mountRemoteView}, with the settings its mount made on the connection (a bearer URL's session variable: the
- *  plan's held binds, no value) -- what a host that opens a connection per read replays on each (Python's). */
-export async function mountedView(engine: DuckDbEngine, models: TableModels,
-  file: { readonly url: string; readonly s3?: S3Credentials; readonly name: string }): Promise<{ readonly model: InferredModel; readonly settings: readonly KeptSetting[] }> {
-  const [mounted] = await mountRemote(engine, models, { sources: [{ name: file.name, url: file.url }], ...(file.s3 ? { s3: file.s3 } : {}) });
-  const model = await models.tableModel(await catalogColumns(engine, models, file.name), {
-    table: file.name, convertible: false, databaseType: engine.databaseType,
+  await mountRemote(host, { sources: [{ name: file.name, url: file.url }], ...(file.s3 ? { s3: file.s3 } : {}) });
+  return models.tableModel(await host.catalog('main', file.name), {
+    table: file.name, convertible: false, databaseType: host.databaseType,
   });
-  return { model, settings: mounted?.settings ?? [] };
 }
 
 /** A file's table dropped: its name is free again (the caller lets go of the file itself, where it keeps one). */
-export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string; readonly settings?: ConnectionSettings | undefined },
-  models: TableModels, table: string, view = false): Promise<void> {
+export async function dropFileTable(host: DataHost, table: string, view = false): Promise<void> {
   // a remote file's is a view (mountRemoteView), and its keys go with it: its secret, by its name, when it has one, and
   // its bearer URL's session variable (B3's Q3), the setting no longer replayed on a connection opened later
-  await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } },
+  await host.operations([{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } },
     ...(view ? [{ op: 'dropSecret', name: secretName(table) } as const, { op: 'resetVariable', held: bearerName(table) } as const] : [])]);
-  if (view) engine.settings?.forget(table);
+  if (view) host.forget(table);
 }
 
 /**
@@ -425,7 +402,8 @@ export async function dropFileTable(engine: QueryEngine & { readonly databaseTyp
  * type and a DECIMAL's precision and scale as data (the catalog question, infer.ts), no type string parsed.
  * A RawTable is COLUMNAR, so the answer is read by picking its columns out and zipping them.
  */
-export async function catalogColumns(engine: QueryEngine, models: TableModels, table: string): Promise<CatalogColumn[]> {
+export async function catalogColumns(engine: { run(sql: PlannedSql, epoch: number): Promise<RawTable> }, models: Pick<TableModels, 'catalogColumnsSql'>,
+  table: string): Promise<CatalogColumn[]> {
   return catalogColumnsOf(engine, models, 'main', table);
 }
 
@@ -434,13 +412,19 @@ export async function catalogColumns(engine: QueryEngine, models: TableModels, t
 export async function catalogColumnsOf(engine: { run(sql: PlannedSql, epoch: number): Promise<RawTable> }, models: Pick<TableModels, 'catalogColumnsSql'>,
   schema: string, table: string): Promise<CatalogColumn[]> {
   const answer = await engine.run(await models.catalogColumnsSql(schema, table), 0);
-  const names = columnOf(answer, 'column_name');
-  const types = columnOf(answer, 'data_type');
-  const logical = columnOf(answer, 'logical_type');
-  const precision = columnOf(answer, 'numeric_precision');
-  const scale = columnOf(answer, 'numeric_scale');
-  const notNull = columnOf(answer, 'not_null');
-  const num = (v: Scalar | undefined): number | null => (v === null || v === undefined ? null : Number(v));
+  return catalogColumnsRead((name) => columnOf(answer, name));
+}
+
+/** A table's columns, from the catalog's answer read column by column (`column`: the answer's values of a column, by
+ *  its name): each one's canonical type and a DECIMAL's precision and scale as data, no type string parsed. */
+export function catalogColumnsRead(column: (name: string) => readonly unknown[]): CatalogColumn[] {
+  const names = column('column_name');
+  const types = column('data_type');
+  const logical = column('logical_type');
+  const precision = column('numeric_precision');
+  const scale = column('numeric_scale');
+  const notNull = column('not_null');
+  const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
   return names.map((n, i) => ({
     name: String(n),
     dataType: String(types[i]),
@@ -451,12 +435,9 @@ export async function catalogColumnsOf(engine: { run(sql: PlannedSql, epoch: num
   }));
 }
 
-/** One column of the catalog's answer, by name. */
-function columnOf(t: RawTable, name: string): readonly Scalar[] {
+/** One column of a RawTable, by name. */
+export function columnOf(t: RawTable, name: string): readonly unknown[] {
   const col = t.columns.find((c) => c.name === name);
-  if (!col) {
-    throw new Error(`the catalog did not return ${name} — got `
-      + t.columns.map((c) => c.name).join(', '));
-  }
+  if (!col) throw new Error(`the catalog did not return ${name} — got ${t.columns.map((c) => c.name).join(', ')}`);
   return col.values;
 }

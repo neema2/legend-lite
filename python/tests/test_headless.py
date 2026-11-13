@@ -6,8 +6,10 @@ checked against pandas computing the same, in the same cell, with no browser."""
 import base64
 import contextlib
 import datetime
+import hashlib
 import json
 import os
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -19,7 +21,7 @@ import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite import datacube
-from legend_lite import _pool
+from legend_lite import _pool, compiler
 from legend_lite._headless import Headless, bundle
 from legend_lite._planned import PlannedSql
 from legend_lite.engine import Engine
@@ -102,6 +104,24 @@ class Grids(unittest.TestCase):
             grid.configure({'columns': {total: {'aggregateFn': 'max'}}})
         with self.assertRaisesRegex(ValueError, "is not a column of the grid"):
             grid.configure({'columns': {'__pivot_total____|__nope': {'hidden': True}}})
+
+    def test_a_pivot_whose_columns_its_data_names_reads_on_python_end_to_end(self):
+        # the #6 bridge (2026-11-12): a grid's rows are Python's plan-and-run alone -- a pivot's columns named by the
+        # data's own values, each the database's sum, as pandas pivots it; no statement of DataCube's crosses to Python
+        import pandas as pd
+        frame = pd.DataFrame({'region': ['EMEA', 'EMEA', 'APAC', 'APAC'], 'desk': ['A', 'B', 'A', 'C'], 'qty': [1, 2, 3, 4]})
+        grid = self.page.grid(frame, name='trades_pivoted', rows=['region'], columns=['desk'], measures={'qty': 'sum'})
+        view = grid.view()
+        expected = frame.pivot_table(index='region', columns='desk', values='qty', aggfunc='sum')
+        names = [c['name'] for c in view.columns]
+        for desk in ('A', 'B', 'C'):
+            named = [n for n in names if n.startswith(f'{desk}__|__') and n.endswith('qty')]
+            self.assertEqual(len(named), 1, (desk, names))
+            got = groups(view, named[0])
+            self.assertEqual(set(got), {'EMEA', 'APAC'})
+            for region, value in got.items():
+                want = expected.loc[region, desk]
+                self.assertEqual(value, None if pd.isna(want) else int(want), (desk, region))
 
     def test_conditional_formats_are_set_by_name_and_drawn_in_the_export(self):
         # Excel's conditional formats (DataCube's conditional.ts, through the gestures the screen's Conditional
@@ -761,14 +781,13 @@ class Remote(unittest.TestCase):
         from legend_lite.engine import _connection_settings
         url = f'{self.base}/trades.parquet?X-Amz-Signature=SENTINEL-name-check'
         setting = {'sql': 'SET VARIABLE v = ?', 'binds': [{'_type': 'held', 'name': 'datacube_url_t', 'field': 'URL'}]}
-        answered = {'SET VARIABLE v = ?'}  # the statement the mount's plan carried (the bridge's membership, _planned.py)
-        settings, held = _connection_settings([setting], url, 'datacube_url_t', answered)
+        settings, held = _connection_settings([setting], url, 'datacube_url_t')
         self.assertEqual((settings, held), ((('SET VARIABLE v = ?', (url,)),), (url,)))
         for bearer, bind in (('datacube_url_other', setting['binds'][0]), (None, setting['binds'][0]),
                              ('datacube_url_t', {'_type': 'held', 'name': 'datacube_url_t', 'field': 'KEY_ID'})):
             with self.subTest(bearer=bearer, bind=bind):
                 with self.assertRaises(ValueError) as refused:
-                    _connection_settings([{'sql': 'SET VARIABLE v = ?', 'binds': [bind]}], url, bearer, answered)
+                    _connection_settings([{'sql': 'SET VARIABLE v = ?', 'binds': [bind]}], url, bearer)
                 self.assertIn(f"binds {bind['name']}.{bind['field']}, which this engine holds nothing for", str(refused.exception))
                 self.assertNotIn('SENTINEL', str(refused.exception))
 
@@ -1012,13 +1031,12 @@ class OneRead(unittest.TestCase):
         self.headless = Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now)
         self.addCleanup(self.headless.close)
 
-    def rows(self, sql):
-        """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64. The test
-        stands in for DataCube's planner: its own question is declared answered first, as the bridge sends only what the
-        session's planner answered (the orchestrator's ruling of 2026-11-12, _planned.py across_the_bridge)."""
-        self.headless._answered.record('plan', 'OK\n' + json.dumps({'sql': sql}))
-        said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
-        return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
+    def count(self, table):
+        """A count DataCube's code asks of its host (calls.ts ``operations``: intent, planned and run by Python, the #6
+        bridge), as it reads the answer: each operation's last statement's rows."""
+        said = self.headless.evaluate("legendLiteHost.operations('DuckDB', "
+                                      f"{json.dumps(json.dumps([{'op': 'count', 'from': {'relation': {'name': table}}}]))})")
+        return json.loads(said)[0][0][0]
 
     def test_a_frame_registered_meanwhile_waits_for_no_call_which_reads_the_frames_as_they_were(self):
         asked, go, seen = threading.Event(), threading.Event(), {}
@@ -1032,7 +1050,7 @@ class OneRead(unittest.TestCase):
         def call():
             with self.frames.reading():
                 self.headless.evaluate("legendLiteHost.fetch('GET', '/api/lite/v1/ping', null)")
-                seen['rows'] = self.rows('SELECT count(*) AS n FROM trades')
+                seen['rows'] = self.count('trades')
 
         with mock.patch('legend_lite._headless.answer_fetch', slow):
             calling = threading.Thread(target=call)
@@ -1045,9 +1063,9 @@ class OneRead(unittest.TestCase):
             self.assertFalse(registering.is_alive(), 'registering a frame waited on a call into DataCube')
             go.set()
             calling.join(20)
-        self.assertEqual(seen['rows'], [{'n': 6}], 'the call read the frame as it was when its read began')
+        self.assertEqual(seen['rows'], 6, 'the call read the frame as it was when its read began')
         with self.frames.reading():
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 2}], 'a read after it reads it as it is')
+            self.assertEqual(self.count('trades'), 2, 'a read after it reads it as it is')
 
     def test_a_read_sees_a_table_as_it_was_when_it_began_though_it_is_replaced_before_its_first_query(self):
         # DuckDB begins a transaction on a database at its first read, not at BEGIN: the read pins it as it begins, so a
@@ -1060,9 +1078,9 @@ class OneRead(unittest.TestCase):
             replacing.start()
             replacing.join(10)
             self.assertFalse(replacing.is_alive())
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 6}])
+            self.assertEqual(self.count('streamed'), 6)
         with self.frames.reading():
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 2}])
+            self.assertEqual(self.count('streamed'), 2)
 
     def test_nothing_is_written_inside_a_read_on_its_thread_and_a_page_is_shown_only_with_datacubes_site(self):
         # F39: a write the read would not see is refused in words, on the read's own thread; F40: what shows a page asks
@@ -1081,10 +1099,13 @@ class OneRead(unittest.TestCase):
 
     def test_a_query_that_fails_as_it_runs_leaves_the_reads_next_query_able_to_run(self):
         # F36: a value that does not convert aborts DuckDB's transaction; the read begins another, so its next query runs
+        # (the test's own view, made on the raw connection before the read: a count of it fails as it runs)
+        self.frames.connection._con.execute(
+            "CREATE VIEW unconverted AS SELECT n FROM (SELECT CAST('x' AS INTEGER) AS n) WHERE n > 0")
         with self.frames.reading():
             with self.assertRaisesRegex(Exception, 'Conversion'):
-                self.rows("SELECT CAST('x' AS INTEGER) AS n")
-            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
+                self.count('unconverted')
+            self.assertEqual(self.count('trades'), 6)
 
     def test_what_a_call_asks_of_the_engine_is_answered_on_datacubes_thread_over_its_read(self):
         answered = []
@@ -1131,6 +1152,101 @@ class OneRead(unittest.TestCase):
         free.set()
         for f in started:
             f.result(10)
+
+
+class IntentCalls(unittest.TestCase):
+    """WHAT DATACUBE'S CODE ASKS OF PYTHON'S DATABASE IS INTENT (the #6 bridge, the user's go of 2026-11-12): each call --
+    a load, operations, a catalog, a table made, a write's program -- planned by Python's planner and run by its runner,
+    never a statement or a plan of DataCube's (calls.ts HostCalls; _headless.Headless._calls)."""
+
+    MODEL = ('###Relational\nDatabase a::DB ( Table SRC ( ID INTEGER, NAME VARCHAR(8) ) Table DST ( ID INTEGER, '
+             'NAME VARCHAR(8) ) )\n###Connection\nRelationalDatabaseConnection a::C { store: a::DB; type: DuckDB; '
+             'specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime a::RT { mappings: []; connections: '
+             '[ a::DB: [ c: a::C ] ]; }\n')
+
+    def setUp(self):
+        self.frames = Frames()
+        self.frames.register('trades', TRADES)
+        self.folder = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.headless = Headless(bundle(), connection=self.frames.connection, folder=self.folder,
+                                 reading=self.frames.reading_now)
+        self.addCleanup(self.headless.close)
+        self.raw = self.frames.connection._con
+
+    def call(self, name, *args):
+        return self.headless.evaluate(f'legendLiteHost.{name}(...{json.dumps(list(args))})')
+
+    def request(self, lam):
+        return json.dumps({'lambda': json.dumps(compiler.parse(lam)), 'model': self.MODEL, 'runtime': 'a::RT'})
+
+    def test_the_hosts_calls_carry_no_statement(self):
+        self.assertEqual(self.headless.evaluate('Object.keys(legendLiteHost)'),
+                         ['planner', 'load', 'operations', 'catalog', 'create', 'write', 'digest', 'fetch', 'engine'])
+        for gone in ('query', 'statement', 'registerFile'):
+            self.assertIsNone(self.headless.evaluate(f'legendLiteHost.{gone} ?? null'), gone)
+
+    def test_a_file_is_loaded_by_pythons_plan_held_by_its_handle_and_the_catalog_and_count_asked_by_name(self):
+        path = self.folder / 'upload_t_in.csv'
+        path.write_text('id,name\n1,a\n2,b\n3,c\n', encoding='utf-8')
+        data = path.read_bytes()
+        held = {'name': path.name, 'digest': hashlib.sha256(data).hexdigest(), 'size': len(data)}
+        load = json.dumps({'fileLoad': {'databaseType': 'DuckDB', 'file': {**held, 'format': 'csv'}, 'into': {'table': 't_in'}}})
+        # the file named by the handle this host issued, never by its path (the orchestrator's ruling of 2026-11-12)
+        handle = self.headless.hand_out(path)
+        self.assertNotIn(str(path), handle)
+        for unknown in (str(path), 'file-none'):
+            with self.subTest(unknown), self.assertRaisesRegex(Exception, 'is no file this host handed out'):
+                self.call('load', load, json.dumps({'files': [{**held, 'handle': unknown}]}))
+        self.assertIsNone(self.call('load', load, json.dumps({'files': [{**held, 'handle': handle}]})))
+        said = json.loads(self.call('catalog', 'main', 't_in'))
+        at = said['columns'].index('column_name')
+        self.assertEqual([r[at] for r in said['rows']], ['id', 'name'])
+        counted = json.loads(self.call('operations', 'DuckDB', json.dumps([{'op': 'count', 'from': {'relation': {'name': 't_in'}}}])))
+        self.assertEqual(counted, [[[3]]])
+        # a file the holds do not name is refused by name, nothing read
+        with self.assertRaisesRegex(Exception, "is not one this load holds"):
+            self.call('load', load.replace('t_in', 't_other'), json.dumps({'files': [{**held, 'digest': '0' * 64, 'handle': handle}]}))
+        # a handle taken back names no file
+        self.headless.take_back(handle)
+        with self.assertRaisesRegex(Exception, 'is no file this host handed out'):
+            self.call('load', load.replace('t_in', 't_again'), json.dumps({'files': [{**held, 'handle': handle}]}))
+        self.assertEqual(self.raw.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 't_other'").fetchone(), (0,))
+
+    def test_operations_run_in_order_and_a_read_takes_counts_alone(self):
+        self.raw.execute('CREATE TABLE gone AS SELECT 1 AS n')  # the test's own table
+        dropped = json.loads(self.call('operations', 'DuckDB', json.dumps([{'op': 'drop', 'kind': 'table', 'target': {'name': 'gone'}}])))
+        self.assertEqual(dropped, [[]])
+        self.assertEqual(self.raw.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'gone'").fetchone(), (0,))
+        with self.frames.reading():
+            self.assertEqual(json.loads(self.call('operations', 'DuckDB', json.dumps(
+                [{'op': 'count', 'from': {'relation': {'name': 'trades'}}}]))), [[[6]]])
+            with self.assertRaisesRegex(Exception, 'runs in no read of the frames'):
+                self.call('operations', 'DuckDB', json.dumps([{'op': 'drop', 'kind': 'table', 'target': {'name': 'trades'}}]))
+        with self.assertRaisesRegex(Exception, 'this host runs its operations on DuckDB, not Postgres'):
+            self.call('operations', 'Postgres', '[]')
+
+    def test_a_writes_table_and_program_are_planned_and_run_by_python_in_one_transaction(self):
+        self.raw.execute("CREATE TABLE SRC (ID INTEGER, NAME VARCHAR); INSERT INTO SRC VALUES (1, 'a'), (2, 'b')")
+        op = json.dumps({'op': 'relation', 'kind': 'table', 'target': {'name': 'DST'}, 'replace': False})
+        transaction = lambda step: self.call('operations', 'DuckDB', json.dumps([{'op': 'transaction', 'step': step}]))  # noqa: E731
+        transaction('begin')
+        self.assertIsNone(self.call('create', op, self.request('|#>{a::DB.SRC}#->limit(0)')))
+        self.assertEqual(self.call('write', self.request('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)')), '[{"value":2}]')
+        transaction('rollback')
+        self.assertEqual(self.raw.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'DST'").fetchone(),
+                         (0,), 'the table made and its rows went with the transaction')
+        transaction('begin')
+        self.call('create', op, self.request('|#>{a::DB.SRC}#->limit(0)'))
+        self.call('write', self.request('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)'))
+        transaction('commit')
+        self.assertEqual(self.raw.execute('SELECT ID, NAME FROM DST ORDER BY ID').fetchall(), [(1, 'a'), (2, 'b')])
+        # a write is refused in a read of the frames, which would not see it
+        with self.frames.reading():
+            for name, args in (('create', (op, self.request('|#>{a::DB.SRC}#->limit(0)'))),
+                               ('write', (self.request('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)'),)),
+                               ('load', ('{}', '{}'))):
+                with self.subTest(name), self.assertRaisesRegex(Exception, 'runs in no read of the frames'):
+                    self.call(name, *args)
 
 
 class OneRowsPath(unittest.TestCase):

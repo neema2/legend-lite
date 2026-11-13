@@ -311,6 +311,40 @@ def snap_copy(request: dict[str, Any]) -> PlanText:
     return plan_from_answer(_answer(library().call('lite_snap_copy', _json.dumps(request))))
 
 
+def output_plan(request: dict[str, Any]) -> PlanText:
+    """A TABLE OUTPUT AS ONE PLAN (the native library's Boundary.outputPlan, the tab's planner's ``outputPlan``; the final
+    audit's item 2, 2026-11-12): ``request`` is DataCube's OutputRequest -- the database's type, the box's tables and the
+    target as the catalog answered them, the output (its table, its mode, a merge's keys) and its rows as a lambda's
+    protocol JSON; never a statement. The plan: the table made where the output makes it, then the write, in the plan's
+    own transaction, which ``projects.run_plan`` runs (the DataCube stream's merge of the #6 bridge, 2026-11-13)."""
+    return plan_from_answer(_answer(library().call('lite_output_plan', _json.dumps(request))))
+
+
+def file_load(request: dict[str, Any]) -> PlanText:
+    """A FILE THIS HOST HOLDS READ INTO A TABLE OF ITS OWN, as a plan (the native library's Boundary.fileLoad, the tab's
+    planner's ``fileLoad``): ``request`` is ``{"databaseType", "file": {"name", "digest", "size", "format"}, "into":
+    {"table"}}`` -- the file named, never its path. The plan: one HOST_SESSION load whose file step
+    ``projects.run_host_load`` runs, binding the path this host holds the file at (the #6 bridge, 2026-11-12)."""
+    return plan_from_answer(_answer(library().call('lite_file_load', _json.dumps(request))))
+
+
+def remote_mount(request: dict[str, Any]) -> PlanText:
+    """A REMOTE FILE MOUNTED, as a plan (the native library's Boundary.remoteMount, the tab's planner's
+    ``remoteMount``): names and fields only -- a bearer URL by the name this host holds it under, a key by its name and
+    fields. The plan: one HOST_SESSION load whose bound steps ``projects.run_host_load`` runs, binding what this host
+    holds by name (the #6 bridge, 2026-11-12)."""
+    return plan_from_answer(_answer(library().call('lite_remote_mount', _json.dumps(request))))
+
+
+def execution_plan(model: str, tree: Tree, runtime: str) -> PlanText:
+    """A PROGRAM planned against ``model`` through ``runtime`` as an execution plan (PlanJson's text: the tab's planner's
+    ``executionPlan``), which ``projects.run_plan`` runs (the #6 bridge, 2026-11-12; a PlanText since the DataCube
+    stream's merge, 2026-11-13)."""
+    with HeldModel(model) as held:
+        return plan_from_answer(_answer(library().call('lite_execution_plan_json_held', held.handle, _json.dumps(tree),
+                                                       runtime)))
+
+
 def frame_load(request: dict[str, Any]) -> PlanText:
     """A HOST'S VALUE READ AS A RELATION, as a plan (the native library's Boundary.frameLoad; the user's ruling of
     2026-11-11: a frame named, attached at run): ``request`` is ``{"databaseType", "held", "as", "live", "schema"?,

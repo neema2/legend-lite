@@ -3,15 +3,18 @@ a statement a plan carries or the planner wrote -- a ``PlannedSql``, made where 
 other text by name, before the database sees it. Its TypeScript twin is engine-client/test/planned-sql.test.ts; the
 guard pinning where the type is made is tools/guards/PlannedSqlTest.java."""
 
+import hashlib
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import duckdb
 
 from legend_lite import _host, compiler, projects, warehouse
 from legend_lite._library import library
-from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
-                                  from_plan, plan_from_answer, send)
+from legend_lite._planned import (Database, NotPlanned, PlannedSql, all_from_plan, from_plan, host_operation_refusal,
+                                  plan_from_answer, send)
 from legend_lite._planner import answer
 from legend_lite.compiler import LegendError
 from legend_lite.frames import execute_redacted
@@ -345,22 +348,6 @@ class TheAuthoredDoorIsNotPythonsTest(unittest.TestCase):
             _headless.check_interface([*_planner.KINDS], library())
 
 
-class KeyedExpansionFixtureTest(unittest.TestCase):
-    """THE KEYED EXPANSION'S ONE FIXTURE (the C final audit's H8, 2026-11-12; engine-client/test/fixtures/
-    keyed-expansion.json): the text Python's bridge holds a keyed statement to (_keyed_text) is the text Java's
-    PlanRunner.expand and the tab's expandKeyed write, case by case -- its text alone, the keys' cells being bound."""
-
-    def test_each_case_is_written_as_the_other_runners_write_it(self):
-        import os
-        cases = json.loads(open(os.environ['LEGEND_LITE_KEYED_FIXTURE'], encoding='utf-8').read())['cases']
-        self.assertGreater(len(cases), 3)
-        for case in cases:
-            with self.subTest(case['name']):
-                body = case['body']
-                written = _keyed_text(body['statement'], tuple(body['regions']), len(case['keys']))
-                self.assertEqual(written, case.get('statement'), 'refused: no text' if 'refused' in case else '')
-
-
 class HostOperationsTextTest(unittest.TestCase):
     """A HOST OPERATION TAKES NO SQL (the final audit's item 1, 2026-11-12; until then the C final audit's H2 let one carry
     a PlannedSql the planner had answered): a source query, a select list, a replacement -- each refused by name by the
@@ -388,80 +375,10 @@ class HostOperationsTextTest(unittest.TestCase):
         self.assertIn('CAST("big" AS DECIMAL(20,0))', copy)
 
 
-class TheBridgeTest(unittest.TestCase):
-    """THE V8 BRIDGE (the orchestrator's ruling of 2026-11-12): what DataCube's hosted code hands Python's database crosses
-    as text, and is sent only if this session's planner answered it -- every text its answers carried, a plan's steps
-    and a host operation's statements each one -- any other text refused by name."""
-
-    def answered(self, *requests):
-        into = Answered()
-        for request in requests:
-            said = answer(library(), request)
-            self.assertTrue(said['ok'], said)
-            into.record(request['kind'], said['answer'])
-        return into
-
-    def test_a_host_operations_statements_cross(self):
-        answered = self.answered({'kind': 'hostOperations', 'databaseType': 'DuckDB',
-                                  'operations': json.dumps([{'op': 'count', 'from': {'relation': {'name': 't'}}}])})
-        (count,) = _host.statements({'op': 'count', 'from': {'relation': _host.name('t')}})
-        self.assertIsInstance(across_the_bridge(str(count), "the hosted DataCube's query", answered), PlannedSql)
-
-    def test_a_plans_steps_nested_in_its_text_cross(self):
-        # a load's plan is PlanJson text inside the answer: its steps' statements are read out of it
-        model = '###Relational\nDatabase s::DB ( Table T ( id INTEGER, name VARCHAR(8) ) )\n'
-        answered = self.answered({'kind': 'synthesize', 'request': json.dumps({
-            'databaseType': 'DuckDB', 'model': model, 'database': 's::DB', 'schema': 'default', 'table': 'T', 'count': 3})})
-        inserts = [t for t in answered.statements() if t.startswith('INSERT INTO')]
-        self.assertEqual(len(inserts), 1, answered.statements()[:5])
-        self.assertIsInstance(across_the_bridge(inserts[0], "the hosted DataCube's statement", answered), PlannedSql)
-
-    def test_a_statement_the_planner_did_not_answer_is_refused_by_name(self):
-        answered = self.answered({'kind': 'sessionSetup', 'databaseType': 'DuckDB'})
-        con = _Recording()
-        for text in ('DROP TABLE trades', 'SELECT 1'):
-            with self.assertRaises(NotPlanned) as refused:
-                send(Database(con), across_the_bridge(text, "the hosted DataCube's query", answered))
-            self.assertIn("not a statement this session's planner answered", str(refused.exception))
-            self.assertIn(text, str(refused.exception))
-        self.assertEqual(con.sent, [])
-        # nor is a refusal's text an answer
-        refused_answer = Answered()
-        refused_answer.record('sessionSetup', 'ERR\nCOMPILATION\nSELECT 1')
-        self.assertEqual(len(refused_answer), 0)
-
-    def test_only_a_plans_statements_cross_never_a_label_a_tree_or_a_value(self):
-        """The C checkpoint's code audit, SHOULD-FIX 6 (2026-11-12): an answer's statements alone are kept, read by its
-        kind -- a column's label, a constant in the typed tree, a value a slot binds and an HTTP body are not."""
-        answered = Answered()
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT a AS "DROP TABLE t" FROM x', 'type': {
-            'columns': [{'name': 'DROP TABLE t', 'type': 'String'}]}}))
-        answered.record('executionPlan', 'OK\n' + json.dumps({'format': 'legend-lite-plan', 'root': {
-            '_type': 'tds', 'sql': {'statement': 'SELECT ? AS v', 'slots': [], 'tree': {'value': 'DELETE FROM t'},
-                                    'content': {'abc': 'TRUNCATE t'}, 'target': {'session': ['SET threads = 1']}}}}))
-        answered.record('pureV1', 'OK\n500\napplication/json\n{"sql": "DROP TABLE u"}')
-        for text in ('SELECT a AS "DROP TABLE t" FROM x', 'SELECT ? AS v', 'SET threads = 1'):
-            self.assertIn(text, answered)
-        for text in ('DROP TABLE t', 'DELETE FROM t', 'TRUNCATE t', 'DROP TABLE u', 'String', 'legend-lite-plan'):
-            self.assertNotIn(text, answered)
-
-    def test_a_stream_steps_remote_statement_and_an_updates_count_are_not_this_databases(self):
-        """The C final audit's H3 (2026-11-12): a snapshot's stream step carries the REMOTE plane's statement (its
-        ``sql``) and an update step names the value a later step binds (its ``count``): neither is a statement this
-        database runs, so neither is admitted -- the stream's own local statements are."""
-        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'snap_t'})
-        answered = Answered()
-        answered.record('snapStream', 'OK\n' + plan)
-        stream = json.loads(plan)['root']['steps'][0]
-        self.assertEqual(stream['_type'], 'stream')
-        sent = stream['sql']
-        self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
-        for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
-            self.assertIn(local, answered, local)
-        answered.record('executionPlan', 'OK\n' + json.dumps({'root': {'_type': 'sequence', 'steps': [
-            {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}))
-        self.assertIn('INSERT INTO t SELECT 1', answered)
-        self.assertNotIn('written', answered, "an update's count names a value, never a statement")
+class TheBridgesRequestsTest(unittest.TestCase):
+    """WHAT DATACUBE'S HOSTED CODE MAY ASK (the final audit's item 1 and the user's ruling of 2026-11-12, kept on the bridge
+    on intent by the DataCube stream's merge, 2026-11-13): a snapshot's stream by its pull, never a statement; a host
+    operation with no SQL in it."""
 
     def test_a_snapshots_stream_is_asked_by_its_pull_never_its_statement(self):
         # the user's ruling of 2026-11-12: the request carries the pull, which the planner plans in the call -- its
@@ -474,81 +391,136 @@ class TheBridgeTest(unittest.TestCase):
             with self.assertRaisesRegex(LegendError, "a snapshot's stream has no key sql"):
                 compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **given, 'table': 'snap_t'})
 
-    def test_an_answer_bigger_than_the_bound_is_kept_whole(self):
-        """The audit's NOTE: an answer of more than CAPACITY statements evicted its own first ones before any was sent;
-        now the newest answer is kept whole, and the next one trims the set back to its bound."""
-        answered = Answered()
-        many = [f'SELECT {i}' for i in range(Answered.CAPACITY + 10)]
-        answered.record('hostOperations', 'OK\n' + json.dumps([many]))
-        self.assertEqual(len(answered), Answered.CAPACITY + 10)
-        self.assertIn('SELECT 0', answered)
-        answered.record('catalogColumnsSql', 'OK\nSELECT -1')
-        self.assertEqual(len(answered), Answered.CAPACITY)
-        self.assertIn('SELECT -1', answered)
-
-    def test_a_host_operation_carrying_sql_is_refused_by_name_even_an_answered_statement(self):
-        """The final audit's item 1 (2026-11-12; until then the re-audit's S3 admitted a text this session's planner had
-        answered): a host operation takes no SQL -- a source query, a select list, a replacement -- whatever it is."""
-        answered = Answered()
+    def test_a_host_operation_carrying_sql_is_refused_by_name(self):
+        """The final audit's item 1 (2026-11-12): a host operation takes no SQL -- a source query, a select list, a
+        replacement -- whatever it is; refused at the bridge's planner door (_planned.py host_operation_refusal)."""
         ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t'}))
         for op, key in (({'op': 'count', 'from': {'query': 'SELECT * FROM t'}}, 'query'),
                         ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*',
                           'from': {'relation': {'name': 't'}}}, 'selectList'),
                         ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
                           'replacing': [{'column': 'a', 'sql': 'DROP TABLE t'}]}, 'replacing')):
-            self.assertIn(f'takes no SQL, and its {key} is SQL', answered.refusal(ops(op)))
-        self.assertIsNone(answered.refusal(ops({'op': 'count', 'from': {'relation': {'name': 't'}}})))
-        self.assertIsNone(answered.refusal({'kind': 'plan', 'query': 'anything'}), 'another kind carries no host text')
+            self.assertIn(f'takes no SQL, and its {key} is SQL', host_operation_refusal(ops(op)))
+        self.assertIsNone(host_operation_refusal(ops({'op': 'count', 'from': {'relation': {'name': 't'}}})))
+        self.assertIsNone(host_operation_refusal({'kind': 'plan', 'query': 'anything'}), 'another kind carries no host text')
 
-    def test_the_set_is_bounded(self):
-        answered = Answered()
-        for i in range(Answered.CAPACITY + 10):
-            answered.record('catalogColumnsSql', f'OK\nSELECT {i}')
-        self.assertEqual(len(answered), Answered.CAPACITY)
-        self.assertNotIn('SELECT 0', answered)
-        self.assertIn(f'SELECT {Answered.CAPACITY + 9}', answered)
 
-    def test_a_dynamic_pivots_keyed_body_crosses_as_written_for_its_keys(self):
-        """A keyed plan across the bridge (the audit's SHOULD-FIX 6): its keys' statement as the planner wrote it, then
-        its body written for the keys read, as the hosts' runner writes it (plan-runner.ts expandKeyed, the charter's
-        A3(a)) -- admitted, and run here to the pivot's own totals; a text that is not the body written for some number
-        of keys is refused."""
-        model = ('###Relational\nDatabase test::DB ( Table T_TREES (CITY VARCHAR(100) NOT NULL, YR INTEGER NOT NULL,'
-                 ' TREES INTEGER NOT NULL) )\n###Connection\nRelationalDatabaseConnection test::Conn { store: test::DB;'
-                 ' type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime test::RT { mappings: [];'
-                 ' connections: [ test::DB: [ c: test::Conn ] ]; }\n')
-        held = answer(library(), {'kind': 'hold', 'model': model})
-        self.assertTrue(held['ok'], held)
-        handle = int(held['answer'].partition('\n')[2])
-        lam = json.dumps(compiler.parse('|#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())'))
-        request = {'kind': 'executionPlan', 'handle': handle, 'lambda': lam, 'runtime': 'test::RT'}
-        answered = self.answered(request)
-        plan = json.loads(answer(library(), request)['answer'].partition('\n')[2])
-        keyed = plan['root']
-        self.assertEqual(keyed['_type'], 'keyed', keyed['_type'])
-        body = keyed['body']
-        self.assertTrue(body['regions'], 'a dynamic pivot\'s body writes a region per key')
-        self.assertNotIn(body['statement'], answered.statements(), 'a keyed body is kept as its regions, never whole')
-        raw = duckdb.connect()
-        raw.execute('CREATE TABLE T_TREES (CITY VARCHAR, YR INTEGER, TREES INTEGER)')  # the test's own fixture
-        raw.execute("INSERT INTO T_TREES VALUES ('NYC', 2000, 5), ('LDN', 2000, 3), ('NYC', 2011, 2)")
-        con = Database(raw)
-        keys = send(con, across_the_bridge(keyed['keys']['statement'], "the hosted DataCube's query", answered)).fetchall()
-        self.assertEqual(len(keys), 2, keys)
-        written = _keyed_text(body['statement'], tuple(body['regions']), len(keys))
-        params = []
-        for r in body['regions']:
-            for key in keys:
-                for s in range(r['firstSlot'], r['firstSlot'] + r['slotCount']):
-                    params.append(key[body['slots'][s]['binding']['cell']])
-        rows = send(con, across_the_bridge(written, "the hosted DataCube's query", answered), params).fetchall()
-        # each year's total per city, the cities in the order the keys were read
-        totals = {2000: {'NYC': 5, 'LDN': 3}, 2011: {'NYC': 2}}
-        self.assertEqual(sorted(rows), [(yr, *[totals[yr].get(key[0]) for key in keys]) for yr in (2000, 2011)])
-        for wrong in (written + ' ', _keyed_text(body['statement'], tuple(body['regions']), len(keys)).replace('SELECT', 'SELECT 1,', 1)):
-            with self.assertRaises(NotPlanned):
-                across_the_bridge(wrong, "the hosted DataCube's query", answered)
+class HostRunnersTest(unittest.TestCase):
+    """WHAT DATACUBE'S HOSTED CODE ASKS, PLANNED AND RUN BY PYTHON (the #6 bridge, the user's go of 2026-11-12): a load's
+    file and bound steps and a write's program, run by Python's runners (projects.py) on plans Python's planner made --
+    the tab's runner's rules and words (plan-runner.ts). Until then DataCube's code ran them in V8 and handed Python each
+    statement, admitted by the set its planner had answered (Answered, across_the_bridge: deleted)."""
+
+    def setUp(self):
+        self.raw = duckdb.connect()
+        self.db = Database(self.raw)
+        self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+
+    def file(self, name, text):
+        path = self.dir / name
+        path.write_text(text, encoding='utf-8')
+        data = path.read_bytes()
+        return projects.HostFile(name, hashlib.sha256(data).hexdigest(), len(data), str(path))
+
+    def test_a_files_load_reads_the_file_the_plan_names_its_path_bound_never_written(self):
+        held = self.file('upload_t.csv', 'id,name\n1,a\n2,b\n')
+        plan = compiler.file_load({'databaseType': 'DuckDB', 'file': {'name': held.name, 'digest': held.digest,
+                                                                      'size': held.size, 'format': 'csv'},
+                                   'into': {'table': 't'}})
+        self.assertNotIn(held.at, json.dumps(plan), 'the path is bound, never in the plan')
+        projects.run_host_load(plan, self.db, files=(held,))
+        self.assertEqual(self.raw.execute('SELECT id, name FROM t ORDER BY id').fetchall(), [(1, 'a'), (2, 'b')])
+
+    def test_a_file_the_load_does_not_hold_is_refused_by_name_and_nothing_is_read(self):
+        held = self.file('upload_u.csv', 'id\n1\n')
+        plan = compiler.file_load({'databaseType': 'DuckDB', 'file': {'name': held.name, 'digest': held.digest,
+                                                                      'size': held.size, 'format': 'csv'},
+                                   'into': {'table': 'u'}})
+        other = projects.HostFile(held.name, '0' * 64, held.size, held.at)
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_host_load(plan, self.db, files=(other,))
+        self.assertEqual(str(refused.exception), f"the file '{held.name}' ({held.size} bytes of digest {held.digest}) is "
+                                                 'not one this load holds')
+        with self.assertRaisesRegex(projects.LoadRefused, "this run was given no host's files"):
+            projects.run_host_load(plan, self.db)
+        self.assertEqual(self.raw.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'u'").fetchone(),
+                         (0,))
+
+    def test_a_bound_step_binds_what_the_host_holds_by_name_and_keeps_a_connections_setting(self):
+        plan = compiler.remote_mount({'databaseType': 'DuckDB', 'view': 'r', 'format': 'parquet',
+                                      'location': {'bearer': 'datacube_url_r', 'shown': 'https://b.example/r.parquet'}})
+        sentinel = 'https://b.example/r.parquet?sig=SENTINEL-held'
+        self.assertNotIn('SENTINEL', json.dumps(plan))
+        sent = []
+
+        class Recording(Database):
+            def _run(self, sql, params):
+                sent.append((str(sql), tuple(params or ())))
+                return super()._run(sql, params) if str(sql).startswith('SET VARIABLE') else None
+
+        ran = projects.run_host_load(plan, Recording(self.raw), secrets={'datacube_url_r': {'URL': sentinel}})
+        bound = [p for sql, p in sent if sql.startswith('SET VARIABLE')]
+        self.assertEqual(bound, [(sentinel,)], 'the bearer URL bound, as the host holds it')
+        self.assertTrue(all('SENTINEL' not in sql for sql, _ in sent))
+        self.assertEqual([s['binds'] for s in ran.settings], [[{'_type': 'held', 'name': 'datacube_url_r', 'field': 'URL'}]])
+        self.assertIsInstance(ran.settings[0]['sql'], PlannedSql)
+        with self.assertRaisesRegex(projects.LoadRefused, "'datacube_url_r' is not a secret this host holds"):
+            projects.run_host_load(plan, Recording(self.raw), secrets={})
+
+    MODEL = ('###Relational\nDatabase a::DB ( Table SRC ( ID INTEGER, NAME VARCHAR(8) ) Table DST ( ID INTEGER, '
+             'NAME VARCHAR(8) ) )\n###Connection\nRelationalDatabaseConnection a::C { store: a::DB; type: DuckDB; '
+             'specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime a::RT { mappings: []; connections: '
+             '[ a::DB: [ c: a::C ] ]; }\n')
+
+    def test_a_writes_program_runs_in_its_own_transaction_unless_joined(self):
+        # the DataCube stream's merge (2026-11-13): a plan of writes carries its target's transaction (version 50) and
+        # runs in it -- committed where it completes; a failure rolls all of it back
+        self.raw.execute("CREATE TABLE SRC (ID INTEGER, NAME VARCHAR); INSERT INTO SRC VALUES (1, 'a'), (2, 'b')")
+        self.raw.execute('CREATE TABLE DST (ID INTEGER NOT NULL, NAME VARCHAR)')
+        plan = compiler.execution_plan(self.MODEL, compiler.parse('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)'), 'a::RT')
+        sent = []
+
+        def run(sql, params):
+            sent.append(str(sql))
+            result = send(self.db, sql, params)
+            return result.fetchall() if result.description is not None else []
+
+        self.assertEqual(projects.run_plan(plan, run, 'DuckDB'), '[{"value":2}]')
+        self.assertEqual(self.raw.execute('SELECT count(*) FROM DST').fetchone(), (2,), 'committed')
+        self.assertTrue(any(s.upper().startswith('BEGIN') for s in sent), sent)
+        self.raw.execute('INSERT INTO SRC VALUES (NULL, NULL)')
+        self.raw.execute('ALTER TABLE SRC ALTER COLUMN ID DROP NOT NULL')
+        with self.assertRaises(Exception):
+            projects.run_plan(plan, run, 'DuckDB')
+        self.assertEqual(self.raw.execute('SELECT count(*) FROM DST').fetchone(), (2,), 'rolled back, all of it')
+
+    def test_a_writes_program_runs_in_its_callers_transaction_answering_the_databases_count(self):
+        self.raw.execute("CREATE TABLE SRC (ID INTEGER, NAME VARCHAR); INSERT INTO SRC VALUES (1, 'a'), (2, 'b')")
+        self.raw.execute('CREATE TABLE DST (ID INTEGER, NAME VARCHAR)')
+        plan = compiler.execution_plan(self.MODEL, compiler.parse('|#>{a::DB.SRC}#->write(#>{a::DB.DST}#)'), 'a::RT')
+
+        def run(sql, params):
+            result = send(self.db, sql, params)
+            return result.fetchall() if result.description is not None else []
+
+        self.raw.execute('BEGIN')
+        self.assertEqual(projects.run_plan(plan, run, 'DuckDB', joined=True), '[{"value":2}]')
+        self.raw.execute('ROLLBACK')
+        self.assertEqual(self.raw.execute('SELECT count(*) FROM DST').fetchone(), (0,), "the caller's transaction held it")
+        with self.assertRaisesRegex(projects.PlanRefused, 'a plan of a DuckDB database is not run on this Postgres one'):
+            projects.run_plan(plan, run, 'Postgres')
+
+    def test_a_keyed_plan_is_a_querys_never_a_writes(self):
+        # a dynamic pivot's keyed plan is read by the host's plan-and-run, never handed to a write's runner
+        model = ('###Relational\nDatabase t::DB ( Table T ( CITY VARCHAR(10) NOT NULL, YR INTEGER NOT NULL, N INTEGER '
+                 'NOT NULL ) )\n###Connection\nRelationalDatabaseConnection t::C { store: t::DB; type: DuckDB; '
+                 'specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: []; connections: '
+                 '[ t::DB: [ c: t::C ] ]; }\n')
+        plan = compiler.execution_plan(model, compiler.parse('|#>{t::DB.T}#->pivot(~CITY, ~n : x|$x.N : y|$y->sum())'),
+                                       't::RT')
+        self.assertEqual(json.loads(plan)['root']['_type'], 'keyed')
+        with self.assertRaisesRegex(projects.PlanRefused, "a keyed root \\(a dynamic pivot's\\) is not run here"):
+            projects.run_plan(plan, lambda sql, params: [], 'DuckDB')
 
 
 if __name__ == '__main__':

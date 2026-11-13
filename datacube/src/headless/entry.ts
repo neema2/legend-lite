@@ -7,7 +7,8 @@ import './install-url.ts';
 
 import { DATACUBE_LIBRARY } from '../pure-library-text.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
-import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
+import { hostCalls, hostData, hostWorker } from './host.ts';
+import type { DataHost } from '../data-host.ts';
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
@@ -194,14 +195,16 @@ export { timeseriesCurveOrder };
  *  Timeseries.frame of a series of one grid (headless grid.ts gridTimeseries). */
 export { gridTimeseries } from './grid.ts';
 
-/** What DataCube's code runs on in this host: its planner's worker, and the database. */
+/** What DataCube's code runs on in this host: its planner's worker, and the database as its data flows ask of it --
+ *  intent, each ask planned and run by the host (data-host.ts; the #6 bridge, 2026-11-12: until then a connection that
+ *  took any statement). */
 export interface Headless {
   readonly worker: () => PlannerWorker;
-  readonly database: HostDatabase;
+  readonly data: DataHost;
 }
 
 /** The planner's worker and the database, over the host's calls (`legendLiteHost`, defined before the bundle loads). */
 export function start(): Headless {
   const calls = hostCalls();
-  return { worker: () => hostWorker(calls), database: hostDatabase(calls) };
+  return { worker: () => hostWorker(calls), data: hostData(calls) };
 }

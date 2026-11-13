@@ -11,7 +11,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { SecretStore, type RemoteMountRequest } from '../../engine-client/src/host-operations.ts';
+import { SecretStore, type RemoteMountRequest, type RemoteMountSource } from '../../engine-client/src/host-operations.ts';
+import { heldDataHost, type DataHost, type HeldDatabase } from '../src/data-host.ts';
 import { ConnectionSettings } from '../../engine-client/src/plan-runner.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -35,6 +36,15 @@ import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 /** legend-lite's planner, which plans each mount (remoteMount): the module in-thread, or Python's library in the
  *  headless lane -- the plans under test are the platform's, as every host runs them. */
 const planner = plannerFor('', '');
+
+/** The tab's host over `engine` (data-host.ts heldDataHost: the #6 bridge), its mounts planned by `mounts` -- the
+ *  planner's, or one that records what it is asked. */
+const hostOf = (engine: HeldDatabase, mounts: RemoteMountSource = planner): DataHost => heldDataHost(engine, {
+  remoteMount: (r) => mounts.remoteMount(r),
+  fileLoad: (r) => planner.fileLoad(r),
+  hostOperations: (d, o) => planner.hostOperations(d, o),
+  catalogColumnsSql: (schema, table) => planner.catalogColumnsSql(schema, table),
+});
 
 interface Step { readonly _type: string; readonly sql: string; readonly reach?: string; readonly binds?: readonly unknown[] }
 /** A source's planned mount: its load's steps, in order. */
@@ -190,7 +200,7 @@ describe('credentials', () => {
     (await planned(source, creds)).find((s) => s.sql.startsWith('CREATE OR REPLACE TEMPORARY SECRET'));
   const boundOf = async (creds: S3Credentials): Promise<readonly unknown[]> => {
     const engine = new RecordingEngine();
-    await mountRemote(engine, planner, { sources: [source], s3: creds });
+    await mountRemote(hostOf(engine), { sources: [source], s3: creds });
     return engine.params[engine.sql.findIndex((s) => s.startsWith('CREATE OR REPLACE TEMPORARY SECRET'))]!;
   };
 
@@ -274,18 +284,19 @@ describe('a bearer URL: a presigned link, its query string its token (B3\'s Q3)'
   it('is bound to the connection\'s variable, which the view reads: no statement and no plan holds the token', async () => {
     const engine = new RecordingEngine();
     const asked = recordingPlanner();
-    const [mounted] = await mountRemote(engine, asked, { sources: [source] });
+    await mountRemote(hostOf(engine, asked), { sources: [source] });
     for (const plan of asked.plans) assert.ok(!plan.includes('SENTINEL') && !plan.includes('amazonaws.com/trades.parquet?'), plan);
     for (const sql of engine.sql) assert.ok(!sql.includes('SENTINEL'), `a token in a statement's text: ${sql}`);
     const set = engine.sql.findIndex((s) => s.startsWith('SET VARIABLE '));
     assert.ok(set >= 0, engine.sql.join('; '));
     assert.deepEqual(engine.params[set], [url], 'the bearer URL bound, as the host holds it');
     assert.match(engine.sql.at(-1)!, /^CREATE OR REPLACE VIEW "trades" AS SELECT \* FROM read_parquet\(getvariable\('lite_url_[0-9a-f]+'\)\)$/);
-    // the connection's setting, by name: kept for the connections the host opens, answered for one that keeps its own
-    assert.equal(mounted!.settings.length, 1);
-    assert.deepEqual(mounted!.settings[0]!.binds, [{ _type: 'held', name: 'datacube_url_trades', field: 'URL' }]);
+    // the connection's setting, by name: kept by the host for the connections it opens (data-host.ts: the host's to keep)
     const replayed: (readonly unknown[])[] = [];
-    await engine.settings.replay(async (_sql, params) => { replayed.push(params); });
+    await engine.settings.replay(async (sql, params) => {
+      assert.ok(sql.startsWith('SET VARIABLE '), sql);
+      replayed.push(params);
+    });
     assert.deepEqual(replayed, [[url]], 'replayed on a new connection, bound again');
   });
 
@@ -293,7 +304,7 @@ describe('a bearer URL: a presigned link, its query string its token (B3\'s Q3)'
     let asked = 0;
     const counting = { remoteMount: async (r: RemoteMountRequest) => { asked += 1; return planner.remoteMount(r); } };
     for (const named of ['https://sam:SENTINEL-pw@b.example/trades.parquet', `https://sam:SENTINEL-pw@b.example/trades.parquet?${token}`]) {
-      await assert.rejects(() => mountRemote(new RecordingEngine(), counting, { sources: [{ name: 'trades', url: named }] }),
+      await assert.rejects(() => mountRemote(hostOf(new RecordingEngine(), counting), { sources: [{ name: 'trades', url: named }] }),
         (e: Error) => /names a user or a password/.test(e.message) && !e.message.includes('SENTINEL'));
     }
     assert.equal(asked, 0);
@@ -302,7 +313,7 @@ describe('a bearer URL: a presigned link, its query string its token (B3\'s Q3)'
   });
 
   it('is refused for an Iceberg table, a folder that has no presigned link', async () => {
-    await assert.rejects(() => mountRemote(new RecordingEngine(), planner, { sources: [{ name: 't', url: `s3://b/t?${token}`, format: 'iceberg' }] }),
+    await assert.rejects(() => mountRemote(hostOf(new RecordingEngine()), { sources: [{ name: 't', url: `s3://b/t?${token}`, format: 'iceberg' }] }),
       (e: Error) => /a folder/.test(e.message) && !e.message.includes('SENTINEL'));
   });
 
@@ -310,7 +321,7 @@ describe('a bearer URL: a presigned link, its query string its token (B3\'s Q3)'
     const engine = new RecordingEngine();
     engine.failOn = /VIEW/;
     engine.failWith = `HTTP Error: HTTP GET error on '${url}' (HTTP 403)`;
-    await assert.rejects(() => mountRemote(engine, planner, { sources: [source] }),
+    await assert.rejects(() => mountRemote(hostOf(engine), { sources: [source] }),
       (e: Error) => /could not mount remote data/.test(e.message) && !e.message.includes('SENTINEL'));
     assert.ok(!redactSecrets(`on '${url}'`, undefined, [url]).includes('SENTINEL'));
     // its query string alone, as a message may quote it
@@ -351,7 +362,7 @@ describe('keeping secrets out of messages', () => {
     engine.failWith = 'boom: KEY_ID AKIAEXAMPLE SECRET super-secret-value';
     let message = '';
     try {
-      await mountRemote(engine, planner, {
+      await mountRemote(hostOf(engine), {
         sources: [{ name: 'T', url: 'https://x/y.parquet' }],
         s3: creds,
       });
@@ -367,7 +378,7 @@ describe('keeping secrets out of messages', () => {
     const sentinel = `SENTINEL-${'x'.repeat(8)}`;
     const engine = new RecordingEngine();
     const asked = recordingPlanner();
-    await mountRemote(engine, asked, {
+    await mountRemote(hostOf(engine, asked), {
       sources: [{ name: 'A', url: 's3://one/a.parquet' }, { name: 'B', url: 'https://two/b.csv' },
         { name: 'C', url: `https://three/c.parquet?sig=${sentinel}-url` }],
       s3: { accessKeyId: `${sentinel}-key`, secretAccessKey: `${sentinel}-secret`, sessionToken: `${sentinel}-token`,
@@ -421,7 +432,7 @@ describe('the mount sequence', () => {
 
   it('mounts several sources in one pass', async () => {
     const engine = new RecordingEngine();
-    await mountRemote(engine, planner, {
+    await mountRemote(hostOf(engine), {
       sources: [
         { name: 'TRADES', url: 'https://x/trades.parquet' },
         { name: 'BOOKS', url: 'https://x/books.csv' },

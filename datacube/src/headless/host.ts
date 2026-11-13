@@ -1,19 +1,21 @@
 // DataCube's side of an embedding host: Python's V8, where DataCube's non-screen code runs with no browser and no
-// WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3). The host answers four calls, each asynchronous
-// (a call out of the engine is: mini-racer's only kind), and this module turns them into what DataCube's code already
-// takes: a planner worker (engine-client's planner-protocol.ts, answered by legend-lite's native library) and a DuckDB connection
-// (engine-client's ArrowishConnection, answered by Python's DuckDB as Arrow IPC). Nothing here plans or queries.
+// WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3). The host answers its calls (calls.ts), each
+// asynchronous (a call out of the engine is: mini-racer's only kind), and this module turns them into what DataCube's code
+// already takes: a planner worker (engine-client's planner-protocol.ts, answered by legend-lite's native library) and
+// the host's database as DataCube's data flows ask of it (data-host.ts DataHost; table-output.ts's write) -- intent,
+// each ask planned and run by the host (the #6 bridge, 2026-11-12: until then a DuckDB connection, which handed Python
+// each statement DataCube's code had planned). Nothing here plans or queries.
 //
 // The host defines its calls as the global `legendLiteHost` BEFORE it loads a bundle, as a browser's globals are there
 // before a page's scripts run: a module may ask the planner as it loads (a test's fixture, parsed at its top level).
 
-import { arrowIpcTable } from '../../../engine-client/src/arrow-ipc.ts';
-import type { ArrowishConnection, ArrowishTable } from '../../../engine-client/src/duckdb.ts';
 import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import type { PythonLink } from '../services/python-host.ts';
+import type { DataHost, Rows } from '../data-host.ts';
+import { catalogColumnsRead } from '../upload.ts';
+import type { TableWriteHost } from '../table-output.ts';
 import { hostCalls, type HostCalls } from './calls.ts';
 import { fromBase64 } from './web.ts';
-import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
 export { hostCalls, type HostCalls };
 
@@ -95,33 +97,51 @@ export function hostEngine(calls: HostCalls): PythonLink {
   return { baseUrl: '', fetch: carried as unknown as typeof fetch };
 }
 
-/** The host's database: its connection (a test's files are its own host's: datacube/test/host/headless.ts). */
-export interface HostDatabase {
-  readonly connection: ArrowishConnection;
-}
+/** The database Python's host runs DataCube's work on. */
+const DATABASE_TYPE = 'DuckDB';
 
 /**
- * The host's database as DataCube's engine takes one: for what DataCube writes into it (a page's file read in, a remote
- * file's view, a snap's copy modelled) and its catalog -- never a grid's rows, which the host's plan-and-run reads
- * (hostEngine: D16). Each query is one whole call (no `send`: the host's DuckDB
- * answers a statement at once, so a superseded query is not cancelled between batches); its Arrow IPC read by
- * apache-arrow, as DuckDB-WASM's answers are.
+ * THE HOST'S DATABASE AS DATACUBE'S DATA FLOWS ASK OF IT (data-host.ts): each ask one call of the host's -- a load, host
+ * operations, a catalog -- planned by Python's planner and run by its runner on Python's DuckDB, the answer handed back
+ * (a grid's rows are never asked here: the host's plan-and-run reads them, hostEngine: D16). A mount's settings of the
+ * connection are Python's to keep and replay (its engine's frames): none is kept here.
  */
-export function hostDatabase(calls: HostCalls): HostDatabase {
-  const connection: ArrowishConnection = {
-    async query(sql: PlannedSql): Promise<ArrowishTable> {
-      return arrowIpcTable(fromBase64(await calls.query(sql)));
+export function hostData(calls: HostCalls): DataHost {
+  return {
+    databaseType: DATABASE_TYPE,
+    load: async (request, holds = {}) => {
+      await calls.load(JSON.stringify(request), JSON.stringify(holds));
     },
-    // a write's step, its values bound by the host's database (table-output.ts)
-    prepare: (sql: PlannedSql) => ({
-      query: async (...params: unknown[]): Promise<ArrowishTable> => arrowIpcTable(fromBase64(await calls.statement(sql, JSON.stringify(params)))),
-    }),
+    operations: async (operations) => JSON.parse(await calls.operations(DATABASE_TYPE, JSON.stringify(operations))) as Rows[],
+    catalog: async (schema, table) => {
+      const said = JSON.parse(await calls.catalog(schema, table)) as { readonly columns: readonly string[]; readonly rows: Rows };
+      return catalogColumnsRead((name) => {
+        const at = said.columns.indexOf(name);
+        if (at < 0) throw new Error(`the catalog did not return ${name} — got ${said.columns.join(', ')}`);
+        return said.rows.map((r) => r[at]);
+      });
+    },
+    // Python lets a mount's settings go with its view (its engine's own forget)
+    forget: () => {},
   };
-  return { connection };
 }
 
 /**
- * A host call's failure in its database's own words (calls.ts `query`, `statement`): the host's exception is carried as
+ * A TABLE OUTPUT ON PYTHON'S DATABASE (table-output.ts TableWriteHost): a table's columns asked of the host's catalog, and
+ * the Output's request handed to the host, which plans it as ONE plan and runs it in the plan's own transaction (calls.ts
+ * `output`) -- each a call, none a statement or a plan (the #6 bridge, met by the one plan in the DataCube stream's merge,
+ * 2026-11-13).
+ */
+export function hostTableOutput(calls: HostCalls): Pick<TableWriteHost, 'catalog' | 'output'> {
+  const data = hostData(calls);
+  return {
+    catalog: (schema, table) => data.catalog(schema, table),
+    output: (request) => calls.output(JSON.stringify(request)),
+  };
+}
+
+/**
+ * A host call's failure in its database's own words (calls.ts `load`, `operations`, `create`, `write`): the host's exception is carried as
  * its traceback's text (`Error running Python function: ... duckdb.CatalogException: Catalog Error: ...`), its last line
  * the database's -- that line's message; any other failure, its message as it is.
  */

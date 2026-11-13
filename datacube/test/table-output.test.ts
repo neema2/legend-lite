@@ -11,7 +11,7 @@ import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { fn, lambda, lit, property, variable, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import type { TableOutput } from '../src/layout/flow.ts';
-import { writeTable, type TableWriteHost } from '../src/table-output.ts';
+import { heldTableOutput, writeTable, type TableWriteHost } from '../src/table-output.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { unplanned } from '../../engine-client/test/unplanned.ts';
@@ -29,21 +29,23 @@ describe('a box written into a table of its host\'s database, in one transaction
     databaseType: 'DuckDB',
     sources: [{ table: 'tw_src', convertible: true }],
     held: (t) => t === 'tw_src',
-    models: {
+    ...heldTableOutput({
+      databaseType: 'DuckDB',
+      exclusive: async (work) => {
+        holding = true;
+        try {
+          return await engine.exclusive(work);
+        } finally {
+          holding = false;
+        }
+      },
+    }, {
       catalogColumnsSql: (schema, table) => models.catalogColumnsSql(schema, table),
       outputPlan: (request) => {
         asked.push(holding ? `${request.output.mode}, asked while the database was held` : request.output.mode);
         return models.outputPlan(request);
       },
-    },
-    hold: async (work) => {
-      holding = true;
-      try {
-        return await engine.exclusive(work);
-      } finally {
-        holding = false;
-      }
-    },
+    }),
   });
   /** The box's rows: the source's, or those `keep` holds for. */
   const rowsOf = (keep?: (x: ValueSpecification) => ValueSpecification): Lambda =>

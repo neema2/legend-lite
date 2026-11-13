@@ -15,7 +15,7 @@ for name in ('LEGEND_LITE_LIBRARY', 'LEGEND_LITE_CORPUS_MODEL', 'LEGEND_LITE_COR
              'LEGEND_LITE_DUCKDB_EXTENSIONS', 'LEGEND_LITE_MODEL_CASES', 'LEGEND_LITE_SQLAPI_CORPUS', 'LEGEND_LITE_CHART_RULES',
              'LEGEND_LITE_PARITY', 'LEGEND_LITE_CORPUS_PAGE', 'LEGEND_LITE_TAB_HEADLESS', 'LEGEND_LITE_MARKETS_MODEL',
              'LEGEND_LITE_MARKETS_DATA', 'LEGEND_LITE_MARKETS_PAGE', 'LEGEND_LITE_RUN_LOAD_FIXTURE',
-             'LEGEND_LITE_KEYED_FIXTURE'):
+             'LEGEND_LITE_RUN_PLAN_FIXTURE'):
     if name not in os.environ:
         continue
     # one path, or several separated by spaces ($(rlocationpaths ...)), handed on as os.pathsep separates them (a

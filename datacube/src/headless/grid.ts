@@ -78,7 +78,6 @@ import { handedOnTable, outputCsv, outputQuery } from '../flow-output.ts';
 import { outputProblem, readOutput } from '../layout/flow.ts';
 import { writeTable } from '../table-output.ts';
 import { pureSteps } from '../pure-import.ts';
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { lackingCheck, lackingWords } from '../cross-tab.ts';
 import { lensed, type PlanAndRun, type QueryLens, type QueryRunner } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
@@ -93,7 +92,7 @@ import {
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
-import { hostCalls, hostDatabase, hostEngine, hostWords, hostWorker } from './host.ts';
+import { hostCalls, hostEngine, hostTableOutput, hostWords, hostWorker } from './host.ts';
 import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows, openedLeaves } from '../join-open.ts';
 import { boxRows, pureChecked, pureFrom, pureInput, pureShown, pureText } from '../pure-box.ts';
@@ -1618,13 +1617,13 @@ export async function gridOutputQuery(spec: GridSpec): Promise<string> {
 /**
  * A FLOW'S TABLE OUTPUT WRITTEN AS PYTHON'S flow.run WRITES IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, FL13): the
  * box's rows (`query`, gridOutputQuery's) written into a table of the host's database by the one writer the tab writes
- * by (table-output.ts writeTable: the write planned, the host's plan runner running it in one transaction over the
- * host's statements, calls.ts `statement`) -- in no read of the host's. `output` the box's table Output; `tables` the
+ * by (table-output.ts writeTable: the Output's request planned by the host as one plan and run in its transaction,
+ * calls.ts `output`) -- in no read of the host's. `output` the box's table Output; `tables` the
  * host's tables it reads (`[{table, pkg?}]`: a frame's, in its own package) and the names of the host's own (`held`:
  * none an Output may write). JSON `{rows}`, the rows the database wrote, or `{problems}` in DataCube's words.
  */
 export async function gridWriteTable(spec: GridSpec, output: string, query: string, tables: string): Promise<string> {
-  return using(spec, async (o) => {
+  return using(spec, async () => {
     try {
       const out = readOutput(JSON.parse(output));
       if (typeof out === 'string') throw new CubeRefusal(out);
@@ -1633,13 +1632,12 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
       if (problem !== undefined) throw new CubeRefusal(problem);
       const given = JSON.parse(tables) as { readonly tables: readonly { readonly table: string; readonly pkg?: string }[]; readonly held: readonly string[] };
       const calls = hostCalls();
-      const engine = new DuckDbEngine(hostDatabase(calls).connection);
       const rows = await writeTable(fromJson(query) as unknown as Lambda, out, {
-        databaseType: engine.databaseType,
+        databaseType: 'DuckDB',
         sources: given.tables.map((t) => ({ table: t.table, convertible: true, ...(t.pkg !== undefined ? { pkg: t.pkg } : {}) })),
         held: (t) => given.held.some((h) => h.toLowerCase() === t.toLowerCase()),
-        models: o.planner,
-        hold: (work) => engine.exclusive(work),
+        // asked of the host as intent (the #6 bridge): a table's columns, and the Output's request it plans as one plan
+        ...hostTableOutput(calls),
       });
       return JSON.stringify({ rows });
     } catch (e) {

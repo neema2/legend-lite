@@ -1,6 +1,7 @@
 """DataCube's own code, headless: its non-screen bundle run in V8 (mini-racer), planning through legend-lite's native
-library and querying Python's DuckDB, with no WebAssembly anywhere in the process
-(docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3, §5).
+library, with no WebAssembly anywhere in the process (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3, §5). What it
+asks of Python's DuckDB is INTENT, planned and run here (the #6 bridge, 2026-11-12): a load, operations, a catalog, a
+table output (one plan) -- never a statement or a plan of DataCube's (``Headless._calls``).
 
 DataCube's planner talks to a worker (datacube/src/planner-protocol.ts); here the host is that worker, and it answers
 each request kind with the native library's function that delegates to the same ``Boundary`` function the tab's
@@ -26,19 +27,19 @@ import asyncio
 import base64
 import contextlib
 import hashlib
-import io
 import json
 import tempfile
 import threading
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Container, Coroutine, Iterator
+import uuid
+from collections.abc import Callable, Coroutine, Iterator
 from pathlib import Path
 from typing import Any
 
-from . import _host
-from ._planned import Answered, Database, across_the_bridge, connect, send
+from . import _host, compiler, projects
+from ._planned import Database, NotPlanned, PlannedSql, connect, host_operation_refusal, send
 from ._library import Library, library
 from ._pool import library_thread
 
@@ -49,6 +50,9 @@ _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512'
 
 # how much of V8's heap the engine may use: past it, the call that needs more fails, not the process
 DEFAULT_MEMORY_LIMIT = 2 * 1024 ** 3
+
+# the database this host runs DataCube's work on: Python's DuckDB
+DATABASE_TYPE = 'DuckDB'
 
 # a server is given this long to answer one fetch (seconds)
 _FETCH_TIMEOUT = 60
@@ -190,8 +194,10 @@ class Headless:
         # the read the call in its turn was made in (Frames.reading), if any: what its queries and its asks of the engine
         # read through
         self._over: Any = None
-        # the statements this session's planner answered: what DataCube's code may hand the database (_planned.py)
-        self._answered = Answered()
+        # the settings of the connection each mount made, by its view, as this host's runner kept them (``settings_of``)
+        self._settings: dict[str, tuple[dict[str, Any], ...]] = {}
+        # the files handed out to DataCube's code, each by the handle issued for it (``hand_out``): what a load's holds name
+        self._handed: dict[str, Path] = {}
         # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
         # a warehouse table opened under the session it holds), over the call's read, given by the engine's owner as a
         # weak reference to them (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone:
@@ -228,58 +234,127 @@ class Headless:
 
     async def _planner(self, request: str) -> str:
         asked = json.loads(request)
-        # a host operation's own texts, each answered already, or the planner is not asked (the re-audit's S3)
-        refused = self._answered.refusal(asked)
+        # a host operation takes no SQL: refused by name, the planner never asked (the final audit's item 1)
+        refused = host_operation_refusal(asked)
         if refused is not None:
             return json.dumps({'id': asked.get('id'), 'ok': False, 'error': f'NotPlanned: {refused}'})
-        answered = answer(self._lib, asked)
-        # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
-        # request's kind (_planned.Answered)
-        if answered.get('ok'):
-            self._answered.record(asked['kind'], answered['answer'])
-        return json.dumps(answered)
+        return json.dumps(answer(self._lib, asked))
 
-    @property
-    def answered(self) -> Container[str]:
-        """The statements this session's planner answered: what DataCube's hosted code may hand Python's database
-        (across_the_bridge)."""
-        return self._answered
+    # WHAT DATACUBE'S CODE ASKS OF THE DATABASE IS INTENT (the #6 bridge, the user's go of 2026-11-12, "why don't we start
+    # fixing the python right now"): a load to make, operations to run, a catalog to read, a table to make and a program
+    # to write, each PLANNED HERE by this host's planner and RUN HERE by its runner on its database -- never a statement
+    # and never a plan from DataCube's code. Until then DataCube's code planned in V8 and handed Python each statement
+    # (calls.ts ``query``, ``statement``), which Python admitted by the statements its planner had answered (Answered,
+    # across_the_bridge): both deleted.
 
-    async def _query(self, sql: str) -> str:
-        import pyarrow as pa
+    def _send(self, sql: PlannedSql, params: tuple[Any, ...] = ()) -> Any:
+        # a call made in a read of the frames reads through it: the database as it was when the read began (in a read,
+        # the read's own send: frames.Reading.execute, its cursor, its failures' words redacted)
+        return send(self._db, sql, params) if self._over is None else self._over.execute(sql, params)
 
-        # a call made in a read of the frames queries through it: the database as it was when the read began
-        statement = across_the_bridge(sql, "the hosted DataCube's query", self._answered)
-        # in a read, the read's own send (frames.Reading.execute: its cursor, its failures' words redacted)
-        result = send(self._db, statement) if self._over is None else self._over.execute(statement)
-        table = result.to_arrow_table() if result.description is not None else pa.table({})
-        sink = io.BytesIO()
-        with pa.ipc.new_stream(sink, table.schema) as writer:
-            writer.write_table(table)
-        return base64.b64encode(sink.getvalue()).decode('ascii')
+    def _rows(self, sql: PlannedSql, params: tuple[Any, ...] = ()) -> list[list[Any]]:
+        result = self._send(sql, params)
+        return [list(r) for r in result.fetchall()] if result.description is not None else []
 
-    async def _statement(self, sql: str, params: str) -> str:
-        """One statement run with its values bound (calls.ts ``statement``: a write's step, DataCube's table writer) --
-        never in a read of the frames, which sees the database as it was: refused there, in words."""
-        import pyarrow as pa
-
+    def _writing(self, what: str) -> None:
         if self._over is not None:
-            raise RuntimeError('a write runs in no read of the frames (Frames.reading): its changes are the database\'s own')
-        result = send(self._db, across_the_bridge(sql, "the hosted DataCube's statement", self._answered),
-                      json.loads(params))
-        table = result.to_arrow_table() if result.description is not None else pa.table({})
-        sink = io.BytesIO()
-        with pa.ipc.new_stream(sink, table.schema) as writer:
-            writer.write_table(table)
-        return base64.b64encode(sink.getvalue()).decode('ascii')
+            raise RuntimeError(f'{what} runs in no read of the frames (Frames.reading): its changes are the database\'s own')
+
+    async def _load(self, request: str, holds: str) -> None:
+        """ONE LOAD, PLANNED AND RUN HERE (calls.ts ``load``): ``request`` what DataCube's code asks loaded, as its planner
+        asks it -- ``{"fileLoad": ...}``, a file this host holds read into a table of its own; ``{"remoteMount": ...}``, a
+        remote file's access, or its view -- planned by this host's planner (``compiler.file_load``, ``remote_mount``)
+        and run by its runner on its database (``projects.run_host_load``), binding what ``holds`` names: its files
+        (``{"name", "digest", "size", "handle"}``: each by the handle this host issued, ``hand_out``, resolved here) and
+        its keys and bearer URLs by name. A
+        mount's settings of the connection are kept here by its view (``settings_of``), never handed back. In no read."""
+        self._writing('a load')
+        asked, held = json.loads(request), json.loads(holds)
+        if set(asked) == {'fileLoad'}:
+            plan = compiler.file_load(asked['fileLoad'])
+        elif set(asked) == {'remoteMount'}:
+            plan = compiler.remote_mount(asked['remoteMount'])
+        else:
+            raise ValueError(f'a load is a file read in (fileLoad) or a remote file mounted (remoteMount), not {sorted(asked)}')
+        files = None if 'files' not in held else tuple(
+            projects.HostFile(f['name'], f['digest'], f['size'], str(self._resolved(f['handle']))) for f in held['files'])
+        ran = projects.run_host_load(plan, self._db, files=files, secrets=held.get('secrets'))
+        view = asked.get('remoteMount', {}).get('view')
+        if view is not None:
+            self._settings[view] = ran.settings
+
+    def hand_out(self, path: str | Path) -> str:
+        """A file this host hands DataCube's code to read, by a HANDLE issued for it here (the orchestrator's ruling of
+        2026-11-12: the path gap closed structurally): DataCube's code names the file in a load's holds by that handle
+        alone, and this host resolves it (``_load``) -- never a path DataCube's code sends back. Taken back with
+        ``take_back`` once the read is over."""
+        handle = f'file-{uuid.uuid4().hex}'
+        self._handed[handle] = Path(path)
+        return handle
+
+    def take_back(self, handle: str) -> None:
+        """A handed-out file's handle let go: a load naming it after is refused."""
+        self._handed.pop(handle, None)
+
+    def _resolved(self, handle: Any) -> Path:
+        path = self._handed.get(handle) if isinstance(handle, str) else None
+        if path is None:
+            raise ValueError(f"{handle!r} is no file this host handed out: a load holds a file by the handle the host "
+                             'issued for it')
+        return path
+
+    def settings_of(self, view: str) -> tuple[dict[str, Any], ...]:
+        """The settings of the connection the last mount of ``view`` made (a bearer URL's session variable: its statement
+        and what it binds by name, never a value), as this host's runner kept them: what the engine replays on every
+        read's cursor (engine.py ``_mount``). Handed over once."""
+        return self._settings.pop(view, ())
+
+    async def _operations(self, database_type: str, operations: str) -> str:
+        """HOST OPERATIONS, PLANNED AND RUN HERE (calls.ts ``operations``): DataCube's code names each (host-operations.ts
+        ``HostOperation``: a table dropped, a table rewritten to its model's types, a count, a transaction's step), this
+        host's planner writes its statements (``compiler.host_operations``) and its database runs them in order -- in a
+        read of the frames, counts alone, through the read. Each operation's last statement's rows, JSON."""
+        if database_type != DATABASE_TYPE:
+            raise ValueError(f'this host runs its operations on {DATABASE_TYPE}, not {database_type}')
+        asked = json.loads(operations)
+        if self._over is not None and any(op.get('op') != 'count' for op in asked):
+            self._writing('an operation that changes the database')
+        answered = []
+        for statements in compiler.host_operations(database_type, asked):
+            rows: list[list[Any]] = []
+            for sql in statements:
+                rows = self._rows(sql)
+            answered.append(rows)
+        return json.dumps(answered, default=str)
+
+    async def _catalog(self, schema: str, table: str) -> str:
+        """A TABLE'S COLUMNS AS THE CATALOG SAYS THEM (calls.ts ``catalog``): the catalog's question this host's planner
+        writes (``compiler.catalog_columns_sql``), run here -- in a read, through it: ``{"columns", "rows"}``, JSON."""
+        result = self._send(compiler.catalog_columns_sql(schema, table))
+        return json.dumps({'columns': [d[0] for d in result.description], 'rows': [list(r) for r in result.fetchall()]},
+                          default=str)
+
+    async def _output(self, request: str) -> str:
+        """A TABLE OUTPUT, ONE CALL (calls.ts ``output``; the final audit's item 2, Boundary.outputPlan, met by the #6
+        bridge in the DataCube stream's merge, 2026-11-13): ``request`` DataCube's OutputRequest -- the box's tables and
+        the target as the catalog answered them, the output (its table, its mode, a merge's keys), its rows as a lambda
+        -- planned here as ONE plan (``compiler.output_plan``: the table made where the output makes it, then the write)
+        and run by this host's runner in the plan's own transaction (``projects.run_plan``): its answer, lite's JSON rows
+        -- the count the database wrote. Never a statement or a plan of DataCube's. In no read."""
+        self._writing('a write')
+        plan = compiler.output_plan(json.loads(request))
+        return projects.run_plan(plan, lambda sql, params: [tuple(r) for r in self._rows(sql, params)], DATABASE_TYPE)
 
     async def _fetch(self, method: str, url: str, body: str | None) -> str:
         # a statement the hosted code sends a SQL API over HTTP (a warehouse's submit, its JSON's `sql`) crosses the
         # bridge as a query does: answered by this session's planner, or refused by name and nothing sent (the
         # re-audit's S9, 2026-11-12: this fetch carried any text to any server)
-        sql = _statement_in(body)
-        if sql is not None:
-            across_the_bridge(sql, f"the hosted DataCube's HTTP request to {url}", self._answered)
+        if _statement_in(body) is not None:
+            # on the bridge on intent no statement crosses: one carried to a SQL API is refused by name, nothing sent
+            # (the re-audit's S9 admitted only the planner's own; the bridge deleted that set: the DataCube stream's
+            # merge, 2026-11-13)
+            raise NotPlanned(f"the hosted DataCube's HTTP request to {url} carries a statement: DataCube's code sends no "
+                             'SQL, a warehouse\'s rows are its engine\'s to plan and run (calls.ts engine)')
         status, text = answer_fetch(method, url, body)
         return json.dumps({'status': status, 'body': text})
 
@@ -306,10 +381,10 @@ class Headless:
 
     def _calls(self) -> dict[str, Callable[..., Coroutine[Any, Any, Any]]]:
         """The host's calls by the name DataCube's code makes each (calls.ts ``HostCalls``), defined as the global
-        ``legendLiteHost`` before the bundle loads. A test's own database is no call of the product's (2026-11-12: the
-        headless lane's tests' setup SQL is its own host's, datacube/test/headless/run.py TestHost)."""
-        return {'planner': self._planner, 'query': self._query, 'statement': self._statement, 'digest': self._digest,
-                'fetch': self._fetch, 'engine': self._engine}
+        ``legendLiteHost`` before the bundle loads: none sends the database a statement or a plan of DataCube's."""
+        return {'planner': self._planner, 'load': self._load, 'operations': self._operations, 'catalog': self._catalog,
+                'output': self._output, 'digest': self._digest, 'fetch': self._fetch,
+                'engine': self._engine}
 
     # ---- the engine's life
 

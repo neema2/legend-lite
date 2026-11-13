@@ -610,6 +610,45 @@ describe("the load runners' shared conformance fixture", () => {
 });
 
 
+describe("the write runners' shared conformance fixture", () => {
+  // the #6 bridge (2026-11-12): the tab's runPlan, joined, and Python's projects.run_plan (//python:engine_test) run
+  // one write's plan inside a transaction their caller began -- the same count, the same rows, the same refusal
+  interface Fixture {
+    model: string; runtime: string; databaseType: string; setup: string[]; program: unknown; answer: string; check: string;
+    rows: unknown[][]; refused: { databaseType: string; words: string };
+  }
+  const fixture = JSON.parse(readFileSync(runfileFromEnv('RUN_PLAN_FIXTURE'), 'utf8')) as Fixture;
+  const planOf = (): PlanText => {
+    const handle = Number(ok(answer(m, { kind: 'hold', model: fixture.model })));
+    return unplannedPlan(ok(answer(m, { kind: 'executionPlan', handle, lambda: JSON.stringify(fixture.program), runtime: fixture.runtime })));
+  };
+
+  it('answers the count and leaves the rows the fixture names, in its caller\'s transaction', async () => {
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+    await own.exclusive(async (held) => {
+      for (const sql of fixture.setup) await held.rows(unplanned(sql), []);
+      const session: PlanSession = { databaseType: fixture.databaseType, run: held.rows };
+      await held.rows(unplanned('BEGIN TRANSACTION'), []);
+      assert.equal(await runPlan(planOf(), session, { joined: true }), fixture.answer);
+      await held.rows(unplanned('COMMIT'), []);
+      const rows = await held.rows(unplanned(fixture.check), []);
+      assert.deepEqual(rows.map((r) => r.map((v) => (typeof v === 'bigint' ? Number(v) : v))), fixture.rows);
+    });
+  });
+
+  it("refuses a plan of another database in the fixture's words, nothing run", async () => {
+    const sent: string[] = [];
+    const session: PlanSession = {
+      databaseType: fixture.refused.databaseType,
+      run: async (sql) => { sent.push(sql); return []; },
+    };
+    await assert.rejects(() => runPlan(planOf(), session, { joined: true }),
+      (e: unknown) => e instanceof PlanRefusal && e.message === fixture.refused.words || assert.fail(String(e instanceof Error ? e.message : e)));
+    assert.deepEqual(sent, []);
+  });
+});
+
 // A SNAPSHOT FROM A REMOTE PLANE, A PLANNED LOAD WHOSE SOURCE IS A STREAM (the user's ruling of 2026-11-11, "This is the
 // right plan"; no hash, the orchestrator's simplification of 2026-11-12): the planner names the plane, its statement and
 // the table; the runner streams the plane's Arrow chunks in by DuckDB-WASM's own Arrow import in ONE transaction, kept

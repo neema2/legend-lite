@@ -70,17 +70,18 @@ esbuild_bundle(
     ],
 )
 
-# the load runners' shared conformance fixture (B3, 2026-11-11): the tab's runLoad and Python's run_load run it alike
+# the load runners' shared conformance fixture (B3, 2026-11-11): the tab's runLoad and Python's run_load run it alike;
+# and the write runners' (the #6 bridge, 2026-11-12): the tab's runPlan, joined, and Python's run_plan
 exports_files(
-    ["test/fixtures/run-load-conformance.json"],
+    ["test/fixtures/run-load-conformance.json", "test/fixtures/run-plan-conformance.json"],
     visibility = ["//python:__pkg__"],
 )
 
-# the keyed expansion's one fixture (the C final audit's H8, 2026-11-12): Java's PlanRunner.expand, the tab's
-# expandKeyed and Python's _keyed_text each read it
+# the keyed expansion's one fixture (the C final audit's H8, 2026-11-12): Java's PlanRunner.expand and the tab's
+# expandKeyed each read it (Python's _keyed_text went with the bridge on intent: the DataCube stream's merge, 2026-11-13)
 exports_files(
     ["test/fixtures/keyed-expansion.json"],
-    visibility = ["//core:__pkg__", "//python:__pkg__"],
+    visibility = ["//core:__pkg__"],
 )
 
 # The host's plan runner as a source the census reads (P7 of docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09: its plan
@@ -250,13 +251,16 @@ node_test(
         ":node_modules/@duckdb/duckdb-wasm",
         "test/fixtures/run-load-conformance.json",
         "test/fixtures/keyed-expansion.json",
+        "test/fixtures/run-plan-conformance.json",
         "test/planner.ts",
     ],
     entry_point = "test/plan-runner.test.ts",
-    # the load runners' shared conformance fixture (B3): Python's engine test runs it too
+    # the runners' shared conformance fixtures (B3; the keyed expansion's, H8; the write's, the #6 bridge): Python's
+    # engine test runs the load's and the write's too
     env = {
         "RUN_LOAD_FIXTURE": "$(rlocationpath test/fixtures/run-load-conformance.json)",
         "KEYED_FIXTURE": "$(rlocationpath test/fixtures/keyed-expansion.json)",
+        "RUN_PLAN_FIXTURE": "$(rlocationpath test/fixtures/run-plan-conformance.json)",
     },
     wasm = True,
 )

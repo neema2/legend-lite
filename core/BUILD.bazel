@@ -1044,7 +1044,7 @@ junit_test(
 )
 
 # THE KEYED EXPANSION'S ONE FIXTURE (the total wall's C final audit, H8, 2026-11-12): Java's PlanRunner.expand writes
-# each case of engine-client/test/fixtures/keyed-expansion.json as the tab's expandKeyed and Python's _keyed_text do
+# each case of engine-client/test/fixtures/keyed-expansion.json as the tab's expandKeyed does (Python's _keyed_text went with the bridge on intent, 2026-11-13)
 junit_test(
     name = "keyed_expansion_conformance_test",
     memory_mb = 256,
