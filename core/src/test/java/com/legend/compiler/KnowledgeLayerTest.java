@@ -332,4 +332,34 @@ class KnowledgeLayerTest {
         assertEquals("String", k.columnKind("a::Db", "R", "C"));
         assertEquals("String", k.columnKind("a::Db", "R", "D"), "one column read twice side by side is no cycle");
     }
+
+    /** The names fixes, items 9 to 11 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): the type
+     * inference's engine rules (relationalExtension.pure). A decimal is safe with the integer and float kinds alone (with
+     * a string there is no safe type: it beat any type); {@code sub} with no typed operand has no type (it defaulted to
+     * INTEGER); {@code max} and {@code min} over several arguments are the safe type over all of them when one exists,
+     * else the first's (the first's alone). */
+    @Test
+    @DisplayName("kernel: the type inference keeps the engine's safe-type rules")
+    void typeInferenceKeepsTheEnginesSafeTypeRules() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, D DECIMAL(10,2), S VARCHAR(10), I INTEGER)
+                  View V (CD: case(equal(T.ID, 1), T.D, T.S), CI: case(equal(T.ID, 1), T.D, T.I), \
+                SB: sub(nope(T.ID), nope(T.ID)), MX: max(T.I, T.D), MS: max(T.I, T.S), MN: min(T.D))
+                )
+                """)));
+        com.legend.model.DatabaseDefinition db = ix.findDatabase("a::Db").orElseThrow();
+        var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
+        java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
+                i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
+        com.legend.model.RelationalDataType dec = new com.legend.model.RelationalDataType.Decimal(10, 2);
+        assertEquals(null, infer.apply(0), "a decimal against a string has no safe type");
+        assertEquals(dec, infer.apply(1), "a decimal beats an integer");
+        assertEquals(null, infer.apply(2), "sub with no typed operand has no type");
+        assertEquals(dec, infer.apply(3), "max over two: their safe type");
+        assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(4),
+                "max over two with no safe type: the first's");
+        assertEquals(dec, infer.apply(5), "min over one: its own");
+    }
 }

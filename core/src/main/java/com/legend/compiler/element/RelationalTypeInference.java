@@ -60,8 +60,41 @@ public final class RelationalTypeInference {
             case RelationalOperation.FunctionCall f -> switch (
                     f.name().toLowerCase(java.util.Locale.ROOT)) {
                 // aggregates carry their argument's type (engine
-                // inferDynaFunctionReturnType: max/min/sum/avg family)
-                case "max", "min", "distinct" ->
+                // inferDynaFunctionReturnType: max/min/sum/avg family); max
+                // and min over SEVERAL arguments are the safe type over all
+                // of them when one exists, else the first's -- the engine's
+                // two rules (relationalExtension.pure:1151-1197); until
+                // 2026-11-13 the first's alone (the names fixes, item 11,
+                // docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+                case "max", "min" -> {
+                    List<RelationalDataType> types = new ArrayList<>(f.args().size());
+                    for (var arg : f.args()) {
+                        types.add(infer(arg, db, ctx, expanding));
+                    }
+                    RelationalDataType first = types.isEmpty() ? null : types.get(0);
+                    if (types.size() <= 1) {
+                        yield first;
+                    }
+                    // an argument with no type drops out, as the engine's map does
+                    RelationalDataType acc = null;
+                    boolean possible = true;
+                    for (RelationalDataType t : types) {
+                        if (t == null) {
+                            continue;
+                        }
+                        if (acc == null) {
+                            acc = t;
+                            continue;
+                        }
+                        acc = safe(acc, t);
+                        if (acc == null) {
+                            possible = false;
+                            break;
+                        }
+                    }
+                    yield possible && acc != null ? acc : first;
+                }
+                case "distinct" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
                 // sum/avg PROMOTE float-family to DOUBLE (engine
@@ -92,13 +125,15 @@ public final class RelationalTypeInference {
                                 : infer(f.args().get(0), db, ctx, expanding);
                 case "position", "length", "charindex", "locate",
                         "indexof" -> new RelationalDataType.Integer_();
+                // no typed operand, no type: never a default (until
+                // 2026-11-13 INTEGER -- the names fixes, item 10, ruling 28;
+                // AGENTS.md invariant 4; the engine's sub matches no rule then)
                 case "sub" -> {
                     RelationalDataType acc2 = null;
                     for (var arg : f.args()) {
                         acc2 = safe(acc2, infer(arg, db, ctx, expanding));
                     }
-                    yield acc2 == null
-                            ? new RelationalDataType.Integer_() : acc2;
+                    yield acc2;
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed
                 // 4000 buffer size
@@ -181,9 +216,13 @@ public final class RelationalTypeInference {
     }
 
     /** The engine's getSafeType pair rule (typeInference.pure): equal
-     * types keep; DECIMAL beats int/double/float as-is; two decimals
-     * widen to DECIMAL(maxIntDigits+maxScale, maxScale); DOUBLE beats
-     * integers. Null operands pass the other side through. */
+     * types keep; DECIMAL beats the integer and float kinds as-is; two
+     * decimals widen to DECIMAL(maxIntDigits+maxScale, maxScale); DOUBLE
+     * beats integers. Null operands pass the other side through. A decimal
+     * against anything else (a string, a date, a bit) has no safe type, as
+     * the engine's safeTypeMap has none (relationalExtension.pure:2014-2033):
+     * until 2026-11-13 the decimal beat it (the names fixes, item 9,
+     * docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28). */
     private static @com.legend.base.Nullable RelationalDataType safe(
             @com.legend.base.Nullable RelationalDataType a,
             @com.legend.base.Nullable RelationalDataType b) {
@@ -213,10 +252,12 @@ public final class RelationalTypeInference {
             return new RelationalDataType.Decimal(intDigits + scale, scale);
         }
         if (aDecimal != null) {
-            return new RelationalDataType.Decimal(aDecimal[0], aDecimal[1]);
+            return DECIMAL_PARTNERS.contains(b.getClass())
+                    ? new RelationalDataType.Decimal(aDecimal[0], aDecimal[1]) : null;
         }
         if (bDecimal != null) {
-            return new RelationalDataType.Decimal(bDecimal[0], bDecimal[1]);
+            return DECIMAL_PARTNERS.contains(a.getClass())
+                    ? new RelationalDataType.Decimal(bDecimal[0], bDecimal[1]) : null;
         }
         boolean aFloat = a instanceof RelationalDataType.Double_
                 || a instanceof RelationalDataType.Float_
@@ -249,6 +290,14 @@ public final class RelationalTypeInference {
     private static final List<Class<? extends RelationalDataType>> INT_WIDENING = List.of(
             RelationalDataType.TinyInt.class, RelationalDataType.SmallInt.class,
             RelationalDataType.Integer_.class, RelationalDataType.BigInt.class);
+
+    /** The kinds a DECIMAL (or NUMERIC) is safe with besides another decimal: the engine's safeTypeMap lists Decimal and
+     *  Numeric among the partners of TinyInt, SmallInt, Integer, BigInt, Float and Double alone (REAL, VARCHAR, CHAR,
+     *  DATE, TIMESTAMP and BIT have none of them). */
+    private static final List<Class<? extends RelationalDataType>> DECIMAL_PARTNERS = List.of(
+            RelationalDataType.TinyInt.class, RelationalDataType.SmallInt.class,
+            RelationalDataType.Integer_.class, RelationalDataType.BigInt.class,
+            RelationalDataType.Float_.class, RelationalDataType.Double_.class);
 
     private static Integer @com.legend.base.Nullable [] decimalOf(
             RelationalDataType t) {
