@@ -15,6 +15,7 @@ import type { RemoteMountRequest, SnapCopyRequest, SnapStreamRequest, Synthesize
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
+import { planning } from '../run-frame.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -41,6 +42,8 @@ export class WorkerPort implements PlannerPort {
   }
 
   ask(request: RequestBody): Promise<string> {
+    // a worker's call is asked here, on the caller's flow: refused inside a run of it (run-frame.ts, the witness)
+    planning(request.kind);
     const id = this.#next++;
     return new Promise((resolve, reject) => {
       this.#pending.set(id, { resolve, reject });

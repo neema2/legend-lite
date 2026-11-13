@@ -735,8 +735,11 @@ const BUDGET = 434_500;
  *  420,500 -> 421,500 (2026-11-11, the tenets audit's M3 -- the grid-only page's note of the same date). Measured 420,811.
  *  421,500 -> 422,000 (2026-11-12, the total wall's B and C3 together: a planner client's answers typed as a plan's
  *  statements where they are read -- planned-sql.ts fromPlan, allFromPlan and plannedProjectData -- and the planner's
- *  synthesize door, LitePlanner.synthesize; each fit alone, the two over by 169 bytes). Measured 421,669. */
-const ENGINE_BUDGET = 422_000;
+ *  synthesize door, LitePlanner.synthesize; each fit alone, the two over by 169 bytes). Measured 421,669.
+ *  422,000 -> 422,500 (2026-11-13, the next PR's item 2, "separation made foolproof", the standing witness: the run
+ *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
+ *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108. */
+const ENGINE_BUDGET = 422_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

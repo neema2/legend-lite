@@ -4,6 +4,7 @@
 // functions, each delegating to the same Boundary function as the export here (legend_lite/_planner.py).
 
 import type { RequestBody } from './planner-protocol.ts';
+import { planning } from '../run-frame.ts';
 
 /** The module's exports the protocol's kinds name (planner.TabExports). */
 export interface PlannerModule {
@@ -39,6 +40,8 @@ export interface PlannerModule {
 
 /** One request, answered by the module's export of the same name: the export's own tagged answer, every kind folded. */
 export function answer(m: PlannerModule, r: RequestBody): string {
+  // every in-thread call of the planner comes here: refused inside a run of its flow (run-frame.ts, the witness)
+  planning(r.kind);
   switch (r.kind) {
     case 'hold': return m.exports.holdModelOrError(r.model);
     case 'release': return m.exports.releaseModelOrError(r.handle);

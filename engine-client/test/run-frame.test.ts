@@ -1,0 +1,72 @@
+// THE RUN FRAME (run-frame.ts, the witness, 2026-11-13): a planner entry asked inside a run of its own flow is refused by
+// name; outside any run, after a run ends, and on another flow while one flow's run is open, it is not. The planner's
+// in-thread answer and a worker's port are entries.
+
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import { currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
+import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
+import { WorkerPort } from '../src/legend/wasm-grammar.ts';
+
+const REFUSED = /the planner was asked 'plan' inside a run \(a test's run\): a run sends its plan's statements and plans nothing \(G4\)/;
+
+/** A module whose one export answers a plan. */
+const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1' } } as unknown as PlannerModule;
+
+describe('the run frame', () => {
+  it('is kept under Node: the witness is not blind here', () => {
+    assert.equal(frameKept, true);
+  });
+
+  it('refuses a planner entry inside a run, across its awaits, and not outside it or after it', async () => {
+    planning('plan');
+    await assert.rejects(inRun("a test's run", async () => {
+      await new Promise((done) => setTimeout(done, 0));
+      assert.equal(currentRun(), "a test's run");
+      planning('plan');
+    }), REFUSED);
+    assert.equal(currentRun(), undefined, 'the run ended with it');
+    planning('plan');
+  });
+
+  it('is the flow\'s: a second flow plans while the first flow\'s run waits', async () => {
+    let open!: () => void;
+    const gate = new Promise<void>((done) => { open = done; });
+    const first = inRun("a test's run", async () => {
+      await gate;
+      planning('plan');
+    });
+    await new Promise((done) => setTimeout(done, 0));
+    planning('plan');
+    open();
+    await assert.rejects(first, REFUSED);
+  });
+
+  it('refuses the planner\'s in-thread answer inside a run, and answers it outside one', async () => {
+    const asked = { kind: 'plan', handle: 1, query: 'a', runtime: 'r' } as const;
+    await assert.rejects(inRun("a test's run", async () => answer(module, asked)), REFUSED);
+    assert.equal(answer(module, asked), 'OK\nSELECT 1');
+  });
+
+  it('refuses a worker\'s port inside a run, before the request is posted', async () => {
+    const g = globalThis as unknown as { Worker?: unknown };
+    const posted: unknown[] = [];
+    g.Worker = class {
+      onmessage: unknown = null;
+      postMessage(m: unknown): void {
+        posted.push(m);
+      }
+    };
+    try {
+      const port = new WorkerPort('worker.js', 'http://planner.invalid/');
+      await assert.rejects(inRun("a test's run", async () => port.ask({ kind: 'plan', handle: 1, query: 'a', runtime: 'r' })),
+        REFUSED);
+      assert.deepEqual(posted, [], 'nothing posted to the worker');
+      void port.ask({ kind: 'plan', handle: 1, query: 'a', runtime: 'r' });
+      assert.equal(posted.length, 1, 'outside the run, posted');
+    } finally {
+      delete g.Worker;
+    }
+  });
+});
