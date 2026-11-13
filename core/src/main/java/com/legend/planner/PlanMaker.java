@@ -723,6 +723,23 @@ public final class PlanMaker {
         return out;
     }
 
+    /**
+     * The answer of an Output that MAKES its table with its rows (the orchestrator's proposal of 2026-11-12, after ruling
+     * (e): the create carries the data): the table's rows counted, {@code SELECT count(*) AS value FROM <table>}, written
+     * by {@code dialect}, on {@code target} -- an {@code Integer[1]} value, one row, one column {@code value}, as a write's
+     * count is answered ({@link #count}). The table's name delimited, as its making names it.
+     */
+    public static ExecutionPlan.Node countOf(String table, SqlDialect dialect, ExecutionPlan.Target target) {
+        OutputCol value = new OutputCol("value", com.legend.sql.SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED);
+        SqlQuery q = new SqlSelect(List.of(new SqlSelect.Projection(new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.COUNT, List.of(), false, List.of()), "value", value)), false,
+                new SqlSource.Table(table, "t0", List.of(), false, Map.of(), new NameQuoting(false, true)), null,
+                List.of(), null, null, List.of(), null, null, List.of(value));
+        ExprType type = new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE);
+        return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE), sql(q, dialect, target));
+    }
+
     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
      *  binds ({@link ExecutionPlan#COUNT}), as an {@code Integer[1]} value: one row, one column {@code value}. */
     private static ExecutionPlan.Node count(TypedQuery query, TypedSpec write,
