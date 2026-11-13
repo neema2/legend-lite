@@ -935,6 +935,12 @@ measurement's "same rows" check stands beside it. No register row is expected.
   as the text `-043-03-15`. That is `printf('%04d')` of a negative year: the sign takes one of the four places.
   `java.time` cannot parse it (it wants `-0043`), so the BC date fails at decode. The fix belongs in SQLite's date
   spelling in the dialect. The answer moves, so a register row comes first.
+- **BC date and time LITERALS are spelled in a form two cloud databases refuse (found 2026-11-13, the BC probe's list
+  cases on the lanes, at 4db48b24d9).** Databricks refuses `DATE '-43-03-15'` and `TIMESTAMP '-43-03-15T10:30:00'`
+  with `[INVALID_TYPED_LITERAL]`, SQLSTATE 42604. Snowflake refuses `TIMESTAMP '-43-03-15T10:30:00'` ("is not
+  recognized"), though it accepts the DATE. The fix: these dialects build a BC literal with the database's constructor,
+  as `date()` already does (`make_date`/`make_timestamp` on Databricks, both measured to work), never as a typed
+  literal. Today these statements fail, so the fix turns a refusal into an answer; a register row comes first.
 
 ## 8. Commands
 
