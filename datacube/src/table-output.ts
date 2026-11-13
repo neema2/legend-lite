@@ -1,24 +1,24 @@
 // AN OUTPUT INTO A TABLE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, Output Data to a table; FL13): a box's rows written
-// into a table of its host's own database, in one transaction -- the table made for them first where the Output makes
-// it (`create`, `overwrite`: the database's own CREATE, as a Snap makes its copy -- the host's operation, D5), then a
-// WRITE THE PLANNER PLANS over one model of the box's tables and the target (`write`, `delete` then `write`, `merge` by
-// its keys: legend-lite's store writes, docs/WRITES_DESIGN_2026_10_18.md L1) and the host's plan runner runs
-// (engine-client/src/plan-runner.ts) -- the target's model read off the database's own catalog, so its columns are the
-// database's. Every value is the database's: the rows it writes, the count it answers. A failure anywhere takes back
-// everything, the table made among it.
+// into a table of its host's own database as ONE PLAN made before anything runs (the final audit's item 2, 2026-11-12,
+// the user's ruling (b): Boundary.outputPlan) -- the table made for them first where the Output makes it (`create`,
+// `overwrite`: the database's own create of the rows, planned), then the WRITE the planner plans over one model of the
+// box's tables and the target (`write`, `delete` then `write`, `merge` by its keys: legend-lite's store writes,
+// docs/WRITES_DESIGN_2026_10_18.md L1), in the plan's own transaction, which the host's plan runner runs
+// (engine-client/src/plan-runner.ts) and asks the planner nothing. The tables' columns are read off the database's own
+// catalog before the plan is asked for. Every value is the database's: the rows it writes, the count it answers. A
+// failure anywhere takes back everything, the table made among it.
 //
 // One writer for the tab (app.ts writeOutput) and Python's flow.run (headless gridWriteTable). PURE: no DOM; a host gives
 // its database, held for the write, and its planner.
 
 import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
-import { runPlan, transacted } from '../../engine-client/src/plan-runner.ts';
-import { colSpecs, fn, lambda, lit, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { ModelTable, TableModels } from './infer.ts';
-import type { Plan } from '../../engine-client/src/relation-type.ts';
+import { runPlan } from '../../engine-client/src/plan-runner.ts';
+import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
+import type { ModelTable, OutputRequest, TableModels } from './infer.ts';
 import type { TableOutput } from './layout/flow.ts';
 import { CubeRefusal } from './snapshot.ts';
 import { catalogColumnsOf } from './upload.ts';
-import type { PlannedSql, PlanText } from '../../engine-client/src/planned-sql.ts';
+import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 
 /** The schema a host's own tables are in (a page's files, a snap's copies): DuckDB's own. */
 const SCHEMA = 'main';
@@ -31,13 +31,10 @@ export interface TableWriteHost {
   readonly sources: readonly { readonly table: string; readonly convertible: boolean; readonly pkg?: string }[];
   /** Tables of the host's database no Output may write: the page's own (its files, its copies). */
   readonly held: (table: string) => boolean;
-  readonly models: Pick<TableModels, 'tablesModel' | 'catalogColumnsSql' | 'hostOperations'>;
+  /** The catalog's question, and the Output's plan (Boundary.outputPlan). */
+  readonly models: Pick<TableModels, 'catalogColumnsSql' | 'outputPlan'>;
   /** The host's database held for the write alone (duckdb.ts exclusive). */
   hold<T>(work: (held: HeldConnection) => Promise<T>): Promise<T>;
-  /** A query over the box's own model planned: its SQL and the values it binds (the create's columns, its rows none). */
-  planOf(query: Lambda): Promise<Plan>;
-  /** A program planned over `model` as an execution plan (PlanJson's text). */
-  executionPlan(model: string, runtime: string, program: Lambda): Promise<PlanText>;
 }
 
 /**
@@ -47,69 +44,32 @@ export interface TableWriteHost {
  * of the box's the table has not).
  */
 export async function writeTable(rows: Lambda, output: TableOutput, host: TableWriteHost): Promise<number> {
-  if (host.sources.length === 0) throw new CubeRefusal("its rows are read from none of this page's database's tables: a table output writes its own database");
-  if (host.held(output.name) || host.sources.some((s) => s.table.toLowerCase() === output.name.toLowerCase())) {
+  if (host.held(output.name)) {
     throw new CubeRefusal(`'${output.name}' is one of this page's own tables (a file's, a copy's): name the output's table another way`);
   }
-  const body = rows.body[0];
-  if (rows.parameters.length > 0 || rows.body.length !== 1 || body === undefined) throw new Error("an output's rows are one query of no parameter");
-  // the create's statement asked first: its columns the database's, as the box's rows type them, none of its rows -- the
-  // query's own values (a data: payload: M3) bound to its `?`s, which the create's statement keeps in their order
-  const shape = output.mode === 'create' || output.mode === 'overwrite'
-    ? await host.planOf(lambda([], fn('limit', body, lit.integer(0)))) : undefined;
-  // and the write's own transaction, asked with it, before anything runs: the transaction spans the create, the
-  // catalog's reading and the write's plan run (joined), so it is opened before the write's plan is made -- the one
-  // planned run here whose transaction is not its plan's own (the re-audit's S8, 2026-11-12: the plan runner's comes
-  // from its plan alone; an Output planned whole would carry it)
-  const steps = ['begin', 'commit', 'rollback'] as const;
-  const asked = await host.models.hostOperations(host.databaseType, [
-    ...steps.map((step) => ({ op: 'transaction' as const, step })),
-    ...(shape !== undefined ? [{
-      op: 'relation' as const, kind: 'table' as const, target: { name: output.name }, replace: output.mode === 'overwrite',
-      from: { query: shape.sql },
-    }] : []),
-  ]);
-  const [begin, commit, rollback, ...made] = asked;
-  if (begin === undefined || commit === undefined || rollback === undefined || made.length !== (shape !== undefined ? 1 : 0)) {
-    throw new Error(`the planner answered ${asked.length} host operations for an output's ${3 + (shape !== undefined ? 1 : 0)}`);
-  }
-  return host.hold((held) => transacted({ begin, commit, rollback }, held.rows, async () => {
-    const session = { databaseType: host.databaseType, run: held.rows };
-    const params = shape?.params ?? [];
-    // the values bind the one statement that reads the query; a create of several statements binds none of them
-    if (params.length > 0 && made.flat().length !== 1) {
-      throw new CubeRefusal(`'${output.name}' is made by ${made.flat().length} statements, and its rows' query binds a data: payload one of them reads: not written here`);
-    }
-    for (const statement of made.flat()) await held.rows(statement, params);
-    // one model of its tables and the target, each read off the catalog as it is now (the target made just now, in
-    // the same transaction)
+  const makes = output.mode === 'create' || output.mode === 'overwrite';
+  // the box's tables and, where it is there already, the target, as the catalog answers them now: read BEFORE the plan
+  // is asked for, which then runs whole (the orchestrator's ruling, 2026-11-12: the sources' model is read before the run)
+  const { tables, target } = await host.hold(async (held) => {
     const engine = { run: (sql: PlannedSql) => held.table(sql) };
-    const tables: ModelTable[] = [];
+    const read: ModelTable[] = [];
     for (const s of [...new Set(host.sources.map((x) => x.table))]) {
       const given = host.sources.find((x) => x.table === s)!;
-      tables.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
+      read.push({ table: s, convertible: given.convertible, ...(given.pkg !== undefined ? { pkg: given.pkg } : {}),
         columns: await catalogColumnsOf(engine, host.models, SCHEMA, s) });
     }
-    const target = await catalogColumnsOf(engine, host.models, SCHEMA, output.name);
-    if (target.length === 0) throw new CubeRefusal(`this page's database has no table '${output.name}': write it with Create a new table first`);
-    tables.push({ table: output.name, convertible: false, columns: target });
-    const model = await host.models.tablesModel(tables, host.databaseType);
-    const into = model.tables.at(-1)!.source;
-    const plan = await host.executionPlan(model.model, model.runtime, lambda([], ...program(body, into, output)));
-    return countOf(await runPlan(plan, session, { joined: true }));
-  }));
-}
-
-/** The Pure program that writes the rows (`rows`) into its table (`into`): its statements in order. */
-function program(rows: ValueSpecification, into: ValueSpecification, output: TableOutput): ValueSpecification[] {
-  switch (output.mode) {
-    case 'create':
-    case 'overwrite':
-    case 'append': return [fn('write', rows, into)];
-    // every row of the table deleted, then the box's written: one change
-    case 'deleteAppend': return [fn('delete', into, lambda(['r'], lit.boolean(true))), fn('write', rows, into)];
-    case 'merge': return [fn('merge', rows, into, colSpecs(output.keys ?? []))];
-  }
+    return { tables: read, target: makes ? [] : await catalogColumnsOf(engine, host.models, SCHEMA, output.name) };
+  });
+  const request: OutputRequest = {
+    databaseType: host.databaseType,
+    tables,
+    output: { name: output.name, mode: output.mode, ...(output.mode === 'merge' ? { keys: output.keys ?? [] } : {}) },
+    rows: toJson(rows),
+    // a table there already is named by its columns; none, the planner refuses the write by name
+    ...(target.length > 0 ? { target } : {}),
+  };
+  const plan = await host.models.outputPlan(request);
+  return countOf(await host.hold((held) => runPlan(plan, { databaseType: host.databaseType, run: held.rows })));
 }
 
 /** The count a write's plan answers: its relation's one row (`[{"value": n}]`, as the database wrote it). */

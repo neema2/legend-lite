@@ -727,6 +727,52 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
 });
 
 
+// A SNAPSHOT'S LOCAL COPY (the final audit's item 1(b), 2026-11-12): the WASM planner answers the pull and a table with ONE
+// plan of writes (Boundary.snapCopy) -- the table there before dropped, the table made from the pull -- in its target's
+// transaction, which the hosts' runner runs (runPlan) and answers nothing; never the pull's statement handed back
+describe("a snapshot's local copy, one plan of writes run in its target's transaction", () => {
+  const PULL = { model: MODEL, runtime: 'w::RT', lambda: toJson(lambda([], src())) } as const;
+  const copyOf = (table: string): PlanText => unplannedPlan(ok(answer(m, { kind: 'snapCopy', request: JSON.stringify({
+    databaseType: 'DuckDB', ...PULL, table }) })));
+  type Copy = { root: { steps: { _type: string; sql: { statement: string; target: { session: string[];
+    transaction: { begin: string[]; commit: string[]; rollback: string[] } } } }[] } };
+  const rowsIn = (t: string): Promise<string> => engine.exclusive(async (held) =>
+    (await held.rows(unplanned(`SELECT id, name, amount FROM ${t} ORDER BY id`), [])).map((r) => r.map(String).join(':')).join(' '));
+
+  it("hands the database exactly the plan's statements, in its transaction, and the copy holds the pull's rows", async () => {
+    const plan = copyOf('copied');
+    const { root } = looseJson(plan) as Copy;
+    assert.deepEqual(root.steps.map((s) => s._type), ['effect', 'effect']);
+    const t = root.steps[0]!.sql.target;
+    // the witness at the database itself: every statement it is handed during the plan's run
+    const { engine: own, received } = witnessed(database.connect() as ArrowishConnection);
+    const said = await own.exclusive((held) => runPlan(plan, { databaseType: 'DuckDB', run: (sql, params) => held.rows(sql, params) }));
+    assert.equal(said, '[]', 'a plan of writes alone answers no row');
+    assert.deepEqual(received, [...t.session, ...t.transaction.begin, ...root.steps.map((s) => s.sql.statement), ...t.transaction.commit]);
+    assert.match(root.steps[1]!.sql.statement, /^CREATE TABLE "copied" AS SELECT/);
+    assert.equal(await rowsIn('copied'), await rowsIn('SRC'));
+  });
+
+  it('a copy that fails after its drop rolls back by the plan\'s own statement: the table there before is as it was', async () => {
+    await engine.run(unplanned("CREATE TABLE kept_copy AS SELECT 9 AS id, 'z' AS name, CAST(9.5 AS DOUBLE) AS amount"), 0);
+    const plan = copyOf('kept_copy');
+    const sent: string[] = [];
+    await assert.rejects(() => engine.exclusive((held) => runPlan(plan, { databaseType: 'DuckDB', run: async (sql, params) => {
+      sent.push(sql);
+      if (/^CREATE TABLE/.test(sql)) throw new Error('the copy was refused');
+      return held.rows(sql, params);
+    } })), /the copy was refused/);
+    assert.equal(sent.at(-1), 'ROLLBACK');
+    assert.equal(await rowsIn('kept_copy'), '9:z:9.5');
+  });
+
+  it('a request carrying a statement is refused by name: the planner plans the pull, never a host\'s text', () => {
+    assert.throws(() => ok(answer(m, { kind: 'snapCopy', request: JSON.stringify({ databaseType: 'DuckDB', ...PULL, sql: 'SELECT 1', table: 't' }) })),
+      /a snapshot's copy has no key sql/);
+  });
+});
+
+
 // ROWS THE DATABASE MAKES, A PLANNED LOAD (SYNTHESIZE's simple slice, the user's ruling of 2026-11-12, register S303):
 // the WASM planner answers a declared table and a count with one HOST_SESSION load -- the table made as the model
 // declares it, empty, then ONE INSERT ... SELECT over range(count) whose every value the database computes -- and the

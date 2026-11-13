@@ -20,21 +20,30 @@ describe('a box written into a table of its host\'s database, in one transaction
   let engine: DuckDbEngine;
   let models: LitePlanner;
   let source: ValueSpecification;
-  let model: { readonly model: string; readonly runtime: string };
-  const planners: LitePlanner[] = [];
-  const planner = (m: string, r: string): LitePlanner => {
-    const p = plannerFor(m, r);
-    planners.push(p);
-    return p;
-  };
+  // the Output's ONE plan, asked of the planner before anything runs (Boundary.outputPlan, the final audit's item 2): the
+  // run asks the planner nothing, so the planner each run holds is recorded and asked nothing more
+  const asked: string[] = [];
+  /** Whether the database is held for a write now: the planner asked meanwhile is the run asking it (refused here). */
+  let holding = false;
   const host = (): TableWriteHost => ({
     databaseType: 'DuckDB',
     sources: [{ table: 'tw_src', convertible: true }],
     held: (t) => t === 'tw_src',
-    models,
-    hold: (work) => engine.exclusive(work),
-    planOf: (q) => planner(model.model, model.runtime).plan(q),
-    executionPlan: (m, r, program) => planner(m, r).executionPlan(program),
+    models: {
+      catalogColumnsSql: (schema, table) => models.catalogColumnsSql(schema, table),
+      outputPlan: (request) => {
+        asked.push(holding ? `${request.output.mode}, asked while the database was held` : request.output.mode);
+        return models.outputPlan(request);
+      },
+    },
+    hold: async (work) => {
+      holding = true;
+      try {
+        return await engine.exclusive(work);
+      } finally {
+        holding = false;
+      }
+    },
   });
   /** The box's rows: the source's, or those `keep` holds for. */
   const rowsOf = (keep?: (x: ValueSpecification) => ValueSpecification): Lambda =>
@@ -54,11 +63,9 @@ describe('a box written into a table of its host\'s database, in one transaction
     await engine.run(unplanned("INSERT INTO tw_src VALUES (1, 'a', 1.5), (2, 'b', 2.5), (3, 'c', 3.5)"), 0);
     const written = await models.tablesModel([{ table: 'tw_src', convertible: true, columns: await catalogColumns(engine, models, 'tw_src') }], 'DuckDB');
     source = written.tables[0]!.source;
-    model = written;
   });
 
   after(async () => {
-    for (const p of planners.splice(0)) p.dispose();
     models?.dispose();
     await engine?.close();
   });
@@ -75,6 +82,8 @@ describe('a box written into a table of its host\'s database, in one transaction
     assert.equal(await rows('tw_out'), '2:b:2.5');
     assert.equal(await writeTable(rowsOf(), out('tw_out', 'overwrite'), host()), 3);
     assert.equal(await rows('tw_out'), '1:a:1.5 2:b:2.5 3:c:3.5');
+    // each write one plan, asked once before it ran -- the made-already create's too, refused by the database
+    assert.deepEqual(asked.splice(0), ['create', 'create', 'append', 'deleteAppend', 'overwrite']);
   });
 
   it('merges by its keys: a row of the same key updated, a new one added', async () => {

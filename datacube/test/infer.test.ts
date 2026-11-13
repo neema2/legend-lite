@@ -138,7 +138,9 @@ describe('the model for a table', () => {
   it('a read-only source is never rewritten: no select list, and no refusal', async () => {
     const at = col_('at', 'timestamptz', 'timestamp with time zone');
     const read = await writer.tableModel([at], { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres' });
-    assert.equal(read.copySelectList, undefined);
+    // a model carries no copy select list (the final audit's item 1(d), 2026-11-12: a copy's conversions are the
+    // platform's, written from its columns' catalog)
+    assert.equal('copySelectList' in read, false);
   });
 
   it('leaves bytes out by name, on every source, and opens the rest', async () => {

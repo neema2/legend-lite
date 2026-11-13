@@ -38,7 +38,8 @@ IMPORTS = {
     '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect', 'send'},
     '_host.py': {'PlannedSql', 'send'},
     # 2026-11-12 (the C final audit's H2): require, a host operation's planner text and a snapshot's stream checked
-    'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'require',
+    # 2026-11-12 (the final audit's item 1): require gone -- a host operation takes no SQL, so none is checked here
+    'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan',
                     # 2026-11-12 (the re-audit's M1): the plan the planner answered, typed as read
                     'PlanText', 'plan_from_answer'},
     'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan', 'send'},
@@ -86,8 +87,11 @@ MINT_NAMES = {'from_plan', 'all_from_plan', 'plan_from_answer'}
 # of a mint in a pinned module was not): the compiler's readers (its plans, catalog, host operations, table model's copy
 # select list -- H2's), the load runners, execute's plan half. A use added or gone moves its count, dated.
 MINT_REFERENCES = {
-    # 2026-11-12, 6 -> 9 (M1): the compiler's three plan answers (snap_stream, frame_load, project_data's load) typed
-    'compiler.py': 9, 'engine.py': 2, 'projects.py': 9}
+    # 2026-11-12, 6 -> 9 (M1): the compiler's three plan answers (snap_stream, frame_load, project_data's load) typed;
+    # (the final audit's item 1, 2026-11-12) compiler.py 9: the copy select list's typing gone, snap_copy's plan typed;
+    # projects.py 9 -> 14: run_write, a snapshot's copy's plan of writes alone -- its effects' statements and its
+    # target's session and transaction statements, typed as read
+    'compiler.py': 9, 'engine.py': 2, 'projects.py': 14}
 
 # A send method's name reached and not called, by module, name and receiver (H4, measured 2026-11-12): each a field of a
 # plan (its sql), a URL (its query) or a view (page.py's), none a method handed on. A method handed on -- `run =
@@ -96,9 +100,6 @@ REFERENCES = {
     ('_headless.py', 'query', 'parts'),
     ('engine.py', 'query', 'url'),
     ('engine.py', 'sql', 'plan'),
-    # 2026-11-12 (the final audit's item 1): a served snap's count, the planner's plan of the pull's size() -- its
-    # statement, a plan's field (beside the pull's own plan, which its copy reads until snapCopy plans the copy)
-    ('engine.py', 'sql', 'count'),
     ('frames.py', 'sql', 'plan'),
     ('page.py', 'query', 'self'),
     ('page.py', 'sql', 'self'),
@@ -153,8 +154,10 @@ _NETWORK_ROOTS = {'urllib', 'http', 'requests', 'urllib3', 'socket', 'httpx', 'a
 # THE PLAN RUNNERS' CALLERS (the re-audit's M1, 2026-11-12): run_load and run_host_load take a plan the planner
 # answered alone (PlanText, read_plan); each call is pinned by module, its plan the compiler's: a project's database's
 # load (projects.py), a snapshot's stream (engine.py), a frame's attach (frames.py)
-RUNNERS = {'projects.py': 1, 'engine.py': 1, 'frames.py': 1}
-RUNNER_NAMES = {'run_load', 'run_host_load'}
+# 2026-11-12 (the final audit's item 1(b)): engine.py 1 -> 2, a served snap's copy run by run_write (the plan of writes
+# alone the planner makes of its pull: Boundary.snapCopy)
+RUNNERS = {'projects.py': 1, 'engine.py': 2, 'frames.py': 1}
+RUNNER_NAMES = {'run_load', 'run_host_load', 'run_write'}
 
 AUTHORED_NAMES = {'authored', 'lite_authored'}
 # 2026-11-12 (the orchestrator's ruling: the unwalked door deleted -- its KINDS row, its arity, the native export):

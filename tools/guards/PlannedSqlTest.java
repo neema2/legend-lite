@@ -76,18 +76,23 @@ class PlannedSqlTest {
             "engine-client/src/plan-runner.ts", 21,
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
             // 2026-11-12, 8 -> 14 (the re-audit's M1): its five plan answers (fileLoad, remoteMount, snapStream,
-            // synthesize, authored) typed as read, and the mint's import
-            "engine-client/src/legend/wasm-grammar.ts", 14,
+            // synthesize, authored) typed as read, and the mint's import; 14 -> 15 (the final audit's item 1(b),
+            // 2026-11-12): a snapshot's copy's plan (snapCopy) typed as read
+            "engine-client/src/legend/wasm-grammar.ts", 15,
             // 2026-11-12, 8 -> 9 (the C final audit's H2): DataCube's table model's copy select list, typed as its answer
             // is read, since a host operation's selectList takes a PlannedSql alone
             // 2026-11-12, 9 -> 15 (M1): its five plan answers (executionPlan, fileLoad, remoteMount, snapStream, synthesize)
-            // typed as read, and the mint's import
-            "datacube/src/lite-planner.ts", 15,
+            // typed as read, and the mint's import; 15 -> 16 (the final audit's items 1 and 2, 2026-11-12): the copy
+            // select list's typing gone with it (a host operation takes no SQL: convert), a snapshot's copy's plan
+            // (snapCopy) and a table Output's (outputPlan) typed as read
+            "datacube/src/lite-planner.ts", 16,
             "datacube/src/planner.ts", 2,
             // the definitions themselves, and the mints' own test
             // 2026-11-12, 7 -> 9 (M1): planFromAnswer defined, and the project database's load typed by it
             "engine-client/src/planned-sql.ts", 9,
-            "engine-client/test/planned-sql.test.ts", 5);
+            // 2026-11-12, 5 -> 8 (the final audit's item 1): the type test's host operation carrying a planner's own
+            // statement (a query, a select list, a replacement), each refused by the type
+            "engine-client/test/planned-sql.test.ts", 8);
             // (studio/src/backend/run.ts, the SQL playground's notPlanned and its import: gone 2026-11-12 with
             // notPlanned; the plan runner's runAuthored types the playground's statement, its count one more)
 
@@ -1129,8 +1134,10 @@ class PlannedSqlTest {
         }
         Set<String> holders = brandHolders(new ArrayList<>(codes.values()));
         // 2026-11-12 (the user's ruling, "that is a real off platform problem"): SnapStreamRequest holds no statement
-        // any more -- it carries the pull, which the planner plans in the call -- so it left this list
-        for (String record : List.of("Plan", "HostOperation", "HostSource", "InferredModel", "ExecutePlan")) {
+        // any more -- it carries the pull, which the planner plans in the call -- so it left this list; and (the final
+        // audit's item 1, 2026-11-12) HostOperation, HostSource and InferredModel hold none: a host operation takes no
+        // SQL and a model carries no copy select list (convert)
+        for (String record : List.of("Plan", "ExecutePlan")) {
             assertTrue(holders.contains(record), record + " holds a plan's statement, and the census does not see it");
         }
         Map<String, Integer> unknownCasts = new TreeMap<>();
@@ -1279,7 +1286,9 @@ class PlannedSqlTest {
             Map.entry("datacube/src/upload.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),
-            Map.entry("engine-client/src/snap.ts", List.of("runLoad(")),
+            // 2026-11-12 (the final audit's item 1(b)): a snapshot's local copy, its plan the planner's of the pull
+            // (snapCopy)
+            Map.entry("engine-client/src/snap.ts", List.of("runLoad(", "runPlan(")),
             Map.entry("query/demo/main.ts", List.of("runLoad(")),
             Map.entry("studio/src/backend/run.ts", List.of("runAuthored(")));
     // 2026-11-12 (M1, measured): the runner's own read of a plan's format (planned-sql.ts names it in prose alone)

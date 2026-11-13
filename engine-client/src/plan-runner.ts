@@ -131,6 +131,7 @@ const PLAN_VERSION = 51;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
+  | { readonly _type: 'effect'; readonly sql: Sql; readonly script?: unknown }
   | { readonly _type: 'check'; readonly sql: Sql }
   | { readonly _type: 'tdsResult'; readonly shape: string; readonly columns: readonly Column[]; readonly sql: Sql }
   | { readonly _type: 'constant'; readonly columns: readonly Column[]; readonly cells: readonly (readonly (string | null)[])[] }
@@ -531,7 +532,9 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     : root._type === 'tdsResult' || root._type === 'constant' ? [root] : undefined;
   if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence, a typed result or a constant, not a ${root._type}`);
   const results = steps.filter((s) => s._type === 'tdsResult' || s._type === 'constant');
-  if (results.length !== 1) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
+  // a plan answers with one typed result, or -- every step a write (a snapshot's copy: Boundary.snapCopy) -- none
+  const writes = steps.every((s) => s._type === 'update' || s._type === 'effect');
+  if (results.length !== 1 && !(results.length === 0 && writes)) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
   // a constant answer is the plan's own value: nothing to send for it (the test-is-the-product plan's M2)
   const sent = steps.filter((s) => s._type !== 'constant');
   if (sent.length === 0) return constantRows(results[0] as Extract<Step, { _type: 'constant' }>);
@@ -564,7 +567,7 @@ export async function runPlan(plan: PlanText, session: PlanSession,
       if (slot.binding.asText !== undefined && slot.binding.asText !== null) throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text, which is not run here`);
     }
   }
-  const changes = steps.some((s) => s._type === 'update') && o.joined !== true;
+  const changes = steps.some((s) => s._type === 'update' || s._type === 'effect') && o.joined !== true;
   // the target's session statements: run by `establish` on a session established for it, else here
   if (o.established !== true) for (const statement of required(t.session, "its target's session")) await session.run(fromPlan(statement), []);
   const values = new Map<string, PlanValue>();
@@ -596,7 +599,8 @@ export async function runPlan(plan: PlanText, session: PlanSession,
   // caller's
   if (changes) await inTransaction(t, session.run, all);
   else await all();
-  return text!;
+  // a plan of writes alone answers no row
+  return text ?? '[]';
 }
 
 /**
@@ -744,8 +748,10 @@ function checkTarget(sql: Sql, session: PlanSession, o: { readonly established?:
 
 /** A step's SQL; refused by name for a step a host's program does not plan. */
 function stepSql(s: Step): Sql {
-  if (s._type === 'update' || s._type === 'check' || s._type === 'tdsResult') return (s as { readonly sql: Sql }).sql;
-  throw new PlanRefusal(s._type === 'sequence' ? 'a sequence inside a sequence' : `a plan's step is an update, a check or a typed result, not a ${s._type}`);
+  // an effect: one statement sent for what it does (a snapshot's copy: Boundary.snapCopy); a script of several is not run
+  if (s._type === 'effect' && (s as { readonly script?: unknown }).script != null) throw new PlanRefusal("an effect's script is not run here");
+  if (s._type === 'update' || s._type === 'effect' || s._type === 'check' || s._type === 'tdsResult') return (s as { readonly sql: Sql }).sql;
+  throw new PlanRefusal(s._type === 'sequence' ? 'a sequence inside a sequence' : `a plan's step is an update, an effect, a check or a typed result, not a ${s._type}`);
 }
 
 /** A constant answer's rows (PlanRunner.constantRows' rule): a String's cell its text, a Boolean's `true` or `false`,
