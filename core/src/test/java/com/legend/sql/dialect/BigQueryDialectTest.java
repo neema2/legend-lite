@@ -97,4 +97,21 @@ class BigQueryDialectTest {
         String sql = render(new SqlExpr.Call(SqlFn.COALESCE, List.of(json, new SqlExpr.StringLit("[]"))), null);
         assertTrue(sql.contains("COALESCE(`t`.`j`, PARSE_JSON('[]'))"), sql);
     }
+
+    /** A date or date-time literal BigQuery does not hold, a year before 1 or after 9999, is refused at planning by
+     *  name (S340): the database itself refuses it, with the driver's bare "BigQueryException during runQuery"
+     *  (measured on the lane, 2026-11-13). Its ends, 0001-01-01 and 9999-12-31, are held. */
+    @Test
+    void aDateLiteralOutsideBigQuerysRangeIsRefusedByName() {
+        for (SqlExpr lit : List.of(new SqlExpr.DateLit("-43-03-15"), new SqlExpr.TimestampLit("-43-03-15T10:30:00"),
+                new SqlExpr.DateLit("0-01-01"), new SqlExpr.DateLit("10000-01-01"))) {
+            com.legend.sql.DialectCapability refused = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.sql.DialectCapability.class, () -> render(lit, null), lit.toString());
+            assertTrue(refused.getMessage().contains("outside BigQuery's range: it holds dates from 0001-01-01 to"
+                    + " 9999-12-31"), refused.getMessage());
+        }
+        assertTrue(render(new SqlExpr.DateLit("0001-01-01"), null).contains("DATE '0001-01-01'"));
+        assertTrue(render(new SqlExpr.DateLit("9999-12-31"), null).contains("DATE '9999-12-31'"));
+        assertTrue(render(new SqlExpr.TimestampLit("2024-01-02T10:30:00"), null).contains("DATETIME '2024-01-02 10:30:00'"));
+    }
 }

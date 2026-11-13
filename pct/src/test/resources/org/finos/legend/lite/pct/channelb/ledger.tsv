@@ -310,11 +310,12 @@ bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::t
 bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
 bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
+# 2026-11-13 (S340, E, pending the user's ruling): the expected literal is refused at planning by BigQuery's dialect, by name, where the database's "Invalid DATE/DATETIME literal" stood -- the same five tests, still failing; to be confirmed on the BigQuery lane
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
 # a decimal literal past BigQuery's BIGNUMERIC (38 digits each side of the point)
 bigquery	Essential	meta::pure::functions::math::tests::pow::testComplexPow	DialectCapability: a decimal literal 182.88729271224377725957310758531093597412109375 reached BigQuery, whose BIGNUMERIC holds 38 digits each side of the point
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
