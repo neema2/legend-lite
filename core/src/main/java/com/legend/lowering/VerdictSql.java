@@ -2242,6 +2242,11 @@ public final class VerdictSql {
     /** A side declared exactly one: its facts row spelled straight over the
      * plan (ONE row by construction — a one-row seed LEFT JOINed to the plan,
      * so an empty plan still frames {@code []} exactly as the rows form does). */
+    /** E-5b's one-row layer under a single-value side's facts: its canon and its value, each computed once. */
+    private static final String ONCE_ALIAS = "__once";
+    private static final String CANON_ONCE = "__oc";
+    private static final String VALUE_ONCE = "__ov";
+
     private static SqlQuery inlineFacts(Side s) {
         SqlSelect ws = (SqlSelect) s.wrapped();
         SqlExpr valueRef = ws.projections().get(0).expr();
@@ -2253,8 +2258,20 @@ public final class VerdictSql {
                 List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", seedOut)),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
                 List.of(seedOut)), "__one", null);
-        SqlSource from = new SqlSource.Join(seed, ws.from(), SqlSource.Join.Kind.LEFT,
+        SqlSource joined = new SqlSource.Join(seed, ws.from(), SqlSource.Join.Kind.LEFT,
                 new SqlExpr.BoolLit(true));
+        // E-5b (the user's ruling, 2026-11-13; docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §5.9): the side's canon and
+        // its value computed ONCE, in a one-row layer over the side's own source, and read by column -- the canon was
+        // written three times here (the text, the null flag, the tree test), each a copy of its whole spelling
+        OutputCol canonOut = new OutputCol(CANON_ONCE, SqlType.Scalar.VARCHAR, true);
+        OutputCol valueOut = new OutputCol(VALUE_ONCE, java.util.Objects.requireNonNull(ws.projections().get(0).out(),
+                "a single-value side's value projection declares its column").type(), true);
+        SqlSelect once = new SqlSelect(List.of(new SqlSelect.Projection(canon, CANON_ONCE, canonOut),
+                new SqlSelect.Projection(valueRef, VALUE_ONCE, valueOut)), false, joined, null, List.of(), null, null,
+                List.of(), null, null, List.of(canonOut, valueOut));
+        SqlSource from = new SqlSource.Subselect(once, ONCE_ALIAS, null);
+        canon = SqlExpr.Column.of(ONCE_ALIAS, CANON_ONCE, SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED);
+        valueRef = SqlExpr.Column.of(ONCE_ALIAS, VALUE_ONCE, valueOut.type(), true, OutputCol.Origin.DERIVED);
         SqlExpr flag = SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), SqlExpr.Call.of(SqlFn.IS_NULL, canon));
         List<SqlSelect.Projection> ps = new ArrayList<>(List.of(
