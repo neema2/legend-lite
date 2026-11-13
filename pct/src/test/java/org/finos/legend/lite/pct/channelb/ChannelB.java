@@ -304,12 +304,19 @@ public final class ChannelB {
      * where they agree, else what differs; the body's own run follows as usual.
      */
     private static @com.legend.base.Nullable String twice(ModelContext ctx, ValueSpecification resolved) {
-        String first = com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
-                com.legend.Compiler.queryResolved(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
-                OPTIONS));
-        String second = com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
-                com.legend.Compiler.queryResolved(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
-                OPTIONS));
+        return twice(() -> com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                        com.legend.Compiler.queryResolved(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        OPTIONS)),
+                () -> recorded(ctx, resolved));
+    }
+
+    /** {@link #twice(ModelContext, ValueSpecification)}'s comparison over its two halves: {@code plan} plans the body
+     *  as JSON, {@code run} runs it and answers its verdicts and end. Each is called twice; null where both pairs
+     *  agree, else what differs (the guard's own test, ChannelBTwiceTest, plants each difference). */
+    static @com.legend.base.Nullable String twice(java.util.function.Supplier<String> plan,
+            java.util.function.Supplier<List<String>> run) {
+        String first = plan.get();
+        String second = plan.get();
         if (!first.equals(second)) {
             int at = 0;
             while (at < Math.min(first.length(), second.length()) && first.charAt(at) == second.charAt(at)) {
@@ -319,8 +326,8 @@ public final class ChannelB {
                     + first.substring(at, Math.min(first.length(), at + 80)) + " | "
                     + second.substring(at, Math.min(second.length(), at + 80));
         }
-        List<String> one = recorded(ctx, resolved);
-        List<String> two = recorded(ctx, resolved);
+        List<String> one = run.get();
+        List<String> two = run.get();
         return one.equals(two) ? null : "run twice, two answers: " + one + " | " + two;
     }
 
