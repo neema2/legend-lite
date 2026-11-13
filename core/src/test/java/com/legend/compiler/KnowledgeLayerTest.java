@@ -128,6 +128,23 @@ class KnowledgeLayerTest {
         assertFalse(carries(module.context(), "w::Synonym", "stray"));
     }
 
+    /** The names fixes, item 7 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 29): a qualified property
+     * returning a type that names no class is refused with the type's kind in words -- it was spelled by the record's
+     * Java {@code toString()} ({@code FunctionType[parameters=[...], ...]}). */
+    @Test
+    @DisplayName("no unique owning end: a type that names no class is refused by its kind, never a record's toString")
+    void noClassReturnTypeIsRefusedByItsKind() {
+        ModelException e = assertThrows(ModelException.class,
+                () -> KnowledgeLayer.adoptAssociationQualifiedProperties(NameResolver.resolve(
+                        com.legend.testing.Own.model("""
+                                Class a::P {}
+                                Class a::F {}
+                                Association a::PF { p: a::P[*]; f: a::F[1]; q() { [] }: {String[1]->Varchar(8)[1]}[1]; }
+                                """)), null));
+        assertEquals("association 'a::PF' qualified property 'q' returns a function type, which does not identify"
+                + " a unique owning end", e.getMessage());
+    }
+
     @Test
     @DisplayName("the normalizer refuses a model the knowledge layer has not adopted")
     void normalizerRequiresAdoption() {

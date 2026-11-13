@@ -500,6 +500,10 @@ public final class KnowledgeLayer {
         String t1 = rawName(ad.property1().targetClass());
         String t2 = rawName(ad.property2().targetClass());
         String ret = rawName(dp.type());
+        if (t1 == null || t2 == null || ret == null) {
+            // a type with no class name (a function, relation or schema-algebra type) is no end's class
+            return Optional.empty();
+        }
         if (t1.equals(t2)) {
             return ret.equals(t1) ? Optional.of(t1) : Optional.empty();
         }
@@ -514,23 +518,40 @@ public final class KnowledgeLayer {
         if (owner.isPresent()) {
             return owner.get();
         }
-        String t1 = rawName(ad.property1().targetClass());
-        String t2 = rawName(ad.property2().targetClass());
-        String ret = rawName(dp.type());
+        String t1 = spelled(ad.property1().targetClass());
+        String t2 = spelled(ad.property2().targetClass());
+        String ret = spelled(dp.type());
         String why = t1.equals(t2)
-                ? "', which is neither end of the self-association"
-                : "', which does not identify a unique owning end";
+                ? ", which is neither end of the self-association"
+                : ", which does not identify a unique owning end";
         throw new ModelException(LegendCompileException.Phase.MODEL,
                 "association '" + ad.qualifiedName() + "' qualified property '"
-                        + dp.name() + "' returns '" + ret + why,
+                        + dp.name() + "' returns " + ret + why,
                 ad.qualifiedName());
     }
 
-    private static String rawName(TypeExpression t) {
+    /** A type's class name: a name's, or a generic's head; null for a type that names no class (a function, relation
+     * or schema-algebra type). */
+    private static @com.legend.base.Nullable String rawName(TypeExpression t) {
         return switch (t) {
             case TypeExpression.NameRef n -> n.name();
             case TypeExpression.Generic g -> g.name();
-            default -> t.toString();
+            case TypeExpression.FunctionType ignored -> null;
+            case TypeExpression.RelationType ignored -> null;
+            case TypeExpression.SchemaAlgebra ignored -> null;
+        };
+    }
+
+    /** A type as the refusal names it: its class name quoted, else its kind in words. Until 2026-11-13 a type with no
+     * class name was spelled by the record's Java {@code toString()} ({@code FunctionType[parameters=[...], ...]}): the
+     * names fixes, item 7 (docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 29). */
+    private static String spelled(TypeExpression t) {
+        return switch (t) {
+            case TypeExpression.NameRef n -> "'" + n.name() + "'";
+            case TypeExpression.Generic g -> "'" + g.name() + "'";
+            case TypeExpression.FunctionType ignored -> "a function type";
+            case TypeExpression.RelationType ignored -> "a relation type";
+            case TypeExpression.SchemaAlgebra ignored -> "a schema-algebra type";
         };
     }
 }
