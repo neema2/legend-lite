@@ -1914,6 +1914,26 @@ class NameResolverTest {
                 "T inside Bar (no type params) resolves to model::T \u2014 no leak");
     }
 
+    /** The names fixes, item 5 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): a qualified call is
+     * itself -- the call tiers no longer prefix it with a package, so {@code b::f()} under {@code import a::*;} is not
+     * {@code a::b::f} (Pure has no relative qualified names). */
+    @Test
+    void aQualifiedCallIsNeverPrefixedByATier() {
+        ParsedModel resolved = NameResolver.resolve(com.legend.testing.Own.model("""
+                import a::*;
+                function a::b::f():String[1] { 'x' }
+                function c::g():String[1] { b::f() }
+                function c::h():String[1] { a::b::f() }
+                """));
+        java.util.function.Function<String, AppliedFunction> call = fqn -> resolved.elements().stream()
+                .filter(e -> e instanceof FunctionDefinition f && f.qualifiedName().equals(fqn))
+                .map(e -> (AppliedFunction) ((FunctionDefinition) e).body().get(0))
+                .findFirst().orElseThrow();
+        assertEquals("b::f", call.apply("c::g").function());
+        assertEquals(List.of(), call.apply("c::g").referents());
+        assertEquals("a::b::f", call.apply("c::h").function());
+    }
+
     @Test
     void resolveProducesSameInstanceWhenNothingChanges() {
         // Already-FQN tree round-trips through resolve with reference

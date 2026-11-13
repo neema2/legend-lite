@@ -344,8 +344,13 @@ public final class NameResolver {
 
     /** The call tiers' matches for a bare name (the wildcards, the own package, the core import group over the
      *  scope's universe), EMPTY when none: what {@link #resolveCallCandidates} falls back from, and what the pointer
-     *  arm asks for a signature id's base. A qualified spelling matches no tier. */
+     *  arm asks for a signature id's base. A qualified spelling matches no tier: it is not prefixed with a package
+     *  (until 2026-11-13 it was, {@code pkg::a::b::f} asked of the universe for every tier -- the names fixes, item 5,
+     *  docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28). */
     private static List<String> callTierMatches(String name, Scope scope) {
+        if (name.contains("::")) {
+            return List.of();
+        }
         List<String> out = new ArrayList<>(2);
         for (String pkg : scope.imports().wildcards()) {
             addKnown(out, pkg + "::" + name, scope);
