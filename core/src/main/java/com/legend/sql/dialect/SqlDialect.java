@@ -434,20 +434,6 @@ public interface SqlDialect {
      *  copies run) under its column's name, every other column as it is; {@code *} when no column converts. Refused
      *  where this database cannot replace a column in a star select ({@link DuckDb#copySelectList} can: every host
      *  copies into its own DuckDB, the tab's or Python's). */
-    /**
-     * The column a MODEL declares, as this database's catalog would name it, for a column of Pure type {@code pureType}
-     * of a table a host makes for rows (an Output's made table, the final audit's item 2, 2026-11-12): the declaration
-     * the write into it is planned against, before the table is there. Never a type the database is told: the table is
-     * made by the database's own create of the rows (the orchestrator's ruling (e)), which types its columns.
-     * {@code pureType} a Pure primitive's path, {@code precision} and {@code scale} a Decimal's. Refused by name where
-     * the database's hosts make no table, or no declaration reads back as the Pure type.
-     */
-    default CatalogModel.Column declaredColumn(String name, String pureType, @com.legend.base.Nullable Integer precision,
-            @com.legend.base.Nullable Integer scale) {
-        throw new DialectCapability("a made table's declared column on " + getClass().getSimpleName() + ": every host"
-                + " makes its tables in its own DuckDB");
-    }
-
     default String copySelectList(java.util.List<CatalogModel.Conversion> conversions) {
         if (conversions.isEmpty()) {
             return "*";

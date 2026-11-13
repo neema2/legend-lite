@@ -147,20 +147,23 @@ class DuckDbOutputPlanTest {
         try (Connection c = withTrades()) {
             ExecutionPlan created = plan(request(c, "trades", "out", "create", FX, null, false));
             List<ExecutionPlan.Sql> made = sqls(created);
-            // the database's own create of the rows, none of them: the rows' statement, planned, LIMIT 0
+            // the create carries the data: the database's own create of the rows -- the rows' statement, planned -- then
+            // the made table's rows counted
             com.legend.json.Json.Obj sources = com.legend.json.Json.parseObject(planner.Boundary.tableModel(
                     com.legend.json.Json.toCompact(Map.of("databaseType", "DuckDB", "tables",
                             request(c, "trades", "out", "create", FX, null, false).get("tables")))));
-            String rowsLimitZero = com.legend.Compiler.query(com.legend.Compiler.compileModel(
-                    sources.getString("model")), FX + "->limit(0)").plan(sources.getString("runtime")).sql();
-            assertEquals("CREATE TABLE \"out\" AS " + rowsLimitZero, made.get(0).statement());
-            assertTrue(rowsLimitZero.endsWith("LIMIT 0"), rowsLimitZero);
+            String rowsStatement = com.legend.Compiler.query(com.legend.Compiler.compileModel(
+                    sources.getString("model")), FX).plan(sources.getString("runtime")).sql();
+            assertEquals(2, made.size(), String.valueOf(made));
+            assertEquals("CREATE TABLE \"out\" AS " + rowsStatement, made.get(0).statement());
+            assertEquals("SELECT COUNT(*) AS value\nFROM \"out\" AS t0", made.get(1).statement());
             ExecutionPlan overwritten = plan(request(c, "trades", "out", "overwrite", FX, null, false));
-            List<String> remade = sqls(overwritten).subList(0, 2).stream().map(ExecutionPlan.Sql::statement).toList();
+            List<String> remade = sqls(overwritten).stream().map(ExecutionPlan.Sql::statement).toList();
+            assertEquals(3, remade.size(), String.valueOf(remade));
             assertTrue(remade.get(0).toUpperCase(java.util.Locale.ROOT).startsWith("DROP TABLE IF EXISTS \"OUT\""),
                     remade.get(0));
-            assertEquals(made.get(0).statement(), remade.get(1));
-            assertEquals(1, run(c, created) - 1, "the made table holds the box's rows");
+            assertEquals(List.of(made.get(0).statement(), made.get(1).statement()), remade.subList(1, 3));
+            assertEquals(2, run(c, created), "the made table holds the box's rows, counted");
             List<ExecutionPlan> written = List.of(created, overwritten,
                     plan(request(c, "trades", "out", "append", FX, null, true)),
                     plan(request(c, "trades", "out", "deleteAppend", FX, null, true)),
@@ -175,6 +178,14 @@ class DuckDbOutputPlanTest {
                     assertEquals(one, sql.target(), "every statement on the write's target");
                     assertEquals(duck, sql.target().transaction(), "DuckDB's transaction, on every statement");
                 }
+            }
+            // a made table's answer is a write's: one row, one column value, the same facts
+            List<ExecutionPlan.Column> writes = ((ExecutionPlan.TdsResult) ((ExecutionPlan.Sequence) written.get(2)
+                    .root()).steps().stream().filter(x -> x instanceof ExecutionPlan.TdsResult).findFirst()
+                    .orElseThrow()).columns();
+            for (ExecutionPlan p : written.subList(0, 2)) {
+                assertEquals(writes, ((ExecutionPlan.TdsResult) ((ExecutionPlan.Sequence) p.root()).steps().stream()
+                        .filter(x -> x instanceof ExecutionPlan.TdsResult).findFirst().orElseThrow()).columns());
             }
             // what a mode that writes a table there does not make
             for (ExecutionPlan p : written.subList(2, 5)) {
@@ -191,9 +202,9 @@ class DuckDbOutputPlanTest {
     void aMadeTablesColumnsAreTheDatabasesTypesOfTheRows() throws Exception {
         try (Connection c = withTrades(); Statement s = c.createStatement()) {
             String rows = "|#>{local::DB.trades}#->extend(~[f: r|1.5, b: r|true, t: r|%2024-01-01T10:00:00])";
-            assertEquals(Map.of(), changes(c, s, "trades", rows), "the database's types, as its own create");
+            assertEquals(Map.of(), changes(c, s, "trades", "typed", rows), "the database's types, as its own create");
             Map<String, String> types = new LinkedHashMap<>();
-            for (Map<String, Object> col : catalog(c, "made_trades")) {
+            for (Map<String, Object> col : catalog(c, "made_typed")) {
                 types.put((String) col.get("name"), (String) col.get("dataType"));
             }
             assertEquals(List.of("id", "desk", "amount", "day", "f", "b", "t"), List.copyOf(types.keySet()));
@@ -237,34 +248,60 @@ class DuckDbOutputPlanTest {
                     + " tstz TIMESTAMP WITH TIME ZONE, j JSON, st STRUCT(a INTEGER, b VARCHAR), l INTEGER[],"
                     + " m MAP(VARCHAR, INTEGER), tm TIME, u UUID, iv INTERVAL, e ENUM('a', 'b'))");
             Map<String, String> changed = new java.util.TreeMap<>();
-            changed.putAll(changes(c, s, "every", "|#>{local::DB.every}#"));
-            changed.putAll(changes(c, s, "trades", "|#>{local::DB.trades}#->groupBy(~[desk], ~[total: r|$r.id :"
-                    + " y|$y->plus()])"));
+            changed.putAll(changes(c, s, "every", "every", "|#>{local::DB.every}#"));
+            changed.putAll(changes(c, s, "trades", "sum", "|#>{local::DB.trades}#->groupBy(~[desk], ~[total: r|$r.id"
+                    + " : y|$y->plus()])"));
+            changed.putAll(changes(c, s, "trades", "dsum", DECIMAL_SUM));
             // measured 2026-11-12: until the ruling, a map of the rows' Pure types made 14 of them differ (the smaller
             // integers, FLOAT, the coarser and the nanosecond timestamps, a zoned one, UBIGINT, HUGEINT, a sum's HUGEINT)
             assertEquals(Map.of(), changed, "the made types beside today's");
         }
     }
 
-    /** {@code rows} over {@code source}: each column whose created type differs from today's, {@code today -> made}. */
-    private static Map<String, String> changes(Connection c, Statement s, String source, String rows) throws Exception {
-        Map<String, Object> request = request(c, source, "made_" + source, "create", rows, null, false);
+    /** A sum of decimals: a plain Decimal, of no stated precision and scale. */
+    private static final String DECIMAL_SUM = "|#>{local::DB.trades}#->groupBy(~[desk], ~[total: r|$r.amount :"
+            + " y|$y->plus()])";
+
+    /** A computed plain-Decimal column, which a declared column could not name, is made as the database types it (the
+     *  orchestrator's proposal, 2026-11-12: the create carries the data, so no column is declared or refused). */
+    @Test
+    void aPlainDecimalSumIsMade() throws Exception {
+        try (Connection c = withTrades()) {
+            Map<String, Object> request = request(c, "trades", "totals", "create", DECIMAL_SUM, null, false);
+            com.legend.json.Json.Obj sources = com.legend.json.Json.parseObject(planner.Boundary.tableModel(
+                    com.legend.json.Json.toCompact(Map.of("databaseType", "DuckDB", "tables", request.get("tables")))));
+            com.legend.compiler.element.type.Type total = com.legend.plan.UpstreamRelationType.columns(
+                    com.legend.Compiler.query(com.legend.Compiler.compileModel(sources.getString("model")), DECIMAL_SUM)
+                            .resultType()).get(1).type();
+            assertTrue(!(total instanceof com.legend.compiler.element.type.Type.PrecisionDecimal)
+                    && com.legend.plan.UpstreamRelationType.typePath(total).equals("Decimal"), String.valueOf(total));
+            assertEquals(2, run(c, plan(request)));
+            assertEquals(List.of(List.of("FX", "15.50"), List.of("Rates", "20.25")),
+                    rows(c, "SELECT desk, total FROM totals ORDER BY desk"));
+        }
+    }
+
+    /** {@code rows} over {@code source}, made as {@code made_<label>} beside today's {@code today_<label>}: each column
+     *  whose made type differs from today's, {@code today -> made}. */
+    private static Map<String, String> changes(Connection c, Statement s, String source, String label, String rows)
+            throws Exception {
+        Map<String, Object> request = request(c, source, "made_" + label, "create", rows, null, false);
         run(c, plan(request));
         // today's: the database's own CREATE of the rows' statement, LIMIT 0 (the host operation a query fed)
         com.legend.json.Json.Obj model = com.legend.json.Json.parseObject(planner.Boundary.tableModel(
                 com.legend.json.Json.toCompact(Map.of("databaseType", "DuckDB", "tables", request.get("tables")))));
         String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(model.getString("model")),
                 rows + "->limit(0)").plan(model.getString("runtime")).sql();
-        s.execute("CREATE TABLE today_" + source + " AS " + sql);
+        s.execute("CREATE TABLE today_" + label + " AS " + sql);
         Map<String, String> today = new LinkedHashMap<>();
-        for (Map<String, Object> col : catalog(c, "today_" + source)) {
+        for (Map<String, Object> col : catalog(c, "today_" + label)) {
             today.put(((String) col.get("name")).toLowerCase(java.util.Locale.ROOT), (String) col.get("dataType"));
         }
         Map<String, String> out = new LinkedHashMap<>();
-        for (Map<String, Object> col : catalog(c, "made_" + source)) {
+        for (Map<String, Object> col : catalog(c, "made_" + label)) {
             String was = today.get(((String) col.get("name")).toLowerCase(java.util.Locale.ROOT));
             if (!col.get("dataType").equals(was)) {
-                out.put(source + "." + col.get("name"), was + " -> " + col.get("dataType"));
+                out.put(label + "." + col.get("name"), was + " -> " + col.get("dataType"));
             }
         }
         return out;
