@@ -217,6 +217,8 @@ test_suite(
 test_suite(
     name = "warehouse",
     tests = [
+        # A THROWAWAY PROBE (2026-11-13, reverted in the commit after it): mini-racer's V8 on the new Linux image
+        "//python:v8_probe_test",
         ":warehouse_jvm",
         "//warehouse:tests_native",
         # the compiler as a native shared library (//native:compiler, built here as the warehouse's image is), through
