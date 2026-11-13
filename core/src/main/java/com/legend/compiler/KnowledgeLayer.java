@@ -377,9 +377,16 @@ public final class KnowledgeLayer {
         return columnKind(db, table, col, new java.util.HashSet<>());
     }
 
+    /** One step of a {@link #columnKind} walk: the column's database, table (or view) spelling and name, compared as
+     * a triple. Keyed on the joined text {@code db + "@" + table + "." + col} until 2026-11-13 (the names fixes, item 13,
+     * docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28), two triples that join alike were one step: a schema view's
+     * {@code S.V} column {@code c} and a top-level view {@code S}'s quoted column {@code V.c}. */
+    private record ColumnStep(String db, String table, String col) {
+    }
+
     private @com.legend.base.Nullable String columnKind(String db, String table, String col,
-            java.util.Set<String> seen) {
-        if (!seen.add(db + "@" + table + "." + col)) {
+            java.util.Set<ColumnStep> seen) {
+        if (!seen.add(new ColumnStep(db, table, col))) {
             return null;
         }
         DatabaseDefinition.ColumnDefinition cd = column(db, table, col).orElse(null);

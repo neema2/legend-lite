@@ -239,4 +239,80 @@ class KnowledgeLayerTest {
         assertEquals("DateTime", k.columnKind("w::Top", "LOCAL", "WHEN_"));
         assertEquals(null, k.columnKind("w::Base", "DeptView", "nope"));
     }
+
+    /** The names fixes, item 13 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): {@code columnKind}'s
+     * walk keys each step on its (database, table, column) triple. A schema view {@code S.V}'s column {@code c} reading
+     * a top-level view {@code S}'s column {@code V.c} is two steps; the joined text {@code a::Db@S.V.c} made them one
+     * and the walk answered nothing. A text cannot name that column (a dotted name is quoted, and a definition keeps
+     * its quotes where a reference drops them); a model given as protocol records can, so the column is renamed as such
+     * a model carries it. */
+    @Test
+    @DisplayName("kernel: the column-kind walk keys each step on its triple")
+    void columnKindWalkKeysEachStepOnItsTriple() {
+        ParsedModel parsed = NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, X VARCHAR(10))
+                  View S (Vc: T.X)
+                  Schema S ( View V (c: default.S."V.c") )
+                )
+                """));
+        List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
+        for (com.legend.model.PackageableElement el : parsed.elements()) {
+            if (el instanceof com.legend.model.DatabaseDefinition db) {
+                List<com.legend.model.DatabaseDefinition.ViewDefinition> views = new java.util.ArrayList<>();
+                for (com.legend.model.DatabaseDefinition.ViewDefinition v : db.views()) {
+                    if (!v.name().equals("S")) {
+                        views.add(v);
+                        continue;
+                    }
+                    List<com.legend.model.DatabaseDefinition.ViewDefinition.ViewColumnMapping> cms =
+                            new java.util.ArrayList<>();
+                    for (var cm : v.columnMappings()) {
+                        cms.add(new com.legend.model.DatabaseDefinition.ViewDefinition.ViewColumnMapping(
+                                "V.c", cm.targetSetId(), cm.expression(), cm.primaryKey()));
+                    }
+                    views.add(new com.legend.model.DatabaseDefinition.ViewDefinition(v.name(), v.filter(),
+                            v.groupByColumns(), v.distinct(), cms));
+                }
+                el = new com.legend.model.DatabaseDefinition(db.qualifiedName(), db.includes(), db.schemas(),
+                        db.tables(), views, db.tabularFunctions(), db.joins(), db.filters(), db.multiGrainFilters());
+            }
+            elements.add(el);
+        }
+        KnowledgeLayer k = ModelBuilder.from(new ParsedModel(elements, parsed.imports())).knowledge();
+        assertEquals("String", k.columnKind("a::Db", "S", "V.c"));
+        assertEquals("String", k.columnKind("a::Db", "S.V", "c"), "two triples that join alike are two steps");
+    }
+
+    /** The names fixes, item 8 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 29): the type inference
+     * refuses a view-on-view cycle by name, worded as {@code ViewSignatures}' own refusal -- a computed column whose
+     * expression reaches its own view through a column reference recursed until {@code StackOverflowError}. One column
+     * read twice side by side is no cycle. */
+    @Test
+    @DisplayName("kernel: the type inference refuses a view-on-view cycle by name")
+    void typeInferenceRefusesAViewCycleByName() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10))
+                  View P (A: concat(Q.B, 'x'))
+                  View Q (B: concat(P.A, 'y'))
+                  View R (C: concat(T.S, T.S), D: concat(R2.E, R2.E))
+                  View R2 (E: concat(T.S, 'z'))
+                )
+                """)));
+        KnowledgeLayer k = ix.knowledge();
+        ModelException e = assertThrows(ModelException.class, () -> k.columnKind("a::Db", "P", "A"));
+        assertEquals(LegendCompileException.Phase.MODEL, e.phase());
+        assertEquals("view 'Q' of 'a::Db' reads its own columns (cyclic view-on-view chain)", e.getMessage());
+        com.legend.model.DatabaseDefinition db = ix.findDatabase("a::Db").orElseThrow();
+        com.legend.model.RelationalOperation q = ix.findView("a::Db", "Q").orElseThrow().columnMappings().get(0)
+                .expression();
+        ModelException e2 = assertThrows(ModelException.class,
+                () -> com.legend.compiler.element.RelationalTypeInference.infer(q, db, ix));
+        assertEquals("view 'P' of 'a::Db' reads its own columns (cyclic view-on-view chain)", e2.getMessage());
+        assertEquals("String", k.columnKind("a::Db", "R", "C"));
+        assertEquals("String", k.columnKind("a::Db", "R", "D"), "one column read twice side by side is no cycle");
+    }
 }
