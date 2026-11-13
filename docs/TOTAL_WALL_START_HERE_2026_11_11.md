@@ -1031,6 +1031,18 @@ In order. Nothing here is in the A/B/C PR.
        step 4 is the tab's engine behind `Engine` in-thread (no Worker move); O7 is its last step.
      - **O9, one PR per stream** (foolproof, D, E, DataCube), each on its own branch, started now; nothing lands
        before A/B/C; the plan format's number goes to D first, then E. Register rows: D takes S308-S339, E S340 on.
+   - **Found 2026-11-13, owners to assign (nothing lost):**
+     - **A run that plans (G4), Python:** `frames.Reading.execute` re-pins a failed read's cursor through `_pin` ->
+       `_host.count` -> `compiler.host_operations`, planning inside the read's run. Found by C4's witness; the one
+       entry of `_runframe.EXEMPTIONS` (shrink-only). The fix (delete the re-pin, or plan it ahead) is the user's
+       ruling, pending C4's facts.
+     - **The model printer cannot print a DuckDB connection** ("required field 'path' is absent",
+       `grammar/jsonToGrammar/model`): DataCube's R3a keeps the planner's own Connection and Runtime as text because of
+       it.
+     - **Two manual benchmark targets do not compile on main:** `seam_benchmark` and `seam_benchmark_small_heap`
+       (`com.legend.testbackend` missing from their deps); no lane builds them.
+     - **Main was red before the A/B/C merge:** the run on c4a39e06d (PR #94's merge, 2026-11-09) concluded failure;
+       the merge commit's run is the first verdict since.
 4. **The plan format's version, renumbered after main:** D merges main and takes the next number, then E takes the one
    after.
 5. **D3, engine plans in and out.** This also restores Snap for grids an engine plans: ruled 2026-11-13, the demo's
